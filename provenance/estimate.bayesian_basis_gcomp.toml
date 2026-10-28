@@ -40,4 +40,41 @@ test_sources = [
  "crates/antecedent/src/analysis/execute/bayesian_basis_path.rs (staged scope refusals)",
  "conformance/bayesian/shared_functional_ate (known-truth ATE fixture shared with the Bayesian g-computation family)",
  "python/tests/test_bayesian_estimator_lifecycle.py",
+ "crates/antecedent-learn/tests/bayesian_basis_reference.rs (exact Student-t moments of the ATE, row effects and control outcomes for the quadratic basis)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "BayesianBasisGComputation::fit of crates/antecedent-learn/src/bayesian_basis.rs: the quadratic basis (1, t, z_j, t z_j, z_j^2) and its column order, the isotropic prior scaled by the residual variance with the weakly informative Inv-Gamma(1e-3, 1e-3) residual prior (prior_sd), and the pushforward of each shared coefficient draw through the fitted surface at t = 0 and t = 1 into the control outcome, the row effect b_t + sum_j b_tz_j z_j and the ATE averaged over the observed rows. The conjugate Normal-Inverse-Gamma posterior algebra and draw generation are not re-reviewed here: they rest on the completed review of prob.conjugate_gaussian (crates/antecedent-prob/src/conjugate.rs); what this record adds is the route-specific arithmetic named in its scope, compared with its own exact reference. Not the refusal paths for unlicensed populations and non-binary treatment (pinned by the crate's existing tests), the known-variance basis regression in bayesian_basis_regression.rs, the staged route, or coverage."
+assumptions = ["Gaussian identity link with independent homoskedastic errors; every basis coefficient, including the intercept, has the same prior scale; the empirical covariate distribution is fixed.", "Each draw is shared across all rows and both treatment levels, so row and ATE draws are the same coefficient draws pushed through the surface; the exact reference gives the mean and sd of any linear functional a'b of the Student-t coefficient vector."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with the exact multivariate Student-t moments of linear functionals of the coefficient posterior written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Two 48-row, two-covariate designs (prior sd 2 and 8; eight basis columns), 80,000 draws: the ATE, and the row effect and control outcome at seven rows, have mean within five Monte Carlo standard errors and sd within 8/sqrt(draws) relative error of the exact values. One and three covariates, a misspecified basis and treatment-heterogeneous noise are not compared with a reference, and the repeated-sampling coverage check in the crate's existing test is separate evidence not part of this review."
+sources = ["https://doi.org/10.1201/b16018", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The basis layout and prior scale are right: ATE mean and sd (1.7407 and 0.0696 at prior sd 2) and every tested row's effect and control-outcome moments equal the exact posterior functionals.", "The ATE draws average the row effects over the observed rows, and the reported ATE mean equals the mean of the ATE draws.", "No product defect was found in this record."]
+record_sha256 = "18a95e04e7e8a5fbe7754985579beda58ce9e81b6b695b01253bdf643fb2787b"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-learn/src/bayesian_basis.rs"
+sha256 = "ff5876040f381e0e4a3fb2dea363ecd55305bd5dec2aa717a52113196d15cac5"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-prob/src/conjugate.rs"
+sha256 = "70fa36f8e8ed0b6b09e0d39e152fbfddaf7f64af0c367115aa7e36fcae534992"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-learn/tests/bayesian_basis_reference.rs"
+sha256 = "06358c1823e61f268de167d683759d233a7c60ad80202fe011ad1143197a9032"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-learn/tests/oracle_data/bayesian_basis_reference.py"
+sha256 = "77c656aa1c6705045db299c9b89009517b49647c3f974789be51149ba31989db"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-learn/tests/oracle_data/bayesian_basis_reference.json"
+sha256 = "0f369d7be6797caf9d623c205bb8acee061cc58ebaba66072b26e627c405a8c2"

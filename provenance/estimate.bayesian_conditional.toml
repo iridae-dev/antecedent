@@ -7,4 +7,40 @@ copied_tests = false
 papers = [{ title = "Bayesian Data Analysis", sections = ["Gaussian regression; posterior functionals"] }]
 upstream_implementations_observed = []
 implementation_deviations = ["Independent Gaussian response regression with centered treatment-by-modifier interaction and AllObserved standardization. The empirical modifier distribution is fixed; no Bayesian forest or conditional-surface claim.", "Posterior inference reuses the in-repository conjugate, Laplace or HMC backend. Only GaussianIdentity is licensed; nonlinear links require integrating interactions under intervention."]
-test_sources = ["conformance/bayesian/conditional_effect", "python/tests/test_posterior_moments.py"]
+test_sources = ["conformance/bayesian/conditional_effect", "python/tests/test_posterior_moments.py", "crates/antecedent-estimate/tests/bayesian_conditional_reference.rs (exact Student-t coefficient covariance plus the Dirichlet modifier-mean variance of the average contrast)"]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The posterior of the Bayesian conditional-effect contrast fitted by BayesianGComputationAte on the design y ~ 1 + t + w + t (w - wbar) (one modifier, interaction centred at the observed modifier mean): the treatment coefficient as the average contrast, the exact conjugate coefficient covariance, and add_modifier_mean_uncertainty, which replaces each effect draw by the Dirichlet(1, ..., 1)-weighted average of the row contrasts b + d (w_i - wbar). The conjugate Normal-Inverse-Gamma posterior algebra and draw generation are not re-reviewed here: they rest on the completed review of prob.conjugate_gaussian (crates/antecedent-prob/src/conjugate.rs), whose Bayes-rule and replication checks this record relies on; what this record adds is the route-specific arithmetic named in its scope, compared with its own exact reference. The design is built in the test exactly as prepare_conditional documents it, so prepare_conditional itself (admission, centring, naming, several modifiers, adjustment columns) is not executed here. Not the conditional-effect curve, nonlinear links, or any calibration."
+assumptions = ["Gaussian identity link with independent homoskedastic errors and the conjugate Normal-Inverse-Gamma prior (coefficient scale c0, Inv-Gamma(1e-3, 1e-3)).", "The empirical modifier distribution is re-weighted with Dirichlet(1, ..., 1) weights independent of the coefficient draws, so E[effect] = E[b] and Var(effect) = Var(b) + (Var(d) + E[d]^2) Var(eps), Var(eps) = (population variance of the centred modifier) / (n + 1)."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with an exact Normal-Inverse-Gamma covariance and a closed-form Dirichlet variance written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Two designs (80 rows with a strong interaction and a wide prior; 60 rows with no interaction and a tight prior, where the modifier term is about 3% of the variance), 300,000 draws; the mean is asserted within five Monte Carlo standard errors and the sd within 8/sqrt(draws) relative error, and the extra variance is shown to be real (the sd exceeds the coefficient-only sd). Only one modifier is exercised; the joint-modifier vector generalization, and the weights being shared across modifiers, are not compared with a reference. The Dirichlet variance formula is the closed form for equal concentrations; the sampler's weights are not separately tested here."
+sources = ["https://doi.org/10.1201/b16018", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The posterior mean of the reported effect equals the treatment coefficient's exact mean, and its sd equals the exact sqrt(Var(b) + (Var(d) + E[d]^2) Var(eps)) on both designs (0.1144 against a coefficient-only 0.0427 on the heterogeneous design), so the modifier-distribution term is neither missing nor double counted.", "No product defect was found in this record."]
+record_sha256 = "028f44b37215ae9df258d9008c05d1fa79e1ec454644886d6badbe42e45fab8d"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/bayesian/gcomp.rs"
+sha256 = "4f75e10ed8efe20961d9b06ccaf65f682b40505d38158d7683379e27ffbb6897"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-prob/src/conjugate.rs"
+sha256 = "70fa36f8e8ed0b6b09e0d39e152fbfddaf7f64af0c367115aa7e36fcae534992"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/bayesian_conditional_reference.rs"
+sha256 = "e1ff6e3d9f484ff3c6d8c6fe8371e533d855abd9452927decc9670880ed5e608"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/bayesian_conditional_reference.py"
+sha256 = "7c4194a7b9ab31ed5c94e037aa5b02ac68b6c866943fdb93d746344ea66aa086"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/bayesian_conditional_reference.json"
+sha256 = "adeec8c444f04783c67f6c36c6f452fb8ee9103a9ba75b37e10bb7b10e6ec29f"

@@ -20,4 +20,41 @@ upstream_implementations_observed = []
 
 test_sources = [
   "crates/antecedent/tests/bayesian_arm_effect_routes.rs",
+  "crates/antecedent-estimate/tests/history_outcome_model_reference.rs (exact Student-t posterior of the period-adjusted effect on the treated, the dropped one-armed period and the weight and length refusals)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "prepare_history_outcome_model of crates/antecedent-estimate/src/history_outcome_model.rs fitted by the conjugate Bayesian g-computation: the history-mean score, the retention of periods that hold both arms and the reporting of treated units left out, the design (1, t, score, period indicators after the first kept period, t (score - treated mean score)) and its column order, the equal-weight and equal-length refusals, and the treatment coefficient as the model-based effect on the treated. The conjugate Normal-Inverse-Gamma posterior algebra and draw generation are not re-reviewed here: they rest on the completed review of prob.conjugate_gaussian (crates/antecedent-prob/src/conjugate.rs); what this record adds is the route-specific arithmetic named in its scope, compared with its own exact reference. Not the history-matched contrast (estimate.history_match), the Bayesian refusal of a matching posterior, or temporal identification."
+assumptions = ["Within a calendar period the outcome is linear in the history-mean score with a treatment shift and a treated-mean-centred interaction, with independent homoskedastic Gaussian errors; the model's linearity and period effects carry the confounding adjustment, which the caller must own.", "Sampling weights must be equal; a precision-weighted fit would misstate the posterior and is refused."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with an exact Normal-Inverse-Gamma posterior evaluated in 40-digit arithmetic written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "One 75-unit design with three kept periods (72 fitted rows, 31 treated) and three treated units in a one-armed period that are left out; the fitted coefficient mean is within five Monte Carlo standard errors and the sd within 8/sqrt(draws) of the exact Student-t values (300,000 draws), prior scale 10 only. Different history lengths and unequal weights are refused. Not exercised: a single kept period, a period with a single control, tied scores, the tempered or random-intercept variants, or sampling-weighted fits."
+sources = ["https://doi.org/10.1201/b16018", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The design layout, the treated-mean centring and the period dropping are right: the effect on the treated has the exact posterior mean (1.7736) and sd (0.0448) of the reference, with the three treated units of the one-armed period reported and the row, treated-row and period counts as expected.", "Unequal sampling weights and mismatched history lengths are refused.", "No product defect was found in this record."]
+record_sha256 = "ee2e8a994e38f36950938515e9c49404daaa12fb6fecc2292f3050f3177feacf"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/history_outcome_model.rs"
+sha256 = "3898c3c7d40a185746cfeec7917a5caaeffd403ee0708983ca45e1e9f27eb50a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-prob/src/conjugate.rs"
+sha256 = "70fa36f8e8ed0b6b09e0d39e152fbfddaf7f64af0c367115aa7e36fcae534992"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/history_outcome_model_reference.rs"
+sha256 = "aa3bdc29136ffd417f3e7bcd45f0a31cdea9de8c9f3ef8e139ff6d2512c0df37"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/history_outcome_model_reference.py"
+sha256 = "e22cea3c7206fbb5180ba750d2ff5067a5296cd5d35adc0eb192b1b14e561300"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/history_outcome_model_reference.json"
+sha256 = "9c95167b7194ec445c14450566423e653aebb30309f6fe802f02f701b72a36a9"

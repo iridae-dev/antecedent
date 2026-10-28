@@ -24,4 +24,41 @@ test_sources = [
  "independently generated synthetic binary-outcome SCM with known sign of the treatment effect",
  "conformance/estimate/glm_adjustment (known-truth recovery fixture carrying an unasserted recorded DoWhy run from the pinned baseline in parity/baselines/dowhy.toml)",
  "conformance/estimate/glm_adjustment_grid (direct statsmodels 0.14.4 coefficient and empirical g-computation oracle)",
+ "crates/antecedent-estimate/tests/glm_adjustment_reference.rs (40-digit Fisher scoring, g-computation contrast and delta-method standard error for logit, probit and Poisson)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "GlmAdjustmentAte::fit (no bootstrap) on a prepared main-effects design for the binomial-logit, binomial-probit and Poisson-log families: the IRLS maximum-likelihood fit, the observed-row g-computation contrast mean(m(x(active)'b) - m(x(control)'b)), and the delta-method standard error sqrt(g' I^-1 g) from the expected Fisher information at the estimate; and that the reported effect is the response-scale contrast, not the link-scale treatment coefficient. Not the separation ridge, negative-binomial dispersion, sampling-weighted fits, treated or untreated target populations, sandwich and cluster covariances, or the bootstrap."
+assumptions = ["The outcome follows the declared GLM family with the declared link and the main-effects linear predictor; the contrast averages over the observed rows and treats them as fixed.", "The delta-method variance uses the expected information and the covariates' empirical distribution as fixed, so it is the model-based variance conditional on the covariates."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with a 40-digit Fisher-scoring fit and delta-method variance written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Three designs of 140 to 160 rows with two covariates (logit and probit on deterministic binary outcomes of mean one half, Poisson on deterministic counts averaging 1.8), effect and standard error compared to 1e-6 relative (IRLS stops at the default tolerance). Not exercised: separated or near-separated fits where the default applies a 1e-4 ridge that changes the estimator, rare outcomes, extreme leverage, negative binomial, offsets, and larger covariate sets; the cited GLM text and the econometrics text were not retrieved."
+sources = ["https://doi.org/10.1201/9780203753736", "https://doi.org/10.1515/9781400829828", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The IRLS fit and the g-computation contrast equal the 40-digit maximum-likelihood contrast for logit, probit and Poisson; the delta-method standard error equals sqrt(g' I^-1 g) with the gradient of the contrast.", "The reported effect differs from the link-scale treatment coefficient (for example 0.257 against 1.891 for the logit design), so a coefficient is not mistaken for the marginal effect.", "No product defect was found in this record."]
+record_sha256 = "78e9d54cda875d51a1a5874e22232b42d1fdc8083d2bd485f95a3c81f526beca"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/glm_adjustment.rs"
+sha256 = "5482091fc4745531d379b1fda1328aec16b9f4799c23501c1c39ff3a077a5c57"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/glm_adjustment/variance.rs"
+sha256 = "219fc144d5da0677977a03fa77048a5cc2a06d4d5ab84472c7155e38be6f5561"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/glm_adjustment_reference.rs"
+sha256 = "b981fd7cd92f586e9df5f4e752c044c239c9a201a44d38e51747185206cf2509"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/glm_adjustment_reference.py"
+sha256 = "528e499bbb5e0c84d5e8291ee702ff5d77fa206c95cea47a6dd172475d1fae2e"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/glm_adjustment_reference.json"
+sha256 = "5541321579876e5d3375dbe75897ba6bef3de2f6e72dce63366186f240ed76b2"

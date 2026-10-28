@@ -24,4 +24,36 @@ test_sources = [
  "crates/antecedent-estimate/src/bayesian/gcomp.rs (BayesianTemporalGcomp)",
  "crates/antecedent/tests/bayesian.rs (lag-aligned prepare then BayesianTemporalGcomp::fit)",
  "conformance/bayesian/temporal_pulse",
+ "crates/antecedent-estimate/tests/bayesian_gaussian_gcomp_reference.rs (the_temporal_wrapper_is_the_same_fit_on_the_same_design: bit-identical to the inner estimator, which matches the exact posterior)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "BayesianTemporalGcomp (new, conjugate, with_inner, fit): the wrapper that fits a lag-aligned Bayesian problem through BayesianGComputationAte. The numbers it publishes are those of estimate.bayesian_gcomp, whose Gaussian posterior is reviewed against an exact Normal-Inverse-Gamma reference in the same test file; this record's own check is that the wrapper adds, drops or reorders nothing: on the same prepared design and seed its effect mean, sd and interval ends and draw count are bit-identical to the inner estimator's, whose values equal the exact reference. Not TemporalLinearAdjustment::prepare (the lag alignment and its sample), BayesianTemporalGcomp::from_prepared_estimation (the conversion of a frequentist lag-aligned design), or the long-run-variance tempering of serially dependent rows, which are not exercised."
+assumptions = ["The lag-aligned rows are the caller's declared sample; the wrapper does not temper, block-resample or otherwise treat serial dependence (a prepared problem carries its own SerialDependence setting, Iid in the reference run).", "The inner Bayesian g-computation assumptions of estimate.bayesian_gcomp apply unchanged."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with an exact Normal-Inverse-Gamma posterior evaluated in 40-digit arithmetic and a bit-for-bit comparison with the inner estimator written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "One adjusted 48-row design with a tight prior, compared bit-for-bit with the inner estimator and, through the shared test file, with the exact reference. The design is an ordinary cross-sectional main-effects design standing in for a lag-aligned one, because the wrapper does not look at the lags: no serial dependence, tempering, gapped series or multi-horizon design is exercised, and no claim is made about temporal identification or calibration under serial dependence, which the record's deviations already state."
+sources = ["https://doi.org/10.1201/b16018", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["BayesianTemporalGcomp::fit is a pure delegation: effect mean, sd, 2.5% and 97.5% quantiles and the draw count equal the inner estimator's exactly.", "The shared Gaussian posterior behind it equals the exact conjugate reference (see estimate.bayesian_gcomp).", "No product defect was found in this record."]
+record_sha256 = "60008ee03b99f44346b6740fa9bf6b297e9dc5d7038129ae9da2cfce30ecc1f5"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/bayesian/gcomp.rs"
+sha256 = "4f75e10ed8efe20961d9b06ccaf65f682b40505d38158d7683379e27ffbb6897"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/bayesian_gaussian_gcomp_reference.rs"
+sha256 = "4355b3540f12ad32989ed612a8009d53150cf1b41ecc65eb2afafde00da0e03b"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/bayesian_gaussian_gcomp_reference.py"
+sha256 = "2d16fcf9612e1b56c92952af16d1106880d0551623f6c97abce918f4d9ca07d3"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/bayesian_gaussian_gcomp_reference.json"
+sha256 = "0b006b9e44eedb3ea15c9f2798e7e86bccbc8fa6fdf8b37a8339b9da220027bd"

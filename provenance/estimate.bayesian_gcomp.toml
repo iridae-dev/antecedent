@@ -22,4 +22,41 @@ test_sources = [
  "nonidentified_with_prior preserves IdentificationStatus",
  "conformance/bayesian/shared_functional_ate",
  "conformance/bayesian/nonidentified_prior",
+ "crates/antecedent-estimate/tests/bayesian_gaussian_gcomp_reference.rs (exact Normal-Inverse-Gamma and known-variance Normal posterior of the adjusted treatment coefficient: mean, sd and interval ends for four designs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "BayesianGComputationAte::fit for a GaussianIdentity outcome on a single-time-point main-effects design (intercept, treatment, adjustment columns): the default constructor, whose unknown-variance Gaussian model is routed to the exact conjugate posterior, and the conjugate constructor; the isotropic N(0, prior_scale^2) coefficient prior scaled by the residual variance with the weakly informative Inv-Gamma(1e-3, 1e-3) residual prior, or a declared known residual variance; and the g-computation effect (active - control) b_t averaged over the observed rows, with its draw mean, sd and equal-tailed 95% interval. The conjugate Normal-Inverse-Gamma posterior algebra and draw generation are not re-reviewed here: they rest on the completed review of prob.conjugate_gaussian (crates/antecedent-prob/src/conjugate.rs), whose Bayes-rule and replication checks this record relies on; what this record adds is the route-specific arithmetic named in its scope, compared with its own exact reference. Not the Laplace and HMC backends for non-Gaussian likelihoods (the Laplace Bernoulli and Poisson contrasts are compared with Beta and Gamma closed forms in bayesian_glm_gcomp_posterior.rs and rest on the prob.laplace_glm review), not treatment interactions or conditional effects, serial-dependence tempering, random intercepts, prior hydration, adaptive draw counts, or how a facade route prepares the design."
+assumptions = ["Within the declared main-effects linear model the outcome has independent homoskedastic Gaussian errors; the coefficient prior is N(0, s2 c0^2 I) (c0 the prior scale) and s2 ~ Inv-Gamma(1e-3, 1e-3), or s2 is the declared value.", "The effect functional standardizes over the observed covariate rows and treats them as fixed, so for a main-effects design the effect is exactly the treatment coefficient scaled by the active-minus-control gap (here 1).", "Accuracy is stated against the exact 40-digit Student-t (or Normal) marginal of the treatment coefficient, not against repeated-sampling coverage."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with an exact Normal-Inverse-Gamma posterior evaluated in 40-digit arithmetic written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Four 48-row designs (two adjustment columns with a tight and a default prior, a treatment-only design, and a declared known variance on one adjustment column; prior scales 0.8 to 10), 400,000 draws. The mean is asserted within five Monte Carlo standard errors, the draw sd within 8/sqrt(draws) relative error and the interval ends within 3% of the posterior sd of the exact quantiles. Not exercised: an active-minus-control gap other than one, designs far from the prior scale or ill conditioned, the Laplace backend with a known variance (its adaptive Gaussian redraws), and the Student-t tails beyond the 2.5% and 97.5% points. The route's coverage is a separate matter: the in-module calibration tests (nominal 90% conjugate coverage) are not part of this review."
+sources = ["https://doi.org/10.1201/b16018", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The default estimator (Gaussian identity, unknown variance) returns the exact conjugate posterior: on the adjusted 48-row design the effect mean is 2.05698 and sd 0.12659 against the exact 2.056977 and 0.126588, with the exact Student-t 2.5% and 97.5% points 1.80781 and 2.30614.", "The conjugate constructor with a tight prior, the treatment-only design and the declared-known-variance Normal posterior all agree with their exact references; scaling the prior moves the posterior mean away from the least-squares coefficient exactly as the ridge-form algebra says.", "No product defect was found in this record."]
+record_sha256 = "c77e3c09f45d47bf351e9f8a12f24ee9f215390e1e63b77d4b624d627f04c8fe"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/bayesian/gcomp.rs"
+sha256 = "4f75e10ed8efe20961d9b06ccaf65f682b40505d38158d7683379e27ffbb6897"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-prob/src/conjugate.rs"
+sha256 = "70fa36f8e8ed0b6b09e0d39e152fbfddaf7f64af0c367115aa7e36fcae534992"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/bayesian_gaussian_gcomp_reference.rs"
+sha256 = "4355b3540f12ad32989ed612a8009d53150cf1b41ecc65eb2afafde00da0e03b"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/bayesian_gaussian_gcomp_reference.py"
+sha256 = "2d16fcf9612e1b56c92952af16d1106880d0551623f6c97abce918f4d9ca07d3"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/bayesian_gaussian_gcomp_reference.json"
+sha256 = "0b006b9e44eedb3ea15c9f2798e7e86bccbc8fa6fdf8b37a8339b9da220027bd"

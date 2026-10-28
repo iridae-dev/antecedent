@@ -18587,3 +18587,101 @@ crate = "antecedent-stats"
 cargo_target = "cox_ipcw_reference"
 path = "crates/antecedent-stats/tests/cox_ipcw_reference.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "bayesian-gaussian-gcomp-reference"
+crate = "antecedent-estimate"
+cargo_target = "bayesian_gaussian_gcomp_reference"
+path = "crates/antecedent-estimate/tests/bayesian_gaussian_gcomp_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "white-innovation-ljung-box-reference"
+crate = "antecedent-estimate"
+cargo_target = "white_innovation_ljung_box_reference"
+path = "crates/antecedent-estimate/tests/white_innovation_ljung_box_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "bayesian-iv-reference"
+crate = "antecedent-estimate"
+cargo_target = "bayesian_iv_reference"
+path = "crates/antecedent-estimate/tests/bayesian_iv_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "lagged-instrument-ratio-reference"
+crate = "antecedent-estimate"
+cargo_target = "lagged_instrument_ratio_reference"
+path = "crates/antecedent-estimate/tests/lagged_instrument_ratio_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "bayesian-mediation-reference"
+crate = "antecedent-estimate"
+cargo_target = "bayesian_mediation_reference"
+path = "crates/antecedent-estimate/tests/bayesian_mediation_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "bayesian-conditional-reference"
+crate = "antecedent-estimate"
+cargo_target = "bayesian_conditional_reference"
+path = "crates/antecedent-estimate/tests/bayesian_conditional_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "bayesian-interference-reference"
+crate = "antecedent-estimate"
+cargo_target = "bayesian_interference_reference"
+path = "crates/antecedent-estimate/tests/bayesian_interference_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "history-outcome-model-reference"
+crate = "antecedent-estimate"
+cargo_target = "history_outcome_model_reference"
+path = "crates/antecedent-estimate/tests/history_outcome_model_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "envelope-reference"
+crate = "antecedent-estimate"
+cargo_target = "envelope_reference"
+path = "crates/antecedent-estimate/tests/envelope_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "linear-adjustment-reference"
+crate = "antecedent-estimate"
+cargo_target = "linear_adjustment_reference"
+path = "crates/antecedent-estimate/tests/linear_adjustment_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "glm-adjustment-reference"
+crate = "antecedent-estimate"
+cargo_target = "glm_adjustment_reference"
+path = "crates/antecedent-estimate/tests/glm_adjustment_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "bayesian-synthetic-control-reference"
+crate = "antecedent-estimate"
+cargo_target = "bayesian_synthetic_control_reference"
+path = "crates/antecedent-estimate/tests/bayesian_synthetic_control_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "identified-set-reference"
+crate = "antecedent-stats"
+cargo_target = "identified_set_reference"
+path = "crates/antecedent-stats/tests/identified_set_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "bayesian-basis-reference"
+crate = "antecedent-learn"
+cargo_target = "bayesian_basis_reference"
+path = "crates/antecedent-learn/tests/bayesian_basis_reference.rs"
+gates = ["inventory", "named"]

@@ -24,4 +24,41 @@ test_sources = [
   "crates/antecedent/src/analysis/white_innovation_window.rs",
   "crates/antecedent/tests/white_innovation_route.rs",
   "python/tests/test_white_innovation_route.py",
+  "crates/antecedent-estimate/tests/white_innovation_ljung_box_reference.rs (40-digit Ljung-Box statistic and chi-square p-value, the refusal threshold at the reference p-value, and the untempered conjugate posterior after a passing gate)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "crates/antecedent-estimate/src/white_innovation_posterior.rs: the Ljung-Box gate (innovation_whiteness_of and its residual autocorrelations r_k, statistic Q = n (n + 2) sum r_k^2 / (n - k) and chi-square upper-tail p-value on m degrees of freedom, computed from least-squares residuals), the refusal when p < level, the single-step horizon and Gaussian-likelihood refusals, the invalid-gate refusals, and fit_white_innovation_posterior's untempered Iid conjugate fit once the gate passes. The conjugate Normal-Inverse-Gamma posterior algebra and draw generation are not re-reviewed here: they rest on the completed review of prob.conjugate_gaussian (crates/antecedent-prob/src/conjugate.rs), whose Bayes-rule and replication checks this record relies on; what this record adds is the route-specific arithmetic named in its scope, compared with its own exact reference. Not the lag alignment that produces the design, not whether the declared innovation premise is true (a pass proves nothing, as the record says), and not the tempered Pulse and Sustained posteriors."
+assumptions = ["The caller declares that the outcome innovation is Gaussian, serially independent and homoskedastic given the lag window and adjustment set; the gate can only refute, never establish, that premise.", "The residual statistic is computed from ordinary least-squares residuals of the design, with the uncentred sum of squares as denominator (the design carries an intercept, so the residuals have mean zero), and its degrees of freedom are the number of lags without a correction for fitted parameters; this is the documented approximate diagnostic.", "The fit that follows a passing gate is the Normal-Inverse-Gamma posterior with prior scale c0 and Inv-Gamma(1e-3, 1e-3)."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with a 40-digit least-squares, Ljung-Box and chi-square tail evaluation and an exact Normal-Inverse-Gamma posterior written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Four designs of 60 to 120 rows with 1, 4 and 12 lags (a persistent-error series, a periodic-shock series, a single-lag series and a twelve-lag series; p-values from 0.21 to 2e-24). Q is compared to 1e-9 relative and the p-value to 1e-7 relative, including a p-value near 1e-24. The refusal is checked to flip within 1% of the reference p-value on one design; the posterior after a passing gate is compared with the exact treatment-coefficient mean and sd (200,000 draws) on the single-lag design only. The residual autocorrelations of a regression that contains a lagged dependent variable are attenuated and the test has finite power; neither is a property this review can correct. Heteroskedastic or non-Gaussian innovations, gapped series and multi-step horizons beyond the refusal are not exercised."
+sources = ["https://doi.org/10.1093/biomet/65.2.297", "https://doi.org/10.1201/b16018", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The statistic and p-value equal the 40-digit reference to 1e-9 and 1e-7 relative on all four designs, so the chi-square tail is accurate far into the tail.", "The gate refuses exactly when the p-value is below the declared level (it passes at 0.99 p and refuses at 1.01 p of the reference), a horizon of two steps is refused, and a gate with zero lags, a level outside (0, 1), or too few rows is refused.", "A passing gate returns the untempered conjugate posterior of the treatment coefficient, equal to the exact reference.", "No product defect was found in this record."]
+record_sha256 = "80a28a35ece479a078dacddf0637e26051691189b57aa9e0f7933cd3f9a9ecb8"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/white_innovation_posterior.rs"
+sha256 = "6ab6bd8aee899fdb9e98f189ab1dcba1a676735d43ac64700d271186d7c2ade3"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/bayesian/gcomp.rs"
+sha256 = "4f75e10ed8efe20961d9b06ccaf65f682b40505d38158d7683379e27ffbb6897"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/white_innovation_ljung_box_reference.rs"
+sha256 = "5d8e87b4eda3ccdc6dbfd9ef92a31190206053be71474607e17f3995a2e54810"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/white_innovation_ljung_box_reference.py"
+sha256 = "bd9a864b4c97ae68eaaaaf04980a329267da9e4196bdaee9a19b9748ab08b5eb"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/white_innovation_ljung_box_reference.json"
+sha256 = "228965947175679b27370af3295fafdded1da4910a45e898580d62f9b22810da"

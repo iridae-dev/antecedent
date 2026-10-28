@@ -7,4 +7,40 @@ copied_tests = false
 papers = [{ title = "Bayesian Data Analysis", sections = ["Gaussian regression; posterior functionals"] }]
 upstream_implementations_observed = []
 implementation_deviations = ["Both mechanism regressions and all perturbation refits retain the union of graph-derived baseline parents, with their normalized temporal lags. Treatment-induced intermediate covariates require a larger path model and are refused.", "HMC composition is refused pending derived-contrast chain diagnostics; conjugate and Laplace mechanism composition are available.", "Independently fit Gaussian mediator and outcome mechanisms on common lag-aligned complete rows, then multiply independent mechanism draws. Direct, mediated and total quantities are retained per draw.", "One mediator, lag-one treatment, no treatment-mediator interaction, independent innovations and mechanism priors. Natural and controlled effects coincide only under these linear assumptions. Shared external coefficient-prior transfer is refused.", "Posterior mechanism diagnostics are conditional on observed regressors; no serially correlated innovation likelihood or general mediation model is claimed."]
-test_sources = ["conformance/bayesian/temporal_mediation", "python/tests/test_posterior_moments.py"]
+test_sources = ["conformance/bayesian/temporal_mediation", "python/tests/test_posterior_moments.py", "crates/antecedent-estimate/tests/bayesian_mediation_reference.rs (exact mean and sd of the independent-product mediated, direct and total quantities)"]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "compose_temporal_mediation (and compose_temporal_mediation_set for one mediator) of crates/antecedent-estimate/src/bayesian_mediation.rs for independently fitted mechanisms: the mediated quantity delta a b, the direct quantity delta c' and the total delta (c' + a b) built draw by draw from the mediator slope a and the outcome coefficients (c', b), the three decomposition columns, the choice of the headline column from the requested contrast, and the treatment gap delta. The conjugate Normal-Inverse-Gamma posterior algebra and draw generation are not re-reviewed here: they rest on the completed review of prob.conjugate_gaussian (crates/antecedent-prob/src/conjugate.rs); what this record adds is the route-specific arithmetic named in its scope, compared with its own exact reference. The two mechanisms here are ordinary conjugate Gaussian fits on one design; the lag-aligned preparation (prepare_temporal_mediation*, gaps, adjustment columns), the long-run-variance tempering of path combinations and the joint coupling of the mechanisms (couple_mediation_mechanisms) are not exercised."
+assumptions = ["Linear additive Gaussian mediator and outcome mechanisms with no treatment-mediator interaction; the mechanisms are fitted independently, so a is independent of (c', b) while c' and b are correlated through the outcome mechanism's own coefficient covariance.", "Mean and variance of the product are those of independent Student-t coefficient posteriors: E[ab] = E[a]E[b], Var(ab) = Va Vb + Va E[b]^2 + Vb E[a]^2, Cov(c', ab) = E[a] Cov(c', b)."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with exact closed-form product moments of Normal-Inverse-Gamma posteriors written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Two 70-row designs with treatment gaps 1 and 2 and prior scales 10 and 0.8 (mediated, direct and total moments each compared: mean within five Monte Carlo standard errors of 300,000 draws, sd within 8/sqrt(draws) relative error). One mediator only; the sum over several mediators is not compared with a reference. Independent composition only: when mechanisms are coupled by the long-run score covariance the total variance changes, and that path, the tempering and the lag preparation are outside this review and unmeasured here."
+sources = ["https://doi.org/10.1201/b16018", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The mediated product, the direct coefficient and the total (including the covariance between c' and a b that enters through b) have the exact posterior means and standard deviations on both designs; the treatment gap scales all three linearly as stated.", "The headline effect column equals the total when the total contrast is requested.", "No product defect was found in this record."]
+record_sha256 = "4091a86a6f1f649cc589d2565406e25e91e56e36424917c59fa1a0a9516aad26"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/bayesian_mediation.rs"
+sha256 = "c03420de6e45d05ae7375ded882d676a736fbd31d4331317d0f07ef7562f3494"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-prob/src/conjugate.rs"
+sha256 = "70fa36f8e8ed0b6b09e0d39e152fbfddaf7f64af0c367115aa7e36fcae534992"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/bayesian_mediation_reference.rs"
+sha256 = "2df05956ad1b3c9474206626894ca87c524d926e6841bf8e6b47ca40495fdcd5"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/bayesian_mediation_reference.py"
+sha256 = "9efd8ba7b9e1e66b591d424df5e175fb6f73bb1df0d19c5fcd8104427d727145"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/bayesian_mediation_reference.json"
+sha256 = "c445b3612c94d1f1d576e66afe4c8df3168e0402bd623d1d076d4efd22679f49"

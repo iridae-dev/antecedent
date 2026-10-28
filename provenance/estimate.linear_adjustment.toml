@@ -21,4 +21,41 @@ upstream_implementations_observed = [
 test_sources = [
  "independently generated synthetic linear SCMs with known ATE",
  "conformance/estimate/linear_gaussian_ate (DoWhy-oracle fixture, generated against the pinned baseline in parity/baselines/dowhy.toml)",
+ "crates/antecedent-estimate/tests/linear_adjustment_reference.rs (40-digit OLS, HC0-HC3, influence, ridge and Huber fixed-point references)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "LinearAdjustmentAte::fit_point on a prepared main-effects design for the ordinary-least-squares fit (effect delta b_t, homoskedastic standard error sqrt(RSS/(n - p) [(X'X)^-1]_tt), the HC0, HC1, HC2 and HC3 residual sandwiches with their leverage corrections, and the exported influence n delta [(X'X)^-1 x_i]_t e_i), the ridge fit (intercept unpenalised, effect delta b_t, no analytic standard error, ridge influence with the penalised bread), and the Huber M-estimator (IRLS fixed point with the 1.4826 MAD scale re-estimated from the residuals, the effect delta b_t and the homoskedastic-form standard error the module cites to Huber 1981, 7.10). Not the lasso fit, the Huber sandwich variants and cluster, multiway or Newey-West covariances, sampling weights, treated or untreated target populations, categorical contrasts, the bootstrap, or the preparation of the design from a table."
+assumptions = ["The model is the fixed main-effects linear model y ~ 1 + t + adjustment; the effect is the treatment coefficient times the declared treatment gap, and its identification is the caller's back-door premise.", "Ridge shrinks the treatment coefficient together with the covariates, so its effect is biased toward zero by construction and no sampling variance is claimed.", "The Huber standard error is the formula the module states; the book was not retrieved, so the reference reproduces that formula in 40 digits rather than confirming it against the text.", "The estimand of the Huber fit is the Huber M-functional at the MAD scale, not the mean."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with a 40-digit normal-equation, sandwich, ridge and Huber fixed-point reference written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "One 60-row design with two covariates, a treatment gap of two and heteroskedastic noise: OLS effect, five standard errors and all 60 influence values to 1e-9 relative; ridge penalties 0.5 and 20 (effect and influence to 1e-9); and a Huber fit on the same design with every eleventh outcome shifted by 7, whose effect and standard error agree to 1e-6 (the IRLS stops at a coefficient change of 1e-8). The Huber convergence refusal, rank-deficient designs, perfectly fitting data (zero scale), tied residual medians, and the sandwich forms for Huber, clusters and time series are not exercised. The cited econometrics text was not retrieved for this review."
+sources = ["https://doi.org/10.1515/9781400829828", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The OLS effect, the classical and HC0-HC3 standard errors and the influence function equal the 40-digit reference, so the leverage corrections and the n-scaling of the influence are right.", "Ridge leaves the intercept unpenalised, shrinks the treatment effect from 2.56 to 1.08 at lambda 20 exactly as the penalised normal equations say, and publishes NaN rather than a standard error.", "The Huber estimate is the fixed point of the MAD-scaled IRLS and is closer to the clean effect than least squares on the contaminated outcome; its standard error equals the stated Huber form.", "No product defect was found in this record."]
+record_sha256 = "c4e98736b5f1a05d0ad1703cdf97ff1c31c986acea2b73c2c38a06d1ef7ddf38"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/adjustment.rs"
+sha256 = "73c1c3ca6db9f5cf75f73656a89d2c66c057e633ca037b9b44a06ea41a324e99"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/adjustment/solve.rs"
+sha256 = "336a3042119a7c8e6926b05e19083740516fd1220923d4a3370838bd9e1cbc20"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/linear_adjustment_reference.rs"
+sha256 = "82252101069fad0cf264846ccb54d40650613a464dfb8499b2217054518bb498"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/linear_adjustment_reference.py"
+sha256 = "676844055530e33f1c0f73db0bc4abd85fb84d8a17c4944b59fca909ec13726e"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/linear_adjustment_reference.json"
+sha256 = "56fd393a36ff2b6652b5d83d409eff99d0b6dc5aa20639ae152dd635e1fd91e3"

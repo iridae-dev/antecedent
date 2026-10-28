@@ -39,4 +39,36 @@ test_sources = [
  "crates/antecedent/src/analysis/execute/bayesian_specialist_path.rs (model-scope refusals)",
  "conformance/estimate/bayesian_iv (synthetic known-truth fixture: true structural effect under the declared joint Gaussian law)",
  "python/tests/test_bayesian_estimator_lifecycle.py",
+ "crates/antecedent-estimate/tests/bayesian_iv_reference.rs (posterior of the structural effect from the factorized log posterior, first-stage F and weak-instrument threshold, for one and several instruments with covariates)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "fit_bayesian_iv_joint_fixed_loading and fit_bayesian_iv_joint_fixed_loading_design of crates/antecedent-estimate/src/bayesian_iv.rs: the joint Gaussian system T = a + pi'Z + g'W + v, Y = mu + beta T + d'W + v + e with a fixed unit loading, declared variances of v and e and independent N(0, prior_sd^2) priors, whose posterior is the stacked weighted-least-squares precision; the Normal marginal of beta, its seeded draws and equal-tailed 95% interval; and the first-stage F screen (the single-instrument statistic, and the partial F of an instrument block given covariates). Not the free-loading control-function candidate (fit_bayesian_iv, fit_bayesian_iv_fixed_variances), the staged route's scope refusals, or calibration of the interval."
+assumptions = ["The system is jointly Gaussian with the declared stage variances and the unit loading on the treatment disturbance; both are model restrictions the caller must own.", "The prior is N(0, prior_sd^2) on every coefficient of both equations on the absolute scale (not residual units).", "The reference derives the posterior from the factorization p(T | Z, W) p(Y | T, Z, W) by differentiating the log posterior, so it shares no stacked-regression algebra with the product."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with a 40-digit evaluation that differentiates the factorized log posterior numerically written for this review; no upstream implementation or test source was consulted or copied. The record cites no publication for this construction, so there is no page-level correspondence to attest."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Three designs of 60 to 80 rows: one instrument and no covariates, two instruments with two covariates (the design function with k = 2, q = 2), and one instrument with one covariate and a tight prior (0.7). The mean is asserted within five Monte Carlo standard errors of 300,000 draws, the interval ends within 3% of the posterior sd and the first-stage F to 1e-8 relative; the weak-instrument refusal is checked to flip within 0.1% of the reference F. Instruments are strong (F near 145 to 148) so the weak-instrument region of the posterior is not examined; variances are declared exactly, not estimated, and a wrong declared variance or loading is not detected. The in-module 300-replicate coverage check is separate evidence of the declared-law interval and not part of this review."
+sources = ["https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The posterior mean, sd, interval and first-stage F agree with the independent numerical-Hessian reference on all three designs, including the multi-instrument partial F, so the stacked-row precision, the sign of the first-equation rows and the instrument-block F are right.", "The weak-instrument screen refuses exactly when the threshold exceeds the reference F.", "No product defect was found in this record."]
+record_sha256 = "4e57f5dab3c08d26a2a6845a9e62ba151ead7d2e83903a6022e007cfb7ed5372"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/bayesian_iv.rs"
+sha256 = "a453cba5a15e5de6ff52af716acacc996886d30c4bef625815b6ae6fbdf47a8f"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/bayesian_iv_reference.rs"
+sha256 = "b89651d67e24300a5967ae13bf32236036796a02a0499c6b2a8ac609e66fcbfa"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/bayesian_iv_reference.py"
+sha256 = "c6ca909a852f6cb3ff437f6519bb26fe57976d0b733c4d82d8064a92cfcaf4e9"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/bayesian_iv_reference.json"
+sha256 = "7f981b826324259546332d9cc720495f936bebfdb4a873b36a4d7f7144f7d94c"

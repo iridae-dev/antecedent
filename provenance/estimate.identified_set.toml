@@ -23,4 +23,36 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent-stats/src/identified_set.rs",
  "crates/antecedent/src/result.rs (StructuralResponseMixture identified-set interval)",
+ "crates/antecedent-stats/tests/identified_set_reference.rs (40-digit Imbens-Manski critical value and the influence and shared-replicate intervals rebuilt from their definitions)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "imbens_manski_critical_value (the root of Phi(c + r) - Phi(-c) = level), imbens_manski_influence and imbens_manski_shared_replicates of crates/antecedent-stats/src/identified_set.rs: centred-score and replicate standard errors, the standard error of the set width, the sqrt(ln n) retention rule, the standardized width r, the per-completion endpoints [min(t_g - c s_g), max(t_g + c s_g)] and the endpoint standard errors, with replicates holding a non-finite refit dropped for every completion. Not imbens_manski_posterior_draws (the product-posterior envelope, whose quantile construction is not compared), the completion enumeration that supplies the points, the circular-block resampling that supplies the replicates, or the coverage of any interval."
+assumptions = ["The completions' estimates are asymptotically Normal with the supplied standard errors, and the true effect is one of the supplied completions.", "The retention threshold sqrt(max(ln max(n, 3), 1)) times the width standard error is the repository's own moment-selection rule, not a procedure of the cited papers.", "The reference rebuilds each construction from its definition in 40-digit arithmetic (root finding for c; centred scores; fixed-b scaling as an input)."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with 40-digit root-finding and exact rebuilds of both constructions written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Critical values on a grid of four levels (0.8 to 0.99) by five standardized widths (0 to 8) to 1e-9; influence intervals on four designs (three completions well separated, two strongly correlated completions whose retained width gives an interior critical value of 1.679, near-equal completions where the width is not retained, and a single completion) and shared-replicate intervals on three designs (including two dropped non-finite replicates and scales 1.0 and 1.15), all to 1e-9 relative. Coverage is not measured: the guarantee argued in the module doc is not tested here. The posterior-draw envelope and the truncation flag are not exercised."
+sources = ["https://doi.org/10.1111/j.1468-0262.2004.00555.x", "https://doi.org/10.3982/ECTA7502", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The bisection critical value equals the 40-digit root of the Imbens-Manski equation to 1e-9 on twenty (level, width) points, including the one-sided and two-sided limits.", "Both frequentist constructions equal their exact rebuilds, including the width-retention decision, the interior critical value, the endpoint standard errors and the replicate filtering; a single replicate, a non-finite point or a level of one gives no interval.", "No product defect was found in this record."]
+record_sha256 = "2ae7ad17a15efc32bc19353ce2d8a8b69570da712a230ef7c20ce1803ed5dba8"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/identified_set.rs"
+sha256 = "9b8648eafb29ca4845f932c1df8568e0914c7823a0b71c92c342da1c7abc45b2"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/identified_set_reference.rs"
+sha256 = "0e22f6431f4ccaf155d87f42a72b0ca34ed45e9a5dace97836fea446cf6908d2"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/identified_set_reference.py"
+sha256 = "2a8f05cf19fe1e990da132791aed6064ee7f2711d01e81072fa4cf9a616b21d3"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/identified_set_reference.json"
+sha256 = "cf6dea33ec207a9b556dff4aed21dbe4db5fcdc7c1d5948263f01e1fc4141810"

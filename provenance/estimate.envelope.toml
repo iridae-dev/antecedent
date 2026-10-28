@@ -61,4 +61,36 @@ test_sources = [
  "conformance/bayesian/graph_effect_envelope (clean-room fixture: known unidentified fraction and exact identified-conditional mixture mean)",
  "conformance/bayesian/known_truth_mixtures (frozen analytic DAG-posterior ATE and DBN-posterior Pulse / single-step Sustained mixtures consumed from the staged path: identified atoms pin E[tau | identified], a structurally unidentified atom keeps its posterior weight as unidentified_mass, and the parameter prior does not upgrade it)",
  "crates/antecedent/tests/class_posterior_ate.rs (StructuralAggregationPolicy: scalar only when estimands agree)",
+ "crates/antecedent-estimate/tests/envelope_reference.rs (exact rational mixture mean and sd, repeated keys, zero weights, retained unidentified mass, order invariance and the renormalization refusal)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "aggregate_effect_envelope of crates/antecedent-estimate/src/envelope.rs: pooling of atoms that share a graph key, dropping of zero-weight and unidentified atoms from the mixture, the exact identified-conditional mixture mean and standard deviation of the supplied empirical component laws (within-component population variance plus between-component disagreement), the retained unidentified mass fraction and the identification status that follows it, the refusal to renormalize over positive unidentified mass, and invariance to the atom order. Not aggregate_mixture_functional_envelope (its Gaussian-copula coupling), the Monte Carlo mixture quantiles (reproducible draws, not exact quantiles), the structural aggregation policy in the facade, or the choice of graph weights."
+assumptions = ["Weights are the caller's graph posterior or a frozen enumeration; nothing here updates them.", "Component draws are treated as the empirical law of that graph's effect with equal draw counts; moments are exact for those laws and quantiles are Monte Carlo.", "Unidentified mass is a separate axis that is never redistributed into the effect mixture."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with exact rational arithmetic on the binary draws written for this review; no upstream implementation or test source was consulted or copied. The record cites no publication for this construction, so there is no page-level correspondence to attest."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Two ensembles (three identified components of 64 draws with 12.5% unidentified mass; five atoms over three keys including repeated keys, a zero-weight atom and pooled weights, 40 draws each), moments to 1e-12 (mean) and 1e-9 relative (sd). The published draws are an affine moment-matched correction of the Monte Carlo sample, so their quantiles are a reproducible approximation and are not compared to exact quantiles. A draw count of one per component, extreme weight ratios and a very large offset (the centring that guards against cancellation) are not exercised here."
+sources = ["https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["The published mean and sd equal the exact rational mixture moments, including the between-graph variance and the pooling of repeated keys; zero-weight atoms contribute nothing and the unidentified mass fraction (0.125) and status follow the retained mass.", "Reversing the atom order leaves the draws and summaries identical, and renormalize_identified_only is refused when positive unidentified mass exists.", "No product defect was found in this record."]
+record_sha256 = "a46aee4107e9fb42007cb2b4319f0ea7c1594fc12a2cc277adadc0921c1ad23a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/envelope.rs"
+sha256 = "6641dba757acd8ff9b22c76fd262b163e04e363d1fd635dbda2415d676e67461"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/envelope_reference.rs"
+sha256 = "ff6e90d818bc2446d5752231331e149b8b49fedc16ff4c6b8ff5ddf5e841f693"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/envelope_reference.py"
+sha256 = "23b94ccb5cf466dc0a257b901c78efaa78f74d4fb0a7711c0136e5e09f8ccfae"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/envelope_reference.json"
+sha256 = "1d18e71ec31576201179e2ee198df79c236144fd0a0d4bc3e7af2b53ee144f70"
