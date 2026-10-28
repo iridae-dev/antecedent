@@ -13,6 +13,43 @@ implementation_deviations = [
 ]
 upstream_implementations_observed = []
 test_sources = [
+  "crates/antecedent-design/tests/ranking_statement_reference.rs (all-orderings tie sharing and rational Monte Carlo errors)",
   "crates/antecedent-design/tests/decision_reliability.rs",
   "crates/antecedent/tests/decision_reliability_facade.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "rank / rank_validated and the helpers rank_tables and top_share in crates/antecedent-design/src/decision_reliability/ranking.rs, with series_stats (iid sample variance, self-normalized weighted error with Kish effective size, non-overlapping batch means with its effective size) in mc_error.rs as used for each statement: tie-shared probability of being best, of being in the top k, of beating a baseline (ties one half), and each candidate's expected utility with its Monte Carlo error. Not carrier validation, the propagation rule's pairing licence, the interval or selection-aware layers, or calibration."
+assumptions = ["The candidates' draws are one shared simulation (index-paired), finite, and ties are exact equality; tied candidates split their probability equally, equivalent to a uniformly random order among ties.", "The weights are positive importance weights shared by every candidate; autocorrelated streams are unweighted and use floor(n/b) draws per batch.", "A statement is a Monte Carlo diagnostic under the supplied law over the candidates as supplied, uncalibrated."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference, which defines tie sharing by averaging over every random ordering rather than by counting strictly greater and tied candidates, and computes the errors from their definitions in exact rationals. No upstream implementation was consulted."
+redistribution = "The reference script and its frozen output are repository-authored under MIT OR Apache-2.0; mpmath is used only to produce the frozen values and is not a product dependency. No cited paper is redistributed."
+limitations = "No paper is cited by the record and none was retrieved. Tie sharing is verified against an independent definition (average over all m! candidate orderings with a stable sort) on six cases: five candidates with heavy ties and three top-k sizes, weighted draws with ties, all-tied draws, two batch layouts for an autocorrelated stream (square-root and a fixed count with leftover draws), and signed zeros. Errors are checked against exact rational definitions to 1e-12 relative. Candidate counts above five, thousands of draws, huge weight ratios and cancellation in the weighted error are not exercised, and the coverage of the batch-means or self-normalized errors is not examined: they remain uncalibrated diagnostics."
+sources = ["https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No numerical defect was found: P(best), P(top k), P(better than baseline), the expected utility and each statement's standard error and effective size agree with exact enumeration; best probabilities sum to one at every case, including when all candidates tie at a draw and when -0.0 ties 0.0."]
+record_sha256 = "8a329a175f17fdf8fc751cad2ff85e7b2df687de351b40e6836c2f7d1a676974"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_reliability/ranking.rs"
+sha256 = "eae6fb33553dd0b34be16e6f3b8854de17d4f800405149d4bdeb8adc76b94c3a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_reliability/mc_error.rs"
+sha256 = "5cc944acb9be378d4da08cfd979571c649bfd702bcc6ca45b8323e14b375f3d5"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/ranking_statement_reference.rs"
+sha256 = "ba5bda57c939d6daf05480c66a050d49dae569195bfec45acf3a6ab0a89e75c5"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-design/tests/oracle_data/ranking_statement_reference.py"
+sha256 = "1a966aea04fa17df304a8069cf53ed1de612a575291151738f384866b08139ba"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-design/tests/oracle_data/ranking_statement_reference.json"
+sha256 = "2c3165cfffdd0958ad017f4aee01b814f8669c2203bc2227c6e3ecfdbfa2f343"

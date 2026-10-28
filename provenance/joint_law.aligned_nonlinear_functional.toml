@@ -19,8 +19,40 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+ "crates/antecedent-stats/tests/joint_law_reference.rs (exhaustive transportation-table enumeration and rational definitions)",
   "crates/antecedent-stats/src/joint_law.rs",
   "crates/antecedent-contract/src/joint_law_rule.rs",
   "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs",
   "crates/antecedent/tests/joint_law_propagation_facade.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "ValueFunctional (product, ratio, minimum, maximum, squared difference) with its declared mixed-difference sign, the lattice verification, and the resulting coupling extremes of E[g(X,Y)] (functional_envelope, frechet_expectation_envelope) in crates/antecedent-stats/src/joint_law.rs. Not aligned_functional_mean, aligned_functional_draws, aligned_linear_draws or aligned_map_draws (row-wise maps of aligned columns), which are simple elementwise maps and are not reviewed here."
+assumptions = ["The functional is nonlinear in the two inputs and the dependence is unknown; the envelope is over all couplings of the two finite marginals.", "A functional whose mixed second difference does not have its declared sign on the atom lattice is refused, not bounded.", "Atom values are dyadic; denominators for the ratio functional are nonzero."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference, which does not use the comonotone, countermonotone or Makarov forms of the product: it enumerates every integer contingency table with the marginal counts (all vertices of the transportation polytope) in exact rational arithmetic and evaluates the remaining quantities from their definitions. No upstream implementation was consulted."
+redistribution = "The reference script and its frozen output are repository-authored under MIT OR Apache-2.0; mpmath is used only to produce the frozen values and is not a product dependency. No cited paper is redistributed."
+limitations = "Lorentz (1953) and Tchen (1980), the cited sources of the extremal-coupling result, were not retrieved; the correspondence is checked by exhaustive table enumeration for each of the five functionals on 19 small lattices, not by a page-level reading. The ratio functional is licensed only where the denominator keeps one sign across the lattice (the product's refusal on a sign change is confirmed by an independent all-pairs check). The aligned row-wise routines, large lattices near the structure-verification bound, and functionals outside the closed set are not examined."
+sources = ["https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No numerical defect was found: the coupling extremes of E[g] for the five closed value functionals, covariance, Var(aX+bY), P(X+Y<=t) and P(X-Y<=t) over thresholds at every atom sum and difference (and a quarter either side) agree with the exhaustive table enumeration on 19 marginal pairs (ties between the two marginals, single atoms, unequal atom counts and masses, Bernoulli-like), and the value functionals whose mixed difference changes sign on the lattice (ratio across a sign change of the denominator) are refused exactly where the independent all-pairs lattice check says so."]
+record_sha256 = "2abf586e5d60c0c0e5a67233dabc0eece5c74bb98425e4df47b2b13d50402059"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/joint_law.rs"
+sha256 = "1c2d81bd05e56dc76d388e02fb2fa176bdf384d8c7b93b3db7e3a5a9185bddcb"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/joint_law_reference.rs"
+sha256 = "987cc5ba9ba6b19b2a0d29b0838af6699cd5662b8aac207fae73770ece1773d9"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/joint_law_reference.py"
+sha256 = "55ef0aa030f1b2bb13556df8a86bb1d0f14f181685033787f44d4ef7109e418e"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/joint_law_reference.json"
+sha256 = "7bb51787c3a6fbd3edc1df5410774fbb4fc9a4c04cf4a4d35e25f7d944ae276b"

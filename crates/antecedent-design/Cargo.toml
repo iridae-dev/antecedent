@@ -79,3 +79,7 @@ path = "tests/graph_entropy_channel_reference.rs"
 [[test]]
 name = "model_distinguish_reference"
 path = "tests/model_distinguish_reference.rs"
+
+[[test]]
+name = "ranking_statement_reference"
+path = "tests/ranking_statement_reference.rs"

@@ -17,5 +17,37 @@ implementation_deviations = [
 ]
 upstream_implementations_observed = []
 test_sources = [
+ "crates/antecedent-model/tests/discretized_scm_reference.rs (50-digit grid, tables, enumerated interventional means and bound)",
   "crates/antecedent-model/tests/discretized_scm.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "DiscretizedLinearGaussian in crates/antecedent-model/src/discretized_scm.rs: the equal-probability quantile grid (interior edges mu + sigma z_i and the conditional-mean value of each cell, open outer cells), each mechanism's conditional table (cell probabilities of N(a + sum b x, s^2) at the parents' cell values), the per-mechanism mean error delta, interventional discretized means by exact enumeration, the closed-form means at the same intervention values, and the computed mean-error bound (E|delta_v| under the intervened discretized law propagated by |b| in topological order). Not the refusals (levels, support, latent loading), the identity encoding, the paradigm parity table, the finite composition engine it calls, or the artifact codec."
+assumptions = ["Every mechanism is additive-noise linear-Gaussian with real support, the composition is Markovian, and levels are declared per variable (2..=64).", "do(V = level) fixes V at the value carried by that level on both the discretized and the closed-form side.", "The bound covers means and linear contrasts of means only."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference: the marginal moments by path covariances, the grid by mpmath erfinv, the tables by mpmath normal distribution differences and the interventional means by enumerating the full joint space under the factorization, none of which reuses the product's composed law or finite engine. No upstream implementation was consulted."
+redistribution = "The reference script and its frozen output are repository-authored under MIT OR Apache-2.0; mpmath is used only to produce the frozen values and is not a product dependency. No cited paper is redistributed."
+limitations = "No paper was retrieved: the method is derived in the repository from the Gaussian conditional-mean identity and the module states that. The reference recomputes the grid, tables, enumerated interventional means, closed-form means and bound at 50 digits for nine models (single edge with two and 64 levels, a three-variable chain at 3, 7/5/4 and 8 levels, a fork with a collider and negative coefficients, tiny and large noise relative to the signal, independent variables) and 20 contrasts, including interventions on the outcome, on two variables, and the observational arm. It does not exercise more than four variables, level counts above 64, parent sets of more than two, or compositions with declared parameter uncertainty (flagged, not propagated). The bound is a guarantee for means of linear contrasts only and says nothing about variances, probabilities or counterfactual quantities; the Gaussian-versus-discretized error is not an interval or calibration claim."
+sources = ["https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No numerical defect was found: edges and cell values agree with 50-digit quantiles and conditional means to 1e-12, per-mechanism mean errors to 1e-9, discretized and closed-form interventional means to 1e-9, and the computed bound to 1e-8 relative; the actual error never exceeds the bound in any of the 20 contrasts, and the bound equals the error exactly where one mechanism carries all of it (single edge, intervention on the parent)."]
+record_sha256 = "53ef64f106a9453260c8be924f8658350d72a226ea98415b5b542f232c96a8e0"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/discretized_scm.rs"
+sha256 = "f7742ff3329f872d84e7de70524472912da2f2283c635fe331de61ac8ea28bbf"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/discretized_scm_reference.rs"
+sha256 = "4b62773ad32fc315dd9d137c00655fab5d38188cef6a651a171769f2c11b6e17"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-model/tests/oracle_data/discretized_scm_reference.py"
+sha256 = "11d7e0797d1a2320b24fd6dcaa2adaa036d3b58d305f2078dd87155a00a50f3d"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-model/tests/oracle_data/discretized_scm_reference.json"
+sha256 = "07cb32c091e61425bb23f2ef238b866a1e4deb80fa9b4085c6b2ff9b462fa640"

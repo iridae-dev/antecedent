@@ -17995,3 +17995,24 @@ crate = "antecedent-identify"
 cargo_target = "efficient_backdoor_optimality"
 path = "crates/antecedent-identify/tests/efficient_backdoor_optimality.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "stats-joint-law-reference"
+crate = "antecedent-stats"
+cargo_target = "joint_law_reference"
+path = "crates/antecedent-stats/tests/joint_law_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "model-discretized-scm-reference"
+crate = "antecedent-model"
+cargo_target = "discretized_scm_reference"
+path = "crates/antecedent-model/tests/discretized_scm_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-ranking-statement-reference"
+crate = "antecedent-design"
+cargo_target = "ranking_statement_reference"
+path = "crates/antecedent-design/tests/ranking_statement_reference.rs"
+gates = ["inventory", "named"]

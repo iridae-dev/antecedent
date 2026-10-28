@@ -19,8 +19,40 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+ "crates/antecedent-stats/tests/joint_law_reference.rs (exhaustive transportation-table enumeration and rational definitions)",
   "crates/antecedent-stats/src/joint_law.rs",
   "crates/antecedent-contract/src/joint_law_rule.rs",
   "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs",
   "crates/antecedent/tests/joint_law_propagation_facade.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The interval constructions at a composed coordinate in crates/antecedent-stats/src/joint_law.rs: normal_interval_candidate and marginal_interval_candidate (and the Marginal quantile they use), with their fixed unmeasured calibration status. draw_interval_candidate is not reviewed here (it delegates to the shared quantile-rule routine). Not the coverage of any construction."
+assumptions = ["The variance given to the normal construction comes from a licensed route; the quantile construction reads the equal-tail interval of the mixture law.", "Every interval carries calibration status 'unmeasured'; no coverage claim is reviewed or made."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference, which does not use the comonotone, countermonotone or Makarov forms of the product: it enumerates every integer contingency table with the marginal counts (all vertices of the transportation polytope) in exact rational arithmetic and evaluates the remaining quantities from their definitions. No upstream implementation was consulted."
+redistribution = "The reference script and its frozen output are repository-authored under MIT OR Apache-2.0; mpmath is used only to produce the frozen values and is not a product dependency. No cited paper is redistributed."
+limitations = "This review checks the arithmetic of the two constructions against mpmath (normal quantile, five levels) and exact enumeration (mixture quantiles, three mixtures), not their coverage, which is unmeasured and owned by calibration work. The shared equal-tail quantile rules (exchangeable rank, interpolated) used by draw_interval_candidate are in another module and were not reviewed here."
+sources = ["https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No numerical defect was found: the normal interval half-width z*sd agrees with mpmath to 1e-9 (relative to the standard deviation) including zero variance, and the mixture equal-tail quantiles equal the exact generalized inverse of the enumerated mixture law at three levels; both carry the 'unmeasured' status."]
+record_sha256 = "e9f104f33fcfeb783807633d22719ef050f5c315203f4a5842ee713f6197d86f"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/joint_law.rs"
+sha256 = "1c2d81bd05e56dc76d388e02fb2fa176bdf384d8c7b93b3db7e3a5a9185bddcb"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/joint_law_reference.rs"
+sha256 = "987cc5ba9ba6b19b2a0d29b0838af6699cd5662b8aac207fae73770ece1773d9"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/joint_law_reference.py"
+sha256 = "55ef0aa030f1b2bb13556df8a86bb1d0f14f181685033787f44d4ef7109e418e"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/joint_law_reference.json"
+sha256 = "7bb51787c3a6fbd3edc1df5410774fbb4fc9a4c04cf4a4d35e25f7d944ae276b"
