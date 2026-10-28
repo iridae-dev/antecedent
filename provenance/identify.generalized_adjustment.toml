@@ -22,4 +22,36 @@ test_sources = [
  "PAG completion envelope",
  "frozen status and adjustment-set cases from a clean-room MAG-enumeration harness (conformance/identify/generalized_adjustment)",
  "conformance/estimate/pag_ate_envelope (frozen three-completion PAG law: pins the mass-weighted Frequentist ATE and the seeded conjugate Bayesian envelope mean that the completion envelope returns, on fresh and prepared paths)",
+ "exhaustive CPDAG envelope check: every Markov class of three- and four-node DAGs and every ordered treatment/outcome pair against Pearl's back-door criterion in each member, with an independent moral-graph d-separation (crates/antecedent-identify/tests/cpdag_adjustment_envelope_exhaustive.rs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "GeneralizedAdjustmentIdentifier::identify_cpdag_envelope in crates/antecedent-identify/src/generalized.rs for a single-treatment, single-outcome AverageEffect query on a CPDAG: the membership of the envelope (one case per Markov-equivalent DAG), the identified and unidentified mass from ordinary back-door search in each member, each reported adjustment set, and the aggregate status. Not a review of the PAG and MAG paths (which keep their recorded clean-room enumeration fixture), of the joint multi-treatment route, of the temporal ADMG window, or of the paper's direct complete generalized-adjustment algorithm, which the record states is not implemented."
+assumptions = ["Causal sufficiency: a CPDAG describes DAGs only, and every DAG in the class is a candidate truth with equal weight.", "Back-door criterion as stated by Pearl: no member of the set descends from the treatment and the set separates treatment and outcome once the arrows leaving the treatment are removed; the reference judges separation by moralizing the ancestral graph.", "A class is identified when every member has a valid set; with different reported sets across members no single adjustment estimand holds for the class and the envelope is partial."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI and are not redistributed."
+limitations = "The primary sources were not re-read in this review (no downloads were made and no copy was read from this environment); the back-door criterion and the Verma-Pearl equivalence are the standard statements and a mistake in how they are stated would not be detected here. The sweep covers every Markov class of three- and four-node DAGs and every ordered treatment/outcome pair; five-node and larger graphs use the same code path with the completion cap (32 by default). It checks the existence and validity of a back-door set per member, not the numerical value of any estimate, and not the paper's criterion that a set is a CPDAG adjustment set when valid in every member; the product reports class membership member by member instead. No claim about estimator behavior. Calibration remains deferred."
+sources = ["https://doi.org/10.48550/arXiv.1507.01524", "https://doi.org/10.1017/CBO9780511803161"]
+findings_resolved = ["For every Markov class of three- and four-node DAGs, built from the Verma-Pearl invariant with the essential graph taken as the edges all members orient alike, and every ordered treatment/outcome pair, the envelope holds exactly the class's members, one case each, and its identified and unidentified masses equal the number of members with and without a valid back-door set by an independent moral-graph reference.", "Each member's reported adjustment set is a valid back-door set of that member, and a member reports no estimand exactly when the reference finds none.", "The aggregate status follows the mix: not identified when no member identifies, graph dependent when some do, nonparametrically identified when every member identifies with one set, and partially identified when every member identifies with different sets (no single estimand). The last case occurs in 348 four-node (class, pair) combinations, exactly the combinations in which no single set is valid in every member, so the envelope never reports distinct sets where a shared set existed. No defect was found and no product code changed."]
+record_sha256 = "ce26e8221e1360a9b51fc211efb4a4cb6e3d8a4d261a31b62fd40c95257b3f6c"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/generalized.rs"
+sha256 = "47211adb4aa4dfbe65ae5a0ec075ec8a4e12d6cade327754f9ff54cf7b33f283"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/envelope.rs"
+sha256 = "ddbe5caec0ccda0f9086bf77ab35ce9049c99b018c0fc7429f5966da870d50ed"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-graph/src/cpdag_completion.rs"
+sha256 = "73ccbd6ec1007e2965230252ba912c1fe4136633983c909b2da2d2741c4839d9"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-identify/tests/cpdag_adjustment_envelope_exhaustive.rs"
+sha256 = "2ff45a6ba9a36a0cde09017d63a6e31c00dc2d03ae534ed83c96ec4f2961e4fd"

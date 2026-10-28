@@ -57,3 +57,11 @@ path = "tests/admg_msep_exhaustive.rs"
 [[test]]
 name = "cpdag_mec_exhaustive"
 path = "tests/cpdag_mec_exhaustive.rs"
+
+[[test]]
+name = "sigma_separation_walk_reference"
+path = "tests/sigma_separation_walk_reference.rs"
+
+[[test]]
+name = "pag_completion_exhaustive"
+path = "tests/pag_completion_exhaustive.rs"

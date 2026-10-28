@@ -26,4 +26,31 @@ upstream_implementations_observed = []
 
 test_sources = [
  "inline unit tests (crates/antecedent-graph/src/sigma_separation.rs)",
+ "independent walk-definition reference of sigma-separation: one in 37 of all four-node directed-and-bidirected graphs and 400 seeded five-node graphs, every endpoint pair and conditioning set, searched over walks of any length (crates/antecedent-graph/tests/sigma_separation_walk_reference.rs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "sigma_separates in crates/antecedent-graph/src/sigma_separation.rs for a CyclicMixedGraph with directed and bidirected edges (cycles allowed): the answer for distinct endpoints, equal endpoints and endpoints inside the conditioning set, as the sigma-blocking definition on walks. Not a review of the acyclification as a statement about any distribution, of unique solvability, of sigma-faithfulness, or of the walk oracle's simple-path shortcut beyond its agreement with the reference."
+assumptions = ["Directed mixed graph whose directed edges may form cycles and whose bidirected edges stand for unmeasured common causes; a pair may carry a directed edge in each direction and a bidirected edge.", "sigma-separation as Definition A.16: a walk is sigma-blocked given C when an endpoint lies in C, a collider lies outside the ancestors of C, or a non-collider in C has an adjacent edge pointing out of its node to a node outside that node's strongly connected component; x and y are sigma-separated when every walk is blocked.", "The graphical statement only: no distributional claim follows without the Markov property of the model class."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI and are not redistributed."
+limitations = "The primary sources were not re-read in this review (no downloads were made and no copy was read from this environment); the definition used by the reference is my restatement of Definition A.16 and a mistake in how it is stated would not be detected here, because the reference and the engine were both checked against that one statement. The sweep covers one in 37 of the 262144 four-node graphs with directed and bidirected edges (about 7100 graphs, over 1000 cyclic) and 400 seeded five-node graphs; the engine has no node bound, but graphs beyond five nodes were not compared. The reference searches walks of any length over (node, incoming edge) states, so it also confirms Lemma A.17 (simple paths suffice) on these graphs rather than assuming it. No claim about unique solvability, sigma-faithfulness or any distribution. Calibration remains deferred."
+sources = ["https://doi.org/10.48550/arXiv.1611.06221", "https://doi.org/10.48550/arXiv.1710.08775"]
+findings_resolved = ["Restated Definition A.16 as a search over walks with repeated nodes allowed, sharing neither the acyclification, the d-separation workspace nor the simple-path enumeration of the product, and compared it with sigma_separates for every endpoint pair (including equal endpoints) and every conditioning set on about 7100 four-node mixed graphs and 400 five-node mixed graphs: no disagreement.", "The sweep is non-vacuous: more than 100000 separated and more than 100000 not-separated four-node verdicts, over 1000 graphs containing a two-cycle, and over 5000 of each verdict on the five-node sample.", "The previous exhaustive comparison was between the engine and the repository's own simple-path oracle (limited to four nodes); this review adds an independent walk reference and extends the compared graphs to bidirected edges on four nodes and to five nodes. No defect was found and no product code changed."]
+record_sha256 = "b682ced8f96e13f0b9bfa5b276e1718a8a8c9f9e386266007542eab54f930ea3"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-graph/src/sigma_separation.rs"
+sha256 = "199addf6ad780854e1a6d0b6dd623928a29f80d7d4c13e51ef1d6573cf1bf25f"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-graph/src/cyclic.rs"
+sha256 = "ac94c64e9b2b25b37e12874df90e50e7b7a4811c9b31987c98e50696b6ebed8b"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-graph/tests/sigma_separation_walk_reference.rs"
+sha256 = "904d95aabc1be2d8955db71baaef0086bed27539587656b17a01dbfa3c3fe3ff"

@@ -18023,3 +18023,24 @@ crate = "antecedent-model"
 cargo_target = "ou_lyapunov_reference"
 path = "crates/antecedent-model/tests/ou_lyapunov_reference.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "graph-sigma-separation-walk-reference"
+crate = "antecedent-graph"
+cargo_target = "sigma_separation_walk_reference"
+path = "crates/antecedent-graph/tests/sigma_separation_walk_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "graph-pag-completion-exhaustive"
+crate = "antecedent-graph"
+cargo_target = "pag_completion_exhaustive"
+path = "crates/antecedent-graph/tests/pag_completion_exhaustive.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "identify-cpdag-adjustment-envelope-exhaustive"
+crate = "antecedent-identify"
+cargo_target = "cpdag_adjustment_envelope_exhaustive"
+path = "crates/antecedent-identify/tests/cpdag_adjustment_envelope_exhaustive.rs"
+gates = ["inventory", "named"]

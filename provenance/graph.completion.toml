@@ -25,4 +25,26 @@ test_sources = [
  "inline unit tests (crates/antecedent-graph/src/completion.rs)",
  "clean-room bounded endpoint enumeration with ancestral/maximal/local-collider/exact-m-separation-equivalence audit (conformance/graph/pag_mag_completion)",
  "crates/antecedent-graph/tests/oracle_closure.rs",
+ "independent maximal-ancestral-graph and Markov-class reference of PAG completion: every mixed graph on three and four nodes grouped by m-separation signature, each class recovered from its PAG, and every partially marked skeleton on three nodes (crates/antecedent-graph/tests/pag_completion_exhaustive.rs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "CompletionSampler::new in crates/antecedent-graph/src/completion.rs for a PAG with directed, bidirected and circle marks and no undirected edge: the completions yielded, the ambiguity flag and the refusal of a partial graph that spans more than one Markov class, as the maximal-ancestral-graph definition with the PAG collider invariant. Not a review of the cap and budget behavior beyond the exercised sizes, of PAGs larger than four nodes, or of the PAG orientation-rule algorithm, which the record states is not implemented."
+assumptions = ["Mixed graphs whose pair states are absent, directed or bidirected are MAGs when they have no directed cycle, no almost-directed cycle and every non-adjacent pair is m-separated by some set (ancestral and maximal, no selection edges).", "Two MAGs are in one Markov class when they have the same m-separation verdict for every pair and conditioning set.", "A PAG carries the unshielded colliders of its class: an unshielded triple is a collider exactly where both marks at the middle node are arrowheads, so a circle there is a non-collider for every completion."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI and are not redistributed."
+limitations = "The primary sources were not re-read in this review (no downloads were made and no copy was read from this environment); the MAG and Markov-class definitions are the standard statements and a mistake in how they are stated would not be detected here. Completions are compared on three nodes (every partially marked skeleton, 1000 partial graphs with legal marks) and on four nodes only for the PAGs that summarize each class (every class, not every partial graph). The 'several classes remain, so refuse' branch is not reached on three nodes under the collider invariant, and the four-node sweep does not submit arbitrary partial graphs, so that branch keeps only its existing tests. The cap, budget and large-graph audit-skipped paths were not exercised. No claim about orientation-rule completeness. Calibration remains deferred."
+sources = ["https://doi.org/10.1214/aos/1031689015", "https://doi.org/10.1214/08-AOS626", "https://doi.org/10.1016/j.artint.2008.08.001"]
+findings_resolved = ["Enumerated every mixed graph on three and four nodes, filtered to the ancestral and maximal ones with an independent simple-path m-separation, and grouped them by m-separation signature (11 classes on three nodes, 248 on four). For every class the PAG that keeps the marks all members share and puts a circle elsewhere yields exactly the class's members from CompletionSampler, with no ambiguity flag and no cap hit.", "For every partially marked skeleton on three nodes (every pair absent or any of the eight non-undirected mark pairs, 729 graphs) the sampler yields exactly the compatible MAGs that keep the PAG's unshielded colliders when they form one class (over 100 graphs) and nothing when none exists (over 20); the refusal branch for several classes was not reached on three nodes.", "The product rejects a completion whose unshielded collider is not encoded by two arrowheads in the PAG; this follows the PAG semantics stated in the assumptions and is documented in the record's deviations. No defect was found and no product code changed."]
+record_sha256 = "7201e3fc7d502e55dbb9cb1ffcfc7f8896cbf5485fe1e67a06d12cc1d1025128"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-graph/src/completion.rs"
+sha256 = "a671bd1d7706aece6d6f209f943a041d4ad630fc6f94efe93797287279f178a0"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-graph/tests/pag_completion_exhaustive.rs"
+sha256 = "349141672a5c57b6ec2fedb1483961041f09dd98edc14257f7294f2edbe4d321"
