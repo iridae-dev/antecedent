@@ -719,3 +719,51 @@ fn two_completions_publish_the_declared_sandwich_of_their_mixed_influence_values
     );
     assert!((independent - clustered).abs() > 1e-3 * independent, "clustering must matter");
 }
+
+#[test]
+fn a_fully_compelled_class_is_the_one_completion_case_and_gives_the_dag_answer() {
+    // Every edge of the model is compelled, so the class holds the single completion that is the
+    // DAG; the class route and the DAG route then publish the same total effect, the closed form 11.
+    let on_dag = plain("dag", &average_effect()).unwrap().estimate().as_effect().unwrap().ate;
+    let on_cpdag = plain("cpdag", &average_effect()).unwrap().estimate().as_effect().unwrap().ate;
+    assert!((on_dag - 11.0).abs() < 0.3, "dag {on_dag}");
+    assert!((on_dag - on_cpdag).abs() < 1e-9, "dag {on_dag} vs fully compelled class {on_cpdag}");
+}
+
+#[test]
+fn the_class_average_effect_refuses_a_graph_that_does_not_fit_the_table_and_an_invalid_query() {
+    let build = |graph: Cpdag, query: CausalQuery| {
+        Study::tabular(table(&columns())).graph(graph).query(query).build().and_then(|study| study.run(&ctx()))
+    };
+    // A class over five variables does not describe a four-column table.
+    match build(cpdag(5), average_effect()) {
+        Err(CausalError::SchemaMismatch { detail }) => {
+            assert!(detail.contains("graph has 5 nodes but data has 4 variables"), "{detail}");
+        }
+        other => panic!("a graph of the wrong size must be refused, got {:?}", other.err()),
+    }
+    // A treatment the class does not contain.
+    let absent = CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(v(9), v(2)));
+    match build(cpdag(4), absent) {
+        Err(CausalError::Compile { message }) => {
+            assert!(message.contains("query variables not in CPDAG"), "{message}");
+        }
+        other => panic!("an absent treatment must be refused, got {:?}", other.err()),
+    }
+    // A treatment that is also the outcome.
+    let same = CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(v(0), v(0)));
+    let error = build(cpdag(4), same).err().expect("a refusal");
+    assert!(error.to_string().contains("treatment and outcome are the same variable"), "{error}");
+}
+
+#[test]
+fn the_class_average_effect_refuses_a_treatment_that_never_visits_a_contrasted_level() {
+    // With a = 1 on every row the control level 0 is a regime the data never visited; the contrast
+    // is refused on the class route and on the DAG route alike, never read off the intercept.
+    for class in ["cpdag", "dag"] {
+        let error = run(class, table(&design(true, false)), average_effect(), None, None)
+            .err()
+            .unwrap_or_else(|| panic!("{class}: a constant treatment was estimated"));
+        assert!(error.to_string().contains("rank"), "{class}: {error}");
+    }
+}

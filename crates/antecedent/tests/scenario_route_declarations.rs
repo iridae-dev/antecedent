@@ -907,3 +907,66 @@ fn a_policy_value_refuses_a_missing_outcome_instead_of_dropping_the_row() {
         .expect("a row with a missing outcome was scored");
     assert!(error.to_string().contains("outcomes, predictions, propensities, or costs are invalid"), "{error}");
 }
+
+/// The augmented two-period panel reads each subject's change between two columns. Its only
+/// uncertainty is a whole-subject resample, so a declared dependent series (which would need a
+/// block or lag structure over time) is refused with the designs that are honoured; the point-only
+/// form publishes no standard error and so claims no dependence correction.
+#[test]
+fn the_augmented_panel_resample_refuses_a_declared_dependent_series() {
+    use antecedent::PanelDidQuery;
+    use antecedent_core::DidResamplingScheme;
+    use std::sync::Arc;
+    let pre = [10.0, 12.0, 13.0, 9.0, 15.0, 11.0, 10.5, 12.5];
+    let post = [15.0, 17.0, 18.0, 11.0, 17.0, 13.0, 15.5, 14.5];
+    let propensity = [0.5; 8];
+    let prediction = [2.0; 8];
+    let data = TabularData::from_f64_columns([
+        ("pre", pre.as_slice()),
+        ("post", post.as_slice()),
+        ("p", propensity.as_slice()),
+        ("m0", prediction.as_slice()),
+    ])
+    .unwrap();
+    let ids = (0..8).map(|i| Arc::<str>::from(format!("s{i}"))).collect::<Vec<_>>();
+    let run = |resample: bool, design: Option<DeclaredSamplingDesign>| {
+        let mut query = PanelDidQuery::augmented_panel(
+            v(1),
+            v(0),
+            v(2),
+            v(3),
+            [true, true, true, true, false, false, false, false],
+            ids.clone(),
+            ids.clone(),
+            true,
+        );
+        if resample {
+            query = query.with_resampling(DidResamplingScheme::ClusterBootstrap, 49);
+        }
+        let builder = Study::tabular(data.clone()).query(query);
+        let builder = match design {
+            Some(design) => builder.sampling_design(design),
+            None => builder,
+        };
+        builder.build().and_then(|study| study.run(&ctx()))
+    };
+    // The augmented effect of the first four subjects against the rest, with the supplied
+    // propensity and untreated-change columns, is 1.5.
+    let point = run(false, None).unwrap();
+    let fit = point.panel_did().unwrap();
+    assert!((fit.effect - 1.5).abs() < 1e-12, "{}", fit.effect);
+    assert_eq!(fit.uncertainty.as_ref(), "point_only_no_standard_error");
+    for design in
+        [None, Some(DeclaredSamplingDesign::IndependentSubjectTrajectories), Some(DeclaredSamplingDesign::ClusteredPanel)]
+    {
+        let resampled = run(true, design).unwrap();
+        let fit = resampled.panel_did().unwrap();
+        assert!((fit.effect - 1.5).abs() < 1e-12, "{design:?}: {}", fit.effect);
+        assert!(fit.uncertainty.contains("whole_cluster_resample"), "{design:?}");
+    }
+    assert_refused(
+        "augmented panel resample serial",
+        run(true, Some(DeclaredSamplingDesign::DependentTimeSeries)).err(),
+        "dependent_time_series",
+    );
+}

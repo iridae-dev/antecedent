@@ -136,7 +136,11 @@ fn memory_refusal_precedes_source_materialization() {
 fn three_channel_data() -> PanelData {
     let units = (0..4)
         .map(|unit_id| {
-            let channel = vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 2.0, 1.0];
+            // Three channels that are not affine functions of one another: the fit refuses
+            // channels whose separate effects the data cannot identify.
+            let a = vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 2.0, 1.0];
+            let b = vec![0.0, 0.0, 1.0, 2.0, 3.0, 1.0, 0.0, 2.0];
+            let c = vec![0.0, 0.0, 2.0, 0.0, 1.0, 2.0, 3.0, 1.0];
             let outcome = vec![f64::NAN, f64::NAN, 1.0, 2.0, 3.0, 4.0, 3.0, 2.0];
             let confounder = vec![f64::NAN, f64::NAN, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0];
             let seasons = vec![0.0; 8];
@@ -144,9 +148,9 @@ fn three_channel_data() -> PanelData {
                 unit_id,
                 series: TimeSeriesData::from_f64_columns(
                     [
-                        ("a", channel.as_slice()),
-                        ("b", channel.as_slice()),
-                        ("c", channel.as_slice()),
+                        ("a", a.as_slice()),
+                        ("b", b.as_slice()),
+                        ("c", c.as_slice()),
                         ("y", outcome.as_slice()),
                         ("z", confounder.as_slice()),
                         ("season", seasons.as_slice()),
