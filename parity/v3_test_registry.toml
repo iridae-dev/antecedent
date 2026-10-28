@@ -17491,3 +17491,59 @@ crate = "antecedent-estimate"
 cargo_target = "lib"
 path = "crates/antecedent-estimate/src/cell_aipw_oracle_tests.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "estimator-dependence-axes"
+crate = "antecedent-estimate"
+cargo_target = "estimator_dependence_axes"
+path = "crates/antecedent-estimate/tests/estimator_dependence_axes.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "local-ratio-row-weights"
+crate = "antecedent-estimate"
+cargo_target = "local_ratio_row_weights"
+path = "crates/antecedent-estimate/tests/local_ratio_row_weights.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "weighted-route-boundary"
+crate = "antecedent"
+cargo_target = "weighted_route_boundary"
+path = "crates/antecedent/tests/weighted_route_boundary.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "augmented-panel-did-bayesian"
+crate = "antecedent"
+cargo_target = "augmented_panel_did_bayesian"
+path = "crates/antecedent/tests/augmented_panel_did_bayesian.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "missing-imputation-aipw-weighting"
+crate = "antecedent"
+cargo_target = "missing_imputation_aipw_weighting"
+path = "crates/antecedent/tests/missing_imputation_aipw_weighting.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "missing-policy-unmodelled-routes"
+crate = "antecedent"
+cargo_target = "missing_policy_unmodelled_routes"
+path = "crates/antecedent/tests/missing_policy_unmodelled_routes.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "static-route-input-boundaries"
+crate = "antecedent"
+cargo_target = "static_route_input_boundaries"
+path = "crates/antecedent/tests/static_route_input_boundaries.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "randomized-design-boundaries"
+crate = "antecedent"
+cargo_target = "randomized_design_boundaries"
+path = "crates/antecedent/tests/randomized_design_boundaries.rs"
+gates = ["inventory", "named"]

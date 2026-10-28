@@ -751,3 +751,891 @@ value = "collinear_or_constant"
 status = "delivered"
 test = "crates/antecedent-estimate/tests/estimator_degeneracy.rs::a_constant_covariate_is_refused_as_rank_deficient_not_repaired"
 what = "a constant adjustment covariate is refused as rank deficient for propensity matching, not silently dropped; a one-level treatment column is refused by the same estimator in a sibling test"
+
+[[cell]]
+family = "P05"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "delivered"
+test = "crates/antecedent/tests/sample_split_weighted_acceptance.rs::weighted_discovery_and_downstream_estimation_equal_the_weighted_population_oracle"
+what = "weighted discovery and the downstream estimate equal the weighted-population oracle"
+
+[[cell]]
+family = "P09.factorial"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "unavailable"
+test = "crates/antecedent/tests/weighted_route_boundary.rs::declared_weights_are_refused_by_every_randomized_design_without_a_weighted_contrast"
+reason = "the factorial 2x2 design has no sampling-weighted contrast (the Hajek contrast is defined for Bernoulli and complete randomization of units); declared weights are refused with option_not_applicable and sampling_weights.route_unsupported rather than ignored"
+
+[[cell]]
+family = "P09.multiarm"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "unavailable"
+test = "crates/antecedent/tests/weighted_route_boundary.rs::declared_weights_are_refused_by_every_randomized_design_without_a_weighted_contrast"
+reason = "the multi-arm design has no sampling-weighted contrast (the Hajek contrast is defined for Bernoulli and complete randomization of units); declared weights are refused with option_not_applicable and sampling_weights.route_unsupported rather than ignored"
+
+[[cell]]
+family = "P09.switchback"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "unavailable"
+test = "crates/antecedent/tests/weighted_route_boundary.rs::declared_weights_are_refused_by_every_randomized_design_without_a_weighted_contrast"
+reason = "the switchback design has no sampling-weighted contrast (the Hajek contrast is defined for Bernoulli and complete randomization of units); declared weights are refused with option_not_applicable and sampling_weights.route_unsupported rather than ignored"
+
+[[cell]]
+family = "P11.staggered"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "unavailable"
+test = "crates/antecedent/tests/weighted_route_boundary.rs::a_staggered_group_time_panel_refuses_declared_weights"
+reason = "the staggered cohort-time contrasts have no weighted construction; declared weights are refused with sampling_weights.route_unsupported"
+
+[[cell]]
+family = "P11.augmented_panel_did"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "unavailable"
+test = "crates/antecedent/tests/weighted_route_boundary.rs::an_augmented_panel_refuses_declared_weights"
+reason = "the augmented panel reads supplied nuisance predictions with no weighted influence function; declared weights are refused with sampling_weights.route_unsupported"
+
+[[cell]]
+family = "P11.local_ratio"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/local_ratio_row_weights.rs::integer_row_weights_equal_the_table_with_every_row_repeated"
+what = "integer row weights equal the table with every row repeated; zero weights delete rows, rescaling changes nothing and invalid weights are refused"
+
+[[cell]]
+family = "P13.refuter"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "delivered"
+test = "crates/antecedent/tests/target_constructed_refuters.rs::a_gathered_block_bootstrap_carries_the_sampling_weights_of_a_weighted_series"
+what = "a gathered block bootstrap carries the sampling weights of a weighted series"
+
+[[cell]]
+family = "P15.pulse"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "delivered"
+test = "crates/antecedent/tests/sampling_weight_routes.rs::a_weighted_temporal_window_is_weighted_least_squares_on_lag_windows"
+what = "a weighted temporal window equals weighted least squares on the lag windows"
+
+[[cell]]
+family = "P13.attribution"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "delivered"
+test = "crates/antecedent-attribution/src/distribution_change.rs::weighted_refit_attribution_matches_independent_change_and_efficiency"
+what = "weighted refit attribution matches the independent change and efficiency"
+
+[[cell]]
+family = "P18"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "delivered"
+test = "crates/antecedent-state/tests/ols_refresh_contract.rs::integer_count_weights_equal_row_repetition"
+what = "an integer count weight on a refreshed row equals row repetition"
+
+[[cell]]
+family = "P03.aipw"
+axis = "weights_missingness"
+value = "missing_data"
+status = "delivered"
+test = "crates/antecedent/tests/missing_imputation_aipw_weighting.rs::aipw_and_weighting_pool_by_rubins_rules_and_refit_on_every_table"
+what = "AIPW multiple imputation equals Rubin's rules over the per-table AIPW fits and recovers the effect"
+
+[[cell]]
+family = "P04"
+axis = "weights_missingness"
+value = "missing_data"
+status = "delivered"
+test = "crates/antecedent/tests/missing_imputation_estimator_families.rs::matching_and_stratification_pool_by_rubins_rules_and_refit_on_every_table"
+what = "matching, stratification and distance matching pool by Rubin's rules over per-table refits; weighting is in the aipw_weighting test"
+
+[[cell]]
+family = "P15.conditional"
+axis = "weights_missingness"
+value = "missing_data"
+status = "delivered"
+test = "crates/antecedent/tests/missing_imputation_routes.rs::a_conditional_effect_pools_to_the_hand_pooled_reference"
+what = "a conditional effect pools to the hand-pooled reference"
+
+[[cell]]
+family = "P07.curve"
+axis = "weights_missingness"
+value = "missing_data"
+status = "delivered"
+test = "crates/antecedent/tests/missing_imputation_routes.rs::a_response_curve_pools_its_points_jointly"
+what = "a response curve pools its points jointly"
+
+[[cell]]
+family = "P11.synthetic_control"
+axis = "weights_missingness"
+value = "missing_data"
+status = "unavailable"
+test = "crates/antecedent/tests/missing_policy_unmodelled_routes.rs::synthetic_control_runs_undeclared_and_refuses_every_missing_data_policy"
+reason = "the synthetic-control route reads a balanced donor panel in its own way and has no row in the missing-policy registry; any declaration is refused with missing_policy_not_applicable"
+
+[[cell]]
+family = "P11.local_ratio"
+axis = "weights_missingness"
+value = "missing_data"
+status = "unavailable"
+test = "crates/antecedent/tests/missing_policy_unmodelled_routes.rs::the_local_polynomial_ratio_runs_undeclared_and_refuses_every_missing_data_policy"
+reason = "the local polynomial ratio reads its window rows in its own way and has no row in the missing-policy registry; any declaration is refused with missing_policy_not_applicable"
+
+[[cell]]
+family = "P11.augmented_panel_did"
+axis = "weights_missingness"
+value = "missing_data"
+status = "delivered"
+test = "crates/antecedent/tests/augmented_panel_did_route.rs::augmented_panel_did_drops_incomplete_subjects_under_a_declared_policy_only"
+what = "incomplete subjects are dropped only under a declared policy"
+
+[[cell]]
+family = "P10"
+axis = "weights_missingness"
+value = "missing_data"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/observational_survival_effects.rs::missing_cells_are_dropped_and_counted"
+what = "rows with missing cells are dropped and counted"
+
+[[cell]]
+family = "P05"
+axis = "weights_missingness"
+value = "missing_data"
+status = "delivered"
+test = "crates/antecedent-discovery/tests/notears_missing.rs::complete_case_equals_the_run_on_the_complete_rows_and_reports_the_rest"
+what = "NOTEARS complete-case equals the run on the complete rows and reports the rest"
+
+[[cell]]
+family = "P13.refuter"
+axis = "weights_missingness"
+value = "missing_data"
+status = "delivered"
+test = "crates/antecedent/tests/missing_data_routes.rs::refuters_on_a_series_with_gaps_refit_through_the_intact_windows"
+what = "refuters on a series with gaps refit through the intact windows"
+
+[[cell]]
+family = "P01.iv"
+axis = "dependence"
+value = "clustered"
+status = "unavailable"
+test = "crates/antecedent-estimate/src/iv.rs::iv_refuses_inference_declarations_it_does_not_read"
+reason = "two-stage least squares and Wald IV read heteroskedasticity-robust errors only; a cluster declaration is refused with estimator_inference_mismatch instead of being ignored"
+
+[[cell]]
+family = "P01.iv"
+axis = "dependence"
+value = "serial"
+status = "unavailable"
+test = "crates/antecedent-estimate/src/iv.rs::iv_refuses_inference_declarations_it_does_not_read"
+reason = "Wald IV reads no panel-time or autocorrelation declaration; it is refused with estimator_inference_mismatch instead of being ignored"
+
+[[cell]]
+family = "P02.glm"
+axis = "dependence"
+value = "clustered"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/estimator_dependence_axes.rs::linear_and_gaussian_glm_cluster_se_are_the_closed_form_cluster_sandwich"
+what = "Gaussian GLM adjustment cluster standard error equals the closed-form CR1 sandwich computed from the definition"
+
+[[cell]]
+family = "P02.glm"
+axis = "dependence"
+value = "serial"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/estimator_dependence_axes.rs::newey_west_se_of_linear_and_gaussian_glm_adjustment_is_the_closed_form_hac"
+what = "Gaussian GLM adjustment Newey-West standard error equals the closed-form Bartlett HAC sandwich at lags one and three"
+
+[[cell]]
+family = "P04"
+axis = "dependence"
+value = "clustered"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/sampling_weights.rs::weighting_cluster_se_is_the_cluster_sandwich_with_the_propensity_correction"
+what = "propensity weighting cluster standard error is the cluster sandwich with the propensity correction"
+
+[[cell]]
+family = "P04"
+axis = "dependence"
+value = "serial"
+status = "unavailable"
+test = "crates/antecedent-estimate/src/propensity/mod.rs::matching_refuses_clustered_multiway_and_hac_se_through_both_estimators"
+reason = "matching variance has no HAC construction (donor reuse is not a lag structure); a Newey-West request is refused rather than returned as a heteroskedastic number"
+
+[[cell]]
+family = "P09.switchback"
+axis = "dependence"
+value = "clustered"
+status = "delivered"
+test = "crates/antecedent/tests/randomized_trial_route.rs::switchback_itt_retains_periods_and_sequence_variance"
+what = "the switchback variance is the independent-sequence sandwich (sequences are the clusters)"
+
+[[cell]]
+family = "P09.switchback"
+axis = "dependence"
+value = "serial"
+status = "delivered"
+test = "crates/antecedent/tests/bayesian_randomized_routes.rs::the_switchback_posterior_matches_the_whitened_least_squares_reference"
+what = "the Bayesian switchback posterior matches the whitened (autoregressive) least-squares reference"
+
+[[cell]]
+family = "P09.two_arm"
+axis = "dependence"
+value = "serial"
+status = "delivered"
+test = "crates/antecedent/tests/temporal_design_routes.rs::the_two_arm_excursion_recovers_the_effect_under_carryover_in_both_modes"
+what = "the temporal two-arm excursion recovers the effect under carryover in both inference modes"
+
+[[cell]]
+family = "P11.augmented_panel_did"
+axis = "dependence"
+value = "clustered"
+status = "delivered"
+test = "crates/antecedent/tests/quasi_rollout_routes.rs::the_augmented_panel_publishes_a_whole_cluster_resample_interval"
+what = "the augmented panel publishes a whole-cluster resample interval"
+
+[[cell]]
+family = "P15.pulse"
+axis = "dependence"
+value = "clustered"
+status = "delivered"
+test = "crates/antecedent/tests/data_modalities.rs::panel_stacked_estimate_with_cluster_se"
+what = "a stacked panel pulse estimate carries a unit-cluster standard error"
+
+[[cell]]
+family = "P15.sustained"
+axis = "dependence"
+value = "clustered"
+status = "delivered"
+test = "crates/antecedent/tests/data_modalities.rs::panel_class_sequential_se_is_the_between_unit_t_se"
+what = "a sustained panel contrast carries the between-unit t standard error"
+
+[[cell]]
+family = "P13.refuter"
+axis = "dependence"
+value = "serial"
+status = "delivered"
+test = "crates/antecedent/tests/target_constructed_refuters.rs::a_single_series_gets_block_bootstrap_placebo_timing_and_a_lagged_placebo"
+what = "a single series gets a block bootstrap, placebo timing and a lagged placebo"
+
+[[cell]]
+family = "P13.attribution"
+axis = "dependence"
+value = "serial"
+status = "delivered"
+test = "crates/antecedent/tests/temporal_attribution_block_bootstrap.rs::block_bootstrap_recovers_the_known_mean_shift_with_a_row_block_interval"
+what = "a row block bootstrap recovers the known mean shift on a dependent series"
+
+[[cell]]
+family = "P02.penalized_propensity"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/penalized_aipw.rs::a_duplicated_column_is_refused_with_a_typed_rank_error"
+what = "a duplicated column is refused with a typed rank error"
+
+[[cell]]
+family = "P05"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent-discovery/src/ci.rs::undefined_partial_correlation_is_untestable_not_independent"
+what = "an undefined partial correlation (constant column) is untestable, never independent"
+
+[[cell]]
+family = "P07.quantile"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent-estimate/src/quantile.rs::flat_bracket_is_refused_at_every_unit"
+what = "a flat CDF bracket is refused at every unit scale"
+
+[[cell]]
+family = "P12.counterfactual"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent/src/cross_world/tests.rs::ols_on_parents_recovers_a_known_fit_at_any_covariate_scale_and_declines_collinearity"
+what = "the parent regression recovers a known fit at any scale and declines an exact copy of a parent"
+
+[[cell]]
+family = "P09.categorical"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/categorical_treatment.rs::categorical_sparse_level_is_refused_by_name_never_dropped"
+what = "a sparse level is refused by name, never dropped"
+
+[[cell]]
+family = "P10"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/observational_survival_effects.rs::near_deterministic_treatment_is_a_treatment_positivity_refusal"
+what = "a near-deterministic treatment is a positivity refusal"
+
+[[cell]]
+family = "P11.did"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent/tests/panel_did_route.rs::repeated_cross_section_refuses_duplicate_subject_or_sparse_cell_clusters"
+what = "duplicate subjects and sparse cells are refused"
+
+[[cell]]
+family = "P11.staggered"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent/tests/panel_did_route.rs::staggered_event_study_retains_full_curve_and_refuses_missing_controls"
+what = "a missing control group is refused"
+
+[[cell]]
+family = "P11.augmented_panel_did"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent/tests/augmented_panel_did_route.rs::augmented_panel_did_refuses_nonoverlap_and_repeated_subject"
+what = "a degenerate (non-overlapping) propensity and a repeated subject are refused"
+
+[[cell]]
+family = "P07.dose_grid"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/dose_grid_functional.rs::insufficient_local_weight_is_labelled_and_refused"
+what = "a design with insufficient local weight is labelled and refused"
+
+[[cell]]
+family = "P07.smoothed_dose"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent/tests/smoothed_dose_lifecycle.rs::weak_overlap_and_thin_dose_support_refuse_rather_than_extrapolate"
+what = "weak overlap and thin dose support refuse"
+
+[[cell]]
+family = "P07.continuous_dose"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent/tests/continuous_dose_route.rs::retained_grid_refuses_missing_support_and_invalid_density"
+what = "a grid without support or with an invalid density is refused"
+
+[[cell]]
+family = "P08"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent-estimate/src/static_mediation.rs::singular_bootstrap_replicates_are_counted_not_fatal"
+what = "singular bootstrap replicates are counted, not fatal"
+
+[[cell]]
+family = "X01"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/vector_treatment.rs::vector_refuses_constant_collinear_and_rank_deficient_designs"
+what = "a constant, collinear or rank-deficient joint treatment design is refused"
+
+[[cell]]
+family = "P01.linear"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "unavailable"
+test = "crates/antecedent-estimate/tests/estimator_degeneracy.rs::a_treatment_column_with_one_level_is_refused_by_every_contrast_estimator"
+reason = "linear adjustment contrasts two observed arms; a column with no treated or no control rows is a regime the data never visited and is refused instead of extrapolated"
+
+[[cell]]
+family = "P02.glm"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "unavailable"
+test = "crates/antecedent-estimate/tests/estimator_degeneracy.rs::a_treatment_column_with_one_level_is_refused_by_every_contrast_estimator"
+reason = "Gaussian GLM adjustment contrasts two observed arms; a column with no treated or no control rows is a regime the data never visited and is refused instead of extrapolated"
+
+[[cell]]
+family = "P03.aipw"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "unavailable"
+test = "crates/antecedent-estimate/tests/estimator_degeneracy.rs::a_treatment_column_with_one_level_is_refused_by_every_contrast_estimator"
+reason = "AIPW contrasts two observed arms; a column with no treated or no control rows is a regime the data never visited and is refused instead of extrapolated"
+
+[[cell]]
+family = "P04"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "unavailable"
+test = "crates/antecedent-estimate/tests/estimator_degeneracy.rs::a_treatment_column_with_one_level_is_refused_by_every_contrast_estimator"
+reason = "propensity matching contrasts two observed arms; a column with no treated or no control rows is a regime the data never visited and is refused instead of extrapolated"
+
+[[cell]]
+family = "P07.dose_grid"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "unavailable"
+test = "crates/antecedent-estimate/tests/dose_grid_functional.rs::dose_outside_support_is_labelled_and_refused"
+reason = "a dose outside the empirical support is labelled OutsideEmpiricalSupport and the level functional is refused with dose_grid.unsupported_dose"
+
+[[cell]]
+family = "P07.derivative"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "delivered"
+test = "crates/antecedent/tests/temporal_derivative_effect.rs::derivative_support_reports_a_point_outside_the_observed_series"
+what = "a derivative requested outside the observed series is reported with its support status"
+
+[[cell]]
+family = "P09.multiarm"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "unavailable"
+test = "crates/antecedent/tests/randomized_trial_route.rs::multi_arm_retained_study_reports_all_contrasts_and_refuses_missing_support"
+reason = "an arm with no assigned units has no contrast and is refused"
+
+[[cell]]
+family = "P10"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "unavailable"
+test = "crates/antecedent-estimate/tests/observational_survival_effects.rs::a_horizon_beyond_an_arms_follow_up_is_refused_with_its_own_detail"
+reason = "a horizon beyond an arm's follow-up is refused with its own detail"
+
+[[cell]]
+family = "P12.counterfactual"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "delivered"
+test = "crates/antecedent/tests/licensed_static_cells.rs::counterfactual_dag_flags_units_outside_the_opposite_arms_covariate_support"
+what = "units outside the opposite arm's covariate support are flagged"
+
+[[cell]]
+family = "P12.intervention"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "unavailable"
+test = "crates/antecedent/tests/checked_cell_aipw_response_route_evidence.rs::cell_aipw_route_refuses_nonbinary_intervention_levels"
+reason = "the cell-AIPW route refuses intervention levels outside the observed binary cells"
+
+[[cell]]
+family = "P14"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "unavailable"
+test = "crates/antecedent-estimate/tests/temporal_transport_execution.rs::a_reached_history_without_source_support_refuses"
+reason = "a reached history without source support is refused"
+
+[[cell]]
+family = "P11.local_ratio"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "unavailable"
+test = "crates/antecedent-estimate/src/local_polynomial_ratio.rs::fuzzy_jump_recovers_known_local_effect_and_refuses_sparse_support"
+reason = "a window without full-rank support on a side of the cutoff is refused"
+
+[[cell]]
+family = "P11.did"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "unavailable"
+test = "crates/antecedent/tests/panel_did_route.rs::panel_did_refuses_missing_wave_and_insufficient_group_clusters"
+reason = "a missing wave or too few clusters in a group is refused"
+
+[[cell]]
+family = "P11.staggered"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "unavailable"
+test = "crates/antecedent/tests/panel_did_route.rs::staggered_event_study_retains_full_curve_and_refuses_missing_controls"
+reason = "an event time without never-treated controls is refused"
+
+[[cell]]
+family = "P11.synthetic_control"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "unavailable"
+test = "crates/antecedent/tests/synthetic_control_route.rs::observed_window_support_reads_an_unbalanced_panel_and_refuses_without_support"
+reason = "a window without observed support is refused"
+
+[[cell]]
+family = "P11.augmented_panel_did"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "unavailable"
+test = "crates/antecedent/tests/augmented_panel_did_route.rs::augmented_panel_did_refuses_nonoverlap_and_repeated_subject"
+reason = "a treated unit outside the comparison propensity support is refused"
+
+[[cell]]
+family = "P17"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "unavailable"
+test = "crates/antecedent-design/tests/decision_robustness.rs::robustness_unsupported_extrapolation_when_no_structure_supports_an_action"
+reason = "an action that no structure supports is reported as unsupported extrapolation"
+
+[[cell]]
+family = "X05"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "unavailable"
+test = "crates/antecedent/tests/joint_panel_workflow.rs::period_randomization_does_not_certify_the_held_out_whole_program"
+reason = "period randomization does not certify the held-out whole program"
+
+[[cell]]
+family = "P01.iv"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent-estimate/src/iv.rs::iv_refuses_inference_declarations_it_does_not_read"
+what = "an inference declaration IV does not read is refused with estimator_inference_mismatch"
+
+[[cell]]
+family = "P01.linear"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/refusal_fields_existing_sites.rs::a_linear_adjustment_rank_refusal_names_the_effect_and_the_dependent_column"
+what = "a rank-deficient linear adjustment names the effect and the dependent column"
+
+[[cell]]
+family = "P02.glm"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/refusal_fields_existing_sites.rs::a_separated_glm_keeps_its_text_and_reports_the_margin_and_count"
+what = "a separated GLM is refused with the margin and count"
+
+[[cell]]
+family = "P05"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent-discovery/src/pc.rs::unusable_knowledge_is_refused_before_any_test"
+what = "unusable knowledge is refused before any test"
+
+[[cell]]
+family = "P09.multiarm"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/randomized_trial_route.rs::multi_arm_retained_study_reports_all_contrasts_and_refuses_missing_support"
+what = "missing arm support is refused"
+
+[[cell]]
+family = "P11.augmented_panel_did"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/augmented_panel_did_route.rs::augmented_panel_did_refuses_nonoverlap_and_repeated_subject"
+what = "non-overlap and a repeated subject are refused"
+
+[[cell]]
+family = "P12.counterfactual"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/counterfactual_id_lifecycle.rs::structures_queries_and_inference_outside_the_cell_are_refused"
+what = "structures, queries and inference outside the cell are refused"
+
+[[cell]]
+family = "P12.intervention"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/checked_cell_aipw_response_route_evidence.rs::cell_aipw_route_refuses_nonbinary_intervention_levels"
+what = "non-binary intervention levels are refused"
+
+[[cell]]
+family = "P13.attribution"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent-attribution/tests/intrinsic_influence.rs::undeclared_noise_a_mismatched_structure_and_unsupported_mechanisms_are_refused"
+what = "undeclared noise, a mismatched structure and unsupported mechanisms are refused"
+
+[[cell]]
+family = "P13.refuter"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent-validate/tests/target_native.rs::a_report_on_another_target_is_refused_by_the_claim"
+what = "a report on another target is refused by the claim"
+
+[[cell]]
+family = "X01"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/numeric_pins.rs::cell_aipw_refuses_named_interaction_on_exceedance_grid"
+what = "a named interaction on the exceedance grid is refused"
+
+[[cell]]
+family = "X02"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/joint_panel_workflow.rs::recoverable_callback_feature_is_refused_by_public_panel_compilation"
+what = "a recoverable callback feature is refused by public panel compilation"
+
+[[cell]]
+family = "X02.broader"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent-estimate/src/joint_panel/family_tests.rs::family_declarations_that_do_not_match_the_panel_are_refused"
+what = "family declarations that do not match the panel are refused"
+
+[[cell]]
+family = "X03"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent-estimate/src/joint_panel/time_varying.rs::unsupported_specifications_and_unique_explanations_remain_separate_attempts"
+what = "unsupported specifications remain separate attempts"
+
+[[cell]]
+family = "X04.1"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent-design/src/program_search.rs::finite_program_search_refuses_unsupported_worlds_and_resource_failure_without_certificate"
+what = "unsupported worlds and resource failure are refused without a certificate"
+
+[[cell]]
+family = "X05"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/src/analysis/joint_panel/tests.rs::reference_decomposition_inherits_exact_hybrid_proofs_and_refuses_unearned_transport"
+what = "unearned transport is refused"
+
+[[cell]]
+family = "X06"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/src/analysis/joint_panel/tests.rs::dose_time_refuses_implicit_extra_channel_and_unassigned_exposure_continuation"
+what = "an implicit extra channel and unassigned exposure continuation are refused"
+
+[[cell]]
+family = "P01.linear"
+axis = "categorical_treatment"
+value = "categorical"
+status = "delivered"
+test = "crates/antecedent/tests/recalc_adjusted.rs::adjusted_categorical_reference_and_pairwise_contrasts_preserve_covariance"
+what = "least-squares dummy contrasts against a reference and pairwise keep the covariance (group means 2, 5, 9: contrasts 4 and 7, variance 2/3)"
+
+[[cell]]
+family = "P04"
+axis = "categorical_treatment"
+value = "categorical"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/treatment_levels.rs::propensity_weighting_honors_declared_active_two_control_one"
+what = "declared active/control levels in a three-level treatment are honored by weighting; matching and AIPW have their own tests in the file"
+
+[[cell]]
+family = "P09.adaptive"
+axis = "categorical_treatment"
+value = "categorical"
+status = "delivered"
+test = "crates/antecedent/tests/adaptive_participant_acceptance.rs::adaptive_beta_binomial_three_arm_600_three_responses"
+what = "a three-arm adaptive Beta-binomial procedure"
+
+[[cell]]
+family = "P07.curve"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent/tests/static_route_input_boundaries.rs::a_treatment_column_without_variation_is_refused_by_every_static_route"
+what = "a mean curve refuses a treatment column with one value and, with an exactly duplicated confounder, leaves the estimate unchanged (penalized smoother); baseline rise recovers the closed form 11"
+
+[[cell]]
+family = "P07.derivative"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent/tests/static_route_input_boundaries.rs::a_duplicated_confounder_is_refused_by_regression_routes_and_absorbed_by_penalized_smoothers"
+what = "an average derivative refuses a treatment column with one value and is unchanged by a duplicated confounder; baseline recovers the closed form 11"
+
+[[cell]]
+family = "P06"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent/tests/static_route_input_boundaries.rs::the_equivalence_class_and_latent_variable_average_effect_routes_share_the_degeneracy_boundaries"
+what = "the CPDAG average effect recovers 11 on the baseline and refuses a constant treatment and a duplicated confounder"
+
+[[cell]]
+family = "P15.projection"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent/tests/static_route_input_boundaries.rs::the_equivalence_class_and_latent_variable_average_effect_routes_share_the_degeneracy_boundaries"
+what = "the ADMG average effect recovers 11 on the baseline and refuses a constant treatment and a duplicated confounder"
+
+[[cell]]
+family = "P07.curve"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "unavailable"
+test = "crates/antecedent/tests/static_route_input_boundaries.rs::an_intervention_level_far_outside_the_observed_range_is_refused_or_flagged_extrapolative"
+reason = "a curve point far outside the observed dose range has no data under its local window and is refused (too little effective weight) instead of extrapolated"
+
+[[cell]]
+family = "P12.counterfactual"
+axis = "weights_missingness"
+value = "missing_data"
+status = "unavailable"
+test = "crates/antecedent/tests/missing_policy_unmodelled_routes.rs::the_counterfactual_runs_undeclared_and_refuses_every_missing_data_policy"
+reason = "the counterfactual route fits mechanisms on its own rows and has no row in the missing-policy registry; any declaration is refused with missing_policy_not_applicable"
+
+[[cell]]
+family = "P09.factorial"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent/tests/randomized_design_boundaries.rs::a_constant_outcome_has_exactly_zero_effect_and_no_variance_in_every_design"
+what = "the 2x2 factorial design gives exactly zero effect on a constant outcome (and zero variance except the Horvitz-Thompson bound of multi-arm); row order does not change its closed-form effect"
+
+[[cell]]
+family = "P09.multiarm"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent/tests/randomized_design_boundaries.rs::a_constant_outcome_has_exactly_zero_effect_and_no_variance_in_every_design"
+what = "the multi-arm design gives exactly zero effect on a constant outcome (and zero variance except the Horvitz-Thompson bound of multi-arm); row order does not change its closed-form effect"
+
+[[cell]]
+family = "P09.switchback"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent/tests/randomized_design_boundaries.rs::a_constant_outcome_has_exactly_zero_effect_and_no_variance_in_every_design"
+what = "the switchback design gives exactly zero effect on a constant outcome (and zero variance except the Horvitz-Thompson bound of multi-arm); row order does not change its closed-form effect"
+
+[[cell]]
+family = "P09.factorial"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/randomized_design_boundaries.rs::an_outcome_with_a_missing_value_is_refused_by_every_design_without_a_policy"
+what = "an outcome with a missing value is refused with a reason code when no missing-data policy is declared"
+
+[[cell]]
+family = "P16"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/composition_facade.rs::facade_refusals_name_their_stage_and_a_retained_identity_is_required"
+what = "composition refusals name their stage and need a retained identity"
+
+[[cell]]
+family = "P17"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent-design/tests/decision_mean_source.rs::an_unknown_coordinate_or_a_malformed_source_refuses"
+what = "an unknown coordinate or a malformed decision source is refused"
+
+[[cell]]
+family = "X04.2"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/src/analysis/joint_panel/tests.rs::memory_refusal_precedes_source_materialization"
+what = "a memory refusal precedes source materialization"
+
+[[cell]]
+family = "P15.pulse"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/temporal_parent_adjustment.rs::treatment_parent_outside_max_history_lag_still_refuses"
+what = "a treatment parent outside the history cap still refuses"
+
+[[cell]]
+family = "P15.sustained"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/data_modalities.rs::panel_class_multi_step_sustained_refuses_a_caller_prior"
+what = "a sustained panel class contrast refuses a caller prior"
+
+[[cell]]
+family = "P17"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent-design/tests/decision_mean_source.rs::expected_loss_prefers_the_smaller_mean_and_exact_ties_are_indistinguishable"
+what = "exact ties between candidates are indistinguishable"
+
+[[cell]]
+family = "P09.factorial"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "unavailable"
+test = "crates/antecedent/tests/randomized_design_boundaries.rs::a_design_with_no_unit_in_an_arm_it_declares_is_refused_not_extrapolated"
+reason = "in the 2x2 factorial design an arm with no realized unit has no contrast; the study is refused (invalid randomized-effect query or a reason code) instead of extrapolating the unvisited arm"
+
+[[cell]]
+family = "P09.switchback"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "unavailable"
+test = "crates/antecedent/tests/randomized_design_boundaries.rs::a_design_with_no_unit_in_an_arm_it_declares_is_refused_not_extrapolated"
+reason = "in the switchback design an arm with no realized unit has no contrast; the study is refused (invalid randomized-effect query or a reason code) instead of extrapolating the unvisited arm"
+
+[[cell]]
+family = "P09.two_arm"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "unavailable"
+test = "crates/antecedent/tests/randomized_design_boundaries.rs::a_design_with_no_unit_in_an_arm_it_declares_is_refused_not_extrapolated"
+reason = "in the Bernoulli two-arm design an arm with no realized unit has no contrast; the study is refused (invalid randomized-effect query or a reason code) instead of extrapolating the unvisited arm"
+
+[[cell]]
+family = "P09.interference"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "unavailable"
+test = "crates/antecedent/tests/randomized_design_boundaries.rs::a_design_with_no_unit_in_an_arm_it_declares_is_refused_not_extrapolated"
+reason = "in the cluster-randomized design an arm with no realized unit has no contrast; the study is refused (invalid randomized-effect query or a reason code) instead of extrapolating the unvisited arm"
+
+[[cell]]
+family = "P14"
+axis = "dependence"
+value = "serial"
+status = "delivered"
+test = "crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_transport_reports_a_serial_dependence_aware_interval"
+what = "a temporal ADMG transport reports a serial-dependence-aware interval"
+
+[[cell]]
+family = "P03.policy"
+axis = "categorical_treatment"
+value = "categorical"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/observational_policy_value.rs::a_three_action_policy_recovers_its_closed_form_value"
+what = "a three-action policy recovers its closed-form value"
+
+[[cell]]
+family = "P11.rd"
+axis = "categorical_treatment"
+value = "categorical"
+status = "unavailable"
+test = "crates/antecedent-estimate/src/rd.rs::rejects_non_binary_treatment_levels"
+reason = "the sharp RD contrasts treated and untreated sides of a cutoff; a treatment with more than two levels is refused"
+
+[[cell]]
+family = "P11.rd"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "unavailable"
+test = "crates/antecedent-estimate/src/rd.rs::rejects_empty_bandwidth_window"
+reason = "a bandwidth window with no rows on a side of the cutoff is refused"

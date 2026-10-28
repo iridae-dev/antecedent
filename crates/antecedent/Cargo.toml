@@ -234,6 +234,30 @@ name = "sampling_weight_routes"
 path = "tests/sampling_weight_routes.rs"
 
 [[test]]
+name = "weighted_route_boundary"
+path = "tests/weighted_route_boundary.rs"
+
+[[test]]
+name = "augmented_panel_did_bayesian"
+path = "tests/augmented_panel_did_bayesian.rs"
+
+[[test]]
+name = "missing_imputation_aipw_weighting"
+path = "tests/missing_imputation_aipw_weighting.rs"
+
+[[test]]
+name = "missing_policy_unmodelled_routes"
+path = "tests/missing_policy_unmodelled_routes.rs"
+
+[[test]]
+name = "static_route_input_boundaries"
+path = "tests/static_route_input_boundaries.rs"
+
+[[test]]
+name = "randomized_design_boundaries"
+path = "tests/randomized_design_boundaries.rs"
+
+[[test]]
 name = "adjusted_recalc_precision"
 path = "tests/adjusted_recalc_precision.rs"
 
