@@ -26,6 +26,7 @@ python3 scripts/check_v3_test_registry.py --self-test
 python3 scripts/test_check_acceptance_manifest.py
 python3 scripts/test_check_release_closure.py
 python3 scripts/test_evidence_audit.py
+python3 scripts/test_ignored_test_lanes.py
 python3 scripts/check_counterparts.py --self-test
 python3 scripts/test_check_counterparts.py
 python3 scripts/test_joint_panel_reference.py

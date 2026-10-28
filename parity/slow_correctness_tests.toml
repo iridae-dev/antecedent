@@ -1,0 +1,147 @@
+# Ignored Rust tests that are not calibration, writer or timing probes.
+#
+# Read by scripts/check_ignored_tests.py (CI: Test-suite controls) and by
+# `bash scripts/test.sh slow`. Calibration, fixture-writer and timing tests are
+# classified from the reason on their #[ignore]; every other ignored test must be
+# listed here, with a reason, or the checker fails. A row whose test no longer
+# exists or is no longer #[ignore]d also fails: delete the row when the test
+# moves into an ordinary lane.
+#
+# [[slow]]   correctness assertions too slow for the ordinary lanes, run by
+#            `bash scripts/test.sh slow` (--run-ignored only, selected by exact
+#            libtest name). expected_seconds is the measured wall time of the
+#            test alone at the test profile (opt-level 2), rounded up, from a
+#            host under load; it is a planning figure, not a bound.
+# [[other]]  ignored for a reason that is none of the above and that no lane
+#            can satisfy by itself; stays ignored.
+
+[[slow]]
+path = "crates/antecedent-identify/src/mag_id_bruteforce.rs"
+name = "exhaustive_four_observed_two_latent"
+reason = "Exhaustive sweep of every four-observed, two-latent MAG against brute-force identification."
+expected_seconds = 10
+
+[[slow]]
+path = "crates/antecedent-discovery/tests/fci_pag_class_exhaustive.rs"
+name = "fci_returns_the_invariant_pag_of_every_five_node_class"
+reason = "FCI returns the invariant PAG of every five-node equivalence class (about 3 minutes unoptimized)."
+expected_seconds = 20
+
+[[slow]]
+path = "crates/antecedent-discovery/tests/graph_posterior_wide.rs"
+name = "samplers_match_an_exhaustive_reference_on_the_ten_variable_ring_with_triangles"
+reason = "Samplers against an exhaustive 14-million-state reference on the ten-variable ring with triangles."
+expected_seconds = 20
+
+[[slow]]
+path = "crates/antecedent-discovery/tests/graph_posterior_wide.rs"
+name = "published_schedule_agrees_with_a_five_times_longer_run_on_the_twelve_variable_ring"
+reason = "Published sampling schedule against a five-fold longer run on the twelve-variable ring."
+expected_seconds = 60
+
+[[slow]]
+path = "crates/antecedent-discovery/tests/graph_posterior_wide.rs"
+name = "exact_posterior_matches_independent_enumeration_on_tractable_cases"
+reason = "Exact DAG posterior against independent enumeration, up to 1.1 billion DAGs at seven variables."
+expected_seconds = 30
+
+[[slow]]
+path = "crates/antecedent-identify/src/tiered.rs"
+name = "joint_identification_p667_under_recorded_bound"
+reason = "Joint identification on a 667-node clique (about 221k bidirected edges); asserts a 16 s wall-clock bound, so run it on an unloaded machine."
+expected_seconds = 1
+
+[[slow]]
+path = "crates/antecedent-stats/tests/adaptive_procedure_capacity.rs"
+name = "the_exact_law_refuses_too_much_work_with_its_own_detail"
+reason = "Exact-law enumeration up to its work bound, then the refusal detail (about ten seconds)."
+expected_seconds = 20
+
+[[slow]]
+path = "crates/antecedent-stats/src/ci/advanced/gpdc_tests.rs"
+name = "gpdc_nystrom_one_hundred_thousand_row_acceptance"
+reason = "GPDC Nystrom conditional-independence test at 100,000 rows."
+expected_seconds = 10
+
+[[slow]]
+path = "crates/antecedent-stats/src/matching.rs"
+name = "one_hundred_thousand_donor_acceptance"
+reason = "Matching over 100,000 donors."
+expected_seconds = 1
+
+[[slow]]
+path = "crates/antecedent-validate/src/sensitivity.rs"
+name = "nonparametric_sensitivity_beyond_20k_100000_rows"
+reason = "Nonparametric sensitivity beyond the 20,000-row ceiling at 100,000 rows."
+expected_seconds = 5
+
+[[slow]]
+path = "crates/antecedent-validate/src/tests.rs"
+name = "neighborhood_sensitivity_one_hundred_thousand_row_acceptance"
+reason = "Neighbourhood sensitivity at 100,000 rows."
+expected_seconds = 2
+
+[[slow]]
+path = "crates/antecedent-io/tests/categorical_treatment_artifact.rs"
+name = "categorical_robust_fit_runs_at_one_hundred_thousand_rows"
+reason = "Categorical-treatment robust fit and artifact at 100,000 rows."
+expected_seconds = 1
+
+[[slow]]
+path = "crates/antecedent-io/tests/latent_class_artifact.rs"
+name = "latent_fit_runs_at_one_hundred_thousand_rows"
+reason = "Latent-class fit at 100,000 rows."
+expected_seconds = 1
+
+[[slow]]
+path = "crates/antecedent-io/tests/latent_class_artifact.rs"
+name = "latent_class_fit_beyond_old_row_ceiling_100000"
+reason = "Latent-class fit beyond the former row ceiling."
+expected_seconds = 2
+
+[[slow]]
+path = "crates/antecedent-io/tests/latent_class_artifact.rs"
+name = "fit_artifact_export_and_replay_budgets_explicit"
+reason = "Latent-class artifact export and replay budgets at 100,000 rows."
+expected_seconds = 1
+
+[[slow]]
+path = "crates/antecedent-io/tests/latent_class_artifact.rs"
+name = "fit_artifact_data_binding_verified"
+reason = "Latent-class artifact data binding at 100,000 rows."
+expected_seconds = 1
+
+[[slow]]
+path = "crates/antecedent-io/tests/nonlinear_mediation_artifact.rs"
+name = "mediation_runs_at_one_hundred_thousand_rows"
+reason = "Nonlinear mediation estimate at 100,000 rows."
+expected_seconds = 1
+
+[[slow]]
+path = "crates/antecedent-io/tests/nonlinear_mediation_artifact.rs"
+name = "nonlinear_mediation_fit_beyond_old_row_ceiling_100000"
+reason = "Nonlinear mediation fit beyond the former row ceiling."
+expected_seconds = 1
+
+[[slow]]
+path = "crates/antecedent-io/tests/vector_treatment_artifact.rs"
+name = "vector_robust_fit_runs_at_one_hundred_thousand_rows"
+reason = "Vector-treatment robust fit and artifact at 100,000 rows."
+expected_seconds = 1
+
+[[slow]]
+path = "crates/antecedent/tests/licensed_compiler.rs"
+name = "diagnostic_registry_closure_after_builder_and_study_drop"
+reason = "Executes every licensed support cell (723) and checks retained checked execution after builder and study drop."
+expected_seconds = 200
+
+[[slow]]
+path = "crates/antecedent/tests/licensed_compiler.rs"
+name = "diagnostic_optional_estimator_closure_after_builder_and_study_drop"
+reason = "Same closure check for the 60 optional-estimator routes."
+expected_seconds = 1
+
+[[other]]
+path = "crates/antecedent-design/tests/coordinate_parity.rs"
+name = "consume_python_fixtures"
+reason = "Consumes py_* fixtures that only a Python regeneration writes (ANTECEDENT_WRITE_FIXTURES=1 pytest ... regenerate_python_fixtures); without them it fails on a missing file, so it cannot run on its own."

@@ -6,7 +6,7 @@ cd "$ROOT"
 
 usage() {
   cat <<'EOF'
-Usage: bash scripts/test.sh [dev|rust|rust-software|rust-calibration-acceptance|integration|scientific|scripts|docs|python-test|python|python-software|python-calibration-acceptance|all] [test arguments...]
+Usage: bash scripts/test.sh [dev|rust|rust-software|rust-calibration-acceptance|integration|scientific|scripts|docs|python-test|python|python-software|python-calibration-acceptance|slow|all] [test arguments...]
 
   dev     Run a focused Rust selection with cheap test compilation (opt-level 0).
           Supply a package/target selection; numerical package overrides remain.
@@ -34,6 +34,11 @@ Usage: bash scripts/test.sh [dev|rust|rust-software|rust-calibration-acceptance|
   python-calibration-acceptance  Run measured-record acceptance assertions.
           Requires a current extension and attesting frozen-branch calibration.
           May execute numerical consumer replays; use only after branch lockdown.
+  slow    Run the slow correctness sweeps that are #[ignore]d out of every ordinary
+          lane (exhaustive enumerations, 100,000-row acceptance fits), selected by
+          exact name from parity/slow_correctness_tests.toml with --run-ignored.
+          Discovery fails if a listed test is missing or no longer ignored, or if
+          an ignored test is in no class. Manual or nightly; minutes, not seconds.
   all     Run workspace tests, doctests, optional feature tests, and Python tests.
 
 Examples:
@@ -55,10 +60,10 @@ suite="${1:-rust}"
 if [[ $# -gt 0 ]]; then shift; fi
 case "$suite" in
   -h|--help) usage; exit 0 ;;
-  dev|rust|rust-software|rust-calibration-acceptance|integration|scientific|scripts|docs|python-test|python|python-software|python-calibration-acceptance|all) ;;
+  dev|rust|rust-software|rust-calibration-acceptance|integration|scientific|scripts|docs|python-test|python|python-software|python-calibration-acceptance|slow|all) ;;
   *) usage >&2; exit 2 ;;
 esac
-if [[ ( "$suite" == all || "$suite" == scientific || "$suite" == rust-software || "$suite" == rust-calibration-acceptance ) && $# -gt 0 ]]; then
+if [[ ( "$suite" == all || "$suite" == scientific || "$suite" == rust-software || "$suite" == rust-calibration-acceptance || "$suite" == slow ) && $# -gt 0 ]]; then
   echo "$suite does not accept extra arguments; use rust, docs or python for a focused run" >&2
   exit 2
 fi
@@ -131,6 +136,15 @@ case "$suite" in
       echo "Explicitly deselecting registered measured-record acceptance assertions; discovery: $listing"
     fi
     rust_tests "${workspace[@]}" -E "$selection"
+    ;;
+  slow)
+    python3 "$ROOT/scripts/check_ignored_tests.py"
+    selection="$(python3 "$ROOT/scripts/check_ignored_tests.py" slow-filter)"
+    mkdir -p "$report_directory"
+    listing="$report_directory/slow-discovery.json"
+    cargo nextest list --locked "${workspace[@]}" --run-ignored only --message-format json -E "$selection" > "$listing"
+    python3 "$ROOT/scripts/check_ignored_tests.py" slow-filter --listing "$listing" > /dev/null
+    rust_tests "${workspace[@]}" --run-ignored only -E "$selection"
     ;;
   integration)
     if [[ $# -eq 0 ]]; then set -- "${workspace[@]}"; fi

@@ -18741,3 +18741,10 @@ crate = "antecedent-attribution"
 cargo_target = "distribution_change_reference"
 path = "crates/antecedent-attribution/tests/distribution_change_reference.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-scripts-test-ignored-test-lanes-py"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_ignored_test_lanes.py"
+gates = ["inventory"]

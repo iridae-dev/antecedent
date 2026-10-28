@@ -1692,7 +1692,7 @@ fn diagnostic_registry_closure_after_builder_and_study_drop() {
         not_inspectable.len(),
         not_inspectable.join("\n")
     );
-    assert_eq!(count, 717, "licensed support inventory drifted");
+    assert_eq!(count, 723, "licensed support inventory drifted");
 }
 
 /// Opt-in probe for the separately licensed alternate estimators. It keeps
