@@ -23,11 +23,24 @@ gcm = antecedent.model.fit_gcm(names, columns, edges)
 
 ```python
 for arrow in gcm.arrow_strengths():
-    print(arrow.parent, arrow.child, round(arrow.coefficient, 2), round(arrow.strength, 2))
+    print(arrow.parent, arrow.child, round(arrow.coefficient, 2), round(arrow.strength, 2),
+          round(arrow.variance_contribution, 2))
 ```
 
-For a linear-Gaussian fit the strength of an edge is `coefficient**2 * Var(parent)`. The sign stays
-in `coefficient` while `strength` is non-negative.
+For a linear-Gaussian fit `strength` is the causal strength of Janzing et al. (2013): the
+Kullback-Leibler divergence, in nats, between the model's joint law and the joint law with the
+edge cut, that is with the child fed an independent copy of the parent drawn from the parent's
+marginal. It equals `0.5 * log(1 + coefficient**2 * Var(parent) / sigma**2)` with `sigma**2` the
+child's noise variance, whatever the correlation among the parents, so it is scale-free and grows
+without bound as the edge explains all of the child. For a child whose only parent is this one
+it is `-0.5 * log(1 - coefficient**2 * Var(parent) / Var(child))`; with other parents the
+denominator excludes theirs, because they stay connected. A child with no noise variance of its
+own cannot be scored (the divergence is infinite) and is refused.
+
+`variance_contribution` is `coefficient**2 * Var(parent)`, the variance the edge adds to the
+child in the child's squared units; it is the numerator of the first-order approximation of
+`strength` and what `strength` was before the logarithmic measure. The sign stays in `coefficient`
+while both are non-negative.
 
 ## Population contrast under `do`
 

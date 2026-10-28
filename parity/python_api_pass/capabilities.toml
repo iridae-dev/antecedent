@@ -16164,14 +16164,14 @@ id = "gcm.fitted.arrow_strengths"
 rust = ["export:antecedent::gcm::ArrowStrength", "export:antecedent::gcm::arrow_strengths"]
 status = "covered"
 owner = "Python API integration: antecedent::gcm"
-behavior = "FittedGcm.arrow_strengths: the model-implied strength coefficient^2 * Var(parent) of every edge of a linear-Gaussian fit, with the signed coefficient kept."
+behavior = "FittedGcm.arrow_strengths: for every edge of a linear-Gaussian fit the cited causal strength (the divergence of the joint from the joint with the edge cut, 0.5 * ln(1 + coefficient^2 * Var(parent) / sigma^2) nats), the variance contribution coefficient^2 * Var(parent), and the signed coefficient."
 python = "antecedent.model.fit_gcm"
 required_dimensions = ["success", "inspection"]
 [[capability.evidence]]
 test = "python/tests/test_gcm_rich_returns.py::test_arrow_strengths_match_the_closed_form_linear_gaussian_strengths"
 assertion_scopes = ["test_arrow_strengths_match_the_closed_form_linear_gaussian_strengths"]
 dimensions = ["success", "inspection", "branch"]
-assertion_contract = "On x -> m -> y plus x -> y with known coefficients 0.8, 0.5, 0.2, the three edges are reported with fitted coefficients within 0.03 of the truth and strengths equal to coefficient^2 * model-implied Var(parent) (0.64, 0.25*0.73, 0.04, Var(m)=0.73 propagated through the graph); flipping the direct coefficient negative flips the reported coefficient sign while the strength stays non-negative."
+assertion_contract = "On x -> m -> y plus x -> y with known coefficients 0.8, 0.5, 0.2, the three edges are reported with fitted coefficients within 0.03 of the truth and variance contributions equal to coefficient^2 * model-implied Var(parent) (0.64, 0.25*0.73, 0.04, Var(m)=0.73 propagated through the graph) and strengths equal to 0.5 * ln(1 + variance contribution / fitted noise variance) of the child, the cut-edge divergence; flipping the direct coefficient negative flips the reported coefficient sign while the strength and variance contribution stay non-negative."
 
 [[capability]]
 id = "gcm.fitted.population_do_contrast"

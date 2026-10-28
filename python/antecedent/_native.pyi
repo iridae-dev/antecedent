@@ -2825,6 +2825,7 @@ class ArrowStrength:
     parent: str
     child: str
     strength: float
+    variance_contribution: float
     coefficient: float
 
 class PopulationDoContrast:

@@ -179,9 +179,22 @@ def test_arrow_strengths_match_the_closed_form_linear_gaussian_strengths():
     assert strengths[("x", "m")].coefficient == pytest.approx(0.8, abs=0.03)
     assert strengths[("m", "y")].coefficient == pytest.approx(0.5, abs=0.03)
     assert strengths[("x", "y")].coefficient == pytest.approx(0.2, abs=0.03)
-    assert strengths[("x", "m")].strength == pytest.approx(0.64, rel=0.15)
-    assert strengths[("m", "y")].strength == pytest.approx(0.25 * 0.73, rel=0.15)
-    assert strengths[("x", "y")].strength == pytest.approx(0.04, rel=0.25)
+    assert strengths[("x", "m")].variance_contribution == pytest.approx(0.64, rel=0.15)
+    assert strengths[("m", "y")].variance_contribution == pytest.approx(0.25 * 0.73, rel=0.15)
+    assert strengths[("x", "y")].variance_contribution == pytest.approx(0.04, rel=0.25)
+    # The strength is the cut-edge divergence 0.5 * ln(1 + contribution / sigma^2) with sigma
+    # the child's noise scale (m: 0.3, y: 0.1 in the generating model).
+    assert strengths[("x", "m")].strength == pytest.approx(
+        0.5 * math.log1p(0.64 / 0.3**2), rel=0.3
+    )
+    assert strengths[("m", "y")].strength == pytest.approx(
+        0.5 * math.log1p(0.25 * 0.73 / 0.1**2), rel=0.3
+    )
+    for s in strengths.values():
+        assert s.strength == pytest.approx(
+            0.5 * math.log1p(s.variance_contribution / (0.3**2 if s.child == "m" else 0.1**2)),
+            rel=0.35,
+        )
     # The sign survives in the coefficient while the strength is non-negative.
     flipped_names, flipped_cols, flipped_edges = _mediated_chain(direct=-0.2)
     flipped = {
@@ -191,6 +204,7 @@ def test_arrow_strengths_match_the_closed_form_linear_gaussian_strengths():
         ).arrow_strengths()
     }
     assert flipped[("x", "y")].coefficient < 0.0 <= flipped[("x", "y")].strength
+    assert flipped[("x", "y")].variance_contribution >= 0.0
 
 
 def test_population_do_contrast_is_the_total_effect_with_zero_common_noise_error():

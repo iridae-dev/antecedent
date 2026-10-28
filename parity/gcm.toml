@@ -114,7 +114,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/attribution/arrow_strength"
 evidence_test = "crates/antecedent-attribution/src/anomaly.rs"
 evidence_assertion = "arrow_strength_is_variance_weighted_not_bare_coefficient"
-limitations = "Evidence pins arrow strength against the closed form; anomaly scoring is checked by anomaly_and_arrow_strength and gcm_anomaly."
+limitations = "Evidence pins both the cut-edge divergence (the arrow strength) and the variance contribution beta^2 Var(parent) of every edge against exact rational values derived independently by the fixture generator, with the divergence obtained twice (from the Gaussian divergence of the joint covariances and from its closed form), including a diamond whose child has correlated parents. Linear-Gaussian mechanisms only; anomaly scoring is checked by anomaly_and_arrow_strength and gcm_anomaly."
 notes = "Anomaly scores + arrow strength + intrinsic influence"
 
 [[capabilities]]

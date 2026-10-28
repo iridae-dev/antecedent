@@ -138,11 +138,27 @@ impl OutlierTail {
         // Two-sided Gaussian tail. `norm_sf` underflows to 0 past z ≈ 38, so switch to the
         // log-space asymptotic `2Φ(−z) ≈ 2φ(z)/z` there instead of returning `+∞`.
         let two_sided = 2.0 * antecedent_kernels::norm_sf(z);
-        Ok(if two_sided > f64::MIN_POSITIVE {
+        let score = if two_sided > f64::MIN_POSITIVE {
             -two_sided.ln()
         } else {
-            0.5 * z * z + z.ln() + 0.5 * std::f64::consts::TAU.ln() - std::f64::consts::LN_2
-        })
+            // Mills ratio `Φ(−z) = φ(z)/z · (1 − 1/z² + 3/z⁴ − 15/z⁶ + 105/z⁸ − …)`. Here
+            // `z > 38`, so `1/z² < 7e-4` and the omitted term is below 1e-14; dropping the
+            // whole series would understate the tail score by about `1/z²`.
+            let s = (z * z).recip();
+            let series = s * (-1.0 + s * (3.0 + s * (-15.0 + s * (105.0 - 945.0 * s))));
+            0.5 * z * z + z.ln() + 0.5 * std::f64::consts::TAU.ln()
+                - std::f64::consts::LN_2
+                - series.ln_1p()
+        };
+        // A standardized deviation so large that `z²` overflows is an unknown outlierness, not
+        // an infinite score that would turn every Shapley difference into NaN.
+        if score.is_finite() {
+            Ok(score)
+        } else {
+            Err(AttributionError::invalid_input(
+                "anomaly score requires a standardized deviation small enough to score",
+            ))
+        }
     }
 }
 
@@ -463,27 +479,39 @@ impl CoalitionPayoff for NoiseShapleyPayoff<'_> {
     }
 }
 
-/// Arrow strength for a linear-family edge: the variance the edge contributes,
-/// `β² · Var(parent)` (Janzing et al. 2013, *Quantifying causal influences*, Section 6,
-/// "Causal strength for linear structural equations").
+/// Arrow strength for a linear-family edge, in nats: the Kullback-Leibler divergence between
+/// the model's joint distribution and the joint obtained by cutting the edge (Janzing et al.
+/// 2013, *Quantifying causal influences*, Section 6, "Causal strength for linear structural
+/// equations").
 ///
-/// This is the first-order (small-`β²·Var(parent)/Var(child)`) approximation of that
-/// section's exact causal-strength formula
-/// `CS = −½·log(1 − β²·Var(parent)/Var(child))`, not the log/KL expression itself — the
-/// log form is recovered from this variance term only in the limit where the edge's
-/// contributed variance is small relative to the child's total variance.
+/// Cutting `parent -> child` feeds the child an independent copy of the parent drawn from the
+/// parent's marginal and leaves every other input and mechanism untouched. For
+/// `child = beta * parent + (other parents) + noise` with noise variance `sigma^2`, the cut
+/// conditional of the child given its retained inputs has the same mean up to the shift
+/// `beta * (parent - E parent)` and variance `beta^2 Var(parent) + sigma^2`, so
 ///
-/// Not `|β|`, which this returned previously. A bare coefficient is not a measure of
-/// influence, because it says nothing about how much the parent actually varies: a parent
-/// with `β = 2.5` and `Var = 0.001` moves its child by almost nothing, while `β = 0.75`
-/// with `Var = 100` dominates it — yet `|β|` ranks them the other way round, off by a
-/// factor of ~9000 in that example. `β²·Var(parent)` is the variance of the child that
-/// flows through the edge, which is what "strength" is asking for.
+/// `strength = 1/2 * ln(1 + beta^2 Var(parent) / sigma^2) = -1/2 * ln(1 - r)`
+///
+/// with `r = beta^2 Var(parent) / (beta^2 Var(parent) + sigma^2)`. The value does not depend
+/// on how the parents are correlated: the divergence averages the squared mean shift
+/// `beta^2 (parent - E parent)^2`, which involves the parent's marginal variance only. For a
+/// child whose only parent is this one, `beta^2 Var(parent) + sigma^2 = Var(child)` and the
+/// expression is the paper's `-1/2 ln(1 - beta^2 Var(parent) / Var(child))`; with further
+/// parents the denominator of `r` excludes their variance, because they stay connected.
+///
+/// It is zero for a zero coefficient or a parent without variance, scale-free (rescaling the
+/// child leaves it unchanged), grows without bound as `r -> 1`, and is not defined when the
+/// child's noise variance is zero while the edge carries variance: the cut joint is then not
+/// absolutely continuous with respect to the original and the divergence is infinite.
+/// [`arrow_strengths`] refuses such a model instead of returning an infinite number.
+///
+/// [`Self::variance_contribution`] keeps the first-order quantity `beta^2 Var(parent)` that this
+/// crate reported as the strength before the logarithmic measure was implemented. It ranks
+/// edges by variance and is unbounded, but it is not the cited measure and not a share of the
+/// child's variance.
 ///
 /// `Var(parent)` is implied by the model, not measured from data: variances propagate in
-/// topological order from the roots' own noise. This is exact when the child's parents are
-/// mutually uncorrelated; with correlated parents it remains the standard linear-Gaussian
-/// arrow strength, reporting each edge's own contribution and not the cross terms.
+/// topological order from the roots' own noise.
 ///
 /// Non-linear mechanisms error — use [`population_do_contrast`] for interventional
 /// influence.
@@ -493,11 +521,41 @@ pub struct ArrowStrength {
     pub parent: VariableId,
     /// Child variable.
     pub child: VariableId,
-    /// `β² · Var(parent)`.
+    /// The cited causal strength `1/2 * ln(1 + beta^2 Var(parent) / sigma^2)` in nats, with
+    /// `sigma^2` the child's noise variance: the divergence of the joint from the joint with
+    /// this arrow cut. Non-negative and scale-free.
     pub strength: f64,
+    /// `beta^2 * Var(parent)`: the variance the edge contributes to the child, in the child's
+    /// squared units. The numerator of the first-order approximation of [`Self::strength`].
+    pub variance_contribution: f64,
     /// The edge coefficient itself, retained because it carries the *sign* and direction
     /// of the effect that the (non-negative) strength deliberately discards.
     pub coefficient: f64,
+}
+
+/// `1/2 * ln(1 + signal / noise)` for an edge contributing `signal = beta^2 Var(parent)` to a
+/// child with noise variance `noise = sigma^2`, refusing the cases where it is infinite.
+fn cut_edge_divergence(signal: f64, noise: f64) -> Result<f64, AttributionError> {
+    if !signal.is_finite() || !noise.is_finite() || signal < 0.0 || noise < 0.0 {
+        return Err(AttributionError::invalid_input(
+            "arrow strength requires finite, non-negative edge and noise variances",
+        ));
+    }
+    if signal == 0.0 {
+        return Ok(0.0);
+    }
+    if noise == 0.0 {
+        return Err(AttributionError::invalid_input(
+            "arrow strength is infinite when the child has no noise variance beyond its parents",
+        ));
+    }
+    let ratio = signal / noise;
+    if !ratio.is_finite() {
+        return Err(AttributionError::invalid_input(
+            "arrow strength requires an edge variance that is finite relative to the child's noise",
+        ));
+    }
+    Ok(0.5 * ratio.ln_1p())
 }
 
 /// Model-implied variance of every node, indexed by dense id.
@@ -578,9 +636,14 @@ fn model_implied_variances(model: &CompiledCausalModel) -> Result<Vec<f64>, Attr
     Ok((0..n).map(|i| cov[i * n + i]).collect())
 }
 
-/// Compute arrow strengths for all edges in the compiled model.
+/// Compute arrow strengths for all edges in the compiled model: the cut-edge divergence
+/// [`ArrowStrength::strength`] and the variance contribution
+/// [`ArrowStrength::variance_contribution`] of each.
 ///
 /// # Errors
+///
+/// [`AttributionError::InvalidInput`] when an edge carries variance into a child with no noise
+/// variance of its own (the divergence is infinite) or a variance is not finite.
 ///
 /// [`AttributionError::NonLinearGaussianMechanism`] when a child with parents is not a
 /// linear-family mechanism, or when any node's variance is not available in closed form
@@ -596,9 +659,9 @@ pub fn arrow_strengths(
         if gather.parents.is_empty() {
             continue;
         }
-        let (antecedent_model::MechanismSlot::LinearGaussian { coeffs, .. }
-        | antecedent_model::MechanismSlot::HierarchicalLinear { coeffs, .. }
-        | antecedent_model::MechanismSlot::Bvar { coeffs, .. }) =
+        let (antecedent_model::MechanismSlot::LinearGaussian { coeffs, sigma, .. }
+        | antecedent_model::MechanismSlot::HierarchicalLinear { coeffs, sigma, .. }
+        | antecedent_model::MechanismSlot::Bvar { coeffs, sigma, .. }) =
             model.mechanisms.get(gather.child)
         else {
             return Err(AttributionError::NonLinearGaussianMechanism);
@@ -607,8 +670,15 @@ pub fn arrow_strengths(
             let parent = model.output_layout.variables[p.as_usize()];
             // A short coefficient vector is a corrupt store, not a zero edge.
             let beta = coeffs.get(i).copied().ok_or(AttributionError::MechanismCoeffMismatch)?;
-            let strength = beta * beta * variances[p.as_usize()];
-            out.push(ArrowStrength { parent, child: child_var, strength, coefficient: beta });
+            let variance_contribution = beta * beta * variances[p.as_usize()];
+            let strength = cut_edge_divergence(variance_contribution, sigma * sigma)?;
+            out.push(ArrowStrength {
+                parent,
+                child: child_var,
+                strength,
+                variance_contribution,
+                coefficient: beta,
+            });
         }
     }
     Ok(out)
@@ -950,7 +1020,8 @@ mod tests {
         assert!((abs_sum - scores[0].abs_contribution_sum[row]).abs() < 1e-9);
         let arrows = arrow_strengths(&model).unwrap();
         assert!(!arrows.is_empty());
-        assert!(arrows.iter().any(|a| a.strength > 0.5), "arrows={arrows:?}");
+        assert!(arrows.iter().any(|a| a.variance_contribution > 0.5), "arrows={arrows:?}");
+        assert!(arrows.iter().all(|a| a.strength.is_finite() && a.strength >= 0.0));
     }
 
     #[derive(Deserialize)]
@@ -958,7 +1029,24 @@ mod tests {
         parents: Vec<FixtureParent>,
         child: FixtureChild,
         edges: Vec<ExpectedEdge>,
+        correlated_parents: CorrelatedBlock,
         tolerance: FixtureTolerance,
+    }
+
+    #[derive(Deserialize)]
+    struct CorrelatedBlock {
+        nodes: Vec<String>,
+        sigma: std::collections::BTreeMap<String, f64>,
+        edges: Vec<CorrelatedEdge>,
+    }
+
+    #[derive(Deserialize)]
+    struct CorrelatedEdge {
+        parent: String,
+        child: String,
+        coefficient: f64,
+        variance_contribution: f64,
+        strength: f64,
     }
 
     #[derive(Deserialize)]
@@ -983,11 +1071,12 @@ mod tests {
         parent_raw: u32,
         child_raw: u32,
         coefficient: f64,
+        variance_contribution: f64,
         strength: f64,
     }
 
-    /// Arrow strength is `β²·Var(parent)`, and the fixture is built so `|β|` ranks the two
-    /// edges the wrong way round.
+    /// The variance contribution is `β²·Var(parent)`, and the fixture is built so `|β|` ranks
+    /// the two edges the wrong way round; the strength is the cited cut-edge divergence.
     ///
     /// Parent 0 has the smaller coefficient (0.75 against 2.5) but a variance four orders of
     /// magnitude larger (100 against 0.001), so it genuinely dominates the child by ~9000×.
@@ -1048,6 +1137,15 @@ mod tests {
                 })
                 .unwrap();
             assert!(
+                (got.variance_contribution - expected.variance_contribution).abs()
+                    < fixture.tolerance.absolute,
+                "edge {}→{} variance contribution {} != expected {}",
+                expected.parent_raw,
+                expected.child_raw,
+                got.variance_contribution,
+                expected.variance_contribution
+            );
+            assert!(
                 (got.strength - expected.strength).abs() < fixture.tolerance.absolute,
                 "edge {}→{} strength {} != expected {}",
                 expected.parent_raw,
@@ -1064,7 +1162,7 @@ mod tests {
         };
         let (e0, e1) = (by_parent(0), by_parent(1));
         assert!(
-            e0.strength > e1.strength,
+            e0.strength > e1.strength && e0.variance_contribution > e1.variance_contribution,
             "parent 0 (beta={}, var=100) must outrank parent 1 (beta={}, var=0.001); got {} vs {}",
             e0.coefficient,
             e1.coefficient,
@@ -1077,10 +1175,170 @@ mod tests {
         );
     }
 
+    fn linear_slot(coeffs: &[f64], sigma: f64) -> MechanismSlot {
+        MechanismSlot::LinearGaussian { intercept: 0.0, coeffs: Arc::from(coeffs), sigma }
+    }
+
+    /// `x → y` with `Var(x) = vx`, `y = beta·x + N(0, sy²)`.
+    fn single_parent(vx: f64, beta: f64, sy: f64) -> CompiledCausalModel {
+        let mut graph = Dag::with_variables(2);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        CompiledCausalModel::compile(graph).unwrap().with_mechanisms(CompiledMechanismStore {
+            slots: Arc::from([linear_slot(&[], vx.sqrt()), linear_slot(&[beta], sy)]),
+        })
+    }
+
+    /// With one parent the strength is the cited `−½·ln(1 − β²Var(x)/Var(y))`, here with
+    /// `β²Var(x) = 3` and `Var(y) = 4`: `½·ln 4`.
+    #[test]
+    fn single_parent_strength_is_the_cited_logarithmic_form() {
+        let arrows = arrow_strengths(&single_parent(3.0, 1.0, 1.0)).unwrap();
+        assert_eq!(arrows.len(), 1);
+        let want = 0.5 * 4.0_f64.ln();
+        assert!((arrows[0].strength - want).abs() < 1e-14, "{}", arrows[0].strength);
+        assert!((arrows[0].variance_contribution - 3.0).abs() < 1e-14);
+    }
+
+    /// Rescaling the child (coefficient and noise) leaves the strength unchanged and scales
+    /// the variance contribution by the square of the factor.
+    #[test]
+    fn strength_is_invariant_to_rescaling_the_child() {
+        let base = arrow_strengths(&single_parent(2.0, 0.7, 0.9)).unwrap()[0].clone();
+        for factor in [1e-3, 0.5, 8.0, 1e3] {
+            let scaled = arrow_strengths(&single_parent(2.0, 0.7 * factor, 0.9 * factor)).unwrap()
+                [0]
+            .clone();
+            assert!(
+                (scaled.strength - base.strength).abs() < 1e-12 * (1.0 + base.strength),
+                "factor {factor}: {} vs {}",
+                scaled.strength,
+                base.strength
+            );
+            let ratio = scaled.variance_contribution / base.variance_contribution;
+            assert!((ratio / (factor * factor) - 1.0).abs() < 1e-12, "factor {factor}");
+        }
+    }
+
+    /// As `r = β²Var/(β²Var + σ²) → 1` the strength grows like `−½·ln(1 − r)` without bound.
+    #[test]
+    fn strength_diverges_as_the_explained_share_approaches_one() {
+        let mut previous = 0.0;
+        for k in 1..=8 {
+            let noise = 10.0_f64.powi(-k);
+            let s = arrow_strengths(&single_parent(1.0, 1.0, noise)).unwrap()[0].strength;
+            // `1 − r = σ²/(1 + σ²)` computed from the exact complement.
+            let want = -0.5 * (noise * noise / (1.0 + noise * noise)).ln();
+            assert!((s - want).abs() < 1e-12 * want.abs().max(1.0), "k={k}: {s} vs {want}");
+            assert!(s > previous);
+            previous = s;
+        }
+        assert!(previous > 9.0);
+    }
+
+    /// Two uncorrelated parents `x`, `z` of `y = x + z + N(0, 1)`, all unit variance. The joint
+    /// covariance `Σ` has determinant 1 and the covariance with `x → y` cut has determinant 2
+    /// and `tr(Σ_cut⁻¹Σ) = 3`, so the divergence is `½·ln 2`; the normalised form with
+    /// `Var(y) = 3` would give `½·ln(3/2)`, which is not the divergence.
+    #[test]
+    fn strength_with_another_parent_matches_the_exact_divergence() {
+        let mut graph = Dag::with_variables(3);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        graph.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let model =
+            CompiledCausalModel::compile(graph).unwrap().with_mechanisms(CompiledMechanismStore {
+                slots: Arc::from([
+                    linear_slot(&[], 1.0),
+                    linear_slot(&[], 1.0),
+                    linear_slot(&[1.0, 1.0], 1.0),
+                ]),
+            });
+        for arrow in arrow_strengths(&model).unwrap() {
+            assert!((arrow.strength - 0.5 * 2.0_f64.ln()).abs() < 1e-14, "{}", arrow.strength);
+            assert!((arrow.variance_contribution - 1.0).abs() < 1e-14);
+        }
+    }
+
+    /// Correlated parents (diamond with a chord) against the independent exact divergences of
+    /// the conformance fixture, including the edge whose variance contribution exceeds
+    /// `Var(child)`.
+    #[test]
+    fn correlated_parent_strengths_match_the_exact_divergence() {
+        let fixture: ArrowFixture = serde_json::from_str(include_str!(
+            "../../../conformance/attribution/arrow_strength/expected.json"
+        ))
+        .unwrap();
+        let block = fixture.correlated_parents;
+        let index = |name: &str| block.nodes.iter().position(|n| n == name).unwrap() as u32;
+        let mut graph = Dag::with_variables(block.nodes.len() as u32);
+        for e in &block.edges {
+            graph
+                .insert_directed(
+                    DenseNodeId::from_raw(index(&e.parent)),
+                    DenseNodeId::from_raw(index(&e.child)),
+                )
+                .unwrap();
+        }
+        let compiled = CompiledCausalModel::compile(graph).unwrap();
+        let slots: Vec<MechanismSlot> = block
+            .nodes
+            .iter()
+            .enumerate()
+            .map(|(child, name)| {
+                let gather = compiled.gather_for(DenseNodeId::from_raw(child as u32)).unwrap();
+                let coeffs: Vec<f64> = gather
+                    .parents
+                    .iter()
+                    .map(|p| {
+                        block
+                            .edges
+                            .iter()
+                            .find(|e| index(&e.parent) as usize == p.as_usize() && e.child == *name)
+                            .unwrap()
+                            .coefficient
+                    })
+                    .collect();
+                linear_slot(&coeffs, block.sigma[name])
+            })
+            .collect();
+        let model = compiled.with_mechanisms(CompiledMechanismStore { slots: Arc::from(slots) });
+        let got = arrow_strengths(&model).unwrap();
+        assert_eq!(got.len(), block.edges.len());
+        for want in &block.edges {
+            let e = got
+                .iter()
+                .find(|e| {
+                    e.parent == VariableId::from_raw(index(&want.parent))
+                        && e.child == VariableId::from_raw(index(&want.child))
+                })
+                .expect("edge");
+            assert!((e.strength - want.strength).abs() < 1e-12, "{}→{}", want.parent, want.child);
+            assert!(
+                (e.variance_contribution - want.variance_contribution).abs() < 1e-12,
+                "{}→{}",
+                want.parent,
+                want.child
+            );
+        }
+    }
+
+    /// A child with no noise variance of its own makes the divergence infinite: refused, not
+    /// returned as an infinity. A zero edge into such a child is still a zero strength.
+    #[test]
+    fn strength_refuses_a_noiseless_child_unless_the_edge_is_null() {
+        let err = arrow_strengths(&single_parent(1.0, 1.0, 0.0)).unwrap_err();
+        assert!(matches!(err, AttributionError::InvalidInput { .. }), "{err:?}");
+        let null_edge = arrow_strengths(&single_parent(1.0, 0.0, 0.0)).unwrap();
+        assert_eq!(null_edge[0].strength, 0.0);
+        let no_variance_parent = arrow_strengths(&single_parent(0.0, 3.0, 0.0)).unwrap();
+        assert_eq!(no_variance_parent[0].strength, 0.0);
+        let overflow = arrow_strengths(&single_parent(1e300, 1e10, 1e-10)).unwrap_err();
+        assert!(matches!(overflow, AttributionError::InvalidInput { .. }), "{overflow:?}");
+    }
+
     /// Variance must compose through a chain, not just come off the roots.
     ///
     /// `x → m → y` with `Var(x) = 4`, `m = 3x + N(0, 1)` gives `Var(m) = 9·4 + 1 = 37`, so the
-    /// `m → y` edge with `β = 2` has strength `4·37 = 148`. A diagonal-only propagation that
+    /// `m → y` edge with `β = 2` has variance contribution `4·37 = 148`. A diagonal-only propagation that
     /// forgot to carry `m`'s inherited variance would report `4·1 = 4`.
     #[test]
     fn variance_propagates_through_a_chain() {
@@ -1113,6 +1371,12 @@ mod tests {
             .iter()
             .find(|e| e.parent == VariableId::from_raw(1) && e.child == VariableId::from_raw(2))
             .unwrap();
-        assert!((m_to_y.strength - 148.0).abs() < 1e-12, "m→y strength={}", m_to_y.strength);
+        assert!(
+            (m_to_y.variance_contribution - 148.0).abs() < 1e-12,
+            "m→y variance contribution={}",
+            m_to_y.variance_contribution
+        );
+        // The m → y noise is N(0, 1), so the strength is ½·ln(1 + 148).
+        assert!((m_to_y.strength - 0.5 * 149.0_f64.ln()).abs() < 1e-12);
     }
 }

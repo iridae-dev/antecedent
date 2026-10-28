@@ -4,36 +4,38 @@
     "kind": "closed_form",
     "method": "closed_form_linear_sem",
     "generator": "conformance/attribution/arrow_strength/reference.py",
-    "formula": "Arrow strength is the variance the edge contributes: strength = beta^2 * Var(parent) (Janzing et al. 2013). Var of a linear-Gaussian root with no parents is sigma^2. A do contrast of width delta is the signed beta*delta.",
-    "note": "schema_version 1 pinned strength = abs(beta), which is not a measure of influence because it ignores how much the parent varies. The two edges below are chosen so the two definitions rank them in opposite orders: parent 0 has the smaller coefficient but much the larger variance, and genuinely dominates the child.",
+    "formula": "Arrow strength is the cited causal strength of Janzing et al. 2013: the Kullback-Leibler divergence between the joint law and the joint law with the edge cut (the child fed an independent copy of the parent drawn from its marginal). For a linear-Gaussian child with noise variance sigma^2 it is 1/2 ln(1 + beta^2 Var(parent) / sigma^2) = -1/2 ln(1 - r), r = beta^2 Var(parent) / (beta^2 Var(parent) + sigma^2), whatever the correlation among the parents; for a single parent the denominator is Var(child). The variance contribution beta^2 * Var(parent) is reported alongside as variance_contribution. Var of a linear-Gaussian root with no parents is sigma^2. A do contrast of width delta is the signed beta*delta.",
+    "note": "schema_version 1 pinned strength = abs(beta), which is not a measure of influence because it ignores how much the parent varies. Revision 2 pinned strength = beta^2 Var(parent). The strength is now the cited logarithmic measure and beta^2 Var(parent) is variance_contribution. The two independent-parent edges rank the two definitions of influence against |beta|: parent 0 has the smaller coefficient but much the larger variance. The correlated_parents block is a four-node diamond with a chord whose child d has correlated parents; one edge contributes more than Var(d), where the normalised form with Var(child) does not exist.",
     "command": "uv run --frozen --script conformance/attribution/arrow_strength/reference.py --check",
     "environment_lock": "conformance/attribution/arrow_strength/reference.py.lock",
     "generator_retained": true,
     "asserted_outputs": [
       "parent variances",
-      "edge strengths",
+      "edge strengths (cut-edge divergence)",
+      "edge variance contributions",
       "edge coefficients",
-      "ranking direction (strength order versus absolute coefficient order)"
+      "ranking direction (variance contribution order versus absolute coefficient order)",
+      "correlated-parent variances, contributions, strengths and child variances"
     ],
     "context_only_outputs": [
       "do_contrast block (not read by the executing assertion)",
       "abs_beta_ranking_is_inverted flag as a stored boolean",
       "tolerance declaration"
     ],
-    "independence_basis": "The generator reads only the declared sigma, coefficient and delta values and applies strength = beta^2 Var(parent) (Janzing et al. 2013, as stated in the fixture formula) and variance = sigma^2 for a root; it imports no Antecedent code and no statistics package. The shared object is the fixture formula: if the strength definition were misread in both the formula and the generator it would not be detected.",
+    "independence_basis": "The generator reads only the declared sigma and coefficient values. It builds the exact joint covariance of the linear system in rational arithmetic, derives the variance contribution beta^2 Var(parent) from it, and derives the strength twice without sharing a step: as the Gaussian Kullback-Leibler divergence between the joint covariance and the covariance of the model with the edge cut (an extended system with an independent copy of the parent, restricted to the original nodes; exact determinants and inverse, 60-digit logarithm), and as the closed form 1/2 ln(1 + beta^2 Var(parent) / sigma_child^2). The two agree to 1e-40 on every edge, including edges whose child has correlated parents. It imports no Antecedent code and no statistics package. The shared object is the definition of the cut (an independent copy drawn from the parent's marginal); a misreading of that definition would be shared.",
     "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
     "reference_review": {
-      "scope": "Two edges into one child with a large-variance small-coefficient parent and a small-variance large-coefficient parent. The generator recomputes parent variance (sigma squared), edge strength beta^2 Var(parent), the ranking inversion flag and the signed do contrast.",
-      "independence_basis": "The generator reads only the declared sigma, coefficient and delta values and applies strength = beta^2 Var(parent) (Janzing et al. 2013, as stated in the fixture formula) and variance = sigma^2 for a root; it imports no Antecedent code and no statistics package. The shared object is the fixture formula: if the strength definition were misread in both the formula and the generator it would not be detected.",
-      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "scope": "Two root parents of one child (a large-variance small-coefficient parent and a small-variance large-coefficient parent) and a four-node diamond with a chord whose last node has correlated parents. The generator recomputes parent variances, variance contributions beta^2 Var(parent), the cut-edge divergence by two routes, child variances, the ranking inversion flag, invariance of the divergence to rescaling the child, and the signed do contrast.",
+      "independence_basis": "The generator reads only the declared sigma and coefficient values. It builds the exact joint covariance of the linear system in rational arithmetic, derives the variance contribution beta^2 Var(parent) from it, and derives the strength twice without sharing a step: as the Gaussian Kullback-Leibler divergence between the joint covariance and the covariance of the model with the edge cut (an extended system with an independent copy of the parent, restricted to the original nodes; exact determinants and inverse, 60-digit logarithm), and as the closed form 1/2 ln(1 + beta^2 Var(parent) / sigma_child^2). The two agree to 1e-40 on every edge, including edges whose child has correlated parents. It imports no Antecedent code and no statistics package. The shared object is the definition of the cut (an independent copy drawn from the parent's marginal); a misreading of that definition would be shared.",
+      "historical_exposure": "The original variance-contribution values were pinned in an earlier import whose harness was not retained; the retained generator was written during this review from the fixture formula and declared inputs. The logarithmic values and the correlated-parent block were added by deriving the cut-edge divergence from its definition in exact arithmetic, with no product implementation source consulted. Who first derived the earlier numbers is unrecorded.",
       "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
-      "limitations": "Two root parents and one child only; variance propagation through chains is checked by a separate unit test, not by this fixture. The primary paper was not re-read in this review. The do_contrast block is derived and compared here but is not read by the executing assertion. No uncertainty or calibration.",
+      "limitations": "Linear-Gaussian mechanisms only; chains are checked by a separate unit test. The primary paper was not re-read in this review, so the definition of the cut and the statement of the single-parent case rest on the repository record and on the derivation here; the derivation shows that for a child with several parents the normalised form with the child's whole variance is not the divergence (the other parents stay connected), which the correlated_parents block exercises. The do_contrast block is derived and compared here but is not read by the executing assertion. No uncertainty or calibration.",
       "sources": [],
       "artifacts": [
         {
           "role": "generator",
           "path": "conformance/attribution/arrow_strength/reference.py",
-          "sha256": "3326846de3d4a87685a455104ed8dff2f3bca9cad53c5cb9c90e3ae45ea76e94"
+          "sha256": "31becffc7aa90ea789ee0711e6e461184bd8979b7a7d819b342502717959214c"
         },
         {
           "role": "environment_lock",
@@ -43,22 +45,113 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-attribution/src/anomaly.rs",
-          "sha256": "8a6955dcd3d8210092e711dea969a695d105719a80c560c5f94538ea240a4b2b"
+          "sha256": "d2e10b97f5eac252350b3e503da7187d00799ed010a654538aea12283d2444f7"
         }
       ],
-      "fixture_payload_sha256": "9b0b461134357ff0a49b153d3d853a44dabd4ac571f053e362401c87b63b44a6"
+      "fixture_payload_sha256": "5464cf8e6c08bdd81b40e7154f93208323485b956a9333bacaa710b4f64eabd5"
     }
   },
   "parents": [
-    {"raw": 0, "sigma": 10.0, "variance": 100.0},
-    {"raw": 1, "sigma": 0.03162277660168379, "variance": 0.001}
+    {
+      "raw": 0,
+      "sigma": 10.0,
+      "variance": 100.0
+    },
+    {
+      "raw": 1,
+      "sigma": 0.03162277660168379,
+      "variance": 0.001
+    }
   ],
-  "child": {"raw": 2, "sigma": 1.0},
+  "child": {
+    "raw": 2,
+    "sigma": 1.0
+  },
   "edges": [
-    {"parent_raw": 0, "child_raw": 2, "coefficient": 0.75, "strength": 56.25},
-    {"parent_raw": 1, "child_raw": 2, "coefficient": 2.5, "strength": 0.00625}
+    {
+      "parent_raw": 0,
+      "child_raw": 2,
+      "coefficient": 0.75,
+      "variance_contribution": 56.25,
+      "strength": 2.023713821217174
+    },
+    {
+      "parent_raw": 1,
+      "child_raw": 2,
+      "coefficient": 2.5,
+      "variance_contribution": 0.00625,
+      "strength": 0.0031152748753180363
+    }
   ],
   "abs_beta_ranking_is_inverted": true,
-  "do_contrast": {"coefficient": -2.5, "delta": 2.0, "expected": -5.0},
-  "tolerance": {"absolute": 1e-9}
+  "do_contrast": {
+    "coefficient": -2.5,
+    "delta": 2.0,
+    "expected": -5.0
+  },
+  "tolerance": {
+    "absolute": 1e-09
+  },
+  "correlated_parents": {
+    "nodes": [
+      "a",
+      "b",
+      "c",
+      "d"
+    ],
+    "sigma": {
+      "a": 1.3,
+      "b": 0.6,
+      "c": 0.9,
+      "d": 0.4
+    },
+    "edges": [
+      {
+        "parent": "a",
+        "child": "b",
+        "coefficient": 0.8,
+        "parent_variance": 1.69,
+        "variance_contribution": 1.0816,
+        "strength": 0.6937024277019589,
+        "child_variance": 1.4416
+      },
+      {
+        "parent": "a",
+        "child": "c",
+        "coefficient": -1.1,
+        "parent_variance": 1.69,
+        "variance_contribution": 2.0449,
+        "strength": 0.6298789237702449,
+        "child_variance": 2.8549
+      },
+      {
+        "parent": "b",
+        "child": "d",
+        "coefficient": 0.5,
+        "parent_variance": 1.4416,
+        "variance_contribution": 0.3604,
+        "strength": 0.5897119657022617,
+        "child_variance": 1.048229
+      },
+      {
+        "parent": "c",
+        "child": "d",
+        "coefficient": 0.9,
+        "parent_variance": 2.8549,
+        "variance_contribution": 2.312469,
+        "strength": 1.3688993551336759,
+        "child_variance": 1.048229
+      },
+      {
+        "parent": "a",
+        "child": "d",
+        "coefficient": 0.3,
+        "parent_variance": 1.69,
+        "variance_contribution": 0.1521,
+        "strength": 0.3340749170214534,
+        "child_variance": 1.048229
+      }
+    ],
+    "edges_exceeding_child_variance": 1
+  }
 }

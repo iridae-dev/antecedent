@@ -442,6 +442,7 @@ pub field antecedent_attribution::ArrowStrength::child: antecedent_core::ids::Va
 pub field antecedent_attribution::ArrowStrength::coefficient: f64
 pub field antecedent_attribution::ArrowStrength::parent: antecedent_core::ids::VariableId
 pub field antecedent_attribution::ArrowStrength::strength: f64
+pub field antecedent_attribution::ArrowStrength::variance_contribution: f64
 pub field antecedent_attribution::CacheStats::bytes: u64
 pub field antecedent_attribution::CacheStats::entries: u64
 pub field antecedent_attribution::CacheStats::hits: u64

@@ -12,9 +12,11 @@ papers = [
  # Minorics, Bloebaum, Janzing). Title/author order kept as the published version; DOI points at
  # the preprint of the same work.
  { title = "Causal structure-based root cause analysis of outliers", doi = "10.48550/arXiv.1912.02724", sections = ["Section 2 (information-theoretic outlier score definition)", "Section 5 (Shapley attribution of a target's outlier to ancestor noise terms)"] },
- # Section 6 ("Causal strength for linear structural equations") gives the exact formula
- # CS = -(1/2)*log(1 - beta^2*Var(parent)/Var(child)); anomaly.rs:420 computes only the
- # first-order term beta^2*Var(parent), not the exact log-KL expression. Section 3
+ # Section 6 ("Causal strength for linear structural equations") gives the formula
+ # CS = -(1/2)*log(1 - beta^2*Var(parent)/Var(child)) for a child with one parent; arrow_strengths
+ # reports the cut-edge Kullback-Leibler divergence (1/2)*log(1 + beta^2*Var(parent)/sigma^2),
+ # which equals that formula for a single parent, and keeps beta^2*Var(parent) separately as the
+ # variance contribution. Section 3
  # ("Problems of known definitions") is a critique of prior measures and defines nothing used
  # here.
  { title = "Quantifying causal influences", doi = "10.1214/13-AOS1145", sections = ["Section 6 (causal strength for linear structural equations)"] },
@@ -22,7 +24,7 @@ papers = [
 
 implementation_deviations = [
  "Anomaly attribution fits a Gaussian tail by median and MAD and replaces excluded ancestor noises by zero; the cited procedure evaluates counterfactual tail probabilities by randomizing excluded noises from their reference distributions.",
- "Arrow strength reports beta^2 * Var(parent), the first-order numerator, rather than the cited normalized logarithmic causal-strength measure.",
+ "Arrow strength is the divergence of the joint from the joint with the edge cut, evaluated in closed form for a linear Gaussian child; the cited normalized expression -1/2 log(1 - beta^2 Var(parent)/Var(child)) is stated for a single parent and equals it only then, and the strength is refused when the child has no noise variance while the edge carries variance.",
 ]
 
 upstream_implementations_observed = [
@@ -33,5 +35,36 @@ test_sources = [
  "conformance/gcm/gcm_anomaly",
  "conformance/attribution/anomaly_root_cause",
  "conformance/attribution/arrow_strength",
- "crates/antecedent-attribution/src/anomaly.rs (in-module unit tests: scale invariance, arrow-strength variance weighting, chained variance propagation)",
+ "crates/antecedent-attribution/src/anomaly.rs (in-module unit tests: scale invariance, arrow-strength variance weighting, chained variance propagation, single-parent logarithmic form, child-rescaling invariance, divergence as the explained share tends to one, exact divergence with another parent and with correlated parents, refusal of a noiseless child)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "score_anomalies in crates/antecedent-attribution/src/anomaly.rs for a linear-Gaussian model with additive noise: the two-sided Gaussian tail score -ln P(|Z| >= |z|) of the target against a fixed or an empirical (median, 1.4826 MAD with the mean-absolute-deviation and unit fallbacks) reference, its log-space continuation past the underflow of the tail probability, the exact point-mass-reference noise Shapley attribution over the target's ancestor noises (each coalition reconstructs the target with the noises of its members restored and the rest at zero), the published baseline score and the efficiency identity, and arrow_strengths, the model-implied variance of every node from the full covariance of the linear system, the cut-edge Kullback-Leibler strength 1/2 ln(1 + beta^2 Var(parent)/sigma^2) and the reported variance contribution beta^2 Var(parent). Not a review of the Shapley estimator itself on other games (covered by its own references), of the Monte Carlo or block-player variants, of non-linear mechanisms, or of population_do_contrast."
+assumptions = ["Each node is intercept + sum(beta * parent) + noise, so the abducted noise of an observed row is its residual and the reference noise is zero (the median of centred additive noise).", "The score is the repository's Gaussian tail of a robust z-score, not the cited randomized-noise tail probability; the review checks the code against that stated definition and records the departure.", "The cited arrow strength -1/2 ln(1 - beta^2 Var(parent)/Var(child)) is stated for a child with one parent; the product reports the divergence of the joint from the joint with the edge cut (the parent replaced by an independent copy of its marginal), which equals the cited expression for a single parent, and this review checks that definition at 80 digits from the full covariance of the cut model."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote a separate reference of its own from the stated definitions; no upstream implementation or test source was consulted or copied."
+redistribution = "The reference script, its frozen output and the test are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited primary sources are linked, not redistributed."
+limitations = "Neither primary source was re-read in this review (nothing downloaded, no local copy), so the statements of the outlier score and of the linear causal strength rest on the record and the code comments. The reference is a three-node model with a chord, seven rows from an exact fit to a far tail, a fixed and an empirical reference, and a four-node diamond with a chord whose parents are correlated; non-Gaussian and non-linear mechanisms, categorical players and the grouped-block variant are not exercised. The arrow strength equals the cited normalized expression only for a child with a single parent: on the two later edges into the diamond's last node that expression differs from the reported divergence by more than 1e-3, and on the chord edge the contributed variance is 2.21 times Var(child), where the normalized expression does not exist; the variance contribution is kept as a separate field and is not a share of explained variance. The tail score is a Gaussian tail of a median/MAD z-score and over-scores skewed or heavy-tailed targets; no calibration of it is claimed. The Shapley players are the target's ancestors with a zero-noise reference, not the cited randomization of excluded noises. Calibration remains deferred."
+sources = ["https://doi.org/10.48550/arXiv.1912.02724", "https://doi.org/10.1214/13-AOS1145", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["Defect fixed: past the point where the two-sided tail probability underflows (z about 38) the score used the leading term of the Mills-ratio asymptotic and dropped the factor (1 - 1/z^2 + 3/z^4 - ...), understating the score by about 1/z^2 (7e-4 at z = 38) and putting a visible step into the score and its Shapley differences at the switch; the series is now included and the score agrees with 80-digit values to 1e-9 relative from z = 0 to 1000.", "Defect fixed: a standardized deviation so large that z^2 overflows (about 1e154 scales) produced an infinite score that would have turned every coalition difference into NaN; it is now an invalid-input error like any other non-finite score.", "The fixed and empirical references, the degenerate-bulk fallbacks (mean absolute deviation, then unit scale), the exact three-player Shapley values (all orders), the baseline score and efficiency, the model-implied variances, the cut-edge divergence (against the Gaussian KL of the extended-covariance model with the edge cut) and the variance contribution on correlated parents agree with the reference; the single-parent equality with the cited expression and its departure with several parents are asserted, including the edge where the cited form does not exist. The arrow-strength definition was changed from the first-order beta^2 Var(parent) to this divergence by a concurrent edit while this review was in progress; the review, test and reference describe and check the current implementation."]
+record_sha256 = "d0c563c536110b8b890cc9107afc893a30ea5f425fcb7ac92bca2180b89e98b0"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-attribution/src/anomaly.rs"
+sha256 = "d2e10b97f5eac252350b3e503da7187d00799ed010a654538aea12283d2444f7"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-attribution/tests/anomaly_arrow_reference.rs"
+sha256 = "f65308e7e3690847c25e0f6da31f9de9dd61051040c935ce061b023af941c60f"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-attribution/tests/oracle_data/anomaly_arrow_reference.py"
+sha256 = "3563f90aef5b950e6d3b3a91da559e8c214007f825c0ce9556534b182c15e63e"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-attribution/tests/oracle_data/anomaly_arrow_reference.json"
+sha256 = "af841b7858e965fb02ea4bb10a08c1c512011b61e8733eac39b5a2f27801d3a5"

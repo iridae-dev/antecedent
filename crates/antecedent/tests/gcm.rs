@@ -222,7 +222,10 @@ fn gcm_anomaly() {
     let scores = anomaly_attribution(&fitted.model, &data, [VariableId::from_raw(1)], 100).unwrap();
     assert!(scores[0].scores[idx] > scores[0].scores[0]);
     let arrows = arrow_strengths(&fitted.model).unwrap();
-    assert!(arrows.iter().any(|a| a.strength > 0.5));
+    assert!(
+        arrows.iter().any(|a| a.variance_contribution > 0.5)
+            && arrows.iter().all(|a| a.strength.is_finite() && a.strength >= 0.0)
+    );
 }
 
 #[test]

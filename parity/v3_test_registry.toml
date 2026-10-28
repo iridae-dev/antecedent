@@ -18727,3 +18727,17 @@ crate = "antecedent-validate"
 cargo_target = "predictive_assessment_reference"
 path = "crates/antecedent-validate/tests/predictive_assessment_reference.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "anomaly-arrow-reference"
+crate = "antecedent-attribution"
+cargo_target = "anomaly_arrow_reference"
+path = "crates/antecedent-attribution/tests/anomaly_arrow_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "distribution-change-reference"
+crate = "antecedent-attribution"
+cargo_target = "distribution_change_reference"
+path = "crates/antecedent-attribution/tests/distribution_change_reference.rs"
+gates = ["inventory", "named"]

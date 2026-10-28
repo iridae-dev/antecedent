@@ -23,3 +23,34 @@ test_sources = [
  "crates/antecedent-attribution/src/robust.rs::tests::robust_node_noise_is_stable_when_another_family_changes_draw_count (zero-effect Gaussian structural oracle for cross-coalition noise stability)",
  "crates/antecedent/tests/attribution.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "distribution_change_robust in crates/antecedent-attribution/src/robust.rs on its all-linear path: the registry-selected linear fit of every player on each population, the structural-mean payoff v(S) = E[Y] of the hybrid system obtained by composing fitted coefficients through the player means (parents that are not players enter at the baseline column mean), the empty and full coalition values, and exact Shapley allocation of the total change with its efficiency. Not a review of the Monte Carlo path used for non-linear mechanisms, the refit variants or the weighted fits, and the mean is the only measure it offers."
+assumptions = ["Composition of affine mechanisms is exact: the mean of a node is its intercept plus coefficients times the means of its parents, so no sampling is involved.", "Every ancestor of the outcome is a player, so no parent enters through the baseline column mean; that fallback for non-player parents is not exercised here.", "The Shapley value is the marginal contribution averaged over all orders of the players."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote a separate reference of its own from the stated definitions; no upstream implementation or test source was consulted or copied."
+redistribution = "The reference script, its frozen output and the test are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited primary sources are linked, not redistributed."
+limitations = "The primary source was not re-read in this review (no downloads, no local copy), so its statement of the hybrid-law Shapley decomposition and of the default Gaussian KL functional rests on the record and the code comments. The reference is one three-node linear Gaussian system with a chord (80 rows per population, every mechanism changed) and exact Shapley over all three players; larger player sets, the Monte Carlo permutation estimators, sequential and path allocations, non-linear or discrete mechanisms, the structure-change and unit-change variants, and weighted or bootstrap refits are outside it. The mechanism fit is the registry's selected family, which is checked here against least squares only for the linear Gaussian family. Calibration remains deferred. The nonlinear Monte Carlo payoff (a node-keyed random stream per coalition) is not exercised; only the exact linear composition is, so the record's statements about coupling across coalitions rest on its own in-module tests."
+sources = ["https://doi.org/10.48550/arXiv.2102.13384", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The exact linear path reproduces the 80-digit Shapley values of the mean change to 1e-10 relative, its total equals the difference of the full and empty hybrid means, and its contributions sum to the total. No defect was found and no product code changed."]
+record_sha256 = "9dad7a1b0952b33987a12b0ccfbc72e2ffaa20dbc35712fc6536c9538af8d800"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-attribution/src/robust.rs"
+sha256 = "44725f091271c61e78c34917a898277b35cc5f0153fc4dac1099234b486c189c"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-attribution/tests/distribution_change_reference.rs"
+sha256 = "754a754fd1cb8d17ce7b60cef981d0a11cedfa5e69f5c1de81c2477aa1116749"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-attribution/tests/oracle_data/distribution_change_reference.py"
+sha256 = "160a483d5eef8d0c28d0661aa715264aa3dd381afa973843acd8ec7925a6f855"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-attribution/tests/oracle_data/distribution_change_reference.json"
+sha256 = "14af60722e18353c7b6a97d2745f5cb95c9ce37e32e15b9c342e76bfa6e27b7d"

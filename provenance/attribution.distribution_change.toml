@@ -20,3 +20,39 @@ test_sources = [
  "conformance/attribution/distribution_change_y_shift",
  "crates/antecedent/tests/attribution.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "distribution_change in crates/antecedent-attribution/src/distribution_change.rs with the shared coalition payoff of change_common.rs for one outcome of a linear Gaussian system: the mechanism players (the outcome and its ancestors), the registry fit of each mechanism on the baseline and on the comparison rows, the hybrid outcome law of a coalition (the comparison mechanism for members, the baseline for the rest) estimated by ancestral sampling with common random numbers, the mean, variance and Gaussian KL(hybrid || all-baseline) measures, the total change and the exact Shapley allocation with its efficiency. Not a review of the permutation-sampling estimator, the bootstrap or weighted refits, or the structure-change and unit-change attribution."
+assumptions = ["Each mechanism is a linear Gaussian regression fitted by least squares with residual variance RSS/(n - p); the hybrid outcome law is then exactly Gaussian and its mean and variance follow from moment propagation.", "The Shapley value of a mechanism is its marginal contribution averaged over all orders of the players, and the Gaussian KL measure takes the value 0 on the empty coalition, so the contributions sum to the KL of the full hybrid against the baseline.", "The sampling path is held only to the sampling error of its declared budget; its coalition values are not exact."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote a separate reference of its own from the stated definitions; no upstream implementation or test source was consulted or copied."
+redistribution = "The reference script, its frozen output and the test are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited primary sources are linked, not redistributed."
+limitations = "The primary source was not re-read in this review (no downloads, no local copy), so its statement of the hybrid-law Shapley decomposition and of the default Gaussian KL functional rests on the record and the code comments. The reference is one three-node linear Gaussian system with a chord (80 rows per population, every mechanism changed) and exact Shapley over all three players; larger player sets, the Monte Carlo permutation estimators, sequential and path allocations, non-linear or discrete mechanisms, the structure-change and unit-change variants, and weighted or bootstrap refits are outside it. The mechanism fit is the registry's selected family, which is checked here against least squares only for the linear Gaussian family. Calibration remains deferred."
+sources = ["https://doi.org/10.48550/arXiv.2102.13384", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["Over the mean, variance and Gaussian KL measures with exact Shapley and 200000 draws per coalition, the sampling path agrees with the 80-digit reference to within 0.7 percent of the largest term (tolerances 2 percent for the mean and KL and 3 percent for the variance) and its contributions sum to its total to rounding. The registry fits equal least squares with the unbiased residual variance to 1e-9. No defect was found and no product code changed."]
+record_sha256 = "b4a1f8cf39efa04cf75c5cbbe952ce7e4be06a205d8a440ea9d88fafc217748a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-attribution/src/distribution_change.rs"
+sha256 = "77a9f7b718a51e5efa4dd606cdc12be3675cfbc2c89b495ad9d39b96574848bd"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-attribution/src/change_common.rs"
+sha256 = "7f1a906a941f28eba08891de4b214aa8ef387fde585ad92554a3904fab3f2b33"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-attribution/tests/distribution_change_reference.rs"
+sha256 = "754a754fd1cb8d17ce7b60cef981d0a11cedfa5e69f5c1de81c2477aa1116749"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-attribution/tests/oracle_data/distribution_change_reference.py"
+sha256 = "160a483d5eef8d0c28d0661aa715264aa3dd381afa973843acd8ec7925a6f855"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-attribution/tests/oracle_data/distribution_change_reference.json"
+sha256 = "14af60722e18353c7b6a97d2745f5cb95c9ce37e32e15b9c342e76bfa6e27b7d"

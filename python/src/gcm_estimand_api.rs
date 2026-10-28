@@ -31,9 +31,14 @@ pub struct PyArrowStrength {
     /// Child variable.
     #[pyo3(get)]
     pub child: String,
-    /// `coefficient^2 * Var(parent)`, non-negative.
+    /// The cited causal strength in nats, `0.5 * ln(1 + coefficient^2 * Var(parent) / sigma^2)`
+    /// with `sigma^2` the child's noise variance: the divergence of the joint from the joint with
+    /// this edge cut. Non-negative and scale-free.
     #[pyo3(get)]
     pub strength: f64,
+    /// `coefficient^2 * Var(parent)`, the variance the edge adds to the child.
+    #[pyo3(get)]
+    pub variance_contribution: f64,
     /// The edge coefficient, carrying the sign the strength discards.
     #[pyo3(get)]
     pub coefficient: f64,
@@ -43,8 +48,8 @@ pub struct PyArrowStrength {
 impl PyArrowStrength {
     fn __repr__(&self) -> String {
         format!(
-            "ArrowStrength({} -> {}, strength={}, coefficient={})",
-            self.parent, self.child, self.strength, self.coefficient
+            "ArrowStrength({} -> {}, strength={}, variance_contribution={}, coefficient={})",
+            self.parent, self.child, self.strength, self.variance_contribution, self.coefficient
         )
     }
 }
@@ -264,6 +269,7 @@ impl PyFittedGcm {
                 parent: name(s.parent),
                 child: name(s.child),
                 strength: s.strength,
+                variance_contribution: s.variance_contribution,
                 coefficient: s.coefficient,
             })
             .collect())
