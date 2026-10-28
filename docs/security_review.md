@@ -2,7 +2,7 @@
 
 Date: 2026-10-18
 <!-- generated:release:reviewed-version:begin -->
-Scope: workspace crates + `python` extension (package version **2.4.1**)
+Scope: workspace crates + `python` extension (package version **3.0.0**)
 <!-- generated:release:reviewed-version:end -->
 
 Focused source review for 2.4.1 covers the new experimental transport proof consumer,

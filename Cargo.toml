@@ -52,7 +52,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "2.4.1"
+version = "3.0.0"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT OR Apache-2.0"
@@ -86,29 +86,29 @@ forust-ml = "0.5"
 smartcore = { version = "0.4", default-features = false, features = ["serde"] }
 burn = { version = "0.16", default-features = false, features = ["std", "autodiff", "ndarray"] }
 
-antecedent = { version = "2.4.1", path = "crates/antecedent" }
-antecedent-attribution = { version = "2.4.1", path = "crates/antecedent-attribution" }
-antecedent-contract = { version = "2.4.1", path = "crates/antecedent-contract" }
-antecedent-core = { version = "2.4.1", path = "crates/antecedent-core" }
-antecedent-counterfactual = { version = "2.4.1", path = "crates/antecedent-counterfactual" }
-antecedent-data = { version = "2.4.1", path = "crates/antecedent-data" }
-antecedent-design = { version = "2.4.1", path = "crates/antecedent-design" }
-antecedent-discovery = { version = "2.4.1", path = "crates/antecedent-discovery" }
-antecedent-estimate = { version = "2.4.1", path = "crates/antecedent-estimate" }
-antecedent-expr = { version = "2.4.1", path = "crates/antecedent-expr" }
-antecedent-graph = { version = "2.4.1", path = "crates/antecedent-graph" }
-antecedent-identify = { version = "2.4.1", path = "crates/antecedent-identify" }
-antecedent-io = { version = "2.4.1", path = "crates/antecedent-io" }
-antecedent-io-core = { version = "2.4.1", path = "crates/antecedent-io-core" }
-antecedent-kernels = { version = "2.4.1", path = "crates/antecedent-kernels" }
-antecedent-learn = { version = "2.4.1", path = "crates/antecedent-learn" }
-antecedent-learn-burn = { version = "2.4.1", path = "crates/antecedent-learn-burn" }
-antecedent-model = { version = "2.4.1", path = "crates/antecedent-model" }
-antecedent-prob = { version = "2.4.1", path = "crates/antecedent-prob" }
-antecedent-state = { version = "2.4.1", path = "crates/antecedent-state" }
-antecedent-stats = { version = "2.4.1", path = "crates/antecedent-stats" }
+antecedent = { version = "3.0.0", path = "crates/antecedent" }
+antecedent-attribution = { version = "3.0.0", path = "crates/antecedent-attribution" }
+antecedent-contract = { version = "3.0.0", path = "crates/antecedent-contract" }
+antecedent-core = { version = "3.0.0", path = "crates/antecedent-core" }
+antecedent-counterfactual = { version = "3.0.0", path = "crates/antecedent-counterfactual" }
+antecedent-data = { version = "3.0.0", path = "crates/antecedent-data" }
+antecedent-design = { version = "3.0.0", path = "crates/antecedent-design" }
+antecedent-discovery = { version = "3.0.0", path = "crates/antecedent-discovery" }
+antecedent-estimate = { version = "3.0.0", path = "crates/antecedent-estimate" }
+antecedent-expr = { version = "3.0.0", path = "crates/antecedent-expr" }
+antecedent-graph = { version = "3.0.0", path = "crates/antecedent-graph" }
+antecedent-identify = { version = "3.0.0", path = "crates/antecedent-identify" }
+antecedent-io = { version = "3.0.0", path = "crates/antecedent-io" }
+antecedent-io-core = { version = "3.0.0", path = "crates/antecedent-io-core" }
+antecedent-kernels = { version = "3.0.0", path = "crates/antecedent-kernels" }
+antecedent-learn = { version = "3.0.0", path = "crates/antecedent-learn" }
+antecedent-learn-burn = { version = "3.0.0", path = "crates/antecedent-learn-burn" }
+antecedent-model = { version = "3.0.0", path = "crates/antecedent-model" }
+antecedent-prob = { version = "3.0.0", path = "crates/antecedent-prob" }
+antecedent-state = { version = "3.0.0", path = "crates/antecedent-state" }
+antecedent-stats = { version = "3.0.0", path = "crates/antecedent-stats" }
 antecedent-test-support = { path = "crates/antecedent-test-support" }
-antecedent-validate = { version = "2.4.1", path = "crates/antecedent-validate" }
+antecedent-validate = { version = "3.0.0", path = "crates/antecedent-validate" }
 
 [workspace.lints.rust]
 missing_docs = "warn"

@@ -10,7 +10,7 @@ structural transport.
 <!-- generated:release:crate-dep:begin -->
 ```toml
 [dependencies]
-antecedent = "2.4"
+antecedent = "3.0"
 ```
 <!-- generated:release:crate-dep:end -->
 

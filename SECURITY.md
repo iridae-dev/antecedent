@@ -5,6 +5,7 @@
 <!-- generated:release:supported-lines:begin -->
 | Version | Supported |
 |---------|-----------|
+| 3.0.x   | Yes |
 | 2.4.x   | Yes |
 | 2.3.x   | Yes |
 | 2.2.x   | Yes |

@@ -4,11 +4,11 @@ library = "antecedent"
 
 # Minor lines that receive security fixes, newest first.
 # scripts/set_version.py rewrites this and the generated SECURITY.md table.
-supported_lines = ["2.4", "2.3", "2.2", "2.1", "2.0"]
+supported_lines = ["3.0", "2.4", "2.3", "2.2", "2.1", "2.0"]
 
 # Package version the current security-review scope covers.
 # scripts/set_version.py rewrites this and the generated scope block.
-reviewed_version = "2.4.1"
+reviewed_version = "3.0.0"
 
 [[capabilities]]
 id = "release.parity_closure"

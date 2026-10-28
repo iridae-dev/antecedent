@@ -6,7 +6,7 @@ Use Python 3.11 or later. Released-package setup:
 
 <!-- generated:release:python-pin:begin -->
 ```bash
-python -m pip install "antecedent>=2.4.1,<2.5" pandas matplotlib ipykernel jupyterlab
+python -m pip install "antecedent>=3.0.0,<3.1" pandas matplotlib ipykernel jupyterlab
 ```
 <!-- generated:release:python-pin:end -->
 
