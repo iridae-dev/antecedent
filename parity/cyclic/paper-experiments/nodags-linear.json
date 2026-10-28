@@ -4,7 +4,7 @@
     "full": true,
     "trials": 5,
     "max_iterations": 1000,
-    "script_sha256": "39edcfda76315caca7b13f89e1b21e491e2e8c0f2b7cc10c08f694ea2c3678d2",
+    "script_sha256": "d8d42b6ab030fc9057123ec9c8e5afe548917f36b9068bd4b51f71056badef4f",
     "protocol": "independent_paper_derived_data_and_native_public_workflows",
     "calibration": "separate_not_assessed",
     "attestation": "separate_not_performed"
@@ -171,7 +171,7 @@
           "penalty_per_row": 0.001,
           "validation_nll": 0.7296376479340971,
           "converged": true,
-          "score_per_row": 0.0009796472746076328,
+          "score_per_row": 0.0009796472746078288,
           "iterations": 34,
           "line_search_exhausted": false
         },
@@ -179,14 +179,14 @@
           "penalty_per_row": 0.01,
           "validation_nll": 0.729722787299204,
           "converged": true,
-          "score_per_row": 0.0008413901331131427,
+          "score_per_row": 0.000841390133159193,
           "iterations": 22,
           "line_search_exhausted": false
         }
       ],
       "fit_converged": true,
       "auprc": 0.9950830564784053,
-      "weight_rmse": 0.002611282176054183,
+      "weight_rmse": 0.002611282176054178,
       "heldout_nll_per_free_coordinate": 0.7299947477290802,
       "oracle_nll_per_free_coordinate": 0.7299364633571416,
       "null_nll_per_free_coordinate": 0.779403802009661,
@@ -198,11 +198,11 @@
       ],
       "artifact": {
         "identity": "34b2cb97a3c1ea12d3506ae815532f20495c3565d3e2d141f60512a4f016934e",
-        "bytes": 23879842,
-        "artifact_sha256": "1b2e8558eda5e66340c4ae763e7d3294545f91f9e9d0262e67f52951e497d0d2",
+        "bytes": 23881797,
+        "artifact_sha256": "338079d143183b52d6b89765ad2ba4cd8c68e76f87a12dac00fcefee2409f066",
         "fresh_process_cpu_replay": true
       },
-      "wall_seconds": 19.864266958087683
+      "wall_seconds": 61.66644412500318
     },
     {
       "lane": "nodags-linear",
@@ -368,22 +368,22 @@
           "penalty_per_row": 0.001,
           "validation_nll": 0.7275744989123651,
           "converged": true,
-          "score_per_row": 0.0007300282158981,
+          "score_per_row": 0.000730028215898164,
           "iterations": 36,
           "line_search_exhausted": false
         },
         {
           "penalty_per_row": 0.01,
-          "validation_nll": 0.7276436994750666,
+          "validation_nll": 0.7276436994750667,
           "converged": true,
-          "score_per_row": 0.0008240909153776822,
+          "score_per_row": 0.0008240909153776216,
           "iterations": 24,
           "line_search_exhausted": false
         }
       ],
       "fit_converged": true,
       "auprc": 0.9785892164207896,
-      "weight_rmse": 0.0024880695497672377,
+      "weight_rmse": 0.002488069549767241,
       "heldout_nll_per_free_coordinate": 0.7272128701912763,
       "oracle_nll_per_free_coordinate": 0.727140974694555,
       "null_nll_per_free_coordinate": 0.768806499947011,
@@ -395,11 +395,11 @@
       ],
       "artifact": {
         "identity": "272745d5d2ddeca4e1e02d781c4529fb90edf5a6a8fe7da6a49587fe84e5c3e1",
-        "bytes": 23880368,
-        "artifact_sha256": "ec2f79d0e7cdf69d924a5a8ec026373cc72b4182fe957a234355239de9010663",
+        "bytes": 23882311,
+        "artifact_sha256": "847ca913c184b17f20a451277d783a5cff740ab4315bdcf9dd75194c91041847",
         "fresh_process_cpu_replay": true
       },
-      "wall_seconds": 20.24387349979952
+      "wall_seconds": 57.83908399997745
     },
     {
       "lane": "nodags-linear",
@@ -562,7 +562,7 @@
           "penalty_per_row": 0.001,
           "validation_nll": 0.7280271036917908,
           "converged": true,
-          "score_per_row": 0.0008019784984897797,
+          "score_per_row": 0.0008019784984897981,
           "iterations": 36,
           "line_search_exhausted": false
         },
@@ -570,14 +570,14 @@
           "penalty_per_row": 0.01,
           "validation_nll": 0.7280465742474176,
           "converged": true,
-          "score_per_row": 0.0008932819690035312,
+          "score_per_row": 0.0008932819690034914,
           "iterations": 30,
           "line_search_exhausted": false
         }
       ],
       "fit_converged": true,
       "auprc": 0.996031746031746,
-      "weight_rmse": 0.0025129597965007516,
+      "weight_rmse": 0.0025129597965007533,
       "heldout_nll_per_free_coordinate": 0.7281606996838246,
       "oracle_nll_per_free_coordinate": 0.7281123974235746,
       "null_nll_per_free_coordinate": 0.7799831132233825,
@@ -589,11 +589,11 @@
       ],
       "artifact": {
         "identity": "7256edbfd65d15ae63e636578dbc2cff673017a5c9f1983a26bf65f8cb0c903f",
-        "bytes": 23880085,
-        "artifact_sha256": "b4ef29ea9ae67dbd39fc4650b1fc131ccc5071cabb90505d1d625bbfaa03eee5",
+        "bytes": 23882053,
+        "artifact_sha256": "7139d0ca62d2d652d86435bdde319bdf4047479047430dc64d9b22bcfccaddbe",
         "fresh_process_cpu_replay": true
       },
-      "wall_seconds": 20.168860042002052
+      "wall_seconds": 67.03047183295712
     },
     {
       "lane": "nodags-linear",
@@ -755,7 +755,7 @@
           "penalty_per_row": 0.001,
           "validation_nll": 0.7257485211619997,
           "converged": true,
-          "score_per_row": 0.0009468151396254068,
+          "score_per_row": 0.00094681513962542,
           "iterations": 45,
           "line_search_exhausted": false
         },
@@ -763,14 +763,14 @@
           "penalty_per_row": 0.01,
           "validation_nll": 0.7258105810288961,
           "converged": true,
-          "score_per_row": 0.0001655241440657941,
+          "score_per_row": 0.00016552414406581875,
           "iterations": 26,
           "line_search_exhausted": false
         }
       ],
       "fit_converged": true,
       "auprc": 0.9208747192457274,
-      "weight_rmse": 0.0023771812212273185,
+      "weight_rmse": 0.002377181221227319,
       "heldout_nll_per_free_coordinate": 0.7251647017655517,
       "oracle_nll_per_free_coordinate": 0.7250937778061725,
       "null_nll_per_free_coordinate": 0.8272882200360211,
@@ -782,11 +782,11 @@
       ],
       "artifact": {
         "identity": "4f47cc04451356ac8184678f58781559803e01cbbab74675ff7835ebda0c1ea1",
-        "bytes": 23876329,
-        "artifact_sha256": "a68178c8de8240b02995723af43d06f7e8b1b5efc4765c48c68db5bf1f42a938",
+        "bytes": 23878275,
+        "artifact_sha256": "41039ac606de6e2d1b1511d75db7ae5d1f3c895532bc49631702eee92cd31c0c",
         "fresh_process_cpu_replay": true
       },
-      "wall_seconds": 20.205817584414035
+      "wall_seconds": 44.13222254201537
     },
     {
       "lane": "nodags-linear",
@@ -945,7 +945,7 @@
           "penalty_per_row": 0.001,
           "validation_nll": 0.7297863975782254,
           "converged": true,
-          "score_per_row": 0.0009913697286547708,
+          "score_per_row": 0.0009913697286592158,
           "iterations": 37,
           "line_search_exhausted": false
         },
@@ -953,15 +953,15 @@
           "penalty_per_row": 0.01,
           "validation_nll": 0.7298543942006862,
           "converged": true,
-          "score_per_row": 0.00028188801447966133,
+          "score_per_row": 0.00028188801447963103,
           "iterations": 32,
           "line_search_exhausted": false
         }
       ],
       "fit_converged": true,
       "auprc": 1.0,
-      "weight_rmse": 0.0024325656289861876,
-      "heldout_nll_per_free_coordinate": 0.7314452197874569,
+      "weight_rmse": 0.0024325656289861906,
+      "heldout_nll_per_free_coordinate": 0.7314452197874568,
       "oracle_nll_per_free_coordinate": 0.731408015894966,
       "null_nll_per_free_coordinate": 0.7682218750300136,
       "deviations": [
@@ -972,11 +972,11 @@
       ],
       "artifact": {
         "identity": "1935884d89223213da2dde049a85580b972d71db745dc75b28d2094533b15a4e",
-        "bytes": 23880859,
-        "artifact_sha256": "edbd86166ff4592ea2ce6d26e55c51f3980df33259d4efb02a20f38e90f89949",
+        "bytes": 23882811,
+        "artifact_sha256": "a82b61105a220d2a96d62ca96aec024f630ff0a9d54329d7ad69209c1924b06b",
         "fresh_process_cpu_replay": true
       },
-      "wall_seconds": 11.42018958274275
+      "wall_seconds": 54.31235070899129
     }
   ]
 }

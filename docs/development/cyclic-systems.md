@@ -284,7 +284,7 @@ disjoint validation and held-out joint interventions. Bicycle uses 10 variables,
 | --- | ---: | --- |
 | NODAGS linear | 0.97812 | Mean excess NLL per free coordinate over independent truth: 0.0000573 |
 | NODAGS ReLU | 0.88981 | Mean excess NLL per free coordinate over independent truth: 0.0009465 |
-| Bicycle, all 10 contexts | 1.00000 | Mean-response absolute error across seeds: 0.00476–0.00983 |
+| Bicycle, all 10 contexts | 1.00000 | Mean-response absolute error across seeds: 0.00476–0.00976 |
 
 These reproduce applicable likelihood, intervention-allocation and evaluation
 experiments with independent generators and public native workflows. They do
@@ -297,15 +297,23 @@ stationarity. It supplies no global-optimum certificate.
 
 Initial smooth ReLU line searches and OU steepest-descent attempts are retained
 in `failed-approaches.json`; their executed replacements are projected Adam and
-symmetric-Lyapunov-adjoint L-BFGS. Eighteen weak-context OU fits reached their
-initial 2,000-iteration budgets. The named 20,000-step continuations resolved 17;
-the remaining fit reached its original score tolerance after an invertible,
-training-only coordinate standardization (original score upper bound 0.748862,
-tolerance 0.75). Some weak-context fitted models have unstable held-out worlds;
-these failures remain explicit, including all 16 failed worlds in that last
-continuation. All five full-context OU fits converged and evaluated every
-requested held-out world. Independent SciPy covariance/law disagreement was
-below 8e-15. No failed world or draw is silently discarded or renormalized.
+symmetric-Lyapunov-adjoint L-BFGS with a damped-Newton polish. The polish
+(Levenberg-Marquardt ascent on a central-difference Hessian of the analytic score,
+accepted only when the likelihood rises and the drift stays stable) runs every 250
+quasi-Newton iterations. Without it, the near-flat likelihood valleys of the
+weak-context fits left 16 to 19 of the 35 fits at their 2,000-iteration budget,
+and one fit (seed 3, one training context) stalled at 20,000 steps even after an
+invertible, training-only coordinate standardization; which fits stalled changed
+with rounding-level differences in the Lyapunov solver (about 1e-14), so the stall
+was an optimizer property, not a model one. With the polish every one of the 35
+OU fits reaches the unchanged score tolerance within its 2,000-iteration budget
+(at most 526 iterations), so the named 20,000-step continuation and the
+standardization protocols have no budget-limited fit to resolve and their retained
+records are empty. Some weak-context fitted models have unstable held-out worlds;
+these failures remain explicit (43 failed worlds across the fits). All five
+full-context OU fits converged and evaluated every requested held-out world.
+Independent SciPy covariance/law disagreement was below 7e-12. No failed world or
+draw is silently discarded or renormalized.
 
 Metrics, stopping diagnostics, failed approaches and portable continuation
 protocols live in `parity/cyclic/paper-experiments/`. Each selected fit was refitted

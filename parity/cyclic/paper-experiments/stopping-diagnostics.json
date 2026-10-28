@@ -7,7 +7,7 @@
       "identity": "34b2cb97a3c1ea12d3506ae815532f20495c3565d3e2d141f60512a4f016934e",
       "diagnostics": {
         "converged": true,
-        "score_norm": 117.55767295291594,
+        "score_norm": 117.55767295293947,
         "iterations": 34,
         "line_search_exhausted": false
       }
@@ -18,7 +18,7 @@
       "identity": "272745d5d2ddeca4e1e02d781c4529fb90edf5a6a8fe7da6a49587fe84e5c3e1",
       "diagnostics": {
         "converged": true,
-        "score_norm": 87.60338590777201,
+        "score_norm": 87.60338590777968,
         "iterations": 36,
         "line_search_exhausted": false
       }
@@ -29,7 +29,7 @@
       "identity": "7256edbfd65d15ae63e636578dbc2cff673017a5c9f1983a26bf65f8cb0c903f",
       "diagnostics": {
         "converged": true,
-        "score_norm": 96.23741981877356,
+        "score_norm": 96.23741981877578,
         "iterations": 36,
         "line_search_exhausted": false
       }
@@ -40,7 +40,7 @@
       "identity": "4f47cc04451356ac8184678f58781559803e01cbbab74675ff7835ebda0c1ea1",
       "diagnostics": {
         "converged": true,
-        "score_norm": 113.6178167550488,
+        "score_norm": 113.6178167550504,
         "iterations": 45,
         "line_search_exhausted": false
       }
@@ -51,7 +51,7 @@
       "identity": "1935884d89223213da2dde049a85580b972d71db745dc75b28d2094533b15a4e",
       "diagnostics": {
         "converged": true,
-        "score_norm": 118.9643674385725,
+        "score_norm": 118.96436743910591,
         "iterations": 37,
         "line_search_exhausted": false
       }
@@ -63,7 +63,7 @@
       "diagnostics": {
         "validation_converged": true,
         "training_score_converged": false,
-        "training_score_per_row": 0.08422608519576684,
+        "training_score_per_row": 0.08422608519576681,
         "stopping_reason": "validation_patience",
         "best_epoch": 13,
         "epochs": 23,
@@ -78,7 +78,7 @@
       "diagnostics": {
         "validation_converged": true,
         "training_score_converged": false,
-        "training_score_per_row": 0.08716260135525757,
+        "training_score_per_row": 0.08716260135525755,
         "stopping_reason": "validation_patience",
         "best_epoch": 10,
         "epochs": 20,
@@ -108,7 +108,7 @@
       "diagnostics": {
         "validation_converged": true,
         "training_score_converged": false,
-        "training_score_per_row": 0.08654310074743088,
+        "training_score_per_row": 0.08654310074743082,
         "stopping_reason": "validation_patience",
         "best_epoch": 1,
         "epochs": 20,

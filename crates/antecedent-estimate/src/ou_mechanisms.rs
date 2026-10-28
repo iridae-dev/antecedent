@@ -419,6 +419,135 @@ pub fn ou_mechanism_likelihood_score(
     let data = summaries(regimes, model.equations.len(), ctx)?;
     scores(model, &data, coordinates, ctx)
 }
+/// Accepted L-BFGS iterations between damped-Newton polishes of the likelihood.
+const NEWTON_INTERVAL: usize = 250;
+/// Damped-Newton steps attempted in one polish.
+const NEWTON_STEPS: usize = 25;
+/// Central finite-difference Hessian of the likelihood from the analytic scores, symmetrized.
+fn score_hessian(
+    template: &OuMechanisms,
+    coordinates: &[OuMechanismParameter],
+    data: &[Summary],
+    values: &[f64],
+    ctx: &ExecutionContext,
+    evaluations: &mut usize,
+) -> Option<Vec<f64>> {
+    let p = values.len();
+    let mut hessian = vec![0.0; p * p];
+    for k in 0..p {
+        let h = 1e-6 * (1.0 + values[k].abs());
+        let mut plus = values.to_vec();
+        plus[k] += h;
+        let mut minus = values.to_vec();
+        minus[k] -= h;
+        *evaluations += 2;
+        let (_, up) = scores(&bind(template, coordinates, &plus), data, coordinates, ctx).ok()?;
+        let (_, down) =
+            scores(&bind(template, coordinates, &minus), data, coordinates, ctx).ok()?;
+        for j in 0..p {
+            hessian[j * p + k] = (up[j] - down[j]) / (2.0 * h);
+        }
+    }
+    for j in 0..p {
+        for k in 0..j {
+            let mean = 0.5 * (hessian[j * p + k] + hessian[k * p + j]);
+            hessian[j * p + k] = mean;
+            hessian[k * p + j] = mean;
+        }
+    }
+    Some(hessian)
+}
+/// Solve `(L L^T) x = b` for a lower Cholesky factor.
+fn cholesky_solve(lower: &[f64], b: &[f64], p: usize) -> Vec<f64> {
+    let mut y = vec![0.0; p];
+    for i in 0..p {
+        let sum: f64 = (0..i).map(|k| lower[i * p + k] * y[k]).sum();
+        y[i] = (b[i] - sum) / lower[i * p + i];
+    }
+    let mut x = vec![0.0; p];
+    for i in (0..p).rev() {
+        let sum: f64 = (i + 1..p).map(|k| lower[k * p + i] * x[k]).sum();
+        x[i] = (y[i] - sum) / lower[i * p + i];
+    }
+    x
+}
+/// Damped (Levenberg-Marquardt) Newton ascent from the analytic scores.
+///
+/// The Hessian is the symmetrized central difference of the analytic score, so a step costs
+/// `2 p` score evaluations and is small beside the thousands of quasi-Newton iterations a
+/// near-flat likelihood valley otherwise needs. A step is accepted only when it raises the
+/// likelihood and keeps the drift stable; the damping shrinks on acceptance and grows on
+/// rejection. Returns whether any step was taken.
+#[allow(clippy::too_many_arguments)]
+fn newton_polish(
+    template: &OuMechanisms,
+    coordinates: &[OuMechanismParameter],
+    data: &[Summary],
+    state: &mut (Vec<f64>, OuMechanisms, f64, Vec<f64>),
+    tolerance: f64,
+    budget: usize,
+    evaluations: &mut usize,
+    ctx: &ExecutionContext,
+) -> Result<usize, EquilibriumError> {
+    let (values, model, likelihood, score) = state;
+    let p = values.len();
+    let mut damping = 1e-3;
+    let mut steps = 0;
+    while steps < budget {
+        if score.iter().map(|v| v.abs()).fold(0.0, f64::max) <= tolerance {
+            break;
+        }
+        if ctx.cancellation.is_cancelled() {
+            return Err(EquilibriumError::Resource("cancelled".into()));
+        }
+        let Some(hessian) = score_hessian(template, coordinates, data, values, ctx, evaluations)
+        else {
+            break;
+        };
+        let scale = (0..p).map(|i| -hessian[i * p + i]).fold(0.0, f64::max).max(1e-12);
+        let mut moved = false;
+        for _ in 0..14 {
+            let mut damped: Vec<f64> = hessian.iter().map(|v| -v).collect();
+            for i in 0..p {
+                damped[i * p + i] += damping * scale;
+            }
+            if let Ok(lower) = chol(&damped, p) {
+                let mut direction = cholesky_solve(&lower, score, p);
+                let largest = direction.iter().map(|v| v.abs()).fold(0.0, f64::max);
+                if largest > 1.0 {
+                    for v in &mut direction {
+                        *v /= largest;
+                    }
+                }
+                let proposed: Vec<f64> =
+                    values.iter().zip(&direction).map(|(v, d)| v + d).collect();
+                let candidate = bind(template, coordinates, &proposed);
+                *evaluations += 1;
+                match scores(&candidate, data, coordinates, ctx) {
+                    Ok((next, next_score)) if next > *likelihood => {
+                        *values = proposed;
+                        *model = candidate;
+                        *likelihood = next;
+                        *score = next_score;
+                        damping = (damping / 4.0).max(1e-12);
+                        moved = true;
+                        break;
+                    }
+                    Err(EquilibriumError::Resource(reason)) => {
+                        return Err(EquilibriumError::Resource(reason));
+                    }
+                    _ => {}
+                }
+            }
+            damping *= 4.0;
+        }
+        if !moved {
+            break;
+        }
+        steps += 1;
+    }
+    Ok(steps)
+}
 /// Fit shared baseline coefficients while preserving declared intervention-specific mechanisms.
 /// Statistical and structural identifiability are not implied by a numerical local optimum.
 pub fn fit_ou_mechanisms(
@@ -446,6 +575,7 @@ pub fn fit_ou_mechanisms(
     let mut evaluations = 1;
     let mut exhausted = false;
     let mut curvature = crate::cyclic_optim::InverseCurvature::default();
+    let mut next_polish = NEWTON_INTERVAL;
     while iterations < policy.max_iterations {
         if ctx.cancellation.is_cancelled() {
             return Err(EquilibriumError::Resource("cancelled".into()));
@@ -486,6 +616,24 @@ pub fn fit_ou_mechanisms(
             likelihood = next;
             score = next_score;
             iterations += 1;
+            if iterations >= next_polish && iterations < policy.max_iterations {
+                let mut state = (std::mem::take(&mut values), model, likelihood, score);
+                let budget = NEWTON_STEPS.min(policy.max_iterations - iterations);
+                let taken = newton_polish(
+                    template,
+                    coordinates,
+                    &data,
+                    &mut state,
+                    policy.score_tolerance,
+                    budget,
+                    &mut evaluations,
+                    ctx,
+                )?;
+                (values, model, likelihood, score) = state;
+                iterations += taken;
+                next_polish = iterations + NEWTON_INTERVAL;
+                curvature = crate::cyclic_optim::InverseCurvature::default();
+            }
         } else {
             exhausted = true;
             break;
@@ -500,7 +648,8 @@ pub fn fit_ou_mechanisms(
         evaluations,
         converged: score_norm <= policy.score_tolerance,
         line_search_exhausted: exhausted,
-        optimizer: "limited_memory_bfgs_armijo_with_symmetric_lyapunov_adjoint".into(),
+        optimizer: "limited_memory_bfgs_armijo_with_damped_newton_polish_and_symmetric_lyapunov_adjoint"
+            .into(),
     })
 }
 #[cfg(test)]
@@ -569,6 +718,65 @@ mod tests {
                 (a - b) / 2e-6
             );
         }
+    }
+
+    #[test]
+    fn damped_newton_reaches_a_tight_score_tolerance_from_a_displaced_start() {
+        let ctx = ExecutionContext::for_tests(1);
+        let truth = OuMechanisms {
+            equations: vec!["a".into(), "b".into(), "c".into()],
+            drift: vec![-1.0, 0.3, 0.0, -0.2, -1.2, 0.4, 0.0, 0.1, -0.9],
+            forcing: vec![0.5, -0.3, 0.2],
+            diffusion_factor: vec![0.5, 0.0, 0.0, 0.1, 0.4, 0.0, 0.0, 0.1, 0.3],
+        };
+        let process = truth.process().unwrap();
+        let lower = chol(&process.stationary_covariance(&ctx).unwrap(), 3).unwrap();
+        // Deterministic pseudo-normal draws (sum of uniforms from a fixed linear congruence).
+        let mut state = 12345_u64;
+        let mut uniform = move || {
+            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            (state >> 11) as f64 / (1_u64 << 53) as f64
+        };
+        let values: Vec<Vec<f64>> = (0..400)
+            .map(|_| {
+                let z: Vec<f64> =
+                    (0..3).map(|_| (0..12).map(|_| uniform()).sum::<f64>() - 6.0).collect();
+                (0..3)
+                    .map(|i| {
+                        process.center[i] + (0..=i).map(|j| lower[i * 3 + j] * z[j]).sum::<f64>()
+                    })
+                    .collect()
+            })
+            .collect();
+        let regimes =
+            vec![OuMechanismRegime { id: "observational".into(), replacements: vec![], values }];
+        let coordinates = [
+            OuMechanismParameter::Drift { equation: 0, parent: 1 },
+            OuMechanismParameter::Drift { equation: 1, parent: 0 },
+            OuMechanismParameter::Drift { equation: 1, parent: 2 },
+            OuMechanismParameter::Drift { equation: 2, parent: 1 },
+            OuMechanismParameter::Forcing { equation: 0 },
+            OuMechanismParameter::Forcing { equation: 1 },
+            OuMechanismParameter::Forcing { equation: 2 },
+        ];
+        let data = summaries(&regimes, 3, &ctx).unwrap();
+        let mut start = truth.clone();
+        start.drift[1] = 0.0;
+        start.drift[3] = 0.0;
+        start.drift[5] = 0.0;
+        start.drift[7] = 0.0;
+        start.forcing = vec![0.0; 3];
+        let values = parameters(&start, &coordinates).unwrap();
+        let (likelihood, score) = scores(&start, &data, &coordinates, &ctx).unwrap();
+        let mut state = (values, start.clone(), likelihood, score);
+        let mut evaluations = 0;
+        let steps =
+            newton_polish(&start, &coordinates, &data, &mut state, 1e-9, 50, &mut evaluations, &ctx)
+                .unwrap();
+        let norm = state.3.iter().map(|v| v.abs()).fold(0.0, f64::max);
+        assert!(steps > 0 && steps < 50, "{steps} steps");
+        assert!(norm <= 1e-9, "score norm {norm}");
+        assert!(state.2 > likelihood);
     }
 }
 

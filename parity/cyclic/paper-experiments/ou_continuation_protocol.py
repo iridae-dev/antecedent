@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 
 from antecedent.cyclic import PreparedCyclicFamily
+from antecedent.outcomes import require_success
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--base-dir", type=Path, required=True)
@@ -44,12 +45,13 @@ def fit_job(job):
     request["model"] = old["model"]
     request["policy"]["max_iterations"] = 20000
     prepared = PreparedCyclicFamily(json.dumps(request, allow_nan=False))
-    result = prepared.execute()
-    fit = result.report["answer"]["result"]["fit"]
+    result = require_success(prepared.execute())
+    report_dict = result.to_dict()
+    fit = report_dict["answer"]["result"]["fit"]
     target = out / f"seed-{seed}-{path.name}"
     target.mkdir(exist_ok=True)
     module["write"](target / "request.json", request)
-    module["write"](target / "native_report.json", result.report)
+    module["write"](target / "native_report.json", report_dict)
     record = {
         "seed": seed,
         "case": path.name,
@@ -63,7 +65,7 @@ def fit_job(job):
         "iterations": fit["iterations"],
         "line_search_exhausted": fit["line_search_exhausted"],
         "failed_worlds": sum(
-            "failure" in law for law in result.report["answer"]["result"]["laws"]
+            "failure" in law for law in report_dict["answer"]["result"]["laws"]
         ),
         "artifact": module["replay"](result, target),
         "wall_seconds": time.monotonic() - start,
@@ -74,13 +76,10 @@ def fit_job(job):
 
 
 records = []
+approach = "bounded continuation of every budget-limited base fit, preserving the same training data and score tolerance"
 with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
     for record in pool.map(fit_job, jobs):
         records.append(record)
-        module["write"](
-            out / "results.json",
-            {
-                "approach": "bounded continuation of every budget-limited base fit, preserving the same training data and score tolerance",
-                "cases": records,
-            },
-        )
+        module["write"](out / "results.json", {"approach": approach, "cases": records})
+# With no budget-limited base fit the record is empty, not absent.
+module["write"](out / "results.json", {"approach": approach, "cases": records})

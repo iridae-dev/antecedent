@@ -4,7 +4,7 @@
     "full": true,
     "trials": 5,
     "max_iterations": 2000,
-    "script_sha256": "39edcfda76315caca7b13f89e1b21e491e2e8c0f2b7cc10c08f694ea2c3678d2",
+    "script_sha256": "d8d42b6ab030fc9057123ec9c8e5afe548917f36b9068bd4b51f71056badef4f",
     "protocol": "independent_paper_derived_data_and_native_public_workflows",
     "calibration": "separate_not_assessed",
     "attestation": "separate_not_performed"
@@ -117,20 +117,20 @@
           "single_contexts": 0,
           "training_rows": 500,
           "converged": true,
-          "score_norm": 0.495825764023328,
-          "iterations": 825,
+          "score_norm": 0.41866644076272913,
+          "iterations": 255,
           "line_search_exhausted": false,
-          "auprc": 0.5730538996622699,
-          "heldout_mean_mae": 0.2262998328831141,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": 6.636358488533942,
+          "auprc": 0.5544819128575934,
+          "heldout_mean_mae": 0.2243223405908482,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 6.507804247479157,
           "oracle_nll_on_same_worlds": -2.116619999068984,
           "failed_worlds": [],
           "all_requested_worlds_evaluated": true,
           "independent_law_max_absolute_error": 8.881784197001252e-16,
           "artifact": {
             "identity": "112550d4a205c85e8ab082876b2e8b060c7f5de1b462641d6280f9235af45be1",
-            "bytes": 62578,
-            "artifact_sha256": "efc92520c7bdadeea9e3c7561dc77f536fed8d2d91ba9b88c60fb472f88a753b",
+            "bytes": 64592,
+            "artifact_sha256": "5272b3c216f81a2ccd91e82836c28752f55c7e2b5b9367e56ef44dc6ef99e825",
             "fresh_process_cpu_replay": true
           }
         },
@@ -138,62 +138,98 @@
           "single_contexts": 1,
           "training_rows": 750,
           "converged": true,
-          "score_norm": 0.6710753773582657,
-          "iterations": 988,
+          "score_norm": 0.5590715870916716,
+          "iterations": 255,
           "line_search_exhausted": false,
-          "auprc": 0.6612439973067428,
-          "heldout_mean_mae": 0.22188858417584453,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": 5.945359266590405,
+          "auprc": 0.6626118081126571,
+          "heldout_mean_mae": 0.22129818527145498,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 5.899287056232356,
           "oracle_nll_on_same_worlds": -2.116619999068984,
           "failed_worlds": [],
           "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 1.3322676295501878e-15,
+          "independent_law_max_absolute_error": 8.881784197001252e-16,
           "artifact": {
             "identity": "0fc8838c062f21ca9e9e6b76b81277bcaa10386cbf32d543e316d47a54d062ab",
-            "bytes": 84936,
-            "artifact_sha256": "ada58d64b0e582bf0879636e97d108830d8ba58266ed636de48771ffa312dd58",
+            "bytes": 87077,
+            "artifact_sha256": "d9e4105b7b739039bd78543eb34e5f16e9522110bbd4ff09d1b7a988376801d1",
             "fresh_process_cpu_replay": true
           }
         },
         {
           "single_contexts": 2,
           "training_rows": 1000,
-          "converged": false,
-          "score_norm": 20.571307722446626,
-          "iterations": 2000,
+          "converged": true,
+          "score_norm": 0.3793969501101042,
+          "iterations": 526,
           "line_search_exhausted": false,
-          "auprc": 0.6563074392046585,
-          "heldout_mean_mae": 0.20727801804440993,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": 5.972692549832868,
-          "oracle_nll_on_same_worlds": -2.116619999068984,
-          "failed_worlds": [],
-          "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 6.661338147750939e-16,
+          "auprc": 0.21561057488017085,
+          "heldout_mean_mae": 2.276105373875047,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 399.3670288340973,
+          "oracle_nll_on_same_worlds": -2.117606283726894,
+          "failed_worlds": [
+            {
+              "world": 1,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 3,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 5,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 6,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 11,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 12,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 18,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            }
+          ],
+          "all_requested_worlds_evaluated": false,
+          "independent_law_max_absolute_error": 1.7763568394002505e-14,
           "artifact": {
             "identity": "7ebe6058c3dd0e7b0aa882f2dfa841494f3287113d2dc7d052a3d5e1503b08c1",
-            "bytes": 107836,
-            "artifact_sha256": "6f7ce4049eab581ce4df1f193b5c8e7f13ac833a27f44995f580f6be55a66523",
+            "bytes": 104883,
+            "artifact_sha256": "e3fff89134518256c53288c8d32ebefed7ecb113f5d700299bdfedd41b91229e",
             "fresh_process_cpu_replay": true
           }
         },
         {
           "single_contexts": 4,
           "training_rows": 1500,
-          "converged": false,
-          "score_norm": 11.758371868871214,
-          "iterations": 2000,
+          "converged": true,
+          "score_norm": 1.4803658909773958,
+          "iterations": 274,
           "line_search_exhausted": false,
-          "auprc": 0.8162237223353375,
-          "heldout_mean_mae": 0.11456942986499019,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": 2.26013720252833,
+          "auprc": 0.2719988528981085,
+          "heldout_mean_mae": 0.6144506331847656,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 150.55092541791637,
           "oracle_nll_on_same_worlds": -2.116619999068984,
           "failed_worlds": [],
           "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 8.881784197001252e-16,
+          "independent_law_max_absolute_error": 4.440892098500626e-15,
           "artifact": {
             "identity": "baa5eb28fb5f31bc1ad0f1a8206e736a44d53a3053cd9ceeaba0a88da72912c1",
-            "bytes": 153139,
-            "artifact_sha256": "30fa4f94d818c170b96e3a6e99335dce61d7ecc18054f7e5ebfbd0bcf94cf619",
+            "bytes": 155261,
+            "artifact_sha256": "ed251109ef6c53fe572b683e6e3cd9131f647d55c4b6045b3e7198b7860a3caf",
             "fresh_process_cpu_replay": true
           }
         },
@@ -201,20 +237,20 @@
           "single_contexts": 6,
           "training_rows": 2000,
           "converged": true,
-          "score_norm": 1.8500527899596069,
-          "iterations": 1108,
+          "score_norm": 1.1516425678966442,
+          "iterations": 255,
           "line_search_exhausted": false,
           "auprc": 1.0,
-          "heldout_mean_mae": 0.026378700975821,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": -1.9287591823690244,
+          "heldout_mean_mae": 0.025229239083179235,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -1.9584200292266984,
           "oracle_nll_on_same_worlds": -2.116619999068984,
           "failed_worlds": [],
           "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 1.3322676295501878e-15,
+          "independent_law_max_absolute_error": 8.881784197001252e-16,
           "artifact": {
             "identity": "9ee0a1323b8fdeecf3cd06e43515586cd7ce9c2e0f18ff3fc263acea6d97491e",
-            "bytes": 198364,
-            "artifact_sha256": "e09be69d71b226a74df6b949d42672870113d1116b9e93fc40a5f70b33010127",
+            "bytes": 200441,
+            "artifact_sha256": "1dc348ebfabc30f833661bb1352fc49b4d0a9f6d40d7764b66ec12a7e0608028",
             "fresh_process_cpu_replay": true
           }
         },
@@ -222,20 +258,20 @@
           "single_contexts": 8,
           "training_rows": 2500,
           "converged": true,
-          "score_norm": 2.1659933599707983,
-          "iterations": 892,
+          "score_norm": 0.6532757910761404,
+          "iterations": 255,
           "line_search_exhausted": false,
           "auprc": 1.0,
-          "heldout_mean_mae": 0.011334892859260925,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": -2.078212168613578,
+          "heldout_mean_mae": 0.012021819791744224,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -2.075862303680087,
           "oracle_nll_on_same_worlds": -2.116619999068984,
           "failed_worlds": [],
           "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 6.661338147750939e-16,
+          "independent_law_max_absolute_error": 8.881784197001252e-16,
           "artifact": {
             "identity": "7a400f92a564f9e9053eb1f4c3d492a0c6d0a30750ccb3572a34c3edf479af75",
-            "bytes": 244129,
-            "artifact_sha256": "822426ce7d703b29d1704390d9a5e4aec8113fb554b9dee6ad1b713465a8d86c",
+            "bytes": 246220,
+            "artifact_sha256": "ab49cf5f69db751069fa386c070de1df5ef72b0f714de332b62434cd3a6c7a7f",
             "fresh_process_cpu_replay": true
           }
         },
@@ -243,25 +279,25 @@
           "single_contexts": 10,
           "training_rows": 3000,
           "converged": true,
-          "score_norm": 2.946104761880761,
-          "iterations": 562,
+          "score_norm": 0.21160190535579204,
+          "iterations": 254,
           "line_search_exhausted": false,
           "auprc": 1.0,
-          "heldout_mean_mae": 0.004760858257748778,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": -2.1112989749845155,
+          "heldout_mean_mae": 0.0047643504712438275,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -2.1113131751948244,
           "oracle_nll_on_same_worlds": -2.116619999068984,
           "failed_worlds": [],
           "all_requested_worlds_evaluated": true,
           "independent_law_max_absolute_error": 8.881784197001252e-16,
           "artifact": {
             "identity": "051e25baf3db0d31fb70286ca2bf7712b816eb27eda4eff5380da9262c20540a",
-            "bytes": 290223,
-            "artifact_sha256": "69de5da9a0b3671e510218a61a3928bff4b1fafb8fb3af1e9016e7c39d70bf43",
+            "bytes": 292402,
+            "artifact_sha256": "2db559a51735b942fbdafb852c2f4ace8b6b6d1e9cc3d0683c55276b4b35d703",
             "fresh_process_cpu_replay": true
           }
         }
       ],
-      "wall_seconds": 56.975438291206956
+      "wall_seconds": 25.818252124998253
     },
     {
       "lane": "bicycle",
@@ -370,62 +406,124 @@
           "single_contexts": 0,
           "training_rows": 500,
           "converged": true,
-          "score_norm": 0.49398747352779787,
-          "iterations": 739,
+          "score_norm": 0.09802903912174621,
+          "iterations": 255,
           "line_search_exhausted": false,
-          "auprc": 0.5779059018212286,
-          "heldout_mean_mae": 0.24569460864499656,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": 4.90107158562529,
+          "auprc": 0.5784956815093689,
+          "heldout_mean_mae": 0.24454254427213773,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 4.830839232778384,
           "oracle_nll_on_same_worlds": -2.0988405956807066,
           "failed_worlds": [],
           "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 1.1102230246251565e-15,
+          "independent_law_max_absolute_error": 8.881784197001252e-16,
           "artifact": {
             "identity": "33b0bb02d59cbc63746a04e35aac50d722ee22665780efeb04b55edbe5d91f44",
-            "bytes": 63350,
-            "artifact_sha256": "1da27df651f0e5413bd2dd0db75f981e9f9d11d5306ea32c32c75fa65e6fd2fc",
+            "bytes": 65469,
+            "artifact_sha256": "dcc0373a83856eab6aef9b9c96681461dee1c8468962ea0ab8ae963305f0e987",
             "fresh_process_cpu_replay": true
           }
         },
         {
           "single_contexts": 1,
           "training_rows": 750,
-          "converged": false,
-          "score_norm": 17.316109265735868,
-          "iterations": 2000,
+          "converged": true,
+          "score_norm": 0.6386398652143468,
+          "iterations": 365,
           "line_search_exhausted": false,
-          "auprc": 0.3536592652403012,
-          "heldout_mean_mae": 0.4091867356781341,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": 16.55625281464488,
-          "oracle_nll_on_same_worlds": -2.0988405956807066,
-          "failed_worlds": [],
-          "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 1.5543122344752192e-15,
+          "auprc": 0.19330101829122265,
+          "heldout_mean_mae": 1.5494923485224044,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 242.9612739734274,
+          "oracle_nll_on_same_worlds": -2.0990352824394445,
+          "failed_worlds": [
+            {
+              "world": 4,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 5,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 6,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 8,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 12,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 13,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 19,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            }
+          ],
+          "all_requested_worlds_evaluated": false,
+          "independent_law_max_absolute_error": 3.552713678800501e-14,
           "artifact": {
             "identity": "249ef2a786183080e95f9957a5b2467b82c668671d4b2cbeddcf67924f7be704",
-            "bytes": 85940,
-            "artifact_sha256": "d61db6ea779f73f6d899634ceecf306156795ff5993ea96db8cf7fd0af8386bb",
+            "bytes": 82865,
+            "artifact_sha256": "b756d8950d815c5c9c81b51fbd940e22fe0e3c9ef5bd3ef125b1c83f9b7d4278",
             "fresh_process_cpu_replay": true
           }
         },
         {
           "single_contexts": 2,
           "training_rows": 1000,
-          "converged": false,
-          "score_norm": 21.891477171599945,
-          "iterations": 2000,
+          "converged": true,
+          "score_norm": 0.882250664334812,
+          "iterations": 312,
           "line_search_exhausted": false,
-          "auprc": 0.9177790479976867,
-          "heldout_mean_mae": 0.1654573524239568,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": 0.9384782296857005,
-          "oracle_nll_on_same_worlds": -2.0988405956807066,
-          "failed_worlds": [],
-          "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 8.881784197001252e-16,
+          "auprc": 0.19857270211700467,
+          "heldout_mean_mae": 2.193929282804772,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 179.96105375795148,
+          "oracle_nll_on_same_worlds": -2.098522976670357,
+          "failed_worlds": [
+            {
+              "world": 2,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 4,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 7,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 8,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 16,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            }
+          ],
+          "all_requested_worlds_evaluated": false,
+          "independent_law_max_absolute_error": 1.0658141036401503e-13,
           "artifact": {
             "identity": "2d6c352f28ded30f31399af07b1ed2ac24c5c70e89d373b115af9b2f777b79f4",
-            "bytes": 109159,
-            "artifact_sha256": "cb355f79ff40c97bb7978c5c1cbfe95015c8f7cbe4bdf84c53082dca018caf90",
+            "bytes": 107614,
+            "artifact_sha256": "ec2ce56cac103f12120aa71c4312f90728df1bdc6dd5cad8fcb79f3827f18292",
             "fresh_process_cpu_replay": true
           }
         },
@@ -433,41 +531,41 @@
           "single_contexts": 4,
           "training_rows": 1500,
           "converged": true,
-          "score_norm": 1.4595124078516122,
-          "iterations": 1855,
+          "score_norm": 1.3456430519506881,
+          "iterations": 261,
           "line_search_exhausted": false,
-          "auprc": 0.9622076023391812,
-          "heldout_mean_mae": 0.095875860772184,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": -0.7113400818282302,
+          "auprc": 0.3856217666870526,
+          "heldout_mean_mae": 0.2421663036283546,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 8.104003555041706,
           "oracle_nll_on_same_worlds": -2.0988405956807066,
           "failed_worlds": [],
           "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 1.3322676295501878e-15,
+          "independent_law_max_absolute_error": 2.6645352591003757e-15,
           "artifact": {
             "identity": "cbe25383e2e0daafca7b5a8f8c2d8739852f2e8553ba28b4dd4758796d9141d1",
-            "bytes": 155219,
-            "artifact_sha256": "025a8a699dddcaf94c70ccbdbfb01777397a80de2910ec416514542fa965e278",
+            "bytes": 157417,
+            "artifact_sha256": "1e3a345b2f7e21171787b124b55a7d04618f75f662fd36e74b33a37392b0d540",
             "fresh_process_cpu_replay": true
           }
         },
         {
           "single_contexts": 6,
           "training_rows": 2000,
-          "converged": false,
-          "score_norm": 16.20651655336335,
-          "iterations": 2000,
+          "converged": true,
+          "score_norm": 1.4682500784232246,
+          "iterations": 257,
           "line_search_exhausted": false,
-          "auprc": 1.0,
-          "heldout_mean_mae": 0.06207267940520071,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": -1.2664498930124206,
+          "auprc": 0.992822966507177,
+          "heldout_mean_mae": 0.08369237400257706,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -0.6256408519335458,
           "oracle_nll_on_same_worlds": -2.0988405956807066,
           "failed_worlds": [],
           "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 1.3322676295501878e-15,
+          "independent_law_max_absolute_error": 1.1102230246251565e-15,
           "artifact": {
             "identity": "e84750e10700de60929fe5f73c2646ad71960797ac5e6e132239221acddec22e",
-            "bytes": 201016,
-            "artifact_sha256": "ca0158347736f23395b29011ba98c447a9eaa7c7a8ba14373094f50296bb1db2",
+            "bytes": 203217,
+            "artifact_sha256": "caeb3c2f3de3315608810b10051b5919ea103393744a47f5510d0326ae67ac91",
             "fresh_process_cpu_replay": true
           }
         },
@@ -475,20 +573,20 @@
           "single_contexts": 8,
           "training_rows": 2500,
           "converged": true,
-          "score_norm": 2.445573472358028,
-          "iterations": 878,
+          "score_norm": 0.5545511989012653,
+          "iterations": 255,
           "line_search_exhausted": false,
           "auprc": 1.0,
-          "heldout_mean_mae": 0.03165529450156913,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": -1.9124336033907061,
+          "heldout_mean_mae": 0.029195207084503627,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -1.9363212449672484,
           "oracle_nll_on_same_worlds": -2.0988405956807066,
           "failed_worlds": [],
           "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 1.3322676295501878e-15,
+          "independent_law_max_absolute_error": 8.881784197001252e-16,
           "artifact": {
             "identity": "56f3ddff3b23fb6b8cc22134a9a1717daec35a0a4ab522e03fb2dbde9e704f76",
-            "bytes": 247437,
-            "artifact_sha256": "fe0a1ef6f6241aae8e4eaa9a8991cd06334ad51054c6d0793d9f535ceab04de4",
+            "bytes": 249567,
+            "artifact_sha256": "a1c61389e90c77d272a7ccabf716596fe7cca15daf79ed6c61fd8ae36c26cf91",
             "fresh_process_cpu_replay": true
           }
         },
@@ -496,25 +594,25 @@
           "single_contexts": 10,
           "training_rows": 3000,
           "converged": true,
-          "score_norm": 2.6549934344619643,
-          "iterations": 624,
+          "score_norm": 0.8482398587982547,
+          "iterations": 254,
           "line_search_exhausted": false,
           "auprc": 1.0,
-          "heldout_mean_mae": 0.006337984315211161,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": -2.092283336448555,
+          "heldout_mean_mae": 0.0063349183077077,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -2.0922851213344336,
           "oracle_nll_on_same_worlds": -2.0988405956807066,
           "failed_worlds": [],
           "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 8.881784197001252e-16,
+          "independent_law_max_absolute_error": 1.2212453270876722e-15,
           "artifact": {
             "identity": "e4750e70345998ad907fc79d5e45aad93091fde90f755e6b9129a4dd2eac2480",
-            "bytes": 294538,
-            "artifact_sha256": "d96a98f192f10fc50ca5016a37fee0a377189e686c0a3951bd3d66c6f616e5e1",
+            "bytes": 296662,
+            "artifact_sha256": "a4c6b76edb31815a3b6b366dc25126b331525747ffd25cbf6a815fe62281c806",
             "fresh_process_cpu_replay": true
           }
         }
       ],
-      "wall_seconds": 65.37228162493557
+      "wall_seconds": 25.409129999985453
     },
     {
       "lane": "bicycle",
@@ -623,104 +721,156 @@
           "single_contexts": 0,
           "training_rows": 500,
           "converged": true,
-          "score_norm": 0.43456695301144116,
-          "iterations": 749,
+          "score_norm": 0.09297884246376184,
+          "iterations": 255,
           "line_search_exhausted": false,
-          "auprc": 0.532140371300485,
-          "heldout_mean_mae": 0.29104857904241366,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": 10.508251556728501,
+          "auprc": 0.5345155409176847,
+          "heldout_mean_mae": 0.28956802641199003,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 10.379369593413214,
           "oracle_nll_on_same_worlds": -2.100450647696978,
           "failed_worlds": [],
           "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 8.881784197001252e-16,
+          "independent_law_max_absolute_error": 6.661338147750939e-16,
           "artifact": {
             "identity": "91fb2f3ce9128ce5880f94d73637411084067554ce37811b883476c821ee25d3",
-            "bytes": 63897,
-            "artifact_sha256": "46565b9cb9a6fc9ee441a3a6c38e43e554967b1eaa532a1bc5cb79544a785fea",
+            "bytes": 65998,
+            "artifact_sha256": "17be346c5eadac72998b067661ce8bc60ad127f20d9880aa1c321ee67ef23a40",
             "fresh_process_cpu_replay": true
           }
         },
         {
           "single_contexts": 1,
           "training_rows": 750,
-          "converged": false,
-          "score_norm": 7.374939491414686,
-          "iterations": 2000,
+          "converged": true,
+          "score_norm": 0.7498291254644087,
+          "iterations": 332,
           "line_search_exhausted": false,
-          "auprc": 0.4589666829716894,
-          "heldout_mean_mae": 0.2994448804475214,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": 9.332093361969351,
-          "oracle_nll_on_same_worlds": -2.100450647696978,
-          "failed_worlds": [],
-          "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 8.881784197001252e-16,
+          "auprc": 0.2872873118957341,
+          "heldout_mean_mae": 0.45754502103633077,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 36.83390035371951,
+          "oracle_nll_on_same_worlds": -2.100248136146747,
+          "failed_worlds": [
+            {
+              "world": 3,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 4,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 7,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 8,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 19,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            }
+          ],
+          "all_requested_worlds_evaluated": false,
+          "independent_law_max_absolute_error": 1.6139867220488213e-14,
           "artifact": {
             "identity": "0e233700a65c14e365e480b3c565d7b612cc0739e8204e7aa7dbf51bf20bc2b4",
-            "bytes": 86549,
-            "artifact_sha256": "094b2ce81ba4b26debc8ac19ee2bd39d1abb428c9401bab56d9fa7adb2c902d8",
+            "bytes": 85061,
+            "artifact_sha256": "bd015d84af31d85063d1d10152229c62e77e9844724717c01294128fb506095b",
             "fresh_process_cpu_replay": true
           }
         },
         {
           "single_contexts": 2,
           "training_rows": 1000,
-          "converged": false,
-          "score_norm": 9.129969872436796,
-          "iterations": 2000,
+          "converged": true,
+          "score_norm": 0.3154793591135139,
+          "iterations": 274,
           "line_search_exhausted": false,
-          "auprc": 0.5858845991664687,
-          "heldout_mean_mae": 0.2518013012058652,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": 6.268153050332409,
-          "oracle_nll_on_same_worlds": -2.100450647696978,
-          "failed_worlds": [],
-          "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 1.7763568394002505e-15,
+          "auprc": 0.35769969064891416,
+          "heldout_mean_mae": 0.9323265107116075,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 104.07176822316666,
+          "oracle_nll_on_same_worlds": -2.098163913626688,
+          "failed_worlds": [
+            {
+              "world": 0,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 4,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 9,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 11,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 17,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            }
+          ],
+          "all_requested_worlds_evaluated": false,
+          "independent_law_max_absolute_error": 4.796163466380676e-14,
           "artifact": {
             "identity": "7c457add297a3f98e00603aab401650ea1a3cce01494ff458dcac7b7a49a4684",
-            "bytes": 109883,
-            "artifact_sha256": "55d4db5116ec3e0aea015bbd1a282dd28aa1ef787b40f2d550068e0cef04f6f6",
+            "bytes": 108337,
+            "artifact_sha256": "e7ef6b12684418bce0b2a7c2c66b4eddd30f85b611fa9c6998d3c8c43adf44f8",
             "fresh_process_cpu_replay": true
           }
         },
         {
           "single_contexts": 4,
           "training_rows": 1500,
-          "converged": false,
-          "score_norm": 9.878514946753143,
-          "iterations": 2000,
+          "converged": true,
+          "score_norm": 0.882427298596995,
+          "iterations": 526,
           "line_search_exhausted": false,
-          "auprc": 0.9087283122254766,
-          "heldout_mean_mae": 0.1156291752060056,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": 0.18985365023627762,
+          "auprc": 0.26484502966601664,
+          "heldout_mean_mae": 0.5558477324609798,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 64.4732347809533,
           "oracle_nll_on_same_worlds": -2.100450647696978,
           "failed_worlds": [],
           "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 8.881784197001252e-16,
+          "independent_law_max_absolute_error": 4.107825191113079e-15,
           "artifact": {
             "identity": "53ed69c91d6e441ee0fe9767ce2de158e0a60dbf36662cabbd5f19f455f322a0",
-            "bytes": 155963,
-            "artifact_sha256": "34641a06470b33a10cb4c7056b69e460b795a93ef86ab1d59241b504d785a573",
+            "bytes": 158052,
+            "artifact_sha256": "5753f56e1328942aa5492917a0b99968d130432f54288af7be03d861af5acc66",
             "fresh_process_cpu_replay": true
           }
         },
         {
           "single_contexts": 6,
           "training_rows": 2000,
-          "converged": false,
-          "score_norm": 24.6761679584891,
-          "iterations": 2000,
+          "converged": true,
+          "score_norm": 0.047815796820223966,
+          "iterations": 260,
           "line_search_exhausted": false,
-          "auprc": 0.9245242615004413,
-          "heldout_mean_mae": 0.08141692929999722,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": -0.28808724464511226,
+          "auprc": 0.8956928190244161,
+          "heldout_mean_mae": 0.09235275960849446,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 0.299879996113401,
           "oracle_nll_on_same_worlds": -2.100450647696978,
           "failed_worlds": [],
           "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 6.661338147750939e-16,
+          "independent_law_max_absolute_error": 8.881784197001252e-16,
           "artifact": {
             "identity": "b91a40711412c3cc9a5cc285dd6f49148e903650be90228361e03f30de37b033",
-            "bytes": 202377,
-            "artifact_sha256": "740d96f49a7a45e57cbd62cc4b260b9b798b5f99ab060c5380ff87c362752967",
+            "bytes": 204457,
+            "artifact_sha256": "682a06e9b705152b2b4ccb228a6b52064a7834afc1139d95fffe6c1e4bc6f6de",
             "fresh_process_cpu_replay": true
           }
         },
@@ -728,20 +878,20 @@
           "single_contexts": 8,
           "training_rows": 2500,
           "converged": true,
-          "score_norm": 2.190480679490218,
-          "iterations": 1446,
+          "score_norm": 0.7545413813176651,
+          "iterations": 257,
           "line_search_exhausted": false,
-          "auprc": 0.9731187652082266,
-          "heldout_mean_mae": 0.07119858228753834,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": -1.0010125235487943,
+          "auprc": 0.9697519490425669,
+          "heldout_mean_mae": 0.07675124257174984,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -0.7942532469758598,
           "oracle_nll_on_same_worlds": -2.100450647696978,
           "failed_worlds": [],
           "all_requested_worlds_evaluated": true,
           "independent_law_max_absolute_error": 8.881784197001252e-16,
           "artifact": {
             "identity": "7b56faf0c01cec78fa62e2f2cdb3546dccb3517211ce0e363ded3f3e457c0417",
-            "bytes": 248968,
-            "artifact_sha256": "dce7931acea82eb22cdfd3aca743c8060264e7e3d4319ef4ec3b87e9955a4479",
+            "bytes": 251144,
+            "artifact_sha256": "e68366e92215b708caeb07c848ffa5748e716f9bd80abd893f504a9334b72d0d",
             "fresh_process_cpu_replay": true
           }
         },
@@ -749,25 +899,25 @@
           "single_contexts": 10,
           "training_rows": 3000,
           "converged": true,
-          "score_norm": 2.810516325186505,
-          "iterations": 843,
+          "score_norm": 0.05577181489730876,
+          "iterations": 256,
           "line_search_exhausted": false,
           "auprc": 1.0,
-          "heldout_mean_mae": 0.0071725479172668576,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": -2.0929672167223847,
+          "heldout_mean_mae": 0.0071342795672507345,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -2.093052431013859,
           "oracle_nll_on_same_worlds": -2.100450647696978,
           "failed_worlds": [],
           "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 8.881784197001252e-16,
+          "independent_law_max_absolute_error": 1.0269562977782698e-15,
           "artifact": {
             "identity": "1082e7e2deb3671cdf28d768814c131c5e76054a6c4fd7604546e33e0bb44b34",
-            "bytes": 296023,
-            "artifact_sha256": "c4d3863a777179b8fdb24473f7bf9070e70b0781e5afffbd632e25ba96f91844",
+            "bytes": 298174,
+            "artifact_sha256": "5da54e973a61d10dd382e8677a537af54577962e8743cee86ddb890508ddd64c",
             "fresh_process_cpu_replay": true
           }
         }
       ],
-      "wall_seconds": 79.18150341603905
+      "wall_seconds": 30.594967583019752
     },
     {
       "lane": "bicycle",
@@ -876,125 +1026,173 @@
           "single_contexts": 0,
           "training_rows": 500,
           "converged": true,
-          "score_norm": 0.47558147857144906,
-          "iterations": 1359,
+          "score_norm": 0.20265571447832453,
+          "iterations": 256,
           "line_search_exhausted": false,
-          "auprc": 0.6935565559868361,
-          "heldout_mean_mae": 0.5143964398176187,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": 25.348371020376938,
+          "auprc": 0.6966652012433481,
+          "heldout_mean_mae": 0.5178530045442669,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 25.557677995615173,
           "oracle_nll_on_same_worlds": -2.0636666354251214,
           "failed_worlds": [],
           "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 2.6645352591003757e-15,
+          "independent_law_max_absolute_error": 5.329070518200751e-15,
           "artifact": {
             "identity": "66f53a25cf8b4a7234729ade492f919c640273d98ec0b781990ccd3360ddde79",
-            "bytes": 63293,
-            "artifact_sha256": "ab24073b8da5a24b8f110f747a05c94a851e2aac214615df1a4b6d11e8be4a03",
+            "bytes": 65447,
+            "artifact_sha256": "442c805a599565f9a0272ed64037eb00f037681171318d370e595a3542a5ff9c",
             "fresh_process_cpu_replay": true
           }
         },
         {
           "single_contexts": 1,
           "training_rows": 750,
-          "converged": false,
-          "score_norm": 93.88538478064204,
-          "iterations": 2000,
+          "converged": true,
+          "score_norm": 0.6893963822629026,
+          "iterations": 320,
           "line_search_exhausted": false,
-          "auprc": 0.7715523110799654,
-          "heldout_mean_mae": 0.6125193973789289,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": 24.89213088439218,
-          "oracle_nll_on_same_worlds": -2.0636666354251214,
-          "failed_worlds": [],
-          "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 3.552713678800501e-15,
+          "auprc": 0.23226265807208143,
+          "heldout_mean_mae": 4.121425238281293,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 555.0486965724409,
+          "oracle_nll_on_same_worlds": -2.0594703149002616,
+          "failed_worlds": [
+            {
+              "world": 4,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 9,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 13,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 15,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 17,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            }
+          ],
+          "all_requested_worlds_evaluated": false,
+          "independent_law_max_absolute_error": 6.52278231427772e-12,
           "artifact": {
             "identity": "2866d7929c99c54fe773b9cacb7e9e0fe969a78c7b5a0c10624251bb04b2b3b1",
-            "bytes": 85919,
-            "artifact_sha256": "7facc68bfb249dbb111ada24b4ac6773cc8d66b3ea33ef197efc37bbd155a3f3",
+            "bytes": 84314,
+            "artifact_sha256": "8930ccaf4e13c77edca44969a6dffa67aca009366b6fd279973d2f66f398301f",
             "fresh_process_cpu_replay": true
           }
         },
         {
           "single_contexts": 2,
           "training_rows": 1000,
-          "converged": false,
-          "score_norm": 21.062974734409053,
-          "iterations": 2000,
+          "converged": true,
+          "score_norm": 0.29151411480217426,
+          "iterations": 526,
           "line_search_exhausted": false,
-          "auprc": 0.897660901935087,
-          "heldout_mean_mae": 0.30606590752654705,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": 6.693465007548141,
-          "oracle_nll_on_same_worlds": -2.0636666354251214,
-          "failed_worlds": [],
-          "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 3.552713678800501e-15,
+          "auprc": 0.2929558522183131,
+          "heldout_mean_mae": 1.4490054062894282,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 58.786423572267196,
+          "oracle_nll_on_same_worlds": -2.0648282863511205,
+          "failed_worlds": [
+            {
+              "world": 12,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 13,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            }
+          ],
+          "all_requested_worlds_evaluated": false,
+          "independent_law_max_absolute_error": 3.126388037344441e-13,
           "artifact": {
             "identity": "09ff11cfea9dfd336408ddb6dad1f20c6d4b551337e4abfd69a1f49431a7271e",
-            "bytes": 108954,
-            "artifact_sha256": "6794b1e7e1446867198e1ba804e047dc5cd0378db374dd1371729717a05cefa9",
+            "bytes": 109750,
+            "artifact_sha256": "907a319df86bce0405a1e38aa84c812a5124cc903a40507f38c428d7d99a3ee4",
             "fresh_process_cpu_replay": true
           }
         },
         {
           "single_contexts": 4,
           "training_rows": 1500,
-          "converged": false,
-          "score_norm": 17.997742529479346,
-          "iterations": 2000,
+          "converged": true,
+          "score_norm": 1.2639241160100319,
+          "iterations": 326,
           "line_search_exhausted": false,
-          "auprc": 0.945477294418145,
-          "heldout_mean_mae": 0.2496007866815274,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": 6.029342296234496,
-          "oracle_nll_on_same_worlds": -2.0636666354251214,
-          "failed_worlds": [],
-          "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 4.440892098500626e-15,
+          "auprc": 0.4665970051228854,
+          "heldout_mean_mae": 0.6668836221830419,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 59.995797572690705,
+          "oracle_nll_on_same_worlds": -2.059236466274971,
+          "failed_worlds": [
+            {
+              "world": 7,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 8,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            }
+          ],
+          "all_requested_worlds_evaluated": false,
+          "independent_law_max_absolute_error": 4.6629367034256575e-15,
           "artifact": {
             "identity": "2fb72b79fac6e3de13b1899dcd2d2d48d14919f5b88b98592341a739bf732987",
-            "bytes": 154641,
-            "artifact_sha256": "a8e59528efb9862cb12fdd2f8a8cce27576c70a7da51fa5d9b01c822ec6fd4b9",
+            "bytes": 155417,
+            "artifact_sha256": "90ab17e8aacda02496a42c91f4d23a00b97dda0d59f3003579ce9465f638a528",
             "fresh_process_cpu_replay": true
           }
         },
         {
           "single_contexts": 6,
           "training_rows": 2000,
-          "converged": false,
-          "score_norm": 26.036485264372637,
-          "iterations": 2000,
+          "converged": true,
+          "score_norm": 0.11051239792615775,
+          "iterations": 259,
           "line_search_exhausted": false,
-          "auprc": 1.0,
-          "heldout_mean_mae": 0.18140001960109095,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": 1.944366653475269,
+          "auprc": 0.9868003341687552,
+          "heldout_mean_mae": 0.30107235384434894,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 6.401631627267149,
           "oracle_nll_on_same_worlds": -2.0636666354251214,
           "failed_worlds": [],
           "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 3.9968028886505635e-15,
+          "independent_law_max_absolute_error": 2.6645352591003757e-15,
           "artifact": {
             "identity": "e3ccc2b4011643f080022c858a69bea18570f16f0a12c4a49bf8ee8a472bedac",
-            "bytes": 200853,
-            "artifact_sha256": "bd7e92cb866a27b643eeacab96aaea637ad6231f52f426a4d61ac557fb39b3a9",
+            "bytes": 203009,
+            "artifact_sha256": "afd1fb15d8ff600d9cda9223701c57bca43b72780fbf0b17a6354d0abb0af659",
             "fresh_process_cpu_replay": true
           }
         },
         {
           "single_contexts": 8,
           "training_rows": 2500,
-          "converged": false,
-          "score_norm": 52.32167518160904,
-          "iterations": 2000,
+          "converged": true,
+          "score_norm": 1.954732748472992,
+          "iterations": 256,
           "line_search_exhausted": false,
           "auprc": 1.0,
-          "heldout_mean_mae": 0.1067625143103499,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": -0.23827751912481981,
+          "heldout_mean_mae": 0.09844360764550107,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -0.4845920864810494,
           "oracle_nll_on_same_worlds": -2.0636666354251214,
           "failed_worlds": [],
           "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 5.329070518200751e-15,
+          "independent_law_max_absolute_error": 4.440892098500626e-15,
           "artifact": {
             "identity": "e07546417a1c3818e252c8eb24990ed8f97f22b97a89a450bfcc89f5332004e4",
-            "bytes": 247026,
-            "artifact_sha256": "03d4ad568c559171f69985a8cf5f11459a3cb485160a8e4928356d41fc367875",
+            "bytes": 249142,
+            "artifact_sha256": "819a050155822e625fcfd0f8a7d3cb757a6e4b85916045e344a39fb6837e947e",
             "fresh_process_cpu_replay": true
           }
         },
@@ -1002,25 +1200,25 @@
           "single_contexts": 10,
           "training_rows": 3000,
           "converged": true,
-          "score_norm": 2.934311425042104,
-          "iterations": 1047,
+          "score_norm": 1.7413324409593365,
+          "iterations": 255,
           "line_search_exhausted": false,
           "auprc": 1.0,
-          "heldout_mean_mae": 0.009827307235189757,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": -2.052368432947972,
+          "heldout_mean_mae": 0.00976489602798847,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -2.052566036498248,
           "oracle_nll_on_same_worlds": -2.0636666354251214,
           "failed_worlds": [],
           "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 7.993605777301127e-15,
+          "independent_law_max_absolute_error": 7.105427357601002e-15,
           "artifact": {
             "identity": "dec1145b94e52b435d58e1a221f95f041d66d227393c2153f06ec63ebcdf349b",
-            "bytes": 294011,
-            "artifact_sha256": "a9559b41d59a05b93e0f299a566e2dac8f547f385723daf7e5ee1f2e4ddfaa42",
+            "bytes": 296079,
+            "artifact_sha256": "183aaa33de08f26e20cfd28406be9a0eeb58a27b3dabb571eaf6de962a6d02db",
             "fresh_process_cpu_replay": true
           }
         }
       ],
-      "wall_seconds": 86.20736770797521
+      "wall_seconds": 29.514367374998983
     },
     {
       "lane": "bicycle",
@@ -1129,104 +1327,131 @@
           "single_contexts": 0,
           "training_rows": 500,
           "converged": true,
-          "score_norm": 0.44148940440084006,
-          "iterations": 617,
+          "score_norm": 0.2875428515616349,
+          "iterations": 254,
           "line_search_exhausted": false,
-          "auprc": 0.44830602788786944,
-          "heldout_mean_mae": 0.2160439380942948,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": 2.3781051895432586,
+          "auprc": 0.4485593856412272,
+          "heldout_mean_mae": 0.21600316389020402,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 2.3726129834110172,
           "oracle_nll_on_same_worlds": -2.0892045262263883,
           "failed_worlds": [],
           "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 6.661338147750939e-16,
+          "independent_law_max_absolute_error": 5.551115123125783e-16,
           "artifact": {
             "identity": "cdabcd69c6ffaad8c2928e743bf40914b34dfa9c4890632edbc06ade77ebf19d",
-            "bytes": 63556,
-            "artifact_sha256": "0ba1caf1cc16fabfc0e68c6812b624740ebe4ed88086058a62c082d6075433e4",
+            "bytes": 65610,
+            "artifact_sha256": "613b1c0b42790e5ba8bc17acea91c3ca3fe522430891ab2f984f74068a12ee7e",
             "fresh_process_cpu_replay": true
           }
         },
         {
           "single_contexts": 1,
           "training_rows": 750,
-          "converged": false,
-          "score_norm": 2.8431334963869404,
-          "iterations": 2000,
+          "converged": true,
+          "score_norm": 0.6091340698747949,
+          "iterations": 300,
           "line_search_exhausted": false,
-          "auprc": 0.4767850408891771,
-          "heldout_mean_mae": 0.4104420824167485,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": 5.489909321297344,
-          "oracle_nll_on_same_worlds": -2.0892045262263883,
-          "failed_worlds": [],
-          "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 6.217248937900877e-15,
+          "auprc": 0.16114899811167335,
+          "heldout_mean_mae": 0.45988871693575467,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 18.584774140919148,
+          "oracle_nll_on_same_worlds": -2.0916301304066858,
+          "failed_worlds": [
+            {
+              "world": 2,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 9,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 15,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            }
+          ],
+          "all_requested_worlds_evaluated": false,
+          "independent_law_max_absolute_error": 4.973799150320701e-14,
           "artifact": {
             "identity": "819affccfa12cf033294af505bd3e11245600b45f3a9240a46a3acb162fa7a29",
-            "bytes": 86245,
-            "artifact_sha256": "6a26cd1007b77983a5da28fc88bd9604b31e7bbfe1ddd85ce6741f476e80ba5d",
+            "bytes": 86257,
+            "artifact_sha256": "09d8ea37e8a02e4367bc209089997ee2f2706358b12d323b0af01d98cb70c9b9",
             "fresh_process_cpu_replay": true
           }
         },
         {
           "single_contexts": 2,
           "training_rows": 1000,
-          "converged": false,
-          "score_norm": 9.151718982585123,
-          "iterations": 2000,
+          "converged": true,
+          "score_norm": 0.9975457896457236,
+          "iterations": 270,
           "line_search_exhausted": false,
-          "auprc": 0.5011653284134202,
-          "heldout_mean_mae": 0.25022935113957756,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": 5.675588629819378,
-          "oracle_nll_on_same_worlds": -2.0892045262263883,
-          "failed_worlds": [],
-          "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 2.4390212072233908e-15,
+          "auprc": 0.1953479055074367,
+          "heldout_mean_mae": 0.3765748316429785,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 12.653977242816575,
+          "oracle_nll_on_same_worlds": -2.0922803813180324,
+          "failed_worlds": [
+            {
+              "world": 9,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            },
+            {
+              "world": 17,
+              "failure": "stationarity_or_numerical_conditions_not_established",
+              "detail": "invalid equilibrium input: OU drift has no positive-definite stability witness"
+            }
+          ],
+          "all_requested_worlds_evaluated": false,
+          "independent_law_max_absolute_error": 3.9968028886505635e-15,
           "artifact": {
             "identity": "f836f735ed673c88b9bd97a56dc98d5d28ed33d4692684b702bd4d689ef69efc",
-            "bytes": 109463,
-            "artifact_sha256": "0a558d8266e92398da0cb84c26bb8ecc4ccfde300776ba19347e6456bd3d72d6",
+            "bytes": 110297,
+            "artifact_sha256": "213796ac4e43e74ae5879bb8b5688e9a3b44647f067dce9b5ab66548ea12d74b",
             "fresh_process_cpu_replay": true
           }
         },
         {
           "single_contexts": 4,
           "training_rows": 1500,
-          "converged": false,
-          "score_norm": 10.520271402637812,
-          "iterations": 2000,
+          "converged": true,
+          "score_norm": 0.7533079146811303,
+          "iterations": 262,
           "line_search_exhausted": false,
-          "auprc": 0.8714356747977439,
-          "heldout_mean_mae": 0.09951149673227168,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": -0.04803917423290453,
+          "auprc": 0.24501993825082333,
+          "heldout_mean_mae": 0.2156567698625337,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 6.032466901686491,
           "oracle_nll_on_same_worlds": -2.0892045262263883,
           "failed_worlds": [],
           "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 6.661338147750939e-16,
+          "independent_law_max_absolute_error": 2.886579864025407e-15,
           "artifact": {
             "identity": "51c81cac8481131b695d30a492f8b2d8b4046c48c30183396d080b9a85522fb1",
-            "bytes": 155499,
-            "artifact_sha256": "8e360fcec5885c1b0501e3d19f148699828f026a551c86a2511f06607992936d",
+            "bytes": 157621,
+            "artifact_sha256": "0408177c8ab96e43169951b96f0cad923791416256a371b2df5e583dbc6a5095",
             "fresh_process_cpu_replay": true
           }
         },
         {
           "single_contexts": 6,
           "training_rows": 2000,
-          "converged": false,
-          "score_norm": 9.862106928699605,
-          "iterations": 2000,
+          "converged": true,
+          "score_norm": 0.49506984200664306,
+          "iterations": 258,
           "line_search_exhausted": false,
-          "auprc": 1.0,
-          "heldout_mean_mae": 0.038401948599908774,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": -1.867237100615216,
+          "auprc": 0.9272540531364062,
+          "heldout_mean_mae": 0.06048398898717525,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -1.2868190199428453,
           "oracle_nll_on_same_worlds": -2.0892045262263883,
           "failed_worlds": [],
           "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 6.661338147750939e-16,
+          "independent_law_max_absolute_error": 8.881784197001252e-16,
           "artifact": {
             "identity": "4b5ec8fea4037fce718a5c31181ca490622e349bc185a1ff9f45db6ffc91e86d",
-            "bytes": 201678,
-            "artifact_sha256": "7b77f59c33458df0b49eca69927c19ff4def24d6a3a12ac8283b38efd681d17e",
+            "bytes": 203760,
+            "artifact_sha256": "530d937430257768e3559805ac6b53bdf658357188fae8fc1b21964ccea01495",
             "fresh_process_cpu_replay": true
           }
         },
@@ -1234,20 +1459,20 @@
           "single_contexts": 8,
           "training_rows": 2500,
           "converged": true,
-          "score_norm": 2.2464271464314542,
-          "iterations": 1018,
+          "score_norm": 0.3668739559946914,
+          "iterations": 256,
           "line_search_exhausted": false,
           "auprc": 1.0,
-          "heldout_mean_mae": 0.023682130568575443,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": -1.999121902265302,
+          "heldout_mean_mae": 0.02773128647780746,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -1.9645897673788026,
           "oracle_nll_on_same_worlds": -2.0892045262263883,
           "failed_worlds": [],
           "all_requested_worlds_evaluated": true,
           "independent_law_max_absolute_error": 6.661338147750939e-16,
           "artifact": {
             "identity": "fb79c0d465587c5bd2f9c096e2009d4f8ed2dbebd26544b2b9ba60888496b938",
-            "bytes": 248142,
-            "artifact_sha256": "a54195623df71f0387443371fabd0e6d6a71034ee7ad021c8a29d05d098d985e",
+            "bytes": 250212,
+            "artifact_sha256": "9dbdb79215aa124d8614d9a5c681d01683ecf712a8504de58123e5afba198d7c",
             "fresh_process_cpu_replay": true
           }
         },
@@ -1255,25 +1480,25 @@
           "single_contexts": 10,
           "training_rows": 3000,
           "converged": true,
-          "score_norm": 2.713530219211833,
-          "iterations": 615,
+          "score_norm": 1.3845390975408733,
+          "iterations": 254,
           "line_search_exhausted": false,
           "auprc": 1.0,
-          "heldout_mean_mae": 0.006604715851391696,
-          "heldout_nll_per_coordinate_on_evaluated_worlds": -2.0778345946933854,
+          "heldout_mean_mae": 0.006570657010321422,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -2.077945383850301,
           "oracle_nll_on_same_worlds": -2.0892045262263883,
           "failed_worlds": [],
           "all_requested_worlds_evaluated": true,
-          "independent_law_max_absolute_error": 4.718447854656915e-16,
+          "independent_law_max_absolute_error": 1.1518563880486e-15,
           "artifact": {
             "identity": "63bf67ba4c83f2f48a3dddbeb02651c37575dc7ff1e1f7d3b1804f6ae4035d30",
-            "bytes": 295027,
-            "artifact_sha256": "a994e0bf803829cddd8510a5340ae8913c10e42d4c96b69cb920b7a03b94a4e5",
+            "bytes": 297163,
+            "artifact_sha256": "52957ba7e9af6df9235849667bf59dc9829744dbe6a043120b378c7c3b474d49",
             "fresh_process_cpu_replay": true
           }
         }
       ],
-      "wall_seconds": 68.8145206249319
+      "wall_seconds": 24.771919291990343
     }
   ]
 }

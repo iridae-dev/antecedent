@@ -9,6 +9,7 @@ from pathlib import Path
 
 import numpy as np
 from antecedent.cyclic import PreparedCyclicFamily
+from antecedent.outcomes import require_success
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--base-dir", type=Path, required=True)
@@ -83,12 +84,13 @@ for case in json.loads((base / "results.json").read_text())["cases"]:
     request["policy"]["max_iterations"] = 20000
     start = time.monotonic()
     prepared = PreparedCyclicFamily(json.dumps(request, allow_nan=False))
-    result = prepared.execute()
-    fit = result.report["answer"]["result"]["fit"]
+    result = require_success(prepared.execute())
+    report_dict = result.to_dict()
+    fit = report_dict["answer"]["result"]["fit"]
     target = out / name
     target.mkdir(exist_ok=True)
     module["write"](target / "request.json", request)
-    module["write"](target / "native_report.json", result.report)
+    module["write"](target / "native_report.json", report_dict)
     report = {
         "seed": case["seed"],
         "case": case["case"],
@@ -103,7 +105,7 @@ for case in json.loads((base / "results.json").read_text())["cases"]:
         "iterations": fit["iterations"],
         "line_search_exhausted": fit["line_search_exhausted"],
         "failed_worlds": sum(
-            "failure" in law for law in result.report["answer"]["result"]["laws"]
+            "failure" in law for law in report_dict["answer"]["result"]["laws"]
         ),
         "artifact": module["replay"](result, target),
         "wall_seconds": time.monotonic() - start,
