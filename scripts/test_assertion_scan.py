@@ -142,7 +142,7 @@ class Fn:
 
 
 def parse(path: Path, rel: str) -> list[Fn]:
-    raw = path.read_text(errors="replace")
+    raw = path.read_text(encoding="utf-8", errors="replace")
     m = mask(raw)
     fns: list[Fn] = []
     proptest_spans = []
@@ -428,7 +428,7 @@ fn compute_b() -> i32 { 2 }
     }
     with tempfile.TemporaryDirectory() as d:
         for n, t in files.items():
-            (Path(d) / n).write_text(t)
+            (Path(d) / n).write_text(t, encoding="utf-8")
         res = run(Path(d))
     got = {t.name: k for k, v in res["buckets"].items() for t, _ in v}
     want = {

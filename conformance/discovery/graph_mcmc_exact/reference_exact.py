@@ -107,7 +107,7 @@ def posterior(case, edge_p):
 
 
 def main():
-    fixture = json.loads(FIXTURE.read_text())
+    fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
     emit = {}
     worst = 0.0
     for case in fixture["cases"]:

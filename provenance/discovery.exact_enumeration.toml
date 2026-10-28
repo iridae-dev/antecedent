@@ -65,7 +65,7 @@ sha256 = "71db326fb8b9059c2c2aecffa102193d79a6a9a567dba43a0a826e7ff0c737a3"
 [[method_review.artifacts]]
 role = "reference"
 path = "conformance/discovery/graph_mcmc_exact/reference_exact.py"
-sha256 = "3e8bdee8581e265a69fbca6a9d5f2015f4d80acd620e1e72bf5b1c6fed97242a"
+sha256 = "0ef1c6765a67611fc0e855663368a4b05fa796000395c23153006053ab817d8f"
 
 [[method_review.artifacts]]
 role = "fixture"
