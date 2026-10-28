@@ -48,4 +48,4 @@ sha256 = "9d5d4fef467593d506e2f6b9a50c7d4122b57835c8d4412649efc7d2aa201d7e"
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/response/trial_transport/expected.json"
-sha256 = "40d4e2c1f72e96b74e963ba09fdab1a996b2db4f4963b8734ea6eadd89bf8076"
+sha256 = "92c78397cbf6af287cd219effa762cebd715d6f8de6ebea16d2a1f9d76a9643d"

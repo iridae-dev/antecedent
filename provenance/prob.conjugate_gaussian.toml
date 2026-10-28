@@ -74,4 +74,4 @@ sha256 = "9b2b818912ae6756f79d0d8349f53afe12c336a396137a7b92261510deffc77d"
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/bayesian/conjugate_gaussian/expected.json"
-sha256 = "b858305c2fc2cc4981558435c6f2dead6fa48d6462be25b48caeda0e7244aa7f"
+sha256 = "1323ca3e42dda2a2f5c05bed46840f9242f1156814192210d6ee273183e9455f"

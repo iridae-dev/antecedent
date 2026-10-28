@@ -65,4 +65,4 @@ sha256 = "15de9bdb2749a3d5e68fb813bbb3caabe298f6f301a14ea798ec457793e22c38"
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/response/observation_primitives/expected.json"
-sha256 = "76b3447351d6948b2083194c4bac19ab96f96b7e88baed270fa8f07c808ddafe"
+sha256 = "45530f094762fc31ad27295902e380800a88842f4c67b536760ca13d8328efe3"
