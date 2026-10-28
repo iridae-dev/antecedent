@@ -165,6 +165,11 @@ pub struct LinearAdjustmentAte {
     /// the regression as one numeric column, so a column such as `0/1/2` would be read as a
     /// dose and "1 against 0" would be its slope, not the contrast of the two levels.
     pub other_levels: crate::propensity::OtherLevels,
+    /// Read the treatment as a numeric dose: the contrast is the fitted slope times
+    /// `active - control`, and a discrete column with further levels is not a refusal. The
+    /// default is `false`, which keeps the two-level contrast rule above. Set by the
+    /// diagnostics of a dose-response design, whose original estimate is a dose slope.
+    pub dose_reading: bool,
 }
 
 impl Default for LinearAdjustmentAte {
@@ -187,7 +192,15 @@ impl LinearAdjustmentAte {
             preparation_budget: None,
             contrasts: Vec::new(),
             other_levels: crate::propensity::OtherLevels::default(),
+            dose_reading: false,
         }
+    }
+
+    /// Read the treatment as a numeric dose (see [`Self::dose_reading`]).
+    #[must_use]
+    pub const fn with_dose_reading(mut self, dose_reading: bool) -> Self {
+        self.dose_reading = dose_reading;
+        self
     }
 
     /// Declare what to do with rows at neither contrasted level when the treatment is a
@@ -378,13 +391,17 @@ impl LinearAdjustmentAte {
             data.row_count(),
             self.population_registry.as_ref(),
         )?;
-        let treatment_levels = crate::prepare::restrict_to_contrast_levels(
-            data,
-            treatment,
-            &mut row_mask,
-            (active, control),
-            self.other_levels,
-        )?;
+        let treatment_levels = if self.dose_reading {
+            None
+        } else {
+            crate::prepare::restrict_to_contrast_levels(
+                data,
+                treatment,
+                &mut row_mask,
+                (active, control),
+                self.other_levels,
+            )?
+        };
         self.refuse_unweighted_routes()?;
         let retained = self
             .sampling_weights

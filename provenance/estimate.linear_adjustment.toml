@@ -38,7 +38,7 @@ record_sha256 = "c4e98736b5f1a05d0ad1703cdf97ff1c31c986acea2b73c2c38a06d1ef7ddf3
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/adjustment.rs"
-sha256 = "73c1c3ca6db9f5cf75f73656a89d2c66c057e633ca037b9b44a06ea41a324e99"
+sha256 = "0881fc941a7585753869b0af718477e6c5639130d56ce893d2ae3780d9c9bf7f"
 
 [[method_review.artifacts]]
 role = "implementation"

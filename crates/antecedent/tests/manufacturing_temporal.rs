@@ -2136,6 +2136,8 @@ fn assert_full_suite_data_subset_refuter_ran(result: &antecedent::result::StudyR
         vec![
             "unobserved.common_cause",
             "sensitivity.evalue",
+            "sensitivity.linear",
+            "sensitivity.partial_linear",
             "sensitivity.nonparametric",
             "placebo.treatment",
             "random.common_cause",
@@ -2145,16 +2147,22 @@ fn assert_full_suite_data_subset_refuter_ran(result: &antecedent::result::StudyR
         ],
         "RefuteSuite::Full on TemporalDag Frequentist runs this fixed refuter set"
     );
-    // The dose fixture takes three integer levels (-1, 0, 1) beyond the contrasted pair, which
-    // the linear regressions refuse to read as one numeric dose, so the two regression-based
-    // sensitivity checks report a typed failure rather than a mis-scaled verdict.
-    for validator in ["linear_sensitivity", "partial_linear_sensitivity"] {
-        assert!(
-            result.diagnostics.iter().any(|d| d.code.as_ref() == "refute.validator.failed"
-                && d.message.contains(validator)
-                && d.message.contains("treatment_level_undeclared")),
-            "{validator} must report the undeclared treatment levels"
-        );
+    // The dose fixture takes three integer levels (-1, 0, 1) beyond the contrasted pair. The
+    // temporal estimate is a dose slope, so the two regression-based sensitivity checks read the
+    // treatment as the same numeric dose (the refit effect is the slope times the contrast
+    // width) instead of refusing it as an undeclared level of a two-level contrast.
+    assert!(
+        !result.diagnostics.iter().any(|d| d.message.contains("treatment_level_undeclared")),
+        "no refuter may refuse the dose as an undeclared treatment level"
+    );
+    for (name, report) in names.iter().zip(result.refutations.iter()) {
+        if *name == "sensitivity.linear" || *name == "sensitivity.partial_linear" {
+            assert!(
+                (report.original_ate - 2.0).abs() < 1e-6,
+                "{name} perturbs the dose-slope estimate 2.0; got {}",
+                report.original_ate
+            );
+        }
     }
     let subset = names
         .iter()

@@ -56,6 +56,7 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "fit_kind",
             "fit_lambda",
             "fit_c",
+            "other_levels",
         ],
     ),
     (
@@ -150,6 +151,7 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "panel_times",
             "glm_options",
             "family",
+            "other_levels",
             "source_sampling_weights",
         ],
     ),
@@ -1177,6 +1179,9 @@ fn build_configured_spec(
             if let Some(fit) = build_fit_kind(dict)? {
                 est = est.with_fit_kind(fit);
             }
+            if let Some(policy) = other_levels {
+                est = est.with_other_levels(policy);
+            }
             if let Some(weights) = sampling_weights {
                 est = est.with_sampling_weights(weights);
             }
@@ -1382,6 +1387,9 @@ fn build_configured_spec(
             }
             if let Some(fam) = build_family(dict)? {
                 est = est.with_family(fam);
+            }
+            if let Some(policy) = other_levels {
+                est = est.with_other_levels(policy);
             }
             if let Some(weights) = sampling_weights {
                 est = est.with_sampling_weights(weights);

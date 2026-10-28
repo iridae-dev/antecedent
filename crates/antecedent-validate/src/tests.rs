@@ -1461,6 +1461,75 @@ fn panel_refit_effect_round_trip_matches_copy_all() {
         .unwrap();
 }
 
+/// A series whose treatment is a dose taking the integer values 0..=3 and whose outcome reads
+/// the previous step's dose with slope 0.8 plus a deterministic wiggle.
+fn integer_dose_series(n: usize) -> TimeSeriesData {
+    let x: Vec<f64> = (0..n).map(|t| ((t * 7 + 3) % 4) as f64).collect();
+    let mut y = vec![0.0; n];
+    for t in 1..n {
+        y[t] = 0.8 * x[t - 1] + 0.3 * ((t as f64) * 1.3).sin();
+    }
+    TimeSeriesData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())], 1).unwrap()
+}
+
+#[test]
+fn regression_sensitivity_reads_a_small_integer_dose_in_a_temporal_design_as_a_dose() {
+    let series = integer_dose_series(96);
+    let data = TabularData::new(series.storage().clone());
+    let graph = lagged_xy_graph();
+    let temporal_query =
+        TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+            .with_policy(TemporalPolicy::pulse(-1))
+            .with_horizon_steps(1)
+            .with_max_history_lag(Some(1));
+    let id_res =
+        TemporalBackdoorIdentifier::new().identify_temporal(&graph, &temporal_query).unwrap();
+    let estimand = id_res.result.estimands.first().cloned().expect("identified");
+    let ctx = ExecutionContext::for_tests(11);
+    let mut estimator = TemporalLinearAdjustment::new();
+    estimator.inner.inference.bootstrap_replicates = 0;
+    let prep = estimator
+        .prepare(&series, &estimand, &temporal_query, &id_res.indexer, None, &ctx.kernel_policy)
+        .unwrap();
+    let mut ws = EstimationWorkspace::default();
+    let original = estimator.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+    assert!((original.ate - 0.8).abs() < 0.2, "dose slope ate={}", original.ate);
+    let ate_q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let temporal = TemporalRefitContext {
+        indexer: &id_res.indexer,
+        temporal_query: &temporal_query,
+        split: None,
+        kernel_policy: &ctx.kernel_policy,
+        time_index: Some(series.time_index()),
+        panel: None,
+        gaps: false,
+    };
+    let problem = RefutationProblem::new(
+        &data,
+        &estimand,
+        &ate_q,
+        &original,
+        Some("temporal.linear.adjustment"),
+        Some(temporal),
+    );
+    let linear = LinearSensitivity::new().refute(&problem, &mut ws, &ctx);
+    let partial = PartialLinearSensitivity::new().refute(&problem, &mut ws, &ctx);
+    for (name, outcome) in [("linear", linear), ("partial", partial)] {
+        let report = outcome.unwrap_or_else(|e| panic!("{name} sensitivity refused the dose: {e}"));
+        assert!(report.comparison > 0.0, "{name} robustness value {}", report.comparison);
+    }
+    // A negligible confounder leaves the refit at the dose-slope estimate: same scale, not a
+    // two-level contrast of the dose column.
+    let probe = LinearSensitivity { partial_r2_grid: vec![1e-8], ..LinearSensitivity::new() };
+    let report = probe.refute(&problem, &mut ws, &ctx).unwrap();
+    assert!(
+        (report.refuted_ate - original.ate).abs() < 1e-3,
+        "refit {} vs dose-slope estimate {}",
+        report.refuted_ate,
+        original.ate
+    );
+}
+
 #[test]
 fn prepared_refutation_compile_is_none_without_panel() {
     let (data, estimand, _) = toy_confounded();

@@ -17,6 +17,7 @@ implementation_deviations = [
  "Injects one seeded synthetic confounder into treatment and outcome at equal partial-R2 grid strengths (or a bounded analogue), orthogonalized to the design so the realized partial R2 is the nominal grid value and the OLS tipping point is exactly |rho|/(1+|rho|), refits, and reports the first grid point that explains away the estimate.",
  "The nonparametric path uses repository-defined product-Gaussian Nadaraya-Watson residualization on covariates standardized to unit SD, Silverman's multivariate normal-reference bandwidth (or a caller bandwidth in SD units), a 20000-row cap (the separately identified sensitivity.nonparametric_neighborhood construction truncates the kernel sums to a declared number of nearest covariate points for larger samples), and refuses when the residualized effect has the opposite sign of the published estimate, before applying the same simulation grid.",
  "The fixed partial-R2 grid and pass threshold 0.1 are repository policy.",
+ "On a temporal design the grid runs on the lag-aligned rows with the treatment read as a numeric dose: the refit effect is the fitted slope times the contrast width, as the temporal estimate is, so a dose taking a few integer values is neither refused as an undeclared level nor read as a two-level contrast. This path is outside the reviewed scope.",
 ]
 
 upstream_implementations_observed = [
@@ -38,12 +39,12 @@ redistribution = "Primary work is cited, not redistributed. The reference script
 limitations = "Seven finite tables of 50 to 80 rows with zero to two covariates, one negative effect, and one design supplied with the outcome, the treatment and both rescaled by factors from 1e-12 to 1e8. The reference builds its own explicit confounder in 50-digit arithmetic and refits by the normal equations; the product draws its own confounder, so agreement relies on the orthogonality fact above rather than on shared draws. The refit effect at the tipping strength is asserted to 1e-8 of the original effect. The nonparametric residual grid loop carried the same absolute threshold and received the identical repair, but its numerics are outside this review's assertions. Nothing here bears on whether a tipping strength of a given size is practically meaningful. The reference script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
 sources = ["https://doi.org/10.1111/rssb.12348", "https://docs.python.org/3/library/fractions.html", "https://mpmath.org/doc/current/"]
 findings_resolved = ["Defect repaired: three grid loops declared an effect explained away when the refit slope was below an absolute 1e-9. The verdict therefore depended on the units of the outcome: with the outcome in units of 1e-12 the unperturbed effect (about 9e-13) was reported as tipping at the smallest grid strength, 0.01, while the same data in ordinary units tip at 0.2. The test is now relative (1e-9 of the original effect's magnitude), and the verdict is identical under rescaling of treatment and outcome.", "The realized partial R2 of the injected confounder equals the nominal grid value to 1e-9 on every table, including tables whose adjustment covariates explain most of the treatment variance.", "The tipping strength equals the first grid value at or above the closed form |rho| / (1 + |rho|), with rho the partial correlation of treatment and outcome given the adjustment set, on every table and for both signs of the effect; the refit slope at that strength equals the explicit perturbation refit.", "A grid that stops below the tipping strength reports infinity, not its last point, and the pass rule follows the largest cleared strength."]
-record_sha256 = "4d0178d049bba156cbfdb3b02cd4bf703cda69c3879acb6a017cc9cc79c4db92"
+record_sha256 = "f60831815ee34f9d3a70f889d0f865957064b59bb48a130c997e8eec8d22c385"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/sensitivity.rs"
-sha256 = "5a1c49490282fc469de122e4ebeb95fb0e48276174ef543db0647ea22b84b8e6"
+sha256 = "4b59a1fa0f659e70323875f89424018847491122a14a03308b6ed3cfb50906ee"
 
 [[method_review.artifacts]]
 role = "assertion"

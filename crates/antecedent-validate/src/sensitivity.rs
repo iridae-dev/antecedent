@@ -115,7 +115,10 @@ fn with_temporal_diagnostic_rows<R>(
         problem.original,
         Some("linear.adjustment.ate"),
         None,
-    );
+    )
+    // The temporal estimate is a dose slope, so the aligned refits read the treatment as a
+    // dose even when it takes a few integer values.
+    .with_dose_treatment();
     run(&aligned)
 }
 
@@ -233,6 +236,13 @@ fn run_grid(
     nonparametric: bool,
 ) -> Result<(f64, f64, bool), ValidationError> {
     let setup = GridSetup::new(problem, ctx, grid, noise_stream, nonparametric)?;
+    let dose_estimator;
+    let estimator = if problem.dose_treatment {
+        dose_estimator = estimator.clone().with_dose_reading(true);
+        &dose_estimator
+    } else {
+        estimator
+    };
     if gram_applicable(problem, estimator) {
         if let Some(result) = try_run_grid_gram(problem, estimator, &setup)? {
             return Ok(result);

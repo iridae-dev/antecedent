@@ -57,11 +57,9 @@ column with levels beyond the contrasted pair (`0/1/2`) would be read as a dose:
 is a slope, not the contrast of the two declared levels. Such a column is refused as
 `treatment_level_undeclared`, listing the observed levels, unless the rows at the other levels
 are declared excluded (Rust: `with_other_levels(OtherLevels::ExcludeUndeclared)` on
-`LinearAdjustmentAte` and `GlmAdjustmentAte`; the target population is then the rows at the two
-levels and the result reports the excluded count). The Python `LinearAdjustment` and
-`GlmAdjustment` have no `other_levels` argument, so from Python the refusal stands: recode the
-treatment into the contrast of interest, or use a propensity estimator or `DML`, which do
-declare it.
+`LinearAdjustmentAte` and `GlmAdjustmentAte`; Python: `other_levels="exclude_undeclared"` on
+`LinearAdjustment` and `GlmAdjustment`; the target population is then the rows at the two
+levels and the result reports the excluded count).
 
 The instrumental estimators (`IvWald`, `Iv2Sls`) refuse a treatment with undeclared extra levels
 (`treatment_level_undeclared`, `iv.undeclared_level`) and have no exclusion option: restricting

@@ -611,9 +611,10 @@ class LinearAdjustment:
     must already be aligned to the rows the estimator uses.
 
     A discrete treatment with levels beyond the contrasted pair (for example ``0/1/2``) is
-    refused as ``treatment_level_undeclared``: the regression would read it as a dose. There is
-    no ``other_levels`` argument here; recode the treatment into the contrast of interest, or
-    use a propensity estimator or :class:`DML`, which accept ``other_levels="exclude_undeclared"``.
+    refused as ``treatment_level_undeclared`` by default: the regression would read it as a dose.
+    ``other_levels="exclude_undeclared"`` declares that rows at the other levels are excluded and
+    the target population is restricted to the rows at the two contrasted levels; the result
+    reports how many rows were excluded.
     """
 
     bootstrap: int | None = None
@@ -627,9 +628,11 @@ class LinearAdjustment:
     fit_c: float | None = None
     cluster: str | None = None
     weights: str | Sequence[float] | None = None
+    other_levels: OtherLevelsName = "refuse"
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
+        _wire_other_levels(self.other_levels)
         _validate_se(
             se=self.se,
             se_lag=self.se_lag,
@@ -672,6 +675,7 @@ class LinearAdjustment:
             out["fit_lambda"] = self.fit_lambda
         if self.fit_c is not None:
             out["fit_c"] = self.fit_c
+        out.update(_wire_other_levels(self.other_levels))
         out.update(_wire_weights(self.weights))
         if (
             self.weights is not None
@@ -1046,8 +1050,8 @@ class GlmAdjustment:
     ``cluster="site"`` names the data column of cluster labels, as for
     :class:`LinearAdjustment`. A discrete treatment with levels beyond the contrasted pair (for
     example ``0/1/2``) is refused as ``treatment_level_undeclared``: the regression would read it
-    as a dose. There is no ``other_levels`` argument here; recode the treatment into the contrast
-    of interest.
+    as a dose. ``other_levels="exclude_undeclared"`` declares the rows at the other levels
+    excluded and restricts the target population to the two contrasted levels.
     """
 
     bootstrap: int | None = None
@@ -1060,9 +1064,11 @@ class GlmAdjustment:
     family: GlmFamilyName | None = None
     cluster: str | None = None
     weights: str | Sequence[float] | None = None
+    other_levels: OtherLevelsName = "refuse"
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
+        _wire_other_levels(self.other_levels)
         _validate_se(
             se=self.se,
             se_lag=self.se_lag,
@@ -1096,6 +1102,7 @@ class GlmAdjustment:
         out.update(_wire_glm_options(self.glm_options))
         if self.family is not None:
             out["family"] = self.family
+        out.update(_wire_other_levels(self.other_levels))
         out.update(_wire_weights(self.weights))
         if (
             self.weights is not None

@@ -442,6 +442,10 @@ pub struct RefutationProblem<'a> {
     /// compiles one plan from [`Self::temporal`] and reuses it; a single refit
     /// compiles its own.
     pub(crate) panel_slices: Option<&'a PanelSliceTemplate<'a>>,
+    /// The treatment is a numeric dose whose effect is the slope times the contrast width
+    /// (the lag-aligned diagnostic rows of a temporal design), so a refit never reads a
+    /// discrete dose with several integer values as a two-level contrast.
+    pub(crate) dose_treatment: bool,
 }
 
 impl<'a> RefutationProblem<'a> {
@@ -465,7 +469,14 @@ impl<'a> RefutationProblem<'a> {
             temporal,
             effect_refit: None,
             panel_slices: None,
+            dose_treatment: false,
         }
+    }
+
+    /// Read the treatment as a numeric dose in every refit of this problem.
+    pub(crate) fn with_dose_treatment(mut self) -> Self {
+        self.dose_treatment = true;
+        self
     }
 
     /// Preserve the original composed estimator during every perturbation.

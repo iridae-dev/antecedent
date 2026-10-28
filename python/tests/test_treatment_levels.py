@@ -108,3 +108,32 @@ def test_the_default_refuses_and_a_bad_policy_is_rejected() -> None:
     assert raised.value.reason_code == "treatment_level_undeclared"
     with pytest.raises(ValueError, match="other_levels"):
         PropensityWeighting(other_levels="drop")._wire()  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "estimator", [ant.estimators.LinearAdjustment, ant.estimators.GlmAdjustment]
+)
+def test_regressions_refuse_by_default_and_exclude_when_declared(estimator: Any) -> None:
+    data = _three_level()
+    kwargs: dict[str, Any] = (
+        {"family": "gaussian_identity"} if estimator is ant.estimators.GlmAdjustment else {}
+    )
+    with pytest.raises(CausalError) as raised:
+        _estimate(data, estimator(bootstrap=0, **kwargs), control=0.0, active=2.0)
+    assert raised.value.reason_code == "treatment_level_undeclared"
+    declared = _estimate(
+        data,
+        estimator(bootstrap=0, other_levels="exclude_undeclared", **kwargs),
+        control=0.0,
+        active=2.0,
+    )
+    keep = data["t"] != 1.0
+    by_hand = _estimate(
+        {name: values[keep] for name, values in data.items()},
+        estimator(bootstrap=0, **kwargs),
+        control=0.0,
+        active=2.0,
+    )
+    assert declared.answer.value == by_hand.answer.value
+    with pytest.raises(ValueError, match="other_levels"):
+        estimator(other_levels="drop")  # type: ignore[arg-type]

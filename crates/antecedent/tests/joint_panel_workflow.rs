@@ -438,6 +438,17 @@ fn confounded_panel_does_not_acquire_a_causal_license_from_a_finite_mechanism() 
     assert_eq!(inspection.fits_performed, 0);
     assert!(!inspection.identification.is_identified_claim());
     assert!(!inspection.design_attempts.is_empty());
+    let observational = inspection
+        .design_attempts
+        .iter()
+        .find(|attempt| attempt.id == "joint_adjustment.observational")
+        .unwrap();
+    assert!(matches!(
+        observational.outcome,
+        antecedent::analysis::joint_panel::JointPanelDesignOutcome::Unsupported
+    ));
+    assert!(observational.detail.contains("not identified through general ID"));
+    assert!(observational.detail.contains("accepted point graph"));
 }
 
 #[test]
