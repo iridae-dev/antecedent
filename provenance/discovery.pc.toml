@@ -50,7 +50,7 @@ sha256 = "66309b7cd26bc5fbd33c08fcb7bc40a13ed2f21df48221eeb13fa8ed504b5bb1"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/orientation.rs"
-sha256 = "249ef3a38d0f3fd66d5ee18f3640e40fb4926320e788bb97a144021327f50231"
+sha256 = "4c723a2e542dd15806433a7461b42b896a9be1e9cc59578f1b9d8aa09754f825"
 
 [[method_review.artifacts]]
 role = "implementation"

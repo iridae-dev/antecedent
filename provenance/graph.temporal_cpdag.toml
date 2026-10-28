@@ -36,7 +36,7 @@ record_sha256 = "98eaa06036cdb3964d7af698503f3b4b7a28a120f53be80edb52ca2e594f894
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-graph/src/cpdag.rs"
-sha256 = "1dfc101ba355198c5f20608a66d0239f781dd037f2b6248e483c091b15f5bc36"
+sha256 = "07497c1fe08c2f0a8f375a5e77727a22610d21d263b0f24feaa7f9abe9219ff2"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
@@ -46,4 +46,4 @@ sha256 = "ae810ffcb5d706bd3daf372a8973979f6f097adea7c73b850acc382bb905d6af"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-graph/tests/temporal_cpdag_invariants_reference.rs"
-sha256 = "257b88eae68c6c1bdedecb57dc8473c11b79c3f05a5b8912c0d0306a27e4cab9"
+sha256 = "9443c1610b47f0feac716be2ec5f435b370b151da410f58e12e624ca59da5c43"

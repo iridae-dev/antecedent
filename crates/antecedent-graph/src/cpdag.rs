@@ -351,7 +351,8 @@ impl TemporalCpdag {
 
     /// Add a lagged or context node.
     ///
-    /// Context nodes are allowed for J-PCMCI+ / multi-dataset graphs .
+    /// Context nodes are allowed for J-PCMCI+ / multi-dataset graphs. A context is exogenous:
+    /// edges into it from a system node are refused ([`GraphError::ContextCaused`]).
     /// Static nodes remain rejected (use a static CPDAG / DAG).
     ///
     /// # Errors
@@ -404,7 +405,8 @@ impl TemporalCpdag {
     ///
     /// Unknown nodes, duplicates, illegal marks, contemporaneous self-edges,
     /// lagged self-loops (reported as [`GraphError::Cycle`]), directed cycles,
-    /// or future→past directed edges ([`GraphError::FutureToPast`]).
+    /// future→past directed edges ([`GraphError::FutureToPast`]), or a directed edge from a
+    /// lagged node into a context ([`GraphError::ContextCaused`]).
     pub fn insert_marked(&mut self, edge: MarkedEdge) -> Result<(), GraphError> {
         if !edge.is_cpdag_legal() {
             return Err(GraphError::InvalidEndpoints {
@@ -430,9 +432,81 @@ impl TemporalCpdag {
             return Err(GraphError::Cycle { from: edge.a.raw(), to: edge.b.raw() });
         }
         if let Some((from, to)) = edge.parent_child() {
-            crate::types::reject_future_to_past(&self.nodes, from, to)?;
+            self.reject_invalid_orientation(from, to)?;
         }
         marked_storage::insert_marked_finish(&mut self.adj, edge)
+    }
+
+    /// Refuse an orientation `from -> to` that violates time order or context exogeneity.
+    ///
+    /// A context node is an exogenous regime indicator at the present: no lagged (system)
+    /// node may cause it ([`GraphError::ContextCaused`]), and it may not cause a node of the
+    /// past ([`GraphError::FutureToPast`], the context counted as contemporaneous). A context
+    /// may cause a contemporaneous system node, another context, or a time-context slice at
+    /// lag zero.
+    fn reject_invalid_orientation(
+        &self,
+        from: DenseNodeId,
+        to: DenseNodeId,
+    ) -> Result<(), GraphError> {
+        match (self.nodes[from.as_usize()], self.nodes[to.as_usize()]) {
+            (NodeRef::Lagged { .. }, NodeRef::Context { .. }) => {
+                Err(GraphError::ContextCaused { from: from.raw(), to: to.raw() })
+            }
+            (NodeRef::Context { .. }, NodeRef::Lagged { lag, .. }) if !lag.is_contemporaneous() => {
+                Err(GraphError::FutureToPast {
+                    from: from.raw(),
+                    to: to.raw(),
+                    from_lag: Lag::CONTEMPORANEOUS,
+                    to_lag: lag,
+                })
+            }
+            _ => crate::types::reject_future_to_past(&self.nodes, from, to),
+        }
+    }
+
+    /// The lagged node a [`TemporalDag`] holds in place of `node`.
+    ///
+    /// A lagged node is itself. An untagged context is the contemporaneous node of its
+    /// variable, a root (a context is never caused by a system node).
+    fn dag_node(&self, id: usize) -> Result<NodeRef, GraphError> {
+        match self.nodes[id] {
+            node @ NodeRef::Lagged { .. } => Ok(node),
+            NodeRef::Context { variable, environment } => {
+                let node = u32::try_from(id).map_err(|_| GraphError::TooManyNodes)?;
+                if environment.is_some() {
+                    return Err(GraphError::ContextNotRepresentable {
+                        node,
+                        reason: "the context carries an environment tag and a lagged node has none",
+                    });
+                }
+                let slot = NodeRef::Lagged { variable, lag: Lag::CONTEMPORANEOUS };
+                let taken = self.nodes.iter().enumerate().any(|(i, other)| {
+                    i != id
+                        && (*other == slot
+                            || matches!(other, NodeRef::Context { variable: v, .. } if *v == variable && i < id))
+                });
+                if taken {
+                    return Err(GraphError::ContextNotRepresentable {
+                        node,
+                        reason: "the contemporaneous slot of the context variable is already occupied",
+                    });
+                }
+                Ok(slot)
+            }
+            _ => Err(GraphError::InvalidEndpoints {
+                message: "TemporalCpdag holds only Lagged or Context nodes",
+            }),
+        }
+    }
+
+    /// The node labels of the [`TemporalDag`] this graph converts to, in node order.
+    ///
+    /// # Errors
+    ///
+    /// [`GraphError::ContextNotRepresentable`] for a context node a lagged node cannot stand for.
+    pub(crate) fn dag_nodes(&self) -> Result<Vec<NodeRef>, GraphError> {
+        (0..self.nodes.len()).map(|i| self.dag_node(i)).collect()
     }
 
     /// Insert directed edge `from -> to`.
@@ -470,7 +544,7 @@ impl TemporalCpdag {
     ) -> Result<(), GraphError> {
         self.validate_node(from)?;
         self.validate_node(to)?;
-        crate::types::reject_future_to_past(&self.nodes, from, to)?;
+        self.reject_invalid_orientation(from, to)?;
         marked_storage::orient_undirected_finish(&mut self.adj, from, to)
     }
     ///
@@ -505,8 +579,8 @@ impl TemporalCpdag {
     /// Propagates insert failures (should not happen for a valid CPDAG's directed subset).
     pub fn to_directed_skeleton(&self) -> Result<TemporalDag, GraphError> {
         let mut dag = TemporalDag::empty();
-        for node in &self.nodes {
-            dag.add_node(*node)?;
+        for node in self.dag_nodes()? {
+            dag.add_node(node)?;
         }
         for e in self.edges() {
             if let Some((from, to)) = e.parent_child() {
@@ -518,10 +592,15 @@ impl TemporalCpdag {
 
     /// Convert to a [`TemporalDag`] only when no undirected or conflict edges remain.
     ///
+    /// A [`TemporalDag`] holds lagged nodes only, so an untagged context node becomes the
+    /// contemporaneous node of its variable: an exogenous root, since no system node may
+    /// cause a context. Node order, and so every dense id, is kept.
+    ///
     /// # Errors
     ///
     /// [`GraphError::InvalidEndpoints`] if any Tail–Tail or Conflict–Conflict edge remains,
-    /// or insert failure.
+    /// [`GraphError::ContextNotRepresentable`] for a context node that carries an environment
+    /// tag or whose variable already occupies the contemporaneous slot, or insert failure.
     pub fn try_into_temporal_dag(&self) -> Result<TemporalDag, GraphError> {
         for e in self.edges() {
             if e.is_undirected() {

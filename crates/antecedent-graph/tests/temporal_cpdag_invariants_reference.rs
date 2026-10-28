@@ -9,15 +9,18 @@
 //! sequence of up to three operations over four lagged nodes, up to four over three, and up to two
 //! over six nodes (the four, a context node and a duplicate lag-zero node). After every operation the accept/reject decision and the full edge set must
 //! agree, and at the end of every sequence the completion to a `TemporalDag` must succeed
-//! exactly when no undirected or conflict edge remains and no context node is present (a
-//! `TemporalDag` holds lagged nodes only), and must return exactly the directed edges. Context nodes carry no time order in the model, exactly as the product treats them.
+//! exactly when no undirected or conflict edge remains, and must return exactly the directed
+//! edges. A context is exogenous and sits at the present: no lagged node may cause it and it
+//! may not cause a lagged node of the past; an untagged context converts to a lag-zero root.
+//! Contexts a `TemporalDag` cannot hold (environment-tagged, or on an occupied slot) are
+//! refused with a typed error.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 
 use antecedent_core::{EnvironmentId, Lag, VariableId};
-use antecedent_graph::{DenseNodeId, TemporalCpdag};
+use antecedent_graph::{DenseNodeId, GraphError, NodeRef, TemporalCpdag};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Kind {
@@ -90,9 +93,18 @@ impl Model {
         false
     }
 
+    /// A context is exogenous (never caused by a lagged node) and sits at the present, so it
+    /// cannot point at a lagged node of the past either.
     fn future_to_past(&self, from: usize, to: usize) -> bool {
-        matches!((self.nodes[from], self.nodes[to]),
-            (Node::Lagged { lag: lf, .. }, Node::Lagged { lag: lt, .. }) if lf < lt)
+        match (self.nodes[from], self.nodes[to]) {
+            (Node::Lagged { lag: lf, .. }, Node::Lagged { lag: lt, .. }) => lf < lt,
+            (Node::Context, Node::Lagged { lag, .. }) => lag > 0,
+            _ => false,
+        }
+    }
+
+    fn caused_by_system(&self, from: usize, to: usize) -> bool {
+        matches!((self.nodes[from], self.nodes[to]), (Node::Lagged { .. }, Node::Context))
     }
 
     fn self_edge(&self, a: usize, b: usize) -> bool {
@@ -107,6 +119,7 @@ impl Model {
             Op::Directed(a, b) => {
                 if self.self_edge(a, b)
                     || self.future_to_past(a, b)
+                    || self.caused_by_system(a, b)
                     || self.edges.contains_key(&key(a, b))
                     || self.reaches(b, a)
                 {
@@ -122,6 +135,7 @@ impl Model {
             }
             Op::Orient(a, b) => {
                 if self.future_to_past(a, b)
+                    || self.caused_by_system(a, b)
                     || self.edges.get(&key(a, b)) != Some(&Kind::Undirected)
                     || self.reaches(b, a)
                 {
@@ -148,9 +162,7 @@ fn build(nodes: &[Node]) -> (TemporalCpdag, Vec<DenseNodeId>) {
             Node::Lagged { var, lag } => {
                 g.add_lagged(VariableId::from_raw(var), Lag::from_raw(lag)).unwrap()
             }
-            Node::Context => {
-                g.add_context(VariableId::from_raw(7), Some(EnvironmentId::from_raw(1))).unwrap()
-            }
+            Node::Context => g.add_context(VariableId::from_raw(7), None).unwrap(),
         })
         .collect();
     (g, ids)
@@ -179,14 +191,15 @@ fn check_completion(g: &TemporalCpdag, ids: &[DenseNodeId], model: &Model) {
     let has_context = model.nodes.iter().any(|n| matches!(n, Node::Context));
     let only_directed = model.edges.values().all(|k| matches!(k, Kind::Directed(..)));
     let completed = g.try_into_temporal_dag();
-    // A TemporalDag holds lagged nodes only: a graph that carries a context node cannot be
-    // converted even when every edge is directed.
-    assert_eq!(completed.is_ok(), only_directed && !has_context, "{:?}", model.edges);
-    if has_context {
-        assert!(g.to_directed_skeleton().is_err());
-        return;
-    }
+    // A fully directed graph converts, context nodes included: an untagged context becomes a
+    // lag-zero root of the `TemporalDag`.
+    assert_eq!(completed.is_ok(), only_directed, "{:?}", model.edges);
+    let _ = has_context;
     let skeleton = g.to_directed_skeleton().unwrap();
+    if only_directed {
+        // node order is kept, so dense ids carry over
+        assert_eq!(skeleton.node_count(), model.nodes.len());
+    }
     let mut got: Vec<(usize, usize)> = skeleton
         .edges()
         .filter_map(|e| e.parent_child())
@@ -292,4 +305,72 @@ fn cycles_longer_than_two_are_rejected_after_orientation_too() {
     assert!(g.orient_undirected(n[2], n[0]).is_err());
     assert!(g.orient_undirected(n[0], n[2]).is_ok());
     assert!(g.insert_directed(n[2], n[0]).is_err(), "edge already present");
+}
+
+fn context_and_lagged() -> (TemporalCpdag, DenseNodeId, DenseNodeId, DenseNodeId) {
+    let mut g = TemporalCpdag::empty();
+    let ctx = g.add_context(VariableId::from_raw(7), None).unwrap();
+    let now = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+    let past = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    (g, ctx, now, past)
+}
+
+#[test]
+fn a_directed_edge_into_a_context_is_refused_with_a_typed_error() {
+    let (mut g, ctx, now, past) = context_and_lagged();
+    assert!(matches!(g.insert_directed(now, ctx), Err(GraphError::ContextCaused { .. })));
+    assert!(matches!(g.insert_directed(past, ctx), Err(GraphError::ContextCaused { .. })));
+    assert_eq!(g.edges().len(), 0, "a refused edge is not stored");
+    // undirected adjacency is representable until orientation, but the orientation into the
+    // context is refused and the opposite orientation is accepted
+    g.insert_undirected(now, ctx).unwrap();
+    assert!(matches!(g.orient_undirected(now, ctx), Err(GraphError::ContextCaused { .. })));
+    assert!(g.edge_between(now, ctx).unwrap().is_undirected());
+    g.orient_undirected(ctx, now).unwrap();
+    assert_eq!(g.parents(now), vec![ctx]);
+}
+
+#[test]
+fn a_context_may_cause_present_system_nodes_but_not_past_ones() {
+    let (mut g, ctx, now, past) = context_and_lagged();
+    g.insert_directed(ctx, now).unwrap();
+    assert!(matches!(g.insert_directed(ctx, past), Err(GraphError::FutureToPast { .. })));
+    let other = g.add_context(VariableId::from_raw(8), None).unwrap();
+    g.insert_directed(ctx, other).unwrap();
+}
+
+#[test]
+fn a_fully_directed_graph_with_contexts_converts_with_contexts_as_lag_zero_roots() {
+    let (mut g, ctx, now, past) = context_and_lagged();
+    g.insert_directed(ctx, now).unwrap();
+    g.insert_directed(past, now).unwrap();
+    let dag = g.try_into_temporal_dag().unwrap();
+    assert_eq!(
+        dag.nodes()[ctx.as_usize()],
+        NodeRef::Lagged { variable: VariableId::from_raw(7), lag: Lag::CONTEMPORANEOUS }
+    );
+    assert!(dag.parents(ctx).is_empty(), "a context is a root");
+    assert_eq!(dag.children(ctx), &[now][..]);
+    assert_eq!(dag.parents(now).len(), 2);
+}
+
+#[test]
+fn contexts_a_temporal_dag_cannot_represent_are_refused_with_a_typed_reason() {
+    // an environment tag has no place on a lagged node
+    let mut g = TemporalCpdag::empty();
+    let ctx = g.add_context(VariableId::from_raw(7), Some(EnvironmentId::from_raw(1))).unwrap();
+    let now = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_directed(ctx, now).unwrap();
+    assert!(matches!(
+        g.try_into_temporal_dag(),
+        Err(GraphError::ContextNotRepresentable { node, .. }) if node == ctx.raw()
+    ));
+    // a lag-zero slot already held by the same variable would be ambiguous
+    let mut g = TemporalCpdag::empty();
+    let ctx = g.add_context(VariableId::from_raw(7), None).unwrap();
+    g.add_lagged(VariableId::from_raw(7), Lag::CONTEMPORANEOUS).unwrap();
+    assert!(matches!(
+        g.try_into_temporal_dag(),
+        Err(GraphError::ContextNotRepresentable { node, .. }) if node == ctx.raw()
+    ));
 }

@@ -89,6 +89,33 @@ pub enum GraphError {
         /// Target lag.
         to_lag: Lag,
     },
+    /// A directed edge into a context node.
+    ///
+    /// A context is an exogenous regime or environment indicator: it may cause system
+    /// variables but is never caused by them, so no system node may be the parent of a
+    /// context node. The edge is not inserted and no undirected edge is oriented.
+    #[error(
+        "edge {from}->{to} points into a context node; a context is exogenous and may only \
+         cause system nodes. The edge was not inserted"
+    )]
+    ContextCaused {
+        /// Source dense id (a system node).
+        from: u32,
+        /// Target dense id (the context node).
+        to: u32,
+    },
+    /// A context node that a [`TemporalDag`](crate::TemporalDag) cannot hold.
+    ///
+    /// A `TemporalDag` holds lagged nodes only. An untagged context converts to the
+    /// contemporaneous slot of its variable; a context that carries an environment tag, or
+    /// whose variable already occupies that slot, has no faithful lagged representation.
+    #[error("context node {node} cannot be represented in a TemporalDag: {reason}")]
+    ContextNotRepresentable {
+        /// Dense id of the context node.
+        node: u32,
+        /// Why the node has no lagged representation.
+        reason: &'static str,
+    },
     /// Node capacity exceeded.
     #[error("too many nodes")]
     TooManyNodes,

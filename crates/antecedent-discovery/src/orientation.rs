@@ -447,8 +447,11 @@ pub(crate) fn try_orient_undirected<G: CpdagOps>(
             delta.premises.push(premise.into());
             Ok(true)
         }
-        Err(GraphError::Cycle { .. }) => {
-            state.record_conflict(delta, from, to, "cycle");
+        // An orientation into a context node contradicts its exogeneity: the same kind of
+        // contradiction as a cycle, recorded and pinned rather than aborting the run.
+        Err(e @ (GraphError::Cycle { .. } | GraphError::ContextCaused { .. })) => {
+            let kind = if matches!(e, GraphError::Cycle { .. }) { "cycle" } else { "context" };
+            state.record_conflict(delta, from, to, kind);
             if graph.mark_conflict(from, to).is_ok() {
                 delta.edges_changed += 1;
                 delta.fixed_point = false;
