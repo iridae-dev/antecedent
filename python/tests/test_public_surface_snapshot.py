@@ -421,6 +421,8 @@ SNAPSHOT: dict[str, set[str]] = {
         "descriptive",
         "dose_grid",
         "interface_contract",
+        "adaptive_policy",
+        "external_mechanisms",
         "intervention_callbacks",
         "intervention_programs",
         "inverse",
