@@ -849,18 +849,21 @@ fn leaf_stat(y: &[f64], t: &[f64], rows: &[Row]) -> Option<LeafEstimate> {
     if n1 < 2.0 || n0 < 2.0 {
         return Some(LeafEstimate { cate: tau, se: None });
     }
+    // Two-pass sums of squares about each arm's mean: the raw second moment minus n·mean² loses
+    // every digit of the variance once the outcome sits far from zero.
+    let (m1, m0) = (s1 / n1, s0 / n0);
     let mut q1 = 0.0;
     let mut q0 = 0.0;
     for &row in rows {
         let i = ix(row);
         if TreatmentArm::of(t[i]).is_treated() {
-            q1 += y[i] * y[i];
+            q1 += (y[i] - m1) * (y[i] - m1);
         } else {
-            q0 += y[i] * y[i];
+            q0 += (y[i] - m0) * (y[i] - m0);
         }
     }
-    let v1 = (q1 - s1 * s1 / n1) / (n1 - 1.0);
-    let v0 = (q0 - s0 * s0 / n0) / (n0 - 1.0);
+    let v1 = q1 / (n1 - 1.0);
+    let v0 = q0 / (n0 - 1.0);
     let var = v1.max(0.0) / n1 + v0.max(0.0) / n0;
     Some(LeafEstimate { cate: tau, se: var.is_finite().then_some(var.sqrt()) })
 }
