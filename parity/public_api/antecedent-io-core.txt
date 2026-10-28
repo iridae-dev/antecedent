@@ -446,6 +446,7 @@ impl core::clone::Clone for antecedent_io_core::analysis_result_artifact::Design
 impl core::clone::Clone for antecedent_io_core::analysis_result_artifact::DosePolicyValueWire
 impl core::clone::Clone for antecedent_io_core::analysis_result_artifact::FixedCandidateRegretWire
 impl core::clone::Clone for antecedent_io_core::analysis_result_artifact::MultiActionCateWire
+impl core::clone::Clone for antecedent_io_core::analysis_result_artifact::ObservedWindowWire
 impl core::clone::Clone for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire
 impl core::clone::Clone for antecedent_io_core::analysis_result_artifact::TemporalDesignWire
 impl core::clone::Clone for antecedent_io_core::analysis_wire::HedgeProblemWire
@@ -1103,6 +1104,7 @@ impl core::cmp::Eq for antecedent_io_core::adaptive_monitoring_contract_artifact
 impl core::cmp::Eq for antecedent_io_core::adaptive_monitoring_contract_artifact::ProcedureWire
 impl core::cmp::Eq for antecedent_io_core::adaptive_monitoring_contract_artifact::ReadingWire
 impl core::cmp::Eq for antecedent_io_core::adaptive_monitoring_contract_artifact::RuleWire
+impl core::cmp::Eq for antecedent_io_core::analysis_result_artifact::ObservedWindowWire
 impl core::cmp::Eq for antecedent_io_core::analysis_wire::HedgeProblemWire
 impl core::cmp::Eq for antecedent_io_core::bound_identity::BoundIdentity
 impl core::cmp::Eq for antecedent_io_core::bound_identity::BoundMatch
@@ -1313,7 +1315,6 @@ impl core::cmp::Eq for antecedent_io_core::replay_tolerance::ReplayNonFinite
 impl core::cmp::Eq for antecedent_io_core::replay_tolerance::ReplayScale
 impl core::cmp::Eq for antecedent_io_core::rollout_query_wire::DidResamplingWire
 impl core::cmp::Eq for antecedent_io_core::rollout_query_wire::LocalRatioOptionsWire
-impl core::cmp::Eq for antecedent_io_core::rollout_query_wire::RolloutDidWire
 impl core::cmp::Eq for antecedent_io_core::rollout_query_wire::SyntheticRolloutWire
 impl core::cmp::Eq for antecedent_io_core::score_wire::ScoreTableWireError
 impl core::cmp::Eq for antecedent_io_core::selective_discovery_artifact::ReceiptWire
@@ -1693,6 +1694,7 @@ impl core::cmp::PartialEq for antecedent_io_core::analysis_result_artifact::Desi
 impl core::cmp::PartialEq for antecedent_io_core::analysis_result_artifact::DosePolicyValueWire
 impl core::cmp::PartialEq for antecedent_io_core::analysis_result_artifact::FixedCandidateRegretWire
 impl core::cmp::PartialEq for antecedent_io_core::analysis_result_artifact::MultiActionCateWire
+impl core::cmp::PartialEq for antecedent_io_core::analysis_result_artifact::ObservedWindowWire
 impl core::cmp::PartialEq for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire
 impl core::cmp::PartialEq for antecedent_io_core::analysis_result_artifact::TemporalDesignWire
 impl core::cmp::PartialEq for antecedent_io_core::analysis_wire::HedgeProblemWire
@@ -2626,6 +2628,7 @@ impl core::fmt::Debug for antecedent_io_core::analysis_result_artifact::DesignEf
 impl core::fmt::Debug for antecedent_io_core::analysis_result_artifact::DosePolicyValueWire
 impl core::fmt::Debug for antecedent_io_core::analysis_result_artifact::FixedCandidateRegretWire
 impl core::fmt::Debug for antecedent_io_core::analysis_result_artifact::MultiActionCateWire
+impl core::fmt::Debug for antecedent_io_core::analysis_result_artifact::ObservedWindowWire
 impl core::fmt::Debug for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire
 impl core::fmt::Debug for antecedent_io_core::analysis_result_artifact::TemporalDesignWire
 impl core::fmt::Debug for antecedent_io_core::analysis_wire::HedgeProblemWire
@@ -3628,6 +3631,7 @@ impl core::marker::Freeze for antecedent_io_core::analysis_result_artifact::Desi
 impl core::marker::Freeze for antecedent_io_core::analysis_result_artifact::DosePolicyValueWire [auto]
 impl core::marker::Freeze for antecedent_io_core::analysis_result_artifact::FixedCandidateRegretWire [auto]
 impl core::marker::Freeze for antecedent_io_core::analysis_result_artifact::MultiActionCateWire [auto]
+impl core::marker::Freeze for antecedent_io_core::analysis_result_artifact::ObservedWindowWire [auto]
 impl core::marker::Freeze for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire [auto]
 impl core::marker::Freeze for antecedent_io_core::analysis_result_artifact::TemporalDesignWire [auto]
 impl core::marker::Freeze for antecedent_io_core::analysis_wire::HedgeProblemWire [auto]
@@ -4448,6 +4452,7 @@ impl core::marker::Send for antecedent_io_core::analysis_result_artifact::Design
 impl core::marker::Send for antecedent_io_core::analysis_result_artifact::DosePolicyValueWire [auto]
 impl core::marker::Send for antecedent_io_core::analysis_result_artifact::FixedCandidateRegretWire [auto]
 impl core::marker::Send for antecedent_io_core::analysis_result_artifact::MultiActionCateWire [auto]
+impl core::marker::Send for antecedent_io_core::analysis_result_artifact::ObservedWindowWire [auto]
 impl core::marker::Send for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire [auto]
 impl core::marker::Send for antecedent_io_core::analysis_result_artifact::TemporalDesignWire [auto]
 impl core::marker::Send for antecedent_io_core::analysis_wire::HedgeProblemWire [auto]
@@ -5264,6 +5269,7 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::analysis_result_a
 impl core::marker::StructuralPartialEq for antecedent_io_core::analysis_result_artifact::DosePolicyValueWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::analysis_result_artifact::FixedCandidateRegretWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::analysis_result_artifact::MultiActionCateWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::analysis_result_artifact::ObservedWindowWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::analysis_result_artifact::TemporalDesignWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::analysis_wire::HedgeProblemWire
@@ -6040,6 +6046,7 @@ impl core::marker::Sync for antecedent_io_core::analysis_result_artifact::Design
 impl core::marker::Sync for antecedent_io_core::analysis_result_artifact::DosePolicyValueWire [auto]
 impl core::marker::Sync for antecedent_io_core::analysis_result_artifact::FixedCandidateRegretWire [auto]
 impl core::marker::Sync for antecedent_io_core::analysis_result_artifact::MultiActionCateWire [auto]
+impl core::marker::Sync for antecedent_io_core::analysis_result_artifact::ObservedWindowWire [auto]
 impl core::marker::Sync for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire [auto]
 impl core::marker::Sync for antecedent_io_core::analysis_result_artifact::TemporalDesignWire [auto]
 impl core::marker::Sync for antecedent_io_core::analysis_wire::HedgeProblemWire [auto]
@@ -6865,6 +6872,7 @@ impl core::marker::Unpin for antecedent_io_core::analysis_result_artifact::Desig
 impl core::marker::Unpin for antecedent_io_core::analysis_result_artifact::DosePolicyValueWire [auto]
 impl core::marker::Unpin for antecedent_io_core::analysis_result_artifact::FixedCandidateRegretWire [auto]
 impl core::marker::Unpin for antecedent_io_core::analysis_result_artifact::MultiActionCateWire [auto]
+impl core::marker::Unpin for antecedent_io_core::analysis_result_artifact::ObservedWindowWire [auto]
 impl core::marker::Unpin for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire [auto]
 impl core::marker::Unpin for antecedent_io_core::analysis_result_artifact::TemporalDesignWire [auto]
 impl core::marker::Unpin for antecedent_io_core::analysis_wire::HedgeProblemWire [auto]
@@ -7691,6 +7699,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::analysis_re
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::analysis_result_artifact::DosePolicyValueWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::analysis_result_artifact::FixedCandidateRegretWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::analysis_result_artifact::MultiActionCateWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::analysis_result_artifact::ObservedWindowWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::analysis_result_artifact::TemporalDesignWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::analysis_wire::HedgeProblemWire [auto]
@@ -8515,6 +8524,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::analysis_resul
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::analysis_result_artifact::DosePolicyValueWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::analysis_result_artifact::FixedCandidateRegretWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::analysis_result_artifact::MultiActionCateWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::analysis_result_artifact::ObservedWindowWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::analysis_result_artifact::TemporalDesignWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::analysis_wire::HedgeProblemWire [auto]
@@ -9298,6 +9308,7 @@ impl serde_core::ser::Serialize for antecedent_io_core::analysis_result_artifact
 impl serde_core::ser::Serialize for antecedent_io_core::analysis_result_artifact::DosePolicyValueWire
 impl serde_core::ser::Serialize for antecedent_io_core::analysis_result_artifact::FixedCandidateRegretWire
 impl serde_core::ser::Serialize for antecedent_io_core::analysis_result_artifact::MultiActionCateWire
+impl serde_core::ser::Serialize for antecedent_io_core::analysis_result_artifact::ObservedWindowWire
 impl serde_core::ser::Serialize for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire
 impl serde_core::ser::Serialize for antecedent_io_core::analysis_result_artifact::TemporalDesignWire
 impl serde_core::ser::Serialize for antecedent_io_core::analysis_wire::BorrowedIdentificationWire<'_>
@@ -10032,6 +10043,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::analysis_resu
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::analysis_result_artifact::DosePolicyValueWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::analysis_result_artifact::FixedCandidateRegretWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::analysis_result_artifact::MultiActionCateWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::analysis_result_artifact::ObservedWindowWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::analysis_result_artifact::TemporalDesignWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::analysis_wire::HedgeProblemWire
@@ -11469,6 +11481,7 @@ pub field antecedent_io_core::IdentifiedSetIntervalWire::upper_se: f64
 pub field antecedent_io_core::IdentifiedSetIntervalWire::width_retained: bool
 pub field antecedent_io_core::ImputationSpecWire::assumption: alloc::string::String
 pub field antecedent_io_core::ImputationSpecWire::assumptions_digest: core::option::Option<alloc::string::String>
+pub field antecedent_io_core::ImputationSpecWire::bootstrap_replicates: u32
 pub field antecedent_io_core::ImputationSpecWire::imputations: u32
 pub field antecedent_io_core::ImputationSpecWire::iterations: u32
 pub field antecedent_io_core::ImputationSpecWire::model: alloc::string::String
@@ -12113,6 +12126,7 @@ pub field antecedent_io_core::SyntheticControlWire::effect: f64
 pub field antecedent_io_core::SyntheticControlWire::effective_donors: f64
 pub field antecedent_io_core::SyntheticControlWire::n_post_periods: usize
 pub field antecedent_io_core::SyntheticControlWire::n_pre_periods: usize
+pub field antecedent_io_core::SyntheticControlWire::observed_window: core::option::Option<antecedent_io_core::analysis_result_artifact::ObservedWindowWire>
 pub field antecedent_io_core::SyntheticControlWire::outcome_model_correction: core::option::Option<f64>
 pub field antecedent_io_core::SyntheticControlWire::placebo_effects: alloc::vec::Vec<f64>
 pub field antecedent_io_core::SyntheticControlWire::placebo_rank: f64
@@ -12375,6 +12389,11 @@ pub field antecedent_io_core::analysis_result_artifact::MultiActionCateWire::int
 pub field antecedent_io_core::analysis_result_artifact::MultiActionCateWire::observed_action_rows: usize
 pub field antecedent_io_core::analysis_result_artifact::MultiActionCateWire::observed_control_rows: usize
 pub field antecedent_io_core::analysis_result_artifact::MultiActionCateWire::standard_error: f64
+pub field antecedent_io_core::analysis_result_artifact::ObservedWindowWire::donors_dropped: alloc::vec::Vec<(alloc::string::String, usize)>
+pub field antecedent_io_core::analysis_result_artifact::ObservedWindowWire::donors_used: usize
+pub field antecedent_io_core::analysis_result_artifact::ObservedWindowWire::post_periods: alloc::vec::Vec<i64>
+pub field antecedent_io_core::analysis_result_artifact::ObservedWindowWire::pre_periods: alloc::vec::Vec<i64>
+pub field antecedent_io_core::analysis_result_artifact::ObservedWindowWire::unread_rows: usize
 pub field antecedent_io_core::analysis_result_artifact::QuasiRolloutWire::calibration: alloc::string::String
 pub field antecedent_io_core::analysis_result_artifact::QuasiRolloutWire::critical_value: core::option::Option<f64>
 pub field antecedent_io_core::analysis_result_artifact::QuasiRolloutWire::design: alloc::string::String
@@ -13687,6 +13706,7 @@ pub field antecedent_io_core::query_wire::SurvivalQueryWire::treatment: u32
 pub field antecedent_io_core::query_wire::SyntheticControlQueryWire::augmentation_ridge: core::option::Option<f64>
 pub field antecedent_io_core::query_wire::SyntheticControlQueryWire::difference_in_differences: bool
 pub field antecedent_io_core::query_wire::SyntheticControlQueryWire::intervention_period: i64
+pub field antecedent_io_core::query_wire::SyntheticControlQueryWire::observed_window_support: bool
 pub field antecedent_io_core::query_wire::SyntheticControlQueryWire::outcome: u32
 pub field antecedent_io_core::query_wire::SyntheticControlQueryWire::periods: alloc::vec::Vec<i64>
 pub field antecedent_io_core::query_wire::SyntheticControlQueryWire::rollout: core::option::Option<antecedent_io_core::rollout_query_wire::SyntheticRolloutWire>
@@ -13762,6 +13782,8 @@ pub field antecedent_io_core::rollout_query_wire::RolloutDidWire::covariates: al
 pub field antecedent_io_core::rollout_query_wire::RolloutDidWire::design: alloc::string::String
 pub field antecedent_io_core::rollout_query_wire::RolloutDidWire::estimator: alloc::string::String
 pub field antecedent_io_core::rollout_query_wire::RolloutDidWire::nuisance: alloc::string::String
+pub field antecedent_io_core::rollout_query_wire::RolloutDidWire::observation: core::option::Option<alloc::string::String>
+pub field antecedent_io_core::rollout_query_wire::RolloutDidWire::observation_shift_bound: core::option::Option<f64>
 pub field antecedent_io_core::rollout_query_wire::SyntheticRolloutWire::adoptions: alloc::vec::Vec<(alloc::string::String, i64)>
 pub field antecedent_io_core::rollout_query_wire::SyntheticRolloutWire::interval: alloc::string::String
 pub field antecedent_io_core::rollout_query_wire::SyntheticRolloutWire::replicates: u32
@@ -15901,6 +15923,7 @@ pub struct antecedent_io_core::analysis_result_artifact::DesignEffectWire
 pub struct antecedent_io_core::analysis_result_artifact::DosePolicyValueWire
 pub struct antecedent_io_core::analysis_result_artifact::FixedCandidateRegretWire
 pub struct antecedent_io_core::analysis_result_artifact::MultiActionCateWire
+pub struct antecedent_io_core::analysis_result_artifact::ObservedWindowWire
 pub struct antecedent_io_core::analysis_result_artifact::QuasiRolloutWire
 pub struct antecedent_io_core::analysis_result_artifact::TemporalDesignWire
 pub struct antecedent_io_core::analysis_wire::BorrowedIdentificationWire has private fields

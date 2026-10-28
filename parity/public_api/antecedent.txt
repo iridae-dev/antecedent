@@ -171,6 +171,7 @@ impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::sample_s
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::discovery::DiscoverParams [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::discovery::StaticDiscoverParams [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::FittedGcm [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::ModelPolicySource [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::AnalysisWithFallback [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::AssociationalFallback [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::BatchStudy [auto]
@@ -215,6 +216,7 @@ impl !core::panic::unwind_safe::UnwindSafe for antecedent::analysis::sample_spli
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::discovery::DiscoverParams [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::discovery::StaticDiscoverParams [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::gcm::FittedGcm [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent::gcm::ModelPolicySource [auto]
 impl antecedent::IntoAccepted for antecedent_graph::cpdag::CpdagReview
 impl antecedent::IntoAccepted for antecedent_graph::dag::DagReview
 impl antecedent::IntoAccepted for antecedent_graph::pag::PagReview
@@ -231,6 +233,7 @@ impl antecedent::IntoGraphInput for antecedent_graph::temporal::TemporalDag
 impl antecedent::IntoGraphInput for antecedent_graph::temporal_admg::TemporalAdmg
 impl antecedent::IntoGraphInput for antecedent_graph::temporal_pag::TemporalPag
 impl antecedent_core::refusal::Refused for antecedent::analysis::DecisionCarrierError
+impl antecedent_design::adaptive_policy_search::PolicyRolloutSource for antecedent::gcm::ModelPolicySource
 impl antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure<antecedent_estimate::joint_design::instrumented::JointInstrumentedUnit> for antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionRequest
 impl antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure<antecedent_estimate::joint_design::randomized::JointRandomizedUnit> for antecedent::analysis::joint_panel::selection::PreparedRandomizedSelection
 impl antecedent_state::disk_retention::Spillable for antecedent::bootstrap_retention::RetainedBootstrap
@@ -349,6 +352,7 @@ impl core::clone::Clone for antecedent::FittedPropensity
 impl core::clone::Clone for antecedent::ForwardEvaluation
 impl core::clone::Clone for antecedent::ForwardInterval
 impl core::clone::Clone for antecedent::GraphClass
+impl core::clone::Clone for antecedent::GraphSelectionPerImputation
 impl core::clone::Clone for antecedent::HistoryMatchEstimate
 impl core::clone::Clone for antecedent::Identification
 impl core::clone::Clone for antecedent::IdentifierId
@@ -405,6 +409,7 @@ impl core::clone::Clone for antecedent::MzTransportResult
 impl core::clone::Clone for antecedent::NuisanceFitDiagnostics
 impl core::clone::Clone for antecedent::ObservationAccount
 impl core::clone::Clone for antecedent::ObservationRecoveryResult
+impl core::clone::Clone for antecedent::ObservedWindowReport
 impl core::clone::Clone for antecedent::PanelDidEstimate
 impl core::clone::Clone for antecedent::PolicyValueEstimate
 impl core::clone::Clone for antecedent::PoolingDeclaration
@@ -953,6 +958,8 @@ impl core::clone::Clone for antecedent::analysis::transported_measurement::Trans
 impl core::clone::Clone for antecedent::analysis::transported_mechanism::MechanismTransportDeclaration
 impl core::clone::Clone for antecedent::analysis::transported_mechanism::TransportedMechanismComposition
 impl core::clone::Clone for antecedent::analysis::transported_mechanism::TransportedMechanismReceipt
+impl core::clone::Clone for antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt
+impl core::clone::Clone for antecedent::analysis::typed_transported_mechanism::TypedTransportedComposition
 impl core::clone::Clone for antecedent::analysis::vector_treatment::VectorTreatment
 impl core::clone::Clone for antecedent::bootstrap_retention::RetainedBootstrap
 impl core::clone::Clone for antecedent::bootstrap_retention::SpilledBootstrap
@@ -976,11 +983,13 @@ impl core::clone::Clone for antecedent::gcm::ContrastedOutcome
 impl core::clone::Clone for antecedent::gcm::CounterfactualContrasts
 impl core::clone::Clone for antecedent::gcm::FittedGcm
 impl core::clone::Clone for antecedent::gcm::IteResult
+impl core::clone::Clone for antecedent::gcm::ModelRolloutDesign
 impl core::clone::Clone for antecedent::gcm::NestedCounterfactualOperation
 impl core::clone::Clone for antecedent::gcm::NestedOutcomeMechanism
 impl core::clone::Clone for antecedent::gcm::OutcomeContrast
 impl core::clone::Clone for antecedent::gcm::PolicyValue
 impl core::clone::Clone for antecedent::gcm::PreparedPolicy
+impl core::clone::Clone for antecedent::gcm::StageUtility
 impl core::clone::Clone for antecedent::gcm::UnitEffectIntervals
 impl core::clone::Clone for antecedent::host::HostStatus
 impl core::clone::Clone for antecedent::inference::DecodedPriorHydrate
@@ -1388,6 +1397,7 @@ impl core::cmp::PartialEq for antecedent::MissingRouteCell
 impl core::cmp::PartialEq for antecedent::MissingRouteSupport
 impl core::cmp::PartialEq for antecedent::NuisanceFitDiagnostics
 impl core::cmp::PartialEq for antecedent::ObservationAccount
+impl core::cmp::PartialEq for antecedent::ObservedWindowReport
 impl core::cmp::PartialEq for antecedent::PanelDidEstimate
 impl core::cmp::PartialEq for antecedent::PolicyValueEstimate
 impl core::cmp::PartialEq for antecedent::PoolingDeclaration
@@ -1716,6 +1726,7 @@ impl core::cmp::PartialEq for antecedent::analysis::transported_cohort::Transpor
 impl core::cmp::PartialEq for antecedent::analysis::transported_counterfactual::TransportedCounterfactual
 impl core::cmp::PartialEq for antecedent::analysis::transported_mechanism::MechanismTransportDeclaration
 impl core::cmp::PartialEq for antecedent::analysis::transported_mechanism::TransportedMechanismReceipt
+impl core::cmp::PartialEq for antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt
 impl core::cmp::PartialEq for antecedent::analysis::vector_treatment::VectorTreatment
 impl core::cmp::PartialEq for antecedent::counterfactual_id::CounterfactualIdOptions
 impl core::cmp::PartialEq for antecedent::cross_world::CrossWorldOptions
@@ -1724,6 +1735,7 @@ impl core::cmp::PartialEq for antecedent::discovery::GraphMcmcSchedule
 impl core::cmp::PartialEq for antecedent::error::PendingEdge
 impl core::cmp::PartialEq for antecedent::gcm::NestedOutcomeMechanism
 impl core::cmp::PartialEq for antecedent::gcm::PolicyValue
+impl core::cmp::PartialEq for antecedent::gcm::StageUtility
 impl core::cmp::PartialEq for antecedent::gcm::UnitEffectIntervals
 impl core::cmp::PartialEq for antecedent::host::HostStatus
 impl core::cmp::PartialEq for antecedent::inference::ExternalComposeSpec
@@ -2135,6 +2147,7 @@ impl core::fmt::Debug for antecedent::FittedPropensity
 impl core::fmt::Debug for antecedent::ForwardEvaluation
 impl core::fmt::Debug for antecedent::ForwardInterval
 impl core::fmt::Debug for antecedent::GraphClass
+impl core::fmt::Debug for antecedent::GraphSelectionPerImputation
 impl core::fmt::Debug for antecedent::HistoryMatchEstimate
 impl core::fmt::Debug for antecedent::Identification
 impl core::fmt::Debug for antecedent::IdentifierId
@@ -2191,6 +2204,7 @@ impl core::fmt::Debug for antecedent::MzTransportResult
 impl core::fmt::Debug for antecedent::NuisanceFitDiagnostics
 impl core::fmt::Debug for antecedent::ObservationAccount
 impl core::fmt::Debug for antecedent::ObservationRecoveryResult
+impl core::fmt::Debug for antecedent::ObservedWindowReport
 impl core::fmt::Debug for antecedent::PanelDidEstimate
 impl core::fmt::Debug for antecedent::PolicyValueEstimate
 impl core::fmt::Debug for antecedent::PoolingDeclaration
@@ -2761,6 +2775,8 @@ impl core::fmt::Debug for antecedent::analysis::transported_measurement::Transpo
 impl core::fmt::Debug for antecedent::analysis::transported_mechanism::MechanismTransportDeclaration
 impl core::fmt::Debug for antecedent::analysis::transported_mechanism::TransportedMechanismComposition
 impl core::fmt::Debug for antecedent::analysis::transported_mechanism::TransportedMechanismReceipt
+impl core::fmt::Debug for antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt
+impl core::fmt::Debug for antecedent::analysis::typed_transported_mechanism::TypedTransportedComposition
 impl core::fmt::Debug for antecedent::analysis::vector_treatment::VectorTreatment
 impl core::fmt::Debug for antecedent::bootstrap_retention::RetainedBootstrap
 impl core::fmt::Debug for antecedent::bootstrap_retention::SpilledBootstrap
@@ -2784,11 +2800,13 @@ impl core::fmt::Debug for antecedent::gcm::ContrastedOutcome
 impl core::fmt::Debug for antecedent::gcm::CounterfactualContrasts
 impl core::fmt::Debug for antecedent::gcm::FittedGcm
 impl core::fmt::Debug for antecedent::gcm::IteResult
+impl core::fmt::Debug for antecedent::gcm::ModelRolloutDesign
 impl core::fmt::Debug for antecedent::gcm::NestedCounterfactualOperation
 impl core::fmt::Debug for antecedent::gcm::NestedOutcomeMechanism
 impl core::fmt::Debug for antecedent::gcm::OutcomeContrast
 impl core::fmt::Debug for antecedent::gcm::PolicyValue
 impl core::fmt::Debug for antecedent::gcm::PreparedPolicy
+impl core::fmt::Debug for antecedent::gcm::StageUtility
 impl core::fmt::Debug for antecedent::gcm::UnitEffectIntervals
 impl core::fmt::Debug for antecedent::host::HostStatus
 impl core::fmt::Debug for antecedent::inference::DecodedPriorHydrate
@@ -3121,6 +3139,7 @@ impl core::marker::Copy for antecedent::counterfactual_id::CounterfactualIdOptio
 impl core::marker::Copy for antecedent::cross_world::CrossWorldOptions
 impl core::marker::Copy for antecedent::discovery::GraphMcmcSchedule
 impl core::marker::Copy for antecedent::gcm::NestedOutcomeMechanism
+impl core::marker::Copy for antecedent::gcm::StageUtility
 impl core::marker::Copy for antecedent::host::HostStatus
 impl core::marker::Copy for antecedent::planner::PlanRoute
 impl core::marker::Copy for antecedent::planner::PlanStage
@@ -3266,6 +3285,7 @@ impl core::marker::Freeze for antecedent::FittedPropensity [auto]
 impl core::marker::Freeze for antecedent::ForwardEvaluation [auto]
 impl core::marker::Freeze for antecedent::ForwardInterval [auto]
 impl core::marker::Freeze for antecedent::GraphClass [auto]
+impl core::marker::Freeze for antecedent::GraphSelectionPerImputation [auto]
 impl core::marker::Freeze for antecedent::HistoryMatchEstimate [auto]
 impl core::marker::Freeze for antecedent::Identification [auto]
 impl core::marker::Freeze for antecedent::IdentifierId [auto]
@@ -3322,6 +3342,7 @@ impl core::marker::Freeze for antecedent::MzTransportResult [auto]
 impl core::marker::Freeze for antecedent::NuisanceFitDiagnostics [auto]
 impl core::marker::Freeze for antecedent::ObservationAccount [auto]
 impl core::marker::Freeze for antecedent::ObservationRecoveryResult [auto]
+impl core::marker::Freeze for antecedent::ObservedWindowReport [auto]
 impl core::marker::Freeze for antecedent::PanelDidEstimate [auto]
 impl core::marker::Freeze for antecedent::PolicyValueEstimate [auto]
 impl core::marker::Freeze for antecedent::PoolingDeclaration [auto]
@@ -3907,6 +3928,8 @@ impl core::marker::Freeze for antecedent::analysis::transported_measurement::Tra
 impl core::marker::Freeze for antecedent::analysis::transported_mechanism::MechanismTransportDeclaration [auto]
 impl core::marker::Freeze for antecedent::analysis::transported_mechanism::TransportedMechanismComposition [auto]
 impl core::marker::Freeze for antecedent::analysis::transported_mechanism::TransportedMechanismReceipt [auto]
+impl core::marker::Freeze for antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt [auto]
+impl core::marker::Freeze for antecedent::analysis::typed_transported_mechanism::TypedTransportedComposition [auto]
 impl core::marker::Freeze for antecedent::analysis::vector_treatment::VectorTreatment [auto]
 impl core::marker::Freeze for antecedent::bootstrap_retention::RetainedBootstrap [auto]
 impl core::marker::Freeze for antecedent::bootstrap_retention::SpilledBootstrap [auto]
@@ -3930,11 +3953,14 @@ impl core::marker::Freeze for antecedent::gcm::ContrastedOutcome [auto]
 impl core::marker::Freeze for antecedent::gcm::CounterfactualContrasts [auto]
 impl core::marker::Freeze for antecedent::gcm::FittedGcm [auto]
 impl core::marker::Freeze for antecedent::gcm::IteResult [auto]
+impl core::marker::Freeze for antecedent::gcm::ModelPolicySource [auto]
+impl core::marker::Freeze for antecedent::gcm::ModelRolloutDesign [auto]
 impl core::marker::Freeze for antecedent::gcm::NestedCounterfactualOperation [auto]
 impl core::marker::Freeze for antecedent::gcm::NestedOutcomeMechanism [auto]
 impl core::marker::Freeze for antecedent::gcm::OutcomeContrast [auto]
 impl core::marker::Freeze for antecedent::gcm::PolicyValue [auto]
 impl core::marker::Freeze for antecedent::gcm::PreparedPolicy [auto]
+impl core::marker::Freeze for antecedent::gcm::StageUtility [auto]
 impl core::marker::Freeze for antecedent::gcm::UnitEffectIntervals [auto]
 impl core::marker::Freeze for antecedent::host::HostStatus [auto]
 impl core::marker::Freeze for antecedent::inference::DecodedPriorHydrate [auto]
@@ -4147,6 +4173,7 @@ impl core::marker::Send for antecedent::FittedPropensity [auto]
 impl core::marker::Send for antecedent::ForwardEvaluation [auto]
 impl core::marker::Send for antecedent::ForwardInterval [auto]
 impl core::marker::Send for antecedent::GraphClass [auto]
+impl core::marker::Send for antecedent::GraphSelectionPerImputation [auto]
 impl core::marker::Send for antecedent::HistoryMatchEstimate [auto]
 impl core::marker::Send for antecedent::Identification [auto]
 impl core::marker::Send for antecedent::IdentifierId [auto]
@@ -4203,6 +4230,7 @@ impl core::marker::Send for antecedent::MzTransportResult [auto]
 impl core::marker::Send for antecedent::NuisanceFitDiagnostics [auto]
 impl core::marker::Send for antecedent::ObservationAccount [auto]
 impl core::marker::Send for antecedent::ObservationRecoveryResult [auto]
+impl core::marker::Send for antecedent::ObservedWindowReport [auto]
 impl core::marker::Send for antecedent::PanelDidEstimate [auto]
 impl core::marker::Send for antecedent::PolicyValueEstimate [auto]
 impl core::marker::Send for antecedent::PoolingDeclaration [auto]
@@ -4792,6 +4820,8 @@ impl core::marker::Send for antecedent::analysis::transported_measurement::Trans
 impl core::marker::Send for antecedent::analysis::transported_mechanism::MechanismTransportDeclaration [auto]
 impl core::marker::Send for antecedent::analysis::transported_mechanism::TransportedMechanismComposition [auto]
 impl core::marker::Send for antecedent::analysis::transported_mechanism::TransportedMechanismReceipt [auto]
+impl core::marker::Send for antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt [auto]
+impl core::marker::Send for antecedent::analysis::typed_transported_mechanism::TypedTransportedComposition [auto]
 impl core::marker::Send for antecedent::analysis::vector_treatment::VectorTreatment [auto]
 impl core::marker::Send for antecedent::bootstrap_retention::RetainedBootstrap [auto]
 impl core::marker::Send for antecedent::bootstrap_retention::SpilledBootstrap [auto]
@@ -4815,11 +4845,14 @@ impl core::marker::Send for antecedent::gcm::ContrastedOutcome [auto]
 impl core::marker::Send for antecedent::gcm::CounterfactualContrasts [auto]
 impl core::marker::Send for antecedent::gcm::FittedGcm [auto]
 impl core::marker::Send for antecedent::gcm::IteResult [auto]
+impl core::marker::Send for antecedent::gcm::ModelPolicySource [auto]
+impl core::marker::Send for antecedent::gcm::ModelRolloutDesign [auto]
 impl core::marker::Send for antecedent::gcm::NestedCounterfactualOperation [auto]
 impl core::marker::Send for antecedent::gcm::NestedOutcomeMechanism [auto]
 impl core::marker::Send for antecedent::gcm::OutcomeContrast [auto]
 impl core::marker::Send for antecedent::gcm::PolicyValue [auto]
 impl core::marker::Send for antecedent::gcm::PreparedPolicy [auto]
+impl core::marker::Send for antecedent::gcm::StageUtility [auto]
 impl core::marker::Send for antecedent::gcm::UnitEffectIntervals [auto]
 impl core::marker::Send for antecedent::host::HostStatus [auto]
 impl core::marker::Send for antecedent::inference::DecodedPriorHydrate [auto]
@@ -5025,6 +5058,7 @@ impl core::marker::StructuralPartialEq for antecedent::MissingRouteCell
 impl core::marker::StructuralPartialEq for antecedent::MissingRouteSupport
 impl core::marker::StructuralPartialEq for antecedent::NuisanceFitDiagnostics
 impl core::marker::StructuralPartialEq for antecedent::ObservationAccount
+impl core::marker::StructuralPartialEq for antecedent::ObservedWindowReport
 impl core::marker::StructuralPartialEq for antecedent::PanelDidEstimate
 impl core::marker::StructuralPartialEq for antecedent::PolicyValueEstimate
 impl core::marker::StructuralPartialEq for antecedent::PoolingDeclaration
@@ -5351,6 +5385,7 @@ impl core::marker::StructuralPartialEq for antecedent::analysis::transported_coh
 impl core::marker::StructuralPartialEq for antecedent::analysis::transported_counterfactual::TransportedCounterfactual
 impl core::marker::StructuralPartialEq for antecedent::analysis::transported_mechanism::MechanismTransportDeclaration
 impl core::marker::StructuralPartialEq for antecedent::analysis::transported_mechanism::TransportedMechanismReceipt
+impl core::marker::StructuralPartialEq for antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt
 impl core::marker::StructuralPartialEq for antecedent::analysis::vector_treatment::VectorTreatment
 impl core::marker::StructuralPartialEq for antecedent::counterfactual_id::CounterfactualIdOptions
 impl core::marker::StructuralPartialEq for antecedent::cross_world::CrossWorldOptions
@@ -5359,6 +5394,7 @@ impl core::marker::StructuralPartialEq for antecedent::discovery::GraphMcmcSched
 impl core::marker::StructuralPartialEq for antecedent::error::PendingEdge
 impl core::marker::StructuralPartialEq for antecedent::gcm::NestedOutcomeMechanism
 impl core::marker::StructuralPartialEq for antecedent::gcm::PolicyValue
+impl core::marker::StructuralPartialEq for antecedent::gcm::StageUtility
 impl core::marker::StructuralPartialEq for antecedent::gcm::UnitEffectIntervals
 impl core::marker::StructuralPartialEq for antecedent::host::HostStatus
 impl core::marker::StructuralPartialEq for antecedent::inference::ExternalComposeSpec
@@ -5551,6 +5587,7 @@ impl core::marker::Sync for antecedent::FittedPropensity [auto]
 impl core::marker::Sync for antecedent::ForwardEvaluation [auto]
 impl core::marker::Sync for antecedent::ForwardInterval [auto]
 impl core::marker::Sync for antecedent::GraphClass [auto]
+impl core::marker::Sync for antecedent::GraphSelectionPerImputation [auto]
 impl core::marker::Sync for antecedent::HistoryMatchEstimate [auto]
 impl core::marker::Sync for antecedent::Identification [auto]
 impl core::marker::Sync for antecedent::IdentifierId [auto]
@@ -5607,6 +5644,7 @@ impl core::marker::Sync for antecedent::MzTransportResult [auto]
 impl core::marker::Sync for antecedent::NuisanceFitDiagnostics [auto]
 impl core::marker::Sync for antecedent::ObservationAccount [auto]
 impl core::marker::Sync for antecedent::ObservationRecoveryResult [auto]
+impl core::marker::Sync for antecedent::ObservedWindowReport [auto]
 impl core::marker::Sync for antecedent::PanelDidEstimate [auto]
 impl core::marker::Sync for antecedent::PolicyValueEstimate [auto]
 impl core::marker::Sync for antecedent::PoolingDeclaration [auto]
@@ -6196,6 +6234,8 @@ impl core::marker::Sync for antecedent::analysis::transported_measurement::Trans
 impl core::marker::Sync for antecedent::analysis::transported_mechanism::MechanismTransportDeclaration [auto]
 impl core::marker::Sync for antecedent::analysis::transported_mechanism::TransportedMechanismComposition [auto]
 impl core::marker::Sync for antecedent::analysis::transported_mechanism::TransportedMechanismReceipt [auto]
+impl core::marker::Sync for antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt [auto]
+impl core::marker::Sync for antecedent::analysis::typed_transported_mechanism::TypedTransportedComposition [auto]
 impl core::marker::Sync for antecedent::analysis::vector_treatment::VectorTreatment [auto]
 impl core::marker::Sync for antecedent::bootstrap_retention::RetainedBootstrap [auto]
 impl core::marker::Sync for antecedent::bootstrap_retention::SpilledBootstrap [auto]
@@ -6219,11 +6259,14 @@ impl core::marker::Sync for antecedent::gcm::ContrastedOutcome [auto]
 impl core::marker::Sync for antecedent::gcm::CounterfactualContrasts [auto]
 impl core::marker::Sync for antecedent::gcm::FittedGcm [auto]
 impl core::marker::Sync for antecedent::gcm::IteResult [auto]
+impl core::marker::Sync for antecedent::gcm::ModelPolicySource [auto]
+impl core::marker::Sync for antecedent::gcm::ModelRolloutDesign [auto]
 impl core::marker::Sync for antecedent::gcm::NestedCounterfactualOperation [auto]
 impl core::marker::Sync for antecedent::gcm::NestedOutcomeMechanism [auto]
 impl core::marker::Sync for antecedent::gcm::OutcomeContrast [auto]
 impl core::marker::Sync for antecedent::gcm::PolicyValue [auto]
 impl core::marker::Sync for antecedent::gcm::PreparedPolicy [auto]
+impl core::marker::Sync for antecedent::gcm::StageUtility [auto]
 impl core::marker::Sync for antecedent::gcm::UnitEffectIntervals [auto]
 impl core::marker::Sync for antecedent::host::HostStatus [auto]
 impl core::marker::Sync for antecedent::inference::DecodedPriorHydrate [auto]
@@ -6437,6 +6480,7 @@ impl core::marker::Unpin for antecedent::FittedPropensity [auto]
 impl core::marker::Unpin for antecedent::ForwardEvaluation [auto]
 impl core::marker::Unpin for antecedent::ForwardInterval [auto]
 impl core::marker::Unpin for antecedent::GraphClass [auto]
+impl core::marker::Unpin for antecedent::GraphSelectionPerImputation [auto]
 impl core::marker::Unpin for antecedent::HistoryMatchEstimate [auto]
 impl core::marker::Unpin for antecedent::Identification [auto]
 impl core::marker::Unpin for antecedent::IdentifierId [auto]
@@ -6493,6 +6537,7 @@ impl core::marker::Unpin for antecedent::MzTransportResult [auto]
 impl core::marker::Unpin for antecedent::NuisanceFitDiagnostics [auto]
 impl core::marker::Unpin for antecedent::ObservationAccount [auto]
 impl core::marker::Unpin for antecedent::ObservationRecoveryResult [auto]
+impl core::marker::Unpin for antecedent::ObservedWindowReport [auto]
 impl core::marker::Unpin for antecedent::PanelDidEstimate [auto]
 impl core::marker::Unpin for antecedent::PolicyValueEstimate [auto]
 impl core::marker::Unpin for antecedent::PoolingDeclaration [auto]
@@ -7082,6 +7127,8 @@ impl core::marker::Unpin for antecedent::analysis::transported_measurement::Tran
 impl core::marker::Unpin for antecedent::analysis::transported_mechanism::MechanismTransportDeclaration [auto]
 impl core::marker::Unpin for antecedent::analysis::transported_mechanism::TransportedMechanismComposition [auto]
 impl core::marker::Unpin for antecedent::analysis::transported_mechanism::TransportedMechanismReceipt [auto]
+impl core::marker::Unpin for antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt [auto]
+impl core::marker::Unpin for antecedent::analysis::typed_transported_mechanism::TypedTransportedComposition [auto]
 impl core::marker::Unpin for antecedent::analysis::vector_treatment::VectorTreatment [auto]
 impl core::marker::Unpin for antecedent::bootstrap_retention::RetainedBootstrap [auto]
 impl core::marker::Unpin for antecedent::bootstrap_retention::SpilledBootstrap [auto]
@@ -7105,11 +7152,14 @@ impl core::marker::Unpin for antecedent::gcm::ContrastedOutcome [auto]
 impl core::marker::Unpin for antecedent::gcm::CounterfactualContrasts [auto]
 impl core::marker::Unpin for antecedent::gcm::FittedGcm [auto]
 impl core::marker::Unpin for antecedent::gcm::IteResult [auto]
+impl core::marker::Unpin for antecedent::gcm::ModelPolicySource [auto]
+impl core::marker::Unpin for antecedent::gcm::ModelRolloutDesign [auto]
 impl core::marker::Unpin for antecedent::gcm::NestedCounterfactualOperation [auto]
 impl core::marker::Unpin for antecedent::gcm::NestedOutcomeMechanism [auto]
 impl core::marker::Unpin for antecedent::gcm::OutcomeContrast [auto]
 impl core::marker::Unpin for antecedent::gcm::PolicyValue [auto]
 impl core::marker::Unpin for antecedent::gcm::PreparedPolicy [auto]
+impl core::marker::Unpin for antecedent::gcm::StageUtility [auto]
 impl core::marker::Unpin for antecedent::gcm::UnitEffectIntervals [auto]
 impl core::marker::Unpin for antecedent::host::HostStatus [auto]
 impl core::marker::Unpin for antecedent::inference::DecodedPriorHydrate [auto]
@@ -7321,6 +7371,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::FittedPropensity [a
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ForwardEvaluation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ForwardInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::GraphClass [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::GraphSelectionPerImputation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::HistoryMatchEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::Identification [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::IdentifierId [auto]
@@ -7375,6 +7426,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::MzTransportResult [
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::NuisanceFitDiagnostics [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ObservationAccount [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ObservationRecoveryResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ObservedWindowReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::PanelDidEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::PolicyValueEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::PoolingDeclaration [auto]
@@ -7933,6 +7985,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::transport
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::transported_mechanism::MechanismTransportDeclaration [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::transported_mechanism::TransportedMechanismComposition [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::transported_mechanism::TransportedMechanismReceipt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::typed_transported_mechanism::TypedTransportedComposition [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::vector_treatment::VectorTreatment [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::bootstrap_retention::RetainedBootstrap [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::bootstrap_retention::SpilledBootstrap [auto]
@@ -7953,11 +8007,13 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::ContrastSetRes
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::ContrastedOutcome [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::CounterfactualContrasts [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::IteResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::ModelRolloutDesign [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::NestedCounterfactualOperation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::NestedOutcomeMechanism [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::OutcomeContrast [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::PolicyValue [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::PreparedPolicy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::StageUtility [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::UnitEffectIntervals [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::host::HostStatus [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::inference::DecodedPriorHydrate [auto]
@@ -8164,6 +8220,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::FittedPropensity [auto
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ForwardEvaluation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ForwardInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::GraphClass [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::GraphSelectionPerImputation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::HistoryMatchEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::Identification [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::IdentifierId [auto]
@@ -8217,6 +8274,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::MzTransportResult [aut
 impl core::panic::unwind_safe::UnwindSafe for antecedent::NuisanceFitDiagnostics [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ObservationAccount [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ObservationRecoveryResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::ObservedWindowReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::PanelDidEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::PolicyValueEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::PoolingDeclaration [auto]
@@ -8775,6 +8833,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::transported_
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::transported_mechanism::MechanismTransportDeclaration [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::transported_mechanism::TransportedMechanismComposition [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::transported_mechanism::TransportedMechanismReceipt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::typed_transported_mechanism::TypedTransportedComposition [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::vector_treatment::VectorTreatment [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::bootstrap_retention::RetainedBootstrap [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::bootstrap_retention::SpilledBootstrap [auto]
@@ -8795,11 +8855,13 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::gcm::ContrastSetResult
 impl core::panic::unwind_safe::UnwindSafe for antecedent::gcm::ContrastedOutcome [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::gcm::CounterfactualContrasts [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::gcm::IteResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::gcm::ModelRolloutDesign [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::gcm::NestedCounterfactualOperation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::gcm::NestedOutcomeMechanism [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::gcm::OutcomeContrast [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::gcm::PolicyValue [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::gcm::PreparedPolicy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::gcm::StageUtility [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::gcm::UnitEffectIntervals [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::host::HostStatus [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::inference::DecodedPriorHydrate [auto]
@@ -9375,6 +9437,10 @@ pub const antecedent::analysis::transported_mechanism::DETAIL_TRANSPORT_IDENTITY
 pub const antecedent::analysis::transported_mechanism::MECHANISM_TRANSPORT_INFERENCE: &str
 pub const antecedent::analysis::transported_mechanism::MECHANISM_TRANSPORT_ROUTE: &str
 pub const antecedent::analysis::transported_mechanism::MECHANISM_TRANSPORT_SUPPORT: &str
+pub const antecedent::analysis::typed_transported_mechanism::DETAIL_TYPED_IDENTITY_MISMATCH: &str
+pub const antecedent::analysis::typed_transported_mechanism::TYPED_TRANSPORT_INFERENCE: &str
+pub const antecedent::analysis::typed_transported_mechanism::TYPED_TRANSPORT_ROUTE: &str
+pub const antecedent::analysis::typed_transported_mechanism::TYPED_TRANSPORT_SUPPORT: &str
 pub const antecedent::discovery_defaults::DEFAULT_ALPHA: f64
 pub const antecedent::discovery_defaults::DEFAULT_MAX_COND_SIZE: usize
 pub const antecedent::discovery_defaults::DEFAULT_RPCMCI_MIN_REGIME_LEN: usize
@@ -10157,6 +10223,11 @@ pub field antecedent::NuisanceFitDiagnostics::propensity: antecedent::Propensity
 pub field antecedent::NuisanceFitDiagnostics::subject: alloc::string::String
 pub field antecedent::ObservationAccount::mass: antecedent_contract::evidence_ledger::overlap::MassAccount
 pub field antecedent::ObservationAccount::pairs: alloc::vec::Vec<antecedent::SourcePairRelation>
+pub field antecedent::ObservedWindowReport::donors_dropped: alloc::sync::Arc<[(alloc::sync::Arc<str>, usize)]>
+pub field antecedent::ObservedWindowReport::donors_used: usize
+pub field antecedent::ObservedWindowReport::post_periods: alloc::sync::Arc<[i64]>
+pub field antecedent::ObservedWindowReport::pre_periods: alloc::sync::Arc<[i64]>
+pub field antecedent::ObservedWindowReport::unread_rows: usize
 pub field antecedent::PanelDidEstimate::augmented: core::option::Option<(f64, f64, f64, bool)>
 pub field antecedent::PanelDidEstimate::clusters: usize
 pub field antecedent::PanelDidEstimate::comparison_subjects: usize
@@ -10454,6 +10525,7 @@ pub field antecedent::SyntheticControlEstimate::effect: f64
 pub field antecedent::SyntheticControlEstimate::effective_donors: f64
 pub field antecedent::SyntheticControlEstimate::n_post_periods: usize
 pub field antecedent::SyntheticControlEstimate::n_pre_periods: usize
+pub field antecedent::SyntheticControlEstimate::observed_window: core::option::Option<antecedent::ObservedWindowReport>
 pub field antecedent::SyntheticControlEstimate::outcome_model_correction: core::option::Option<f64>
 pub field antecedent::SyntheticControlEstimate::placebo_effects: alloc::sync::Arc<[f64]>
 pub field antecedent::SyntheticControlEstimate::placebo_rank: f64
@@ -12119,6 +12191,19 @@ pub field antecedent::analysis::transported_mechanism::TransportedMechanismRecei
 pub field antecedent::analysis::transported_mechanism::TransportedMechanismReceipt::target_population: alloc::string::String
 pub field antecedent::analysis::transported_mechanism::TransportedMechanismReceipt::target_regime: alloc::string::String
 pub field antecedent::analysis::transported_mechanism::TransportedMechanismReceipt::uncertainty_scope: &'static str
+pub field antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt::assumptions: alloc::vec::Vec<alloc::string::String>
+pub field antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt::dispositions: alloc::vec::Vec<antecedent_model::typed_mechanism_transport::TypedDisposition>
+pub field antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt::identity: alloc::string::String
+pub field antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt::inference: &'static str
+pub field antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt::invariance_level: f64
+pub field antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt::route: &'static str
+pub field antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt::selection_nodes: alloc::vec::Vec<(alloc::string::String, alloc::vec::Vec<alloc::string::String>)>
+pub field antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt::selection_targets: alloc::vec::Vec<alloc::string::String>
+pub field antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt::source_population: alloc::string::String
+pub field antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt::support: &'static str
+pub field antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt::target_population: alloc::string::String
+pub field antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt::target_regime: alloc::string::String
+pub field antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt::uncertainty_scope: &'static str
 pub field antecedent::counterfactual_id::CounterfactualIdConsumeLimits::search: antecedent_core::search::SearchLimits
 pub field antecedent::counterfactual_id::CounterfactualIdConsumeLimits::search_memory_bytes: u64
 pub field antecedent::counterfactual_id::CounterfactualIdEffect::conditioning_probability: f64
@@ -12205,6 +12290,14 @@ pub field antecedent::gcm::IteResult::noise_inference: antecedent_counterfactual
 pub field antecedent::gcm::IteResult::unit_effect_intervals: core::option::Option<antecedent::gcm::UnitEffectIntervals>
 pub field antecedent::gcm::IteResult::unit_effects: alloc::sync::Arc<[f64]>
 pub field antecedent::gcm::IteResult::unit_extrapolative: core::option::Option<alloc::sync::Arc<[bool]>>
+pub field antecedent::gcm::ModelRolloutDesign::decision_interval: usize
+pub field antecedent::gcm::ModelRolloutDesign::exposure_weight: f64
+pub field antecedent::gcm::ModelRolloutDesign::held_out_rows: usize
+pub field antecedent::gcm::ModelRolloutDesign::horizon: usize
+pub field antecedent::gcm::ModelRolloutDesign::initial_state: alloc::vec::Vec<(antecedent_core::ids::VariableId, f64)>
+pub field antecedent::gcm::ModelRolloutDesign::noise_seed: u64
+pub field antecedent::gcm::ModelRolloutDesign::rows: usize
+pub field antecedent::gcm::ModelRolloutDesign::unit_cost: f64
 pub field antecedent::gcm::OutcomeContrast::mean_ite: f64
 pub field antecedent::gcm::OutcomeContrast::outcome: antecedent_core::ids::VariableId
 pub field antecedent::gcm::OutcomeContrast::unit_effects: alloc::sync::Arc<[f64]>
@@ -12216,6 +12309,14 @@ pub field antecedent::gcm::PolicyValue::outcome: antecedent_core::ids::VariableI
 pub field antecedent::gcm::PolicyValue::policy_mean: f64
 pub field antecedent::gcm::PolicyValue::policy_simulation_stderr: f64
 pub field antecedent::gcm::PolicyValue::support: antecedent_model::program::PolicySupport
+pub field antecedent::gcm::StageUtility::action_linear: f64
+pub field antecedent::gcm::StageUtility::action_quadratic: f64
+pub field antecedent::gcm::StageUtility::discount: f64
+pub field antecedent::gcm::StageUtility::outcome: antecedent_core::ids::VariableId
+pub field antecedent::gcm::StageUtility::over: f64
+pub field antecedent::gcm::StageUtility::quadratic: f64
+pub field antecedent::gcm::StageUtility::target: f64
+pub field antecedent::gcm::StageUtility::under: f64
 pub field antecedent::gcm::UnitEffectIntervals::level: f64
 pub field antecedent::gcm::UnitEffectIntervals::lower: alloc::sync::Arc<[f64]>
 pub field antecedent::gcm::UnitEffectIntervals::method: &'static str
@@ -12684,6 +12785,8 @@ pub fn <antecedent::GraphClass>::const fn as_str(self) -> &'static str
 pub fn <antecedent::GraphClass>::const fn is_incomplete_temporal(self) -> bool
 pub fn <antecedent::GraphRef<'_>>::const fn class(&self) -> antecedent::GraphClass
 pub fn <antecedent::GraphRef<'_>>::fn projected_admg(&self) -> core::result::Result<core::option::Option<antecedent_graph::admg::Admg>, antecedent::CausalError>
+pub fn <antecedent::GraphSelectionPerImputation>::fn new(params: antecedent::discovery::BayesianDiscoverParams, variables: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::ids::VariableId]>>) -> Self
+pub fn <antecedent::GraphSelectionPerImputation>::fn variables(&self) -> &[antecedent_core::ids::VariableId]
 pub fn <antecedent::Identification>::fn completion_keys(&self) -> alloc::vec::Vec<u64>
 pub fn <antecedent::Identification>::fn estimands(&self) -> &[antecedent_expr::estimand::IdentifiedEstimand]
 pub fn <antecedent::Identification>::fn is_identified(&self) -> bool
@@ -14576,6 +14679,16 @@ pub fn <antecedent::analysis::transported_mechanism::TransportedMechanismComposi
 pub fn <antecedent::analysis::transported_mechanism::TransportedMechanismComposition>::fn mean_contrast(&self, contrast: &antecedent_model::compose::gaussian::MeanContrast) -> core::result::Result<f64, antecedent::MechanismCompositionRefusal>
 pub fn <antecedent::analysis::transported_mechanism::TransportedMechanismComposition>::fn mean_contrast_uncertainty(&self, contrast: &antecedent_model::compose::gaussian::MeanContrast) -> core::result::Result<antecedent_model::mechanism_transport::TransportedFunctionalUncertainty, antecedent::MechanismCompositionRefusal>
 pub fn <antecedent::analysis::transported_mechanism::TransportedMechanismComposition>::fn transported_variables(&self) -> alloc::vec::Vec<&str>
+pub fn <antecedent::analysis::typed_transported_mechanism::TypedTransportedComposition>::const fn model(&self) -> &antecedent_model::typed_mechanism_transport::TransportedTypedModel
+pub fn <antecedent::analysis::typed_transported_mechanism::TypedTransportedComposition>::const fn receipt(&self) -> &antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt
+pub fn <antecedent::analysis::typed_transported_mechanism::TypedTransportedComposition>::fn claim_standing(&self) -> antecedent_contract::composition_verification::graph::ClaimStanding
+pub fn <antecedent::analysis::typed_transported_mechanism::TypedTransportedComposition>::fn composition_node(&self, key: &str) -> antecedent_contract::composition_verification::graph::CompositionNode
+pub fn <antecedent::analysis::typed_transported_mechanism::TypedTransportedComposition>::fn dispositions(&self) -> &[antecedent_model::typed_mechanism_transport::TypedDisposition]
+pub fn <antecedent::analysis::typed_transported_mechanism::TypedTransportedComposition>::fn identity_hex(&self) -> alloc::string::String
+pub fn <antecedent::analysis::typed_transported_mechanism::TypedTransportedComposition>::fn interval(&self) -> core::result::Result<core::convert::Infallible, antecedent::MechanismCompositionRefusal>
+pub fn <antecedent::analysis::typed_transported_mechanism::TypedTransportedComposition>::fn mean_contrast(&self, contrast: &antecedent_model::compose::gaussian::MeanContrast, draws: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::typed_mechanism_transport::ContrastEstimate, antecedent::MechanismCompositionRefusal>
+pub fn <antecedent::analysis::typed_transported_mechanism::TypedTransportedComposition>::fn mean_contrast_uncertainty(&self, contrast: &antecedent_model::compose::gaussian::MeanContrast, draws: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::typed_mechanism_transport::TypedFunctionalUncertainty, antecedent::MechanismCompositionRefusal>
+pub fn <antecedent::analysis::typed_transported_mechanism::TypedTransportedComposition>::fn transported_variables(&self) -> alloc::vec::Vec<&str>
 pub fn <antecedent::analysis::vector_treatment::VectorTreatment>::fn artifact(&self) -> &antecedent_io::vector_treatment_artifact::VectorTreatmentArtifact
 pub fn <antecedent::analysis::vector_treatment::VectorTreatment>::fn consume(bytes: &[u8], expected: core::option::Option<&antecedent_io::vector_treatment_artifact::VectorTreatmentIdentity>) -> core::result::Result<Self, antecedent_io::vector_treatment_artifact::VectorTreatmentArtifactError>
 pub fn <antecedent::analysis::vector_treatment::VectorTreatment>::fn consume_with(bytes: &[u8], expected: core::option::Option<&antecedent_io::vector_treatment_artifact::VectorTreatmentIdentity>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io::vector_treatment_artifact::VectorTreatmentArtifactError>
@@ -14619,6 +14732,7 @@ pub fn <antecedent::gcm::ContrastSetResult>::fn ite_result(&self, outcome: antec
 pub fn <antecedent::gcm::CounterfactualContrasts>::fn contrast(&self, outcome: antecedent_core::ids::VariableId) -> core::option::Option<&antecedent::gcm::ContrastedOutcome>
 pub fn <antecedent::gcm::CounterfactualContrasts>::fn ite_result(&self, outcome: antecedent_core::ids::VariableId) -> core::option::Option<antecedent::gcm::IteResult>
 pub fn <antecedent::gcm::CounterfactualContrasts>::fn primary(&self) -> &antecedent::gcm::ContrastedOutcome
+pub fn <antecedent::gcm::ModelPolicySource>::fn new(models: alloc::vec::Vec<alloc::sync::Arc<antecedent_model::compile::CompiledCausalModel>>, action: antecedent_core::ids::VariableId, utility: antecedent::gcm::StageUtility, design: antecedent::gcm::ModelRolloutDesign, observed: alloc::vec::Vec<antecedent_core::ids::VariableId>, standing: antecedent_design::adaptive_policy_search::ResponseStanding) -> core::result::Result<Self, antecedent_design::adaptive_policy_search::AdaptivePolicySearchError>
 pub fn <antecedent::gcm::NestedCounterfactualOperation>::const fn outcome_mechanism(&self) -> antecedent::gcm::NestedOutcomeMechanism
 pub fn <antecedent::gcm::NestedCounterfactualOperation>::const fn query(&self) -> &antecedent_core::query::nested_counterfactual::NestedCounterfactualQuery
 pub fn <antecedent::gcm::NestedCounterfactualOperation>::fn graph(&self) -> &antecedent_graph::dag::Dag
@@ -14987,6 +15101,7 @@ pub fn antecedent::analysis::api::consume_transport_scenarios_artifact(bytes: &[
 pub fn antecedent::analysis::api::consume_z_transport_artifact(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(antecedent_graph::selection::SelectionDiagram, antecedent::ZTransportResult), antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::api::estimate_derived_joint_cells(data: &antecedent_data::dataset::TabularData, declaration: &antecedent::DerivedTreatmentDeclaration, outcome: &str, adjustment: &[alloc::string::String], orderings: &[alloc::vec::Vec<usize>], config: &antecedent_estimate::joint_cell_factorized::FactorizedJointConfig, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(antecedent::DerivedTreatmentPlan, antecedent_estimate::joint_cell_factorized::FactorizedJointFit), antecedent::CausalError>
 pub fn antecedent::analysis::api::estimate_joint_cell_cost(config: &antecedent_estimate::joint_cell_factorized::FactorizedJointConfig, components: usize, orderings: &[alloc::vec::Vec<usize>], rows: core::option::Option<usize>) -> core::result::Result<antecedent::JointCellCostEstimate, antecedent::CausalError>
+pub fn antecedent::analysis::api::estimate_with_graph_selection_per_imputation<F>(data: &antecedent_data::dataset::TabularData, spec: antecedent_data::sample_policy::ImputationSpec, selection: &antecedent::GraphSelectionPerImputation, ctx: &antecedent_core::execution::context::ExecutionContext, effect_study: F) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError> where F: core::ops::function::Fn(&antecedent_data::dataset::TabularData, antecedent_discovery::graph_posterior::GraphPosterior) -> antecedent::StudyBuilder
 pub fn antecedent::analysis::api::estimate_with_rank_drop(input: &antecedent::PreflightInput<'_>, policy: &antecedent::RankDropPolicy, estimator: antecedent::EstimatorId, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::RankDropEstimate, antecedent::CausalError>
 pub fn antecedent::analysis::api::export_admg_conditional_obstruction(diagram: &antecedent_graph::selection::SelectionDiagram, proof: &antecedent_identify::sid::conditional::ConditionalNonTransportabilityProof, variable_names: &[alloc::string::String], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::api::export_scenario_covariance(spec: &antecedent_io::scenario_covariance_artifact::CovarianceSpec, covariance: &antecedent_estimate::scenario_covariance::ScenarioCovariance) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
@@ -15152,6 +15267,9 @@ pub fn antecedent::analysis::matching_posterior_refusal::matching_posterior_refu
 pub fn antecedent::analysis::mechanism_discrepancy::consume_mechanism_discrepancy(bytes: &[u8], expected: core::option::Option<&antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyIdentity>) -> core::result::Result<antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifact, antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifactError>
 pub fn antecedent::analysis::mechanism_discrepancy::run_mechanism_discrepancy(request: &antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyRequestWire, source_ids: &[alloc::string::String], target_ids: &[alloc::string::String]) -> core::result::Result<antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifact, antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifactError>
 pub fn antecedent::analysis::mechanism_discrepancy::summarize_sample(sample: &antecedent_estimate::mechanism_discrepancy::PopulationSample) -> core::result::Result<antecedent_estimate::mechanism_discrepancy::MechanismSummary, antecedent_estimate::error::EstimationError>
+pub fn antecedent::analysis::mnar_sensitivity::mnar_sensitivity(data: &antecedent_validate::mnar_sensitivity::MnarData<'_>, spec: &antecedent_validate::mnar_sensitivity::MnarSensitivitySpec) -> core::result::Result<antecedent_validate::mnar_sensitivity::MnarSensitivityResult, antecedent_validate::mnar_sensitivity::MnarSensitivityError>
+pub fn antecedent::analysis::mnar_sensitivity::mnar_sensitivity_for_study(study: &antecedent::Study, adjustment: &[antecedent_core::ids::VariableId], spec: &antecedent_validate::mnar_sensitivity::MnarSensitivitySpec) -> core::result::Result<antecedent_validate::mnar_sensitivity::MnarSensitivityResult, antecedent_validate::mnar_sensitivity::MnarSensitivityError>
+pub fn antecedent::analysis::mnar_sensitivity::mnar_sensitivity_for_table<T: antecedent_data::table::TableView>(table: &T, treatment: &str, outcome: &str, covariates: &[&str], spec: &antecedent_validate::mnar_sensitivity::MnarSensitivitySpec) -> core::result::Result<antecedent_validate::mnar_sensitivity::MnarSensitivityResult, antecedent_validate::mnar_sensitivity::MnarSensitivityError>
 pub fn antecedent::analysis::msm_sensitivity::msm_sensitivity(strata: &[antecedent_validate::msm_sensitivity::MsmStratum], spec: &antecedent_validate::msm_sensitivity::MsmSensitivitySpec) -> core::result::Result<antecedent_validate::msm_sensitivity::MsmSensitivityResult, antecedent_validate::msm_sensitivity::MsmSensitivityError>
 pub fn antecedent::analysis::msm_sensitivity::msm_sensitivity_artifact(result: &antecedent_validate::msm_sensitivity::MsmSensitivityResult, effect: &antecedent_contract::quantity::ScientificQuantity, point_quantities: &[(antecedent_contract::quantity::ScientificQuantity, alloc::vec::Vec<f64>)], actions: alloc::vec::Vec<antecedent_io_core::sensitivity_artifact::ActionUtility>, causal_contract_id: &str) -> core::result::Result<antecedent_io_core::sensitivity_artifact::SensitivityArtifact, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::msm_sensitivity::msm_sensitivity_artifact_bytes(result: &antecedent_validate::msm_sensitivity::MsmSensitivityResult, effect: &antecedent_contract::quantity::ScientificQuantity, point_quantities: &[(antecedent_contract::quantity::ScientificQuantity, alloc::vec::Vec<f64>)], actions: alloc::vec::Vec<antecedent_io_core::sensitivity_artifact::ActionUtility>, causal_contract_id: &str, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
@@ -15271,6 +15389,11 @@ pub fn antecedent::analysis::transported_measurement::transport_measurement(mode
 pub fn antecedent::analysis::transported_measurement::transport_measurement_estimate(models: &[antecedent_core::measurement_model::MeasurementModel], structure: core::option::Option<&antecedent_estimate::measurement_transport::PopulationErrorStructure>, binding: antecedent::MeasurementAnalysisBinding, input: antecedent::MeasurementInput, provider: core::option::Option<(&antecedent_contract::external::ExternalScientificObject, &antecedent_contract::external::ExternalTrustState)>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::transported_measurement::TransportedMeasurementEstimate, antecedent::MeasurementModelRefusal>
 pub fn antecedent::analysis::transported_measurement::verify_measurement_transport(models: &[antecedent_core::measurement_model::MeasurementModel], structure: core::option::Option<&antecedent_estimate::measurement_transport::PopulationErrorStructure>, binding: &antecedent::MeasurementAnalysisBinding, expected_identity_hex: &str) -> core::result::Result<antecedent_estimate::measurement_transport::TransportReceipt, antecedent::MeasurementModelRefusal>
 pub fn antecedent::analysis::transported_mechanism::verify_mechanism_transport(prepared: &antecedent::PreparedMechanismComposition, declaration: &antecedent::analysis::transported_mechanism::MechanismTransportDeclaration, expected_identity_hex: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::transported_mechanism::TransportedMechanismComposition, antecedent::MechanismCompositionRefusal>
+pub fn antecedent::analysis::typed_transported_mechanism::check_typed_invariance(source: &antecedent_model::typed_mechanism_transport::FittedMechanism, target: &antecedent_model::typed_mechanism_transport::FittedMechanism, level: f64) -> core::result::Result<antecedent_model::typed_mechanism_transport::InvarianceCheck, antecedent::MechanismCompositionRefusal>
+pub fn antecedent::analysis::typed_transported_mechanism::fit_typed_mechanism(spec: &antecedent_model::typed_mechanism_transport::MechanismSpec, columns: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<f64>>, context: antecedent_model::compose::descriptor::MechanismContext, provenance: antecedent_model::compose::descriptor::MechanismProvenance, design_from: core::option::Option<&antecedent_model::typed_mechanism_transport::FittedMechanism>) -> core::result::Result<antecedent_model::typed_mechanism_transport::FittedMechanism, antecedent::MechanismCompositionRefusal>
+pub fn antecedent::analysis::typed_transported_mechanism::refit_typed_mechanism_in_target(source: &antecedent_model::typed_mechanism_transport::FittedMechanism, columns: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<f64>>, context: antecedent_model::compose::descriptor::MechanismContext, provenance: antecedent_model::compose::descriptor::MechanismProvenance) -> core::result::Result<antecedent_model::typed_mechanism_transport::FittedMechanism, antecedent::MechanismCompositionRefusal>
+pub fn antecedent::analysis::typed_transported_mechanism::transport_typed_mechanisms(request: &antecedent_model::typed_mechanism_transport::TypedTransportRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::typed_transported_mechanism::TypedTransportedComposition, antecedent::MechanismCompositionRefusal>
+pub fn antecedent::analysis::typed_transported_mechanism::verify_typed_transport(request: &antecedent_model::typed_mechanism_transport::TypedTransportRequest, expected_identity_hex: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::typed_transported_mechanism::TypedTransportedComposition, antecedent::MechanismCompositionRefusal>
 pub fn antecedent::analysis::validate_temporal_dependent_interval(snapshot_id: &str, units: core::option::Option<alloc::vec::Vec<antecedent_estimate::temporal_dependent_interval::UnitHistories>>, sequence: [u32; 2], estimand: antecedent::IntervalEstimand, config: &antecedent_estimate::temporal_dependent_interval::DependentIntervalConfig) -> core::result::Result<(), antecedent_io_core::error::IoError>
 pub fn antecedent::callback_plan::mark_python_callback_plan(record: antecedent_contract::plan::PhysicalExecutionPlanRecord, region: &str) -> (antecedent_contract::plan::PhysicalExecutionPlanRecord, antecedent_core::diagnostic::Diagnostic)
 pub fn antecedent::cell_coordinate(cell: antecedent::SupportCell) -> alloc::string::String
@@ -15420,6 +15543,7 @@ pub mod antecedent::analysis::measurement_model
 pub mod antecedent::analysis::mechanism_composition
 pub mod antecedent::analysis::mechanism_discrepancy
 pub mod antecedent::analysis::missing_support
+pub mod antecedent::analysis::mnar_sensitivity
 pub mod antecedent::analysis::msm_sensitivity
 pub mod antecedent::analysis::multi_level_treatment
 pub mod antecedent::analysis::native_claims
@@ -15474,6 +15598,7 @@ pub mod antecedent::analysis::transported_constructors
 pub mod antecedent::analysis::transported_counterfactual
 pub mod antecedent::analysis::transported_measurement
 pub mod antecedent::analysis::transported_mechanism
+pub mod antecedent::analysis::typed_transported_mechanism
 pub mod antecedent::analysis::vector_treatment
 pub mod antecedent::bootstrap_retention
 pub mod antecedent::callback_plan
@@ -15632,6 +15757,8 @@ pub struct antecedent::FamilyCovariance
 pub struct antecedent::FittedPropensity
 pub struct antecedent::ForwardEvaluation
 pub struct antecedent::ForwardInterval
+pub struct antecedent::GraphSelectionPerImputation
+pub struct antecedent::GraphSelectionPerImputation has private fields
 pub struct antecedent::HistoryMatchEstimate
 pub struct antecedent::InferenceDefault
 pub struct antecedent::InterferenceSpec
@@ -15684,6 +15811,7 @@ pub struct antecedent::NuisanceFitDiagnostics
 pub struct antecedent::ObservationAccount
 pub struct antecedent::ObservationRecoveryResult
 pub struct antecedent::ObservationRecoveryResult has private fields
+pub struct antecedent::ObservedWindowReport
 pub struct antecedent::PanelDidEstimate
 pub struct antecedent::PolicyValueEstimate
 pub struct antecedent::PoolingRequest
@@ -16323,6 +16451,9 @@ pub struct antecedent::analysis::transported_mechanism::MechanismTransportDeclar
 pub struct antecedent::analysis::transported_mechanism::TransportedMechanismComposition
 pub struct antecedent::analysis::transported_mechanism::TransportedMechanismComposition has private fields
 pub struct antecedent::analysis::transported_mechanism::TransportedMechanismReceipt
+pub struct antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt
+pub struct antecedent::analysis::typed_transported_mechanism::TypedTransportedComposition
+pub struct antecedent::analysis::typed_transported_mechanism::TypedTransportedComposition has private fields
 pub struct antecedent::analysis::vector_treatment::VectorTreatment
 pub struct antecedent::analysis::vector_treatment::VectorTreatment has private fields
 pub struct antecedent::bootstrap_retention::RetainedBootstrap
@@ -16354,12 +16485,16 @@ pub struct antecedent::gcm::ContrastedOutcome
 pub struct antecedent::gcm::CounterfactualContrasts
 pub struct antecedent::gcm::FittedGcm
 pub struct antecedent::gcm::IteResult
+pub struct antecedent::gcm::ModelPolicySource
+pub struct antecedent::gcm::ModelPolicySource has private fields
+pub struct antecedent::gcm::ModelRolloutDesign
 pub struct antecedent::gcm::NestedCounterfactualOperation
 pub struct antecedent::gcm::NestedCounterfactualOperation has private fields
 pub struct antecedent::gcm::OutcomeContrast
 pub struct antecedent::gcm::PolicyValue
 pub struct antecedent::gcm::PreparedPolicy
 pub struct antecedent::gcm::PreparedPolicy has private fields
+pub struct antecedent::gcm::StageUtility
 pub struct antecedent::gcm::UnitEffectIntervals
 pub struct antecedent::inference::DecodedPriorHydrate
 pub struct antecedent::inference::ExternalComposeSpec
@@ -16711,6 +16846,7 @@ pub use antecedent::analysis::FindingSeverity = antecedent::FindingSeverity
 pub use antecedent::analysis::FittedPropensity = antecedent::FittedPropensity
 pub use antecedent::analysis::ForwardEvaluation = antecedent::ForwardEvaluation
 pub use antecedent::analysis::ForwardInterval = antecedent::ForwardInterval
+pub use antecedent::analysis::GraphSelectionPerImputation = antecedent::GraphSelectionPerImputation
 pub use antecedent::analysis::INVERSE_SCOPE_NOTE = antecedent::INVERSE_SCOPE_NOTE
 pub use antecedent::analysis::IdentifiedActionRange = decision_contract_facade::IdentifiedActionRange
 pub use antecedent::analysis::IdentifiedSetDecision = decision_contract_facade::IdentifiedSetDecision
@@ -17053,6 +17189,7 @@ pub use antecedent::analysis::api::FindingSeverity = antecedent::FindingSeverity
 pub use antecedent::analysis::api::FittedPropensity = antecedent::FittedPropensity
 pub use antecedent::analysis::api::ForwardEvaluation = antecedent::ForwardEvaluation
 pub use antecedent::analysis::api::ForwardInterval = antecedent::ForwardInterval
+pub use antecedent::analysis::api::GraphSelectionPerImputation = antecedent::GraphSelectionPerImputation
 pub use antecedent::analysis::api::INVERSE_SCOPE_NOTE = antecedent::INVERSE_SCOPE_NOTE
 pub use antecedent::analysis::api::IdentifiedActionRange = super::IdentifiedActionRange
 pub use antecedent::analysis::api::IdentifiedSetDecision = super::IdentifiedSetDecision
@@ -17712,6 +17849,7 @@ pub use antecedent::analysis::effect_constancy::PartitionWire = antecedent_io::e
 pub use antecedent::analysis::effect_constancy::ResultWire = antecedent_io::effect_constancy_artifact::ResultWire
 pub use antecedent::analysis::estimate_derived_joint_cells = antecedent::analysis::api::estimate_derived_joint_cells
 pub use antecedent::analysis::estimate_joint_cell_cost = antecedent::analysis::api::estimate_joint_cell_cost
+pub use antecedent::analysis::estimate_with_graph_selection_per_imputation = antecedent::analysis::api::estimate_with_graph_selection_per_imputation
 pub use antecedent::analysis::estimate_with_rank_drop = antecedent::analysis::api::estimate_with_rank_drop
 pub use antecedent::analysis::evaluate_adapted = decision_contract_facade::evaluate_adapted
 pub use antecedent::analysis::evaluate_identified_sets = decision_contract_facade::evaluate_identified_sets
@@ -18022,6 +18160,44 @@ pub use antecedent::analysis::missing_support::MissingRouteSupport = antecedent:
 pub use antecedent::analysis::missing_support::missing_support_table = antecedent::analysis::api::missing_support_table
 pub use antecedent::analysis::missing_support::route_missing_support = antecedent::analysis::api::route_missing_support
 pub use antecedent::analysis::missing_support_table = antecedent::analysis::api::missing_support_table
+pub use antecedent::analysis::mnar_sensitivity::ArmLoading = antecedent_validate::mnar_sensitivity::ArmLoading
+pub use antecedent::analysis::mnar_sensitivity::MNAR_ASSIGNMENT_ASSUMPTION_ID = antecedent_validate::mnar_sensitivity::MNAR_ASSIGNMENT_ASSUMPTION_ID
+pub use antecedent::analysis::mnar_sensitivity::MNAR_ASSUMPTION_RANGE_CLAIM = antecedent_validate::mnar_sensitivity::MNAR_ASSUMPTION_RANGE_CLAIM
+pub use antecedent::analysis::mnar_sensitivity::MNAR_DEPARTURE_ASSUMPTION_ID = antecedent_validate::mnar_sensitivity::MNAR_DEPARTURE_ASSUMPTION_ID
+pub use antecedent::analysis::mnar_sensitivity::MNAR_DEPARTURE_ASSUMPTION_STATUS = antecedent_validate::mnar_sensitivity::MNAR_DEPARTURE_ASSUMPTION_STATUS
+pub use antecedent::analysis::mnar_sensitivity::MNAR_EMPIRICAL_STATUS = antecedent_validate::mnar_sensitivity::MNAR_EMPIRICAL_STATUS
+pub use antecedent::analysis::mnar_sensitivity::MNAR_FAMILY = antecedent_validate::mnar_sensitivity::MNAR_FAMILY
+pub use antecedent::analysis::mnar_sensitivity::MNAR_INTERPRETATION = antecedent_validate::mnar_sensitivity::MNAR_INTERPRETATION
+pub use antecedent::analysis::mnar_sensitivity::MNAR_MAX_BOOTSTRAP = antecedent_validate::mnar_sensitivity::MNAR_MAX_BOOTSTRAP
+pub use antecedent::analysis::mnar_sensitivity::MNAR_MAX_COVARIATES = antecedent_validate::mnar_sensitivity::MNAR_MAX_COVARIATES
+pub use antecedent::analysis::mnar_sensitivity::MNAR_MAX_DECISIONS = antecedent_validate::mnar_sensitivity::MNAR_MAX_DECISIONS
+pub use antecedent::analysis::mnar_sensitivity::MNAR_MAX_DELTA = antecedent_validate::mnar_sensitivity::MNAR_MAX_DELTA
+pub use antecedent::analysis::mnar_sensitivity::MNAR_MAX_GRID_POINTS = antecedent_validate::mnar_sensitivity::MNAR_MAX_GRID_POINTS
+pub use antecedent::analysis::mnar_sensitivity::MNAR_MAX_ROWS = antecedent_validate::mnar_sensitivity::MNAR_MAX_ROWS
+pub use antecedent::analysis::mnar_sensitivity::MNAR_MAX_TILT = antecedent_validate::mnar_sensitivity::MNAR_MAX_TILT
+pub use antecedent::analysis::mnar_sensitivity::MNAR_MAX_TOLERANCE = antecedent_validate::mnar_sensitivity::MNAR_MAX_TOLERANCE
+pub use antecedent::analysis::mnar_sensitivity::MNAR_METHOD = antecedent_validate::mnar_sensitivity::MNAR_METHOD
+pub use antecedent::analysis::mnar_sensitivity::MNAR_MIN_BOOTSTRAP = antecedent_validate::mnar_sensitivity::MNAR_MIN_BOOTSTRAP
+pub use antecedent::analysis::mnar_sensitivity::MNAR_MIN_TOLERANCE = antecedent_validate::mnar_sensitivity::MNAR_MIN_TOLERANCE
+pub use antecedent::analysis::mnar_sensitivity::MNAR_SAMPLING_BASIS = antecedent_validate::mnar_sensitivity::MNAR_SAMPLING_BASIS
+pub use antecedent::analysis::mnar_sensitivity::MNAR_TARGET = antecedent_validate::mnar_sensitivity::MNAR_TARGET
+pub use antecedent::analysis::mnar_sensitivity::MnarAssumptionRange = antecedent_validate::mnar_sensitivity::MnarAssumptionRange
+pub use antecedent::analysis::mnar_sensitivity::MnarAssumptionRecord = antecedent_validate::mnar_sensitivity::MnarAssumptionRecord
+pub use antecedent::analysis::mnar_sensitivity::MnarConclusionKind = antecedent_validate::mnar_sensitivity::MnarConclusionKind
+pub use antecedent::analysis::mnar_sensitivity::MnarData = antecedent_validate::mnar_sensitivity::MnarData
+pub use antecedent::analysis::mnar_sensitivity::MnarDecision = antecedent_validate::mnar_sensitivity::MnarDecision
+pub use antecedent::analysis::mnar_sensitivity::MnarDecisionReport = antecedent_validate::mnar_sensitivity::MnarDecisionReport
+pub use antecedent::analysis::mnar_sensitivity::MnarEstimator = antecedent_validate::mnar_sensitivity::MnarEstimator
+pub use antecedent::analysis::mnar_sensitivity::MnarMechanism = antecedent_validate::mnar_sensitivity::MnarMechanism
+pub use antecedent::analysis::mnar_sensitivity::MnarModel = antecedent_validate::mnar_sensitivity::MnarModel
+pub use antecedent::analysis::mnar_sensitivity::MnarPoint = antecedent_validate::mnar_sensitivity::MnarPoint
+pub use antecedent::analysis::mnar_sensitivity::MnarSamplingInterval = antecedent_validate::mnar_sensitivity::MnarSamplingInterval
+pub use antecedent::analysis::mnar_sensitivity::MnarSensitivityError = antecedent_validate::mnar_sensitivity::MnarSensitivityError
+pub use antecedent::analysis::mnar_sensitivity::MnarSensitivityResult = antecedent_validate::mnar_sensitivity::MnarSensitivityResult
+pub use antecedent::analysis::mnar_sensitivity::MnarSensitivitySpec = antecedent_validate::mnar_sensitivity::MnarSensitivitySpec
+pub use antecedent::analysis::mnar_sensitivity::MnarTipping = antecedent_validate::mnar_sensitivity::MnarTipping
+pub use antecedent::analysis::mnar_sensitivity::MnarTippingSide = antecedent_validate::mnar_sensitivity::MnarTippingSide
+pub use antecedent::analysis::mnar_sensitivity::mnar_assumptions = antecedent_validate::mnar_sensitivity::assumptions
 pub use antecedent::analysis::msm_sensitivity::ActionUtility = antecedent_io::sensitivity_artifact::ActionUtility
 pub use antecedent::analysis::msm_sensitivity::MSM_ASSUMPTION_RANGE_CLAIM = antecedent_validate::msm_sensitivity::MSM_ASSUMPTION_RANGE_CLAIM
 pub use antecedent::analysis::msm_sensitivity::MSM_COORDINATE_ID = antecedent_io::msm_sensitivity_adapter::MSM_COORDINATE_ID
@@ -18757,6 +18933,42 @@ pub use antecedent::analysis::transported_mechanism::UNCERTAINTY_SCOPE = super::
 pub use antecedent::analysis::transported_mechanism::refusal_code = super::mechanism_exports::model_crate::mechanism_transport::refusal_code
 pub use antecedent::analysis::transported_mechanism::selection_targets = super::mechanism_exports::model_crate::mechanism_transport::selection_targets
 pub use antecedent::analysis::transported_mechanism::transport_linear_gaussian = super::mechanism_exports::model_crate::mechanism_transport::transport_linear_gaussian
+pub use antecedent::analysis::typed_transported_mechanism::ContrastEstimate = super::mechanism_exports::model_crate::typed_mechanism_transport::ContrastEstimate
+pub use antecedent::analysis::typed_transported_mechanism::CrossBlock = super::mechanism_exports::model_crate::typed_mechanism_transport::CrossBlock
+pub use antecedent::analysis::typed_transported_mechanism::DEFAULT_INVARIANCE_LEVEL = super::mechanism_exports::model_crate::typed_mechanism_transport::DEFAULT_INVARIANCE_LEVEL
+pub use antecedent::analysis::typed_transported_mechanism::DETAIL_CYCLE = super::mechanism_exports::model_crate::typed_mechanism_transport::DETAIL_CYCLE
+pub use antecedent::analysis::typed_transported_mechanism::DETAIL_DEPENDENCE_INCOMPLETE = super::mechanism_exports::model_crate::typed_mechanism_transport::DETAIL_DEPENDENCE_INCOMPLETE
+pub use antecedent::analysis::typed_transported_mechanism::DETAIL_DEPENDENCE_INVALID = super::mechanism_exports::model_crate::typed_mechanism_transport::DETAIL_DEPENDENCE_INVALID
+pub use antecedent::analysis::typed_transported_mechanism::DETAIL_DEPENDENCE_UNKNOWN = super::mechanism_exports::model_crate::typed_mechanism_transport::DETAIL_DEPENDENCE_UNKNOWN
+pub use antecedent::analysis::typed_transported_mechanism::DETAIL_DESIGN_NOT_SHARED = super::mechanism_exports::model_crate::typed_mechanism_transport::DETAIL_DESIGN_NOT_SHARED
+pub use antecedent::analysis::typed_transported_mechanism::DETAIL_INVARIANCE_CONTRADICTED = super::mechanism_exports::model_crate::typed_mechanism_transport::DETAIL_INVARIANCE_CONTRADICTED
+pub use antecedent::analysis::typed_transported_mechanism::DETAIL_INVARIANCE_LEVEL = super::mechanism_exports::model_crate::typed_mechanism_transport::DETAIL_INVARIANCE_LEVEL
+pub use antecedent::analysis::typed_transported_mechanism::DETAIL_PARENTS_CHANGED = super::mechanism_exports::model_crate::typed_mechanism_transport::DETAIL_PARENTS_CHANGED
+pub use antecedent::analysis::typed_transported_mechanism::DETAIL_PARENT_WITHOUT_MECHANISM = super::mechanism_exports::model_crate::typed_mechanism_transport::DETAIL_PARENT_WITHOUT_MECHANISM
+pub use antecedent::analysis::typed_transported_mechanism::DETAIL_REGIME_NOT_DECLARED = super::mechanism_exports::model_crate::typed_mechanism_transport::DETAIL_REGIME_NOT_DECLARED
+pub use antecedent::analysis::typed_transported_mechanism::DETAIL_SELECTION_TARGET_UNKNOWN = super::mechanism_exports::model_crate::typed_mechanism_transport::DETAIL_SELECTION_TARGET_UNKNOWN
+pub use antecedent::analysis::typed_transported_mechanism::DETAIL_SHIFTED_WITHOUT_TARGET_EVIDENCE = super::mechanism_exports::model_crate::typed_mechanism_transport::DETAIL_SHIFTED_WITHOUT_TARGET_EVIDENCE
+pub use antecedent::analysis::typed_transported_mechanism::DETAIL_TARGET_SPEC_DIFFERS = super::mechanism_exports::model_crate::typed_mechanism_transport::DETAIL_TARGET_SPEC_DIFFERS
+pub use antecedent::analysis::typed_transported_mechanism::DETAIL_UNKNOWN_VARIABLE = super::mechanism_exports::model_crate::typed_mechanism_transport::DETAIL_UNKNOWN_VARIABLE
+pub use antecedent::analysis::typed_transported_mechanism::FittedMechanism = super::mechanism_exports::model_crate::typed_mechanism_transport::FittedMechanism
+pub use antecedent::analysis::typed_transported_mechanism::InvarianceCheck = super::mechanism_exports::model_crate::typed_mechanism_transport::InvarianceCheck
+pub use antecedent::analysis::typed_transported_mechanism::MAX_EXPRESSION_PARAMETERS = super::mechanism_exports::model_crate::typed_mechanism_transport::MAX_EXPRESSION_PARAMETERS
+pub use antecedent::analysis::typed_transported_mechanism::MAX_POLYNOMIAL_DEGREE = super::mechanism_exports::model_crate::typed_mechanism_transport::MAX_POLYNOMIAL_DEGREE
+pub use antecedent::analysis::typed_transported_mechanism::MAX_TYPED_DRAWS = super::mechanism_exports::model_crate::typed_mechanism_transport::MAX_TYPED_DRAWS
+pub use antecedent::analysis::typed_transported_mechanism::MAX_TYPED_PARENTS = super::mechanism_exports::model_crate::typed_mechanism_transport::MAX_TYPED_PARENTS
+pub use antecedent::analysis::typed_transported_mechanism::MeanSpec = super::mechanism_exports::model_crate::typed_mechanism_transport::MeanSpec
+pub use antecedent::analysis::typed_transported_mechanism::MechanismRole = super::mechanism_exports::model_crate::typed_mechanism_transport::MechanismRole
+pub use antecedent::analysis::typed_transported_mechanism::MechanismSpec = super::mechanism_exports::model_crate::typed_mechanism_transport::MechanismSpec
+pub use antecedent::analysis::typed_transported_mechanism::ParameterDependence = super::mechanism_exports::model_crate::typed_mechanism_transport::ParameterDependence
+pub use antecedent::analysis::typed_transported_mechanism::ResponseFamily = super::mechanism_exports::model_crate::typed_mechanism_transport::ResponseFamily
+pub use antecedent::analysis::typed_transported_mechanism::TYPED_TRANSPORT_VERSION = super::mechanism_exports::model_crate::typed_mechanism_transport::TYPED_TRANSPORT_VERSION
+pub use antecedent::analysis::typed_transported_mechanism::TypedDisposition = super::mechanism_exports::model_crate::typed_mechanism_transport::TypedDisposition
+pub use antecedent::analysis::typed_transported_mechanism::TypedFitError = super::mechanism_exports::model_crate::typed_mechanism_transport::TypedFitError
+pub use antecedent::analysis::typed_transported_mechanism::TypedFunctionalUncertainty = super::mechanism_exports::model_crate::typed_mechanism_transport::TypedFunctionalUncertainty
+pub use antecedent::analysis::typed_transported_mechanism::TypedTransportRequest = super::mechanism_exports::model_crate::typed_mechanism_transport::TypedTransportRequest
+pub use antecedent::analysis::typed_transported_mechanism::UNCERTAINTY_SCOPE = super::mechanism_exports::model_crate::typed_mechanism_transport::UNCERTAINTY_SCOPE
+pub use antecedent::analysis::typed_transported_mechanism::selection_targets = super::mechanism_exports::model_crate::typed_mechanism_transport::selection_targets
+pub use antecedent::analysis::typed_transported_mechanism::typed_refusal_code = super::mechanism_exports::model_crate::typed_mechanism_transport::typed_refusal_code
 pub use antecedent::analysis::utility_interval = decision_contract_facade::utility_interval
 pub use antecedent::analysis::vector_treatment::AdjustmentColumnRequest = antecedent_io::vector_treatment_artifact::AdjustmentColumnRequest
 pub use antecedent::analysis::vector_treatment::CalibrationStatus = antecedent_estimate::effect_constancy::CalibrationStatus
@@ -19005,6 +19217,7 @@ pub use antecedent::estimate::own_treatment_level = antecedent_estimate::own_tre
 pub use antecedent::estimate::transport_augmented_response_grid = antecedent_estimate::transport_augmented_response_grid
 pub use antecedent::estimate_derived_joint_cells = antecedent::analysis::api::estimate_derived_joint_cells
 pub use antecedent::estimate_joint_cell_cost = antecedent::analysis::api::estimate_joint_cell_cost
+pub use antecedent::estimate_with_graph_selection_per_imputation = antecedent::analysis::api::estimate_with_graph_selection_per_imputation
 pub use antecedent::estimate_with_rank_drop = antecedent::analysis::api::estimate_with_rank_drop
 pub use antecedent::estimator_spec::EstimatorSpec = antecedent::EstimatorSpec
 pub use antecedent::evaluate_adapted = super::evaluate_adapted
@@ -19396,6 +19609,7 @@ pub use antecedent::result::ExecutedContract = antecedent::ExecutedContract
 pub use antecedent::result::HistoryMatchEstimate = antecedent::HistoryMatchEstimate
 pub use antecedent::result::LocalPolynomialRatioEstimate = antecedent::LocalPolynomialRatioEstimate
 pub use antecedent::result::LongitudinalRegimeEstimate = antecedent::LongitudinalRegimeEstimate
+pub use antecedent::result::ObservedWindowReport = antecedent::ObservedWindowReport
 pub use antecedent::result::PERCENTILE_95_MIN_REPLICATES = antecedent::PERCENTILE_95_MIN_REPLICATES
 pub use antecedent::result::PanelDidEstimate = antecedent::PanelDidEstimate
 pub use antecedent::result::PolicyValueEstimate = antecedent::PolicyValueEstimate
@@ -20178,6 +20392,8 @@ pub variant antecedent::analysis::cyclic_evidence::CyclicEvidenceSelector::Ode {
 pub variant antecedent::analysis::cyclic_evidence::CyclicEvidenceSelector::OuCovariance { time: core::option::Option<usize>, variable: usize, other: usize }
 pub variant antecedent::analysis::cyclic_evidence::CyclicEvidenceSelector::OuMean { time: core::option::Option<usize>, variable: usize }
 pub variant antecedent::analysis::cyclic_evidence::CyclicEvidenceSelector::OuRegime { world: usize, variable: usize, other: core::option::Option<usize> }
+pub variant antecedent::analysis::cyclic_evidence::CyclicEvidenceSelector::OuTrajectoryState { design: usize, time: usize, variable: usize, other: core::option::Option<usize> }
+pub variant antecedent::analysis::cyclic_evidence::CyclicEvidenceSelector::OuTrajectoryStationary { world: usize, variable: usize, other: core::option::Option<usize> }
 pub variant antecedent::analysis::cyclic_evidence::CyclicEvidenceSelector::PolynomialWorld { world: alloc::string::String, variable: usize }
 pub variant antecedent::analysis::cyclic_evidence::CyclicEvidenceSelector::RecoveredDraw { world: usize, draw: usize, variable: usize }
 pub variant antecedent::analysis::cyclic_evidence::CyclicEvidenceSelector::Response { world: usize, noise_row: usize, variable: usize }

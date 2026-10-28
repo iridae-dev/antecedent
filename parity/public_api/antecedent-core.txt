@@ -327,6 +327,7 @@ impl core::clone::Clone for antecedent_core::AttributeFault
 impl core::clone::Clone for antecedent_core::AttributeQuery
 impl core::clone::Clone for antecedent_core::AttributeTarget
 impl core::clone::Clone for antecedent_core::AttributionComponents
+impl core::clone::Clone for antecedent_core::AttritionShiftBound
 impl core::clone::Clone for antecedent_core::AverageEffectQuery
 impl core::clone::Clone for antecedent_core::BatchSize
 impl core::clone::Clone for antecedent_core::BoundEffectiveSampleSize
@@ -526,6 +527,7 @@ impl core::clone::Clone for antecedent_core::OutcomeMisclassification
 impl core::clone::Clone for antecedent_core::OutcomeQuantity
 impl core::clone::Clone for antecedent_core::PanelDesignFault
 impl core::clone::Clone for antecedent_core::PanelDidQuery
+impl core::clone::Clone for antecedent_core::PanelObservationProcess
 impl core::clone::Clone for antecedent_core::Parallelism
 impl core::clone::Clone for antecedent_core::ParametricAssumption
 impl core::clone::Clone for antecedent_core::PartialIdentificationEnvelope
@@ -863,6 +865,7 @@ impl core::cmp::Eq for antecedent_core::AssumptionStatus
 impl core::cmp::Eq for antecedent_core::AttemptedRule
 impl core::cmp::Eq for antecedent_core::AttributeFault
 impl core::cmp::Eq for antecedent_core::AttributionComponents
+impl core::cmp::Eq for antecedent_core::AttritionShiftBound
 impl core::cmp::Eq for antecedent_core::AverageEffectQuery
 impl core::cmp::Eq for antecedent_core::BatchSize
 impl core::cmp::Eq for antecedent_core::BoundEffectiveSampleSize
@@ -1019,6 +1022,7 @@ impl core::cmp::Eq for antecedent_core::OutcomeFunctional
 impl core::cmp::Eq for antecedent_core::OutcomeMisclassification
 impl core::cmp::Eq for antecedent_core::OutcomeQuantity
 impl core::cmp::Eq for antecedent_core::PanelDesignFault
+impl core::cmp::Eq for antecedent_core::PanelObservationProcess
 impl core::cmp::Eq for antecedent_core::Parallelism
 impl core::cmp::Eq for antecedent_core::ParametricAssumption
 impl core::cmp::Eq for antecedent_core::PartialIdentificationEnvelope
@@ -1352,6 +1356,7 @@ impl core::cmp::PartialEq for antecedent_core::AttributeFault
 impl core::cmp::PartialEq for antecedent_core::AttributeQuery
 impl core::cmp::PartialEq for antecedent_core::AttributeTarget
 impl core::cmp::PartialEq for antecedent_core::AttributionComponents
+impl core::cmp::PartialEq for antecedent_core::AttritionShiftBound
 impl core::cmp::PartialEq for antecedent_core::AverageEffectQuery
 impl core::cmp::PartialEq for antecedent_core::BatchSize
 impl core::cmp::PartialEq for antecedent_core::BoundEffectiveSampleSize
@@ -1546,6 +1551,7 @@ impl core::cmp::PartialEq for antecedent_core::OutcomeMisclassification
 impl core::cmp::PartialEq for antecedent_core::OutcomeQuantity
 impl core::cmp::PartialEq for antecedent_core::PanelDesignFault
 impl core::cmp::PartialEq for antecedent_core::PanelDidQuery
+impl core::cmp::PartialEq for antecedent_core::PanelObservationProcess
 impl core::cmp::PartialEq for antecedent_core::Parallelism
 impl core::cmp::PartialEq for antecedent_core::ParametricAssumption
 impl core::cmp::PartialEq for antecedent_core::PartialIdentificationEnvelope
@@ -1950,6 +1956,7 @@ impl core::default::Default for antecedent_core::MeasurementSpec
 impl core::default::Default for antecedent_core::MonteCarloBudget
 impl core::default::Default for antecedent_core::MonteCarloError
 impl core::default::Default for antecedent_core::OutcomeFunctional
+impl core::default::Default for antecedent_core::PanelObservationProcess
 impl core::default::Default for antecedent_core::PolicyReads
 impl core::default::Default for antecedent_core::PopulationRegistry
 impl core::default::Default for antecedent_core::RolloutDidEstimator
@@ -2065,6 +2072,7 @@ impl core::fmt::Debug for antecedent_core::AttributeFault
 impl core::fmt::Debug for antecedent_core::AttributeQuery
 impl core::fmt::Debug for antecedent_core::AttributeTarget
 impl core::fmt::Debug for antecedent_core::AttributionComponents
+impl core::fmt::Debug for antecedent_core::AttritionShiftBound
 impl core::fmt::Debug for antecedent_core::AverageEffectQuery
 impl core::fmt::Debug for antecedent_core::BatchSize
 impl core::fmt::Debug for antecedent_core::BoundEffectiveSampleSize
@@ -2265,6 +2273,7 @@ impl core::fmt::Debug for antecedent_core::OutcomeMisclassification
 impl core::fmt::Debug for antecedent_core::OutcomeQuantity
 impl core::fmt::Debug for antecedent_core::PanelDesignFault
 impl core::fmt::Debug for antecedent_core::PanelDidQuery
+impl core::fmt::Debug for antecedent_core::PanelObservationProcess
 impl core::fmt::Debug for antecedent_core::Parallelism
 impl core::fmt::Debug for antecedent_core::ParametricAssumption
 impl core::fmt::Debug for antecedent_core::PartialIdentificationEnvelope
@@ -2737,6 +2746,7 @@ impl core::hash::Hash for antecedent_core::AssumptionSource
 impl core::hash::Hash for antecedent_core::AssumptionStatus
 impl core::hash::Hash for antecedent_core::AttemptedRule
 impl core::hash::Hash for antecedent_core::AttributionComponents
+impl core::hash::Hash for antecedent_core::AttritionShiftBound
 impl core::hash::Hash for antecedent_core::AverageEffectQuery
 impl core::hash::Hash for antecedent_core::BatchSize
 impl core::hash::Hash for antecedent_core::BoundEffectiveSampleSize
@@ -2859,6 +2869,7 @@ impl core::hash::Hash for antecedent_core::OrderedFloatBits
 impl core::hash::Hash for antecedent_core::OrdinaryBayesianLikelihood
 impl core::hash::Hash for antecedent_core::OutcomeFunctional
 impl core::hash::Hash for antecedent_core::OutcomeQuantity
+impl core::hash::Hash for antecedent_core::PanelObservationProcess
 impl core::hash::Hash for antecedent_core::Parallelism
 impl core::hash::Hash for antecedent_core::ParametricAssumption
 impl core::hash::Hash for antecedent_core::PartialIdentificationEnvelope
@@ -3053,6 +3064,7 @@ impl core::marker::Copy for antecedent_core::AssociationOutcome
 impl core::marker::Copy for antecedent_core::AssumptionStatus
 impl core::marker::Copy for antecedent_core::AttemptedRule
 impl core::marker::Copy for antecedent_core::AttributionComponents
+impl core::marker::Copy for antecedent_core::AttritionShiftBound
 impl core::marker::Copy for antecedent_core::BatchSize
 impl core::marker::Copy for antecedent_core::BoundEffectiveSampleSize
 impl core::marker::Copy for antecedent_core::BoundResampling
@@ -3149,6 +3161,7 @@ impl core::marker::Copy for antecedent_core::OperatorGraph
 impl core::marker::Copy for antecedent_core::OperatorRole
 impl core::marker::Copy for antecedent_core::OrderedFloatBits
 impl core::marker::Copy for antecedent_core::OutcomeMisclassification
+impl core::marker::Copy for antecedent_core::PanelObservationProcess
 impl core::marker::Copy for antecedent_core::Parallelism
 impl core::marker::Copy for antecedent_core::PhysicalEffect
 impl core::marker::Copy for antecedent_core::PhysicalTolerance
@@ -3349,6 +3362,7 @@ impl core::marker::Freeze for antecedent_core::AttributeFault [auto]
 impl core::marker::Freeze for antecedent_core::AttributeQuery [auto]
 impl core::marker::Freeze for antecedent_core::AttributeTarget [auto]
 impl core::marker::Freeze for antecedent_core::AttributionComponents [auto]
+impl core::marker::Freeze for antecedent_core::AttritionShiftBound [auto]
 impl core::marker::Freeze for antecedent_core::AverageEffectQuery [auto]
 impl core::marker::Freeze for antecedent_core::BatchSize [auto]
 impl core::marker::Freeze for antecedent_core::BoundEffectiveSampleSize [auto]
@@ -3549,6 +3563,7 @@ impl core::marker::Freeze for antecedent_core::OutcomeMisclassification [auto]
 impl core::marker::Freeze for antecedent_core::OutcomeQuantity [auto]
 impl core::marker::Freeze for antecedent_core::PanelDesignFault [auto]
 impl core::marker::Freeze for antecedent_core::PanelDidQuery [auto]
+impl core::marker::Freeze for antecedent_core::PanelObservationProcess [auto]
 impl core::marker::Freeze for antecedent_core::Parallelism [auto]
 impl core::marker::Freeze for antecedent_core::ParametricAssumption [auto]
 impl core::marker::Freeze for antecedent_core::PartialIdentificationEnvelope [auto]
@@ -3891,6 +3906,7 @@ impl core::marker::Send for antecedent_core::AttributeFault [auto]
 impl core::marker::Send for antecedent_core::AttributeQuery [auto]
 impl core::marker::Send for antecedent_core::AttributeTarget [auto]
 impl core::marker::Send for antecedent_core::AttributionComponents [auto]
+impl core::marker::Send for antecedent_core::AttritionShiftBound [auto]
 impl core::marker::Send for antecedent_core::AverageEffectQuery [auto]
 impl core::marker::Send for antecedent_core::BatchSize [auto]
 impl core::marker::Send for antecedent_core::BoundEffectiveSampleSize [auto]
@@ -4091,6 +4107,7 @@ impl core::marker::Send for antecedent_core::OutcomeMisclassification [auto]
 impl core::marker::Send for antecedent_core::OutcomeQuantity [auto]
 impl core::marker::Send for antecedent_core::PanelDesignFault [auto]
 impl core::marker::Send for antecedent_core::PanelDidQuery [auto]
+impl core::marker::Send for antecedent_core::PanelObservationProcess [auto]
 impl core::marker::Send for antecedent_core::Parallelism [auto]
 impl core::marker::Send for antecedent_core::ParametricAssumption [auto]
 impl core::marker::Send for antecedent_core::PartialIdentificationEnvelope [auto]
@@ -4438,6 +4455,7 @@ impl core::marker::StructuralPartialEq for antecedent_core::AttributeFault
 impl core::marker::StructuralPartialEq for antecedent_core::AttributeQuery
 impl core::marker::StructuralPartialEq for antecedent_core::AttributeTarget
 impl core::marker::StructuralPartialEq for antecedent_core::AttributionComponents
+impl core::marker::StructuralPartialEq for antecedent_core::AttritionShiftBound
 impl core::marker::StructuralPartialEq for antecedent_core::AverageEffectQuery
 impl core::marker::StructuralPartialEq for antecedent_core::BatchSize
 impl core::marker::StructuralPartialEq for antecedent_core::BoundEffectiveSampleSize
@@ -4629,6 +4647,7 @@ impl core::marker::StructuralPartialEq for antecedent_core::OutcomeMisclassifica
 impl core::marker::StructuralPartialEq for antecedent_core::OutcomeQuantity
 impl core::marker::StructuralPartialEq for antecedent_core::PanelDesignFault
 impl core::marker::StructuralPartialEq for antecedent_core::PanelDidQuery
+impl core::marker::StructuralPartialEq for antecedent_core::PanelObservationProcess
 impl core::marker::StructuralPartialEq for antecedent_core::Parallelism
 impl core::marker::StructuralPartialEq for antecedent_core::ParametricAssumption
 impl core::marker::StructuralPartialEq for antecedent_core::PartialIdentificationEnvelope
@@ -4959,6 +4978,7 @@ impl core::marker::Sync for antecedent_core::AttributeFault [auto]
 impl core::marker::Sync for antecedent_core::AttributeQuery [auto]
 impl core::marker::Sync for antecedent_core::AttributeTarget [auto]
 impl core::marker::Sync for antecedent_core::AttributionComponents [auto]
+impl core::marker::Sync for antecedent_core::AttritionShiftBound [auto]
 impl core::marker::Sync for antecedent_core::AverageEffectQuery [auto]
 impl core::marker::Sync for antecedent_core::BatchSize [auto]
 impl core::marker::Sync for antecedent_core::BoundEffectiveSampleSize [auto]
@@ -5159,6 +5179,7 @@ impl core::marker::Sync for antecedent_core::OutcomeMisclassification [auto]
 impl core::marker::Sync for antecedent_core::OutcomeQuantity [auto]
 impl core::marker::Sync for antecedent_core::PanelDesignFault [auto]
 impl core::marker::Sync for antecedent_core::PanelDidQuery [auto]
+impl core::marker::Sync for antecedent_core::PanelObservationProcess [auto]
 impl core::marker::Sync for antecedent_core::Parallelism [auto]
 impl core::marker::Sync for antecedent_core::ParametricAssumption [auto]
 impl core::marker::Sync for antecedent_core::PartialIdentificationEnvelope [auto]
@@ -5506,6 +5527,7 @@ impl core::marker::Unpin for antecedent_core::AttributeFault [auto]
 impl core::marker::Unpin for antecedent_core::AttributeQuery [auto]
 impl core::marker::Unpin for antecedent_core::AttributeTarget [auto]
 impl core::marker::Unpin for antecedent_core::AttributionComponents [auto]
+impl core::marker::Unpin for antecedent_core::AttritionShiftBound [auto]
 impl core::marker::Unpin for antecedent_core::AverageEffectQuery [auto]
 impl core::marker::Unpin for antecedent_core::BatchSize [auto]
 impl core::marker::Unpin for antecedent_core::BoundEffectiveSampleSize [auto]
@@ -5706,6 +5728,7 @@ impl core::marker::Unpin for antecedent_core::OutcomeMisclassification [auto]
 impl core::marker::Unpin for antecedent_core::OutcomeQuantity [auto]
 impl core::marker::Unpin for antecedent_core::PanelDesignFault [auto]
 impl core::marker::Unpin for antecedent_core::PanelDidQuery [auto]
+impl core::marker::Unpin for antecedent_core::PanelObservationProcess [auto]
 impl core::marker::Unpin for antecedent_core::Parallelism [auto]
 impl core::marker::Unpin for antecedent_core::ParametricAssumption [auto]
 impl core::marker::Unpin for antecedent_core::PartialIdentificationEnvelope [auto]
@@ -6058,6 +6081,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AttributeFault
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AttributeQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AttributeTarget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AttributionComponents [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AttritionShiftBound [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AverageEffectQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::BatchSize [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::BoundEffectiveSampleSize [auto]
@@ -6257,6 +6281,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::OutcomeMisclas
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::OutcomeQuantity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::PanelDesignFault [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::PanelDidQuery [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::PanelObservationProcess [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::Parallelism [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ParametricAssumption [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::PartialIdentificationEnvelope [auto]
@@ -6604,6 +6629,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AttributeFault [a
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AttributeQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AttributeTarget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AttributionComponents [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AttritionShiftBound [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AverageEffectQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::BatchSize [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::BoundEffectiveSampleSize [auto]
@@ -6803,6 +6829,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::OutcomeMisclassif
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::OutcomeQuantity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::PanelDesignFault [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::PanelDidQuery [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::PanelObservationProcess [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::Parallelism [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ParametricAssumption [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::PartialIdentificationEnvelope [auto]
@@ -7360,6 +7387,7 @@ pub enum antecedent_core::ObservationSpec
 pub enum antecedent_core::OperatorEffect
 pub enum antecedent_core::OperatorGraph
 pub enum antecedent_core::OperatorRole
+pub enum antecedent_core::PanelObservationProcess
 pub enum antecedent_core::PhysicalEffect
 pub enum antecedent_core::PosteriorSampleKind
 pub enum antecedent_core::ProviderCapability
@@ -7626,6 +7654,7 @@ pub field antecedent_core::HeterogeneityRobustDid::comparison: antecedent_core::
 pub field antecedent_core::HeterogeneityRobustDid::covariates: alloc::sync::Arc<[antecedent_core::VariableId]>
 pub field antecedent_core::HeterogeneityRobustDid::estimator: antecedent_core::RolloutDidEstimator
 pub field antecedent_core::HeterogeneityRobustDid::nuisance: antecedent_core::DidNuisanceMethod
+pub field antecedent_core::HeterogeneityRobustDid::observation: antecedent_core::PanelObservationProcess
 pub field antecedent_core::HistoryMatchQuery::caliper: core::option::Option<f64>
 pub field antecedent_core::HistoryMatchQuery::history: alloc::sync::Arc<[antecedent_core::VariableId]>
 pub field antecedent_core::HistoryMatchQuery::outcome: antecedent_core::VariableId
@@ -7905,6 +7934,7 @@ pub field antecedent_core::SurvivalQuery::treatment: antecedent_core::VariableId
 pub field antecedent_core::SyntheticControlQuery::augmentation_ridge: core::option::Option<f64>
 pub field antecedent_core::SyntheticControlQuery::intervention_period: i64
 pub field antecedent_core::SyntheticControlQuery::method: antecedent_core::SyntheticPanelMethod
+pub field antecedent_core::SyntheticControlQuery::observed_window_support: bool
 pub field antecedent_core::SyntheticControlQuery::outcome: antecedent_core::VariableId
 pub field antecedent_core::SyntheticControlQuery::periods: alloc::sync::Arc<[i64]>
 pub field antecedent_core::SyntheticControlQuery::rollout: core::option::Option<antecedent_core::SyntheticRollout>
@@ -8168,6 +8198,8 @@ pub fn <antecedent_core::AttributeQuery>::const fn new(target: antecedent_core::
 pub fn <antecedent_core::AttributeQuery>::fn outcome(&self) -> core::result::Result<antecedent_core::VariableId, antecedent_core::QueryError>
 pub fn <antecedent_core::AttributeQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::AttributeTarget>::const fn as_str(&self) -> &'static str
+pub fn <antecedent_core::AttritionShiftBound>::fn get(self) -> f64
+pub fn <antecedent_core::AttritionShiftBound>::fn new(bound: f64) -> core::option::Option<Self>
 pub fn <antecedent_core::AverageEffectQuery>::fn binary_ate(treatment: antecedent_core::VariableId, outcome: antecedent_core::VariableId) -> Self
 pub fn <antecedent_core::AverageEffectQuery>::fn new(treatment: antecedent_core::VariableId, outcome: antecedent_core::VariableId, effect_modifiers: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::VariableId]>>, control: antecedent_core::Intervention, active: antecedent_core::Intervention, target_population: antecedent_core::TargetPopulation) -> Self
 pub fn <antecedent_core::AverageEffectQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
@@ -8485,6 +8517,7 @@ pub fn <antecedent_core::EvidenceRegime>::fn satisfies(&self, need: &antecedent_
 pub fn <antecedent_core::EvidenceRegime>::fn supplies_population_law(&self) -> bool
 pub fn <antecedent_core::EvidenceRegime>::fn try_new(id: antecedent_core::RegimeId, kind: antecedent_core::RegimeKind, evidence_kind: antecedent_core::EvidenceKind, interventions: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::VariableId]>>, intervention_values: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::InterventionAssignment]>>, measured: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::VariableId]>>, population: impl core::convert::Into<alloc::sync::Arc<str>>, distribution: antecedent_core::DistributionAvailability) -> core::result::Result<Self, antecedent_core::QueryError>
 pub fn <antecedent_core::EvidenceRegime>::fn validate_descriptor(&self) -> core::result::Result<(), antecedent_core::QueryError>
+pub fn <antecedent_core::ExecutionContext>::const fn imputation_bootstrap(&self) -> core::option::Option<u32>
 pub fn <antecedent_core::ExecutionContext>::const fn lowered_dispatch(&self) -> core::option::Option<antecedent_core::SemanticDigest>
 pub fn <antecedent_core::ExecutionContext>::fn acquire_admission(&self, threads: u32, bytes: u64) -> core::result::Result<antecedent_core::execution::AdmissionLease, antecedent_core::execution::AdmissionError>
 pub fn <antecedent_core::ExecutionContext>::fn acquire_admission_bounded(&self, threads: u32, bytes: u64, bound: core::time::Duration) -> core::result::Result<antecedent_core::execution::AdmissionLease, antecedent_core::execution::AdmissionError>
@@ -8506,6 +8539,7 @@ pub fn <antecedent_core::ExecutionContext>::fn set_memory_limit(&mut self, limit
 pub fn <antecedent_core::ExecutionContext>::fn try_map_indexed<T, E, F>(&self, n: usize, f: F) -> core::result::Result<alloc::vec::Vec<T>, antecedent_core::execution::MapExecutionError<E>> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self) -> core::result::Result<T, E> + core::marker::Sync, T: core::marker::Send
 pub fn <antecedent_core::ExecutionContext>::fn try_map_indexed_with_scratch<T, S, E, F>(&self, n: usize, make_scratch: impl core::ops::function::Fn() -> S + core::marker::Sync, f: F) -> core::result::Result<alloc::vec::Vec<T>, antecedent_core::execution::MapExecutionError<E>> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self, &mut S) -> core::result::Result<T, E> + core::marker::Sync, S: core::marker::Send, T: core::marker::Send
 pub fn <antecedent_core::ExecutionContext>::fn with_admission(self, pool: antecedent_core::execution::AdmissionPool) -> Self
+pub fn <antecedent_core::ExecutionContext>::fn with_imputation_bootstrap(&self, replicates: u32) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn with_memory_limit(self, limit: core::option::Option<u64>) -> Self
 pub fn <antecedent_core::ExecutionReceipt>::const fn new(request: antecedent_core::RequestIdentity, state: antecedent_core::ExecutionRequestState) -> Self
 pub fn <antecedent_core::ExecutionRequestState>::const fn as_str(self) -> &'static str
@@ -8726,6 +8760,7 @@ pub fn <antecedent_core::PanelDidQuery>::fn staggered_event_study(outcome: antec
 pub fn <antecedent_core::PanelDidQuery>::fn staggered_group_time(outcome: antecedent_core::VariableId, subjects: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>, clusters: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>, periods: impl core::convert::Into<alloc::sync::Arc<[i64]>>, cohorts: impl core::convert::Into<alloc::sync::Arc<[i64]>>, target_cohort: i64, target_period: i64) -> Self
 pub fn <antecedent_core::PanelDidQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::PanelDidQuery>::fn with_resampling(self, scheme: antecedent_core::DidResamplingScheme, replicates: u32) -> Self
+pub fn <antecedent_core::PanelObservationProcess>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::Parallelism>::const fn bounded(max_threads: antecedent_core::NonZeroThreadCount) -> Self
 pub fn <antecedent_core::Parallelism>::const fn serial() -> Self
 pub fn <antecedent_core::PartialIdentificationEnvelope>::const fn kind(&self) -> antecedent_core::RealizationKind
@@ -9041,6 +9076,7 @@ pub fn <antecedent_core::SyntheticControlQuery>::fn new(outcome: antecedent_core
 pub fn <antecedent_core::SyntheticControlQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::SyntheticControlQuery>::fn with_augmentation(self, ridge_penalty: f64) -> Self
 pub fn <antecedent_core::SyntheticControlQuery>::fn with_conformal_intervals(self) -> Self
+pub fn <antecedent_core::SyntheticControlQuery>::fn with_observed_window_support(self) -> Self
 pub fn <antecedent_core::SyntheticControlQuery>::fn with_sharp_null_effect(self, effect: f64) -> Self
 pub fn <antecedent_core::SyntheticControlQuery>::fn with_staggered_adoptions(self, adoptions: impl core::convert::Into<alloc::sync::Arc<[(alloc::sync::Arc<str>, i64)]>>, replicates: u32) -> Self
 pub fn <antecedent_core::SyntheticControlQuery>::fn with_uniform_unit_randomization(self) -> Self
@@ -9704,6 +9740,8 @@ pub struct antecedent_core::AssumptionBranch has private fields
 pub struct antecedent_core::AssumptionRecord
 pub struct antecedent_core::AssumptionSet
 pub struct antecedent_core::AttributeQuery
+pub struct antecedent_core::AttritionShiftBound
+pub struct antecedent_core::AttritionShiftBound has private fields
 pub struct antecedent_core::BatchSize
 pub struct antecedent_core::BatchSize has private fields
 pub struct antecedent_core::BoundEffectiveSampleSize
@@ -10373,6 +10411,7 @@ pub use antecedent_core::query::AttributeFault = antecedent_core::AttributeFault
 pub use antecedent_core::query::AttributeQuery = antecedent_core::AttributeQuery
 pub use antecedent_core::query::AttributeTarget = antecedent_core::AttributeTarget
 pub use antecedent_core::query::AttributionComponents = antecedent_core::AttributionComponents
+pub use antecedent_core::query::AttritionShiftBound = antecedent_core::AttritionShiftBound
 pub use antecedent_core::query::AverageEffectQuery = antecedent_core::AverageEffectQuery
 pub use antecedent_core::query::CatalogDistribution = antecedent_core::CatalogDistribution
 pub use antecedent_core::query::CausalQuery = antecedent_core::CausalQuery
@@ -10461,6 +10500,7 @@ pub use antecedent_core::query::OutcomeFunctional = antecedent_core::OutcomeFunc
 pub use antecedent_core::query::OutcomeMisclassification = antecedent_core::OutcomeMisclassification
 pub use antecedent_core::query::PanelDesignFault = antecedent_core::PanelDesignFault
 pub use antecedent_core::query::PanelDidQuery = antecedent_core::PanelDidQuery
+pub use antecedent_core::query::PanelObservationProcess = antecedent_core::PanelObservationProcess
 pub use antecedent_core::query::PathSpecificEffectQuery = antecedent_core::PathSpecificEffectQuery
 pub use antecedent_core::query::PolicyValueFault = antecedent_core::PolicyValueFault
 pub use antecedent_core::query::PolicyValueQuery = antecedent_core::PolicyValueQuery
@@ -11223,6 +11263,9 @@ pub variant antecedent_core::PanelDesignFault::StaggeredTarget
 pub variant antecedent_core::PanelDesignFault::SyntheticAdoptions
 pub variant antecedent_core::PanelDesignFault::SyntheticControlPanel
 pub variant antecedent_core::PanelDesignFault::WholeProcedureResample
+pub variant antecedent_core::PanelObservationProcess::IgnorableGivenCohort
+pub variant antecedent_core::PanelObservationProcess::Informative
+pub variant antecedent_core::PanelObservationProcess::InformativeBounded(antecedent_core::AttritionShiftBound)
 pub variant antecedent_core::PhysicalEffect::Condition
 pub variant antecedent_core::PhysicalEffect::Fit
 pub variant antecedent_core::PhysicalEffect::Intervene

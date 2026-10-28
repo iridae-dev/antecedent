@@ -567,6 +567,8 @@ impl core::clone::Clone for antecedent_estimate::experimental_fit::RecoveryPrior
 impl core::clone::Clone for antecedent_estimate::experimental_fit::ResidualCorrelation
 impl core::clone::Clone for antecedent_estimate::experimental_fit::SystemStability
 impl core::clone::Clone for antecedent_estimate::experimental_fit::TargetBlockFit
+impl core::clone::Clone for antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit
+impl core::clone::Clone for antecedent_estimate::external_cyclic_fit::ExternalFitPolicy
 impl core::clone::Clone for antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2
 impl core::clone::Clone for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure
 impl core::clone::Clone for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot
@@ -575,6 +577,7 @@ impl core::clone::Clone for antecedent_estimate::gaussian_linear_posterior::Gaus
 impl core::clone::Clone for antecedent_estimate::gaussian_linear_posterior::GaussianLinearPrior
 impl core::clone::Clone for antecedent_estimate::gaussian_linear_posterior::PosteriorSummary
 impl core::clone::Clone for antecedent_estimate::gaussian_linear_posterior::StudentPosterior
+impl core::clone::Clone for antecedent_estimate::heterogeneity_robust_did::CohortSupport
 impl core::clone::Clone for antecedent_estimate::heterogeneity_robust_did::PreparedRollout
 impl core::clone::Clone for antecedent_estimate::heterogeneity_robust_did::RolloutDidFit
 impl core::clone::Clone for antecedent_estimate::heterogeneity_robust_did::RolloutDidPosterior
@@ -817,6 +820,22 @@ impl core::clone::Clone for antecedent_estimate::nonlinear_mediation::NonlinearM
 impl core::clone::Clone for antecedent_estimate::nonlinear_mediation::NonlinearMediationMediatorDiagnostics
 impl core::clone::Clone for antecedent_estimate::nonlinear_mediation::NonlinearMediationOverlap
 impl core::clone::Clone for antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises
+impl core::clone::Clone for antecedent_estimate::nonlinear_sde_fit::SdeContrastParameterSpread
+impl core::clone::Clone for antecedent_estimate::nonlinear_sde_fit::SdeDiscretization
+impl core::clone::Clone for antecedent_estimate::nonlinear_sde_fit::SdeDiscretizationStatus
+impl core::clone::Clone for antecedent_estimate::nonlinear_sde_fit::SdeFilterPrior
+impl core::clone::Clone for antecedent_estimate::nonlinear_sde_fit::SdeFit
+impl core::clone::Clone for antecedent_estimate::nonlinear_sde_fit::SdeFitPolicy
+impl core::clone::Clone for antecedent_estimate::nonlinear_sde_fit::SdeFitting
+impl core::clone::Clone for antecedent_estimate::nonlinear_sde_fit::SdeIdentification
+impl core::clone::Clone for antecedent_estimate::nonlinear_sde_fit::SdeIdentificationFailure
+impl core::clone::Clone for antecedent_estimate::nonlinear_sde_fit::SdeIdentificationStatus
+impl core::clone::Clone for antecedent_estimate::nonlinear_sde_fit::SdeObservation
+impl core::clone::Clone for antecedent_estimate::nonlinear_sde_fit::SdeObservationModel
+impl core::clone::Clone for antecedent_estimate::nonlinear_sde_fit::SdeParameterUncertainty
+impl core::clone::Clone for antecedent_estimate::nonlinear_sde_fit::SdeReport
+impl core::clone::Clone for antecedent_estimate::nonlinear_sde_fit::SdeTrajectory
+impl core::clone::Clone for antecedent_estimate::nonlinear_sde_fit::SdeWorldParameterSpread
 impl core::clone::Clone for antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions
 impl core::clone::Clone for antecedent_estimate::nuisance_cache::CertifiedSource
 impl core::clone::Clone for antecedent_estimate::nuisance_cache::DesignDependency
@@ -855,6 +874,24 @@ impl core::clone::Clone for antecedent_estimate::ou_mechanisms::OuMechanismOutco
 impl core::clone::Clone for antecedent_estimate::ou_mechanisms::OuMechanismParameter
 impl core::clone::Clone for antecedent_estimate::ou_mechanisms::OuMechanismRegime
 impl core::clone::Clone for antecedent_estimate::ou_mechanisms::OuMechanisms
+impl core::clone::Clone for antecedent_estimate::ou_trajectory::OuAliasingCheck
+impl core::clone::Clone for antecedent_estimate::ou_trajectory::OuFilteredState
+impl core::clone::Clone for antecedent_estimate::ou_trajectory::OuIdentificationFailure
+impl core::clone::Clone for antecedent_estimate::ou_trajectory::OuIdentificationStatus
+impl core::clone::Clone for antecedent_estimate::ou_trajectory::OuInitialLaw
+impl core::clone::Clone for antecedent_estimate::ou_trajectory::OuObservation
+impl core::clone::Clone for antecedent_estimate::ou_trajectory::OuObservationModel
+impl core::clone::Clone for antecedent_estimate::ou_trajectory::OuPredictionDesign
+impl core::clone::Clone for antecedent_estimate::ou_trajectory::OuScheduleSegment
+impl core::clone::Clone for antecedent_estimate::ou_trajectory::OuStationaryDesign
+impl core::clone::Clone for antecedent_estimate::ou_trajectory::OuStationaryPrediction
+impl core::clone::Clone for antecedent_estimate::ou_trajectory::OuTrajectory
+impl core::clone::Clone for antecedent_estimate::ou_trajectory::OuTrajectoryFit
+impl core::clone::Clone for antecedent_estimate::ou_trajectory::OuTrajectoryFitting
+impl core::clone::Clone for antecedent_estimate::ou_trajectory::OuTrajectoryIdentification
+impl core::clone::Clone for antecedent_estimate::ou_trajectory::OuTrajectoryNumerics
+impl core::clone::Clone for antecedent_estimate::ou_trajectory::OuTrajectoryPrediction
+impl core::clone::Clone for antecedent_estimate::ou_trajectory::OuTrajectoryReport
 impl core::clone::Clone for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior
 impl core::clone::Clone for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPrior
 impl core::clone::Clone for antecedent_estimate::penalized_propensity_posterior::PropensityScoreSummary
@@ -997,6 +1034,7 @@ impl core::clone::Clone for antecedent_estimate::switchback_posterior::Switchbac
 impl core::clone::Clone for antecedent_estimate::switchback_posterior::SwitchbackPosterior
 impl core::clone::Clone for antecedent_estimate::switchback_posterior::SwitchbackPrior
 impl core::clone::Clone for antecedent_estimate::synthetic_control::AugmentedSyntheticControlFit
+impl core::clone::Clone for antecedent_estimate::synthetic_control::ObservedWindowSupport
 impl core::clone::Clone for antecedent_estimate::synthetic_control::SyntheticConstantEffectMethod
 impl core::clone::Clone for antecedent_estimate::synthetic_control::SyntheticControlFit
 impl core::clone::Clone for antecedent_estimate::synthetic_control::SyntheticDidFit
@@ -1215,6 +1253,7 @@ impl core::cmp::Eq for antecedent_estimate::experimental_fit::DrawLawMeaning
 impl core::cmp::Eq for antecedent_estimate::experimental_fit::ExperimentalFitOptions
 impl core::cmp::Eq for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure
 impl core::cmp::Eq for antecedent_estimate::functional_distribution::EmpiricalProviderProvenance
+impl core::cmp::Eq for antecedent_estimate::heterogeneity_robust_did::CohortSupport
 impl core::cmp::Eq for antecedent_estimate::heterogeneity_robust_did::RolloutDidSpec
 impl core::cmp::Eq for antecedent_estimate::heterogeneity_robust_did::RolloutResampling
 impl core::cmp::Eq for antecedent_estimate::joint_bayesian_transport::DataIdentity
@@ -1277,6 +1316,9 @@ impl core::cmp::Eq for antecedent_estimate::nested_markov_binary::Regime
 impl core::cmp::Eq for antecedent_estimate::nested_markov_uncertainty::NestedFisherFunctional
 impl core::cmp::Eq for antecedent_estimate::nonlinear_mediation::NonlinearMediationEstimand
 impl core::cmp::Eq for antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises
+impl core::cmp::Eq for antecedent_estimate::nonlinear_sde_fit::SdeDiscretizationStatus
+impl core::cmp::Eq for antecedent_estimate::nonlinear_sde_fit::SdeIdentificationFailure
+impl core::cmp::Eq for antecedent_estimate::nonlinear_sde_fit::SdeIdentificationStatus
 impl core::cmp::Eq for antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions
 impl core::cmp::Eq for antecedent_estimate::nuisance_cache::CertifiedSource
 impl core::cmp::Eq for antecedent_estimate::nuisance_cache::DesignDependency
@@ -1297,6 +1339,8 @@ impl core::cmp::Eq for antecedent_estimate::observational_policy::PolicyObjectiv
 impl core::cmp::Eq for antecedent_estimate::observational_policy::PolicyOrigin
 impl core::cmp::Eq for antecedent_estimate::observational_survival::CensoringAssumption
 impl core::cmp::Eq for antecedent_estimate::ou_mechanisms::OuMechanismParameter
+impl core::cmp::Eq for antecedent_estimate::ou_trajectory::OuIdentificationFailure
+impl core::cmp::Eq for antecedent_estimate::ou_trajectory::OuIdentificationStatus
 impl core::cmp::Eq for antecedent_estimate::posterior_mean::DirichletNamespace
 impl core::cmp::Eq for antecedent_estimate::posterior_mean::LocalQuadraticNamespace
 impl core::cmp::Eq for antecedent_estimate::posterior_mean::ScalarNamespace
@@ -1745,6 +1789,8 @@ impl core::cmp::PartialEq for antecedent_estimate::experimental_fit::RecoveryPri
 impl core::cmp::PartialEq for antecedent_estimate::experimental_fit::ResidualCorrelation
 impl core::cmp::PartialEq for antecedent_estimate::experimental_fit::SystemStability
 impl core::cmp::PartialEq for antecedent_estimate::experimental_fit::TargetBlockFit
+impl core::cmp::PartialEq for antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit
+impl core::cmp::PartialEq for antecedent_estimate::external_cyclic_fit::ExternalFitPolicy
 impl core::cmp::PartialEq for antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2
 impl core::cmp::PartialEq for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure
 impl core::cmp::PartialEq for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot
@@ -1753,6 +1799,7 @@ impl core::cmp::PartialEq for antecedent_estimate::gaussian_linear_posterior::Ga
 impl core::cmp::PartialEq for antecedent_estimate::gaussian_linear_posterior::GaussianLinearPrior
 impl core::cmp::PartialEq for antecedent_estimate::gaussian_linear_posterior::PosteriorSummary
 impl core::cmp::PartialEq for antecedent_estimate::gaussian_linear_posterior::StudentPosterior
+impl core::cmp::PartialEq for antecedent_estimate::heterogeneity_robust_did::CohortSupport
 impl core::cmp::PartialEq for antecedent_estimate::heterogeneity_robust_did::RolloutDidFit
 impl core::cmp::PartialEq for antecedent_estimate::heterogeneity_robust_did::RolloutDidPosterior
 impl core::cmp::PartialEq for antecedent_estimate::heterogeneity_robust_did::RolloutDidSpec
@@ -1978,6 +2025,22 @@ impl core::cmp::PartialEq for antecedent_estimate::nonlinear_mediation::Nonlinea
 impl core::cmp::PartialEq for antecedent_estimate::nonlinear_mediation::NonlinearMediationMediatorDiagnostics
 impl core::cmp::PartialEq for antecedent_estimate::nonlinear_mediation::NonlinearMediationOverlap
 impl core::cmp::PartialEq for antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises
+impl core::cmp::PartialEq for antecedent_estimate::nonlinear_sde_fit::SdeContrastParameterSpread
+impl core::cmp::PartialEq for antecedent_estimate::nonlinear_sde_fit::SdeDiscretization
+impl core::cmp::PartialEq for antecedent_estimate::nonlinear_sde_fit::SdeDiscretizationStatus
+impl core::cmp::PartialEq for antecedent_estimate::nonlinear_sde_fit::SdeFilterPrior
+impl core::cmp::PartialEq for antecedent_estimate::nonlinear_sde_fit::SdeFit
+impl core::cmp::PartialEq for antecedent_estimate::nonlinear_sde_fit::SdeFitPolicy
+impl core::cmp::PartialEq for antecedent_estimate::nonlinear_sde_fit::SdeFitting
+impl core::cmp::PartialEq for antecedent_estimate::nonlinear_sde_fit::SdeIdentification
+impl core::cmp::PartialEq for antecedent_estimate::nonlinear_sde_fit::SdeIdentificationFailure
+impl core::cmp::PartialEq for antecedent_estimate::nonlinear_sde_fit::SdeIdentificationStatus
+impl core::cmp::PartialEq for antecedent_estimate::nonlinear_sde_fit::SdeObservation
+impl core::cmp::PartialEq for antecedent_estimate::nonlinear_sde_fit::SdeObservationModel
+impl core::cmp::PartialEq for antecedent_estimate::nonlinear_sde_fit::SdeParameterUncertainty
+impl core::cmp::PartialEq for antecedent_estimate::nonlinear_sde_fit::SdeReport
+impl core::cmp::PartialEq for antecedent_estimate::nonlinear_sde_fit::SdeTrajectory
+impl core::cmp::PartialEq for antecedent_estimate::nonlinear_sde_fit::SdeWorldParameterSpread
 impl core::cmp::PartialEq for antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions
 impl core::cmp::PartialEq for antecedent_estimate::nuisance_cache::CertifiedSource
 impl core::cmp::PartialEq for antecedent_estimate::nuisance_cache::DesignDependency
@@ -2012,6 +2075,24 @@ impl core::cmp::PartialEq for antecedent_estimate::ou_mechanisms::OuMechanismOut
 impl core::cmp::PartialEq for antecedent_estimate::ou_mechanisms::OuMechanismParameter
 impl core::cmp::PartialEq for antecedent_estimate::ou_mechanisms::OuMechanismRegime
 impl core::cmp::PartialEq for antecedent_estimate::ou_mechanisms::OuMechanisms
+impl core::cmp::PartialEq for antecedent_estimate::ou_trajectory::OuAliasingCheck
+impl core::cmp::PartialEq for antecedent_estimate::ou_trajectory::OuFilteredState
+impl core::cmp::PartialEq for antecedent_estimate::ou_trajectory::OuIdentificationFailure
+impl core::cmp::PartialEq for antecedent_estimate::ou_trajectory::OuIdentificationStatus
+impl core::cmp::PartialEq for antecedent_estimate::ou_trajectory::OuInitialLaw
+impl core::cmp::PartialEq for antecedent_estimate::ou_trajectory::OuObservation
+impl core::cmp::PartialEq for antecedent_estimate::ou_trajectory::OuObservationModel
+impl core::cmp::PartialEq for antecedent_estimate::ou_trajectory::OuPredictionDesign
+impl core::cmp::PartialEq for antecedent_estimate::ou_trajectory::OuScheduleSegment
+impl core::cmp::PartialEq for antecedent_estimate::ou_trajectory::OuStationaryDesign
+impl core::cmp::PartialEq for antecedent_estimate::ou_trajectory::OuStationaryPrediction
+impl core::cmp::PartialEq for antecedent_estimate::ou_trajectory::OuTrajectory
+impl core::cmp::PartialEq for antecedent_estimate::ou_trajectory::OuTrajectoryFit
+impl core::cmp::PartialEq for antecedent_estimate::ou_trajectory::OuTrajectoryFitting
+impl core::cmp::PartialEq for antecedent_estimate::ou_trajectory::OuTrajectoryIdentification
+impl core::cmp::PartialEq for antecedent_estimate::ou_trajectory::OuTrajectoryNumerics
+impl core::cmp::PartialEq for antecedent_estimate::ou_trajectory::OuTrajectoryPrediction
+impl core::cmp::PartialEq for antecedent_estimate::ou_trajectory::OuTrajectoryReport
 impl core::cmp::PartialEq for antecedent_estimate::penalized_propensity_posterior::PropensityScoreSummary
 impl core::cmp::PartialEq for antecedent_estimate::policy_value::BinaryIpwPolicy
 impl core::cmp::PartialEq for antecedent_estimate::policy_value::BinaryPolicyLimits
@@ -2142,6 +2223,7 @@ impl core::cmp::PartialEq for antecedent_estimate::switchback_posterior::Switchb
 impl core::cmp::PartialEq for antecedent_estimate::switchback_posterior::SwitchbackPosterior
 impl core::cmp::PartialEq for antecedent_estimate::switchback_posterior::SwitchbackPrior
 impl core::cmp::PartialEq for antecedent_estimate::synthetic_control::AugmentedSyntheticControlFit
+impl core::cmp::PartialEq for antecedent_estimate::synthetic_control::ObservedWindowSupport
 impl core::cmp::PartialEq for antecedent_estimate::synthetic_control::SyntheticConstantEffectMethod
 impl core::cmp::PartialEq for antecedent_estimate::synthetic_control::SyntheticControlFit
 impl core::cmp::PartialEq for antecedent_estimate::synthetic_control::SyntheticDidFit
@@ -2281,6 +2363,8 @@ impl core::convert::From<antecedent_io_core::score_wire::ScoreTableWireError> fo
 impl core::convert::From<antecedent_learn::error::LearnError> for antecedent_estimate::EstimationError
 impl core::convert::From<antecedent_learn::fitted_effect::FittedEffectError> for antecedent_estimate::EstimationError
 impl core::convert::From<antecedent_model::nonlinear_equilibrium::EquilibriumError> for antecedent_estimate::cyclic_dynamic_inference::DynamicInferenceError
+impl core::convert::From<antecedent_model::nonlinear_equilibrium::EquilibriumError> for antecedent_estimate::ou_trajectory::OuTrajectoryError
+impl core::convert::From<antecedent_model::nonlinear_sde::SdeError> for antecedent_estimate::nonlinear_sde_fit::SdeFitError
 impl core::convert::From<antecedent_prob::error::ProbError> for antecedent_estimate::EstimationError
 impl core::convert::From<antecedent_stats::error::StatsError> for antecedent_estimate::EstimationError
 impl core::convert::From<antecedent_stats::error::StatsError> for antecedent_estimate::sequential_crossfit::SequentialCrossfitError
@@ -2375,6 +2459,7 @@ impl core::default::Default for antecedent_estimate::experimental_fit::Coefficie
 impl core::default::Default for antecedent_estimate::experimental_fit::ConstraintWeighting
 impl core::default::Default for antecedent_estimate::experimental_fit::DisturbanceDivisor
 impl core::default::Default for antecedent_estimate::experimental_fit::ExperimentalFitOptions
+impl core::default::Default for antecedent_estimate::external_cyclic_fit::ExternalFitPolicy
 impl core::default::Default for antecedent_estimate::functional_distribution::EmpiricalFactorCache
 impl core::default::Default for antecedent_estimate::history_match::FrequentistHistoryContrast
 impl core::default::Default for antecedent_estimate::joint_bayesian_transport::FailedFitDiagnostics
@@ -2390,6 +2475,7 @@ impl core::default::Default for antecedent_estimate::joint_panel::PanelSaturatio
 impl core::default::Default for antecedent_estimate::joint_panel::PanelSpatialKernel
 impl core::default::Default for antecedent_estimate::nested_markov_binary::FitOptions
 impl core::default::Default for antecedent_estimate::nonlinear_mediation::NonlinearMediationConfig
+impl core::default::Default for antecedent_estimate::nonlinear_sde_fit::SdeFitPolicy
 impl core::default::Default for antecedent_estimate::policy_value::BinaryPolicyLimits
 impl core::default::Default for antecedent_estimate::score_posterior::ScorePosteriorOptions
 impl core::default::Default for antecedent_estimate::sequential_crossfit::SequentialNuisanceStore
@@ -2412,7 +2498,9 @@ impl core::error::Error for antecedent_estimate::joint_bayesian_transport::Joint
 impl core::error::Error for antecedent_estimate::joint_panel::PanelError
 impl core::error::Error for antecedent_estimate::measurement::MeasurementError
 impl core::error::Error for antecedent_estimate::multiple_imputation::MultipleImputationError
+impl core::error::Error for antecedent_estimate::nonlinear_sde_fit::SdeFitError
 impl core::error::Error for antecedent_estimate::nuisance_cache::NuisanceCacheError
+impl core::error::Error for antecedent_estimate::ou_trajectory::OuTrajectoryError
 impl core::error::Error for antecedent_estimate::recovery::CertificationFault
 impl core::error::Error for antecedent_estimate::recovery::EvidenceRefusal
 impl core::error::Error for antecedent_estimate::recovery::MechanismFault
@@ -2899,6 +2987,8 @@ impl core::fmt::Debug for antecedent_estimate::experimental_fit::RecoveryPrior
 impl core::fmt::Debug for antecedent_estimate::experimental_fit::ResidualCorrelation
 impl core::fmt::Debug for antecedent_estimate::experimental_fit::SystemStability
 impl core::fmt::Debug for antecedent_estimate::experimental_fit::TargetBlockFit
+impl core::fmt::Debug for antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit
+impl core::fmt::Debug for antecedent_estimate::external_cyclic_fit::ExternalFitPolicy
 impl core::fmt::Debug for antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2
 impl core::fmt::Debug for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure
 impl core::fmt::Debug for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot
@@ -2908,6 +2998,7 @@ impl core::fmt::Debug for antecedent_estimate::gaussian_linear_posterior::Gaussi
 impl core::fmt::Debug for antecedent_estimate::gaussian_linear_posterior::GaussianLinearPrior
 impl core::fmt::Debug for antecedent_estimate::gaussian_linear_posterior::PosteriorSummary
 impl core::fmt::Debug for antecedent_estimate::gaussian_linear_posterior::StudentPosterior
+impl core::fmt::Debug for antecedent_estimate::heterogeneity_robust_did::CohortSupport
 impl core::fmt::Debug for antecedent_estimate::heterogeneity_robust_did::PreparedRollout
 impl core::fmt::Debug for antecedent_estimate::heterogeneity_robust_did::RolloutDidFit
 impl core::fmt::Debug for antecedent_estimate::heterogeneity_robust_did::RolloutDidPosterior
@@ -3153,6 +3244,23 @@ impl core::fmt::Debug for antecedent_estimate::nonlinear_mediation::NonlinearMed
 impl core::fmt::Debug for antecedent_estimate::nonlinear_mediation::NonlinearMediationMediatorDiagnostics
 impl core::fmt::Debug for antecedent_estimate::nonlinear_mediation::NonlinearMediationOverlap
 impl core::fmt::Debug for antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises
+impl core::fmt::Debug for antecedent_estimate::nonlinear_sde_fit::SdeContrastParameterSpread
+impl core::fmt::Debug for antecedent_estimate::nonlinear_sde_fit::SdeDiscretization
+impl core::fmt::Debug for antecedent_estimate::nonlinear_sde_fit::SdeDiscretizationStatus
+impl core::fmt::Debug for antecedent_estimate::nonlinear_sde_fit::SdeFilterPrior
+impl core::fmt::Debug for antecedent_estimate::nonlinear_sde_fit::SdeFit
+impl core::fmt::Debug for antecedent_estimate::nonlinear_sde_fit::SdeFitError
+impl core::fmt::Debug for antecedent_estimate::nonlinear_sde_fit::SdeFitPolicy
+impl core::fmt::Debug for antecedent_estimate::nonlinear_sde_fit::SdeFitting
+impl core::fmt::Debug for antecedent_estimate::nonlinear_sde_fit::SdeIdentification
+impl core::fmt::Debug for antecedent_estimate::nonlinear_sde_fit::SdeIdentificationFailure
+impl core::fmt::Debug for antecedent_estimate::nonlinear_sde_fit::SdeIdentificationStatus
+impl core::fmt::Debug for antecedent_estimate::nonlinear_sde_fit::SdeObservation
+impl core::fmt::Debug for antecedent_estimate::nonlinear_sde_fit::SdeObservationModel
+impl core::fmt::Debug for antecedent_estimate::nonlinear_sde_fit::SdeParameterUncertainty
+impl core::fmt::Debug for antecedent_estimate::nonlinear_sde_fit::SdeReport
+impl core::fmt::Debug for antecedent_estimate::nonlinear_sde_fit::SdeTrajectory
+impl core::fmt::Debug for antecedent_estimate::nonlinear_sde_fit::SdeWorldParameterSpread
 impl core::fmt::Debug for antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions
 impl core::fmt::Debug for antecedent_estimate::nuisance_cache::CertifiedSource
 impl core::fmt::Debug for antecedent_estimate::nuisance_cache::DesignDependency
@@ -3191,6 +3299,25 @@ impl core::fmt::Debug for antecedent_estimate::ou_mechanisms::OuMechanismOutcome
 impl core::fmt::Debug for antecedent_estimate::ou_mechanisms::OuMechanismParameter
 impl core::fmt::Debug for antecedent_estimate::ou_mechanisms::OuMechanismRegime
 impl core::fmt::Debug for antecedent_estimate::ou_mechanisms::OuMechanisms
+impl core::fmt::Debug for antecedent_estimate::ou_trajectory::OuAliasingCheck
+impl core::fmt::Debug for antecedent_estimate::ou_trajectory::OuFilteredState
+impl core::fmt::Debug for antecedent_estimate::ou_trajectory::OuIdentificationFailure
+impl core::fmt::Debug for antecedent_estimate::ou_trajectory::OuIdentificationStatus
+impl core::fmt::Debug for antecedent_estimate::ou_trajectory::OuInitialLaw
+impl core::fmt::Debug for antecedent_estimate::ou_trajectory::OuObservation
+impl core::fmt::Debug for antecedent_estimate::ou_trajectory::OuObservationModel
+impl core::fmt::Debug for antecedent_estimate::ou_trajectory::OuPredictionDesign
+impl core::fmt::Debug for antecedent_estimate::ou_trajectory::OuScheduleSegment
+impl core::fmt::Debug for antecedent_estimate::ou_trajectory::OuStationaryDesign
+impl core::fmt::Debug for antecedent_estimate::ou_trajectory::OuStationaryPrediction
+impl core::fmt::Debug for antecedent_estimate::ou_trajectory::OuTrajectory
+impl core::fmt::Debug for antecedent_estimate::ou_trajectory::OuTrajectoryError
+impl core::fmt::Debug for antecedent_estimate::ou_trajectory::OuTrajectoryFit
+impl core::fmt::Debug for antecedent_estimate::ou_trajectory::OuTrajectoryFitting
+impl core::fmt::Debug for antecedent_estimate::ou_trajectory::OuTrajectoryIdentification
+impl core::fmt::Debug for antecedent_estimate::ou_trajectory::OuTrajectoryNumerics
+impl core::fmt::Debug for antecedent_estimate::ou_trajectory::OuTrajectoryPrediction
+impl core::fmt::Debug for antecedent_estimate::ou_trajectory::OuTrajectoryReport
 impl core::fmt::Debug for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior
 impl core::fmt::Debug for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPrior
 impl core::fmt::Debug for antecedent_estimate::penalized_propensity_posterior::PropensityScoreSummary
@@ -3340,6 +3467,7 @@ impl core::fmt::Debug for antecedent_estimate::switchback_posterior::SwitchbackM
 impl core::fmt::Debug for antecedent_estimate::switchback_posterior::SwitchbackPosterior
 impl core::fmt::Debug for antecedent_estimate::switchback_posterior::SwitchbackPrior
 impl core::fmt::Debug for antecedent_estimate::synthetic_control::AugmentedSyntheticControlFit
+impl core::fmt::Debug for antecedent_estimate::synthetic_control::ObservedWindowSupport
 impl core::fmt::Debug for antecedent_estimate::synthetic_control::SyntheticConstantEffectMethod
 impl core::fmt::Debug for antecedent_estimate::synthetic_control::SyntheticControlFit
 impl core::fmt::Debug for antecedent_estimate::synthetic_control::SyntheticDidFit
@@ -3460,7 +3588,10 @@ impl core::fmt::Display for antecedent_estimate::joint_bayesian_transport::Joint
 impl core::fmt::Display for antecedent_estimate::joint_panel::PanelError
 impl core::fmt::Display for antecedent_estimate::measurement::MeasurementError
 impl core::fmt::Display for antecedent_estimate::multiple_imputation::MultipleImputationError
+impl core::fmt::Display for antecedent_estimate::nonlinear_sde_fit::SdeFitError
 impl core::fmt::Display for antecedent_estimate::nuisance_cache::NuisanceCacheError
+impl core::fmt::Display for antecedent_estimate::ou_trajectory::OuIdentificationFailure
+impl core::fmt::Display for antecedent_estimate::ou_trajectory::OuTrajectoryError
 impl core::fmt::Display for antecedent_estimate::recovery::CertificationFault
 impl core::fmt::Display for antecedent_estimate::recovery::EvidenceRefusal
 impl core::fmt::Display for antecedent_estimate::recovery::MechanismFault
@@ -3672,9 +3803,11 @@ impl core::marker::Copy for antecedent_estimate::experimental_fit::ExperimentalF
 impl core::marker::Copy for antecedent_estimate::experimental_fit::FitFlag
 impl core::marker::Copy for antecedent_estimate::experimental_fit::PriorFault
 impl core::marker::Copy for antecedent_estimate::experimental_fit::ResidualCorrelation
+impl core::marker::Copy for antecedent_estimate::external_cyclic_fit::ExternalFitPolicy
 impl core::marker::Copy for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure
 impl core::marker::Copy for antecedent_estimate::gaussian_linear_posterior::PosteriorSummary
 impl core::marker::Copy for antecedent_estimate::gaussian_linear_posterior::StudentPosterior
+impl core::marker::Copy for antecedent_estimate::heterogeneity_robust_did::CohortSupport
 impl core::marker::Copy for antecedent_estimate::heterogeneity_robust_did::RolloutDidSpec
 impl core::marker::Copy for antecedent_estimate::heterogeneity_robust_did::RolloutResampleRecord
 impl core::marker::Copy for antecedent_estimate::heterogeneity_robust_did::RolloutResampling
@@ -3727,6 +3860,10 @@ impl core::marker::Copy for antecedent_estimate::nested_markov_binary::NestedPar
 impl core::marker::Copy for antecedent_estimate::nested_markov_binary::PilotStatus
 impl core::marker::Copy for antecedent_estimate::nested_markov_uncertainty::NestedFisherFunctional
 impl core::marker::Copy for antecedent_estimate::nonlinear_mediation::NonlinearMediationEstimand
+impl core::marker::Copy for antecedent_estimate::nonlinear_sde_fit::SdeDiscretizationStatus
+impl core::marker::Copy for antecedent_estimate::nonlinear_sde_fit::SdeFitPolicy
+impl core::marker::Copy for antecedent_estimate::nonlinear_sde_fit::SdeIdentificationFailure
+impl core::marker::Copy for antecedent_estimate::nonlinear_sde_fit::SdeIdentificationStatus
 impl core::marker::Copy for antecedent_estimate::nuisance_cache::CertifiedSource
 impl core::marker::Copy for antecedent_estimate::nuisance_cache::DesignDependency
 impl core::marker::Copy for antecedent_estimate::nuisance_cache::FoldIdentity
@@ -3744,6 +3881,8 @@ impl core::marker::Copy for antecedent_estimate::observational_survival::ArmSurv
 impl core::marker::Copy for antecedent_estimate::observational_survival::CensoringAssumption
 impl core::marker::Copy for antecedent_estimate::observational_survival::SurvivalContrast
 impl core::marker::Copy for antecedent_estimate::ou_mechanisms::OuMechanismParameter
+impl core::marker::Copy for antecedent_estimate::ou_trajectory::OuIdentificationFailure
+impl core::marker::Copy for antecedent_estimate::ou_trajectory::OuIdentificationStatus
 impl core::marker::Copy for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPrior
 impl core::marker::Copy for antecedent_estimate::penalized_propensity_posterior::PropensityScoreSummary
 impl core::marker::Copy for antecedent_estimate::policy_value::BinaryIpwPolicy
@@ -4326,6 +4465,8 @@ impl core::marker::Freeze for antecedent_estimate::experimental_fit::RecoveryPri
 impl core::marker::Freeze for antecedent_estimate::experimental_fit::ResidualCorrelation [auto]
 impl core::marker::Freeze for antecedent_estimate::experimental_fit::SystemStability [auto]
 impl core::marker::Freeze for antecedent_estimate::experimental_fit::TargetBlockFit [auto]
+impl core::marker::Freeze for antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit [auto]
+impl core::marker::Freeze for antecedent_estimate::external_cyclic_fit::ExternalFitPolicy [auto]
 impl core::marker::Freeze for antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2 [auto]
 impl core::marker::Freeze for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure [auto]
 impl core::marker::Freeze for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot [auto]
@@ -4334,6 +4475,7 @@ impl core::marker::Freeze for antecedent_estimate::gaussian_linear_posterior::Ga
 impl core::marker::Freeze for antecedent_estimate::gaussian_linear_posterior::GaussianLinearPrior [auto]
 impl core::marker::Freeze for antecedent_estimate::gaussian_linear_posterior::PosteriorSummary [auto]
 impl core::marker::Freeze for antecedent_estimate::gaussian_linear_posterior::StudentPosterior [auto]
+impl core::marker::Freeze for antecedent_estimate::heterogeneity_robust_did::CohortSupport [auto]
 impl core::marker::Freeze for antecedent_estimate::heterogeneity_robust_did::PreparedRollout [auto]
 impl core::marker::Freeze for antecedent_estimate::heterogeneity_robust_did::RolloutDidFit [auto]
 impl core::marker::Freeze for antecedent_estimate::heterogeneity_robust_did::RolloutDidPosterior [auto]
@@ -4578,6 +4720,23 @@ impl core::marker::Freeze for antecedent_estimate::nonlinear_mediation::Nonlinea
 impl core::marker::Freeze for antecedent_estimate::nonlinear_mediation::NonlinearMediationMediatorDiagnostics [auto]
 impl core::marker::Freeze for antecedent_estimate::nonlinear_mediation::NonlinearMediationOverlap [auto]
 impl core::marker::Freeze for antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises [auto]
+impl core::marker::Freeze for antecedent_estimate::nonlinear_sde_fit::SdeContrastParameterSpread [auto]
+impl core::marker::Freeze for antecedent_estimate::nonlinear_sde_fit::SdeDiscretization [auto]
+impl core::marker::Freeze for antecedent_estimate::nonlinear_sde_fit::SdeDiscretizationStatus [auto]
+impl core::marker::Freeze for antecedent_estimate::nonlinear_sde_fit::SdeFilterPrior [auto]
+impl core::marker::Freeze for antecedent_estimate::nonlinear_sde_fit::SdeFit [auto]
+impl core::marker::Freeze for antecedent_estimate::nonlinear_sde_fit::SdeFitError [auto]
+impl core::marker::Freeze for antecedent_estimate::nonlinear_sde_fit::SdeFitPolicy [auto]
+impl core::marker::Freeze for antecedent_estimate::nonlinear_sde_fit::SdeFitting [auto]
+impl core::marker::Freeze for antecedent_estimate::nonlinear_sde_fit::SdeIdentification [auto]
+impl core::marker::Freeze for antecedent_estimate::nonlinear_sde_fit::SdeIdentificationFailure [auto]
+impl core::marker::Freeze for antecedent_estimate::nonlinear_sde_fit::SdeIdentificationStatus [auto]
+impl core::marker::Freeze for antecedent_estimate::nonlinear_sde_fit::SdeObservation [auto]
+impl core::marker::Freeze for antecedent_estimate::nonlinear_sde_fit::SdeObservationModel [auto]
+impl core::marker::Freeze for antecedent_estimate::nonlinear_sde_fit::SdeParameterUncertainty [auto]
+impl core::marker::Freeze for antecedent_estimate::nonlinear_sde_fit::SdeReport [auto]
+impl core::marker::Freeze for antecedent_estimate::nonlinear_sde_fit::SdeTrajectory [auto]
+impl core::marker::Freeze for antecedent_estimate::nonlinear_sde_fit::SdeWorldParameterSpread [auto]
 impl core::marker::Freeze for antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions [auto]
 impl core::marker::Freeze for antecedent_estimate::nuisance_cache::CertifiedSource [auto]
 impl core::marker::Freeze for antecedent_estimate::nuisance_cache::DesignDependency [auto]
@@ -4616,6 +4775,25 @@ impl core::marker::Freeze for antecedent_estimate::ou_mechanisms::OuMechanismOut
 impl core::marker::Freeze for antecedent_estimate::ou_mechanisms::OuMechanismParameter [auto]
 impl core::marker::Freeze for antecedent_estimate::ou_mechanisms::OuMechanismRegime [auto]
 impl core::marker::Freeze for antecedent_estimate::ou_mechanisms::OuMechanisms [auto]
+impl core::marker::Freeze for antecedent_estimate::ou_trajectory::OuAliasingCheck [auto]
+impl core::marker::Freeze for antecedent_estimate::ou_trajectory::OuFilteredState [auto]
+impl core::marker::Freeze for antecedent_estimate::ou_trajectory::OuIdentificationFailure [auto]
+impl core::marker::Freeze for antecedent_estimate::ou_trajectory::OuIdentificationStatus [auto]
+impl core::marker::Freeze for antecedent_estimate::ou_trajectory::OuInitialLaw [auto]
+impl core::marker::Freeze for antecedent_estimate::ou_trajectory::OuObservation [auto]
+impl core::marker::Freeze for antecedent_estimate::ou_trajectory::OuObservationModel [auto]
+impl core::marker::Freeze for antecedent_estimate::ou_trajectory::OuPredictionDesign [auto]
+impl core::marker::Freeze for antecedent_estimate::ou_trajectory::OuScheduleSegment [auto]
+impl core::marker::Freeze for antecedent_estimate::ou_trajectory::OuStationaryDesign [auto]
+impl core::marker::Freeze for antecedent_estimate::ou_trajectory::OuStationaryPrediction [auto]
+impl core::marker::Freeze for antecedent_estimate::ou_trajectory::OuTrajectory [auto]
+impl core::marker::Freeze for antecedent_estimate::ou_trajectory::OuTrajectoryError [auto]
+impl core::marker::Freeze for antecedent_estimate::ou_trajectory::OuTrajectoryFit [auto]
+impl core::marker::Freeze for antecedent_estimate::ou_trajectory::OuTrajectoryFitting [auto]
+impl core::marker::Freeze for antecedent_estimate::ou_trajectory::OuTrajectoryIdentification [auto]
+impl core::marker::Freeze for antecedent_estimate::ou_trajectory::OuTrajectoryNumerics [auto]
+impl core::marker::Freeze for antecedent_estimate::ou_trajectory::OuTrajectoryPrediction [auto]
+impl core::marker::Freeze for antecedent_estimate::ou_trajectory::OuTrajectoryReport [auto]
 impl core::marker::Freeze for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior [auto]
 impl core::marker::Freeze for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPrior [auto]
 impl core::marker::Freeze for antecedent_estimate::penalized_propensity_posterior::PropensityScoreSummary [auto]
@@ -4763,6 +4941,7 @@ impl core::marker::Freeze for antecedent_estimate::switchback_posterior::Switchb
 impl core::marker::Freeze for antecedent_estimate::switchback_posterior::SwitchbackPosterior [auto]
 impl core::marker::Freeze for antecedent_estimate::switchback_posterior::SwitchbackPrior [auto]
 impl core::marker::Freeze for antecedent_estimate::synthetic_control::AugmentedSyntheticControlFit [auto]
+impl core::marker::Freeze for antecedent_estimate::synthetic_control::ObservedWindowSupport [auto]
 impl core::marker::Freeze for antecedent_estimate::synthetic_control::SyntheticConstantEffectMethod [auto]
 impl core::marker::Freeze for antecedent_estimate::synthetic_control::SyntheticControlFit [auto]
 impl core::marker::Freeze for antecedent_estimate::synthetic_control::SyntheticDidFit [auto]
@@ -5348,6 +5527,8 @@ impl core::marker::Send for antecedent_estimate::experimental_fit::RecoveryPrior
 impl core::marker::Send for antecedent_estimate::experimental_fit::ResidualCorrelation [auto]
 impl core::marker::Send for antecedent_estimate::experimental_fit::SystemStability [auto]
 impl core::marker::Send for antecedent_estimate::experimental_fit::TargetBlockFit [auto]
+impl core::marker::Send for antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit [auto]
+impl core::marker::Send for antecedent_estimate::external_cyclic_fit::ExternalFitPolicy [auto]
 impl core::marker::Send for antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2 [auto]
 impl core::marker::Send for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure [auto]
 impl core::marker::Send for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot [auto]
@@ -5357,6 +5538,7 @@ impl core::marker::Send for antecedent_estimate::gaussian_linear_posterior::Gaus
 impl core::marker::Send for antecedent_estimate::gaussian_linear_posterior::GaussianLinearPrior [auto]
 impl core::marker::Send for antecedent_estimate::gaussian_linear_posterior::PosteriorSummary [auto]
 impl core::marker::Send for antecedent_estimate::gaussian_linear_posterior::StudentPosterior [auto]
+impl core::marker::Send for antecedent_estimate::heterogeneity_robust_did::CohortSupport [auto]
 impl core::marker::Send for antecedent_estimate::heterogeneity_robust_did::PreparedRollout [auto]
 impl core::marker::Send for antecedent_estimate::heterogeneity_robust_did::RolloutDidFit [auto]
 impl core::marker::Send for antecedent_estimate::heterogeneity_robust_did::RolloutDidPosterior [auto]
@@ -5602,6 +5784,23 @@ impl core::marker::Send for antecedent_estimate::nonlinear_mediation::NonlinearM
 impl core::marker::Send for antecedent_estimate::nonlinear_mediation::NonlinearMediationMediatorDiagnostics [auto]
 impl core::marker::Send for antecedent_estimate::nonlinear_mediation::NonlinearMediationOverlap [auto]
 impl core::marker::Send for antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises [auto]
+impl core::marker::Send for antecedent_estimate::nonlinear_sde_fit::SdeContrastParameterSpread [auto]
+impl core::marker::Send for antecedent_estimate::nonlinear_sde_fit::SdeDiscretization [auto]
+impl core::marker::Send for antecedent_estimate::nonlinear_sde_fit::SdeDiscretizationStatus [auto]
+impl core::marker::Send for antecedent_estimate::nonlinear_sde_fit::SdeFilterPrior [auto]
+impl core::marker::Send for antecedent_estimate::nonlinear_sde_fit::SdeFit [auto]
+impl core::marker::Send for antecedent_estimate::nonlinear_sde_fit::SdeFitError [auto]
+impl core::marker::Send for antecedent_estimate::nonlinear_sde_fit::SdeFitPolicy [auto]
+impl core::marker::Send for antecedent_estimate::nonlinear_sde_fit::SdeFitting [auto]
+impl core::marker::Send for antecedent_estimate::nonlinear_sde_fit::SdeIdentification [auto]
+impl core::marker::Send for antecedent_estimate::nonlinear_sde_fit::SdeIdentificationFailure [auto]
+impl core::marker::Send for antecedent_estimate::nonlinear_sde_fit::SdeIdentificationStatus [auto]
+impl core::marker::Send for antecedent_estimate::nonlinear_sde_fit::SdeObservation [auto]
+impl core::marker::Send for antecedent_estimate::nonlinear_sde_fit::SdeObservationModel [auto]
+impl core::marker::Send for antecedent_estimate::nonlinear_sde_fit::SdeParameterUncertainty [auto]
+impl core::marker::Send for antecedent_estimate::nonlinear_sde_fit::SdeReport [auto]
+impl core::marker::Send for antecedent_estimate::nonlinear_sde_fit::SdeTrajectory [auto]
+impl core::marker::Send for antecedent_estimate::nonlinear_sde_fit::SdeWorldParameterSpread [auto]
 impl core::marker::Send for antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions [auto]
 impl core::marker::Send for antecedent_estimate::nuisance_cache::CertifiedSource [auto]
 impl core::marker::Send for antecedent_estimate::nuisance_cache::DesignDependency [auto]
@@ -5640,6 +5839,25 @@ impl core::marker::Send for antecedent_estimate::ou_mechanisms::OuMechanismOutco
 impl core::marker::Send for antecedent_estimate::ou_mechanisms::OuMechanismParameter [auto]
 impl core::marker::Send for antecedent_estimate::ou_mechanisms::OuMechanismRegime [auto]
 impl core::marker::Send for antecedent_estimate::ou_mechanisms::OuMechanisms [auto]
+impl core::marker::Send for antecedent_estimate::ou_trajectory::OuAliasingCheck [auto]
+impl core::marker::Send for antecedent_estimate::ou_trajectory::OuFilteredState [auto]
+impl core::marker::Send for antecedent_estimate::ou_trajectory::OuIdentificationFailure [auto]
+impl core::marker::Send for antecedent_estimate::ou_trajectory::OuIdentificationStatus [auto]
+impl core::marker::Send for antecedent_estimate::ou_trajectory::OuInitialLaw [auto]
+impl core::marker::Send for antecedent_estimate::ou_trajectory::OuObservation [auto]
+impl core::marker::Send for antecedent_estimate::ou_trajectory::OuObservationModel [auto]
+impl core::marker::Send for antecedent_estimate::ou_trajectory::OuPredictionDesign [auto]
+impl core::marker::Send for antecedent_estimate::ou_trajectory::OuScheduleSegment [auto]
+impl core::marker::Send for antecedent_estimate::ou_trajectory::OuStationaryDesign [auto]
+impl core::marker::Send for antecedent_estimate::ou_trajectory::OuStationaryPrediction [auto]
+impl core::marker::Send for antecedent_estimate::ou_trajectory::OuTrajectory [auto]
+impl core::marker::Send for antecedent_estimate::ou_trajectory::OuTrajectoryError [auto]
+impl core::marker::Send for antecedent_estimate::ou_trajectory::OuTrajectoryFit [auto]
+impl core::marker::Send for antecedent_estimate::ou_trajectory::OuTrajectoryFitting [auto]
+impl core::marker::Send for antecedent_estimate::ou_trajectory::OuTrajectoryIdentification [auto]
+impl core::marker::Send for antecedent_estimate::ou_trajectory::OuTrajectoryNumerics [auto]
+impl core::marker::Send for antecedent_estimate::ou_trajectory::OuTrajectoryPrediction [auto]
+impl core::marker::Send for antecedent_estimate::ou_trajectory::OuTrajectoryReport [auto]
 impl core::marker::Send for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior [auto]
 impl core::marker::Send for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPrior [auto]
 impl core::marker::Send for antecedent_estimate::penalized_propensity_posterior::PropensityScoreSummary [auto]
@@ -5788,6 +6006,7 @@ impl core::marker::Send for antecedent_estimate::switchback_posterior::Switchbac
 impl core::marker::Send for antecedent_estimate::switchback_posterior::SwitchbackPosterior [auto]
 impl core::marker::Send for antecedent_estimate::switchback_posterior::SwitchbackPrior [auto]
 impl core::marker::Send for antecedent_estimate::synthetic_control::AugmentedSyntheticControlFit [auto]
+impl core::marker::Send for antecedent_estimate::synthetic_control::ObservedWindowSupport [auto]
 impl core::marker::Send for antecedent_estimate::synthetic_control::SyntheticConstantEffectMethod [auto]
 impl core::marker::Send for antecedent_estimate::synthetic_control::SyntheticControlFit [auto]
 impl core::marker::Send for antecedent_estimate::synthetic_control::SyntheticDidFit [auto]
@@ -6260,6 +6479,8 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::experimental_fit
 impl core::marker::StructuralPartialEq for antecedent_estimate::experimental_fit::ResidualCorrelation
 impl core::marker::StructuralPartialEq for antecedent_estimate::experimental_fit::SystemStability
 impl core::marker::StructuralPartialEq for antecedent_estimate::experimental_fit::TargetBlockFit
+impl core::marker::StructuralPartialEq for antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit
+impl core::marker::StructuralPartialEq for antecedent_estimate::external_cyclic_fit::ExternalFitPolicy
 impl core::marker::StructuralPartialEq for antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2
 impl core::marker::StructuralPartialEq for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure
 impl core::marker::StructuralPartialEq for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot
@@ -6268,6 +6489,7 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::gaussian_linear_
 impl core::marker::StructuralPartialEq for antecedent_estimate::gaussian_linear_posterior::GaussianLinearPrior
 impl core::marker::StructuralPartialEq for antecedent_estimate::gaussian_linear_posterior::PosteriorSummary
 impl core::marker::StructuralPartialEq for antecedent_estimate::gaussian_linear_posterior::StudentPosterior
+impl core::marker::StructuralPartialEq for antecedent_estimate::heterogeneity_robust_did::CohortSupport
 impl core::marker::StructuralPartialEq for antecedent_estimate::heterogeneity_robust_did::RolloutDidFit
 impl core::marker::StructuralPartialEq for antecedent_estimate::heterogeneity_robust_did::RolloutDidPosterior
 impl core::marker::StructuralPartialEq for antecedent_estimate::heterogeneity_robust_did::RolloutDidSpec
@@ -6493,6 +6715,22 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::nonlinear_mediat
 impl core::marker::StructuralPartialEq for antecedent_estimate::nonlinear_mediation::NonlinearMediationMediatorDiagnostics
 impl core::marker::StructuralPartialEq for antecedent_estimate::nonlinear_mediation::NonlinearMediationOverlap
 impl core::marker::StructuralPartialEq for antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises
+impl core::marker::StructuralPartialEq for antecedent_estimate::nonlinear_sde_fit::SdeContrastParameterSpread
+impl core::marker::StructuralPartialEq for antecedent_estimate::nonlinear_sde_fit::SdeDiscretization
+impl core::marker::StructuralPartialEq for antecedent_estimate::nonlinear_sde_fit::SdeDiscretizationStatus
+impl core::marker::StructuralPartialEq for antecedent_estimate::nonlinear_sde_fit::SdeFilterPrior
+impl core::marker::StructuralPartialEq for antecedent_estimate::nonlinear_sde_fit::SdeFit
+impl core::marker::StructuralPartialEq for antecedent_estimate::nonlinear_sde_fit::SdeFitPolicy
+impl core::marker::StructuralPartialEq for antecedent_estimate::nonlinear_sde_fit::SdeFitting
+impl core::marker::StructuralPartialEq for antecedent_estimate::nonlinear_sde_fit::SdeIdentification
+impl core::marker::StructuralPartialEq for antecedent_estimate::nonlinear_sde_fit::SdeIdentificationFailure
+impl core::marker::StructuralPartialEq for antecedent_estimate::nonlinear_sde_fit::SdeIdentificationStatus
+impl core::marker::StructuralPartialEq for antecedent_estimate::nonlinear_sde_fit::SdeObservation
+impl core::marker::StructuralPartialEq for antecedent_estimate::nonlinear_sde_fit::SdeObservationModel
+impl core::marker::StructuralPartialEq for antecedent_estimate::nonlinear_sde_fit::SdeParameterUncertainty
+impl core::marker::StructuralPartialEq for antecedent_estimate::nonlinear_sde_fit::SdeReport
+impl core::marker::StructuralPartialEq for antecedent_estimate::nonlinear_sde_fit::SdeTrajectory
+impl core::marker::StructuralPartialEq for antecedent_estimate::nonlinear_sde_fit::SdeWorldParameterSpread
 impl core::marker::StructuralPartialEq for antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions
 impl core::marker::StructuralPartialEq for antecedent_estimate::nuisance_cache::CertifiedSource
 impl core::marker::StructuralPartialEq for antecedent_estimate::nuisance_cache::DesignDependency
@@ -6527,6 +6765,24 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::ou_mechanisms::O
 impl core::marker::StructuralPartialEq for antecedent_estimate::ou_mechanisms::OuMechanismParameter
 impl core::marker::StructuralPartialEq for antecedent_estimate::ou_mechanisms::OuMechanismRegime
 impl core::marker::StructuralPartialEq for antecedent_estimate::ou_mechanisms::OuMechanisms
+impl core::marker::StructuralPartialEq for antecedent_estimate::ou_trajectory::OuAliasingCheck
+impl core::marker::StructuralPartialEq for antecedent_estimate::ou_trajectory::OuFilteredState
+impl core::marker::StructuralPartialEq for antecedent_estimate::ou_trajectory::OuIdentificationFailure
+impl core::marker::StructuralPartialEq for antecedent_estimate::ou_trajectory::OuIdentificationStatus
+impl core::marker::StructuralPartialEq for antecedent_estimate::ou_trajectory::OuInitialLaw
+impl core::marker::StructuralPartialEq for antecedent_estimate::ou_trajectory::OuObservation
+impl core::marker::StructuralPartialEq for antecedent_estimate::ou_trajectory::OuObservationModel
+impl core::marker::StructuralPartialEq for antecedent_estimate::ou_trajectory::OuPredictionDesign
+impl core::marker::StructuralPartialEq for antecedent_estimate::ou_trajectory::OuScheduleSegment
+impl core::marker::StructuralPartialEq for antecedent_estimate::ou_trajectory::OuStationaryDesign
+impl core::marker::StructuralPartialEq for antecedent_estimate::ou_trajectory::OuStationaryPrediction
+impl core::marker::StructuralPartialEq for antecedent_estimate::ou_trajectory::OuTrajectory
+impl core::marker::StructuralPartialEq for antecedent_estimate::ou_trajectory::OuTrajectoryFit
+impl core::marker::StructuralPartialEq for antecedent_estimate::ou_trajectory::OuTrajectoryFitting
+impl core::marker::StructuralPartialEq for antecedent_estimate::ou_trajectory::OuTrajectoryIdentification
+impl core::marker::StructuralPartialEq for antecedent_estimate::ou_trajectory::OuTrajectoryNumerics
+impl core::marker::StructuralPartialEq for antecedent_estimate::ou_trajectory::OuTrajectoryPrediction
+impl core::marker::StructuralPartialEq for antecedent_estimate::ou_trajectory::OuTrajectoryReport
 impl core::marker::StructuralPartialEq for antecedent_estimate::penalized_propensity_posterior::PropensityScoreSummary
 impl core::marker::StructuralPartialEq for antecedent_estimate::policy_value::BinaryIpwPolicy
 impl core::marker::StructuralPartialEq for antecedent_estimate::policy_value::BinaryPolicyLimits
@@ -6657,6 +6913,7 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::switchback_poste
 impl core::marker::StructuralPartialEq for antecedent_estimate::switchback_posterior::SwitchbackPosterior
 impl core::marker::StructuralPartialEq for antecedent_estimate::switchback_posterior::SwitchbackPrior
 impl core::marker::StructuralPartialEq for antecedent_estimate::synthetic_control::AugmentedSyntheticControlFit
+impl core::marker::StructuralPartialEq for antecedent_estimate::synthetic_control::ObservedWindowSupport
 impl core::marker::StructuralPartialEq for antecedent_estimate::synthetic_control::SyntheticConstantEffectMethod
 impl core::marker::StructuralPartialEq for antecedent_estimate::synthetic_control::SyntheticControlFit
 impl core::marker::StructuralPartialEq for antecedent_estimate::synthetic_control::SyntheticDidFit
@@ -7219,6 +7476,8 @@ impl core::marker::Sync for antecedent_estimate::experimental_fit::RecoveryPrior
 impl core::marker::Sync for antecedent_estimate::experimental_fit::ResidualCorrelation [auto]
 impl core::marker::Sync for antecedent_estimate::experimental_fit::SystemStability [auto]
 impl core::marker::Sync for antecedent_estimate::experimental_fit::TargetBlockFit [auto]
+impl core::marker::Sync for antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit [auto]
+impl core::marker::Sync for antecedent_estimate::external_cyclic_fit::ExternalFitPolicy [auto]
 impl core::marker::Sync for antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2 [auto]
 impl core::marker::Sync for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure [auto]
 impl core::marker::Sync for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot [auto]
@@ -7228,6 +7487,7 @@ impl core::marker::Sync for antecedent_estimate::gaussian_linear_posterior::Gaus
 impl core::marker::Sync for antecedent_estimate::gaussian_linear_posterior::GaussianLinearPrior [auto]
 impl core::marker::Sync for antecedent_estimate::gaussian_linear_posterior::PosteriorSummary [auto]
 impl core::marker::Sync for antecedent_estimate::gaussian_linear_posterior::StudentPosterior [auto]
+impl core::marker::Sync for antecedent_estimate::heterogeneity_robust_did::CohortSupport [auto]
 impl core::marker::Sync for antecedent_estimate::heterogeneity_robust_did::PreparedRollout [auto]
 impl core::marker::Sync for antecedent_estimate::heterogeneity_robust_did::RolloutDidFit [auto]
 impl core::marker::Sync for antecedent_estimate::heterogeneity_robust_did::RolloutDidPosterior [auto]
@@ -7473,6 +7733,23 @@ impl core::marker::Sync for antecedent_estimate::nonlinear_mediation::NonlinearM
 impl core::marker::Sync for antecedent_estimate::nonlinear_mediation::NonlinearMediationMediatorDiagnostics [auto]
 impl core::marker::Sync for antecedent_estimate::nonlinear_mediation::NonlinearMediationOverlap [auto]
 impl core::marker::Sync for antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises [auto]
+impl core::marker::Sync for antecedent_estimate::nonlinear_sde_fit::SdeContrastParameterSpread [auto]
+impl core::marker::Sync for antecedent_estimate::nonlinear_sde_fit::SdeDiscretization [auto]
+impl core::marker::Sync for antecedent_estimate::nonlinear_sde_fit::SdeDiscretizationStatus [auto]
+impl core::marker::Sync for antecedent_estimate::nonlinear_sde_fit::SdeFilterPrior [auto]
+impl core::marker::Sync for antecedent_estimate::nonlinear_sde_fit::SdeFit [auto]
+impl core::marker::Sync for antecedent_estimate::nonlinear_sde_fit::SdeFitError [auto]
+impl core::marker::Sync for antecedent_estimate::nonlinear_sde_fit::SdeFitPolicy [auto]
+impl core::marker::Sync for antecedent_estimate::nonlinear_sde_fit::SdeFitting [auto]
+impl core::marker::Sync for antecedent_estimate::nonlinear_sde_fit::SdeIdentification [auto]
+impl core::marker::Sync for antecedent_estimate::nonlinear_sde_fit::SdeIdentificationFailure [auto]
+impl core::marker::Sync for antecedent_estimate::nonlinear_sde_fit::SdeIdentificationStatus [auto]
+impl core::marker::Sync for antecedent_estimate::nonlinear_sde_fit::SdeObservation [auto]
+impl core::marker::Sync for antecedent_estimate::nonlinear_sde_fit::SdeObservationModel [auto]
+impl core::marker::Sync for antecedent_estimate::nonlinear_sde_fit::SdeParameterUncertainty [auto]
+impl core::marker::Sync for antecedent_estimate::nonlinear_sde_fit::SdeReport [auto]
+impl core::marker::Sync for antecedent_estimate::nonlinear_sde_fit::SdeTrajectory [auto]
+impl core::marker::Sync for antecedent_estimate::nonlinear_sde_fit::SdeWorldParameterSpread [auto]
 impl core::marker::Sync for antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions [auto]
 impl core::marker::Sync for antecedent_estimate::nuisance_cache::CertifiedSource [auto]
 impl core::marker::Sync for antecedent_estimate::nuisance_cache::DesignDependency [auto]
@@ -7511,6 +7788,25 @@ impl core::marker::Sync for antecedent_estimate::ou_mechanisms::OuMechanismOutco
 impl core::marker::Sync for antecedent_estimate::ou_mechanisms::OuMechanismParameter [auto]
 impl core::marker::Sync for antecedent_estimate::ou_mechanisms::OuMechanismRegime [auto]
 impl core::marker::Sync for antecedent_estimate::ou_mechanisms::OuMechanisms [auto]
+impl core::marker::Sync for antecedent_estimate::ou_trajectory::OuAliasingCheck [auto]
+impl core::marker::Sync for antecedent_estimate::ou_trajectory::OuFilteredState [auto]
+impl core::marker::Sync for antecedent_estimate::ou_trajectory::OuIdentificationFailure [auto]
+impl core::marker::Sync for antecedent_estimate::ou_trajectory::OuIdentificationStatus [auto]
+impl core::marker::Sync for antecedent_estimate::ou_trajectory::OuInitialLaw [auto]
+impl core::marker::Sync for antecedent_estimate::ou_trajectory::OuObservation [auto]
+impl core::marker::Sync for antecedent_estimate::ou_trajectory::OuObservationModel [auto]
+impl core::marker::Sync for antecedent_estimate::ou_trajectory::OuPredictionDesign [auto]
+impl core::marker::Sync for antecedent_estimate::ou_trajectory::OuScheduleSegment [auto]
+impl core::marker::Sync for antecedent_estimate::ou_trajectory::OuStationaryDesign [auto]
+impl core::marker::Sync for antecedent_estimate::ou_trajectory::OuStationaryPrediction [auto]
+impl core::marker::Sync for antecedent_estimate::ou_trajectory::OuTrajectory [auto]
+impl core::marker::Sync for antecedent_estimate::ou_trajectory::OuTrajectoryError [auto]
+impl core::marker::Sync for antecedent_estimate::ou_trajectory::OuTrajectoryFit [auto]
+impl core::marker::Sync for antecedent_estimate::ou_trajectory::OuTrajectoryFitting [auto]
+impl core::marker::Sync for antecedent_estimate::ou_trajectory::OuTrajectoryIdentification [auto]
+impl core::marker::Sync for antecedent_estimate::ou_trajectory::OuTrajectoryNumerics [auto]
+impl core::marker::Sync for antecedent_estimate::ou_trajectory::OuTrajectoryPrediction [auto]
+impl core::marker::Sync for antecedent_estimate::ou_trajectory::OuTrajectoryReport [auto]
 impl core::marker::Sync for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior [auto]
 impl core::marker::Sync for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPrior [auto]
 impl core::marker::Sync for antecedent_estimate::penalized_propensity_posterior::PropensityScoreSummary [auto]
@@ -7659,6 +7955,7 @@ impl core::marker::Sync for antecedent_estimate::switchback_posterior::Switchbac
 impl core::marker::Sync for antecedent_estimate::switchback_posterior::SwitchbackPosterior [auto]
 impl core::marker::Sync for antecedent_estimate::switchback_posterior::SwitchbackPrior [auto]
 impl core::marker::Sync for antecedent_estimate::synthetic_control::AugmentedSyntheticControlFit [auto]
+impl core::marker::Sync for antecedent_estimate::synthetic_control::ObservedWindowSupport [auto]
 impl core::marker::Sync for antecedent_estimate::synthetic_control::SyntheticConstantEffectMethod [auto]
 impl core::marker::Sync for antecedent_estimate::synthetic_control::SyntheticControlFit [auto]
 impl core::marker::Sync for antecedent_estimate::synthetic_control::SyntheticDidFit [auto]
@@ -8244,6 +8541,8 @@ impl core::marker::Unpin for antecedent_estimate::experimental_fit::RecoveryPrio
 impl core::marker::Unpin for antecedent_estimate::experimental_fit::ResidualCorrelation [auto]
 impl core::marker::Unpin for antecedent_estimate::experimental_fit::SystemStability [auto]
 impl core::marker::Unpin for antecedent_estimate::experimental_fit::TargetBlockFit [auto]
+impl core::marker::Unpin for antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit [auto]
+impl core::marker::Unpin for antecedent_estimate::external_cyclic_fit::ExternalFitPolicy [auto]
 impl core::marker::Unpin for antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2 [auto]
 impl core::marker::Unpin for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure [auto]
 impl core::marker::Unpin for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot [auto]
@@ -8253,6 +8552,7 @@ impl core::marker::Unpin for antecedent_estimate::gaussian_linear_posterior::Gau
 impl core::marker::Unpin for antecedent_estimate::gaussian_linear_posterior::GaussianLinearPrior [auto]
 impl core::marker::Unpin for antecedent_estimate::gaussian_linear_posterior::PosteriorSummary [auto]
 impl core::marker::Unpin for antecedent_estimate::gaussian_linear_posterior::StudentPosterior [auto]
+impl core::marker::Unpin for antecedent_estimate::heterogeneity_robust_did::CohortSupport [auto]
 impl core::marker::Unpin for antecedent_estimate::heterogeneity_robust_did::PreparedRollout [auto]
 impl core::marker::Unpin for antecedent_estimate::heterogeneity_robust_did::RolloutDidFit [auto]
 impl core::marker::Unpin for antecedent_estimate::heterogeneity_robust_did::RolloutDidPosterior [auto]
@@ -8498,6 +8798,23 @@ impl core::marker::Unpin for antecedent_estimate::nonlinear_mediation::Nonlinear
 impl core::marker::Unpin for antecedent_estimate::nonlinear_mediation::NonlinearMediationMediatorDiagnostics [auto]
 impl core::marker::Unpin for antecedent_estimate::nonlinear_mediation::NonlinearMediationOverlap [auto]
 impl core::marker::Unpin for antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises [auto]
+impl core::marker::Unpin for antecedent_estimate::nonlinear_sde_fit::SdeContrastParameterSpread [auto]
+impl core::marker::Unpin for antecedent_estimate::nonlinear_sde_fit::SdeDiscretization [auto]
+impl core::marker::Unpin for antecedent_estimate::nonlinear_sde_fit::SdeDiscretizationStatus [auto]
+impl core::marker::Unpin for antecedent_estimate::nonlinear_sde_fit::SdeFilterPrior [auto]
+impl core::marker::Unpin for antecedent_estimate::nonlinear_sde_fit::SdeFit [auto]
+impl core::marker::Unpin for antecedent_estimate::nonlinear_sde_fit::SdeFitError [auto]
+impl core::marker::Unpin for antecedent_estimate::nonlinear_sde_fit::SdeFitPolicy [auto]
+impl core::marker::Unpin for antecedent_estimate::nonlinear_sde_fit::SdeFitting [auto]
+impl core::marker::Unpin for antecedent_estimate::nonlinear_sde_fit::SdeIdentification [auto]
+impl core::marker::Unpin for antecedent_estimate::nonlinear_sde_fit::SdeIdentificationFailure [auto]
+impl core::marker::Unpin for antecedent_estimate::nonlinear_sde_fit::SdeIdentificationStatus [auto]
+impl core::marker::Unpin for antecedent_estimate::nonlinear_sde_fit::SdeObservation [auto]
+impl core::marker::Unpin for antecedent_estimate::nonlinear_sde_fit::SdeObservationModel [auto]
+impl core::marker::Unpin for antecedent_estimate::nonlinear_sde_fit::SdeParameterUncertainty [auto]
+impl core::marker::Unpin for antecedent_estimate::nonlinear_sde_fit::SdeReport [auto]
+impl core::marker::Unpin for antecedent_estimate::nonlinear_sde_fit::SdeTrajectory [auto]
+impl core::marker::Unpin for antecedent_estimate::nonlinear_sde_fit::SdeWorldParameterSpread [auto]
 impl core::marker::Unpin for antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions [auto]
 impl core::marker::Unpin for antecedent_estimate::nuisance_cache::CertifiedSource [auto]
 impl core::marker::Unpin for antecedent_estimate::nuisance_cache::DesignDependency [auto]
@@ -8536,6 +8853,25 @@ impl core::marker::Unpin for antecedent_estimate::ou_mechanisms::OuMechanismOutc
 impl core::marker::Unpin for antecedent_estimate::ou_mechanisms::OuMechanismParameter [auto]
 impl core::marker::Unpin for antecedent_estimate::ou_mechanisms::OuMechanismRegime [auto]
 impl core::marker::Unpin for antecedent_estimate::ou_mechanisms::OuMechanisms [auto]
+impl core::marker::Unpin for antecedent_estimate::ou_trajectory::OuAliasingCheck [auto]
+impl core::marker::Unpin for antecedent_estimate::ou_trajectory::OuFilteredState [auto]
+impl core::marker::Unpin for antecedent_estimate::ou_trajectory::OuIdentificationFailure [auto]
+impl core::marker::Unpin for antecedent_estimate::ou_trajectory::OuIdentificationStatus [auto]
+impl core::marker::Unpin for antecedent_estimate::ou_trajectory::OuInitialLaw [auto]
+impl core::marker::Unpin for antecedent_estimate::ou_trajectory::OuObservation [auto]
+impl core::marker::Unpin for antecedent_estimate::ou_trajectory::OuObservationModel [auto]
+impl core::marker::Unpin for antecedent_estimate::ou_trajectory::OuPredictionDesign [auto]
+impl core::marker::Unpin for antecedent_estimate::ou_trajectory::OuScheduleSegment [auto]
+impl core::marker::Unpin for antecedent_estimate::ou_trajectory::OuStationaryDesign [auto]
+impl core::marker::Unpin for antecedent_estimate::ou_trajectory::OuStationaryPrediction [auto]
+impl core::marker::Unpin for antecedent_estimate::ou_trajectory::OuTrajectory [auto]
+impl core::marker::Unpin for antecedent_estimate::ou_trajectory::OuTrajectoryError [auto]
+impl core::marker::Unpin for antecedent_estimate::ou_trajectory::OuTrajectoryFit [auto]
+impl core::marker::Unpin for antecedent_estimate::ou_trajectory::OuTrajectoryFitting [auto]
+impl core::marker::Unpin for antecedent_estimate::ou_trajectory::OuTrajectoryIdentification [auto]
+impl core::marker::Unpin for antecedent_estimate::ou_trajectory::OuTrajectoryNumerics [auto]
+impl core::marker::Unpin for antecedent_estimate::ou_trajectory::OuTrajectoryPrediction [auto]
+impl core::marker::Unpin for antecedent_estimate::ou_trajectory::OuTrajectoryReport [auto]
 impl core::marker::Unpin for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior [auto]
 impl core::marker::Unpin for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPrior [auto]
 impl core::marker::Unpin for antecedent_estimate::penalized_propensity_posterior::PropensityScoreSummary [auto]
@@ -8684,6 +9020,7 @@ impl core::marker::Unpin for antecedent_estimate::switchback_posterior::Switchba
 impl core::marker::Unpin for antecedent_estimate::switchback_posterior::SwitchbackPosterior [auto]
 impl core::marker::Unpin for antecedent_estimate::switchback_posterior::SwitchbackPrior [auto]
 impl core::marker::Unpin for antecedent_estimate::synthetic_control::AugmentedSyntheticControlFit [auto]
+impl core::marker::Unpin for antecedent_estimate::synthetic_control::ObservedWindowSupport [auto]
 impl core::marker::Unpin for antecedent_estimate::synthetic_control::SyntheticConstantEffectMethod [auto]
 impl core::marker::Unpin for antecedent_estimate::synthetic_control::SyntheticControlFit [auto]
 impl core::marker::Unpin for antecedent_estimate::synthetic_control::SyntheticDidFit [auto]
@@ -9270,6 +9607,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::experiment
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::experimental_fit::ResidualCorrelation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::experimental_fit::SystemStability [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::experimental_fit::TargetBlockFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::external_cyclic_fit::ExternalFitPolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2 [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot [auto]
@@ -9279,6 +9618,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::gaussian_l
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::gaussian_linear_posterior::GaussianLinearPrior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::gaussian_linear_posterior::PosteriorSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::gaussian_linear_posterior::StudentPosterior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::heterogeneity_robust_did::CohortSupport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::heterogeneity_robust_did::PreparedRollout [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::heterogeneity_robust_did::RolloutDidFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::heterogeneity_robust_did::RolloutDidPosterior [auto]
@@ -9524,6 +9864,23 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nonlinear_
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nonlinear_mediation::NonlinearMediationMediatorDiagnostics [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nonlinear_mediation::NonlinearMediationOverlap [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeContrastParameterSpread [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeDiscretization [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeDiscretizationStatus [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeFilterPrior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeFitError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeFitPolicy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeFitting [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeIdentification [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeIdentificationFailure [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeIdentificationStatus [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeObservation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeObservationModel [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeParameterUncertainty [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeTrajectory [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeWorldParameterSpread [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nuisance_cache::CertifiedSource [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nuisance_cache::DesignDependency [auto]
@@ -9562,6 +9919,25 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_mechani
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_mechanisms::OuMechanismParameter [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_mechanisms::OuMechanismRegime [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_mechanisms::OuMechanisms [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_trajectory::OuAliasingCheck [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_trajectory::OuFilteredState [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_trajectory::OuIdentificationFailure [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_trajectory::OuIdentificationStatus [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_trajectory::OuInitialLaw [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_trajectory::OuObservation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_trajectory::OuObservationModel [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_trajectory::OuPredictionDesign [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_trajectory::OuScheduleSegment [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_trajectory::OuStationaryDesign [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_trajectory::OuStationaryPrediction [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_trajectory::OuTrajectory [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_trajectory::OuTrajectoryError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_trajectory::OuTrajectoryFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_trajectory::OuTrajectoryFitting [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_trajectory::OuTrajectoryIdentification [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_trajectory::OuTrajectoryNumerics [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_trajectory::OuTrajectoryPrediction [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_trajectory::OuTrajectoryReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPrior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::penalized_propensity_posterior::PropensityScoreSummary [auto]
@@ -9709,6 +10085,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::switchback
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::switchback_posterior::SwitchbackPosterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::switchback_posterior::SwitchbackPrior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::synthetic_control::AugmentedSyntheticControlFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::synthetic_control::ObservedWindowSupport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::synthetic_control::SyntheticConstantEffectMethod [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::synthetic_control::SyntheticControlFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::synthetic_control::SyntheticDidFit [auto]
@@ -10294,6 +10671,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::experimental_
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::experimental_fit::ResidualCorrelation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::experimental_fit::SystemStability [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::experimental_fit::TargetBlockFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::external_cyclic_fit::ExternalFitPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2 [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot [auto]
@@ -10303,6 +10682,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::gaussian_line
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::gaussian_linear_posterior::GaussianLinearPrior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::gaussian_linear_posterior::PosteriorSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::gaussian_linear_posterior::StudentPosterior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::heterogeneity_robust_did::CohortSupport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::heterogeneity_robust_did::PreparedRollout [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::heterogeneity_robust_did::RolloutDidFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::heterogeneity_robust_did::RolloutDidPosterior [auto]
@@ -10548,6 +10928,23 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nonlinear_med
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nonlinear_mediation::NonlinearMediationMediatorDiagnostics [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nonlinear_mediation::NonlinearMediationOverlap [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeContrastParameterSpread [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeDiscretization [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeDiscretizationStatus [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeFilterPrior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeFitError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeFitPolicy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeFitting [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeIdentification [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeIdentificationFailure [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeIdentificationStatus [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeObservation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeObservationModel [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeParameterUncertainty [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeTrajectory [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nonlinear_sde_fit::SdeWorldParameterSpread [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nuisance_cache::CertifiedSource [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nuisance_cache::DesignDependency [auto]
@@ -10586,6 +10983,25 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_mechanisms
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_mechanisms::OuMechanismParameter [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_mechanisms::OuMechanismRegime [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_mechanisms::OuMechanisms [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_trajectory::OuAliasingCheck [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_trajectory::OuFilteredState [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_trajectory::OuIdentificationFailure [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_trajectory::OuIdentificationStatus [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_trajectory::OuInitialLaw [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_trajectory::OuObservation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_trajectory::OuObservationModel [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_trajectory::OuPredictionDesign [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_trajectory::OuScheduleSegment [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_trajectory::OuStationaryDesign [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_trajectory::OuStationaryPrediction [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_trajectory::OuTrajectory [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_trajectory::OuTrajectoryError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_trajectory::OuTrajectoryFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_trajectory::OuTrajectoryFitting [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_trajectory::OuTrajectoryIdentification [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_trajectory::OuTrajectoryNumerics [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_trajectory::OuTrajectoryPrediction [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_trajectory::OuTrajectoryReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPrior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::penalized_propensity_posterior::PropensityScoreSummary [auto]
@@ -10733,6 +11149,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::switchback_po
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::switchback_posterior::SwitchbackPosterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::switchback_posterior::SwitchbackPrior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::synthetic_control::AugmentedSyntheticControlFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::synthetic_control::ObservedWindowSupport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::synthetic_control::SyntheticConstantEffectMethod [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::synthetic_control::SyntheticControlFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::synthetic_control::SyntheticDidFit [auto]
@@ -10898,6 +11315,8 @@ impl serde_core::ser::Serialize for antecedent_estimate::cyclic_likelihood::Cycl
 impl serde_core::ser::Serialize for antecedent_estimate::cyclic_likelihood::CyclicParameter
 impl serde_core::ser::Serialize for antecedent_estimate::cyclic_likelihood::CyclicPosterior
 impl serde_core::ser::Serialize for antecedent_estimate::cyclic_likelihood::CyclicStructureFit
+impl serde_core::ser::Serialize for antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit
+impl serde_core::ser::Serialize for antecedent_estimate::external_cyclic_fit::ExternalFitPolicy
 impl serde_core::ser::Serialize for antecedent_estimate::joint_design::JointDesignEstimate
 impl serde_core::ser::Serialize for antecedent_estimate::joint_design::JointDesignPosterior
 impl serde_core::ser::Serialize for antecedent_estimate::joint_design::JointUncertainty
@@ -10988,6 +11407,22 @@ impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::time_varyi
 impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw
 impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec
 impl serde_core::ser::Serialize for antecedent_estimate::learned_trial::TrialNuisanceDiagnostics
+impl serde_core::ser::Serialize for antecedent_estimate::nonlinear_sde_fit::SdeContrastParameterSpread
+impl serde_core::ser::Serialize for antecedent_estimate::nonlinear_sde_fit::SdeDiscretization
+impl serde_core::ser::Serialize for antecedent_estimate::nonlinear_sde_fit::SdeDiscretizationStatus
+impl serde_core::ser::Serialize for antecedent_estimate::nonlinear_sde_fit::SdeFilterPrior
+impl serde_core::ser::Serialize for antecedent_estimate::nonlinear_sde_fit::SdeFit
+impl serde_core::ser::Serialize for antecedent_estimate::nonlinear_sde_fit::SdeFitPolicy
+impl serde_core::ser::Serialize for antecedent_estimate::nonlinear_sde_fit::SdeFitting
+impl serde_core::ser::Serialize for antecedent_estimate::nonlinear_sde_fit::SdeIdentification
+impl serde_core::ser::Serialize for antecedent_estimate::nonlinear_sde_fit::SdeIdentificationFailure
+impl serde_core::ser::Serialize for antecedent_estimate::nonlinear_sde_fit::SdeIdentificationStatus
+impl serde_core::ser::Serialize for antecedent_estimate::nonlinear_sde_fit::SdeObservation
+impl serde_core::ser::Serialize for antecedent_estimate::nonlinear_sde_fit::SdeObservationModel
+impl serde_core::ser::Serialize for antecedent_estimate::nonlinear_sde_fit::SdeParameterUncertainty
+impl serde_core::ser::Serialize for antecedent_estimate::nonlinear_sde_fit::SdeReport
+impl serde_core::ser::Serialize for antecedent_estimate::nonlinear_sde_fit::SdeTrajectory
+impl serde_core::ser::Serialize for antecedent_estimate::nonlinear_sde_fit::SdeWorldParameterSpread
 impl serde_core::ser::Serialize for antecedent_estimate::ou_mechanisms::OuEquationReplacement
 impl serde_core::ser::Serialize for antecedent_estimate::ou_mechanisms::OuMechanismFit
 impl serde_core::ser::Serialize for antecedent_estimate::ou_mechanisms::OuMechanismLaw
@@ -10995,6 +11430,24 @@ impl serde_core::ser::Serialize for antecedent_estimate::ou_mechanisms::OuMechan
 impl serde_core::ser::Serialize for antecedent_estimate::ou_mechanisms::OuMechanismParameter
 impl serde_core::ser::Serialize for antecedent_estimate::ou_mechanisms::OuMechanismRegime
 impl serde_core::ser::Serialize for antecedent_estimate::ou_mechanisms::OuMechanisms
+impl serde_core::ser::Serialize for antecedent_estimate::ou_trajectory::OuAliasingCheck
+impl serde_core::ser::Serialize for antecedent_estimate::ou_trajectory::OuFilteredState
+impl serde_core::ser::Serialize for antecedent_estimate::ou_trajectory::OuIdentificationFailure
+impl serde_core::ser::Serialize for antecedent_estimate::ou_trajectory::OuIdentificationStatus
+impl serde_core::ser::Serialize for antecedent_estimate::ou_trajectory::OuInitialLaw
+impl serde_core::ser::Serialize for antecedent_estimate::ou_trajectory::OuObservation
+impl serde_core::ser::Serialize for antecedent_estimate::ou_trajectory::OuObservationModel
+impl serde_core::ser::Serialize for antecedent_estimate::ou_trajectory::OuPredictionDesign
+impl serde_core::ser::Serialize for antecedent_estimate::ou_trajectory::OuScheduleSegment
+impl serde_core::ser::Serialize for antecedent_estimate::ou_trajectory::OuStationaryDesign
+impl serde_core::ser::Serialize for antecedent_estimate::ou_trajectory::OuStationaryPrediction
+impl serde_core::ser::Serialize for antecedent_estimate::ou_trajectory::OuTrajectory
+impl serde_core::ser::Serialize for antecedent_estimate::ou_trajectory::OuTrajectoryFit
+impl serde_core::ser::Serialize for antecedent_estimate::ou_trajectory::OuTrajectoryFitting
+impl serde_core::ser::Serialize for antecedent_estimate::ou_trajectory::OuTrajectoryIdentification
+impl serde_core::ser::Serialize for antecedent_estimate::ou_trajectory::OuTrajectoryNumerics
+impl serde_core::ser::Serialize for antecedent_estimate::ou_trajectory::OuTrajectoryPrediction
+impl serde_core::ser::Serialize for antecedent_estimate::ou_trajectory::OuTrajectoryReport
 impl serde_core::ser::Serialize for antecedent_estimate::polynomial_scm::MassBounds
 impl serde_core::ser::Serialize for antecedent_estimate::polynomial_scm::PolynomialCausalCandidate
 impl serde_core::ser::Serialize for antecedent_estimate::polynomial_scm::PolynomialCausalProgram
@@ -11724,6 +12177,8 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_likel
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_likelihood::CyclicParameter
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_likelihood::CyclicPosterior
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_likelihood::CyclicStructureFit
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::external_cyclic_fit::ExternalFitPolicy
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::JointDesignEstimate
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::JointDesignPosterior
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::JointUncertainty
@@ -11813,6 +12268,22 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel:
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::learned_trial::TrialNuisanceDiagnostics
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::nonlinear_sde_fit::SdeContrastParameterSpread
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::nonlinear_sde_fit::SdeDiscretization
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::nonlinear_sde_fit::SdeDiscretizationStatus
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::nonlinear_sde_fit::SdeFilterPrior
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::nonlinear_sde_fit::SdeFit
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::nonlinear_sde_fit::SdeFitPolicy
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::nonlinear_sde_fit::SdeFitting
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::nonlinear_sde_fit::SdeIdentification
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::nonlinear_sde_fit::SdeIdentificationFailure
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::nonlinear_sde_fit::SdeIdentificationStatus
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::nonlinear_sde_fit::SdeObservation
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::nonlinear_sde_fit::SdeObservationModel
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::nonlinear_sde_fit::SdeParameterUncertainty
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::nonlinear_sde_fit::SdeReport
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::nonlinear_sde_fit::SdeTrajectory
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::nonlinear_sde_fit::SdeWorldParameterSpread
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_mechanisms::OuEquationReplacement
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_mechanisms::OuMechanismFit
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_mechanisms::OuMechanismLaw
@@ -11820,6 +12291,24 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_mechanism
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_mechanisms::OuMechanismParameter
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_mechanisms::OuMechanismRegime
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_mechanisms::OuMechanisms
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_trajectory::OuAliasingCheck
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_trajectory::OuFilteredState
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_trajectory::OuIdentificationFailure
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_trajectory::OuIdentificationStatus
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_trajectory::OuInitialLaw
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_trajectory::OuObservation
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_trajectory::OuObservationModel
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_trajectory::OuPredictionDesign
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_trajectory::OuScheduleSegment
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_trajectory::OuStationaryDesign
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_trajectory::OuStationaryPrediction
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_trajectory::OuTrajectory
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_trajectory::OuTrajectoryFit
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_trajectory::OuTrajectoryFitting
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_trajectory::OuTrajectoryIdentification
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_trajectory::OuTrajectoryNumerics
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_trajectory::OuTrajectoryPrediction
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_trajectory::OuTrajectoryReport
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::polynomial_scm::MassBounds
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::polynomial_scm::PolynomialCausalCandidate
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::polynomial_scm::PolynomialCausalProgram
@@ -12323,6 +12812,10 @@ pub enum antecedent_estimate::nested_markov_binary::LikelihoodFitStanding
 pub enum antecedent_estimate::nested_markov_binary::Regime
 pub enum antecedent_estimate::nested_markov_uncertainty::NestedFisherFunctional
 pub enum antecedent_estimate::nonlinear_mediation::NonlinearMediationEstimand
+pub enum antecedent_estimate::nonlinear_sde_fit::SdeDiscretizationStatus
+pub enum antecedent_estimate::nonlinear_sde_fit::SdeFitError
+pub enum antecedent_estimate::nonlinear_sde_fit::SdeIdentificationFailure
+pub enum antecedent_estimate::nonlinear_sde_fit::SdeIdentificationStatus
 pub enum antecedent_estimate::observational_policy::KnownPropensity
 pub enum antecedent_estimate::observational_policy::PolicyEvaluation
 pub enum antecedent_estimate::observational_policy::PolicyObjective
@@ -12330,6 +12823,10 @@ pub enum antecedent_estimate::observational_policy::PolicyOrigin
 pub enum antecedent_estimate::observational_survival::CensoringAssumption
 pub enum antecedent_estimate::ou_mechanisms::OuMechanismOutcome
 pub enum antecedent_estimate::ou_mechanisms::OuMechanismParameter
+pub enum antecedent_estimate::ou_trajectory::OuIdentificationFailure
+pub enum antecedent_estimate::ou_trajectory::OuIdentificationStatus
+pub enum antecedent_estimate::ou_trajectory::OuInitialLaw
+pub enum antecedent_estimate::ou_trajectory::OuTrajectoryError
 pub enum antecedent_estimate::polynomial_scm::PolynomialSelectedState
 pub enum antecedent_estimate::posterior_mean::DirichletNamespace
 pub enum antecedent_estimate::posterior_mean::LocalQuadraticNamespace
@@ -14478,6 +14975,19 @@ pub field antecedent_estimate::experimental_fit::TargetBlockFit::identified: cor
 pub field antecedent_estimate::experimental_fit::TargetBlockFit::rows: usize
 pub field antecedent_estimate::experimental_fit::TargetBlockFit::sources: alloc::vec::Vec<antecedent_core::ids::VariableId>
 pub field antecedent_estimate::experimental_fit::TargetBlockFit::target: antecedent_core::ids::VariableId
+pub field antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit::converged: bool
+pub field antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit::evaluations: usize
+pub field antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit::iterations: usize
+pub field antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit::line_search_exhausted: bool
+pub field antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit::log_likelihood: f64
+pub field antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit::score_basis: alloc::string::String
+pub field antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit::score_norm: f64
+pub field antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit::system: antecedent_model::external_mechanism::ExternalFeedbackSystem
+pub field antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit::trust: antecedent_model::external_mechanism::MechanismTrust
+pub field antecedent_estimate::external_cyclic_fit::ExternalFitPolicy::difference_step: f64
+pub field antecedent_estimate::external_cyclic_fit::ExternalFitPolicy::learning_rate: f64
+pub field antecedent_estimate::external_cyclic_fit::ExternalFitPolicy::max_iterations: usize
+pub field antecedent_estimate::external_cyclic_fit::ExternalFitPolicy::score_tolerance: f64
 pub field antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2::cell_means: alloc::vec::Vec<f64>
 pub field antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2::cell_support: alloc::vec::Vec<usize>
 pub field antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2::factor_a_effect: f64
@@ -14504,10 +15014,21 @@ pub field antecedent_estimate::gaussian_linear_posterior::PosteriorSummary::stan
 pub field antecedent_estimate::gaussian_linear_posterior::StudentPosterior::degrees_of_freedom: f64
 pub field antecedent_estimate::gaussian_linear_posterior::StudentPosterior::location: f64
 pub field antecedent_estimate::gaussian_linear_posterior::StudentPosterior::scale: f64
+pub field antecedent_estimate::heterogeneity_robust_did::CohortSupport::cohort: i64
+pub field antecedent_estimate::heterogeneity_robust_did::CohortSupport::dropped_rows: usize
+pub field antecedent_estimate::heterogeneity_robust_did::CohortSupport::post_cells: usize
+pub field antecedent_estimate::heterogeneity_robust_did::CohortSupport::pre_cells: usize
+pub field antecedent_estimate::heterogeneity_robust_did::CohortSupport::rows: usize
+pub field antecedent_estimate::heterogeneity_robust_did::CohortSupport::units: usize
+pub field antecedent_estimate::heterogeneity_robust_did::CohortSupport::units_at_base: usize
 pub field antecedent_estimate::heterogeneity_robust_did::RolloutDidFit::aggregated: alloc::vec::Vec<antecedent_estimate::rollout_resampling::DesignEffect>
+pub field antecedent_estimate::heterogeneity_robust_did::RolloutDidFit::attrition_slope: f64
 pub field antecedent_estimate::heterogeneity_robust_did::RolloutDidFit::balanced: bool
 pub field antecedent_estimate::heterogeneity_robust_did::RolloutDidFit::clusters: usize
+pub field antecedent_estimate::heterogeneity_robust_did::RolloutDidFit::cohort_support: alloc::vec::Vec<antecedent_estimate::heterogeneity_robust_did::CohortSupport>
 pub field antecedent_estimate::heterogeneity_robust_did::RolloutDidFit::dropped_cohorts: alloc::vec::Vec<i64>
+pub field antecedent_estimate::heterogeneity_robust_did::RolloutDidFit::dropped_rows: usize
+pub field antecedent_estimate::heterogeneity_robust_did::RolloutDidFit::dropped_units: usize
 pub field antecedent_estimate::heterogeneity_robust_did::RolloutDidFit::group_time: alloc::vec::Vec<antecedent_estimate::rollout_resampling::DesignEffect>
 pub field antecedent_estimate::heterogeneity_robust_did::RolloutDidFit::leads: alloc::vec::Vec<antecedent_estimate::rollout_resampling::DesignEffect>
 pub field antecedent_estimate::heterogeneity_robust_did::RolloutDidFit::never_treated_units: usize
@@ -15529,6 +16050,72 @@ pub field antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises::
 pub field antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises::unmeasured_mediator_outcome_confounding: bool
 pub field antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises::unmeasured_treatment_mediator_confounding: bool
 pub field antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises::unmeasured_treatment_outcome_confounding: bool
+pub field antecedent_estimate::nonlinear_sde_fit::SdeContrastParameterSpread::id: alloc::string::String
+pub field antecedent_estimate::nonlinear_sde_fit::SdeContrastParameterSpread::mean_difference_between_draw_variance: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_estimate::nonlinear_sde_fit::SdeDiscretization::boundary_proximate_fraction: f64
+pub field antecedent_estimate::nonlinear_sde_fit::SdeDiscretization::flag_threshold: f64
+pub field antecedent_estimate::nonlinear_sde_fit::SdeDiscretization::likelihood: alloc::string::String
+pub field antecedent_estimate::nonlinear_sde_fit::SdeDiscretization::maximum_interval: f64
+pub field antecedent_estimate::nonlinear_sde_fit::SdeDiscretization::maximum_rate_interval_product: f64
+pub field antecedent_estimate::nonlinear_sde_fit::SdeDiscretization::mean_rate_interval_product: f64
+pub field antecedent_estimate::nonlinear_sde_fit::SdeDiscretization::minimum_interval: core::option::Option<f64>
+pub field antecedent_estimate::nonlinear_sde_fit::SdeDiscretization::note: alloc::string::String
+pub field antecedent_estimate::nonlinear_sde_fit::SdeDiscretization::refusal_threshold: f64
+pub field antecedent_estimate::nonlinear_sde_fit::SdeDiscretization::status: antecedent_estimate::nonlinear_sde_fit::SdeDiscretizationStatus
+pub field antecedent_estimate::nonlinear_sde_fit::SdeDiscretization::transitions: usize
+pub field antecedent_estimate::nonlinear_sde_fit::SdeDiscretization::transitions_above_flag: usize
+pub field antecedent_estimate::nonlinear_sde_fit::SdeFilterPrior::covariance: alloc::vec::Vec<f64>
+pub field antecedent_estimate::nonlinear_sde_fit::SdeFilterPrior::mean: alloc::vec::Vec<f64>
+pub field antecedent_estimate::nonlinear_sde_fit::SdeFit::discretization: antecedent_estimate::nonlinear_sde_fit::SdeDiscretization
+pub field antecedent_estimate::nonlinear_sde_fit::SdeFit::fitting: antecedent_estimate::nonlinear_sde_fit::SdeFitting
+pub field antecedent_estimate::nonlinear_sde_fit::SdeFit::identification: antecedent_estimate::nonlinear_sde_fit::SdeIdentification
+pub field antecedent_estimate::nonlinear_sde_fit::SdeFit::log_quasi_likelihood: f64
+pub field antecedent_estimate::nonlinear_sde_fit::SdeFit::names: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_estimate::nonlinear_sde_fit::SdeFit::observation_count: usize
+pub field antecedent_estimate::nonlinear_sde_fit::SdeFit::parameter_covariance: core::option::Option<alloc::vec::Vec<f64>>
+pub field antecedent_estimate::nonlinear_sde_fit::SdeFit::parameters: alloc::vec::Vec<usize>
+pub field antecedent_estimate::nonlinear_sde_fit::SdeFit::standard_errors: core::option::Option<alloc::vec::Vec<f64>>
+pub field antecedent_estimate::nonlinear_sde_fit::SdeFit::theta: alloc::vec::Vec<f64>
+pub field antecedent_estimate::nonlinear_sde_fit::SdeFit::values: alloc::vec::Vec<f64>
+pub field antecedent_estimate::nonlinear_sde_fit::SdeFitPolicy::coarse_flag: f64
+pub field antecedent_estimate::nonlinear_sde_fit::SdeFitPolicy::coarse_refusal: f64
+pub field antecedent_estimate::nonlinear_sde_fit::SdeFitPolicy::filter_step: f64
+pub field antecedent_estimate::nonlinear_sde_fit::SdeFitPolicy::optimizer: antecedent_estimate::cyclic_gradient::CyclicGradientPolicy
+pub field antecedent_estimate::nonlinear_sde_fit::SdeFitPolicy::variance_floor: f64
+pub field antecedent_estimate::nonlinear_sde_fit::SdeFitting::converged: bool
+pub field antecedent_estimate::nonlinear_sde_fit::SdeFitting::derivative_method: alloc::string::String
+pub field antecedent_estimate::nonlinear_sde_fit::SdeFitting::evaluations: usize
+pub field antecedent_estimate::nonlinear_sde_fit::SdeFitting::iterations: usize
+pub field antecedent_estimate::nonlinear_sde_fit::SdeFitting::line_search_exhausted: bool
+pub field antecedent_estimate::nonlinear_sde_fit::SdeFitting::optimizer: alloc::string::String
+pub field antecedent_estimate::nonlinear_sde_fit::SdeFitting::score_norm: f64
+pub field antecedent_estimate::nonlinear_sde_fit::SdeIdentification::assumptions: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_estimate::nonlinear_sde_fit::SdeIdentification::conditions: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_estimate::nonlinear_sde_fit::SdeIdentification::information_condition: core::option::Option<f64>
+pub field antecedent_estimate::nonlinear_sde_fit::SdeIdentification::information_min_eigenvalue: core::option::Option<f64>
+pub field antecedent_estimate::nonlinear_sde_fit::SdeIdentification::information_rank: usize
+pub field antecedent_estimate::nonlinear_sde_fit::SdeIdentification::parameter_count: usize
+pub field antecedent_estimate::nonlinear_sde_fit::SdeIdentification::status: antecedent_estimate::nonlinear_sde_fit::SdeIdentificationStatus
+pub field antecedent_estimate::nonlinear_sde_fit::SdeIdentification::unobserved_components: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_estimate::nonlinear_sde_fit::SdeObservation::time: f64
+pub field antecedent_estimate::nonlinear_sde_fit::SdeObservation::values: alloc::vec::Vec<f64>
+pub field antecedent_estimate::nonlinear_sde_fit::SdeObservationModel::matrix: alloc::vec::Vec<f64>
+pub field antecedent_estimate::nonlinear_sde_fit::SdeObservationModel::noise_standard_deviation: alloc::vec::Vec<f64>
+pub field antecedent_estimate::nonlinear_sde_fit::SdeObservationModel::offset: alloc::vec::Vec<f64>
+pub field antecedent_estimate::nonlinear_sde_fit::SdeParameterUncertainty::completed_draws: usize
+pub field antecedent_estimate::nonlinear_sde_fit::SdeParameterUncertainty::contrasts: alloc::vec::Vec<antecedent_estimate::nonlinear_sde_fit::SdeContrastParameterSpread>
+pub field antecedent_estimate::nonlinear_sde_fit::SdeParameterUncertainty::draws: usize
+pub field antecedent_estimate::nonlinear_sde_fit::SdeParameterUncertainty::meaning: alloc::string::String
+pub field antecedent_estimate::nonlinear_sde_fit::SdeParameterUncertainty::seed: u64
+pub field antecedent_estimate::nonlinear_sde_fit::SdeParameterUncertainty::worlds: alloc::vec::Vec<antecedent_estimate::nonlinear_sde_fit::SdeWorldParameterSpread>
+pub field antecedent_estimate::nonlinear_sde_fit::SdeReport::fit: core::option::Option<antecedent_estimate::nonlinear_sde_fit::SdeFit>
+pub field antecedent_estimate::nonlinear_sde_fit::SdeReport::parameter_uncertainty: core::option::Option<antecedent_estimate::nonlinear_sde_fit::SdeParameterUncertainty>
+pub field antecedent_estimate::nonlinear_sde_fit::SdeReport::simulation: antecedent_model::nonlinear_sde::SdeEnsembleReport
+pub field antecedent_estimate::nonlinear_sde_fit::SdeTrajectory::id: alloc::string::String
+pub field antecedent_estimate::nonlinear_sde_fit::SdeTrajectory::intervention: antecedent_model::nonlinear_sde::SdeWorld
+pub field antecedent_estimate::nonlinear_sde_fit::SdeTrajectory::observations: alloc::vec::Vec<antecedent_estimate::nonlinear_sde_fit::SdeObservation>
+pub field antecedent_estimate::nonlinear_sde_fit::SdeWorldParameterSpread::id: alloc::string::String
+pub field antecedent_estimate::nonlinear_sde_fit::SdeWorldParameterSpread::mean_between_draw_variance: alloc::vec::Vec<alloc::vec::Vec<f64>>
 pub field antecedent_estimate::observational_policy::ActionValue::level: f64
 pub field antecedent_estimate::observational_policy::ActionValue::policy_share: f64
 pub field antecedent_estimate::observational_policy::ActionValue::propensity_min: f64
@@ -15616,6 +16203,85 @@ pub field antecedent_estimate::ou_mechanisms::OuMechanisms::diffusion_factor: al
 pub field antecedent_estimate::ou_mechanisms::OuMechanisms::drift: alloc::vec::Vec<f64>
 pub field antecedent_estimate::ou_mechanisms::OuMechanisms::equations: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_estimate::ou_mechanisms::OuMechanisms::forcing: alloc::vec::Vec<f64>
+pub field antecedent_estimate::ou_trajectory::OuAliasingCheck::aliasing_possible: core::option::Option<bool>
+pub field antecedent_estimate::ou_trajectory::OuAliasingCheck::largest_oscillation_frequency: core::option::Option<f64>
+pub field antecedent_estimate::ou_trajectory::OuAliasingCheck::minimum_interval: core::option::Option<f64>
+pub field antecedent_estimate::ou_trajectory::OuAliasingCheck::phase_at_minimum_interval: core::option::Option<f64>
+pub field antecedent_estimate::ou_trajectory::OuFilteredState::covariance: alloc::vec::Vec<f64>
+pub field antecedent_estimate::ou_trajectory::OuFilteredState::mean: alloc::vec::Vec<f64>
+pub field antecedent_estimate::ou_trajectory::OuFilteredState::standard_deviation: alloc::vec::Vec<f64>
+pub field antecedent_estimate::ou_trajectory::OuFilteredState::time: f64
+pub field antecedent_estimate::ou_trajectory::OuFilteredState::trajectory: alloc::string::String
+pub field antecedent_estimate::ou_trajectory::OuObservation::time: f64
+pub field antecedent_estimate::ou_trajectory::OuObservation::values: alloc::vec::Vec<f64>
+pub field antecedent_estimate::ou_trajectory::OuObservationModel::matrix: alloc::vec::Vec<f64>
+pub field antecedent_estimate::ou_trajectory::OuObservationModel::noise_standard_deviation: alloc::vec::Vec<f64>
+pub field antecedent_estimate::ou_trajectory::OuObservationModel::offset: alloc::vec::Vec<f64>
+pub field antecedent_estimate::ou_trajectory::OuPredictionDesign::id: alloc::string::String
+pub field antecedent_estimate::ou_trajectory::OuPredictionDesign::initial: antecedent_estimate::ou_trajectory::OuInitialLaw
+pub field antecedent_estimate::ou_trajectory::OuPredictionDesign::schedule: alloc::vec::Vec<antecedent_estimate::ou_trajectory::OuScheduleSegment>
+pub field antecedent_estimate::ou_trajectory::OuPredictionDesign::times: alloc::vec::Vec<f64>
+pub field antecedent_estimate::ou_trajectory::OuScheduleSegment::replacements: alloc::vec::Vec<antecedent_estimate::ou_mechanisms::OuEquationReplacement>
+pub field antecedent_estimate::ou_trajectory::OuScheduleSegment::start: f64
+pub field antecedent_estimate::ou_trajectory::OuStationaryDesign::id: alloc::string::String
+pub field antecedent_estimate::ou_trajectory::OuStationaryDesign::replacements: alloc::vec::Vec<antecedent_estimate::ou_mechanisms::OuEquationReplacement>
+pub field antecedent_estimate::ou_trajectory::OuStationaryPrediction::covariance: alloc::vec::Vec<f64>
+pub field antecedent_estimate::ou_trajectory::OuStationaryPrediction::covariance_parameter_variance: core::option::Option<alloc::vec::Vec<f64>>
+pub field antecedent_estimate::ou_trajectory::OuStationaryPrediction::failure: core::option::Option<alloc::string::String>
+pub field antecedent_estimate::ou_trajectory::OuStationaryPrediction::id: alloc::string::String
+pub field antecedent_estimate::ou_trajectory::OuStationaryPrediction::mean: alloc::vec::Vec<f64>
+pub field antecedent_estimate::ou_trajectory::OuStationaryPrediction::mean_parameter_covariance: core::option::Option<alloc::vec::Vec<f64>>
+pub field antecedent_estimate::ou_trajectory::OuTrajectory::id: alloc::string::String
+pub field antecedent_estimate::ou_trajectory::OuTrajectory::initial: antecedent_estimate::ou_trajectory::OuInitialLaw
+pub field antecedent_estimate::ou_trajectory::OuTrajectory::observations: alloc::vec::Vec<antecedent_estimate::ou_trajectory::OuObservation>
+pub field antecedent_estimate::ou_trajectory::OuTrajectory::schedule: alloc::vec::Vec<antecedent_estimate::ou_trajectory::OuScheduleSegment>
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryFit::filtered_states: alloc::vec::Vec<antecedent_estimate::ou_trajectory::OuFilteredState>
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryFit::fitting: antecedent_estimate::ou_trajectory::OuTrajectoryFitting
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryFit::identification: antecedent_estimate::ou_trajectory::OuTrajectoryIdentification
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryFit::log_likelihood: f64
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryFit::model: antecedent_estimate::ou_mechanisms::OuMechanisms
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryFit::numerics: antecedent_estimate::ou_trajectory::OuTrajectoryNumerics
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryFit::observation_count: usize
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryFit::parameter_covariance: core::option::Option<alloc::vec::Vec<f64>>
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryFit::parameters: alloc::vec::Vec<antecedent_estimate::ou_mechanisms::OuMechanismParameter>
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryFit::standard_errors: core::option::Option<alloc::vec::Vec<f64>>
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryFit::values: alloc::vec::Vec<f64>
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryFitting::converged: bool
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryFitting::derivative_method: alloc::string::String
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryFitting::evaluations: usize
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryFitting::iterations: usize
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryFitting::line_search_exhausted: bool
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryFitting::optimizer: alloc::string::String
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryFitting::score_norm: f64
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryIdentification::aliasing: antecedent_estimate::ou_trajectory::OuAliasingCheck
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryIdentification::assumptions: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryIdentification::conditions: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryIdentification::information_min_eigenvalue: core::option::Option<f64>
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryIdentification::information_rank: usize
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryIdentification::observability_rank: usize
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryIdentification::parameter_count: usize
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryIdentification::state_dimension: usize
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryIdentification::status: antecedent_estimate::ou_trajectory::OuIdentificationStatus
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryIdentification::unobservable_dimension: usize
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryIdentification::unobserved_components: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryNumerics::drift_stable: core::option::Option<bool>
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryNumerics::expm_inverse_residual: f64
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryNumerics::expm_reliable: bool
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryNumerics::information_condition: core::option::Option<f64>
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryNumerics::innovation_condition: f64
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryNumerics::spectral_abscissa: core::option::Option<f64>
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryPrediction::id: alloc::string::String
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryPrediction::observation_mean: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryPrediction::observation_mean_parameter_variance: core::option::Option<alloc::vec::Vec<alloc::vec::Vec<f64>>>
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryPrediction::observation_variance: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryPrediction::state_covariance: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryPrediction::state_covariance_parameter_variance: core::option::Option<alloc::vec::Vec<alloc::vec::Vec<f64>>>
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryPrediction::state_mean: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryPrediction::state_mean_parameter_covariance: core::option::Option<alloc::vec::Vec<alloc::vec::Vec<f64>>>
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryPrediction::times: alloc::vec::Vec<f64>
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryReport::fit: antecedent_estimate::ou_trajectory::OuTrajectoryFit
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryReport::predictions: alloc::vec::Vec<antecedent_estimate::ou_trajectory::OuTrajectoryPrediction>
+pub field antecedent_estimate::ou_trajectory::OuTrajectoryReport::stationary: alloc::vec::Vec<antecedent_estimate::ou_trajectory::OuStationaryPrediction>
 pub field antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior::draws: alloc::vec::Vec<f64>
 pub field antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior::mode: alloc::vec::Vec<f64>
 pub field antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior::n_draws: usize
@@ -16191,6 +16857,11 @@ pub field antecedent_estimate::synthetic_control::AugmentedSyntheticControlFit::
 pub field antecedent_estimate::synthetic_control::AugmentedSyntheticControlFit::effect: f64
 pub field antecedent_estimate::synthetic_control::AugmentedSyntheticControlFit::outcome_model_correction: f64
 pub field antecedent_estimate::synthetic_control::AugmentedSyntheticControlFit::ridge_penalty: f64
+pub field antecedent_estimate::synthetic_control::ObservedWindowSupport::donors_dropped: alloc::vec::Vec<(alloc::string::String, usize)>
+pub field antecedent_estimate::synthetic_control::ObservedWindowSupport::donors_used: usize
+pub field antecedent_estimate::synthetic_control::ObservedWindowSupport::post_periods: alloc::vec::Vec<i64>
+pub field antecedent_estimate::synthetic_control::ObservedWindowSupport::pre_periods: alloc::vec::Vec<i64>
+pub field antecedent_estimate::synthetic_control::ObservedWindowSupport::unread_rows: usize
 pub field antecedent_estimate::synthetic_control::SyntheticControlFit::donor_weights: alloc::vec::Vec<(alloc::string::String, f64)>
 pub field antecedent_estimate::synthetic_control::SyntheticControlFit::effect: f64
 pub field antecedent_estimate::synthetic_control::SyntheticControlFit::n_post_periods: usize
@@ -17542,6 +18213,7 @@ pub fn <antecedent_estimate::nested_markov_binary::BinaryCells>::fn new(cells: &
 pub fn <antecedent_estimate::nested_markov_binary::NestedParameters>::fn cell_probabilities(&self) -> [f64; 16]
 pub fn <antecedent_estimate::nested_markov_uncertainty::NestedMarkovUncertainty>::fn calibration_basis(&self, functional: antecedent_estimate::nested_markov_uncertainty::NestedFisherFunctional) -> antecedent_core::calibration_basis::CalibrationBasis
 pub fn <antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises>::const fn sequentially_ignorable() -> Self
+pub fn <antecedent_estimate::nonlinear_sde_fit::SdeIdentificationFailure>::const fn code(self) -> &'static str
 pub fn <antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions>::const fn evaluation_fold(&self) -> u32
 pub fn <antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions>::const fn rows(&self) -> &[antecedent_estimate::nuisance_cache::PredictedRow]
 pub fn <antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions>::fn try_new(evaluation_fold: u32, rows: &[antecedent_estimate::nuisance_cache::PredictedRow]) -> core::result::Result<Self, antecedent_estimate::nuisance_cache::NuisanceCacheError>
@@ -17644,6 +18316,9 @@ pub fn <antecedent_estimate::observational_survival::ObservationalSurvival>::fn 
 pub fn <antecedent_estimate::ou_mechanisms::OuMechanisms>::fn stationary(&self, replacements: &[antecedent_estimate::ou_mechanisms::OuEquationReplacement], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::ou_mechanisms::OuMechanismLaw, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn <antecedent_estimate::ou_mechanisms::OuMechanisms>::fn stationary_outcome(&self, replacements: &[antecedent_estimate::ou_mechanisms::OuEquationReplacement], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::ou_mechanisms::OuMechanismOutcome, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn <antecedent_estimate::ou_mechanisms::OuMechanisms>::fn validate(&self) -> core::result::Result<usize, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn <antecedent_estimate::ou_trajectory::OuIdentificationFailure>::const fn code(self) -> &'static str
+pub fn <antecedent_estimate::ou_trajectory::OuObservationModel>::fn direct(n: usize, noise_standard_deviation: f64) -> Self
+pub fn <antecedent_estimate::ou_trajectory::OuObservationModel>::fn validate(&self, n: usize) -> core::result::Result<usize, antecedent_estimate::ou_trajectory::OuTrajectoryError>
 pub fn <antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior>::fn score_at(&self, row: &[f64], clip: f64) -> core::result::Result<antecedent_estimate::penalized_propensity_posterior::PropensityScoreSummary, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior>::fn weighting_effect_posterior(&self) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPrior>::fn fit(&self, design: &antecedent_estimate::penalized_propensity_posterior::StaticPropensityDesign) -> core::result::Result<antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior, antecedent_estimate::EstimationError>
@@ -18034,6 +18709,7 @@ pub fn antecedent_estimate::experimental_fit::asymptotic_normal_recovery(fit: &a
 pub fn antecedent_estimate::experimental_fit::bootstrap_experimental_recovery(rows: &antecedent_estimate::experimental_fit::ExperimentRows<'_>, options: &antecedent_estimate::experimental_fit::ExperimentalFitOptions, spec: &antecedent_estimate::experimental_fit::BootstrapSpec<'_>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::experimental_fit::RecoveredEstimate, antecedent_estimate::experimental_fit::ExperimentalFitError>
 pub fn antecedent_estimate::experimental_fit::fit_experimental_recovery(rows: &antecedent_estimate::experimental_fit::ExperimentRows<'_>, options: &antecedent_estimate::experimental_fit::ExperimentalFitOptions) -> core::result::Result<antecedent_estimate::experimental_fit::ExperimentalRecoveryFit, antecedent_estimate::experimental_fit::ExperimentalFitError>
 pub fn antecedent_estimate::experimental_fit::posterior_recovery(fit: &antecedent_estimate::experimental_fit::ExperimentalRecoveryFit, spec: &antecedent_estimate::experimental_fit::PosteriorSpec) -> core::result::Result<antecedent_estimate::experimental_fit::RecoveredEstimate, antecedent_estimate::experimental_fit::ExperimentalFitError>
+pub fn antecedent_estimate::external_cyclic_fit::fit_external_feedback(template: &antecedent_model::external_mechanism::ExternalFeedbackSystem, resolver: core::option::Option<&dyn antecedent_model::external_mechanism::TrustedMechanismResolver>, parameters: &[antecedent_model::external_mechanism::ExternalFitParameter], rows: &[antecedent_model::nonlinear_equilibrium::RegimeRow], policy: antecedent_estimate::external_cyclic_fit::ExternalFitPolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn antecedent_estimate::factorial_bernoulli::estimate_factorial_2x2(outcome: &[f64], factor_a: &[bool], factor_b: &[bool], probability_a: &[f64], probability_b: &[f64]) -> core::result::Result<antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2, &'static str>
 pub fn antecedent_estimate::fit_factorized_joint_cells(data: &antecedent_data::dataset::TabularData, treatments: &[antecedent_core::ids::VariableId], outcome: antecedent_core::ids::VariableId, adjustment: &[antecedent_core::ids::VariableId], orderings: &[alloc::vec::Vec<usize>], config: &antecedent_estimate::FactorizedJointConfig, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::FactorizedJointFit, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::flexible_learner_dependence_refusal(estimator_id: &str, option: &str) -> antecedent_estimate::EstimationError
@@ -18182,11 +18858,20 @@ pub fn antecedent_estimate::nested_markov_binary::refuse_public_interval_route()
 pub fn antecedent_estimate::nested_markov_uncertainty::nested_markov_fisher_internal(input: &antecedent_estimate::nested_markov_binary::NestedMarkovInput, options: &antecedent_estimate::nested_markov_binary::FitOptions, nominal_level: f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::nested_markov_uncertainty::NestedMarkovUncertainty, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::nominal_z_transport_interval(functional: &antecedent_identify::sid::z_transport::BoundZTransportFunctional, data: &antecedent_expr::exact::ExactTransportData, request: &antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, replicates: u32, coverage_level: f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<core::result::Result<antecedent_estimate::NominalZTransportInterval, &'static str>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::nonlinear_mediation::estimate_nonlinear_mediation(input: &antecedent_estimate::nonlinear_mediation::NonlinearMediationInput<'_>, premises: &antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises, config: &antecedent_estimate::nonlinear_mediation::NonlinearMediationConfig) -> core::result::Result<antecedent_estimate::nonlinear_mediation::NonlinearMediationEstimate, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::nonlinear_sde_fit::fit_sde_quasi_likelihood(compiled: &antecedent_model::nonlinear_sde::CompiledSde, coordinates: &[usize], observation: core::option::Option<&antecedent_estimate::nonlinear_sde_fit::SdeObservationModel>, prior: core::option::Option<&antecedent_estimate::nonlinear_sde_fit::SdeFilterPrior>, trajectories: &[antecedent_estimate::nonlinear_sde_fit::SdeTrajectory], policy: antecedent_estimate::nonlinear_sde_fit::SdeFitPolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::nonlinear_sde_fit::SdeFit, antecedent_estimate::nonlinear_sde_fit::SdeFitError>
+pub fn antecedent_estimate::nonlinear_sde_fit::sde_quasi_log_likelihood(compiled: &antecedent_model::nonlinear_sde::CompiledSde, theta: &[f64], observation: core::option::Option<&antecedent_estimate::nonlinear_sde_fit::SdeObservationModel>, prior: core::option::Option<&antecedent_estimate::nonlinear_sde_fit::SdeFilterPrior>, trajectories: &[antecedent_estimate::nonlinear_sde_fit::SdeTrajectory], policy: antecedent_estimate::nonlinear_sde_fit::SdeFitPolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<f64, antecedent_estimate::nonlinear_sde_fit::SdeFitError>
+pub fn antecedent_estimate::nonlinear_sde_fit::sde_report(compiled: &antecedent_model::nonlinear_sde::CompiledSde, fit: core::option::Option<antecedent_estimate::nonlinear_sde_fit::SdeFit>, initial: &[f64], policy: &antecedent_model::nonlinear_sde::SdeSimulationPolicy, worlds: &[antecedent_model::nonlinear_sde::SdeWorld], contrasts: &[antecedent_model::nonlinear_sde::SdeContrast], parameter_draws: usize, parameter_seed: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::nonlinear_sde_fit::SdeReport, antecedent_estimate::nonlinear_sde_fit::SdeFitError>
 pub fn antecedent_estimate::normal_equation_scores(matrix: &[f64], rows: usize, cols: usize, outcome: &[f64]) -> core::option::Option<alloc::vec::Vec<alloc::vec::Vec<f64>>>
 pub fn antecedent_estimate::normal_equation_scores_of_residuals(matrix: &[f64], rows: usize, cols: usize, residuals: &[f64]) -> alloc::vec::Vec<alloc::vec::Vec<f64>>
 pub fn antecedent_estimate::orderings_for(k: usize, declared: &[usize], all_permutations: bool) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<usize>>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::ou_mechanisms::fit_ou_mechanisms(template: &antecedent_estimate::ou_mechanisms::OuMechanisms, coordinates: &[antecedent_estimate::ou_mechanisms::OuMechanismParameter], regimes: &[antecedent_estimate::ou_mechanisms::OuMechanismRegime], policy: antecedent_estimate::cyclic_gradient::CyclicGradientPolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::ou_mechanisms::OuMechanismFit, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn antecedent_estimate::ou_mechanisms::ou_mechanism_likelihood_score(model: &antecedent_estimate::ou_mechanisms::OuMechanisms, regimes: &[antecedent_estimate::ou_mechanisms::OuMechanismRegime], coordinates: &[antecedent_estimate::ou_mechanisms::OuMechanismParameter], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(f64, alloc::vec::Vec<f64>), antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn antecedent_estimate::ou_trajectory::fit_ou_trajectories(template: &antecedent_estimate::ou_mechanisms::OuMechanisms, observation: &antecedent_estimate::ou_trajectory::OuObservationModel, coordinates: &[antecedent_estimate::ou_mechanisms::OuMechanismParameter], trajectories: &[antecedent_estimate::ou_trajectory::OuTrajectory], policy: antecedent_estimate::cyclic_gradient::CyclicGradientPolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::ou_trajectory::OuTrajectoryFit, antecedent_estimate::ou_trajectory::OuTrajectoryError>
+pub fn antecedent_estimate::ou_trajectory::ou_aliasing_check(drift: &[f64], n: usize, minimum_interval: core::option::Option<f64>) -> antecedent_estimate::ou_trajectory::OuAliasingCheck
+pub fn antecedent_estimate::ou_trajectory::ou_observability_rank(drift: &[f64], n: usize, matrix: &[f64], m: usize) -> usize
+pub fn antecedent_estimate::ou_trajectory::ou_trajectory_report(fit: antecedent_estimate::ou_trajectory::OuTrajectoryFit, observation: &antecedent_estimate::ou_trajectory::OuObservationModel, designs: &[antecedent_estimate::ou_trajectory::OuPredictionDesign], stationary: &[antecedent_estimate::ou_trajectory::OuStationaryDesign], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::ou_trajectory::OuTrajectoryReport, antecedent_estimate::ou_trajectory::OuTrajectoryError>
+pub fn antecedent_estimate::ou_trajectory::predict_ou_stationary(fit: &antecedent_estimate::ou_trajectory::OuTrajectoryFit, designs: &[antecedent_estimate::ou_trajectory::OuStationaryDesign], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::ou_trajectory::OuStationaryPrediction>, antecedent_estimate::ou_trajectory::OuTrajectoryError>
+pub fn antecedent_estimate::ou_trajectory::predict_ou_trajectories(fit: &antecedent_estimate::ou_trajectory::OuTrajectoryFit, observation: &antecedent_estimate::ou_trajectory::OuObservationModel, designs: &[antecedent_estimate::ou_trajectory::OuPredictionDesign], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::ou_trajectory::OuTrajectoryPrediction>, antecedent_estimate::ou_trajectory::OuTrajectoryError>
 pub fn antecedent_estimate::parse_matched_estimand(name: &str) -> core::result::Result<(), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::parse_matched_sampling(name: &str) -> core::result::Result<(), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::penalized_propensity_posterior::weighting_effect_posterior_refusal() -> antecedent_estimate::EstimationError
@@ -18328,6 +19013,7 @@ pub fn antecedent_estimate::synthetic_control::exact_synthetic_unit_randomizatio
 pub fn antecedent_estimate::synthetic_control::fit_augmented_synthetic_control(outcome: &[f64], units: &[alloc::string::String], periods: &[i64], treated_unit: &str, intervention_period: i64, ridge_penalty: f64) -> core::result::Result<antecedent_estimate::synthetic_control::AugmentedSyntheticControlFit, alloc::string::String>
 pub fn antecedent_estimate::synthetic_control::fit_synthetic_control(outcome: &[f64], units: &[alloc::string::String], periods: &[i64], treated_unit: &str, intervention_period: i64) -> core::result::Result<antecedent_estimate::synthetic_control::SyntheticControlFit, alloc::string::String>
 pub fn antecedent_estimate::synthetic_control::fit_synthetic_did(outcome: &[f64], units: &[alloc::string::String], periods: &[i64], treated_unit: &str, intervention_period: i64) -> core::result::Result<antecedent_estimate::synthetic_control::SyntheticDidFit, alloc::string::String>
+pub fn antecedent_estimate::synthetic_control::restrict_to_observed_window(outcome: &[f64], units: &[alloc::string::String], periods: &[i64], treated_unit: &str, intervention_period: i64) -> core::result::Result<(alloc::vec::Vec<f64>, alloc::vec::Vec<alloc::string::String>, alloc::vec::Vec<i64>, antecedent_estimate::synthetic_control::ObservedWindowSupport), alloc::string::String>
 pub fn antecedent_estimate::synthetic_rollout::conformal_synthetic_control(panel: &antecedent_estimate::synthetic_rollout::SyntheticRolloutPanel<'_>, treated: &str, intervention: i64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::synthetic_rollout::ConformalSyntheticFit, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::synthetic_rollout::conformal_synthetic_control_at_level(panel: &antecedent_estimate::synthetic_rollout::SyntheticRolloutPanel<'_>, treated: &str, intervention: i64, level: f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::synthetic_rollout::ConformalSyntheticFit, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::synthetic_rollout::multi_unit_synthetic(panel: &antecedent_estimate::synthetic_rollout::SyntheticRolloutPanel<'_>, adoptions: &[(alloc::sync::Arc<str>, i64)], method: antecedent_core::query::synthetic_control::SyntheticPanelMethod, replicates: u32, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::synthetic_rollout::MultiUnitSyntheticFit, antecedent_estimate::EstimationError>
@@ -18455,6 +19141,7 @@ pub mod antecedent_estimate::empirical_table
 pub mod antecedent_estimate::error
 pub mod antecedent_estimate::estimator
 pub mod antecedent_estimate::experimental_fit
+pub mod antecedent_estimate::external_cyclic_fit
 pub mod antecedent_estimate::factorial_bernoulli
 pub mod antecedent_estimate::frontdoor
 pub mod antecedent_estimate::functional_distribution
@@ -18506,10 +19193,12 @@ pub mod antecedent_estimate::multiple_imputation
 pub mod antecedent_estimate::nested_markov_binary
 pub mod antecedent_estimate::nested_markov_uncertainty
 pub mod antecedent_estimate::nonlinear_mediation
+pub mod antecedent_estimate::nonlinear_sde_fit
 pub mod antecedent_estimate::nuisance_cache
 pub mod antecedent_estimate::observational_policy
 pub mod antecedent_estimate::observational_survival
 pub mod antecedent_estimate::ou_mechanisms
+pub mod antecedent_estimate::ou_trajectory
 pub mod antecedent_estimate::overlap
 pub mod antecedent_estimate::penalized_propensity_posterior
 pub mod antecedent_estimate::policy_value
@@ -19020,6 +19709,8 @@ pub struct antecedent_estimate::experimental_fit::RecoveryPrior
 pub struct antecedent_estimate::experimental_fit::ResidualCorrelation
 pub struct antecedent_estimate::experimental_fit::SystemStability
 pub struct antecedent_estimate::experimental_fit::TargetBlockFit
+pub struct antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit
+pub struct antecedent_estimate::external_cyclic_fit::ExternalFitPolicy
 pub struct antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2
 pub struct antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot
 pub struct antecedent_estimate::functional_distribution::EmpiricalFactorCache
@@ -19030,6 +19721,7 @@ pub struct antecedent_estimate::gaussian_linear_posterior::GaussianLinearPosteri
 pub struct antecedent_estimate::gaussian_linear_posterior::GaussianLinearPrior
 pub struct antecedent_estimate::gaussian_linear_posterior::PosteriorSummary
 pub struct antecedent_estimate::gaussian_linear_posterior::StudentPosterior
+pub struct antecedent_estimate::heterogeneity_robust_did::CohortSupport
 pub struct antecedent_estimate::heterogeneity_robust_did::PreparedRollout
 pub struct antecedent_estimate::heterogeneity_robust_did::PreparedRollout has private fields
 pub struct antecedent_estimate::heterogeneity_robust_did::RolloutDidFit
@@ -19248,6 +19940,19 @@ pub struct antecedent_estimate::nonlinear_mediation::NonlinearMediationInput<'a>
 pub struct antecedent_estimate::nonlinear_mediation::NonlinearMediationMediatorDiagnostics
 pub struct antecedent_estimate::nonlinear_mediation::NonlinearMediationOverlap
 pub struct antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises
+pub struct antecedent_estimate::nonlinear_sde_fit::SdeContrastParameterSpread
+pub struct antecedent_estimate::nonlinear_sde_fit::SdeDiscretization
+pub struct antecedent_estimate::nonlinear_sde_fit::SdeFilterPrior
+pub struct antecedent_estimate::nonlinear_sde_fit::SdeFit
+pub struct antecedent_estimate::nonlinear_sde_fit::SdeFitPolicy
+pub struct antecedent_estimate::nonlinear_sde_fit::SdeFitting
+pub struct antecedent_estimate::nonlinear_sde_fit::SdeIdentification
+pub struct antecedent_estimate::nonlinear_sde_fit::SdeObservation
+pub struct antecedent_estimate::nonlinear_sde_fit::SdeObservationModel
+pub struct antecedent_estimate::nonlinear_sde_fit::SdeParameterUncertainty
+pub struct antecedent_estimate::nonlinear_sde_fit::SdeReport
+pub struct antecedent_estimate::nonlinear_sde_fit::SdeTrajectory
+pub struct antecedent_estimate::nonlinear_sde_fit::SdeWorldParameterSpread
 pub struct antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions
 pub struct antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions has private fields
 pub struct antecedent_estimate::nuisance_cache::CertifiedSource
@@ -19295,6 +20000,21 @@ pub struct antecedent_estimate::ou_mechanisms::OuMechanismFit
 pub struct antecedent_estimate::ou_mechanisms::OuMechanismLaw
 pub struct antecedent_estimate::ou_mechanisms::OuMechanismRegime
 pub struct antecedent_estimate::ou_mechanisms::OuMechanisms
+pub struct antecedent_estimate::ou_trajectory::OuAliasingCheck
+pub struct antecedent_estimate::ou_trajectory::OuFilteredState
+pub struct antecedent_estimate::ou_trajectory::OuObservation
+pub struct antecedent_estimate::ou_trajectory::OuObservationModel
+pub struct antecedent_estimate::ou_trajectory::OuPredictionDesign
+pub struct antecedent_estimate::ou_trajectory::OuScheduleSegment
+pub struct antecedent_estimate::ou_trajectory::OuStationaryDesign
+pub struct antecedent_estimate::ou_trajectory::OuStationaryPrediction
+pub struct antecedent_estimate::ou_trajectory::OuTrajectory
+pub struct antecedent_estimate::ou_trajectory::OuTrajectoryFit
+pub struct antecedent_estimate::ou_trajectory::OuTrajectoryFitting
+pub struct antecedent_estimate::ou_trajectory::OuTrajectoryIdentification
+pub struct antecedent_estimate::ou_trajectory::OuTrajectoryNumerics
+pub struct antecedent_estimate::ou_trajectory::OuTrajectoryPrediction
+pub struct antecedent_estimate::ou_trajectory::OuTrajectoryReport
 pub struct antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior
 pub struct antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPrior
 pub struct antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPrior has private fields
@@ -19442,6 +20162,7 @@ pub struct antecedent_estimate::switchback_posterior::SwitchbackPosterior
 pub struct antecedent_estimate::switchback_posterior::SwitchbackPrior
 pub struct antecedent_estimate::switchback_posterior::SwitchbackRows<'a>
 pub struct antecedent_estimate::synthetic_control::AugmentedSyntheticControlFit
+pub struct antecedent_estimate::synthetic_control::ObservedWindowSupport
 pub struct antecedent_estimate::synthetic_control::SyntheticControlFit
 pub struct antecedent_estimate::synthetic_control::SyntheticDidFit
 pub struct antecedent_estimate::synthetic_control::SyntheticUnitRandomizationTest
@@ -20450,6 +21171,18 @@ pub variant antecedent_estimate::nested_markov_uncertainty::NestedFisherFunction
 pub variant antecedent_estimate::nested_markov_uncertainty::NestedFisherFunctional::Mean1
 pub variant antecedent_estimate::nonlinear_mediation::NonlinearMediationEstimand::InterventionalEffects
 pub variant antecedent_estimate::nonlinear_mediation::NonlinearMediationEstimand::NaturalEffects
+pub variant antecedent_estimate::nonlinear_sde_fit::SdeDiscretizationStatus::Adequate
+pub variant antecedent_estimate::nonlinear_sde_fit::SdeDiscretizationStatus::ModelConditionalApproximation
+pub variant antecedent_estimate::nonlinear_sde_fit::SdeFitError::Invalid(alloc::string::String)
+pub variant antecedent_estimate::nonlinear_sde_fit::SdeFitError::Numerical(alloc::string::String)
+pub variant antecedent_estimate::nonlinear_sde_fit::SdeFitError::Resource(alloc::string::String)
+pub variant antecedent_estimate::nonlinear_sde_fit::SdeFitError::Unidentified { failure: antecedent_estimate::nonlinear_sde_fit::SdeIdentificationFailure, detail: alloc::string::String }
+pub variant antecedent_estimate::nonlinear_sde_fit::SdeFitError::Unsupported { code: &'static str, detail: alloc::string::String }
+pub variant antecedent_estimate::nonlinear_sde_fit::SdeIdentificationFailure::NoTransitionInformation
+pub variant antecedent_estimate::nonlinear_sde_fit::SdeIdentificationFailure::SingularInformation
+pub variant antecedent_estimate::nonlinear_sde_fit::SdeIdentificationStatus::Identified
+pub variant antecedent_estimate::nonlinear_sde_fit::SdeIdentificationStatus::ModelConditional
+pub variant antecedent_estimate::nonlinear_sde_fit::SdeIdentificationStatus::NotIdentified
 pub variant antecedent_estimate::nuisance_cache::KeyField::Design
 pub variant antecedent_estimate::nuisance_cache::KeyField::Folds
 pub variant antecedent_estimate::nuisance_cache::KeyField::Numerical
@@ -20498,6 +21231,17 @@ pub variant antecedent_estimate::ou_mechanisms::OuMechanismOutcome::Stationary(a
 pub variant antecedent_estimate::ou_mechanisms::OuMechanismParameter::Diffusion { equation: usize, source: usize }
 pub variant antecedent_estimate::ou_mechanisms::OuMechanismParameter::Drift { equation: usize, parent: usize }
 pub variant antecedent_estimate::ou_mechanisms::OuMechanismParameter::Forcing { equation: usize }
+pub variant antecedent_estimate::ou_trajectory::OuIdentificationFailure::NoTransitionInformation
+pub variant antecedent_estimate::ou_trajectory::OuIdentificationFailure::SingularInformation
+pub variant antecedent_estimate::ou_trajectory::OuIdentificationStatus::Identified
+pub variant antecedent_estimate::ou_trajectory::OuIdentificationStatus::ModelConditional
+pub variant antecedent_estimate::ou_trajectory::OuIdentificationStatus::NotIdentified
+pub variant antecedent_estimate::ou_trajectory::OuInitialLaw::Gaussian { mean: alloc::vec::Vec<f64>, covariance: alloc::vec::Vec<f64> }
+pub variant antecedent_estimate::ou_trajectory::OuInitialLaw::Stationary
+pub variant antecedent_estimate::ou_trajectory::OuTrajectoryError::Invalid(alloc::string::String)
+pub variant antecedent_estimate::ou_trajectory::OuTrajectoryError::Numerical(alloc::string::String)
+pub variant antecedent_estimate::ou_trajectory::OuTrajectoryError::Resource(alloc::string::String)
+pub variant antecedent_estimate::ou_trajectory::OuTrajectoryError::Unidentified { failure: antecedent_estimate::ou_trajectory::OuIdentificationFailure, detail: alloc::string::String }
 pub variant antecedent_estimate::polynomial_scm::PolynomialSelectedState::Selected { enclosure: alloc::vec::Vec<antecedent_model::equation_system::Interval> }
 pub variant antecedent_estimate::polynomial_scm::PolynomialSelectedState::Undefined { reason: alloc::string::String }
 pub variant antecedent_estimate::polynomial_scm::PolynomialSelectedState::Unresolved { intersecting_unresolved_boxes: usize, intersecting_roots: usize }

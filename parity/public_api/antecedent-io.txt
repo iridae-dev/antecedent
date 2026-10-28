@@ -231,6 +231,11 @@ impl core::clone::Clone for antecedent_io::effect_constancy_artifact::PartitionM
 impl core::clone::Clone for antecedent_io::effect_constancy_artifact::PartitionReportWire
 impl core::clone::Clone for antecedent_io::effect_constancy_artifact::PartitionWire
 impl core::clone::Clone for antecedent_io::effect_constancy_artifact::ResultWire
+impl core::clone::Clone for antecedent_io::external_cyclic_artifact::ExternalCyclicInspection
+impl core::clone::Clone for antecedent_io::external_cyclic_artifact::ExternalCyclicReport
+impl core::clone::Clone for antecedent_io::external_cyclic_artifact::ExternalCyclicRequest
+impl core::clone::Clone for antecedent_io::external_cyclic_artifact::ExternalFitRequest
+impl core::clone::Clone for antecedent_io::external_cyclic_artifact::RecordedMechanism
 impl core::clone::Clone for antecedent_io::joint_bayesian_transport_artifact::DataIdentityWire
 impl core::clone::Clone for antecedent_io::joint_bayesian_transport_artifact::GaussianPriorWire
 impl core::clone::Clone for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactError
@@ -812,6 +817,11 @@ impl core::cmp::PartialEq for antecedent_io::effect_constancy_artifact::Partitio
 impl core::cmp::PartialEq for antecedent_io::effect_constancy_artifact::PartitionReportWire
 impl core::cmp::PartialEq for antecedent_io::effect_constancy_artifact::PartitionWire
 impl core::cmp::PartialEq for antecedent_io::effect_constancy_artifact::ResultWire
+impl core::cmp::PartialEq for antecedent_io::external_cyclic_artifact::ExternalCyclicInspection
+impl core::cmp::PartialEq for antecedent_io::external_cyclic_artifact::ExternalCyclicReport
+impl core::cmp::PartialEq for antecedent_io::external_cyclic_artifact::ExternalCyclicRequest
+impl core::cmp::PartialEq for antecedent_io::external_cyclic_artifact::ExternalFitRequest
+impl core::cmp::PartialEq for antecedent_io::external_cyclic_artifact::RecordedMechanism
 impl core::cmp::PartialEq for antecedent_io::joint_bayesian_transport_artifact::DataIdentityWire
 impl core::cmp::PartialEq for antecedent_io::joint_bayesian_transport_artifact::GaussianPriorWire
 impl core::cmp::PartialEq for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactError
@@ -1054,6 +1064,7 @@ impl core::cmp::PartialEq<&str> for antecedent_io::categorical_treatment_artifac
 impl core::cmp::PartialOrd for antecedent_io::release_migration::RouteAxis
 impl core::convert::From<antecedent_core::execution::admission::AdmissionError> for antecedent_io::array_fit_artifact::ArrayFitError
 impl core::convert::From<antecedent_core::execution::admission::AdmissionError> for antecedent_io::cyclic_system_artifact::CyclicArtifactError
+impl core::convert::From<antecedent_core::execution::admission::AdmissionError> for antecedent_io::external_cyclic_artifact::ExternalCyclicArtifactError
 impl core::convert::From<antecedent_estimate::adaptive_inference::AdaptiveInferenceError> for antecedent_io::adaptive_inference_result_artifact::AdaptiveResultError
 impl core::convert::From<antecedent_estimate::categorical_treatment::LevelScale> for antecedent_io::categorical_treatment_artifact::LevelScaleWire
 impl core::convert::From<antecedent_estimate::categorical_treatment::MonotonicityDirection> for antecedent_io::categorical_treatment_artifact::MonotonicityDirectionWire
@@ -1086,7 +1097,9 @@ impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_io::
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_io::vector_treatment_artifact::VectorTreatmentArtifactError
 impl core::convert::From<antecedent_model::cyclic_world::CyclicInterventionRefusal> for antecedent_io::cyclic_system_artifact::CyclicArtifactError
+impl core::convert::From<antecedent_model::external_mechanism::ExternalMechanismRefusal> for antecedent_io::external_cyclic_artifact::ExternalCyclicArtifactError
 impl core::convert::From<antecedent_model::nonlinear_equilibrium::EquilibriumError> for antecedent_io::cyclic_system_artifact::CyclicArtifactError
+impl core::convert::From<antecedent_model::nonlinear_equilibrium::EquilibriumError> for antecedent_io::external_cyclic_artifact::ExternalCyclicArtifactError
 impl core::default::Default for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalConsumeLimits
 impl core::default::Default for antecedent_io::array_fit_artifact::ArrayFitConsumeLimits
 impl core::default::Default for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits
@@ -1132,6 +1145,7 @@ impl core::error::Error for antecedent_io::cpdag_completion_artifact::CpdagArtif
 impl core::error::Error for antecedent_io::cyclic_system_artifact::CyclicArtifactError
 impl core::error::Error for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError
 impl core::error::Error for antecedent_io::effect_constancy_artifact::EffectConstancyArtifactError
+impl core::error::Error for antecedent_io::external_cyclic_artifact::ExternalCyclicArtifactError
 impl core::error::Error for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactError
 impl core::error::Error for antecedent_io::joint_panel_artifact::PanelArtifactError
 impl core::error::Error for antecedent_io::joint_response_artifact::JointResponseArtifactError
@@ -1328,6 +1342,12 @@ impl core::fmt::Debug for antecedent_io::effect_constancy_artifact::PartitionMet
 impl core::fmt::Debug for antecedent_io::effect_constancy_artifact::PartitionReportWire
 impl core::fmt::Debug for antecedent_io::effect_constancy_artifact::PartitionWire
 impl core::fmt::Debug for antecedent_io::effect_constancy_artifact::ResultWire
+impl core::fmt::Debug for antecedent_io::external_cyclic_artifact::ExternalCyclicArtifactError
+impl core::fmt::Debug for antecedent_io::external_cyclic_artifact::ExternalCyclicInspection
+impl core::fmt::Debug for antecedent_io::external_cyclic_artifact::ExternalCyclicReport
+impl core::fmt::Debug for antecedent_io::external_cyclic_artifact::ExternalCyclicRequest
+impl core::fmt::Debug for antecedent_io::external_cyclic_artifact::ExternalFitRequest
+impl core::fmt::Debug for antecedent_io::external_cyclic_artifact::RecordedMechanism
 impl core::fmt::Debug for antecedent_io::joint_bayesian_transport_artifact::DataIdentityWire
 impl core::fmt::Debug for antecedent_io::joint_bayesian_transport_artifact::GaussianPriorWire
 impl core::fmt::Debug for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactError
@@ -1627,6 +1647,7 @@ impl core::fmt::Display for antecedent_io::cpdag_completion_artifact::CpdagArtif
 impl core::fmt::Display for antecedent_io::cyclic_system_artifact::CyclicArtifactError
 impl core::fmt::Display for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError
 impl core::fmt::Display for antecedent_io::effect_constancy_artifact::EffectConstancyArtifactError
+impl core::fmt::Display for antecedent_io::external_cyclic_artifact::ExternalCyclicArtifactError
 impl core::fmt::Display for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactError
 impl core::fmt::Display for antecedent_io::joint_panel_artifact::PanelArtifactError
 impl core::fmt::Display for antecedent_io::joint_response_artifact::JointResponseArtifactError
@@ -1902,6 +1923,12 @@ impl core::marker::Freeze for antecedent_io::effect_constancy_artifact::Partitio
 impl core::marker::Freeze for antecedent_io::effect_constancy_artifact::PartitionReportWire [auto]
 impl core::marker::Freeze for antecedent_io::effect_constancy_artifact::PartitionWire [auto]
 impl core::marker::Freeze for antecedent_io::effect_constancy_artifact::ResultWire [auto]
+impl core::marker::Freeze for antecedent_io::external_cyclic_artifact::ExternalCyclicArtifactError [auto]
+impl core::marker::Freeze for antecedent_io::external_cyclic_artifact::ExternalCyclicInspection [auto]
+impl core::marker::Freeze for antecedent_io::external_cyclic_artifact::ExternalCyclicReport [auto]
+impl core::marker::Freeze for antecedent_io::external_cyclic_artifact::ExternalCyclicRequest [auto]
+impl core::marker::Freeze for antecedent_io::external_cyclic_artifact::ExternalFitRequest [auto]
+impl core::marker::Freeze for antecedent_io::external_cyclic_artifact::RecordedMechanism [auto]
 impl core::marker::Freeze for antecedent_io::joint_bayesian_transport_artifact::DataIdentityWire [auto]
 impl core::marker::Freeze for antecedent_io::joint_bayesian_transport_artifact::GaussianPriorWire [auto]
 impl core::marker::Freeze for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactError [auto]
@@ -2379,6 +2406,12 @@ impl core::marker::Send for antecedent_io::effect_constancy_artifact::PartitionM
 impl core::marker::Send for antecedent_io::effect_constancy_artifact::PartitionReportWire [auto]
 impl core::marker::Send for antecedent_io::effect_constancy_artifact::PartitionWire [auto]
 impl core::marker::Send for antecedent_io::effect_constancy_artifact::ResultWire [auto]
+impl core::marker::Send for antecedent_io::external_cyclic_artifact::ExternalCyclicArtifactError [auto]
+impl core::marker::Send for antecedent_io::external_cyclic_artifact::ExternalCyclicInspection [auto]
+impl core::marker::Send for antecedent_io::external_cyclic_artifact::ExternalCyclicReport [auto]
+impl core::marker::Send for antecedent_io::external_cyclic_artifact::ExternalCyclicRequest [auto]
+impl core::marker::Send for antecedent_io::external_cyclic_artifact::ExternalFitRequest [auto]
+impl core::marker::Send for antecedent_io::external_cyclic_artifact::RecordedMechanism [auto]
 impl core::marker::Send for antecedent_io::joint_bayesian_transport_artifact::DataIdentityWire [auto]
 impl core::marker::Send for antecedent_io::joint_bayesian_transport_artifact::GaussianPriorWire [auto]
 impl core::marker::Send for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactError [auto]
@@ -2836,6 +2869,11 @@ impl core::marker::StructuralPartialEq for antecedent_io::effect_constancy_artif
 impl core::marker::StructuralPartialEq for antecedent_io::effect_constancy_artifact::PartitionReportWire
 impl core::marker::StructuralPartialEq for antecedent_io::effect_constancy_artifact::PartitionWire
 impl core::marker::StructuralPartialEq for antecedent_io::effect_constancy_artifact::ResultWire
+impl core::marker::StructuralPartialEq for antecedent_io::external_cyclic_artifact::ExternalCyclicInspection
+impl core::marker::StructuralPartialEq for antecedent_io::external_cyclic_artifact::ExternalCyclicReport
+impl core::marker::StructuralPartialEq for antecedent_io::external_cyclic_artifact::ExternalCyclicRequest
+impl core::marker::StructuralPartialEq for antecedent_io::external_cyclic_artifact::ExternalFitRequest
+impl core::marker::StructuralPartialEq for antecedent_io::external_cyclic_artifact::RecordedMechanism
 impl core::marker::StructuralPartialEq for antecedent_io::joint_bayesian_transport_artifact::DataIdentityWire
 impl core::marker::StructuralPartialEq for antecedent_io::joint_bayesian_transport_artifact::GaussianPriorWire
 impl core::marker::StructuralPartialEq for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactError
@@ -3250,6 +3288,12 @@ impl core::marker::Sync for antecedent_io::effect_constancy_artifact::PartitionM
 impl core::marker::Sync for antecedent_io::effect_constancy_artifact::PartitionReportWire [auto]
 impl core::marker::Sync for antecedent_io::effect_constancy_artifact::PartitionWire [auto]
 impl core::marker::Sync for antecedent_io::effect_constancy_artifact::ResultWire [auto]
+impl core::marker::Sync for antecedent_io::external_cyclic_artifact::ExternalCyclicArtifactError [auto]
+impl core::marker::Sync for antecedent_io::external_cyclic_artifact::ExternalCyclicInspection [auto]
+impl core::marker::Sync for antecedent_io::external_cyclic_artifact::ExternalCyclicReport [auto]
+impl core::marker::Sync for antecedent_io::external_cyclic_artifact::ExternalCyclicRequest [auto]
+impl core::marker::Sync for antecedent_io::external_cyclic_artifact::ExternalFitRequest [auto]
+impl core::marker::Sync for antecedent_io::external_cyclic_artifact::RecordedMechanism [auto]
 impl core::marker::Sync for antecedent_io::joint_bayesian_transport_artifact::DataIdentityWire [auto]
 impl core::marker::Sync for antecedent_io::joint_bayesian_transport_artifact::GaussianPriorWire [auto]
 impl core::marker::Sync for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactError [auto]
@@ -3727,6 +3771,12 @@ impl core::marker::Unpin for antecedent_io::effect_constancy_artifact::Partition
 impl core::marker::Unpin for antecedent_io::effect_constancy_artifact::PartitionReportWire [auto]
 impl core::marker::Unpin for antecedent_io::effect_constancy_artifact::PartitionWire [auto]
 impl core::marker::Unpin for antecedent_io::effect_constancy_artifact::ResultWire [auto]
+impl core::marker::Unpin for antecedent_io::external_cyclic_artifact::ExternalCyclicArtifactError [auto]
+impl core::marker::Unpin for antecedent_io::external_cyclic_artifact::ExternalCyclicInspection [auto]
+impl core::marker::Unpin for antecedent_io::external_cyclic_artifact::ExternalCyclicReport [auto]
+impl core::marker::Unpin for antecedent_io::external_cyclic_artifact::ExternalCyclicRequest [auto]
+impl core::marker::Unpin for antecedent_io::external_cyclic_artifact::ExternalFitRequest [auto]
+impl core::marker::Unpin for antecedent_io::external_cyclic_artifact::RecordedMechanism [auto]
 impl core::marker::Unpin for antecedent_io::joint_bayesian_transport_artifact::DataIdentityWire [auto]
 impl core::marker::Unpin for antecedent_io::joint_bayesian_transport_artifact::GaussianPriorWire [auto]
 impl core::marker::Unpin for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactError [auto]
@@ -4198,6 +4248,12 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::effect_constancy
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::effect_constancy_artifact::PartitionReportWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::effect_constancy_artifact::PartitionWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::effect_constancy_artifact::ResultWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::external_cyclic_artifact::ExternalCyclicArtifactError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::external_cyclic_artifact::ExternalCyclicInspection [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::external_cyclic_artifact::ExternalCyclicReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::external_cyclic_artifact::ExternalCyclicRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::external_cyclic_artifact::ExternalFitRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::external_cyclic_artifact::RecordedMechanism [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_bayesian_transport_artifact::DataIdentityWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_bayesian_transport_artifact::GaussianPriorWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactError [auto]
@@ -4669,6 +4725,12 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::effect_constancy_ar
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::effect_constancy_artifact::PartitionReportWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::effect_constancy_artifact::PartitionWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::effect_constancy_artifact::ResultWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::external_cyclic_artifact::ExternalCyclicArtifactError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::external_cyclic_artifact::ExternalCyclicInspection [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::external_cyclic_artifact::ExternalCyclicReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::external_cyclic_artifact::ExternalCyclicRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::external_cyclic_artifact::ExternalFitRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::external_cyclic_artifact::RecordedMechanism [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_bayesian_transport_artifact::DataIdentityWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_bayesian_transport_artifact::GaussianPriorWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactError [auto]
@@ -5107,6 +5169,11 @@ impl serde_core::ser::Serialize for antecedent_io::effect_constancy_artifact::Pa
 impl serde_core::ser::Serialize for antecedent_io::effect_constancy_artifact::PartitionReportWire
 impl serde_core::ser::Serialize for antecedent_io::effect_constancy_artifact::PartitionWire
 impl serde_core::ser::Serialize for antecedent_io::effect_constancy_artifact::ResultWire
+impl serde_core::ser::Serialize for antecedent_io::external_cyclic_artifact::ExternalCyclicInspection
+impl serde_core::ser::Serialize for antecedent_io::external_cyclic_artifact::ExternalCyclicReport
+impl serde_core::ser::Serialize for antecedent_io::external_cyclic_artifact::ExternalCyclicRequest
+impl serde_core::ser::Serialize for antecedent_io::external_cyclic_artifact::ExternalFitRequest
+impl serde_core::ser::Serialize for antecedent_io::external_cyclic_artifact::RecordedMechanism
 impl serde_core::ser::Serialize for antecedent_io::joint_bayesian_transport_artifact::DataIdentityWire
 impl serde_core::ser::Serialize for antecedent_io::joint_bayesian_transport_artifact::GaussianPriorWire
 impl serde_core::ser::Serialize for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire
@@ -5590,6 +5657,11 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::effect_constancy_a
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::effect_constancy_artifact::PartitionReportWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::effect_constancy_artifact::PartitionWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::effect_constancy_artifact::ResultWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::external_cyclic_artifact::ExternalCyclicInspection
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::external_cyclic_artifact::ExternalCyclicReport
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::external_cyclic_artifact::ExternalCyclicRequest
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::external_cyclic_artifact::ExternalFitRequest
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::external_cyclic_artifact::RecordedMechanism
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::joint_bayesian_transport_artifact::DataIdentityWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::joint_bayesian_transport_artifact::GaussianPriorWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire
@@ -5858,6 +5930,7 @@ pub const antecedent_io::effect_constancy_artifact::EFFECT_CONSTANCY_ARTIFACT_FE
 pub const antecedent_io::effect_constancy_artifact::EFFECT_CONSTANCY_ARTIFACT_VERSION: u16
 pub const antecedent_io::effect_constancy_artifact::EFFECT_CONSTANCY_CALIBRATION: &str
 pub const antecedent_io::effect_constancy_artifact::MAX_EFFECT_CONSTANCY_ARTIFACT_BYTES: usize
+pub const antecedent_io::external_cyclic_artifact::MAX_EXTERNAL_CYCLIC_ARTIFACT_BYTES: usize
 pub const antecedent_io::joint_bayesian_transport_artifact::JOINT_BAYESIAN_ARTIFACT_FEATURE: &str
 pub const antecedent_io::joint_bayesian_transport_artifact::JOINT_BAYESIAN_ARTIFACT_VERSION: u32
 pub const antecedent_io::joint_bayesian_transport_artifact::JOINT_BAYESIAN_CALIBRATION: &str
@@ -6056,6 +6129,7 @@ pub enum antecedent_io::cyclic_family_artifact::SamplingDesignWire
 pub enum antecedent_io::cyclic_graph::CyclicGraphReport
 pub enum antecedent_io::cyclic_graph::CyclicGraphRequest
 pub enum antecedent_io::cyclic_system_artifact::CyclicArtifactError
+pub enum antecedent_io::external_cyclic_artifact::ExternalCyclicArtifactError
 pub enum antecedent_io::joint_bayesian_transport_artifact::PriorProvenanceWire
 pub enum antecedent_io::joint_panel_artifact::PanelArtifactError
 pub enum antecedent_io::joint_response_artifact::JointResponseArtifactError
@@ -6885,6 +6959,31 @@ pub field antecedent_io::effect_constancy_artifact::ResultWire::p_value: f64
 pub field antecedent_io::effect_constancy_artifact::ResultWire::pooled_effect: core::option::Option<f64>
 pub field antecedent_io::effect_constancy_artifact::ResultWire::statistic: f64
 pub field antecedent_io::effect_constancy_artifact::ResultWire::statistic_kind: alloc::string::String
+pub field antecedent_io::external_cyclic_artifact::ExternalCyclicInspection::identity: alloc::string::String
+pub field antecedent_io::external_cyclic_artifact::ExternalCyclicInspection::mechanisms: alloc::vec::Vec<antecedent_io::external_cyclic_artifact::RecordedMechanism>
+pub field antecedent_io::external_cyclic_artifact::ExternalCyclicInspection::trust: antecedent_model::external_mechanism::MechanismTrust
+pub field antecedent_io::external_cyclic_artifact::ExternalCyclicReport::calibration: alloc::string::String
+pub field antecedent_io::external_cyclic_artifact::ExternalCyclicReport::claim: alloc::string::String
+pub field antecedent_io::external_cyclic_artifact::ExternalCyclicReport::counterfactuals: core::option::Option<alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::EquilibriumResult>>
+pub field antecedent_io::external_cyclic_artifact::ExternalCyclicReport::fit: core::option::Option<antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit>
+pub field antecedent_io::external_cyclic_artifact::ExternalCyclicReport::identity: alloc::string::String
+pub field antecedent_io::external_cyclic_artifact::ExternalCyclicReport::mechanisms: alloc::vec::Vec<antecedent_model::external_mechanism::ExternalMechanismEvidence>
+pub field antecedent_io::external_cyclic_artifact::ExternalCyclicReport::system: antecedent_model::external_mechanism::ExternalFeedbackSystem
+pub field antecedent_io::external_cyclic_artifact::ExternalCyclicReport::trust: antecedent_model::external_mechanism::MechanismTrust
+pub field antecedent_io::external_cyclic_artifact::ExternalCyclicReport::worlds: alloc::vec::Vec<alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::EquilibriumResult>>
+pub field antecedent_io::external_cyclic_artifact::ExternalCyclicRequest::factual: core::option::Option<alloc::vec::Vec<f64>>
+pub field antecedent_io::external_cyclic_artifact::ExternalCyclicRequest::fit: core::option::Option<antecedent_io::external_cyclic_artifact::ExternalFitRequest>
+pub field antecedent_io::external_cyclic_artifact::ExternalCyclicRequest::initial: alloc::vec::Vec<f64>
+pub field antecedent_io::external_cyclic_artifact::ExternalCyclicRequest::noise: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_io::external_cyclic_artifact::ExternalCyclicRequest::policy: antecedent_model::nonlinear_equilibrium::SolvePolicy
+pub field antecedent_io::external_cyclic_artifact::ExternalCyclicRequest::system: antecedent_model::external_mechanism::ExternalFeedbackSystem
+pub field antecedent_io::external_cyclic_artifact::ExternalCyclicRequest::worlds: alloc::vec::Vec<alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::Clamp>>
+pub field antecedent_io::external_cyclic_artifact::ExternalFitRequest::parameters: alloc::vec::Vec<antecedent_model::external_mechanism::ExternalFitParameter>
+pub field antecedent_io::external_cyclic_artifact::ExternalFitRequest::policy: antecedent_estimate::external_cyclic_fit::ExternalFitPolicy
+pub field antecedent_io::external_cyclic_artifact::ExternalFitRequest::rows: alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::RegimeRow>
+pub field antecedent_io::external_cyclic_artifact::RecordedMechanism::equation: alloc::string::String
+pub field antecedent_io::external_cyclic_artifact::RecordedMechanism::identity: alloc::string::String
+pub field antecedent_io::external_cyclic_artifact::RecordedMechanism::spec: antecedent_model::external_mechanism::ExternalMechanismSpec
 pub field antecedent_io::joint_bayesian_transport_artifact::DataIdentityWire::datum_ids: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_io::joint_bayesian_transport_artifact::DataIdentityWire::snapshot_digest: alloc::string::String
 pub field antecedent_io::joint_bayesian_transport_artifact::GaussianPriorWire::covariance: alloc::vec::Vec<f64>
@@ -8786,6 +8885,9 @@ pub fn <antecedent_io::effect_constancy_artifact::EffectConstancyArtifact>::fn s
 pub fn <antecedent_io::effect_constancy_artifact::EffectConstancyArtifact>::fn to_bytes(&self, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::effect_constancy_artifact::EffectConstancyArtifactError>
 pub fn <antecedent_io::effect_constancy_artifact::EffectConstancyArtifactError>::fn refusal(&self) -> core::option::Option<(&'static str, alloc::string::String, alloc::string::String)>
 pub fn <antecedent_io::effect_constancy_artifact::EffectConstancyArtifactError>::fn refused(code: &'static str, detail: impl core::convert::Into<alloc::string::String>, explanation: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn <antecedent_io::external_cyclic_artifact::ExternalCyclicRequest>::fn execute(&self, resolver: core::option::Option<&dyn antecedent_model::external_mechanism::TrustedMechanismResolver>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::external_cyclic_artifact::ExternalCyclicReport, antecedent_io::external_cyclic_artifact::ExternalCyclicArtifactError>
+pub fn <antecedent_io::external_cyclic_artifact::ExternalCyclicRequest>::fn export(&self, artifact_id: &str, resolver: core::option::Option<&dyn antecedent_model::external_mechanism::TrustedMechanismResolver>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(antecedent_io::external_cyclic_artifact::ExternalCyclicReport, alloc::vec::Vec<u8>), antecedent_io::external_cyclic_artifact::ExternalCyclicArtifactError>
+pub fn <antecedent_io::external_cyclic_artifact::ExternalCyclicRequest>::fn identity(&self) -> core::result::Result<alloc::string::String, antecedent_io::external_cyclic_artifact::ExternalCyclicArtifactError>
 pub fn <antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire>::fn build(id: &antecedent_identify::transport::TransportIdentification, model: &antecedent_estimate::joint_bayesian_transport::JointTransportModel, sources: &[antecedent_estimate::joint_bayesian_transport::SourceData], target: &antecedent_estimate::joint_bayesian_transport::TargetData, options: antecedent_estimate::joint_bayesian_transport::JointTransportOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(Self, antecedent_estimate::joint_bayesian_transport::JointTransportFit), antecedent_io_core::error::IoError>
 pub fn <antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire>::fn build_measured(id: &antecedent_identify::transport::TransportIdentification, model: &antecedent_estimate::joint_bayesian_transport::JointTransportModel, sources: &[antecedent_estimate::joint_bayesian_transport::SourceData], target: &antecedent_estimate::joint_bayesian_transport::TargetData, options: antecedent_estimate::joint_bayesian_transport::JointTransportOptions, level: f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(Self, antecedent_estimate::joint_bayesian_transport::JointTransportFit, antecedent_io::measured_inference::MeasuredInference), antecedent_io_core::error::IoError>
 pub fn <antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire>::fn consume_expecting(bytes: &[u8], expected: &antecedent_io::joint_bayesian_transport_artifact::JointBayesianExpectation, limits: antecedent_io::joint_bayesian_transport_artifact::JointBayesianConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(Self, antecedent_estimate::joint_bayesian_transport::JointTransportFit), antecedent_io_core::error::IoError>
@@ -9219,6 +9321,8 @@ pub fn antecedent_io::encode_causal_posterior_bytes(posterior: &antecedent_estim
 pub fn antecedent_io::encode_causal_posterior_bytes_with_payload(posterior: &antecedent_estimate::bayesian::CausalPosterior, artifact_id: &str, payload: antecedent_io::PosteriorPayload) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn antecedent_io::encode_causal_posterior_with_payload(posterior: &antecedent_estimate::bayesian::CausalPosterior, artifact_id: &str, payload: antecedent_io::PosteriorPayload) -> core::result::Result<antecedent_io_core::container::EncodedArtifact, antecedent_io_core::error::IoError>
 pub fn antecedent_io::encode_model_bundle(input: &antecedent_io::ModelBundleEncode<'_>) -> core::result::Result<antecedent_io_core::container::EncodedArtifact, antecedent_io_core::error::IoError>
+pub fn antecedent_io::external_cyclic_artifact::consume_external_cyclic_artifact(bytes: &[u8], expected_identity: &str, resolver: core::option::Option<&dyn antecedent_model::external_mechanism::TrustedMechanismResolver>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::external_cyclic_artifact::ExternalCyclicReport, antecedent_io::external_cyclic_artifact::ExternalCyclicArtifactError>
+pub fn antecedent_io::external_cyclic_artifact::inspect_external_cyclic_artifact(bytes: &[u8]) -> core::result::Result<antecedent_io::external_cyclic_artifact::ExternalCyclicInspection, antecedent_io::external_cyclic_artifact::ExternalCyclicArtifactError>
 pub fn antecedent_io::interference_estimate_from_wire(value: &antecedent_io_core::transport_interference_wire::InterferenceEstimateWire) -> antecedent_estimate::interference::InterferenceEstimate
 pub fn antecedent_io::interference_estimate_to_wire(value: &antecedent_estimate::interference::InterferenceEstimate) -> antecedent_io_core::transport_interference_wire::InterferenceEstimateWire
 pub fn antecedent_io::joint_bayesian_transport_artifact::prior_data_overlap_from_ledger(ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, prior_sources: &[antecedent_contract::evidence_ledger::ids::SourceId], likelihood_sources: &[antecedent_contract::evidence_ledger::ids::SourceId]) -> core::result::Result<antecedent_estimate::joint_bayesian_transport::SourceDependence, antecedent_io_core::error::IoError>
@@ -9286,6 +9390,7 @@ pub mod antecedent_io::cyclic_graph
 pub mod antecedent_io::cyclic_system_artifact
 pub mod antecedent_io::dose_grid_functional_artifact
 pub mod antecedent_io::effect_constancy_artifact
+pub mod antecedent_io::external_cyclic_artifact
 pub mod antecedent_io::joint_bayesian_transport_artifact
 pub mod antecedent_io::joint_panel_artifact
 pub mod antecedent_io::joint_panel_experiment_artifact
@@ -9477,6 +9582,11 @@ pub struct antecedent_io::effect_constancy_artifact::PartitionMeta
 pub struct antecedent_io::effect_constancy_artifact::PartitionReportWire
 pub struct antecedent_io::effect_constancy_artifact::PartitionWire
 pub struct antecedent_io::effect_constancy_artifact::ResultWire
+pub struct antecedent_io::external_cyclic_artifact::ExternalCyclicInspection
+pub struct antecedent_io::external_cyclic_artifact::ExternalCyclicReport
+pub struct antecedent_io::external_cyclic_artifact::ExternalCyclicRequest
+pub struct antecedent_io::external_cyclic_artifact::ExternalFitRequest
+pub struct antecedent_io::external_cyclic_artifact::RecordedMechanism
 pub struct antecedent_io::joint_bayesian_transport_artifact::DataIdentityWire
 pub struct antecedent_io::joint_bayesian_transport_artifact::GaussianPriorWire
 pub struct antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire
@@ -10555,6 +10665,7 @@ pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::OdeFit(an
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::OuFit(antecedent_estimate::cyclic_dynamics::OuFit)
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::OuMechanisms { fit: core::option::Option<antecedent_estimate::ou_mechanisms::OuMechanismFit>, laws: alloc::vec::Vec<antecedent_estimate::ou_mechanisms::OuMechanismOutcome> }
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::OuStationary(alloc::vec::Vec<f64>)
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::OuTrajectory(antecedent_estimate::ou_trajectory::OuTrajectoryReport)
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::OuTransient(antecedent_model::continuous_cyclic::OuMoments)
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::ParameterPosterior { posterior: antecedent_estimate::cyclic_likelihood::CyclicPosterior, worlds: alloc::vec::Vec<alloc::vec::Vec<alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::EquilibriumOutcome>>> }
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::PartialCounterfactual { abduction: antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior, worlds: alloc::vec::Vec<alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::EquilibriumOutcome>> }
@@ -10562,6 +10673,7 @@ pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::Polynomia
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::PolynomialCausal(antecedent_estimate::polynomial_scm::PolynomialCausalReport)
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::PolynomialFit(antecedent_estimate::constraint_likelihood::PolynomialFit)
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::RecoveredLinear(antecedent_io::cyclic_family_artifact::RecoveredLinearReport)
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::SdeAnalysis(antecedent_estimate::nonlinear_sde_fit::SdeReport)
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::StructureFit { fit: antecedent_estimate::cyclic_likelihood::CyclicStructureFit, bootstrap: alloc::vec::Vec<core::option::Option<antecedent_estimate::cyclic_likelihood::CyclicStructureFit>> }
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::System(alloc::sync::Arc<antecedent_io::cyclic_system_artifact::CyclicExecutionReport>)
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::Worlds(alloc::vec::Vec<antecedent_io::cyclic_family_artifact::CyclicWorldAnswer>)
@@ -10584,6 +10696,7 @@ pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::OdeWorld
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::OuFit { model: antecedent_model::continuous_cyclic::OrnsteinUhlenbeck, parameters: alloc::vec::Vec<antecedent_estimate::cyclic_dynamics::OuParameter>, rows: alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::RegimeRow>, policy: antecedent_estimate::cyclic_likelihood::CyclicFitOptions }
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::OuMechanisms { model: antecedent_estimate::ou_mechanisms::OuMechanisms, regimes: alloc::vec::Vec<antecedent_estimate::ou_mechanisms::OuMechanismRegime>, parameters: alloc::vec::Vec<antecedent_estimate::ou_mechanisms::OuMechanismParameter>, policy: antecedent_estimate::cyclic_gradient::CyclicGradientPolicy, worlds: alloc::vec::Vec<alloc::vec::Vec<antecedent_estimate::ou_mechanisms::OuEquationReplacement>> }
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::OuStationary { model: antecedent_model::continuous_cyclic::OrnsteinUhlenbeck }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::OuTrajectoryFit { model: antecedent_estimate::ou_mechanisms::OuMechanisms, observation: antecedent_estimate::ou_trajectory::OuObservationModel, parameters: alloc::vec::Vec<antecedent_estimate::ou_mechanisms::OuMechanismParameter>, trajectories: alloc::vec::Vec<antecedent_estimate::ou_trajectory::OuTrajectory>, policy: antecedent_estimate::cyclic_gradient::CyclicGradientPolicy, predictions: alloc::vec::Vec<antecedent_estimate::ou_trajectory::OuPredictionDesign>, stationary_worlds: alloc::vec::Vec<antecedent_estimate::ou_trajectory::OuStationaryDesign> }
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::OuTransient { model: antecedent_model::continuous_cyclic::OrnsteinUhlenbeck, initial_mean: alloc::vec::Vec<f64>, initial_covariance: alloc::vec::Vec<f64>, times: alloc::vec::Vec<f64>, policy: antecedent_model::continuous_cyclic::OdePolicy }
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::ParameterPosterior { model: antecedent_model::nonlinear_equilibrium::EquilibriumModel, parameters: alloc::vec::Vec<antecedent_estimate::cyclic_likelihood::CyclicParameter>, rows: alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::RegimeRow>, prior_sd: f64, sampling: antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy, worlds: alloc::vec::Vec<alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::Clamp>>, noise: alloc::vec::Vec<alloc::vec::Vec<f64>>, initial: alloc::vec::Vec<f64>, solve_policy: antecedent_model::nonlinear_equilibrium::SolvePolicy }
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::PartialCounterfactual { model: antecedent_model::nonlinear_equilibrium::EquilibriumModel, observations: alloc::vec::Vec<core::option::Option<f64>>, measurement_variances: alloc::vec::Vec<f64>, initial: alloc::vec::Vec<f64>, sampling: antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy, worlds: alloc::vec::Vec<alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::Clamp>>, solve_policy: antecedent_model::nonlinear_equilibrium::SolvePolicy }
@@ -10592,6 +10705,7 @@ pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::Polynomi
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::PolynomialFit { candidates: alloc::vec::Vec<antecedent_estimate::constraint_likelihood::PolynomialCandidate>, measurements: alloc::vec::Vec<antecedent_estimate::constraint_likelihood::PolynomialMeasurement>, policy: antecedent_model::equation_system::IsolationPolicy }
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::RecoveredLinear { nodes: alloc::vec::Vec<u32>, draws: alloc::vec::Vec<antecedent_io::cyclic_family_artifact::RecoveredDrawWire>, worlds: alloc::vec::Vec<antecedent_io::cyclic_family_artifact::RecoveredInterventionWire>, outcome: usize, source_id: alloc::string::String, certifying_evidence: alloc::vec::Vec<alloc::string::String>, uncertainty: antecedent_io::cyclic_family_artifact::RecoveredDrawOriginWire }
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::RetainedExperimentalRecovery { inputs: antecedent_io::cyclic_family_artifact::RetainedRecoveryInputs, worlds: alloc::vec::Vec<antecedent_io::cyclic_family_artifact::CyclicWorldWire>, outcome: u32, provenance: antecedent_io::cyclic_family_artifact::RetainedRecoveryProvenance }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::SdeAnalysis { model: antecedent_model::nonlinear_sde::SdeSystem, initial: alloc::vec::Vec<f64>, simulation: antecedent_model::nonlinear_sde::SdeSimulationPolicy, interventions: alloc::vec::Vec<antecedent_model::nonlinear_sde::SdeWorld>, contrasts: alloc::vec::Vec<antecedent_model::nonlinear_sde::SdeContrast>, parameters: alloc::vec::Vec<usize>, observation: core::option::Option<antecedent_estimate::nonlinear_sde_fit::SdeObservationModel>, filter_prior: core::option::Option<antecedent_estimate::nonlinear_sde_fit::SdeFilterPrior>, trajectories: alloc::vec::Vec<antecedent_estimate::nonlinear_sde_fit::SdeTrajectory>, fit_policy: core::option::Option<antecedent_estimate::nonlinear_sde_fit::SdeFitPolicy>, parameter_draws: usize, parameter_seed: u64 }
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::StructureFit { seed: u64, design: antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign, model: antecedent_model::nonlinear_equilibrium::EquilibriumModel, training: alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::RegimeRow>, heldout: alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::RegimeRow>, policy: antecedent_estimate::cyclic_likelihood::CyclicFitOptions, threshold: f64, bootstrap_replicates: usize }
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::System { request: antecedent_io::cyclic_system_artifact::CyclicExecutionRequest }
 pub variant antecedent_io::cyclic_family_artifact::CyclicInterventionWire::Set { variable: u32, value: f64 }
@@ -10689,6 +10803,12 @@ pub variant antecedent_io::effect_constancy_artifact::EffectConstancyArtifactErr
 pub variant antecedent_io::effect_constancy_artifact::EffectConstancyArtifactError::ResultMismatch(&'static str)
 pub variant antecedent_io::effect_constancy_artifact::EffectConstancyArtifactError::UnsupportedSemantics(&'static str)
 pub variant antecedent_io::effect_constancy_artifact::EffectConstancyArtifactError::UnsupportedVersion { version: u16 }
+pub variant antecedent_io::external_cyclic_artifact::ExternalCyclicArtifactError::Admission(antecedent_core::execution::admission::AdmissionError)
+pub variant antecedent_io::external_cyclic_artifact::ExternalCyclicArtifactError::Cancelled
+pub variant antecedent_io::external_cyclic_artifact::ExternalCyclicArtifactError::Execution(antecedent_model::nonlinear_equilibrium::EquilibriumError)
+pub variant antecedent_io::external_cyclic_artifact::ExternalCyclicArtifactError::Invalid(alloc::string::String)
+pub variant antecedent_io::external_cyclic_artifact::ExternalCyclicArtifactError::Mismatch
+pub variant antecedent_io::external_cyclic_artifact::ExternalCyclicArtifactError::Refusal(antecedent_model::external_mechanism::ExternalMechanismRefusal)
 pub variant antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactError::DataIdentityMismatch
 pub variant antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactError::ExpectationMismatch(&'static str)
 pub variant antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactError::LimitsExceeded(&'static str)

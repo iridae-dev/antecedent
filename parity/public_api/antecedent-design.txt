@@ -223,6 +223,30 @@ impl core::clone::Clone for antecedent_design::ZTransportPlanSpec
 impl core::clone::Clone for antecedent_design::ZTransportProposal
 impl core::clone::Clone for antecedent_design::ZTransportProposalWire
 impl core::clone::Clone for antecedent_design::ZTransportRepairFamily
+impl core::clone::Clone for antecedent_design::adaptive_policy::AdaptivePolicyError
+impl core::clone::Clone for antecedent_design::adaptive_policy::AdaptivePolicyFamily
+impl core::clone::Clone for antecedent_design::adaptive_policy::ParameterBound
+impl core::clone::Clone for antecedent_design::adaptive_policy::PolicyFeature
+impl core::clone::Clone for antecedent_design::adaptive_policy::PolicyRule
+impl core::clone::Clone for antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult
+impl core::clone::Clone for antecedent_design::adaptive_policy_search::ChanceBound
+impl core::clone::Clone for antecedent_design::adaptive_policy_search::ConstraintReport
+impl core::clone::Clone for antecedent_design::adaptive_policy_search::DrawSplit
+impl core::clone::Clone for antecedent_design::adaptive_policy_search::FamilySearchResult
+impl core::clone::Clone for antecedent_design::adaptive_policy_search::HeldOutDesign
+impl core::clone::Clone for antecedent_design::adaptive_policy_search::HeldOutRequirement
+impl core::clone::Clone for antecedent_design::adaptive_policy_search::PairedContrast
+impl core::clone::Clone for antecedent_design::adaptive_policy_search::PolicyAttempt
+impl core::clone::Clone for antecedent_design::adaptive_policy_search::PolicyConstraints
+impl core::clone::Clone for antecedent_design::adaptive_policy_search::PolicyEvaluation
+impl core::clone::Clone for antecedent_design::adaptive_policy_search::PolicyObjective
+impl core::clone::Clone for antecedent_design::adaptive_policy_search::PolicyPath
+impl core::clone::Clone for antecedent_design::adaptive_policy_search::PolicySearchOptions
+impl core::clone::Clone for antecedent_design::adaptive_policy_search::PolicyStanding
+impl core::clone::Clone for antecedent_design::adaptive_policy_search::PreparedAdaptivePolicySearch
+impl core::clone::Clone for antecedent_design::adaptive_policy_search::ResponseStanding
+impl core::clone::Clone for antecedent_design::adaptive_policy_search::SearchStop
+impl core::clone::Clone for antecedent_design::adaptive_policy_search::StandingRequest
 impl core::clone::Clone for antecedent_design::adaptive_trial_transport::AdaptiveTransportEstimate
 impl core::clone::Clone for antecedent_design::adaptive_trial_transport::AdaptiveTransportPremises
 impl core::clone::Clone for antecedent_design::adaptive_trial_transport::StratumArmCell
@@ -844,6 +868,16 @@ impl core::cmp::Eq for antecedent_design::UnmatchedObligation
 impl core::cmp::Eq for antecedent_design::UnverifiedRoute
 impl core::cmp::Eq for antecedent_design::UnverifiedStudy
 impl core::cmp::Eq for antecedent_design::VerifiedUnlocks
+impl core::cmp::Eq for antecedent_design::adaptive_policy::AdaptivePolicyError
+impl core::cmp::Eq for antecedent_design::adaptive_policy::PolicyFeature
+impl core::cmp::Eq for antecedent_design::adaptive_policy::PolicyRule
+impl core::cmp::Eq for antecedent_design::adaptive_policy_search::DrawSplit
+impl core::cmp::Eq for antecedent_design::adaptive_policy_search::HeldOutDesign
+impl core::cmp::Eq for antecedent_design::adaptive_policy_search::HeldOutRequirement
+impl core::cmp::Eq for antecedent_design::adaptive_policy_search::PolicyStanding
+impl core::cmp::Eq for antecedent_design::adaptive_policy_search::ResponseStanding
+impl core::cmp::Eq for antecedent_design::adaptive_policy_search::SearchStop
+impl core::cmp::Eq for antecedent_design::adaptive_policy_search::StandingRequest
 impl core::cmp::Eq for antecedent_design::adaptive_trial_transport::AdaptiveTransportPremises
 impl core::cmp::Eq for antecedent_design::adaptive_trial_transport::TrialMechanism
 impl core::cmp::Eq for antecedent_design::adaptive_trial_transport::TrialSelectionDiagram
@@ -1184,6 +1218,28 @@ impl core::cmp::PartialEq for antecedent_design::UtilityExpr
 impl core::cmp::PartialEq for antecedent_design::VerifiedUnlocks
 impl core::cmp::PartialEq for antecedent_design::ZTransportFailureSnapshotWire
 impl core::cmp::PartialEq for antecedent_design::ZTransportFailureStatus
+impl core::cmp::PartialEq for antecedent_design::adaptive_policy::AdaptivePolicyError
+impl core::cmp::PartialEq for antecedent_design::adaptive_policy::AdaptivePolicyFamily
+impl core::cmp::PartialEq for antecedent_design::adaptive_policy::ParameterBound
+impl core::cmp::PartialEq for antecedent_design::adaptive_policy::PolicyFeature
+impl core::cmp::PartialEq for antecedent_design::adaptive_policy::PolicyRule
+impl core::cmp::PartialEq for antecedent_design::adaptive_policy_search::ChanceBound
+impl core::cmp::PartialEq for antecedent_design::adaptive_policy_search::ConstraintReport
+impl core::cmp::PartialEq for antecedent_design::adaptive_policy_search::DrawSplit
+impl core::cmp::PartialEq for antecedent_design::adaptive_policy_search::FamilySearchResult
+impl core::cmp::PartialEq for antecedent_design::adaptive_policy_search::HeldOutDesign
+impl core::cmp::PartialEq for antecedent_design::adaptive_policy_search::HeldOutRequirement
+impl core::cmp::PartialEq for antecedent_design::adaptive_policy_search::PairedContrast
+impl core::cmp::PartialEq for antecedent_design::adaptive_policy_search::PolicyAttempt
+impl core::cmp::PartialEq for antecedent_design::adaptive_policy_search::PolicyConstraints
+impl core::cmp::PartialEq for antecedent_design::adaptive_policy_search::PolicyEvaluation
+impl core::cmp::PartialEq for antecedent_design::adaptive_policy_search::PolicyObjective
+impl core::cmp::PartialEq for antecedent_design::adaptive_policy_search::PolicyPath
+impl core::cmp::PartialEq for antecedent_design::adaptive_policy_search::PolicySearchOptions
+impl core::cmp::PartialEq for antecedent_design::adaptive_policy_search::PolicyStanding
+impl core::cmp::PartialEq for antecedent_design::adaptive_policy_search::ResponseStanding
+impl core::cmp::PartialEq for antecedent_design::adaptive_policy_search::SearchStop
+impl core::cmp::PartialEq for antecedent_design::adaptive_policy_search::StandingRequest
 impl core::cmp::PartialEq for antecedent_design::adaptive_trial_transport::AdaptiveTransportEstimate
 impl core::cmp::PartialEq for antecedent_design::adaptive_trial_transport::AdaptiveTransportPremises
 impl core::cmp::PartialEq for antecedent_design::adaptive_trial_transport::StratumArmCell
@@ -1754,6 +1810,8 @@ impl core::default::Default for antecedent_design::RepairConsumeLimits
 impl core::default::Default for antecedent_design::RepairLimits
 impl core::default::Default for antecedent_design::RepairReadLimits
 impl core::default::Default for antecedent_design::StudyPlanConsumeLimits
+impl core::default::Default for antecedent_design::adaptive_policy_search::PolicyConstraints
+impl core::default::Default for antecedent_design::adaptive_policy_search::PolicySearchOptions
 impl core::default::Default for antecedent_design::composition_bundle::BundleConsumer
 impl core::default::Default for antecedent_design::composition_bundle::BundleLimits
 impl core::default::Default for antecedent_design::composition_bundle::SuppliedSources
@@ -1799,6 +1857,8 @@ impl core::error::Error for antecedent_design::StructureIdentificationError
 impl core::error::Error for antecedent_design::StudyCandidateError
 impl core::error::Error for antecedent_design::StudyPlanError
 impl core::error::Error for antecedent_design::ZTransportPlanningError
+impl core::error::Error for antecedent_design::adaptive_policy::AdaptivePolicyError
+impl core::error::Error for antecedent_design::adaptive_policy_search::AdaptivePolicySearchError
 impl core::error::Error for antecedent_design::composition_bundle::BundleError
 impl core::error::Error for antecedent_design::decision_evaluation::DemandSourceError
 impl core::error::Error for antecedent_design::decision_evaluation::EvaluationError
@@ -1946,6 +2006,31 @@ impl core::fmt::Debug for antecedent_design::ZTransportPlanningError
 impl core::fmt::Debug for antecedent_design::ZTransportProposal
 impl core::fmt::Debug for antecedent_design::ZTransportProposalWire
 impl core::fmt::Debug for antecedent_design::ZTransportRepairFamily
+impl core::fmt::Debug for antecedent_design::adaptive_policy::AdaptivePolicyError
+impl core::fmt::Debug for antecedent_design::adaptive_policy::AdaptivePolicyFamily
+impl core::fmt::Debug for antecedent_design::adaptive_policy::ParameterBound
+impl core::fmt::Debug for antecedent_design::adaptive_policy::PolicyFeature
+impl core::fmt::Debug for antecedent_design::adaptive_policy::PolicyRule
+impl core::fmt::Debug for antecedent_design::adaptive_policy_search::AdaptivePolicySearchError
+impl core::fmt::Debug for antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult
+impl core::fmt::Debug for antecedent_design::adaptive_policy_search::ChanceBound
+impl core::fmt::Debug for antecedent_design::adaptive_policy_search::ConstraintReport
+impl core::fmt::Debug for antecedent_design::adaptive_policy_search::DrawSplit
+impl core::fmt::Debug for antecedent_design::adaptive_policy_search::FamilySearchResult
+impl core::fmt::Debug for antecedent_design::adaptive_policy_search::HeldOutDesign
+impl core::fmt::Debug for antecedent_design::adaptive_policy_search::HeldOutRequirement
+impl core::fmt::Debug for antecedent_design::adaptive_policy_search::PairedContrast
+impl core::fmt::Debug for antecedent_design::adaptive_policy_search::PolicyAttempt
+impl core::fmt::Debug for antecedent_design::adaptive_policy_search::PolicyConstraints
+impl core::fmt::Debug for antecedent_design::adaptive_policy_search::PolicyEvaluation
+impl core::fmt::Debug for antecedent_design::adaptive_policy_search::PolicyObjective
+impl core::fmt::Debug for antecedent_design::adaptive_policy_search::PolicyPath
+impl core::fmt::Debug for antecedent_design::adaptive_policy_search::PolicySearchOptions
+impl core::fmt::Debug for antecedent_design::adaptive_policy_search::PolicyStanding
+impl core::fmt::Debug for antecedent_design::adaptive_policy_search::PreparedAdaptivePolicySearch
+impl core::fmt::Debug for antecedent_design::adaptive_policy_search::ResponseStanding
+impl core::fmt::Debug for antecedent_design::adaptive_policy_search::SearchStop
+impl core::fmt::Debug for antecedent_design::adaptive_policy_search::StandingRequest
 impl core::fmt::Debug for antecedent_design::adaptive_trial_transport::AdaptiveTransportEstimate
 impl core::fmt::Debug for antecedent_design::adaptive_trial_transport::AdaptiveTransportPremises
 impl core::fmt::Debug for antecedent_design::adaptive_trial_transport::StratumArmCell
@@ -2527,6 +2612,8 @@ impl core::fmt::Display for antecedent_design::StructureIdentificationError
 impl core::fmt::Display for antecedent_design::StudyCandidateError
 impl core::fmt::Display for antecedent_design::StudyPlanError
 impl core::fmt::Display for antecedent_design::ZTransportPlanningError
+impl core::fmt::Display for antecedent_design::adaptive_policy::AdaptivePolicyError
+impl core::fmt::Display for antecedent_design::adaptive_policy_search::AdaptivePolicySearchError
 impl core::fmt::Display for antecedent_design::composition_bundle::BundleError
 impl core::fmt::Display for antecedent_design::decision_eval::DecisionEvalError
 impl core::fmt::Display for antecedent_design::decision_evaluation::DemandSourceError
@@ -2618,6 +2705,12 @@ impl core::marker::Copy for antecedent_design::StudyKind
 impl core::marker::Copy for antecedent_design::StudyPlanConsumeLimits
 impl core::marker::Copy for antecedent_design::StudyPlanLimitsWire
 impl core::marker::Copy for antecedent_design::Tail
+impl core::marker::Copy for antecedent_design::adaptive_policy::PolicyFeature
+impl core::marker::Copy for antecedent_design::adaptive_policy_search::DrawSplit
+impl core::marker::Copy for antecedent_design::adaptive_policy_search::HeldOutRequirement
+impl core::marker::Copy for antecedent_design::adaptive_policy_search::PolicyObjective
+impl core::marker::Copy for antecedent_design::adaptive_policy_search::SearchStop
+impl core::marker::Copy for antecedent_design::adaptive_policy_search::StandingRequest
 impl core::marker::Copy for antecedent_design::adaptive_trial_transport::AdaptiveTransportPremises
 impl core::marker::Copy for antecedent_design::adaptive_trial_transport::TrialMechanism
 impl core::marker::Copy for antecedent_design::composition_boundary::AtomCombination
@@ -2926,6 +3019,31 @@ impl core::marker::Freeze for antecedent_design::ZTransportPlanningError [auto]
 impl core::marker::Freeze for antecedent_design::ZTransportProposal [auto]
 impl core::marker::Freeze for antecedent_design::ZTransportProposalWire [auto]
 impl core::marker::Freeze for antecedent_design::ZTransportRepairFamily [auto]
+impl core::marker::Freeze for antecedent_design::adaptive_policy::AdaptivePolicyError [auto]
+impl core::marker::Freeze for antecedent_design::adaptive_policy::AdaptivePolicyFamily [auto]
+impl core::marker::Freeze for antecedent_design::adaptive_policy::ParameterBound [auto]
+impl core::marker::Freeze for antecedent_design::adaptive_policy::PolicyFeature [auto]
+impl core::marker::Freeze for antecedent_design::adaptive_policy::PolicyRule [auto]
+impl core::marker::Freeze for antecedent_design::adaptive_policy_search::AdaptivePolicySearchError [auto]
+impl core::marker::Freeze for antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult [auto]
+impl core::marker::Freeze for antecedent_design::adaptive_policy_search::ChanceBound [auto]
+impl core::marker::Freeze for antecedent_design::adaptive_policy_search::ConstraintReport [auto]
+impl core::marker::Freeze for antecedent_design::adaptive_policy_search::DrawSplit [auto]
+impl core::marker::Freeze for antecedent_design::adaptive_policy_search::FamilySearchResult [auto]
+impl core::marker::Freeze for antecedent_design::adaptive_policy_search::HeldOutDesign [auto]
+impl core::marker::Freeze for antecedent_design::adaptive_policy_search::HeldOutRequirement [auto]
+impl core::marker::Freeze for antecedent_design::adaptive_policy_search::PairedContrast [auto]
+impl core::marker::Freeze for antecedent_design::adaptive_policy_search::PolicyAttempt [auto]
+impl core::marker::Freeze for antecedent_design::adaptive_policy_search::PolicyConstraints [auto]
+impl core::marker::Freeze for antecedent_design::adaptive_policy_search::PolicyEvaluation [auto]
+impl core::marker::Freeze for antecedent_design::adaptive_policy_search::PolicyObjective [auto]
+impl core::marker::Freeze for antecedent_design::adaptive_policy_search::PolicyPath [auto]
+impl core::marker::Freeze for antecedent_design::adaptive_policy_search::PolicySearchOptions [auto]
+impl core::marker::Freeze for antecedent_design::adaptive_policy_search::PolicyStanding [auto]
+impl core::marker::Freeze for antecedent_design::adaptive_policy_search::PreparedAdaptivePolicySearch [auto]
+impl core::marker::Freeze for antecedent_design::adaptive_policy_search::ResponseStanding [auto]
+impl core::marker::Freeze for antecedent_design::adaptive_policy_search::SearchStop [auto]
+impl core::marker::Freeze for antecedent_design::adaptive_policy_search::StandingRequest [auto]
 impl core::marker::Freeze for antecedent_design::adaptive_trial_transport::AdaptiveTransportEstimate [auto]
 impl core::marker::Freeze for antecedent_design::adaptive_trial_transport::AdaptiveTransportPremises [auto]
 impl core::marker::Freeze for antecedent_design::adaptive_trial_transport::StratumArmCell [auto]
@@ -3629,6 +3747,31 @@ impl core::marker::Send for antecedent_design::ZTransportPlanningError [auto]
 impl core::marker::Send for antecedent_design::ZTransportProposal [auto]
 impl core::marker::Send for antecedent_design::ZTransportProposalWire [auto]
 impl core::marker::Send for antecedent_design::ZTransportRepairFamily [auto]
+impl core::marker::Send for antecedent_design::adaptive_policy::AdaptivePolicyError [auto]
+impl core::marker::Send for antecedent_design::adaptive_policy::AdaptivePolicyFamily [auto]
+impl core::marker::Send for antecedent_design::adaptive_policy::ParameterBound [auto]
+impl core::marker::Send for antecedent_design::adaptive_policy::PolicyFeature [auto]
+impl core::marker::Send for antecedent_design::adaptive_policy::PolicyRule [auto]
+impl core::marker::Send for antecedent_design::adaptive_policy_search::AdaptivePolicySearchError [auto]
+impl core::marker::Send for antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult [auto]
+impl core::marker::Send for antecedent_design::adaptive_policy_search::ChanceBound [auto]
+impl core::marker::Send for antecedent_design::adaptive_policy_search::ConstraintReport [auto]
+impl core::marker::Send for antecedent_design::adaptive_policy_search::DrawSplit [auto]
+impl core::marker::Send for antecedent_design::adaptive_policy_search::FamilySearchResult [auto]
+impl core::marker::Send for antecedent_design::adaptive_policy_search::HeldOutDesign [auto]
+impl core::marker::Send for antecedent_design::adaptive_policy_search::HeldOutRequirement [auto]
+impl core::marker::Send for antecedent_design::adaptive_policy_search::PairedContrast [auto]
+impl core::marker::Send for antecedent_design::adaptive_policy_search::PolicyAttempt [auto]
+impl core::marker::Send for antecedent_design::adaptive_policy_search::PolicyConstraints [auto]
+impl core::marker::Send for antecedent_design::adaptive_policy_search::PolicyEvaluation [auto]
+impl core::marker::Send for antecedent_design::adaptive_policy_search::PolicyObjective [auto]
+impl core::marker::Send for antecedent_design::adaptive_policy_search::PolicyPath [auto]
+impl core::marker::Send for antecedent_design::adaptive_policy_search::PolicySearchOptions [auto]
+impl core::marker::Send for antecedent_design::adaptive_policy_search::PolicyStanding [auto]
+impl core::marker::Send for antecedent_design::adaptive_policy_search::PreparedAdaptivePolicySearch [auto]
+impl core::marker::Send for antecedent_design::adaptive_policy_search::ResponseStanding [auto]
+impl core::marker::Send for antecedent_design::adaptive_policy_search::SearchStop [auto]
+impl core::marker::Send for antecedent_design::adaptive_policy_search::StandingRequest [auto]
 impl core::marker::Send for antecedent_design::adaptive_trial_transport::AdaptiveTransportEstimate [auto]
 impl core::marker::Send for antecedent_design::adaptive_trial_transport::AdaptiveTransportPremises [auto]
 impl core::marker::Send for antecedent_design::adaptive_trial_transport::StratumArmCell [auto]
@@ -4298,6 +4441,28 @@ impl core::marker::StructuralPartialEq for antecedent_design::UtilityExpr
 impl core::marker::StructuralPartialEq for antecedent_design::VerifiedUnlocks
 impl core::marker::StructuralPartialEq for antecedent_design::ZTransportFailureSnapshotWire
 impl core::marker::StructuralPartialEq for antecedent_design::ZTransportFailureStatus
+impl core::marker::StructuralPartialEq for antecedent_design::adaptive_policy::AdaptivePolicyError
+impl core::marker::StructuralPartialEq for antecedent_design::adaptive_policy::AdaptivePolicyFamily
+impl core::marker::StructuralPartialEq for antecedent_design::adaptive_policy::ParameterBound
+impl core::marker::StructuralPartialEq for antecedent_design::adaptive_policy::PolicyFeature
+impl core::marker::StructuralPartialEq for antecedent_design::adaptive_policy::PolicyRule
+impl core::marker::StructuralPartialEq for antecedent_design::adaptive_policy_search::ChanceBound
+impl core::marker::StructuralPartialEq for antecedent_design::adaptive_policy_search::ConstraintReport
+impl core::marker::StructuralPartialEq for antecedent_design::adaptive_policy_search::DrawSplit
+impl core::marker::StructuralPartialEq for antecedent_design::adaptive_policy_search::FamilySearchResult
+impl core::marker::StructuralPartialEq for antecedent_design::adaptive_policy_search::HeldOutDesign
+impl core::marker::StructuralPartialEq for antecedent_design::adaptive_policy_search::HeldOutRequirement
+impl core::marker::StructuralPartialEq for antecedent_design::adaptive_policy_search::PairedContrast
+impl core::marker::StructuralPartialEq for antecedent_design::adaptive_policy_search::PolicyAttempt
+impl core::marker::StructuralPartialEq for antecedent_design::adaptive_policy_search::PolicyConstraints
+impl core::marker::StructuralPartialEq for antecedent_design::adaptive_policy_search::PolicyEvaluation
+impl core::marker::StructuralPartialEq for antecedent_design::adaptive_policy_search::PolicyObjective
+impl core::marker::StructuralPartialEq for antecedent_design::adaptive_policy_search::PolicyPath
+impl core::marker::StructuralPartialEq for antecedent_design::adaptive_policy_search::PolicySearchOptions
+impl core::marker::StructuralPartialEq for antecedent_design::adaptive_policy_search::PolicyStanding
+impl core::marker::StructuralPartialEq for antecedent_design::adaptive_policy_search::ResponseStanding
+impl core::marker::StructuralPartialEq for antecedent_design::adaptive_policy_search::SearchStop
+impl core::marker::StructuralPartialEq for antecedent_design::adaptive_policy_search::StandingRequest
 impl core::marker::StructuralPartialEq for antecedent_design::adaptive_trial_transport::AdaptiveTransportEstimate
 impl core::marker::StructuralPartialEq for antecedent_design::adaptive_trial_transport::AdaptiveTransportPremises
 impl core::marker::StructuralPartialEq for antecedent_design::adaptive_trial_transport::StratumArmCell
@@ -4935,6 +5100,31 @@ impl core::marker::Sync for antecedent_design::ZTransportPlanningError [auto]
 impl core::marker::Sync for antecedent_design::ZTransportProposal [auto]
 impl core::marker::Sync for antecedent_design::ZTransportProposalWire [auto]
 impl core::marker::Sync for antecedent_design::ZTransportRepairFamily [auto]
+impl core::marker::Sync for antecedent_design::adaptive_policy::AdaptivePolicyError [auto]
+impl core::marker::Sync for antecedent_design::adaptive_policy::AdaptivePolicyFamily [auto]
+impl core::marker::Sync for antecedent_design::adaptive_policy::ParameterBound [auto]
+impl core::marker::Sync for antecedent_design::adaptive_policy::PolicyFeature [auto]
+impl core::marker::Sync for antecedent_design::adaptive_policy::PolicyRule [auto]
+impl core::marker::Sync for antecedent_design::adaptive_policy_search::AdaptivePolicySearchError [auto]
+impl core::marker::Sync for antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult [auto]
+impl core::marker::Sync for antecedent_design::adaptive_policy_search::ChanceBound [auto]
+impl core::marker::Sync for antecedent_design::adaptive_policy_search::ConstraintReport [auto]
+impl core::marker::Sync for antecedent_design::adaptive_policy_search::DrawSplit [auto]
+impl core::marker::Sync for antecedent_design::adaptive_policy_search::FamilySearchResult [auto]
+impl core::marker::Sync for antecedent_design::adaptive_policy_search::HeldOutDesign [auto]
+impl core::marker::Sync for antecedent_design::adaptive_policy_search::HeldOutRequirement [auto]
+impl core::marker::Sync for antecedent_design::adaptive_policy_search::PairedContrast [auto]
+impl core::marker::Sync for antecedent_design::adaptive_policy_search::PolicyAttempt [auto]
+impl core::marker::Sync for antecedent_design::adaptive_policy_search::PolicyConstraints [auto]
+impl core::marker::Sync for antecedent_design::adaptive_policy_search::PolicyEvaluation [auto]
+impl core::marker::Sync for antecedent_design::adaptive_policy_search::PolicyObjective [auto]
+impl core::marker::Sync for antecedent_design::adaptive_policy_search::PolicyPath [auto]
+impl core::marker::Sync for antecedent_design::adaptive_policy_search::PolicySearchOptions [auto]
+impl core::marker::Sync for antecedent_design::adaptive_policy_search::PolicyStanding [auto]
+impl core::marker::Sync for antecedent_design::adaptive_policy_search::PreparedAdaptivePolicySearch [auto]
+impl core::marker::Sync for antecedent_design::adaptive_policy_search::ResponseStanding [auto]
+impl core::marker::Sync for antecedent_design::adaptive_policy_search::SearchStop [auto]
+impl core::marker::Sync for antecedent_design::adaptive_policy_search::StandingRequest [auto]
 impl core::marker::Sync for antecedent_design::adaptive_trial_transport::AdaptiveTransportEstimate [auto]
 impl core::marker::Sync for antecedent_design::adaptive_trial_transport::AdaptiveTransportPremises [auto]
 impl core::marker::Sync for antecedent_design::adaptive_trial_transport::StratumArmCell [auto]
@@ -5637,6 +5827,31 @@ impl core::marker::Unpin for antecedent_design::ZTransportPlanningError [auto]
 impl core::marker::Unpin for antecedent_design::ZTransportProposal [auto]
 impl core::marker::Unpin for antecedent_design::ZTransportProposalWire [auto]
 impl core::marker::Unpin for antecedent_design::ZTransportRepairFamily [auto]
+impl core::marker::Unpin for antecedent_design::adaptive_policy::AdaptivePolicyError [auto]
+impl core::marker::Unpin for antecedent_design::adaptive_policy::AdaptivePolicyFamily [auto]
+impl core::marker::Unpin for antecedent_design::adaptive_policy::ParameterBound [auto]
+impl core::marker::Unpin for antecedent_design::adaptive_policy::PolicyFeature [auto]
+impl core::marker::Unpin for antecedent_design::adaptive_policy::PolicyRule [auto]
+impl core::marker::Unpin for antecedent_design::adaptive_policy_search::AdaptivePolicySearchError [auto]
+impl core::marker::Unpin for antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult [auto]
+impl core::marker::Unpin for antecedent_design::adaptive_policy_search::ChanceBound [auto]
+impl core::marker::Unpin for antecedent_design::adaptive_policy_search::ConstraintReport [auto]
+impl core::marker::Unpin for antecedent_design::adaptive_policy_search::DrawSplit [auto]
+impl core::marker::Unpin for antecedent_design::adaptive_policy_search::FamilySearchResult [auto]
+impl core::marker::Unpin for antecedent_design::adaptive_policy_search::HeldOutDesign [auto]
+impl core::marker::Unpin for antecedent_design::adaptive_policy_search::HeldOutRequirement [auto]
+impl core::marker::Unpin for antecedent_design::adaptive_policy_search::PairedContrast [auto]
+impl core::marker::Unpin for antecedent_design::adaptive_policy_search::PolicyAttempt [auto]
+impl core::marker::Unpin for antecedent_design::adaptive_policy_search::PolicyConstraints [auto]
+impl core::marker::Unpin for antecedent_design::adaptive_policy_search::PolicyEvaluation [auto]
+impl core::marker::Unpin for antecedent_design::adaptive_policy_search::PolicyObjective [auto]
+impl core::marker::Unpin for antecedent_design::adaptive_policy_search::PolicyPath [auto]
+impl core::marker::Unpin for antecedent_design::adaptive_policy_search::PolicySearchOptions [auto]
+impl core::marker::Unpin for antecedent_design::adaptive_policy_search::PolicyStanding [auto]
+impl core::marker::Unpin for antecedent_design::adaptive_policy_search::PreparedAdaptivePolicySearch [auto]
+impl core::marker::Unpin for antecedent_design::adaptive_policy_search::ResponseStanding [auto]
+impl core::marker::Unpin for antecedent_design::adaptive_policy_search::SearchStop [auto]
+impl core::marker::Unpin for antecedent_design::adaptive_policy_search::StandingRequest [auto]
 impl core::marker::Unpin for antecedent_design::adaptive_trial_transport::AdaptiveTransportEstimate [auto]
 impl core::marker::Unpin for antecedent_design::adaptive_trial_transport::AdaptiveTransportPremises [auto]
 impl core::marker::Unpin for antecedent_design::adaptive_trial_transport::StratumArmCell [auto]
@@ -6340,6 +6555,31 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::ZTransportPl
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::ZTransportProposal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::ZTransportProposalWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::ZTransportRepairFamily [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_policy::AdaptivePolicyError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_policy::AdaptivePolicyFamily [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_policy::ParameterBound [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_policy::PolicyFeature [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_policy::PolicyRule [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_policy_search::AdaptivePolicySearchError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_policy_search::ChanceBound [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_policy_search::ConstraintReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_policy_search::DrawSplit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_policy_search::FamilySearchResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_policy_search::HeldOutDesign [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_policy_search::HeldOutRequirement [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_policy_search::PairedContrast [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_policy_search::PolicyAttempt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_policy_search::PolicyConstraints [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_policy_search::PolicyEvaluation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_policy_search::PolicyObjective [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_policy_search::PolicyPath [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_policy_search::PolicySearchOptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_policy_search::PolicyStanding [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_policy_search::PreparedAdaptivePolicySearch [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_policy_search::ResponseStanding [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_policy_search::SearchStop [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_policy_search::StandingRequest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_trial_transport::AdaptiveTransportEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_trial_transport::AdaptiveTransportPremises [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_trial_transport::StratumArmCell [auto]
@@ -7032,6 +7272,31 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::ZTransportPlann
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::ZTransportProposal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::ZTransportProposalWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::ZTransportRepairFamily [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_policy::AdaptivePolicyError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_policy::AdaptivePolicyFamily [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_policy::ParameterBound [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_policy::PolicyFeature [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_policy::PolicyRule [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_policy_search::AdaptivePolicySearchError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_policy_search::ChanceBound [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_policy_search::ConstraintReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_policy_search::DrawSplit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_policy_search::FamilySearchResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_policy_search::HeldOutDesign [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_policy_search::HeldOutRequirement [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_policy_search::PairedContrast [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_policy_search::PolicyAttempt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_policy_search::PolicyConstraints [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_policy_search::PolicyEvaluation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_policy_search::PolicyObjective [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_policy_search::PolicyPath [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_policy_search::PolicySearchOptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_policy_search::PolicyStanding [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_policy_search::PreparedAdaptivePolicySearch [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_policy_search::ResponseStanding [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_policy_search::SearchStop [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_policy_search::StandingRequest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_trial_transport::AdaptiveTransportEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_trial_transport::AdaptiveTransportPremises [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_trial_transport::StratumArmCell [auto]
@@ -8189,6 +8454,10 @@ pub const <antecedent_design::sequential_evaluation::ComparisonKind>::ALL: [Self
 pub const <antecedent_design::sequential_evaluation::SequentialAssumptions>::DECLARED: Self
 pub const <antecedent_design::transport_sensitivity::TransportRoute>::ALL: [Self; 13]
 pub const <antecedent_design::transported_policy::TransportPremises>::DECLARED: Self
+pub const antecedent_design::adaptive_policy::MAX_PIECEWISE_CUTS: usize
+pub const antecedent_design::adaptive_policy::MAX_POLICY_FEATURES: usize
+pub const antecedent_design::adaptive_policy::MAX_SCHEDULE_STEPS: usize
+pub const antecedent_design::adaptive_policy::MAX_TREE_DEPTH: u32
 pub const antecedent_design::adaptive_trial_transport::ADAPTIVE_TRANSPORT_IDENTITY_VERSION: u64
 pub const antecedent_design::composition_bundle::FACT_EVIDENCE_DIGEST: &str
 pub const antecedent_design::composition_bundle::FACT_LAW: &str
@@ -8374,6 +8643,16 @@ pub enum antecedent_design::UtilityExpr
 pub enum antecedent_design::ZTransportCandidateOutcome
 pub enum antecedent_design::ZTransportFailureStatus
 pub enum antecedent_design::ZTransportPlanningError
+pub enum antecedent_design::adaptive_policy::PolicyFeature
+pub enum antecedent_design::adaptive_policy::PolicyRule
+pub enum antecedent_design::adaptive_policy_search::AdaptivePolicySearchError
+pub enum antecedent_design::adaptive_policy_search::DrawSplit
+pub enum antecedent_design::adaptive_policy_search::HeldOutDesign
+pub enum antecedent_design::adaptive_policy_search::HeldOutRequirement
+pub enum antecedent_design::adaptive_policy_search::PolicyObjective
+pub enum antecedent_design::adaptive_policy_search::PolicyStanding
+pub enum antecedent_design::adaptive_policy_search::SearchStop
+pub enum antecedent_design::adaptive_policy_search::StandingRequest
 pub enum antecedent_design::composition_boundary::ActionStatus
 pub enum antecedent_design::composition_boundary::AtomCombination
 pub enum antecedent_design::composition_boundary::AtomPlan
@@ -8984,6 +9263,75 @@ pub field antecedent_design::ZTransportProposalWire::proof: antecedent_identify:
 pub field antecedent_design::ZTransportProposalWire::recruitment_sampling: alloc::string::String
 pub field antecedent_design::ZTransportProposalWire::snapshot: antecedent_design::ZTransportFailureSnapshotWire
 pub field antecedent_design::ZTransportProposalWire::version: u32
+pub field antecedent_design::adaptive_policy::ParameterBound::lower: f64
+pub field antecedent_design::adaptive_policy::ParameterBound::name: alloc::string::String
+pub field antecedent_design::adaptive_policy::ParameterBound::upper: f64
+pub field antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult::complete: bool
+pub field antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult::contrasts: alloc::vec::Vec<antecedent_design::adaptive_policy_search::PairedContrast>
+pub field antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult::families: alloc::vec::Vec<antecedent_design::adaptive_policy_search::FamilySearchResult>
+pub field antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult::flags: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult::problem_identity: [u8; 32]
+pub field antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult::record_identity: [u8; 32]
+pub field antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult::selected: core::option::Option<usize>
+pub field antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult::selection_optimism: core::option::Option<f64>
+pub field antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult::source_identity: alloc::string::String
+pub field antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult::standing: antecedent_design::adaptive_policy_search::PolicyStanding
+pub field antecedent_design::adaptive_policy_search::ChanceBound::bound: f64
+pub field antecedent_design::adaptive_policy_search::ChanceBound::max_violation_probability: f64
+pub field antecedent_design::adaptive_policy_search::ConstraintReport::id: alloc::string::String
+pub field antecedent_design::adaptive_policy_search::ConstraintReport::n_draws: usize
+pub field antecedent_design::adaptive_policy_search::ConstraintReport::satisfied: bool
+pub field antecedent_design::adaptive_policy_search::ConstraintReport::tolerance: f64
+pub field antecedent_design::adaptive_policy_search::ConstraintReport::upper_bound_satisfied: bool
+pub field antecedent_design::adaptive_policy_search::ConstraintReport::violation_rate: f64
+pub field antecedent_design::adaptive_policy_search::ConstraintReport::violation_rate_upper: f64
+pub field antecedent_design::adaptive_policy_search::ConstraintReport::violations: usize
+pub field antecedent_design::adaptive_policy_search::ConstraintReport::worst_observed: f64
+pub field antecedent_design::adaptive_policy_search::FamilySearchResult::attempts: alloc::vec::Vec<antecedent_design::adaptive_policy_search::PolicyAttempt>
+pub field antecedent_design::adaptive_policy_search::FamilySearchResult::evaluations: usize
+pub field antecedent_design::adaptive_policy_search::FamilySearchResult::family_id: alloc::string::String
+pub field antecedent_design::adaptive_policy_search::FamilySearchResult::family_identity: [u8; 32]
+pub field antecedent_design::adaptive_policy_search::FamilySearchResult::generations: usize
+pub field antecedent_design::adaptive_policy_search::FamilySearchResult::held_out: core::option::Option<antecedent_design::adaptive_policy_search::PolicyEvaluation>
+pub field antecedent_design::adaptive_policy_search::FamilySearchResult::in_sample: antecedent_design::adaptive_policy_search::PolicyEvaluation
+pub field antecedent_design::adaptive_policy_search::FamilySearchResult::stop: antecedent_design::adaptive_policy_search::SearchStop
+pub field antecedent_design::adaptive_policy_search::FamilySearchResult::theta: alloc::vec::Vec<f64>
+pub field antecedent_design::adaptive_policy_search::PairedContrast::baseline: alloc::string::String
+pub field antecedent_design::adaptive_policy_search::PairedContrast::mean_difference: f64
+pub field antecedent_design::adaptive_policy_search::PairedContrast::n_draws: usize
+pub field antecedent_design::adaptive_policy_search::PairedContrast::policy: alloc::string::String
+pub field antecedent_design::adaptive_policy_search::PairedContrast::split: antecedent_design::adaptive_policy_search::DrawSplit
+pub field antecedent_design::adaptive_policy_search::PairedContrast::standard_error: f64
+pub field antecedent_design::adaptive_policy_search::PolicyAttempt::excess_violation: f64
+pub field antecedent_design::adaptive_policy_search::PolicyAttempt::failure: core::option::Option<alloc::string::String>
+pub field antecedent_design::adaptive_policy_search::PolicyAttempt::feasible: bool
+pub field antecedent_design::adaptive_policy_search::PolicyAttempt::objective: core::option::Option<f64>
+pub field antecedent_design::adaptive_policy_search::PolicyAttempt::theta: alloc::vec::Vec<f64>
+pub field antecedent_design::adaptive_policy_search::PolicyConstraints::cumulative_cost: core::option::Option<antecedent_design::adaptive_policy_search::ChanceBound>
+pub field antecedent_design::adaptive_policy_search::PolicyConstraints::cumulative_exposure: core::option::Option<antecedent_design::adaptive_policy_search::ChanceBound>
+pub field antecedent_design::adaptive_policy_search::PolicyConstraints::per_step_action: core::option::Option<(f64, f64)>
+pub field antecedent_design::adaptive_policy_search::PolicyEvaluation::constraints: alloc::vec::Vec<antecedent_design::adaptive_policy_search::ConstraintReport>
+pub field antecedent_design::adaptive_policy_search::PolicyEvaluation::draw_utilities: alloc::vec::Vec<f64>
+pub field antecedent_design::adaptive_policy_search::PolicyEvaluation::feasible: bool
+pub field antecedent_design::adaptive_policy_search::PolicyEvaluation::mean_utility: f64
+pub field antecedent_design::adaptive_policy_search::PolicyEvaluation::n_draws: usize
+pub field antecedent_design::adaptive_policy_search::PolicyEvaluation::objective: f64
+pub field antecedent_design::adaptive_policy_search::PolicyEvaluation::standard_error: f64
+pub field antecedent_design::adaptive_policy_search::PolicyPath::actions: alloc::vec::Vec<f64>
+pub field antecedent_design::adaptive_policy_search::PolicyPath::step_costs: alloc::vec::Vec<f64>
+pub field antecedent_design::adaptive_policy_search::PolicyPath::step_exposures: alloc::vec::Vec<f64>
+pub field antecedent_design::adaptive_policy_search::PolicyPath::utility: f64
+pub field antecedent_design::adaptive_policy_search::PolicySearchOptions::elite_fraction: f64
+pub field antecedent_design::adaptive_policy_search::PolicySearchOptions::held_out: antecedent_design::adaptive_policy_search::HeldOutRequirement
+pub field antecedent_design::adaptive_policy_search::PolicySearchOptions::max_evaluations: usize
+pub field antecedent_design::adaptive_policy_search::PolicySearchOptions::max_generations: usize
+pub field antecedent_design::adaptive_policy_search::PolicySearchOptions::polish: bool
+pub field antecedent_design::adaptive_policy_search::PolicySearchOptions::population: usize
+pub field antecedent_design::adaptive_policy_search::PolicySearchOptions::seed: u64
+pub field antecedent_design::adaptive_policy_search::PolicySearchOptions::spread_tolerance: f64
+pub field antecedent_design::adaptive_policy_search::PolicySearchOptions::standing: antecedent_design::adaptive_policy_search::StandingRequest
+pub field antecedent_design::adaptive_policy_search::ResponseStanding::basis: alloc::string::String
+pub field antecedent_design::adaptive_policy_search::ResponseStanding::identified: bool
 pub field antecedent_design::adaptive_trial_transport::AdaptiveTransportEstimate::analysed_units: usize
 pub field antecedent_design::adaptive_trial_transport::AdaptiveTransportEstimate::cells: alloc::vec::Vec<antecedent_design::adaptive_trial_transport::StratumArmCell>
 pub field antecedent_design::adaptive_trial_transport::AdaptiveTransportEstimate::contract_identity: alloc::string::String
@@ -11027,6 +11375,31 @@ pub fn <antecedent_design::ZTransportRepairFamily>::const fn sid_limits(&self) -
 pub fn <antecedent_design::ZTransportRepairFamily>::fn check_regimes(&self, regimes: alloc::vec::Vec<antecedent_core::query::transport_catalog::EvidenceRegime>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::FamilyVerdict, antecedent_design::repair::RepairCancelled>
 pub fn <antecedent_design::ZTransportRepairFamily>::fn snapshot(&self) -> &antecedent_design::ZTransportFailureSnapshot
 pub fn <antecedent_design::ZTransportRepairFamily>::fn try_new(snapshot: antecedent_design::ZTransportFailureSnapshot, limits: antecedent_identify::sid::SidLimits) -> core::result::Result<Self, antecedent_design::RepairError>
+pub fn <antecedent_design::adaptive_policy::AdaptivePolicyFamily>::const fn action_bounds(&self) -> (f64, f64)
+pub fn <antecedent_design::adaptive_policy::AdaptivePolicyFamily>::const fn is_open_loop(&self) -> bool
+pub fn <antecedent_design::adaptive_policy::AdaptivePolicyFamily>::const fn rule(&self) -> &antecedent_design::adaptive_policy::PolicyRule
+pub fn <antecedent_design::adaptive_policy::AdaptivePolicyFamily>::fn action(&self, theta: &[f64], step: usize, features: &[f64]) -> core::result::Result<f64, antecedent_design::adaptive_policy::AdaptivePolicyError>
+pub fn <antecedent_design::adaptive_policy::AdaptivePolicyFamily>::fn bounds(&self) -> &[antecedent_design::adaptive_policy::ParameterBound]
+pub fn <antecedent_design::adaptive_policy::AdaptivePolicyFamily>::fn check_parameters(&self, theta: &[f64]) -> core::result::Result<(), antecedent_design::adaptive_policy::AdaptivePolicyError>
+pub fn <antecedent_design::adaptive_policy::AdaptivePolicyFamily>::fn dimension(&self) -> usize
+pub fn <antecedent_design::adaptive_policy::AdaptivePolicyFamily>::fn features(&self) -> &[antecedent_design::adaptive_policy::PolicyFeature]
+pub fn <antecedent_design::adaptive_policy::AdaptivePolicyFamily>::fn id(&self) -> &str
+pub fn <antecedent_design::adaptive_policy::AdaptivePolicyFamily>::fn identity(&self) -> [u8; 32]
+pub fn <antecedent_design::adaptive_policy::AdaptivePolicyFamily>::fn max_lag(&self) -> u32
+pub fn <antecedent_design::adaptive_policy::AdaptivePolicyFamily>::fn new(id: impl core::convert::Into<alloc::string::String>, features: alloc::vec::Vec<antecedent_design::adaptive_policy::PolicyFeature>, feature_ranges: &[(f64, f64)], rule: antecedent_design::adaptive_policy::PolicyRule, action_bounds: (f64, f64), coefficient_range: (f64, f64)) -> core::result::Result<Self, antecedent_design::adaptive_policy::AdaptivePolicyError>
+pub fn <antecedent_design::adaptive_policy::AdaptivePolicyFamily>::fn read_variables(&self) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
+pub fn <antecedent_design::adaptive_policy::AdaptivePolicyFamily>::fn to_value_expr(&self, theta: &[f64], step: usize) -> core::result::Result<antecedent_core::value_expr::ValueExpr, antecedent_design::adaptive_policy::AdaptivePolicyError>
+pub fn <antecedent_design::adaptive_policy::PolicyFeature>::const fn lag(self) -> u32
+pub fn <antecedent_design::adaptive_policy::PolicyFeature>::const fn variable(self) -> antecedent_core::ids::VariableId
+pub fn <antecedent_design::adaptive_policy::PolicyFeature>::fn expr(self) -> antecedent_core::value_expr::ValueExpr
+pub fn <antecedent_design::adaptive_policy_search::AdaptivePolicySearchError>::const fn reason_code(&self) -> core::option::Option<&'static str>
+pub fn <antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult>::fn admitted_bytes(&self) -> u64
+pub fn <antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult>::fn selected_family(&self) -> core::option::Option<&antecedent_design::adaptive_policy_search::FamilySearchResult>
+pub fn <antecedent_design::adaptive_policy_search::PolicyStanding>::const fn label(&self) -> &'static str
+pub fn <antecedent_design::adaptive_policy_search::PreparedAdaptivePolicySearch>::fn compile(families: alloc::vec::Vec<antecedent_design::adaptive_policy::AdaptivePolicyFamily>, baseline: core::option::Option<usize>, constraints: antecedent_design::adaptive_policy_search::PolicyConstraints, objective: antecedent_design::adaptive_policy_search::PolicyObjective, options: antecedent_design::adaptive_policy_search::PolicySearchOptions) -> core::result::Result<Self, antecedent_design::adaptive_policy_search::AdaptivePolicySearchError>
+pub fn <antecedent_design::adaptive_policy_search::PreparedAdaptivePolicySearch>::fn execute(&self, source: &dyn antecedent_design::adaptive_policy_search::PolicyRolloutSource, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult, antecedent_design::adaptive_policy_search::AdaptivePolicySearchError>
+pub fn <antecedent_design::adaptive_policy_search::PreparedAdaptivePolicySearch>::fn identity(&self) -> [u8; 32]
+pub fn <antecedent_design::adaptive_policy_search::PreparedAdaptivePolicySearch>::fn verify_replay(&self, recorded: &antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult, source: &dyn antecedent_design::adaptive_policy_search::PolicyRolloutSource, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<bool, antecedent_design::adaptive_policy_search::AdaptivePolicySearchError>
 pub fn <antecedent_design::adaptive_trial_transport::TrialMechanism>::const fn as_str(self) -> &'static str
 pub fn <antecedent_design::adaptive_trial_transport::TrialSelectionDiagram>::fn identity_hex(&self) -> alloc::string::String
 pub fn <antecedent_design::composition_boundary::BoundaryError>::fn reason_code(&self) -> &'static str
@@ -11684,6 +12057,8 @@ pub fn antecedent_design::transported_policy::evaluate_transported_policy(reques
 pub fn antecedent_design::transported_policy::verify_transported_policy(evaluation: &antecedent_design::transported_policy::TransportedPolicyEvaluation, request: &antecedent_design::transported_policy::TransportedPolicyRequest<'_>, ctx: &antecedent_core::execution::context::ExecutionContext) -> antecedent_design::sequential_evaluation::SequentialResult<()>
 pub fn antecedent_design::transported_synthesis::synthesize_transported(ledger: &mut antecedent_contract::evidence_ledger::ledger::EvidenceLedger, label: &str, contributions: &[antecedent_design::transported_synthesis::TransportedContribution], method: &antecedent_design::transported_synthesis::TransportedSynthesisMethod) -> core::result::Result<antecedent_design::transported_synthesis::TransportedSynthesis, antecedent_design::transported_synthesis::TransportedSynthesisRefusal>
 pub fn antecedent_design::transported_synthesis::synthesize_transported_in_population(ledger: &mut antecedent_contract::evidence_ledger::ledger::EvidenceLedger, label: &str, contributions: &[antecedent_design::transported_synthesis::TransportedContribution], method: &antecedent_design::transported_synthesis::TransportedSynthesisMethod, native_population: &str) -> core::result::Result<antecedent_design::transported_synthesis::TransportedSynthesis, antecedent_design::transported_synthesis::TransportedSynthesisRefusal>
+pub mod antecedent_design::adaptive_policy
+pub mod antecedent_design::adaptive_policy_search
 pub mod antecedent_design::adaptive_trial_transport
 pub mod antecedent_design::candidate
 pub mod antecedent_design::candidate_generation
@@ -11894,6 +12269,25 @@ pub struct antecedent_design::ZTransportProposal has private fields
 pub struct antecedent_design::ZTransportProposalWire
 pub struct antecedent_design::ZTransportRepairFamily
 pub struct antecedent_design::ZTransportRepairFamily has private fields
+pub struct antecedent_design::adaptive_policy::AdaptivePolicyError
+pub struct antecedent_design::adaptive_policy::AdaptivePolicyError has private fields
+pub struct antecedent_design::adaptive_policy::AdaptivePolicyFamily
+pub struct antecedent_design::adaptive_policy::AdaptivePolicyFamily has private fields
+pub struct antecedent_design::adaptive_policy::ParameterBound
+pub struct antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult
+pub struct antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult has private fields
+pub struct antecedent_design::adaptive_policy_search::ChanceBound
+pub struct antecedent_design::adaptive_policy_search::ConstraintReport
+pub struct antecedent_design::adaptive_policy_search::FamilySearchResult
+pub struct antecedent_design::adaptive_policy_search::PairedContrast
+pub struct antecedent_design::adaptive_policy_search::PolicyAttempt
+pub struct antecedent_design::adaptive_policy_search::PolicyConstraints
+pub struct antecedent_design::adaptive_policy_search::PolicyEvaluation
+pub struct antecedent_design::adaptive_policy_search::PolicyPath
+pub struct antecedent_design::adaptive_policy_search::PolicySearchOptions
+pub struct antecedent_design::adaptive_policy_search::PreparedAdaptivePolicySearch
+pub struct antecedent_design::adaptive_policy_search::PreparedAdaptivePolicySearch has private fields
+pub struct antecedent_design::adaptive_policy_search::ResponseStanding
 pub struct antecedent_design::adaptive_trial_transport::AdaptiveTransportEstimate
 pub struct antecedent_design::adaptive_trial_transport::AdaptiveTransportPremises
 pub struct antecedent_design::adaptive_trial_transport::AdaptiveTransportRequest<'a>
@@ -12349,6 +12743,7 @@ pub trait antecedent_design::FailedContract: antecedent_design::RepairFamily
 pub trait antecedent_design::ObjectiveScorer
 pub trait antecedent_design::RepairFamily
 pub trait antecedent_design::Utility<A, O>: core::marker::Send + core::marker::Sync
+pub trait antecedent_design::adaptive_policy_search::PolicyRolloutSource: core::marker::Sync
 pub trait antecedent_design::composition_bundle::NodeVerifier
 pub trait antecedent_design::decision_evaluation::DemandSource
 pub trait antecedent_design::program_search::continuous::CompiledProgramEvaluator: core::marker::Sync
@@ -12380,6 +12775,13 @@ pub trait fn fn antecedent_design::RepairFamily::hypothetical_regimes(&self, stu
 pub trait fn fn antecedent_design::RepairFamily::unresolved_obligations(&self) -> alloc::vec::Vec<antecedent_contract::evidence_obligation::EvidenceObligation>
 pub trait fn fn antecedent_design::Utility::affine_in_state(&self, actions: &[A]) -> core::option::Option<alloc::vec::Vec<(f64, f64)>> {default}
 pub trait fn fn antecedent_design::Utility::evaluate_batch(&self, actions: &[A], outcomes: &[O], out: &mut [f64]) -> core::result::Result<(), antecedent_design::DesignError>
+pub trait fn fn antecedent_design::adaptive_policy_search::PolicyRolloutSource::heldout_design(&self) -> antecedent_design::adaptive_policy_search::HeldOutDesign
+pub trait fn fn antecedent_design::adaptive_policy_search::PolicyRolloutSource::horizon(&self) -> usize
+pub trait fn fn antecedent_design::adaptive_policy_search::PolicyRolloutSource::identity(&self) -> alloc::string::String
+pub trait fn fn antecedent_design::adaptive_policy_search::PolicyRolloutSource::n_draws(&self, split: antecedent_design::adaptive_policy_search::DrawSplit) -> usize
+pub trait fn fn antecedent_design::adaptive_policy_search::PolicyRolloutSource::observable_variables(&self) -> core::option::Option<alloc::vec::Vec<antecedent_core::ids::VariableId>> {default}
+pub trait fn fn antecedent_design::adaptive_policy_search::PolicyRolloutSource::rollout(&self, family: &antecedent_design::adaptive_policy::AdaptivePolicyFamily, theta: &[f64], split: antecedent_design::adaptive_policy_search::DrawSplit, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_design::adaptive_policy_search::PolicyPath>, antecedent_design::adaptive_policy_search::AdaptivePolicySearchError>
+pub trait fn fn antecedent_design::adaptive_policy_search::PolicyRolloutSource::standing(&self) -> antecedent_design::adaptive_policy_search::ResponseStanding
 pub trait fn fn antecedent_design::composition_bundle::NodeVerifier::kind(&self) -> antecedent_design::composition_bundle::NodeKind
 pub trait fn fn antecedent_design::composition_bundle::NodeVerifier::verify(&self, node_id: &str, bytes: &[u8], upstream: &[antecedent_design::composition_bundle::UpstreamNode<'_>]) -> core::result::Result<antecedent_design::composition_bundle::VerifiedNode, antecedent_design::composition_bundle::NodeFailure>
 pub trait fn fn antecedent_design::decision_evaluation::DemandSource::answers_outcome_law(&self) -> bool {default}
@@ -12837,6 +13239,37 @@ pub variant antecedent_design::ZTransportPlanningError::Invalid(alloc::string::S
 pub variant antecedent_design::ZTransportPlanningError::InvalidSpec(&'static str)
 pub variant antecedent_design::ZTransportPlanningError::Io(antecedent_io_core::error::IoError)
 pub variant antecedent_design::ZTransportPlanningError::UnsupportedVersion { version: u32 }
+pub variant antecedent_design::adaptive_policy::PolicyFeature::Current(antecedent_core::ids::VariableId)
+pub variant antecedent_design::adaptive_policy::PolicyFeature::Lag { variable: antecedent_core::ids::VariableId, lag: u32 }
+pub variant antecedent_design::adaptive_policy::PolicyRule::LinearFeedback { features: alloc::vec::Vec<usize> }
+pub variant antecedent_design::adaptive_policy::PolicyRule::Piecewise { feature: usize, cuts: usize }
+pub variant antecedent_design::adaptive_policy::PolicyRule::Schedule { steps: usize }
+pub variant antecedent_design::adaptive_policy::PolicyRule::Threshold { feature: usize }
+pub variant antecedent_design::adaptive_policy::PolicyRule::Tree { splits: alloc::vec::Vec<usize> }
+pub variant antecedent_design::adaptive_policy_search::AdaptivePolicySearchError::Cancelled
+pub variant antecedent_design::adaptive_policy_search::AdaptivePolicySearchError::HeldOutUnsupported(alloc::string::String)
+pub variant antecedent_design::adaptive_policy_search::AdaptivePolicySearchError::IdentificationUnsupported(alloc::string::String)
+pub variant antecedent_design::adaptive_policy_search::AdaptivePolicySearchError::Invalid(alloc::string::String)
+pub variant antecedent_design::adaptive_policy_search::AdaptivePolicySearchError::NoEvaluation(alloc::string::String)
+pub variant antecedent_design::adaptive_policy_search::AdaptivePolicySearchError::Resource(alloc::string::String)
+pub variant antecedent_design::adaptive_policy_search::AdaptivePolicySearchError::Source(alloc::string::String)
+pub variant antecedent_design::adaptive_policy_search::AdaptivePolicySearchError::UnobservedFeature { variable: u32 }
+pub variant antecedent_design::adaptive_policy_search::DrawSplit::HeldOut
+pub variant antecedent_design::adaptive_policy_search::DrawSplit::Optimization
+pub variant antecedent_design::adaptive_policy_search::HeldOutDesign::HeldOutUnits
+pub variant antecedent_design::adaptive_policy_search::HeldOutDesign::IndependentDraws
+pub variant antecedent_design::adaptive_policy_search::HeldOutDesign::Unavailable(alloc::string::String)
+pub variant antecedent_design::adaptive_policy_search::HeldOutRequirement::Preferred
+pub variant antecedent_design::adaptive_policy_search::HeldOutRequirement::Required
+pub variant antecedent_design::adaptive_policy_search::PolicyObjective::ExpectedUtility
+pub variant antecedent_design::adaptive_policy_search::PolicyObjective::LowerTailMean { alpha: f64 }
+pub variant antecedent_design::adaptive_policy_search::PolicyStanding::FittedModelOptimization { note: alloc::string::String }
+pub variant antecedent_design::adaptive_policy_search::PolicyStanding::IdentifiedPolicyEffect { basis: alloc::string::String }
+pub variant antecedent_design::adaptive_policy_search::SearchStop::EvaluationBudget
+pub variant antecedent_design::adaptive_policy_search::SearchStop::GenerationLimit
+pub variant antecedent_design::adaptive_policy_search::SearchStop::SpreadConverged
+pub variant antecedent_design::adaptive_policy_search::StandingRequest::FittedModel
+pub variant antecedent_design::adaptive_policy_search::StandingRequest::IdentifiedPolicyEffect
 pub variant antecedent_design::adaptive_trial_transport::TrialMechanism::OutcomeGivenStratumAndArm
 pub variant antecedent_design::adaptive_trial_transport::TrialMechanism::StratumLaw
 pub variant antecedent_design::composition_boundary::ActionStatus::Evaluated

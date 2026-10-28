@@ -22,12 +22,16 @@
 #[non_exhaustive] pub enum antecedent_model::observation_query::ObservationQueryError
 #[non_exhaustive] pub enum antecedent_model::observation_query::UnreachableBound
 #[non_exhaustive] pub enum antecedent_model::scc_compile::SccCompileError
+#[non_exhaustive] pub enum antecedent_model::typed_mechanism_transport::TypedFitError
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::CompiledCausalModel [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::CompiledMechanismStore [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::InvertibleStructuralCausalModel [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::MechanismAssignment [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::MechanismSlot [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ProbabilisticCausalModel [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::external_mechanism::MechanismRegistry [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::external_mechanism::ResolvedFeedbackSystem [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::external_mechanism::ResolvedOdeSystem [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::local_cyclic::LocalCyclicModel [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::CompiledCausalModel [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::CompiledMechanismStore [auto]
@@ -35,7 +39,11 @@ impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::InvertibleStruc
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::MechanismAssignment [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::MechanismSlot [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::ProbabilisticCausalModel [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::external_mechanism::MechanismRegistry [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::external_mechanism::ResolvedFeedbackSystem [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::external_mechanism::ResolvedOdeSystem [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::local_cyclic::LocalCyclicModel [auto]
+impl antecedent_model::external_mechanism::TrustedMechanismResolver for antecedent_model::external_mechanism::MechanismRegistry
 impl core::clone::Clone for antecedent_model::BasisTerm
 impl core::clone::Clone for antecedent_model::CompiledCausalModel
 impl core::clone::Clone for antecedent_model::CompiledMechanismStore
@@ -204,6 +212,20 @@ impl core::clone::Clone for antecedent_model::equation_system::IsolationPolicy
 impl core::clone::Clone for antecedent_model::equation_system::Monomial
 impl core::clone::Clone for antecedent_model::equation_system::PolynomialEquation
 impl core::clone::Clone for antecedent_model::equation_system::PolynomialSystem
+impl core::clone::Clone for antecedent_model::external_mechanism::DerivativeDeclaration
+impl core::clone::Clone for antecedent_model::external_mechanism::DifferenceScheme
+impl core::clone::Clone for antecedent_model::external_mechanism::ExternalDependency
+impl core::clone::Clone for antecedent_model::external_mechanism::ExternalFeedbackSystem
+impl core::clone::Clone for antecedent_model::external_mechanism::ExternalFitParameter
+impl core::clone::Clone for antecedent_model::external_mechanism::ExternalMechanismEvidence
+impl core::clone::Clone for antecedent_model::external_mechanism::ExternalMechanismRefusal
+impl core::clone::Clone for antecedent_model::external_mechanism::ExternalMechanismSpec
+impl core::clone::Clone for antecedent_model::external_mechanism::ExternalOdeSystem
+impl core::clone::Clone for antecedent_model::external_mechanism::ExternalOdeTrajectory
+impl core::clone::Clone for antecedent_model::external_mechanism::ExternalRefusalKind
+impl core::clone::Clone for antecedent_model::external_mechanism::LikelihoodTerms
+impl core::clone::Clone for antecedent_model::external_mechanism::MechanismTrust
+impl core::clone::Clone for antecedent_model::external_mechanism::SystemEquation
 impl core::clone::Clone for antecedent_model::history_operators::ActionTiming
 impl core::clone::Clone for antecedent_model::history_operators::CensoringAssignmentWeight
 impl core::clone::Clone for antecedent_model::history_operators::ColumnFit
@@ -276,6 +298,27 @@ impl core::clone::Clone for antecedent_model::nonlinear_equilibrium::Equilibrium
 impl core::clone::Clone for antecedent_model::nonlinear_equilibrium::MechanismLikelihoodScore
 impl core::clone::Clone for antecedent_model::nonlinear_equilibrium::RegimeRow
 impl core::clone::Clone for antecedent_model::nonlinear_equilibrium::SolvePolicy
+impl core::clone::Clone for antecedent_model::nonlinear_sde::CompiledSde
+impl core::clone::Clone for antecedent_model::nonlinear_sde::LocalCoefficients
+impl core::clone::Clone for antecedent_model::nonlinear_sde::SdeAction
+impl core::clone::Clone for antecedent_model::nonlinear_sde::SdeBoundary
+impl core::clone::Clone for antecedent_model::nonlinear_sde::SdeBoundaryRule
+impl core::clone::Clone for antecedent_model::nonlinear_sde::SdeCertificate
+impl core::clone::Clone for antecedent_model::nonlinear_sde::SdeContrast
+impl core::clone::Clone for antecedent_model::nonlinear_sde::SdeContrastEnsemble
+impl core::clone::Clone for antecedent_model::nonlinear_sde::SdeDiffusion
+impl core::clone::Clone for antecedent_model::nonlinear_sde::SdeEnsembleReport
+impl core::clone::Clone for antecedent_model::nonlinear_sde::SdeInput
+impl core::clone::Clone for antecedent_model::nonlinear_sde::SdeInterpolation
+impl core::clone::Clone for antecedent_model::nonlinear_sde::SdeNumericalError
+impl core::clone::Clone for antecedent_model::nonlinear_sde::SdeParameter
+impl core::clone::Clone for antecedent_model::nonlinear_sde::SdePaths
+impl core::clone::Clone for antecedent_model::nonlinear_sde::SdeScheme
+impl core::clone::Clone for antecedent_model::nonlinear_sde::SdeSimulationPolicy
+impl core::clone::Clone for antecedent_model::nonlinear_sde::SdeSystem
+impl core::clone::Clone for antecedent_model::nonlinear_sde::SdeWorld
+impl core::clone::Clone for antecedent_model::nonlinear_sde::SdeWorldEnsemble
+impl core::clone::Clone for antecedent_model::nonlinear_sde::WorldPlan
 impl core::clone::Clone for antecedent_model::observation_query::BayesPosterior
 impl core::clone::Clone for antecedent_model::observation_query::BetaBernoulli
 impl core::clone::Clone for antecedent_model::observation_query::ConditionalDistribution
@@ -305,6 +348,23 @@ impl core::clone::Clone for antecedent_model::scc_compile::GaussianDisturbance
 impl core::clone::Clone for antecedent_model::scc_compile::LinearSupportRoute
 impl core::clone::Clone for antecedent_model::scc_compile::RoutedEquilibrium
 impl core::clone::Clone for antecedent_model::scc_compile::SccCompileError
+impl core::clone::Clone for antecedent_model::sparse_equilibrium::CsrMatrix
+impl core::clone::Clone for antecedent_model::sparse_equilibrium::SolveEvidence
+impl core::clone::Clone for antecedent_model::sparse_equilibrium::SolverBudgetCode
+impl core::clone::Clone for antecedent_model::sparse_equilibrium::SpectralBound
+impl core::clone::Clone for antecedent_model::typed_mechanism_transport::ContrastEstimate
+impl core::clone::Clone for antecedent_model::typed_mechanism_transport::CrossBlock
+impl core::clone::Clone for antecedent_model::typed_mechanism_transport::FittedMechanism
+impl core::clone::Clone for antecedent_model::typed_mechanism_transport::InvarianceCheck
+impl core::clone::Clone for antecedent_model::typed_mechanism_transport::MeanSpec
+impl core::clone::Clone for antecedent_model::typed_mechanism_transport::MechanismSpec
+impl core::clone::Clone for antecedent_model::typed_mechanism_transport::ParameterDependence
+impl core::clone::Clone for antecedent_model::typed_mechanism_transport::ResponseFamily
+impl core::clone::Clone for antecedent_model::typed_mechanism_transport::TransportedTypedModel
+impl core::clone::Clone for antecedent_model::typed_mechanism_transport::TypedDisposition
+impl core::clone::Clone for antecedent_model::typed_mechanism_transport::TypedFitError
+impl core::clone::Clone for antecedent_model::typed_mechanism_transport::TypedFunctionalUncertainty
+impl core::clone::Clone for antecedent_model::typed_mechanism_transport::TypedTransportRequest
 impl core::cmp::Eq for antecedent_model::BasisTerm
 impl core::cmp::Eq for antecedent_model::ComponentDependency
 impl core::cmp::Eq for antecedent_model::ComponentOrder
@@ -366,6 +426,13 @@ impl core::cmp::Eq for antecedent_model::discretized_scm::InferenceParadigm
 impl core::cmp::Eq for antecedent_model::discretized_scm::ParadigmCell
 impl core::cmp::Eq for antecedent_model::discretized_scm::ParityRoute
 impl core::cmp::Eq for antecedent_model::discretized_scm::ParityRow
+impl core::cmp::Eq for antecedent_model::external_mechanism::DifferenceScheme
+impl core::cmp::Eq for antecedent_model::external_mechanism::ExternalDependency
+impl core::cmp::Eq for antecedent_model::external_mechanism::ExternalFitParameter
+impl core::cmp::Eq for antecedent_model::external_mechanism::ExternalMechanismEvidence
+impl core::cmp::Eq for antecedent_model::external_mechanism::ExternalMechanismRefusal
+impl core::cmp::Eq for antecedent_model::external_mechanism::ExternalRefusalKind
+impl core::cmp::Eq for antecedent_model::external_mechanism::MechanismTrust
 impl core::cmp::Eq for antecedent_model::history_operators::ActionTiming
 impl core::cmp::Eq for antecedent_model::history_operators::DelayedAction
 impl core::cmp::Eq for antecedent_model::history_operators::DelayedDynamics
@@ -404,11 +471,16 @@ impl core::cmp::Eq for antecedent_model::linear_solution::SolvabilityRefusal
 impl core::cmp::Eq for antecedent_model::local_cyclic::LocalCyclicInspection
 impl core::cmp::Eq for antecedent_model::mechanism_transport::MechanismDisposition
 impl core::cmp::Eq for antecedent_model::mechanism_transport::MechanismRole
+impl core::cmp::Eq for antecedent_model::nonlinear_sde::SdeBoundaryRule
+impl core::cmp::Eq for antecedent_model::nonlinear_sde::SdeInterpolation
+impl core::cmp::Eq for antecedent_model::nonlinear_sde::SdeScheme
 impl core::cmp::Eq for antecedent_model::observation_query::Direction
 impl core::cmp::Eq for antecedent_model::observation_query::UnreachableBound
 impl core::cmp::Eq for antecedent_model::scc_compile::AdmissionCost
 impl core::cmp::Eq for antecedent_model::scc_compile::CompileBudget
 impl core::cmp::Eq for antecedent_model::scc_compile::SccCompileError
+impl core::cmp::Eq for antecedent_model::sparse_equilibrium::SolverBudgetCode
+impl core::cmp::Eq for antecedent_model::typed_mechanism_transport::ResponseFamily
 impl core::cmp::Ord for antecedent_model::compose::CoherenceKind
 impl core::cmp::Ord for antecedent_model::compose::ContextCoordinate
 impl core::cmp::Ord for antecedent_model::compose::MechanismFamily
@@ -421,6 +493,7 @@ impl core::cmp::Ord for antecedent_model::discretized_scm::InferenceParadigm
 impl core::cmp::Ord for antecedent_model::discretized_scm::ParityRoute
 impl core::cmp::Ord for antecedent_model::information_time::CadenceTick
 impl core::cmp::Ord for antecedent_model::mechanism_transport::MechanismRole
+impl core::cmp::Ord for antecedent_model::typed_mechanism_transport::ResponseFamily
 impl core::cmp::PartialEq for antecedent_model::BasisTerm
 impl core::cmp::PartialEq for antecedent_model::ComponentDependency
 impl core::cmp::PartialEq for antecedent_model::ComponentOrder
@@ -559,6 +632,20 @@ impl core::cmp::PartialEq for antecedent_model::equation_system::IsolationPolicy
 impl core::cmp::PartialEq for antecedent_model::equation_system::Monomial
 impl core::cmp::PartialEq for antecedent_model::equation_system::PolynomialEquation
 impl core::cmp::PartialEq for antecedent_model::equation_system::PolynomialSystem
+impl core::cmp::PartialEq for antecedent_model::external_mechanism::DerivativeDeclaration
+impl core::cmp::PartialEq for antecedent_model::external_mechanism::DifferenceScheme
+impl core::cmp::PartialEq for antecedent_model::external_mechanism::ExternalDependency
+impl core::cmp::PartialEq for antecedent_model::external_mechanism::ExternalFeedbackSystem
+impl core::cmp::PartialEq for antecedent_model::external_mechanism::ExternalFitParameter
+impl core::cmp::PartialEq for antecedent_model::external_mechanism::ExternalMechanismEvidence
+impl core::cmp::PartialEq for antecedent_model::external_mechanism::ExternalMechanismRefusal
+impl core::cmp::PartialEq for antecedent_model::external_mechanism::ExternalMechanismSpec
+impl core::cmp::PartialEq for antecedent_model::external_mechanism::ExternalOdeSystem
+impl core::cmp::PartialEq for antecedent_model::external_mechanism::ExternalOdeTrajectory
+impl core::cmp::PartialEq for antecedent_model::external_mechanism::ExternalRefusalKind
+impl core::cmp::PartialEq for antecedent_model::external_mechanism::LikelihoodTerms
+impl core::cmp::PartialEq for antecedent_model::external_mechanism::MechanismTrust
+impl core::cmp::PartialEq for antecedent_model::external_mechanism::SystemEquation
 impl core::cmp::PartialEq for antecedent_model::history_operators::ActionTiming
 impl core::cmp::PartialEq for antecedent_model::history_operators::CensoringAssignmentWeight
 impl core::cmp::PartialEq for antecedent_model::history_operators::ColumnFit
@@ -626,6 +713,24 @@ impl core::cmp::PartialEq for antecedent_model::nonlinear_equilibrium::Equilibri
 impl core::cmp::PartialEq for antecedent_model::nonlinear_equilibrium::MechanismLikelihoodScore
 impl core::cmp::PartialEq for antecedent_model::nonlinear_equilibrium::RegimeRow
 impl core::cmp::PartialEq for antecedent_model::nonlinear_equilibrium::SolvePolicy
+impl core::cmp::PartialEq for antecedent_model::nonlinear_sde::SdeAction
+impl core::cmp::PartialEq for antecedent_model::nonlinear_sde::SdeBoundary
+impl core::cmp::PartialEq for antecedent_model::nonlinear_sde::SdeBoundaryRule
+impl core::cmp::PartialEq for antecedent_model::nonlinear_sde::SdeCertificate
+impl core::cmp::PartialEq for antecedent_model::nonlinear_sde::SdeContrast
+impl core::cmp::PartialEq for antecedent_model::nonlinear_sde::SdeContrastEnsemble
+impl core::cmp::PartialEq for antecedent_model::nonlinear_sde::SdeDiffusion
+impl core::cmp::PartialEq for antecedent_model::nonlinear_sde::SdeEnsembleReport
+impl core::cmp::PartialEq for antecedent_model::nonlinear_sde::SdeInput
+impl core::cmp::PartialEq for antecedent_model::nonlinear_sde::SdeInterpolation
+impl core::cmp::PartialEq for antecedent_model::nonlinear_sde::SdeNumericalError
+impl core::cmp::PartialEq for antecedent_model::nonlinear_sde::SdeParameter
+impl core::cmp::PartialEq for antecedent_model::nonlinear_sde::SdePaths
+impl core::cmp::PartialEq for antecedent_model::nonlinear_sde::SdeScheme
+impl core::cmp::PartialEq for antecedent_model::nonlinear_sde::SdeSimulationPolicy
+impl core::cmp::PartialEq for antecedent_model::nonlinear_sde::SdeSystem
+impl core::cmp::PartialEq for antecedent_model::nonlinear_sde::SdeWorld
+impl core::cmp::PartialEq for antecedent_model::nonlinear_sde::SdeWorldEnsemble
 impl core::cmp::PartialEq for antecedent_model::observation_query::BayesPosterior
 impl core::cmp::PartialEq for antecedent_model::observation_query::BetaBernoulli
 impl core::cmp::PartialEq for antecedent_model::observation_query::ConditionalDistribution
@@ -655,6 +760,20 @@ impl core::cmp::PartialEq for antecedent_model::scc_compile::GaussianDisturbance
 impl core::cmp::PartialEq for antecedent_model::scc_compile::LinearSupportRoute
 impl core::cmp::PartialEq for antecedent_model::scc_compile::RoutedEquilibrium
 impl core::cmp::PartialEq for antecedent_model::scc_compile::SccCompileError
+impl core::cmp::PartialEq for antecedent_model::sparse_equilibrium::CsrMatrix
+impl core::cmp::PartialEq for antecedent_model::sparse_equilibrium::SolveEvidence
+impl core::cmp::PartialEq for antecedent_model::sparse_equilibrium::SolverBudgetCode
+impl core::cmp::PartialEq for antecedent_model::sparse_equilibrium::SpectralBound
+impl core::cmp::PartialEq for antecedent_model::typed_mechanism_transport::ContrastEstimate
+impl core::cmp::PartialEq for antecedent_model::typed_mechanism_transport::CrossBlock
+impl core::cmp::PartialEq for antecedent_model::typed_mechanism_transport::InvarianceCheck
+impl core::cmp::PartialEq for antecedent_model::typed_mechanism_transport::MeanSpec
+impl core::cmp::PartialEq for antecedent_model::typed_mechanism_transport::MechanismSpec
+impl core::cmp::PartialEq for antecedent_model::typed_mechanism_transport::ParameterDependence
+impl core::cmp::PartialEq for antecedent_model::typed_mechanism_transport::ResponseFamily
+impl core::cmp::PartialEq for antecedent_model::typed_mechanism_transport::TypedDisposition
+impl core::cmp::PartialEq for antecedent_model::typed_mechanism_transport::TypedFitError
+impl core::cmp::PartialEq for antecedent_model::typed_mechanism_transport::TypedFunctionalUncertainty
 impl core::cmp::PartialOrd for antecedent_model::compose::CoherenceKind
 impl core::cmp::PartialOrd for antecedent_model::compose::ContextCoordinate
 impl core::cmp::PartialOrd for antecedent_model::compose::MechanismFamily
@@ -667,9 +786,12 @@ impl core::cmp::PartialOrd for antecedent_model::discretized_scm::InferenceParad
 impl core::cmp::PartialOrd for antecedent_model::discretized_scm::ParityRoute
 impl core::cmp::PartialOrd for antecedent_model::information_time::CadenceTick
 impl core::cmp::PartialOrd for antecedent_model::mechanism_transport::MechanismRole
+impl core::cmp::PartialOrd for antecedent_model::typed_mechanism_transport::ResponseFamily
 impl core::convert::From<antecedent_data::error::DataError> for antecedent_model::ModelError
 impl core::convert::From<antecedent_graph::error::GraphError> for antecedent_model::ModelError
 impl core::convert::From<antecedent_model::PolicyRefusal> for antecedent_model::ModelError
+impl core::convert::From<antecedent_model::external_mechanism::ExternalMechanismRefusal> for antecedent_model::nonlinear_equilibrium::EquilibriumError
+impl core::convert::From<antecedent_model::nonlinear_equilibrium::EquilibriumError> for antecedent_model::nonlinear_sde::SdeError
 impl core::convert::From<antecedent_stats::error::StatsError> for antecedent_model::ModelError
 impl core::default::Default for antecedent_model::GraphFalsificationConfig
 impl core::default::Default for antecedent_model::InterventionOverlay
@@ -687,9 +809,15 @@ impl core::default::Default for antecedent_model::ValueBatch
 impl core::default::Default for antecedent_model::continuous_cyclic::OdePolicy
 impl core::default::Default for antecedent_model::cyclic_world::CyclicWorldResults
 impl core::default::Default for antecedent_model::equation_system::IsolationPolicy
+impl core::default::Default for antecedent_model::external_mechanism::MechanismRegistry
 impl core::default::Default for antecedent_model::local_cyclic::LocalCyclicPolicy
 impl core::default::Default for antecedent_model::nonlinear_equilibrium::SolvePolicy
+impl core::default::Default for antecedent_model::nonlinear_sde::SdeBoundary
+impl core::default::Default for antecedent_model::nonlinear_sde::SdeBoundaryRule
+impl core::default::Default for antecedent_model::nonlinear_sde::SdeInterpolation
+impl core::default::Default for antecedent_model::nonlinear_sde::SdeWorld
 impl core::default::Default for antecedent_model::observation_uncertainty::RedrawPrior
+impl core::default::Default for antecedent_model::sparse_equilibrium::SolveEvidence
 impl core::error::Error for antecedent_model::CycleGateError
 impl core::error::Error for antecedent_model::CyclicComponentError
 impl core::error::Error for antecedent_model::LinearSolutionError
@@ -698,13 +826,16 @@ impl core::error::Error for antecedent_model::compose::CompositionError
 impl core::error::Error for antecedent_model::compose::GaussianConditioningError
 impl core::error::Error for antecedent_model::cyclic_world::CyclicInterventionRefusal
 impl core::error::Error for antecedent_model::discretized_scm_artifact::ArtifactRefusal
+impl core::error::Error for antecedent_model::external_mechanism::ExternalMechanismRefusal
 impl core::error::Error for antecedent_model::history_operators::HistoryExecutionError
 impl core::error::Error for antecedent_model::history_operators::HistoryOperatorError
 impl core::error::Error for antecedent_model::information_time::InformationRefusal
 impl core::error::Error for antecedent_model::intervention_request::InterventionRequestError
 impl core::error::Error for antecedent_model::nonlinear_equilibrium::EquilibriumError
+impl core::error::Error for antecedent_model::nonlinear_sde::SdeError
 impl core::error::Error for antecedent_model::observation_query::ObservationQueryError
 impl core::error::Error for antecedent_model::scc_compile::SccCompileError
+impl core::error::Error for antecedent_model::typed_mechanism_transport::TypedFitError
 impl core::fmt::Debug for antecedent_model::BasisTerm
 impl core::fmt::Debug for antecedent_model::CompiledCausalModel
 impl core::fmt::Debug for antecedent_model::CompiledMechanismStore
@@ -874,6 +1005,20 @@ impl core::fmt::Debug for antecedent_model::equation_system::IsolationPolicy
 impl core::fmt::Debug for antecedent_model::equation_system::Monomial
 impl core::fmt::Debug for antecedent_model::equation_system::PolynomialEquation
 impl core::fmt::Debug for antecedent_model::equation_system::PolynomialSystem
+impl core::fmt::Debug for antecedent_model::external_mechanism::DerivativeDeclaration
+impl core::fmt::Debug for antecedent_model::external_mechanism::DifferenceScheme
+impl core::fmt::Debug for antecedent_model::external_mechanism::ExternalDependency
+impl core::fmt::Debug for antecedent_model::external_mechanism::ExternalFeedbackSystem
+impl core::fmt::Debug for antecedent_model::external_mechanism::ExternalFitParameter
+impl core::fmt::Debug for antecedent_model::external_mechanism::ExternalMechanismEvidence
+impl core::fmt::Debug for antecedent_model::external_mechanism::ExternalMechanismRefusal
+impl core::fmt::Debug for antecedent_model::external_mechanism::ExternalMechanismSpec
+impl core::fmt::Debug for antecedent_model::external_mechanism::ExternalOdeSystem
+impl core::fmt::Debug for antecedent_model::external_mechanism::ExternalOdeTrajectory
+impl core::fmt::Debug for antecedent_model::external_mechanism::ExternalRefusalKind
+impl core::fmt::Debug for antecedent_model::external_mechanism::LikelihoodTerms
+impl core::fmt::Debug for antecedent_model::external_mechanism::MechanismTrust
+impl core::fmt::Debug for antecedent_model::external_mechanism::SystemEquation
 impl core::fmt::Debug for antecedent_model::history_operators::ActionTiming
 impl core::fmt::Debug for antecedent_model::history_operators::CensoringAssignmentWeight
 impl core::fmt::Debug for antecedent_model::history_operators::ColumnFit
@@ -947,6 +1092,28 @@ impl core::fmt::Debug for antecedent_model::nonlinear_equilibrium::EquilibriumSo
 impl core::fmt::Debug for antecedent_model::nonlinear_equilibrium::MechanismLikelihoodScore
 impl core::fmt::Debug for antecedent_model::nonlinear_equilibrium::RegimeRow
 impl core::fmt::Debug for antecedent_model::nonlinear_equilibrium::SolvePolicy
+impl core::fmt::Debug for antecedent_model::nonlinear_sde::CompiledSde
+impl core::fmt::Debug for antecedent_model::nonlinear_sde::LocalCoefficients
+impl core::fmt::Debug for antecedent_model::nonlinear_sde::SdeAction
+impl core::fmt::Debug for antecedent_model::nonlinear_sde::SdeBoundary
+impl core::fmt::Debug for antecedent_model::nonlinear_sde::SdeBoundaryRule
+impl core::fmt::Debug for antecedent_model::nonlinear_sde::SdeCertificate
+impl core::fmt::Debug for antecedent_model::nonlinear_sde::SdeContrast
+impl core::fmt::Debug for antecedent_model::nonlinear_sde::SdeContrastEnsemble
+impl core::fmt::Debug for antecedent_model::nonlinear_sde::SdeDiffusion
+impl core::fmt::Debug for antecedent_model::nonlinear_sde::SdeEnsembleReport
+impl core::fmt::Debug for antecedent_model::nonlinear_sde::SdeError
+impl core::fmt::Debug for antecedent_model::nonlinear_sde::SdeInput
+impl core::fmt::Debug for antecedent_model::nonlinear_sde::SdeInterpolation
+impl core::fmt::Debug for antecedent_model::nonlinear_sde::SdeNumericalError
+impl core::fmt::Debug for antecedent_model::nonlinear_sde::SdeParameter
+impl core::fmt::Debug for antecedent_model::nonlinear_sde::SdePaths
+impl core::fmt::Debug for antecedent_model::nonlinear_sde::SdeScheme
+impl core::fmt::Debug for antecedent_model::nonlinear_sde::SdeSimulationPolicy
+impl core::fmt::Debug for antecedent_model::nonlinear_sde::SdeSystem
+impl core::fmt::Debug for antecedent_model::nonlinear_sde::SdeWorld
+impl core::fmt::Debug for antecedent_model::nonlinear_sde::SdeWorldEnsemble
+impl core::fmt::Debug for antecedent_model::nonlinear_sde::WorldPlan
 impl core::fmt::Debug for antecedent_model::observation_query::BayesPosterior
 impl core::fmt::Debug for antecedent_model::observation_query::BetaBernoulli
 impl core::fmt::Debug for antecedent_model::observation_query::ConditionalDistribution
@@ -976,6 +1143,24 @@ impl core::fmt::Debug for antecedent_model::scc_compile::GaussianDisturbance
 impl core::fmt::Debug for antecedent_model::scc_compile::LinearSupportRoute
 impl core::fmt::Debug for antecedent_model::scc_compile::RoutedEquilibrium
 impl core::fmt::Debug for antecedent_model::scc_compile::SccCompileError
+impl core::fmt::Debug for antecedent_model::sparse_equilibrium::CsrMatrix
+impl core::fmt::Debug for antecedent_model::sparse_equilibrium::FactorError
+impl core::fmt::Debug for antecedent_model::sparse_equilibrium::SolveEvidence
+impl core::fmt::Debug for antecedent_model::sparse_equilibrium::SolverBudgetCode
+impl core::fmt::Debug for antecedent_model::sparse_equilibrium::SpectralBound
+impl core::fmt::Debug for antecedent_model::typed_mechanism_transport::ContrastEstimate
+impl core::fmt::Debug for antecedent_model::typed_mechanism_transport::CrossBlock
+impl core::fmt::Debug for antecedent_model::typed_mechanism_transport::FittedMechanism
+impl core::fmt::Debug for antecedent_model::typed_mechanism_transport::InvarianceCheck
+impl core::fmt::Debug for antecedent_model::typed_mechanism_transport::MeanSpec
+impl core::fmt::Debug for antecedent_model::typed_mechanism_transport::MechanismSpec
+impl core::fmt::Debug for antecedent_model::typed_mechanism_transport::ParameterDependence
+impl core::fmt::Debug for antecedent_model::typed_mechanism_transport::ResponseFamily
+impl core::fmt::Debug for antecedent_model::typed_mechanism_transport::TransportedTypedModel
+impl core::fmt::Debug for antecedent_model::typed_mechanism_transport::TypedDisposition
+impl core::fmt::Debug for antecedent_model::typed_mechanism_transport::TypedFitError
+impl core::fmt::Debug for antecedent_model::typed_mechanism_transport::TypedFunctionalUncertainty
+impl core::fmt::Debug for antecedent_model::typed_mechanism_transport::TypedTransportRequest
 impl core::fmt::Display for antecedent_model::CycleGateError
 impl core::fmt::Display for antecedent_model::CyclicComponentError
 impl core::fmt::Display for antecedent_model::LinearSolutionError
@@ -985,6 +1170,7 @@ impl core::fmt::Display for antecedent_model::compose::GaussianConditioningError
 impl core::fmt::Display for antecedent_model::cyclic_world::CyclicInterventionRefusal
 impl core::fmt::Display for antecedent_model::cyclic_world::CyclicRefusalKind
 impl core::fmt::Display for antecedent_model::discretized_scm_artifact::ArtifactRefusal
+impl core::fmt::Display for antecedent_model::external_mechanism::ExternalMechanismRefusal
 impl core::fmt::Display for antecedent_model::history_operators::HistoryExecutionError
 impl core::fmt::Display for antecedent_model::history_operators::HistoryOperatorError
 impl core::fmt::Display for antecedent_model::history_operators::ResponseTarget
@@ -993,8 +1179,10 @@ impl core::fmt::Display for antecedent_model::information_time::InformationRefus
 impl core::fmt::Display for antecedent_model::intervention_request::InterventionRequestError
 impl core::fmt::Display for antecedent_model::linear_solution::SolvabilityRefusal
 impl core::fmt::Display for antecedent_model::nonlinear_equilibrium::EquilibriumError
+impl core::fmt::Display for antecedent_model::nonlinear_sde::SdeError
 impl core::fmt::Display for antecedent_model::observation_query::ObservationQueryError
 impl core::fmt::Display for antecedent_model::scc_compile::SccCompileError
+impl core::fmt::Display for antecedent_model::typed_mechanism_transport::TypedFitError
 impl core::hash::Hash for antecedent_model::BasisTerm
 impl core::hash::Hash for antecedent_model::GraphFalsificationOutcome
 impl core::hash::Hash for antecedent_model::GraphUninformativeReason
@@ -1038,6 +1226,7 @@ impl core::hash::Hash for antecedent_model::intervention_request::HardClampIdent
 impl core::hash::Hash for antecedent_model::mechanism_transport::MechanismRole
 impl core::hash::Hash for antecedent_model::observation_query::Direction
 impl core::hash::Hash for antecedent_model::observation_query::UnreachableBound
+impl core::hash::Hash for antecedent_model::typed_mechanism_transport::ResponseFamily
 impl core::marker::Copy for antecedent_model::BasisTerm
 impl core::marker::Copy for antecedent_model::ConditionalSampleMethod
 impl core::marker::Copy for antecedent_model::ConditionalSampleReport
@@ -1077,6 +1266,12 @@ impl core::marker::Copy for antecedent_model::discretized_scm::ParityRoute
 impl core::marker::Copy for antecedent_model::discretized_scm::ParityRow
 impl core::marker::Copy for antecedent_model::equation_system::Interval
 impl core::marker::Copy for antecedent_model::equation_system::IsolationPolicy
+impl core::marker::Copy for antecedent_model::external_mechanism::DerivativeDeclaration
+impl core::marker::Copy for antecedent_model::external_mechanism::DifferenceScheme
+impl core::marker::Copy for antecedent_model::external_mechanism::ExternalFitParameter
+impl core::marker::Copy for antecedent_model::external_mechanism::ExternalRefusalKind
+impl core::marker::Copy for antecedent_model::external_mechanism::LikelihoodTerms
+impl core::marker::Copy for antecedent_model::external_mechanism::MechanismTrust
 impl core::marker::Copy for antecedent_model::history_operators::DelayedAction
 impl core::marker::Copy for antecedent_model::history_operators::FeedbackDelay
 impl core::marker::Copy for antecedent_model::history_operators::FeedbackSearch
@@ -1102,6 +1297,10 @@ impl core::marker::Copy for antecedent_model::mechanism_transport::MechanismRole
 impl core::marker::Copy for antecedent_model::nonlinear_equilibrium::Activation
 impl core::marker::Copy for antecedent_model::nonlinear_equilibrium::Clamp
 impl core::marker::Copy for antecedent_model::nonlinear_equilibrium::SolvePolicy
+impl core::marker::Copy for antecedent_model::nonlinear_sde::SdeBoundary
+impl core::marker::Copy for antecedent_model::nonlinear_sde::SdeBoundaryRule
+impl core::marker::Copy for antecedent_model::nonlinear_sde::SdeInterpolation
+impl core::marker::Copy for antecedent_model::nonlinear_sde::SdeScheme
 impl core::marker::Copy for antecedent_model::observation_query::BetaBernoulli
 impl core::marker::Copy for antecedent_model::observation_query::Direction
 impl core::marker::Copy for antecedent_model::observation_query::EvidenceRequirement
@@ -1110,6 +1309,11 @@ impl core::marker::Copy for antecedent_model::observation_query::UnreachableBoun
 impl core::marker::Copy for antecedent_model::observation_uncertainty::RedrawPrior
 impl core::marker::Copy for antecedent_model::scc_compile::AdmissionCost
 impl core::marker::Copy for antecedent_model::scc_compile::CompileBudget
+impl core::marker::Copy for antecedent_model::sparse_equilibrium::SolverBudgetCode
+impl core::marker::Copy for antecedent_model::sparse_equilibrium::SpectralBound
+impl core::marker::Copy for antecedent_model::typed_mechanism_transport::ContrastEstimate
+impl core::marker::Copy for antecedent_model::typed_mechanism_transport::InvarianceCheck
+impl core::marker::Copy for antecedent_model::typed_mechanism_transport::ResponseFamily
 impl core::marker::Freeze for antecedent_model::BasisTerm [auto]
 impl core::marker::Freeze for antecedent_model::CompiledCausalModel [auto]
 impl core::marker::Freeze for antecedent_model::CompiledMechanismStore [auto]
@@ -1279,6 +1483,23 @@ impl core::marker::Freeze for antecedent_model::equation_system::IsolationPolicy
 impl core::marker::Freeze for antecedent_model::equation_system::Monomial [auto]
 impl core::marker::Freeze for antecedent_model::equation_system::PolynomialEquation [auto]
 impl core::marker::Freeze for antecedent_model::equation_system::PolynomialSystem [auto]
+impl core::marker::Freeze for antecedent_model::external_mechanism::DerivativeDeclaration [auto]
+impl core::marker::Freeze for antecedent_model::external_mechanism::DifferenceScheme [auto]
+impl core::marker::Freeze for antecedent_model::external_mechanism::ExternalDependency [auto]
+impl core::marker::Freeze for antecedent_model::external_mechanism::ExternalFeedbackSystem [auto]
+impl core::marker::Freeze for antecedent_model::external_mechanism::ExternalFitParameter [auto]
+impl core::marker::Freeze for antecedent_model::external_mechanism::ExternalMechanismEvidence [auto]
+impl core::marker::Freeze for antecedent_model::external_mechanism::ExternalMechanismRefusal [auto]
+impl core::marker::Freeze for antecedent_model::external_mechanism::ExternalMechanismSpec [auto]
+impl core::marker::Freeze for antecedent_model::external_mechanism::ExternalOdeSystem [auto]
+impl core::marker::Freeze for antecedent_model::external_mechanism::ExternalOdeTrajectory [auto]
+impl core::marker::Freeze for antecedent_model::external_mechanism::ExternalRefusalKind [auto]
+impl core::marker::Freeze for antecedent_model::external_mechanism::LikelihoodTerms [auto]
+impl core::marker::Freeze for antecedent_model::external_mechanism::MechanismRegistry [auto]
+impl core::marker::Freeze for antecedent_model::external_mechanism::MechanismTrust [auto]
+impl core::marker::Freeze for antecedent_model::external_mechanism::ResolvedFeedbackSystem [auto]
+impl core::marker::Freeze for antecedent_model::external_mechanism::ResolvedOdeSystem [auto]
+impl core::marker::Freeze for antecedent_model::external_mechanism::SystemEquation [auto]
 impl core::marker::Freeze for antecedent_model::history_operators::ActionTiming [auto]
 impl core::marker::Freeze for antecedent_model::history_operators::CensoringAssignmentWeight [auto]
 impl core::marker::Freeze for antecedent_model::history_operators::ColumnFit [auto]
@@ -1353,6 +1574,28 @@ impl core::marker::Freeze for antecedent_model::nonlinear_equilibrium::Equilibri
 impl core::marker::Freeze for antecedent_model::nonlinear_equilibrium::MechanismLikelihoodScore [auto]
 impl core::marker::Freeze for antecedent_model::nonlinear_equilibrium::RegimeRow [auto]
 impl core::marker::Freeze for antecedent_model::nonlinear_equilibrium::SolvePolicy [auto]
+impl core::marker::Freeze for antecedent_model::nonlinear_sde::CompiledSde [auto]
+impl core::marker::Freeze for antecedent_model::nonlinear_sde::LocalCoefficients [auto]
+impl core::marker::Freeze for antecedent_model::nonlinear_sde::SdeAction [auto]
+impl core::marker::Freeze for antecedent_model::nonlinear_sde::SdeBoundary [auto]
+impl core::marker::Freeze for antecedent_model::nonlinear_sde::SdeBoundaryRule [auto]
+impl core::marker::Freeze for antecedent_model::nonlinear_sde::SdeCertificate [auto]
+impl core::marker::Freeze for antecedent_model::nonlinear_sde::SdeContrast [auto]
+impl core::marker::Freeze for antecedent_model::nonlinear_sde::SdeContrastEnsemble [auto]
+impl core::marker::Freeze for antecedent_model::nonlinear_sde::SdeDiffusion [auto]
+impl core::marker::Freeze for antecedent_model::nonlinear_sde::SdeEnsembleReport [auto]
+impl core::marker::Freeze for antecedent_model::nonlinear_sde::SdeError [auto]
+impl core::marker::Freeze for antecedent_model::nonlinear_sde::SdeInput [auto]
+impl core::marker::Freeze for antecedent_model::nonlinear_sde::SdeInterpolation [auto]
+impl core::marker::Freeze for antecedent_model::nonlinear_sde::SdeNumericalError [auto]
+impl core::marker::Freeze for antecedent_model::nonlinear_sde::SdeParameter [auto]
+impl core::marker::Freeze for antecedent_model::nonlinear_sde::SdePaths [auto]
+impl core::marker::Freeze for antecedent_model::nonlinear_sde::SdeScheme [auto]
+impl core::marker::Freeze for antecedent_model::nonlinear_sde::SdeSimulationPolicy [auto]
+impl core::marker::Freeze for antecedent_model::nonlinear_sde::SdeSystem [auto]
+impl core::marker::Freeze for antecedent_model::nonlinear_sde::SdeWorld [auto]
+impl core::marker::Freeze for antecedent_model::nonlinear_sde::SdeWorldEnsemble [auto]
+impl core::marker::Freeze for antecedent_model::nonlinear_sde::WorldPlan [auto]
 impl core::marker::Freeze for antecedent_model::observation_query::BayesPosterior [auto]
 impl core::marker::Freeze for antecedent_model::observation_query::BetaBernoulli [auto]
 impl core::marker::Freeze for antecedent_model::observation_query::ConditionalDistribution [auto]
@@ -1382,6 +1625,25 @@ impl core::marker::Freeze for antecedent_model::scc_compile::GaussianDisturbance
 impl core::marker::Freeze for antecedent_model::scc_compile::LinearSupportRoute [auto]
 impl core::marker::Freeze for antecedent_model::scc_compile::RoutedEquilibrium [auto]
 impl core::marker::Freeze for antecedent_model::scc_compile::SccCompileError [auto]
+impl core::marker::Freeze for antecedent_model::sparse_equilibrium::CsrMatrix [auto]
+impl core::marker::Freeze for antecedent_model::sparse_equilibrium::FactorError [auto]
+impl core::marker::Freeze for antecedent_model::sparse_equilibrium::SolveEvidence [auto]
+impl core::marker::Freeze for antecedent_model::sparse_equilibrium::SolverBudgetCode [auto]
+impl core::marker::Freeze for antecedent_model::sparse_equilibrium::SparseLu [auto]
+impl core::marker::Freeze for antecedent_model::sparse_equilibrium::SpectralBound [auto]
+impl core::marker::Freeze for antecedent_model::typed_mechanism_transport::ContrastEstimate [auto]
+impl core::marker::Freeze for antecedent_model::typed_mechanism_transport::CrossBlock [auto]
+impl core::marker::Freeze for antecedent_model::typed_mechanism_transport::FittedMechanism [auto]
+impl core::marker::Freeze for antecedent_model::typed_mechanism_transport::InvarianceCheck [auto]
+impl core::marker::Freeze for antecedent_model::typed_mechanism_transport::MeanSpec [auto]
+impl core::marker::Freeze for antecedent_model::typed_mechanism_transport::MechanismSpec [auto]
+impl core::marker::Freeze for antecedent_model::typed_mechanism_transport::ParameterDependence [auto]
+impl core::marker::Freeze for antecedent_model::typed_mechanism_transport::ResponseFamily [auto]
+impl core::marker::Freeze for antecedent_model::typed_mechanism_transport::TransportedTypedModel [auto]
+impl core::marker::Freeze for antecedent_model::typed_mechanism_transport::TypedDisposition [auto]
+impl core::marker::Freeze for antecedent_model::typed_mechanism_transport::TypedFitError [auto]
+impl core::marker::Freeze for antecedent_model::typed_mechanism_transport::TypedFunctionalUncertainty [auto]
+impl core::marker::Freeze for antecedent_model::typed_mechanism_transport::TypedTransportRequest [auto]
 impl core::marker::Send for antecedent_model::BasisTerm [auto]
 impl core::marker::Send for antecedent_model::CompiledCausalModel [auto]
 impl core::marker::Send for antecedent_model::CompiledMechanismStore [auto]
@@ -1551,6 +1813,23 @@ impl core::marker::Send for antecedent_model::equation_system::IsolationPolicy [
 impl core::marker::Send for antecedent_model::equation_system::Monomial [auto]
 impl core::marker::Send for antecedent_model::equation_system::PolynomialEquation [auto]
 impl core::marker::Send for antecedent_model::equation_system::PolynomialSystem [auto]
+impl core::marker::Send for antecedent_model::external_mechanism::DerivativeDeclaration [auto]
+impl core::marker::Send for antecedent_model::external_mechanism::DifferenceScheme [auto]
+impl core::marker::Send for antecedent_model::external_mechanism::ExternalDependency [auto]
+impl core::marker::Send for antecedent_model::external_mechanism::ExternalFeedbackSystem [auto]
+impl core::marker::Send for antecedent_model::external_mechanism::ExternalFitParameter [auto]
+impl core::marker::Send for antecedent_model::external_mechanism::ExternalMechanismEvidence [auto]
+impl core::marker::Send for antecedent_model::external_mechanism::ExternalMechanismRefusal [auto]
+impl core::marker::Send for antecedent_model::external_mechanism::ExternalMechanismSpec [auto]
+impl core::marker::Send for antecedent_model::external_mechanism::ExternalOdeSystem [auto]
+impl core::marker::Send for antecedent_model::external_mechanism::ExternalOdeTrajectory [auto]
+impl core::marker::Send for antecedent_model::external_mechanism::ExternalRefusalKind [auto]
+impl core::marker::Send for antecedent_model::external_mechanism::LikelihoodTerms [auto]
+impl core::marker::Send for antecedent_model::external_mechanism::MechanismRegistry [auto]
+impl core::marker::Send for antecedent_model::external_mechanism::MechanismTrust [auto]
+impl core::marker::Send for antecedent_model::external_mechanism::ResolvedFeedbackSystem [auto]
+impl core::marker::Send for antecedent_model::external_mechanism::ResolvedOdeSystem [auto]
+impl core::marker::Send for antecedent_model::external_mechanism::SystemEquation [auto]
 impl core::marker::Send for antecedent_model::history_operators::ActionTiming [auto]
 impl core::marker::Send for antecedent_model::history_operators::CensoringAssignmentWeight [auto]
 impl core::marker::Send for antecedent_model::history_operators::ColumnFit [auto]
@@ -1625,6 +1904,28 @@ impl core::marker::Send for antecedent_model::nonlinear_equilibrium::Equilibrium
 impl core::marker::Send for antecedent_model::nonlinear_equilibrium::MechanismLikelihoodScore [auto]
 impl core::marker::Send for antecedent_model::nonlinear_equilibrium::RegimeRow [auto]
 impl core::marker::Send for antecedent_model::nonlinear_equilibrium::SolvePolicy [auto]
+impl core::marker::Send for antecedent_model::nonlinear_sde::CompiledSde [auto]
+impl core::marker::Send for antecedent_model::nonlinear_sde::LocalCoefficients [auto]
+impl core::marker::Send for antecedent_model::nonlinear_sde::SdeAction [auto]
+impl core::marker::Send for antecedent_model::nonlinear_sde::SdeBoundary [auto]
+impl core::marker::Send for antecedent_model::nonlinear_sde::SdeBoundaryRule [auto]
+impl core::marker::Send for antecedent_model::nonlinear_sde::SdeCertificate [auto]
+impl core::marker::Send for antecedent_model::nonlinear_sde::SdeContrast [auto]
+impl core::marker::Send for antecedent_model::nonlinear_sde::SdeContrastEnsemble [auto]
+impl core::marker::Send for antecedent_model::nonlinear_sde::SdeDiffusion [auto]
+impl core::marker::Send for antecedent_model::nonlinear_sde::SdeEnsembleReport [auto]
+impl core::marker::Send for antecedent_model::nonlinear_sde::SdeError [auto]
+impl core::marker::Send for antecedent_model::nonlinear_sde::SdeInput [auto]
+impl core::marker::Send for antecedent_model::nonlinear_sde::SdeInterpolation [auto]
+impl core::marker::Send for antecedent_model::nonlinear_sde::SdeNumericalError [auto]
+impl core::marker::Send for antecedent_model::nonlinear_sde::SdeParameter [auto]
+impl core::marker::Send for antecedent_model::nonlinear_sde::SdePaths [auto]
+impl core::marker::Send for antecedent_model::nonlinear_sde::SdeScheme [auto]
+impl core::marker::Send for antecedent_model::nonlinear_sde::SdeSimulationPolicy [auto]
+impl core::marker::Send for antecedent_model::nonlinear_sde::SdeSystem [auto]
+impl core::marker::Send for antecedent_model::nonlinear_sde::SdeWorld [auto]
+impl core::marker::Send for antecedent_model::nonlinear_sde::SdeWorldEnsemble [auto]
+impl core::marker::Send for antecedent_model::nonlinear_sde::WorldPlan [auto]
 impl core::marker::Send for antecedent_model::observation_query::BayesPosterior [auto]
 impl core::marker::Send for antecedent_model::observation_query::BetaBernoulli [auto]
 impl core::marker::Send for antecedent_model::observation_query::ConditionalDistribution [auto]
@@ -1654,6 +1955,25 @@ impl core::marker::Send for antecedent_model::scc_compile::GaussianDisturbance [
 impl core::marker::Send for antecedent_model::scc_compile::LinearSupportRoute [auto]
 impl core::marker::Send for antecedent_model::scc_compile::RoutedEquilibrium [auto]
 impl core::marker::Send for antecedent_model::scc_compile::SccCompileError [auto]
+impl core::marker::Send for antecedent_model::sparse_equilibrium::CsrMatrix [auto]
+impl core::marker::Send for antecedent_model::sparse_equilibrium::FactorError [auto]
+impl core::marker::Send for antecedent_model::sparse_equilibrium::SolveEvidence [auto]
+impl core::marker::Send for antecedent_model::sparse_equilibrium::SolverBudgetCode [auto]
+impl core::marker::Send for antecedent_model::sparse_equilibrium::SparseLu [auto]
+impl core::marker::Send for antecedent_model::sparse_equilibrium::SpectralBound [auto]
+impl core::marker::Send for antecedent_model::typed_mechanism_transport::ContrastEstimate [auto]
+impl core::marker::Send for antecedent_model::typed_mechanism_transport::CrossBlock [auto]
+impl core::marker::Send for antecedent_model::typed_mechanism_transport::FittedMechanism [auto]
+impl core::marker::Send for antecedent_model::typed_mechanism_transport::InvarianceCheck [auto]
+impl core::marker::Send for antecedent_model::typed_mechanism_transport::MeanSpec [auto]
+impl core::marker::Send for antecedent_model::typed_mechanism_transport::MechanismSpec [auto]
+impl core::marker::Send for antecedent_model::typed_mechanism_transport::ParameterDependence [auto]
+impl core::marker::Send for antecedent_model::typed_mechanism_transport::ResponseFamily [auto]
+impl core::marker::Send for antecedent_model::typed_mechanism_transport::TransportedTypedModel [auto]
+impl core::marker::Send for antecedent_model::typed_mechanism_transport::TypedDisposition [auto]
+impl core::marker::Send for antecedent_model::typed_mechanism_transport::TypedFitError [auto]
+impl core::marker::Send for antecedent_model::typed_mechanism_transport::TypedFunctionalUncertainty [auto]
+impl core::marker::Send for antecedent_model::typed_mechanism_transport::TypedTransportRequest [auto]
 impl core::marker::StructuralPartialEq for antecedent_model::BasisTerm
 impl core::marker::StructuralPartialEq for antecedent_model::ComponentDependency
 impl core::marker::StructuralPartialEq for antecedent_model::ComponentOrder
@@ -1791,6 +2111,20 @@ impl core::marker::StructuralPartialEq for antecedent_model::equation_system::Is
 impl core::marker::StructuralPartialEq for antecedent_model::equation_system::Monomial
 impl core::marker::StructuralPartialEq for antecedent_model::equation_system::PolynomialEquation
 impl core::marker::StructuralPartialEq for antecedent_model::equation_system::PolynomialSystem
+impl core::marker::StructuralPartialEq for antecedent_model::external_mechanism::DerivativeDeclaration
+impl core::marker::StructuralPartialEq for antecedent_model::external_mechanism::DifferenceScheme
+impl core::marker::StructuralPartialEq for antecedent_model::external_mechanism::ExternalDependency
+impl core::marker::StructuralPartialEq for antecedent_model::external_mechanism::ExternalFeedbackSystem
+impl core::marker::StructuralPartialEq for antecedent_model::external_mechanism::ExternalFitParameter
+impl core::marker::StructuralPartialEq for antecedent_model::external_mechanism::ExternalMechanismEvidence
+impl core::marker::StructuralPartialEq for antecedent_model::external_mechanism::ExternalMechanismRefusal
+impl core::marker::StructuralPartialEq for antecedent_model::external_mechanism::ExternalMechanismSpec
+impl core::marker::StructuralPartialEq for antecedent_model::external_mechanism::ExternalOdeSystem
+impl core::marker::StructuralPartialEq for antecedent_model::external_mechanism::ExternalOdeTrajectory
+impl core::marker::StructuralPartialEq for antecedent_model::external_mechanism::ExternalRefusalKind
+impl core::marker::StructuralPartialEq for antecedent_model::external_mechanism::LikelihoodTerms
+impl core::marker::StructuralPartialEq for antecedent_model::external_mechanism::MechanismTrust
+impl core::marker::StructuralPartialEq for antecedent_model::external_mechanism::SystemEquation
 impl core::marker::StructuralPartialEq for antecedent_model::history_operators::ActionTiming
 impl core::marker::StructuralPartialEq for antecedent_model::history_operators::CensoringAssignmentWeight
 impl core::marker::StructuralPartialEq for antecedent_model::history_operators::ColumnFit
@@ -1858,6 +2192,24 @@ impl core::marker::StructuralPartialEq for antecedent_model::nonlinear_equilibri
 impl core::marker::StructuralPartialEq for antecedent_model::nonlinear_equilibrium::MechanismLikelihoodScore
 impl core::marker::StructuralPartialEq for antecedent_model::nonlinear_equilibrium::RegimeRow
 impl core::marker::StructuralPartialEq for antecedent_model::nonlinear_equilibrium::SolvePolicy
+impl core::marker::StructuralPartialEq for antecedent_model::nonlinear_sde::SdeAction
+impl core::marker::StructuralPartialEq for antecedent_model::nonlinear_sde::SdeBoundary
+impl core::marker::StructuralPartialEq for antecedent_model::nonlinear_sde::SdeBoundaryRule
+impl core::marker::StructuralPartialEq for antecedent_model::nonlinear_sde::SdeCertificate
+impl core::marker::StructuralPartialEq for antecedent_model::nonlinear_sde::SdeContrast
+impl core::marker::StructuralPartialEq for antecedent_model::nonlinear_sde::SdeContrastEnsemble
+impl core::marker::StructuralPartialEq for antecedent_model::nonlinear_sde::SdeDiffusion
+impl core::marker::StructuralPartialEq for antecedent_model::nonlinear_sde::SdeEnsembleReport
+impl core::marker::StructuralPartialEq for antecedent_model::nonlinear_sde::SdeInput
+impl core::marker::StructuralPartialEq for antecedent_model::nonlinear_sde::SdeInterpolation
+impl core::marker::StructuralPartialEq for antecedent_model::nonlinear_sde::SdeNumericalError
+impl core::marker::StructuralPartialEq for antecedent_model::nonlinear_sde::SdeParameter
+impl core::marker::StructuralPartialEq for antecedent_model::nonlinear_sde::SdePaths
+impl core::marker::StructuralPartialEq for antecedent_model::nonlinear_sde::SdeScheme
+impl core::marker::StructuralPartialEq for antecedent_model::nonlinear_sde::SdeSimulationPolicy
+impl core::marker::StructuralPartialEq for antecedent_model::nonlinear_sde::SdeSystem
+impl core::marker::StructuralPartialEq for antecedent_model::nonlinear_sde::SdeWorld
+impl core::marker::StructuralPartialEq for antecedent_model::nonlinear_sde::SdeWorldEnsemble
 impl core::marker::StructuralPartialEq for antecedent_model::observation_query::BayesPosterior
 impl core::marker::StructuralPartialEq for antecedent_model::observation_query::BetaBernoulli
 impl core::marker::StructuralPartialEq for antecedent_model::observation_query::ConditionalDistribution
@@ -1887,6 +2239,20 @@ impl core::marker::StructuralPartialEq for antecedent_model::scc_compile::Gaussi
 impl core::marker::StructuralPartialEq for antecedent_model::scc_compile::LinearSupportRoute
 impl core::marker::StructuralPartialEq for antecedent_model::scc_compile::RoutedEquilibrium
 impl core::marker::StructuralPartialEq for antecedent_model::scc_compile::SccCompileError
+impl core::marker::StructuralPartialEq for antecedent_model::sparse_equilibrium::CsrMatrix
+impl core::marker::StructuralPartialEq for antecedent_model::sparse_equilibrium::SolveEvidence
+impl core::marker::StructuralPartialEq for antecedent_model::sparse_equilibrium::SolverBudgetCode
+impl core::marker::StructuralPartialEq for antecedent_model::sparse_equilibrium::SpectralBound
+impl core::marker::StructuralPartialEq for antecedent_model::typed_mechanism_transport::ContrastEstimate
+impl core::marker::StructuralPartialEq for antecedent_model::typed_mechanism_transport::CrossBlock
+impl core::marker::StructuralPartialEq for antecedent_model::typed_mechanism_transport::InvarianceCheck
+impl core::marker::StructuralPartialEq for antecedent_model::typed_mechanism_transport::MeanSpec
+impl core::marker::StructuralPartialEq for antecedent_model::typed_mechanism_transport::MechanismSpec
+impl core::marker::StructuralPartialEq for antecedent_model::typed_mechanism_transport::ParameterDependence
+impl core::marker::StructuralPartialEq for antecedent_model::typed_mechanism_transport::ResponseFamily
+impl core::marker::StructuralPartialEq for antecedent_model::typed_mechanism_transport::TypedDisposition
+impl core::marker::StructuralPartialEq for antecedent_model::typed_mechanism_transport::TypedFitError
+impl core::marker::StructuralPartialEq for antecedent_model::typed_mechanism_transport::TypedFunctionalUncertainty
 impl core::marker::Sync for antecedent_model::BasisTerm [auto]
 impl core::marker::Sync for antecedent_model::CompiledCausalModel [auto]
 impl core::marker::Sync for antecedent_model::CompiledMechanismStore [auto]
@@ -2056,6 +2422,23 @@ impl core::marker::Sync for antecedent_model::equation_system::IsolationPolicy [
 impl core::marker::Sync for antecedent_model::equation_system::Monomial [auto]
 impl core::marker::Sync for antecedent_model::equation_system::PolynomialEquation [auto]
 impl core::marker::Sync for antecedent_model::equation_system::PolynomialSystem [auto]
+impl core::marker::Sync for antecedent_model::external_mechanism::DerivativeDeclaration [auto]
+impl core::marker::Sync for antecedent_model::external_mechanism::DifferenceScheme [auto]
+impl core::marker::Sync for antecedent_model::external_mechanism::ExternalDependency [auto]
+impl core::marker::Sync for antecedent_model::external_mechanism::ExternalFeedbackSystem [auto]
+impl core::marker::Sync for antecedent_model::external_mechanism::ExternalFitParameter [auto]
+impl core::marker::Sync for antecedent_model::external_mechanism::ExternalMechanismEvidence [auto]
+impl core::marker::Sync for antecedent_model::external_mechanism::ExternalMechanismRefusal [auto]
+impl core::marker::Sync for antecedent_model::external_mechanism::ExternalMechanismSpec [auto]
+impl core::marker::Sync for antecedent_model::external_mechanism::ExternalOdeSystem [auto]
+impl core::marker::Sync for antecedent_model::external_mechanism::ExternalOdeTrajectory [auto]
+impl core::marker::Sync for antecedent_model::external_mechanism::ExternalRefusalKind [auto]
+impl core::marker::Sync for antecedent_model::external_mechanism::LikelihoodTerms [auto]
+impl core::marker::Sync for antecedent_model::external_mechanism::MechanismRegistry [auto]
+impl core::marker::Sync for antecedent_model::external_mechanism::MechanismTrust [auto]
+impl core::marker::Sync for antecedent_model::external_mechanism::ResolvedFeedbackSystem [auto]
+impl core::marker::Sync for antecedent_model::external_mechanism::ResolvedOdeSystem [auto]
+impl core::marker::Sync for antecedent_model::external_mechanism::SystemEquation [auto]
 impl core::marker::Sync for antecedent_model::history_operators::ActionTiming [auto]
 impl core::marker::Sync for antecedent_model::history_operators::CensoringAssignmentWeight [auto]
 impl core::marker::Sync for antecedent_model::history_operators::ColumnFit [auto]
@@ -2130,6 +2513,28 @@ impl core::marker::Sync for antecedent_model::nonlinear_equilibrium::Equilibrium
 impl core::marker::Sync for antecedent_model::nonlinear_equilibrium::MechanismLikelihoodScore [auto]
 impl core::marker::Sync for antecedent_model::nonlinear_equilibrium::RegimeRow [auto]
 impl core::marker::Sync for antecedent_model::nonlinear_equilibrium::SolvePolicy [auto]
+impl core::marker::Sync for antecedent_model::nonlinear_sde::CompiledSde [auto]
+impl core::marker::Sync for antecedent_model::nonlinear_sde::LocalCoefficients [auto]
+impl core::marker::Sync for antecedent_model::nonlinear_sde::SdeAction [auto]
+impl core::marker::Sync for antecedent_model::nonlinear_sde::SdeBoundary [auto]
+impl core::marker::Sync for antecedent_model::nonlinear_sde::SdeBoundaryRule [auto]
+impl core::marker::Sync for antecedent_model::nonlinear_sde::SdeCertificate [auto]
+impl core::marker::Sync for antecedent_model::nonlinear_sde::SdeContrast [auto]
+impl core::marker::Sync for antecedent_model::nonlinear_sde::SdeContrastEnsemble [auto]
+impl core::marker::Sync for antecedent_model::nonlinear_sde::SdeDiffusion [auto]
+impl core::marker::Sync for antecedent_model::nonlinear_sde::SdeEnsembleReport [auto]
+impl core::marker::Sync for antecedent_model::nonlinear_sde::SdeError [auto]
+impl core::marker::Sync for antecedent_model::nonlinear_sde::SdeInput [auto]
+impl core::marker::Sync for antecedent_model::nonlinear_sde::SdeInterpolation [auto]
+impl core::marker::Sync for antecedent_model::nonlinear_sde::SdeNumericalError [auto]
+impl core::marker::Sync for antecedent_model::nonlinear_sde::SdeParameter [auto]
+impl core::marker::Sync for antecedent_model::nonlinear_sde::SdePaths [auto]
+impl core::marker::Sync for antecedent_model::nonlinear_sde::SdeScheme [auto]
+impl core::marker::Sync for antecedent_model::nonlinear_sde::SdeSimulationPolicy [auto]
+impl core::marker::Sync for antecedent_model::nonlinear_sde::SdeSystem [auto]
+impl core::marker::Sync for antecedent_model::nonlinear_sde::SdeWorld [auto]
+impl core::marker::Sync for antecedent_model::nonlinear_sde::SdeWorldEnsemble [auto]
+impl core::marker::Sync for antecedent_model::nonlinear_sde::WorldPlan [auto]
 impl core::marker::Sync for antecedent_model::observation_query::BayesPosterior [auto]
 impl core::marker::Sync for antecedent_model::observation_query::BetaBernoulli [auto]
 impl core::marker::Sync for antecedent_model::observation_query::ConditionalDistribution [auto]
@@ -2159,6 +2564,25 @@ impl core::marker::Sync for antecedent_model::scc_compile::GaussianDisturbance [
 impl core::marker::Sync for antecedent_model::scc_compile::LinearSupportRoute [auto]
 impl core::marker::Sync for antecedent_model::scc_compile::RoutedEquilibrium [auto]
 impl core::marker::Sync for antecedent_model::scc_compile::SccCompileError [auto]
+impl core::marker::Sync for antecedent_model::sparse_equilibrium::CsrMatrix [auto]
+impl core::marker::Sync for antecedent_model::sparse_equilibrium::FactorError [auto]
+impl core::marker::Sync for antecedent_model::sparse_equilibrium::SolveEvidence [auto]
+impl core::marker::Sync for antecedent_model::sparse_equilibrium::SolverBudgetCode [auto]
+impl core::marker::Sync for antecedent_model::sparse_equilibrium::SparseLu [auto]
+impl core::marker::Sync for antecedent_model::sparse_equilibrium::SpectralBound [auto]
+impl core::marker::Sync for antecedent_model::typed_mechanism_transport::ContrastEstimate [auto]
+impl core::marker::Sync for antecedent_model::typed_mechanism_transport::CrossBlock [auto]
+impl core::marker::Sync for antecedent_model::typed_mechanism_transport::FittedMechanism [auto]
+impl core::marker::Sync for antecedent_model::typed_mechanism_transport::InvarianceCheck [auto]
+impl core::marker::Sync for antecedent_model::typed_mechanism_transport::MeanSpec [auto]
+impl core::marker::Sync for antecedent_model::typed_mechanism_transport::MechanismSpec [auto]
+impl core::marker::Sync for antecedent_model::typed_mechanism_transport::ParameterDependence [auto]
+impl core::marker::Sync for antecedent_model::typed_mechanism_transport::ResponseFamily [auto]
+impl core::marker::Sync for antecedent_model::typed_mechanism_transport::TransportedTypedModel [auto]
+impl core::marker::Sync for antecedent_model::typed_mechanism_transport::TypedDisposition [auto]
+impl core::marker::Sync for antecedent_model::typed_mechanism_transport::TypedFitError [auto]
+impl core::marker::Sync for antecedent_model::typed_mechanism_transport::TypedFunctionalUncertainty [auto]
+impl core::marker::Sync for antecedent_model::typed_mechanism_transport::TypedTransportRequest [auto]
 impl core::marker::Unpin for antecedent_model::BasisTerm [auto]
 impl core::marker::Unpin for antecedent_model::CompiledCausalModel [auto]
 impl core::marker::Unpin for antecedent_model::CompiledMechanismStore [auto]
@@ -2328,6 +2752,23 @@ impl core::marker::Unpin for antecedent_model::equation_system::IsolationPolicy 
 impl core::marker::Unpin for antecedent_model::equation_system::Monomial [auto]
 impl core::marker::Unpin for antecedent_model::equation_system::PolynomialEquation [auto]
 impl core::marker::Unpin for antecedent_model::equation_system::PolynomialSystem [auto]
+impl core::marker::Unpin for antecedent_model::external_mechanism::DerivativeDeclaration [auto]
+impl core::marker::Unpin for antecedent_model::external_mechanism::DifferenceScheme [auto]
+impl core::marker::Unpin for antecedent_model::external_mechanism::ExternalDependency [auto]
+impl core::marker::Unpin for antecedent_model::external_mechanism::ExternalFeedbackSystem [auto]
+impl core::marker::Unpin for antecedent_model::external_mechanism::ExternalFitParameter [auto]
+impl core::marker::Unpin for antecedent_model::external_mechanism::ExternalMechanismEvidence [auto]
+impl core::marker::Unpin for antecedent_model::external_mechanism::ExternalMechanismRefusal [auto]
+impl core::marker::Unpin for antecedent_model::external_mechanism::ExternalMechanismSpec [auto]
+impl core::marker::Unpin for antecedent_model::external_mechanism::ExternalOdeSystem [auto]
+impl core::marker::Unpin for antecedent_model::external_mechanism::ExternalOdeTrajectory [auto]
+impl core::marker::Unpin for antecedent_model::external_mechanism::ExternalRefusalKind [auto]
+impl core::marker::Unpin for antecedent_model::external_mechanism::LikelihoodTerms [auto]
+impl core::marker::Unpin for antecedent_model::external_mechanism::MechanismRegistry [auto]
+impl core::marker::Unpin for antecedent_model::external_mechanism::MechanismTrust [auto]
+impl core::marker::Unpin for antecedent_model::external_mechanism::ResolvedFeedbackSystem [auto]
+impl core::marker::Unpin for antecedent_model::external_mechanism::ResolvedOdeSystem [auto]
+impl core::marker::Unpin for antecedent_model::external_mechanism::SystemEquation [auto]
 impl core::marker::Unpin for antecedent_model::history_operators::ActionTiming [auto]
 impl core::marker::Unpin for antecedent_model::history_operators::CensoringAssignmentWeight [auto]
 impl core::marker::Unpin for antecedent_model::history_operators::ColumnFit [auto]
@@ -2402,6 +2843,28 @@ impl core::marker::Unpin for antecedent_model::nonlinear_equilibrium::Equilibriu
 impl core::marker::Unpin for antecedent_model::nonlinear_equilibrium::MechanismLikelihoodScore [auto]
 impl core::marker::Unpin for antecedent_model::nonlinear_equilibrium::RegimeRow [auto]
 impl core::marker::Unpin for antecedent_model::nonlinear_equilibrium::SolvePolicy [auto]
+impl core::marker::Unpin for antecedent_model::nonlinear_sde::CompiledSde [auto]
+impl core::marker::Unpin for antecedent_model::nonlinear_sde::LocalCoefficients [auto]
+impl core::marker::Unpin for antecedent_model::nonlinear_sde::SdeAction [auto]
+impl core::marker::Unpin for antecedent_model::nonlinear_sde::SdeBoundary [auto]
+impl core::marker::Unpin for antecedent_model::nonlinear_sde::SdeBoundaryRule [auto]
+impl core::marker::Unpin for antecedent_model::nonlinear_sde::SdeCertificate [auto]
+impl core::marker::Unpin for antecedent_model::nonlinear_sde::SdeContrast [auto]
+impl core::marker::Unpin for antecedent_model::nonlinear_sde::SdeContrastEnsemble [auto]
+impl core::marker::Unpin for antecedent_model::nonlinear_sde::SdeDiffusion [auto]
+impl core::marker::Unpin for antecedent_model::nonlinear_sde::SdeEnsembleReport [auto]
+impl core::marker::Unpin for antecedent_model::nonlinear_sde::SdeError [auto]
+impl core::marker::Unpin for antecedent_model::nonlinear_sde::SdeInput [auto]
+impl core::marker::Unpin for antecedent_model::nonlinear_sde::SdeInterpolation [auto]
+impl core::marker::Unpin for antecedent_model::nonlinear_sde::SdeNumericalError [auto]
+impl core::marker::Unpin for antecedent_model::nonlinear_sde::SdeParameter [auto]
+impl core::marker::Unpin for antecedent_model::nonlinear_sde::SdePaths [auto]
+impl core::marker::Unpin for antecedent_model::nonlinear_sde::SdeScheme [auto]
+impl core::marker::Unpin for antecedent_model::nonlinear_sde::SdeSimulationPolicy [auto]
+impl core::marker::Unpin for antecedent_model::nonlinear_sde::SdeSystem [auto]
+impl core::marker::Unpin for antecedent_model::nonlinear_sde::SdeWorld [auto]
+impl core::marker::Unpin for antecedent_model::nonlinear_sde::SdeWorldEnsemble [auto]
+impl core::marker::Unpin for antecedent_model::nonlinear_sde::WorldPlan [auto]
 impl core::marker::Unpin for antecedent_model::observation_query::BayesPosterior [auto]
 impl core::marker::Unpin for antecedent_model::observation_query::BetaBernoulli [auto]
 impl core::marker::Unpin for antecedent_model::observation_query::ConditionalDistribution [auto]
@@ -2431,6 +2894,25 @@ impl core::marker::Unpin for antecedent_model::scc_compile::GaussianDisturbance 
 impl core::marker::Unpin for antecedent_model::scc_compile::LinearSupportRoute [auto]
 impl core::marker::Unpin for antecedent_model::scc_compile::RoutedEquilibrium [auto]
 impl core::marker::Unpin for antecedent_model::scc_compile::SccCompileError [auto]
+impl core::marker::Unpin for antecedent_model::sparse_equilibrium::CsrMatrix [auto]
+impl core::marker::Unpin for antecedent_model::sparse_equilibrium::FactorError [auto]
+impl core::marker::Unpin for antecedent_model::sparse_equilibrium::SolveEvidence [auto]
+impl core::marker::Unpin for antecedent_model::sparse_equilibrium::SolverBudgetCode [auto]
+impl core::marker::Unpin for antecedent_model::sparse_equilibrium::SparseLu [auto]
+impl core::marker::Unpin for antecedent_model::sparse_equilibrium::SpectralBound [auto]
+impl core::marker::Unpin for antecedent_model::typed_mechanism_transport::ContrastEstimate [auto]
+impl core::marker::Unpin for antecedent_model::typed_mechanism_transport::CrossBlock [auto]
+impl core::marker::Unpin for antecedent_model::typed_mechanism_transport::FittedMechanism [auto]
+impl core::marker::Unpin for antecedent_model::typed_mechanism_transport::InvarianceCheck [auto]
+impl core::marker::Unpin for antecedent_model::typed_mechanism_transport::MeanSpec [auto]
+impl core::marker::Unpin for antecedent_model::typed_mechanism_transport::MechanismSpec [auto]
+impl core::marker::Unpin for antecedent_model::typed_mechanism_transport::ParameterDependence [auto]
+impl core::marker::Unpin for antecedent_model::typed_mechanism_transport::ResponseFamily [auto]
+impl core::marker::Unpin for antecedent_model::typed_mechanism_transport::TransportedTypedModel [auto]
+impl core::marker::Unpin for antecedent_model::typed_mechanism_transport::TypedDisposition [auto]
+impl core::marker::Unpin for antecedent_model::typed_mechanism_transport::TypedFitError [auto]
+impl core::marker::Unpin for antecedent_model::typed_mechanism_transport::TypedFunctionalUncertainty [auto]
+impl core::marker::Unpin for antecedent_model::typed_mechanism_transport::TypedTransportRequest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::BasisTerm [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ComponentDependency [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ComponentOrder [auto]
@@ -2594,6 +3076,20 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::equation_syst
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::equation_system::Monomial [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::equation_system::PolynomialEquation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::equation_system::PolynomialSystem [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::external_mechanism::DerivativeDeclaration [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::external_mechanism::DifferenceScheme [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::external_mechanism::ExternalDependency [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::external_mechanism::ExternalFeedbackSystem [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::external_mechanism::ExternalFitParameter [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::external_mechanism::ExternalMechanismEvidence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::external_mechanism::ExternalMechanismRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::external_mechanism::ExternalMechanismSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::external_mechanism::ExternalOdeSystem [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::external_mechanism::ExternalOdeTrajectory [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::external_mechanism::ExternalRefusalKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::external_mechanism::LikelihoodTerms [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::external_mechanism::MechanismTrust [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::external_mechanism::SystemEquation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::ActionTiming [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::CensoringAssignmentWeight [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::ColumnFit [auto]
@@ -2667,6 +3163,28 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::nonlinear_equ
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::nonlinear_equilibrium::MechanismLikelihoodScore [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::nonlinear_equilibrium::RegimeRow [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::nonlinear_equilibrium::SolvePolicy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::nonlinear_sde::CompiledSde [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::nonlinear_sde::LocalCoefficients [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::nonlinear_sde::SdeAction [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::nonlinear_sde::SdeBoundary [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::nonlinear_sde::SdeBoundaryRule [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::nonlinear_sde::SdeCertificate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::nonlinear_sde::SdeContrast [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::nonlinear_sde::SdeContrastEnsemble [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::nonlinear_sde::SdeDiffusion [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::nonlinear_sde::SdeEnsembleReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::nonlinear_sde::SdeError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::nonlinear_sde::SdeInput [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::nonlinear_sde::SdeInterpolation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::nonlinear_sde::SdeNumericalError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::nonlinear_sde::SdeParameter [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::nonlinear_sde::SdePaths [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::nonlinear_sde::SdeScheme [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::nonlinear_sde::SdeSimulationPolicy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::nonlinear_sde::SdeSystem [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::nonlinear_sde::SdeWorld [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::nonlinear_sde::SdeWorldEnsemble [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::nonlinear_sde::WorldPlan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::BayesPosterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::BetaBernoulli [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::ConditionalDistribution [auto]
@@ -2696,6 +3214,25 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::scc_compile::
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::scc_compile::LinearSupportRoute [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::scc_compile::RoutedEquilibrium [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::scc_compile::SccCompileError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::sparse_equilibrium::CsrMatrix [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::sparse_equilibrium::FactorError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::sparse_equilibrium::SolveEvidence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::sparse_equilibrium::SolverBudgetCode [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::sparse_equilibrium::SparseLu [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::sparse_equilibrium::SpectralBound [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::typed_mechanism_transport::ContrastEstimate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::typed_mechanism_transport::CrossBlock [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::typed_mechanism_transport::FittedMechanism [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::typed_mechanism_transport::InvarianceCheck [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::typed_mechanism_transport::MeanSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::typed_mechanism_transport::MechanismSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::typed_mechanism_transport::ParameterDependence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::typed_mechanism_transport::ResponseFamily [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::typed_mechanism_transport::TransportedTypedModel [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::typed_mechanism_transport::TypedDisposition [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::typed_mechanism_transport::TypedFitError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::typed_mechanism_transport::TypedFunctionalUncertainty [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::typed_mechanism_transport::TypedTransportRequest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::BasisTerm [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::ComponentDependency [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::ComponentOrder [auto]
@@ -2859,6 +3396,20 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_model::equation_system:
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::equation_system::Monomial [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::equation_system::PolynomialEquation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::equation_system::PolynomialSystem [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::external_mechanism::DerivativeDeclaration [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::external_mechanism::DifferenceScheme [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::external_mechanism::ExternalDependency [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::external_mechanism::ExternalFeedbackSystem [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::external_mechanism::ExternalFitParameter [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::external_mechanism::ExternalMechanismEvidence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::external_mechanism::ExternalMechanismRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::external_mechanism::ExternalMechanismSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::external_mechanism::ExternalOdeSystem [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::external_mechanism::ExternalOdeTrajectory [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::external_mechanism::ExternalRefusalKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::external_mechanism::LikelihoodTerms [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::external_mechanism::MechanismTrust [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::external_mechanism::SystemEquation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::ActionTiming [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::CensoringAssignmentWeight [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::ColumnFit [auto]
@@ -2932,6 +3483,28 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_model::nonlinear_equili
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::nonlinear_equilibrium::MechanismLikelihoodScore [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::nonlinear_equilibrium::RegimeRow [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::nonlinear_equilibrium::SolvePolicy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::nonlinear_sde::CompiledSde [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::nonlinear_sde::LocalCoefficients [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::nonlinear_sde::SdeAction [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::nonlinear_sde::SdeBoundary [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::nonlinear_sde::SdeBoundaryRule [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::nonlinear_sde::SdeCertificate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::nonlinear_sde::SdeContrast [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::nonlinear_sde::SdeContrastEnsemble [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::nonlinear_sde::SdeDiffusion [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::nonlinear_sde::SdeEnsembleReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::nonlinear_sde::SdeError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::nonlinear_sde::SdeInput [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::nonlinear_sde::SdeInterpolation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::nonlinear_sde::SdeNumericalError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::nonlinear_sde::SdeParameter [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::nonlinear_sde::SdePaths [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::nonlinear_sde::SdeScheme [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::nonlinear_sde::SdeSimulationPolicy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::nonlinear_sde::SdeSystem [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::nonlinear_sde::SdeWorld [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::nonlinear_sde::SdeWorldEnsemble [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::nonlinear_sde::WorldPlan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::BayesPosterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::BetaBernoulli [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::ConditionalDistribution [auto]
@@ -2961,6 +3534,25 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_model::scc_compile::Gau
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::scc_compile::LinearSupportRoute [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::scc_compile::RoutedEquilibrium [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::scc_compile::SccCompileError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::sparse_equilibrium::CsrMatrix [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::sparse_equilibrium::FactorError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::sparse_equilibrium::SolveEvidence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::sparse_equilibrium::SolverBudgetCode [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::sparse_equilibrium::SparseLu [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::sparse_equilibrium::SpectralBound [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::typed_mechanism_transport::ContrastEstimate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::typed_mechanism_transport::CrossBlock [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::typed_mechanism_transport::FittedMechanism [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::typed_mechanism_transport::InvarianceCheck [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::typed_mechanism_transport::MeanSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::typed_mechanism_transport::MechanismSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::typed_mechanism_transport::ParameterDependence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::typed_mechanism_transport::ResponseFamily [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::typed_mechanism_transport::TransportedTypedModel [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::typed_mechanism_transport::TypedDisposition [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::typed_mechanism_transport::TypedFitError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::typed_mechanism_transport::TypedFunctionalUncertainty [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::typed_mechanism_transport::TypedTransportRequest [auto]
 impl serde_core::ser::Serialize for antecedent_model::compile::CompiledSystemPlan
 impl serde_core::ser::Serialize for antecedent_model::compile::ExecutionBlock
 impl serde_core::ser::Serialize for antecedent_model::compile::SystemSemantics
@@ -2982,6 +3574,18 @@ impl serde_core::ser::Serialize for antecedent_model::equation_system::Isolation
 impl serde_core::ser::Serialize for antecedent_model::equation_system::Monomial
 impl serde_core::ser::Serialize for antecedent_model::equation_system::PolynomialEquation
 impl serde_core::ser::Serialize for antecedent_model::equation_system::PolynomialSystem
+impl serde_core::ser::Serialize for antecedent_model::external_mechanism::DerivativeDeclaration
+impl serde_core::ser::Serialize for antecedent_model::external_mechanism::DifferenceScheme
+impl serde_core::ser::Serialize for antecedent_model::external_mechanism::ExternalDependency
+impl serde_core::ser::Serialize for antecedent_model::external_mechanism::ExternalFeedbackSystem
+impl serde_core::ser::Serialize for antecedent_model::external_mechanism::ExternalFitParameter
+impl serde_core::ser::Serialize for antecedent_model::external_mechanism::ExternalMechanismEvidence
+impl serde_core::ser::Serialize for antecedent_model::external_mechanism::ExternalMechanismSpec
+impl serde_core::ser::Serialize for antecedent_model::external_mechanism::ExternalOdeSystem
+impl serde_core::ser::Serialize for antecedent_model::external_mechanism::ExternalOdeTrajectory
+impl serde_core::ser::Serialize for antecedent_model::external_mechanism::LikelihoodTerms
+impl serde_core::ser::Serialize for antecedent_model::external_mechanism::MechanismTrust
+impl serde_core::ser::Serialize for antecedent_model::external_mechanism::SystemEquation
 impl serde_core::ser::Serialize for antecedent_model::local_cyclic::LocalCyclicInspection
 impl serde_core::ser::Serialize for antecedent_model::local_cyclic::LocalCyclicPolicy
 impl serde_core::ser::Serialize for antecedent_model::mechanism_expr::MechanismExpression
@@ -2994,6 +3598,26 @@ impl serde_core::ser::Serialize for antecedent_model::nonlinear_equilibrium::Equ
 impl serde_core::ser::Serialize for antecedent_model::nonlinear_equilibrium::EquilibriumSolveFailure
 impl serde_core::ser::Serialize for antecedent_model::nonlinear_equilibrium::RegimeRow
 impl serde_core::ser::Serialize for antecedent_model::nonlinear_equilibrium::SolvePolicy
+impl serde_core::ser::Serialize for antecedent_model::nonlinear_sde::SdeAction
+impl serde_core::ser::Serialize for antecedent_model::nonlinear_sde::SdeBoundary
+impl serde_core::ser::Serialize for antecedent_model::nonlinear_sde::SdeBoundaryRule
+impl serde_core::ser::Serialize for antecedent_model::nonlinear_sde::SdeCertificate
+impl serde_core::ser::Serialize for antecedent_model::nonlinear_sde::SdeContrast
+impl serde_core::ser::Serialize for antecedent_model::nonlinear_sde::SdeContrastEnsemble
+impl serde_core::ser::Serialize for antecedent_model::nonlinear_sde::SdeDiffusion
+impl serde_core::ser::Serialize for antecedent_model::nonlinear_sde::SdeEnsembleReport
+impl serde_core::ser::Serialize for antecedent_model::nonlinear_sde::SdeInput
+impl serde_core::ser::Serialize for antecedent_model::nonlinear_sde::SdeInterpolation
+impl serde_core::ser::Serialize for antecedent_model::nonlinear_sde::SdeNumericalError
+impl serde_core::ser::Serialize for antecedent_model::nonlinear_sde::SdeParameter
+impl serde_core::ser::Serialize for antecedent_model::nonlinear_sde::SdePaths
+impl serde_core::ser::Serialize for antecedent_model::nonlinear_sde::SdeScheme
+impl serde_core::ser::Serialize for antecedent_model::nonlinear_sde::SdeSimulationPolicy
+impl serde_core::ser::Serialize for antecedent_model::nonlinear_sde::SdeSystem
+impl serde_core::ser::Serialize for antecedent_model::nonlinear_sde::SdeWorld
+impl serde_core::ser::Serialize for antecedent_model::nonlinear_sde::SdeWorldEnsemble
+impl serde_core::ser::Serialize for antecedent_model::sparse_equilibrium::SolveEvidence
+impl serde_core::ser::Serialize for antecedent_model::sparse_equilibrium::SolverBudgetCode
 impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ModelView<'a> [auto]
 impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::NodeEvaluation<'a> [auto]
 impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_model::ModelView<'a> [auto]
@@ -3113,6 +3737,18 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::equation_system
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::equation_system::Monomial
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::equation_system::PolynomialEquation
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::equation_system::PolynomialSystem
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::external_mechanism::DerivativeDeclaration
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::external_mechanism::DifferenceScheme
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::external_mechanism::ExternalDependency
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::external_mechanism::ExternalFeedbackSystem
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::external_mechanism::ExternalFitParameter
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::external_mechanism::ExternalMechanismEvidence
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::external_mechanism::ExternalMechanismSpec
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::external_mechanism::ExternalOdeSystem
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::external_mechanism::ExternalOdeTrajectory
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::external_mechanism::LikelihoodTerms
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::external_mechanism::MechanismTrust
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::external_mechanism::SystemEquation
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::local_cyclic::LocalCyclicInspection
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::local_cyclic::LocalCyclicPolicy
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::mechanism_expr::MechanismExpression
@@ -3125,6 +3761,26 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::nonlinear_equil
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::nonlinear_equilibrium::EquilibriumSolveFailure
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::nonlinear_equilibrium::RegimeRow
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::nonlinear_equilibrium::SolvePolicy
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::nonlinear_sde::SdeAction
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::nonlinear_sde::SdeBoundary
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::nonlinear_sde::SdeBoundaryRule
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::nonlinear_sde::SdeCertificate
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::nonlinear_sde::SdeContrast
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::nonlinear_sde::SdeContrastEnsemble
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::nonlinear_sde::SdeDiffusion
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::nonlinear_sde::SdeEnsembleReport
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::nonlinear_sde::SdeInput
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::nonlinear_sde::SdeInterpolation
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::nonlinear_sde::SdeNumericalError
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::nonlinear_sde::SdeParameter
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::nonlinear_sde::SdePaths
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::nonlinear_sde::SdeScheme
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::nonlinear_sde::SdeSimulationPolicy
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::nonlinear_sde::SdeSystem
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::nonlinear_sde::SdeWorld
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::nonlinear_sde::SdeWorldEnsemble
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::sparse_equilibrium::SolveEvidence
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::sparse_equilibrium::SolverBudgetCode
 impl<M, G> antecedent_model::local_cyclic::LocalCyclicMechanism for antecedent_model::local_cyclic::DynamicCyclicAdapter<M, G> where G: core::ops::function::Fn(&[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_model::nonlinear_equilibrium::EquilibriumError> + core::marker::Send + core::marker::Sync, M: antecedent_model::DynamicMechanism
 impl<M, G> core::marker::Freeze for antecedent_model::local_cyclic::DynamicCyclicAdapter<M, G> where G: core::marker::Freeze, M: core::marker::Freeze [auto]
 impl<M, G> core::marker::Send for antecedent_model::local_cyclic::DynamicCyclicAdapter<M, G> where G: core::marker::Send, M: core::marker::Send [auto]
@@ -3211,7 +3867,11 @@ pub const antecedent_model::discretized_scm_artifact::DETAIL_NOT_EXPORTABLE: &st
 pub const antecedent_model::discretized_scm_artifact::DETAIL_REDERIVATION_REFUSED: &str
 pub const antecedent_model::discretized_scm_artifact::DETAIL_VERSION_UNSUPPORTED: &str
 pub const antecedent_model::discretized_scm_artifact::DISCRETIZED_SCM_ARTIFACT_VERSION: u32
+pub const antecedent_model::external_mechanism::MAX_EXTERNAL_ARITY: usize
+pub const antecedent_model::external_mechanism::MAX_EXTERNAL_DEPENDENCIES: usize
+pub const antecedent_model::linear_moments::MAX_AFFINE_MOMENT_ORDER: usize
 pub const antecedent_model::linear_solution::NONZERO_DIAGONAL_NEXT_ATTEMPT: &str
+pub const antecedent_model::mechanism_expr::MAX_TAPE_GRADIENT_BYTES: usize
 pub const antecedent_model::mechanism_transport::DETAIL_DIAGRAM_SOURCE_MISMATCH: &str
 pub const antecedent_model::mechanism_transport::DETAIL_DIAGRAM_TARGET_MISMATCH: &str
 pub const antecedent_model::mechanism_transport::DETAIL_DUPLICATE_MECHANISM: &str
@@ -3224,6 +3884,15 @@ pub const antecedent_model::mechanism_transport::MECHANISM_TRANSPORT_VERSION: u3
 pub const antecedent_model::mechanism_transport::UNCERTAINTY_SCOPE: &str
 pub const antecedent_model::nonlinear_equilibrium::MAX_DENSE_MATRIX_BYTES: usize
 pub const antecedent_model::nonlinear_equilibrium::MAX_ORDER: usize
+pub const antecedent_model::nonlinear_sde::BASELINE_WORLD: &str
+pub const antecedent_model::nonlinear_sde::MAX_SDE_INPUTS: usize
+pub const antecedent_model::nonlinear_sde::MAX_SDE_KNOTS: usize
+pub const antecedent_model::nonlinear_sde::MAX_SDE_PARAMETERS: usize
+pub const antecedent_model::nonlinear_sde::MAX_SDE_PATHS: usize
+pub const antecedent_model::nonlinear_sde::MAX_SDE_RETAINED_CELLS: usize
+pub const antecedent_model::nonlinear_sde::MAX_SDE_STATE: usize
+pub const antecedent_model::nonlinear_sde::MAX_SDE_STEPS: usize
+pub const antecedent_model::nonlinear_sde::MAX_SDE_STEP_EVALUATIONS: u64
 pub const antecedent_model::observation_query::LEVEL_TOLERANCE: f64
 pub const antecedent_model::observation_query::MAX_BAYES_HYPOTHESES: usize
 pub const antecedent_model::observation_query::MAX_BAYES_OBSERVATION_LEVELS: usize
@@ -3238,6 +3907,27 @@ pub const antecedent_model::observation_uncertainty::MAX_REDRAW_CELLS: usize
 pub const antecedent_model::observation_uncertainty::MAX_REDRAW_QUANTITIES: usize
 pub const antecedent_model::observation_uncertainty::MAX_RETAINED_REGRESSORS: usize
 pub const antecedent_model::observation_uncertainty::MIN_REDRAWS: u32
+pub const antecedent_model::typed_mechanism_transport::DEFAULT_INVARIANCE_LEVEL: f64
+pub const antecedent_model::typed_mechanism_transport::DETAIL_CYCLE: &str
+pub const antecedent_model::typed_mechanism_transport::DETAIL_DEPENDENCE_INCOMPLETE: &str
+pub const antecedent_model::typed_mechanism_transport::DETAIL_DEPENDENCE_INVALID: &str
+pub const antecedent_model::typed_mechanism_transport::DETAIL_DEPENDENCE_UNKNOWN: &str
+pub const antecedent_model::typed_mechanism_transport::DETAIL_DESIGN_NOT_SHARED: &str
+pub const antecedent_model::typed_mechanism_transport::DETAIL_INVARIANCE_CONTRADICTED: &str
+pub const antecedent_model::typed_mechanism_transport::DETAIL_INVARIANCE_LEVEL: &str
+pub const antecedent_model::typed_mechanism_transport::DETAIL_PARENTS_CHANGED: &str
+pub const antecedent_model::typed_mechanism_transport::DETAIL_PARENT_WITHOUT_MECHANISM: &str
+pub const antecedent_model::typed_mechanism_transport::DETAIL_REGIME_NOT_DECLARED: &str
+pub const antecedent_model::typed_mechanism_transport::DETAIL_SELECTION_TARGET_UNKNOWN: &str
+pub const antecedent_model::typed_mechanism_transport::DETAIL_SHIFTED_WITHOUT_TARGET_EVIDENCE: &str
+pub const antecedent_model::typed_mechanism_transport::DETAIL_TARGET_SPEC_DIFFERS: &str
+pub const antecedent_model::typed_mechanism_transport::DETAIL_UNKNOWN_VARIABLE: &str
+pub const antecedent_model::typed_mechanism_transport::MAX_EXPRESSION_PARAMETERS: usize
+pub const antecedent_model::typed_mechanism_transport::MAX_POLYNOMIAL_DEGREE: u8
+pub const antecedent_model::typed_mechanism_transport::MAX_TYPED_DRAWS: usize
+pub const antecedent_model::typed_mechanism_transport::MAX_TYPED_PARENTS: usize
+pub const antecedent_model::typed_mechanism_transport::TYPED_TRANSPORT_STREAM_DOMAIN: antecedent_core::execution::rng::StreamDomain
+pub const antecedent_model::typed_mechanism_transport::TYPED_TRANSPORT_VERSION: u32
 pub const fn antecedent_model::mechanism::reference_noise(slot: &antecedent_model::MechanismSlot) -> f64
 pub enum antecedent_model::BasisTerm
 pub enum antecedent_model::ConditionalSampleMethod
@@ -3286,6 +3976,12 @@ pub enum antecedent_model::cyclic_world::WorldCertificate
 pub enum antecedent_model::discretized_scm::InferenceParadigm
 pub enum antecedent_model::discretized_scm::ParadigmCell
 pub enum antecedent_model::discretized_scm::ParityRoute
+pub enum antecedent_model::external_mechanism::DerivativeDeclaration
+pub enum antecedent_model::external_mechanism::DifferenceScheme
+pub enum antecedent_model::external_mechanism::ExternalFitParameter
+pub enum antecedent_model::external_mechanism::ExternalRefusalKind
+pub enum antecedent_model::external_mechanism::MechanismTrust
+pub enum antecedent_model::external_mechanism::SystemEquation
 pub enum antecedent_model::history_operators::DelayedAction
 pub enum antecedent_model::history_operators::FeedbackSearch
 pub enum antecedent_model::history_operators::HistoryOperatorKind
@@ -3304,10 +4000,19 @@ pub enum antecedent_model::mechanism_transport::MechanismRole
 pub enum antecedent_model::nonlinear_equilibrium::Activation
 pub enum antecedent_model::nonlinear_equilibrium::EquilibriumError
 pub enum antecedent_model::nonlinear_equilibrium::EquilibriumOutcome
+pub enum antecedent_model::nonlinear_sde::SdeBoundaryRule
+pub enum antecedent_model::nonlinear_sde::SdeError
+pub enum antecedent_model::nonlinear_sde::SdeInterpolation
+pub enum antecedent_model::nonlinear_sde::SdeScheme
 pub enum antecedent_model::observation_query::Direction
 pub enum antecedent_model::observation_uncertainty::RedrawTarget
 pub enum antecedent_model::observation_uncertainty::RetainedMechanism
 pub enum antecedent_model::scc_compile::LinearSupportRoute
+pub enum antecedent_model::sparse_equilibrium::FactorError
+pub enum antecedent_model::sparse_equilibrium::SolverBudgetCode
+pub enum antecedent_model::typed_mechanism_transport::MeanSpec
+pub enum antecedent_model::typed_mechanism_transport::ParameterDependence
+pub enum antecedent_model::typed_mechanism_transport::ResponseFamily
 pub field antecedent_model::CompiledCausalModel::graph: alloc::sync::Arc<antecedent_graph::dag::Dag>
 pub field antecedent_model::CompiledCausalModel::mechanisms: antecedent_model::CompiledMechanismStore
 pub field antecedent_model::CompiledCausalModel::node_order: alloc::sync::Arc<[antecedent_graph::types::DenseNodeId]>
@@ -3660,6 +4365,37 @@ pub field antecedent_model::equation_system::PolynomialEquation::terms: alloc::v
 pub field antecedent_model::equation_system::PolynomialSystem::domain: alloc::vec::Vec<antecedent_model::equation_system::Interval>
 pub field antecedent_model::equation_system::PolynomialSystem::equations: alloc::vec::Vec<antecedent_model::equation_system::PolynomialEquation>
 pub field antecedent_model::equation_system::PolynomialSystem::variables: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_model::external_mechanism::ExternalDependency::digest: alloc::string::String
+pub field antecedent_model::external_mechanism::ExternalDependency::name: alloc::string::String
+pub field antecedent_model::external_mechanism::ExternalDependency::version: alloc::string::String
+pub field antecedent_model::external_mechanism::ExternalFeedbackSystem::equations: alloc::vec::Vec<antecedent_model::external_mechanism::SystemEquation>
+pub field antecedent_model::external_mechanism::ExternalFeedbackSystem::noise_covariance: alloc::vec::Vec<f64>
+pub field antecedent_model::external_mechanism::ExternalMechanismEvidence::content_digest: alloc::string::String
+pub field antecedent_model::external_mechanism::ExternalMechanismEvidence::derivative_basis: alloc::string::String
+pub field antecedent_model::external_mechanism::ExternalMechanismEvidence::equation: alloc::string::String
+pub field antecedent_model::external_mechanism::ExternalMechanismEvidence::identity: alloc::string::String
+pub field antecedent_model::external_mechanism::ExternalMechanismEvidence::implementation_id: alloc::string::String
+pub field antecedent_model::external_mechanism::ExternalMechanismEvidence::lipschitz_basis: alloc::string::String
+pub field antecedent_model::external_mechanism::ExternalMechanismEvidence::trust: antecedent_model::external_mechanism::MechanismTrust
+pub field antecedent_model::external_mechanism::ExternalMechanismEvidence::version: alloc::string::String
+pub field antecedent_model::external_mechanism::ExternalMechanismRefusal::detail: alloc::string::String
+pub field antecedent_model::external_mechanism::ExternalMechanismRefusal::kind: antecedent_model::external_mechanism::ExternalRefusalKind
+pub field antecedent_model::external_mechanism::ExternalMechanismSpec::content_digest: alloc::string::String
+pub field antecedent_model::external_mechanism::ExternalMechanismSpec::dependencies: alloc::vec::Vec<antecedent_model::external_mechanism::ExternalDependency>
+pub field antecedent_model::external_mechanism::ExternalMechanismSpec::derivative: antecedent_model::external_mechanism::DerivativeDeclaration
+pub field antecedent_model::external_mechanism::ExternalMechanismSpec::implementation_id: alloc::string::String
+pub field antecedent_model::external_mechanism::ExternalMechanismSpec::input_lipschitz: core::option::Option<alloc::vec::Vec<f64>>
+pub field antecedent_model::external_mechanism::ExternalMechanismSpec::parameter_names: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_model::external_mechanism::ExternalMechanismSpec::reads: alloc::vec::Vec<usize>
+pub field antecedent_model::external_mechanism::ExternalMechanismSpec::version: alloc::string::String
+pub field antecedent_model::external_mechanism::ExternalOdeSystem::decay: alloc::vec::Vec<f64>
+pub field antecedent_model::external_mechanism::ExternalOdeSystem::equations: alloc::vec::Vec<antecedent_model::external_mechanism::SystemEquation>
+pub field antecedent_model::external_mechanism::ExternalOdeTrajectory::drift_lipschitz: core::option::Option<f64>
+pub field antecedent_model::external_mechanism::ExternalOdeTrajectory::mechanisms: alloc::vec::Vec<antecedent_model::external_mechanism::ExternalMechanismEvidence>
+pub field antecedent_model::external_mechanism::ExternalOdeTrajectory::trajectory: antecedent_model::continuous_cyclic::OdeTrajectory
+pub field antecedent_model::external_mechanism::ExternalOdeTrajectory::trust: antecedent_model::external_mechanism::MechanismTrust
+pub field antecedent_model::external_mechanism::LikelihoodTerms::data: f64
+pub field antecedent_model::external_mechanism::LikelihoodTerms::log_determinant: f64
 pub field antecedent_model::history_operators::ColumnFit::coefficients: alloc::vec::Vec<f64>
 pub field antecedent_model::history_operators::ColumnFit::residual_variance: f64
 pub field antecedent_model::history_operators::ColumnFit::rows: usize
@@ -3737,6 +4473,7 @@ pub field antecedent_model::nonlinear_equilibrium::EquilibriumModel::equations: 
 pub field antecedent_model::nonlinear_equilibrium::EquilibriumModel::noise_covariance: alloc::vec::Vec<f64>
 pub field antecedent_model::nonlinear_equilibrium::EquilibriumResult::blocks: alloc::vec::Vec<alloc::vec::Vec<usize>>
 pub field antecedent_model::nonlinear_equilibrium::EquilibriumResult::dynamic_stability: core::option::Option<bool>
+pub field antecedent_model::nonlinear_equilibrium::EquilibriumResult::evidence: antecedent_model::sparse_equilibrium::SolveEvidence
 pub field antecedent_model::nonlinear_equilibrium::EquilibriumResult::existence_certified: bool
 pub field antecedent_model::nonlinear_equilibrium::EquilibriumResult::globally_unique: bool
 pub field antecedent_model::nonlinear_equilibrium::EquilibriumResult::iterations: usize
@@ -3751,9 +4488,100 @@ pub field antecedent_model::nonlinear_equilibrium::MechanismLikelihoodScore::par
 pub field antecedent_model::nonlinear_equilibrium::MechanismLikelihoodScore::weights: alloc::vec::Vec<f64>
 pub field antecedent_model::nonlinear_equilibrium::RegimeRow::clamps: alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::Clamp>
 pub field antecedent_model::nonlinear_equilibrium::RegimeRow::values: alloc::vec::Vec<f64>
+pub field antecedent_model::nonlinear_equilibrium::SolvePolicy::condition_warning: f64
+pub field antecedent_model::nonlinear_equilibrium::SolvePolicy::max_block_size: usize
+pub field antecedent_model::nonlinear_equilibrium::SolvePolicy::max_bytes: u64
+pub field antecedent_model::nonlinear_equilibrium::SolvePolicy::max_factor_fill: usize
 pub field antecedent_model::nonlinear_equilibrium::SolvePolicy::max_iterations: usize
+pub field antecedent_model::nonlinear_equilibrium::SolvePolicy::max_nnz: usize
+pub field antecedent_model::nonlinear_equilibrium::SolvePolicy::max_total_iterations: usize
+pub field antecedent_model::nonlinear_equilibrium::SolvePolicy::max_wall_clock_ms: core::option::Option<u64>
 pub field antecedent_model::nonlinear_equilibrium::SolvePolicy::require_contraction: bool
+pub field antecedent_model::nonlinear_equilibrium::SolvePolicy::spectral_iterations: usize
 pub field antecedent_model::nonlinear_equilibrium::SolvePolicy::tolerance: f64
+pub field antecedent_model::nonlinear_sde::LocalCoefficients::diffusion: alloc::vec::Vec<f64>
+pub field antecedent_model::nonlinear_sde::LocalCoefficients::drift: alloc::vec::Vec<f64>
+pub field antecedent_model::nonlinear_sde::LocalCoefficients::jacobian: alloc::vec::Vec<f64>
+pub field antecedent_model::nonlinear_sde::LocalCoefficients::rate: f64
+pub field antecedent_model::nonlinear_sde::SdeAction::times: alloc::vec::Vec<f64>
+pub field antecedent_model::nonlinear_sde::SdeAction::values: alloc::vec::Vec<f64>
+pub field antecedent_model::nonlinear_sde::SdeAction::variable: usize
+pub field antecedent_model::nonlinear_sde::SdeBoundary::lower: core::option::Option<f64>
+pub field antecedent_model::nonlinear_sde::SdeBoundary::rule: antecedent_model::nonlinear_sde::SdeBoundaryRule
+pub field antecedent_model::nonlinear_sde::SdeBoundary::upper: core::option::Option<f64>
+pub field antecedent_model::nonlinear_sde::SdeCertificate::diagonal_milstein_admissible: bool
+pub field antecedent_model::nonlinear_sde::SdeCertificate::diffusion_lipschitz: core::option::Option<f64>
+pub field antecedent_model::nonlinear_sde::SdeCertificate::drift_lipschitz: f64
+pub field antecedent_model::nonlinear_sde::SdeCertificate::scope: alloc::string::String
+pub field antecedent_model::nonlinear_sde::SdeCertificate::square_root_degenerate: alloc::vec::Vec<usize>
+pub field antecedent_model::nonlinear_sde::SdeCertificate::state_bounds: alloc::vec::Vec<[core::option::Option<f64>; 2]>
+pub field antecedent_model::nonlinear_sde::SdeContrast::control: alloc::string::String
+pub field antecedent_model::nonlinear_sde::SdeContrast::id: alloc::string::String
+pub field antecedent_model::nonlinear_sde::SdeContrast::treated: alloc::string::String
+pub field antecedent_model::nonlinear_sde::SdeContrastEnsemble::control: alloc::string::String
+pub field antecedent_model::nonlinear_sde::SdeContrastEnsemble::id: alloc::string::String
+pub field antecedent_model::nonlinear_sde::SdeContrastEnsemble::mean_difference: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_model::nonlinear_sde::SdeContrastEnsemble::monte_carlo_standard_error: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_model::nonlinear_sde::SdeContrastEnsemble::numerical: core::option::Option<antecedent_model::nonlinear_sde::SdeNumericalError>
+pub field antecedent_model::nonlinear_sde::SdeContrastEnsemble::treated: alloc::string::String
+pub field antecedent_model::nonlinear_sde::SdeDiffusion::expression: antecedent_model::mechanism_expr::MechanismExpression
+pub field antecedent_model::nonlinear_sde::SdeDiffusion::square_root: bool
+pub field antecedent_model::nonlinear_sde::SdeEnsembleReport::certificate: antecedent_model::nonlinear_sde::SdeCertificate
+pub field antecedent_model::nonlinear_sde::SdeEnsembleReport::contrasts: alloc::vec::Vec<antecedent_model::nonlinear_sde::SdeContrastEnsemble>
+pub field antecedent_model::nonlinear_sde::SdeEnsembleReport::error_semantics: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_model::nonlinear_sde::SdeEnsembleReport::parameters: alloc::vec::Vec<f64>
+pub field antecedent_model::nonlinear_sde::SdeEnsembleReport::paths: usize
+pub field antecedent_model::nonlinear_sde::SdeEnsembleReport::scheme: antecedent_model::nonlinear_sde::SdeScheme
+pub field antecedent_model::nonlinear_sde::SdeEnsembleReport::seed: u64
+pub field antecedent_model::nonlinear_sde::SdeEnsembleReport::step: f64
+pub field antecedent_model::nonlinear_sde::SdeEnsembleReport::times: alloc::vec::Vec<f64>
+pub field antecedent_model::nonlinear_sde::SdeEnsembleReport::worlds: alloc::vec::Vec<antecedent_model::nonlinear_sde::SdeWorldEnsemble>
+pub field antecedent_model::nonlinear_sde::SdeInput::envelope: core::option::Option<[f64; 2]>
+pub field antecedent_model::nonlinear_sde::SdeInput::interpolation: antecedent_model::nonlinear_sde::SdeInterpolation
+pub field antecedent_model::nonlinear_sde::SdeInput::name: alloc::string::String
+pub field antecedent_model::nonlinear_sde::SdeInput::times: alloc::vec::Vec<f64>
+pub field antecedent_model::nonlinear_sde::SdeInput::values: alloc::vec::Vec<f64>
+pub field antecedent_model::nonlinear_sde::SdeNumericalError::refined_step: f64
+pub field antecedent_model::nonlinear_sde::SdeNumericalError::richardson_mean: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_model::nonlinear_sde::SdeNumericalError::step_converged: bool
+pub field antecedent_model::nonlinear_sde::SdeNumericalError::strong_rms_difference: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_model::nonlinear_sde::SdeNumericalError::weak_difference: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_model::nonlinear_sde::SdeNumericalError::weak_difference_standard_error: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_model::nonlinear_sde::SdeParameter::name: alloc::string::String
+pub field antecedent_model::nonlinear_sde::SdeParameter::value: f64
+pub field antecedent_model::nonlinear_sde::SdePaths::dimension: usize
+pub field antecedent_model::nonlinear_sde::SdePaths::paths: usize
+pub field antecedent_model::nonlinear_sde::SdePaths::states: alloc::vec::Vec<f64>
+pub field antecedent_model::nonlinear_sde::SdePaths::times: alloc::vec::Vec<f64>
+pub field antecedent_model::nonlinear_sde::SdeSimulationPolicy::check_step: bool
+pub field antecedent_model::nonlinear_sde::SdeSimulationPolicy::output_every: usize
+pub field antecedent_model::nonlinear_sde::SdeSimulationPolicy::paths: usize
+pub field antecedent_model::nonlinear_sde::SdeSimulationPolicy::retain_final_samples: bool
+pub field antecedent_model::nonlinear_sde::SdeSimulationPolicy::scheme: antecedent_model::nonlinear_sde::SdeScheme
+pub field antecedent_model::nonlinear_sde::SdeSimulationPolicy::seed: u64
+pub field antecedent_model::nonlinear_sde::SdeSimulationPolicy::start: f64
+pub field antecedent_model::nonlinear_sde::SdeSimulationPolicy::step: f64
+pub field antecedent_model::nonlinear_sde::SdeSimulationPolicy::steps: usize
+pub field antecedent_model::nonlinear_sde::SdeSimulationPolicy::weak_tolerance: f64
+pub field antecedent_model::nonlinear_sde::SdeSystem::boundaries: alloc::vec::Vec<antecedent_model::nonlinear_sde::SdeBoundary>
+pub field antecedent_model::nonlinear_sde::SdeSystem::diffusion: alloc::vec::Vec<antecedent_model::nonlinear_sde::SdeDiffusion>
+pub field antecedent_model::nonlinear_sde::SdeSystem::drift: alloc::vec::Vec<antecedent_model::mechanism_expr::MechanismExpression>
+pub field antecedent_model::nonlinear_sde::SdeSystem::inputs: alloc::vec::Vec<antecedent_model::nonlinear_sde::SdeInput>
+pub field antecedent_model::nonlinear_sde::SdeSystem::parameters: alloc::vec::Vec<antecedent_model::nonlinear_sde::SdeParameter>
+pub field antecedent_model::nonlinear_sde::SdeSystem::variables: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_model::nonlinear_sde::SdeWorld::actions: alloc::vec::Vec<antecedent_model::nonlinear_sde::SdeAction>
+pub field antecedent_model::nonlinear_sde::SdeWorld::id: alloc::string::String
+pub field antecedent_model::nonlinear_sde::SdeWorld::inputs: alloc::vec::Vec<antecedent_model::nonlinear_sde::SdeInput>
+pub field antecedent_model::nonlinear_sde::SdeWorldEnsemble::covariance: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_model::nonlinear_sde::SdeWorldEnsemble::final_samples: core::option::Option<alloc::vec::Vec<alloc::vec::Vec<f64>>>
+pub field antecedent_model::nonlinear_sde::SdeWorldEnsemble::id: alloc::string::String
+pub field antecedent_model::nonlinear_sde::SdeWorldEnsemble::mean: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_model::nonlinear_sde::SdeWorldEnsemble::monte_carlo_standard_error: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_model::nonlinear_sde::SdeWorldEnsemble::numerical: core::option::Option<antecedent_model::nonlinear_sde::SdeNumericalError>
+pub field antecedent_model::nonlinear_sde::SdeWorldEnsemble::variance: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_model::nonlinear_sde::WorldPlan::actions: alloc::vec::Vec<antecedent_model::nonlinear_sde::SdeAction>
+pub field antecedent_model::nonlinear_sde::WorldPlan::id: alloc::string::String
+pub field antecedent_model::nonlinear_sde::WorldPlan::inputs: alloc::vec::Vec<antecedent_model::nonlinear_sde::SdeInput>
 pub field antecedent_model::observation_query::BayesPosterior::evidence_probability: f64
 pub field antecedent_model::observation_query::BayesPosterior::hypotheses: alloc::vec::Vec<(alloc::string::String, f64)>
 pub field antecedent_model::observation_query::BayesPosterior::log_evidence: f64
@@ -3812,6 +4640,64 @@ pub field antecedent_model::scc_compile::BlockDiagnostic::members: alloc::vec::V
 pub field antecedent_model::scc_compile::BlockDiagnostic::residual_inf: f64
 pub field antecedent_model::scc_compile::CompileBudget::max_bytes: u64
 pub field antecedent_model::scc_compile::CompileBudget::max_work: u64
+pub field antecedent_model::sparse_equilibrium::SolveEvidence::admitted_bytes: u64
+pub field antecedent_model::sparse_equilibrium::SolveEvidence::block_count: usize
+pub field antecedent_model::sparse_equilibrium::SolveEvidence::budget_checks: usize
+pub field antecedent_model::sparse_equilibrium::SolveEvidence::contraction_bound: f64
+pub field antecedent_model::sparse_equilibrium::SolveEvidence::contraction_iterations: usize
+pub field antecedent_model::sparse_equilibrium::SolveEvidence::cyclic_block_count: usize
+pub field antecedent_model::sparse_equilibrium::SolveEvidence::estimated_bytes: u64
+pub field antecedent_model::sparse_equilibrium::SolveEvidence::factorizations: usize
+pub field antecedent_model::sparse_equilibrium::SolveEvidence::free_variables: usize
+pub field antecedent_model::sparse_equilibrium::SolveEvidence::ill_conditioned: bool
+pub field antecedent_model::sparse_equilibrium::SolveEvidence::jacobian_diagonal_dominance_margin: core::option::Option<f64>
+pub field antecedent_model::sparse_equilibrium::SolveEvidence::jacobian_nnz: usize
+pub field antecedent_model::sparse_equilibrium::SolveEvidence::jacobian_nonsingular_basis: alloc::string::String
+pub field antecedent_model::sparse_equilibrium::SolveEvidence::largest_block: usize
+pub field antecedent_model::sparse_equilibrium::SolveEvidence::newton_steps: usize
+pub field antecedent_model::sparse_equilibrium::SolveEvidence::peak_factor_fill: usize
+pub field antecedent_model::sparse_equilibrium::SolveEvidence::row_sum_bound: f64
+pub field antecedent_model::sparse_equilibrium::SolveEvidence::spectral_bound: f64
+pub field antecedent_model::sparse_equilibrium::SolveEvidence::spectral_iterations: usize
+pub field antecedent_model::sparse_equilibrium::SolveEvidence::unique_root_basis: alloc::string::String
+pub field antecedent_model::sparse_equilibrium::SpectralBound::iterations: usize
+pub field antecedent_model::sparse_equilibrium::SpectralBound::upper: f64
+pub field antecedent_model::typed_mechanism_transport::ContrastEstimate::draws: usize
+pub field antecedent_model::typed_mechanism_transport::ContrastEstimate::monte_carlo_se: f64
+pub field antecedent_model::typed_mechanism_transport::ContrastEstimate::value: f64
+pub field antecedent_model::typed_mechanism_transport::CrossBlock::first: alloc::string::String
+pub field antecedent_model::typed_mechanism_transport::CrossBlock::second: alloc::string::String
+pub field antecedent_model::typed_mechanism_transport::CrossBlock::values: alloc::vec::Vec<f64>
+pub field antecedent_model::typed_mechanism_transport::InvarianceCheck::degrees_of_freedom: usize
+pub field antecedent_model::typed_mechanism_transport::InvarianceCheck::level: f64
+pub field antecedent_model::typed_mechanism_transport::InvarianceCheck::p_value: f64
+pub field antecedent_model::typed_mechanism_transport::InvarianceCheck::rejected: bool
+pub field antecedent_model::typed_mechanism_transport::InvarianceCheck::statistic: f64
+pub field antecedent_model::typed_mechanism_transport::MechanismSpec::family: antecedent_model::typed_mechanism_transport::ResponseFamily
+pub field antecedent_model::typed_mechanism_transport::MechanismSpec::mean: antecedent_model::typed_mechanism_transport::MeanSpec
+pub field antecedent_model::typed_mechanism_transport::MechanismSpec::parents: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_model::typed_mechanism_transport::MechanismSpec::variable: alloc::string::String
+pub field antecedent_model::typed_mechanism_transport::TypedDisposition::artifact_id: alloc::string::String
+pub field antecedent_model::typed_mechanism_transport::TypedDisposition::consistency: core::option::Option<antecedent_model::typed_mechanism_transport::InvarianceCheck>
+pub field antecedent_model::typed_mechanism_transport::TypedDisposition::covariance_source: &'static str
+pub field antecedent_model::typed_mechanism_transport::TypedDisposition::evidence_id: alloc::string::String
+pub field antecedent_model::typed_mechanism_transport::TypedDisposition::family: antecedent_model::typed_mechanism_transport::ResponseFamily
+pub field antecedent_model::typed_mechanism_transport::TypedDisposition::fitted_population: alloc::string::String
+pub field antecedent_model::typed_mechanism_transport::TypedDisposition::role: antecedent_model::mechanism_transport::MechanismRole
+pub field antecedent_model::typed_mechanism_transport::TypedDisposition::variable: alloc::string::String
+pub field antecedent_model::typed_mechanism_transport::TypedFunctionalUncertainty::dependence: &'static str
+pub field antecedent_model::typed_mechanism_transport::TypedFunctionalUncertainty::estimate: antecedent_model::typed_mechanism_transport::ContrastEstimate
+pub field antecedent_model::typed_mechanism_transport::TypedFunctionalUncertainty::gradient: alloc::vec::Vec<(alloc::string::String, alloc::string::String, f64)>
+pub field antecedent_model::typed_mechanism_transport::TypedFunctionalUncertainty::scope: &'static str
+pub field antecedent_model::typed_mechanism_transport::TypedFunctionalUncertainty::standard_error: f64
+pub field antecedent_model::typed_mechanism_transport::TypedFunctionalUncertainty::variance: f64
+pub field antecedent_model::typed_mechanism_transport::TypedTransportRequest::dependence: antecedent_model::typed_mechanism_transport::ParameterDependence
+pub field antecedent_model::typed_mechanism_transport::TypedTransportRequest::diagram: antecedent_model::compose::SelectionDiagramDeclaration
+pub field antecedent_model::typed_mechanism_transport::TypedTransportRequest::invariance_level: f64
+pub field antecedent_model::typed_mechanism_transport::TypedTransportRequest::invariances: alloc::vec::Vec<antecedent_model::compose::InvarianceDeclaration>
+pub field antecedent_model::typed_mechanism_transport::TypedTransportRequest::source_mechanisms: alloc::vec::Vec<antecedent_model::typed_mechanism_transport::FittedMechanism>
+pub field antecedent_model::typed_mechanism_transport::TypedTransportRequest::target: antecedent_model::compose::MechanismContext
+pub field antecedent_model::typed_mechanism_transport::TypedTransportRequest::target_mechanisms: alloc::vec::Vec<antecedent_model::typed_mechanism_transport::FittedMechanism>
 pub fn <antecedent_model::CompiledCausalModel>::fn compile(graph: antecedent_graph::dag::Dag) -> core::result::Result<Self, antecedent_model::ModelError>
 pub fn <antecedent_model::CompiledCausalModel>::fn compile_shared(graph: alloc::sync::Arc<antecedent_graph::dag::Dag>) -> core::result::Result<Self, antecedent_model::ModelError>
 pub fn <antecedent_model::CompiledCausalModel>::fn dense_of(&self, var: antecedent_core::ids::VariableId) -> core::option::Option<antecedent_graph::types::DenseNodeId>
@@ -4110,6 +4996,42 @@ pub fn <antecedent_model::equation_system::IsolatedSolutions>::fn select(&self, 
 pub fn <antecedent_model::equation_system::PolynomialSystem>::fn isolate(&self, policy: antecedent_model::equation_system::IsolationPolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::equation_system::IsolatedSolutions, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn <antecedent_model::equation_system::PolynomialSystem>::fn replace_equation(&self, equation: &str, variable: usize, value: f64) -> core::result::Result<Self, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn <antecedent_model::equation_system::PolynomialSystem>::fn validate(&self) -> core::result::Result<(), antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn <antecedent_model::external_mechanism::ExternalFeedbackSystem>::fn external_specs(&self) -> alloc::vec::Vec<(&str, &antecedent_model::external_mechanism::ExternalMechanismSpec)>
+pub fn <antecedent_model::external_mechanism::ExternalFeedbackSystem>::fn order(&self) -> usize
+pub fn <antecedent_model::external_mechanism::ExternalFeedbackSystem>::fn parameter_values(&self, targets: &[antecedent_model::external_mechanism::ExternalFitParameter]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn <antecedent_model::external_mechanism::ExternalFeedbackSystem>::fn resolve(&self, resolver: core::option::Option<&dyn antecedent_model::external_mechanism::TrustedMechanismResolver>) -> core::result::Result<antecedent_model::external_mechanism::ResolvedFeedbackSystem, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn <antecedent_model::external_mechanism::ExternalFeedbackSystem>::fn trust(&self) -> antecedent_model::external_mechanism::MechanismTrust
+pub fn <antecedent_model::external_mechanism::ExternalFeedbackSystem>::fn validate(&self) -> core::result::Result<(), antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn <antecedent_model::external_mechanism::ExternalFeedbackSystem>::fn with_parameters(&self, targets: &[antecedent_model::external_mechanism::ExternalFitParameter], values: &[f64]) -> core::result::Result<Self, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn <antecedent_model::external_mechanism::ExternalFitParameter>::const fn equation(self) -> usize
+pub fn <antecedent_model::external_mechanism::ExternalMechanismRefusal>::const fn code(&self) -> &'static str
+pub fn <antecedent_model::external_mechanism::ExternalMechanismSpec>::fn for_content(implementation_id: &str, version: &str, content: &[u8], reads: alloc::vec::Vec<usize>, parameter_names: alloc::vec::Vec<alloc::string::String>, derivative: antecedent_model::external_mechanism::DerivativeDeclaration) -> Self
+pub fn <antecedent_model::external_mechanism::ExternalMechanismSpec>::fn identity(&self) -> alloc::string::String
+pub fn <antecedent_model::external_mechanism::ExternalMechanismSpec>::fn validate(&self) -> core::result::Result<(), antecedent_model::external_mechanism::ExternalMechanismRefusal>
+pub fn <antecedent_model::external_mechanism::ExternalOdeSystem>::fn resolve(&self, resolver: core::option::Option<&dyn antecedent_model::external_mechanism::TrustedMechanismResolver>) -> core::result::Result<antecedent_model::external_mechanism::ResolvedOdeSystem, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn <antecedent_model::external_mechanism::ExternalOdeSystem>::fn validate(&self) -> core::result::Result<(), antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn <antecedent_model::external_mechanism::LikelihoodTerms>::fn total(&self) -> f64
+pub fn <antecedent_model::external_mechanism::MechanismRegistry>::fn is_empty(&self) -> bool
+pub fn <antecedent_model::external_mechanism::MechanismRegistry>::fn len(&self) -> usize
+pub fn <antecedent_model::external_mechanism::MechanismRegistry>::fn new() -> Self
+pub fn <antecedent_model::external_mechanism::MechanismRegistry>::fn register(&mut self, implementation: alloc::sync::Arc<dyn antecedent_model::external_mechanism::ExternalMechanismImplementation>) -> core::result::Result<(), antecedent_model::external_mechanism::ExternalMechanismRefusal>
+pub fn <antecedent_model::external_mechanism::MechanismTrust>::const fn name(self) -> &'static str
+pub fn <antecedent_model::external_mechanism::ResolvedFeedbackSystem>::fn abduce(&self, factual: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn <antecedent_model::external_mechanism::ResolvedFeedbackSystem>::fn blocks(&self, clamps: &[antecedent_model::nonlinear_equilibrium::Clamp]) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<usize>>, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn <antecedent_model::external_mechanism::ResolvedFeedbackSystem>::fn contraction_bound(&self, clamps: &[antecedent_model::nonlinear_equilibrium::Clamp]) -> core::result::Result<f64, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn <antecedent_model::external_mechanism::ResolvedFeedbackSystem>::fn counterfactual(&self, factual: &[f64], clamps: &[antecedent_model::nonlinear_equilibrium::Clamp], policy: antecedent_model::nonlinear_equilibrium::SolvePolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::nonlinear_equilibrium::EquilibriumResult, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn <antecedent_model::external_mechanism::ResolvedFeedbackSystem>::fn data_term_score(&self, rows: &[antecedent_model::nonlinear_equilibrium::RegimeRow], targets: &[antecedent_model::external_mechanism::ExternalFitParameter], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<core::option::Option<alloc::vec::Vec<f64>>, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn <antecedent_model::external_mechanism::ResolvedFeedbackSystem>::fn determinant_term_score(&self, rows: &[antecedent_model::nonlinear_equilibrium::RegimeRow], targets: &[antecedent_model::external_mechanism::ExternalFitParameter], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<core::option::Option<alloc::vec::Vec<f64>>, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn <antecedent_model::external_mechanism::ResolvedFeedbackSystem>::fn evidence(&self) -> alloc::vec::Vec<antecedent_model::external_mechanism::ExternalMechanismEvidence>
+pub fn <antecedent_model::external_mechanism::ResolvedFeedbackSystem>::fn likelihood_terms(&self, rows: &[antecedent_model::nonlinear_equilibrium::RegimeRow], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::external_mechanism::LikelihoodTerms, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn <antecedent_model::external_mechanism::ResolvedFeedbackSystem>::fn mechanism_values(&self, state: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn <antecedent_model::external_mechanism::ResolvedFeedbackSystem>::fn solve(&self, noise: &[f64], clamps: &[antecedent_model::nonlinear_equilibrium::Clamp], initial: &[f64], policy: antecedent_model::nonlinear_equilibrium::SolvePolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::nonlinear_equilibrium::EquilibriumResult, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn <antecedent_model::external_mechanism::ResolvedFeedbackSystem>::fn system(&self) -> &antecedent_model::external_mechanism::ExternalFeedbackSystem
+pub fn <antecedent_model::external_mechanism::ResolvedFeedbackSystem>::fn trust(&self) -> antecedent_model::external_mechanism::MechanismTrust
+pub fn <antecedent_model::external_mechanism::ResolvedFeedbackSystem>::fn with_parameters(&self, targets: &[antecedent_model::external_mechanism::ExternalFitParameter], values: &[f64]) -> core::result::Result<Self, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn <antecedent_model::external_mechanism::ResolvedOdeSystem>::fn drift(&self, state: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn <antecedent_model::external_mechanism::ResolvedOdeSystem>::fn drift_lipschitz(&self) -> core::result::Result<core::option::Option<f64>, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn <antecedent_model::external_mechanism::ResolvedOdeSystem>::fn trajectory(&self, initial: &[f64], times: &[f64], schedule: &[antecedent_model::continuous_cyclic::TimedClamp], policy: antecedent_model::continuous_cyclic::OdePolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::external_mechanism::ExternalOdeTrajectory, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn <antecedent_model::history_operators::ActionTiming>::const fn at_ns(&self) -> u64
 pub fn <antecedent_model::history_operators::ActionTiming>::const fn frame(&self) -> &antecedent_model::history_operators::OperatorFrame
 pub fn <antecedent_model::history_operators::ActionTiming>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::model::InitialLaw, at_ns: u64) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
@@ -4260,6 +5182,7 @@ pub fn <antecedent_model::nonlinear_equilibrium::Equation>::fn input_derivatives
 pub fn <antecedent_model::nonlinear_equilibrium::Equation>::fn reads(&self) -> core::result::Result<alloc::vec::Vec<usize>, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn <antecedent_model::nonlinear_equilibrium::Equation>::fn structural_value(&self, state: &[f64]) -> core::result::Result<f64, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn <antecedent_model::nonlinear_equilibrium::Equation>::fn validate(&self, order: usize) -> core::result::Result<(), antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn <antecedent_model::nonlinear_equilibrium::EquilibriumError>::fn budget_code(&self) -> core::option::Option<antecedent_model::sparse_equilibrium::SolverBudgetCode>
 pub fn <antecedent_model::nonlinear_equilibrium::EquilibriumModel>::fn abduce(&self, factual: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn <antecedent_model::nonlinear_equilibrium::EquilibriumModel>::fn blocks(&self, clamps: &[antecedent_model::nonlinear_equilibrium::Clamp]) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<usize>>, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn <antecedent_model::nonlinear_equilibrium::EquilibriumModel>::fn compile_actions(&self, actions: &[antecedent_model::cyclic_actions::EquilibriumAction]) -> core::result::Result<antecedent_model::cyclic_actions::EquilibriumActionPlan, antecedent_model::nonlinear_equilibrium::EquilibriumError>
@@ -4271,6 +5194,23 @@ pub fn <antecedent_model::nonlinear_equilibrium::EquilibriumModel>::fn order(&se
 pub fn <antecedent_model::nonlinear_equilibrium::EquilibriumModel>::fn solve(&self, noise: &[f64], clamps: &[antecedent_model::nonlinear_equilibrium::Clamp], initial: &[f64], policy: antecedent_model::nonlinear_equilibrium::SolvePolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::nonlinear_equilibrium::EquilibriumResult, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn <antecedent_model::nonlinear_equilibrium::EquilibriumModel>::fn solve_outcome(&self, noise: &[f64], clamps: &[antecedent_model::nonlinear_equilibrium::Clamp], initial: &[f64], policy: antecedent_model::nonlinear_equilibrium::SolvePolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::nonlinear_equilibrium::EquilibriumOutcome, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn <antecedent_model::nonlinear_equilibrium::EquilibriumModel>::fn validate(&self) -> core::result::Result<(), antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn <antecedent_model::nonlinear_equilibrium::SolvePolicy>::fn validate(&self) -> core::result::Result<(), antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn <antecedent_model::nonlinear_sde::CompiledSde>::fn certificate(&self) -> &antecedent_model::nonlinear_sde::SdeCertificate
+pub fn <antecedent_model::nonlinear_sde::CompiledSde>::fn dimension(&self) -> usize
+pub fn <antecedent_model::nonlinear_sde::CompiledSde>::fn drift_at(&self, state: &[f64], inputs: &[antecedent_model::nonlinear_sde::SdeInput], t: f64, theta: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_model::nonlinear_sde::SdeError>
+pub fn <antecedent_model::nonlinear_sde::CompiledSde>::fn local_coefficients(&self, state: &[f64], inputs: &[antecedent_model::nonlinear_sde::SdeInput], t: f64, theta: &[f64]) -> core::result::Result<antecedent_model::nonlinear_sde::LocalCoefficients, antecedent_model::nonlinear_sde::SdeError>
+pub fn <antecedent_model::nonlinear_sde::CompiledSde>::fn system(&self) -> &antecedent_model::nonlinear_sde::SdeSystem
+pub fn <antecedent_model::nonlinear_sde::SdeBoundary>::fn contains_value(&self, x: f64) -> bool
+pub fn <antecedent_model::nonlinear_sde::SdeBoundary>::fn project(&self, x: f64) -> f64
+pub fn <antecedent_model::nonlinear_sde::SdeInput>::fn range(&self) -> (f64, f64)
+pub fn <antecedent_model::nonlinear_sde::SdeInput>::fn value_at(&self, t: f64) -> f64
+pub fn <antecedent_model::nonlinear_sde::SdeSimulationPolicy>::fn output_times(&self) -> alloc::vec::Vec<f64>
+pub fn <antecedent_model::nonlinear_sde::SdeSimulationPolicy>::fn validate(&self) -> core::result::Result<(), antecedent_model::nonlinear_sde::SdeError>
+pub fn <antecedent_model::nonlinear_sde::SdeSystem>::fn boundary(&self, i: usize) -> antecedent_model::nonlinear_sde::SdeBoundary
+pub fn <antecedent_model::nonlinear_sde::SdeSystem>::fn compile(&self) -> core::result::Result<antecedent_model::nonlinear_sde::CompiledSde, antecedent_model::nonlinear_sde::SdeError>
+pub fn <antecedent_model::nonlinear_sde::SdeSystem>::fn parameter_values(&self) -> alloc::vec::Vec<f64>
+pub fn <antecedent_model::nonlinear_sde::SdeSystem>::fn plan_world(&self, world: &antecedent_model::nonlinear_sde::SdeWorld, start: f64, step: f64) -> core::result::Result<antecedent_model::nonlinear_sde::WorldPlan, antecedent_model::nonlinear_sde::SdeError>
+pub fn <antecedent_model::nonlinear_sde::WorldPlan>::fn held_value(&self, variable: usize, t: f64) -> core::option::Option<f64>
 pub fn <antecedent_model::observation_query::BetaBernoulli>::const fn alpha(&self) -> f64
 pub fn <antecedent_model::observation_query::BetaBernoulli>::const fn beta(&self) -> f64
 pub fn <antecedent_model::observation_query::BetaBernoulli>::fn mean(&self) -> f64
@@ -4311,7 +5251,48 @@ pub fn <antecedent_model::scc_compile::GaussianDisturbance>::fn mean(&self) -> &
 pub fn <antecedent_model::scc_compile::GaussianDisturbance>::fn try_new(mean: alloc::vec::Vec<f64>, covariance: alloc::vec::Vec<f64>) -> core::result::Result<Self, antecedent_model::scc_compile::SccCompileError>
 pub fn <antecedent_model::scc_compile::RoutedEquilibrium>::fn equilibrium(&self) -> &antecedent_model::scc_compile::CompiledEquilibrium
 pub fn <antecedent_model::scc_compile::RoutedEquilibrium>::fn route(&self) -> &antecedent_model::scc_compile::LinearSupportRoute
+pub fn <antecedent_model::sparse_equilibrium::CsrMatrix>::fn bytes(&self) -> u64
+pub fn <antecedent_model::sparse_equilibrium::CsrMatrix>::fn diagonal_dominance_margin(&self) -> core::option::Option<f64>
+pub fn <antecedent_model::sparse_equilibrium::CsrMatrix>::fn dim(&self) -> usize
+pub fn <antecedent_model::sparse_equilibrium::CsrMatrix>::fn from_rows(n: usize, rows: alloc::vec::Vec<alloc::vec::Vec<(usize, f64)>>) -> core::result::Result<Self, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn <antecedent_model::sparse_equilibrium::CsrMatrix>::fn infinity_norm(&self) -> f64
+pub fn <antecedent_model::sparse_equilibrium::CsrMatrix>::fn is_finite(&self) -> bool
+pub fn <antecedent_model::sparse_equilibrium::CsrMatrix>::fn matvec(&self, x: &[f64]) -> alloc::vec::Vec<f64>
+pub fn <antecedent_model::sparse_equilibrium::CsrMatrix>::fn nnz(&self) -> usize
+pub fn <antecedent_model::sparse_equilibrium::CsrMatrix>::fn row(&self, i: usize) -> (&[usize], &[f64])
+pub fn <antecedent_model::sparse_equilibrium::CsrMatrix>::fn transpose(&self) -> Self
+pub fn <antecedent_model::sparse_equilibrium::SolveEvidence>::fn is_unrecorded(&self) -> bool
+pub fn <antecedent_model::sparse_equilibrium::SolverBudgetCode>::const fn as_str(self) -> &'static str
+pub fn <antecedent_model::sparse_equilibrium::SolverBudgetCode>::fn refusal(self, required: u64, limit: u64) -> antecedent_model::nonlinear_equilibrium::EquilibriumError
+pub fn <antecedent_model::sparse_equilibrium::SparseLu>::fn factor(matrix: &antecedent_model::sparse_equilibrium::CsrMatrix, max_fill: usize, tick: &mut dyn core::ops::function::FnMut() -> core::result::Result<(), antecedent_model::nonlinear_equilibrium::EquilibriumError>) -> core::result::Result<Self, antecedent_model::sparse_equilibrium::FactorError>
+pub fn <antecedent_model::sparse_equilibrium::SparseLu>::fn fill(&self) -> usize
+pub fn <antecedent_model::sparse_equilibrium::SparseLu>::fn log_abs_determinant(&self) -> f64
+pub fn <antecedent_model::sparse_equilibrium::SparseLu>::fn solve(&self, b: &[f64]) -> alloc::vec::Vec<f64>
+pub fn <antecedent_model::typed_mechanism_transport::FittedMechanism>::fn conditional_mean(&self, parents: &[f64]) -> core::result::Result<f64, antecedent_model::typed_mechanism_transport::TypedFitError>
+pub fn <antecedent_model::typed_mechanism_transport::FittedMechanism>::fn context(&self) -> &antecedent_model::compose::MechanismContext
+pub fn <antecedent_model::typed_mechanism_transport::FittedMechanism>::fn covariance(&self) -> &[f64]
+pub fn <antecedent_model::typed_mechanism_transport::FittedMechanism>::fn mean_dimension(&self) -> usize
+pub fn <antecedent_model::typed_mechanism_transport::FittedMechanism>::fn n_obs(&self) -> usize
+pub fn <antecedent_model::typed_mechanism_transport::FittedMechanism>::fn parameter_labels(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn <antecedent_model::typed_mechanism_transport::FittedMechanism>::fn parameters(&self) -> &[f64]
+pub fn <antecedent_model::typed_mechanism_transport::FittedMechanism>::fn provenance(&self) -> &antecedent_model::compose::MechanismProvenance
+pub fn <antecedent_model::typed_mechanism_transport::FittedMechanism>::fn scaling(&self) -> &[(f64, f64)]
+pub fn <antecedent_model::typed_mechanism_transport::FittedMechanism>::fn spec(&self) -> &antecedent_model::typed_mechanism_transport::MechanismSpec
+pub fn <antecedent_model::typed_mechanism_transport::FittedMechanism>::fn variable(&self) -> &str
+pub fn <antecedent_model::typed_mechanism_transport::ResponseFamily>::const fn as_str(self) -> &'static str
+pub fn <antecedent_model::typed_mechanism_transport::ResponseFamily>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_model::typed_mechanism_transport::TransportedTypedModel>::fn diagram(&self) -> &antecedent_model::compose::SelectionDiagramDeclaration
+pub fn <antecedent_model::typed_mechanism_transport::TransportedTypedModel>::fn dispositions(&self) -> &[antecedent_model::typed_mechanism_transport::TypedDisposition]
+pub fn <antecedent_model::typed_mechanism_transport::TransportedTypedModel>::fn identity(&self) -> [u8; 32]
+pub fn <antecedent_model::typed_mechanism_transport::TransportedTypedModel>::fn identity_hex(&self) -> alloc::string::String
+pub fn <antecedent_model::typed_mechanism_transport::TransportedTypedModel>::fn mean_contrast(&self, contrast: &antecedent_model::compose::MeanContrast, draws: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::typed_mechanism_transport::ContrastEstimate, antecedent_model::compose::CompositionError>
+pub fn <antecedent_model::typed_mechanism_transport::TransportedTypedModel>::fn mean_contrast_uncertainty(&self, contrast: &antecedent_model::compose::MeanContrast, draws: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::typed_mechanism_transport::TypedFunctionalUncertainty, antecedent_model::compose::CompositionError>
+pub fn <antecedent_model::typed_mechanism_transport::TransportedTypedModel>::fn mechanisms(&self) -> &[antecedent_model::typed_mechanism_transport::FittedMechanism]
+pub fn <antecedent_model::typed_mechanism_transport::TransportedTypedModel>::fn target(&self) -> &antecedent_model::compose::MechanismContext
+pub fn <antecedent_model::typed_mechanism_transport::TransportedTypedModel>::fn transported_variables(&self) -> alloc::vec::Vec<&str>
+pub fn <antecedent_model::typed_mechanism_transport::TypedFitError>::fn reason_code(&self) -> &'static str
 pub fn antecedent_model::affine_certificate::certifies_affine_bijection(weights: &[f64], order: usize) -> bool
+pub fn antecedent_model::affine_certificate::certifies_sparse_affine_bijection(rows: &[alloc::vec::Vec<(usize, f64)>], order: usize) -> bool
 pub fn antecedent_model::apply_node_program(program: &antecedent_model::NodeProgram, values: &mut antecedent_model::ValueBatchMut<'_>, node: usize, scratch: &mut alloc::vec::Vec<f64>, ctx: core::option::Option<&antecedent_core::execution::context::ExecutionContext>) -> core::result::Result<(), antecedent_model::ModelError>
 pub fn antecedent_model::assess(model: &antecedent_model::LinearStructuralMap, clamp: &antecedent_model::HardClamp) -> core::result::Result<antecedent_model::SolutionAssessment, antecedent_model::LinearSolutionError>
 pub fn antecedent_model::basis::column_moments(columns: &[&[f64]], n_rows: usize) -> (alloc::vec::Vec<f64>, alloc::vec::Vec<f64>)
@@ -4345,6 +5326,7 @@ pub fn antecedent_model::equilibrium_polynomial::compile_polynomial_equilibrium(
 pub fn antecedent_model::evaluate_batch_topo(order: &[antecedent_graph::types::DenseNodeId], gathers: &[antecedent_model::ParentGatherPlan], slots: &[antecedent_model::MechanismSlot], noise: &antecedent_model::NoiseBatchMut<'_>, values: &mut antecedent_model::ValueBatchMut<'_>, ws: &mut antecedent_model::MechanismWorkspace) -> core::result::Result<(), antecedent_model::ModelError>
 pub fn antecedent_model::evaluate_column(slot: &antecedent_model::MechanismSlot, parents: antecedent_model::ParentBatch<'_>, noise: &[f64], output: &mut [f64], ws: &mut antecedent_model::MechanismWorkspace) -> core::result::Result<(), antecedent_model::ModelError>
 pub fn antecedent_model::evaluate_node(eval: antecedent_model::NodeEvaluation<'_>, gather: &antecedent_model::ParentGatherPlan, parents: antecedent_model::ParentBatch<'_>, noise: antecedent_model::NodeNoise<'_>, values: &mut antecedent_model::ValueBatchMut<'_>, ws: &mut antecedent_model::MechanismWorkspace) -> core::result::Result<(), antecedent_model::ModelError>
+pub fn antecedent_model::external_mechanism::verify_resolution(recorded: &antecedent_model::external_mechanism::ExternalMechanismSpec, implementation: &dyn antecedent_model::external_mechanism::ExternalMechanismImplementation) -> core::result::Result<(), antecedent_model::external_mechanism::ExternalMechanismRefusal>
 pub fn antecedent_model::falsify::falsify_graph(dag: &antecedent_graph::dag::Dag, data: &antecedent_data::dataset::TabularData, config: &antecedent_model::GraphFalsificationConfig, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::GraphFalsificationReport, antecedent_model::ModelError>
 pub fn antecedent_model::history_operators::delayed_action_of(intervention: &antecedent_core::intervention::Intervention, temporal: &antecedent_core::intervention::TemporalPolicy) -> core::result::Result<antecedent_model::history_operators::DelayedAction, antecedent_model::history_operators::HistoryOperatorError>
 pub fn antecedent_model::history_operators::horizon_ending_after(cadence: &antecedent_data::temporal::TimeIndex, steps: u32) -> core::result::Result<antecedent_model::history_operators::Horizon, antecedent_model::history_operators::HistoryOperatorError>
@@ -4370,6 +5352,10 @@ pub fn antecedent_model::mechanism::sample_noise_column(slot: &antecedent_model:
 pub fn antecedent_model::mechanism_transport::refusal_code(detail: &str) -> core::option::Option<&'static str>
 pub fn antecedent_model::mechanism_transport::selection_targets(diagram: &antecedent_model::compose::SelectionDiagramDeclaration) -> alloc::vec::Vec<alloc::string::String>
 pub fn antecedent_model::mechanism_transport::transport_linear_gaussian(request: &antecedent_model::mechanism_transport::MechanismTransportRequest) -> core::result::Result<antecedent_model::mechanism_transport::TransportedLinearGaussian, antecedent_model::compose::CompositionError>
+pub fn antecedent_model::nonlinear_sde::counter_normal(seed: u64, path: u64, step: u64, component: u64) -> f64
+pub fn antecedent_model::nonlinear_sde::sample_sde_paths(compiled: &antecedent_model::nonlinear_sde::CompiledSde, theta: core::option::Option<&[f64]>, initial: &[f64], policy: &antecedent_model::nonlinear_sde::SdeSimulationPolicy, world: &antecedent_model::nonlinear_sde::SdeWorld, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::nonlinear_sde::SdePaths, antecedent_model::nonlinear_sde::SdeError>
+pub fn antecedent_model::nonlinear_sde::simulate_sde(compiled: &antecedent_model::nonlinear_sde::CompiledSde, theta: core::option::Option<&[f64]>, initial: &[f64], policy: &antecedent_model::nonlinear_sde::SdeSimulationPolicy, worlds: &[antecedent_model::nonlinear_sde::SdeWorld], contrasts: &[antecedent_model::nonlinear_sde::SdeContrast], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::nonlinear_sde::SdeEnsembleReport, antecedent_model::nonlinear_sde::SdeError>
+pub fn antecedent_model::nonlinear_sde::splitmix_mix(x: u64) -> u64
 pub fn antecedent_model::observation_query::condition(law: &antecedent_model::compose::FiniteLaw, outcome: &str, observed: &[(&str, &str)], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::observation_query::ConditionalDistribution, antecedent_model::observation_query::ObservationQueryError>
 pub fn antecedent_model::observation_query::condition_after_intervention(model: &antecedent_model::compose::ComposedFinite, outcome: &str, interventions: &[(&str, &str)], observed: &[(&str, &str)], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::observation_query::ConditionalDistribution, antecedent_model::observation_query::ObservationQueryError>
 pub fn antecedent_model::observation_query::condition_gaussian(model: &antecedent_model::compose::ComposedLinearGaussian, outcome: &str, interventions: &[(&str, f64)], observed: &[(&str, f64)], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::observation_query::GaussianConditional, antecedent_model::observation_query::ObservationQueryError>
@@ -4400,6 +5386,13 @@ pub fn antecedent_model::scc_compile::compile_gaussian_equilibrium(component: &a
 pub fn antecedent_model::scc_compile::compile_routed_gaussian_equilibrium(component: &antecedent_model::CyclicComponent, model: &antecedent_model::LinearStructuralMap, disturbance: &antecedent_model::scc_compile::GaussianDisturbance, clamp: &antecedent_model::HardClamp, clamp_values: &[f64], budget: antecedent_model::scc_compile::CompileBudget) -> core::result::Result<antecedent_model::scc_compile::RoutedEquilibrium, antecedent_model::scc_compile::SccCompileError>
 pub fn antecedent_model::scc_compile::gaussian_equilibrium_admission(model: &antecedent_model::LinearStructuralMap, clamp: &antecedent_model::HardClamp) -> core::result::Result<antecedent_model::scc_compile::AdmissionCost, antecedent_model::scc_compile::SccCompileError>
 pub fn antecedent_model::scc_compile::route_linear_support(model: &antecedent_model::LinearStructuralMap, clamp: &antecedent_model::HardClamp) -> core::result::Result<antecedent_model::scc_compile::LinearSupportRoute, antecedent_model::scc_compile::SccCompileError>
+pub fn antecedent_model::sparse_equilibrium::infinity_condition_estimate(matrix: &antecedent_model::sparse_equilibrium::CsrMatrix, lu: &antecedent_model::sparse_equilibrium::SparseLu, lu_transpose: &antecedent_model::sparse_equilibrium::SparseLu) -> core::option::Option<f64>
+pub fn antecedent_model::sparse_equilibrium::nonnegative_spectral_upper_bound(b: &antecedent_model::sparse_equilibrium::CsrMatrix, max_iterations: usize) -> antecedent_model::sparse_equilibrium::SpectralBound
+pub fn antecedent_model::typed_mechanism_transport::fit_mechanism(spec: &antecedent_model::typed_mechanism_transport::MechanismSpec, columns: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<f64>>, context: antecedent_model::compose::MechanismContext, provenance: antecedent_model::compose::MechanismProvenance, design_from: core::option::Option<&antecedent_model::typed_mechanism_transport::FittedMechanism>) -> core::result::Result<antecedent_model::typed_mechanism_transport::FittedMechanism, antecedent_model::typed_mechanism_transport::TypedFitError>
+pub fn antecedent_model::typed_mechanism_transport::invariance_check(source: &antecedent_model::typed_mechanism_transport::FittedMechanism, target: &antecedent_model::typed_mechanism_transport::FittedMechanism, level: f64) -> core::result::Result<antecedent_model::typed_mechanism_transport::InvarianceCheck, antecedent_model::compose::CompositionError>
+pub fn antecedent_model::typed_mechanism_transport::refit_in_target(source: &antecedent_model::typed_mechanism_transport::FittedMechanism, columns: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<f64>>, context: antecedent_model::compose::MechanismContext, provenance: antecedent_model::compose::MechanismProvenance) -> core::result::Result<antecedent_model::typed_mechanism_transport::FittedMechanism, antecedent_model::typed_mechanism_transport::TypedFitError>
+pub fn antecedent_model::typed_mechanism_transport::transport_typed(request: &antecedent_model::typed_mechanism_transport::TypedTransportRequest) -> core::result::Result<antecedent_model::typed_mechanism_transport::TransportedTypedModel, antecedent_model::compose::CompositionError>
+pub fn antecedent_model::typed_mechanism_transport::typed_refusal_code(detail: &str) -> core::option::Option<&'static str>
 pub mod antecedent_model::affine_certificate
 pub mod antecedent_model::basis
 pub mod antecedent_model::batch
@@ -4421,6 +5414,7 @@ pub mod antecedent_model::equation_system
 pub mod antecedent_model::equilibrium_polynomial
 pub mod antecedent_model::error
 pub mod antecedent_model::evaluate
+pub mod antecedent_model::external_mechanism
 pub mod antecedent_model::falsify
 pub mod antecedent_model::history_operators
 pub mod antecedent_model::information_time
@@ -4434,6 +5428,7 @@ pub mod antecedent_model::mechanism_expr
 pub mod antecedent_model::mechanism_transport
 pub mod antecedent_model::noise_replay
 pub mod antecedent_model::nonlinear_equilibrium
+pub mod antecedent_model::nonlinear_sde
 pub mod antecedent_model::observation_query
 pub mod antecedent_model::observation_uncertainty
 pub mod antecedent_model::overlay
@@ -4441,9 +5436,11 @@ pub mod antecedent_model::program
 pub mod antecedent_model::registry
 pub mod antecedent_model::sample
 pub mod antecedent_model::scc_compile
+pub mod antecedent_model::sparse_equilibrium
 pub mod antecedent_model::system_compile
 pub mod antecedent_model::temporal_rollout
 pub mod antecedent_model::tree
+pub mod antecedent_model::typed_mechanism_transport
 pub struct antecedent_model::CompiledCausalModel
 pub struct antecedent_model::CompiledCausalModel has private fields
 pub struct antecedent_model::CompiledMechanismStore
@@ -4591,6 +5588,20 @@ pub struct antecedent_model::equation_system::IsolationPolicy
 pub struct antecedent_model::equation_system::Monomial
 pub struct antecedent_model::equation_system::PolynomialEquation
 pub struct antecedent_model::equation_system::PolynomialSystem
+pub struct antecedent_model::external_mechanism::ExternalDependency
+pub struct antecedent_model::external_mechanism::ExternalFeedbackSystem
+pub struct antecedent_model::external_mechanism::ExternalMechanismEvidence
+pub struct antecedent_model::external_mechanism::ExternalMechanismRefusal
+pub struct antecedent_model::external_mechanism::ExternalMechanismSpec
+pub struct antecedent_model::external_mechanism::ExternalOdeSystem
+pub struct antecedent_model::external_mechanism::ExternalOdeTrajectory
+pub struct antecedent_model::external_mechanism::LikelihoodTerms
+pub struct antecedent_model::external_mechanism::MechanismRegistry
+pub struct antecedent_model::external_mechanism::MechanismRegistry has private fields
+pub struct antecedent_model::external_mechanism::ResolvedFeedbackSystem
+pub struct antecedent_model::external_mechanism::ResolvedFeedbackSystem has private fields
+pub struct antecedent_model::external_mechanism::ResolvedOdeSystem
+pub struct antecedent_model::external_mechanism::ResolvedOdeSystem has private fields
 pub struct antecedent_model::history_operators::ActionTiming
 pub struct antecedent_model::history_operators::ActionTiming has private fields
 pub struct antecedent_model::history_operators::CensoringAssignmentWeight
@@ -4675,6 +5686,25 @@ pub struct antecedent_model::nonlinear_equilibrium::EquilibriumSolveFailure
 pub struct antecedent_model::nonlinear_equilibrium::MechanismLikelihoodScore
 pub struct antecedent_model::nonlinear_equilibrium::RegimeRow
 pub struct antecedent_model::nonlinear_equilibrium::SolvePolicy
+pub struct antecedent_model::nonlinear_sde::CompiledSde
+pub struct antecedent_model::nonlinear_sde::CompiledSde has private fields
+pub struct antecedent_model::nonlinear_sde::LocalCoefficients
+pub struct antecedent_model::nonlinear_sde::SdeAction
+pub struct antecedent_model::nonlinear_sde::SdeBoundary
+pub struct antecedent_model::nonlinear_sde::SdeCertificate
+pub struct antecedent_model::nonlinear_sde::SdeContrast
+pub struct antecedent_model::nonlinear_sde::SdeContrastEnsemble
+pub struct antecedent_model::nonlinear_sde::SdeDiffusion
+pub struct antecedent_model::nonlinear_sde::SdeEnsembleReport
+pub struct antecedent_model::nonlinear_sde::SdeInput
+pub struct antecedent_model::nonlinear_sde::SdeNumericalError
+pub struct antecedent_model::nonlinear_sde::SdeParameter
+pub struct antecedent_model::nonlinear_sde::SdePaths
+pub struct antecedent_model::nonlinear_sde::SdeSimulationPolicy
+pub struct antecedent_model::nonlinear_sde::SdeSystem
+pub struct antecedent_model::nonlinear_sde::SdeWorld
+pub struct antecedent_model::nonlinear_sde::SdeWorldEnsemble
+pub struct antecedent_model::nonlinear_sde::WorldPlan
 pub struct antecedent_model::observation_query::BayesPosterior
 pub struct antecedent_model::observation_query::BetaBernoulli
 pub struct antecedent_model::observation_query::BetaBernoulli has private fields
@@ -4703,7 +5733,26 @@ pub struct antecedent_model::scc_compile::GaussianDisturbance
 pub struct antecedent_model::scc_compile::GaussianDisturbance has private fields
 pub struct antecedent_model::scc_compile::RoutedEquilibrium
 pub struct antecedent_model::scc_compile::RoutedEquilibrium has private fields
+pub struct antecedent_model::sparse_equilibrium::CsrMatrix
+pub struct antecedent_model::sparse_equilibrium::CsrMatrix has private fields
+pub struct antecedent_model::sparse_equilibrium::SolveEvidence
+pub struct antecedent_model::sparse_equilibrium::SparseLu
+pub struct antecedent_model::sparse_equilibrium::SparseLu has private fields
+pub struct antecedent_model::sparse_equilibrium::SpectralBound
+pub struct antecedent_model::typed_mechanism_transport::ContrastEstimate
+pub struct antecedent_model::typed_mechanism_transport::CrossBlock
+pub struct antecedent_model::typed_mechanism_transport::FittedMechanism
+pub struct antecedent_model::typed_mechanism_transport::FittedMechanism has private fields
+pub struct antecedent_model::typed_mechanism_transport::InvarianceCheck
+pub struct antecedent_model::typed_mechanism_transport::MechanismSpec
+pub struct antecedent_model::typed_mechanism_transport::TransportedTypedModel
+pub struct antecedent_model::typed_mechanism_transport::TransportedTypedModel has private fields
+pub struct antecedent_model::typed_mechanism_transport::TypedDisposition
+pub struct antecedent_model::typed_mechanism_transport::TypedFunctionalUncertainty
+pub struct antecedent_model::typed_mechanism_transport::TypedTransportRequest
 pub trait antecedent_model::DynamicMechanism: core::marker::Send + core::marker::Sync
+pub trait antecedent_model::external_mechanism::ExternalMechanismImplementation: core::marker::Send + core::marker::Sync
+pub trait antecedent_model::external_mechanism::TrustedMechanismResolver: core::marker::Send + core::marker::Sync
 pub trait antecedent_model::local_cyclic::LocalCyclicMechanism: core::marker::Send + core::marker::Sync
 pub trait fn fn antecedent_model::DynamicMechanism::evaluate_column(&self, parents: antecedent_model::ParentBatch<'_>, noise: &[f64], output: &mut [f64], workspace: &mut antecedent_model::MechanismWorkspace) -> core::result::Result<(), antecedent_model::ModelError>
 pub trait fn fn antecedent_model::DynamicMechanism::infer_noise_column(&self, value: &[f64], parents: antecedent_model::ParentBatch<'_>, output: &mut [f64]) -> core::result::Result<(), antecedent_model::ModelError> {default}
@@ -4711,6 +5760,14 @@ pub trait fn fn antecedent_model::DynamicMechanism::log_prob_column(&self, value
 pub trait fn fn antecedent_model::DynamicMechanism::noise_inference_mode(&self) -> antecedent_model::NoiseInferenceMode {default}
 pub trait fn fn antecedent_model::DynamicMechanism::sample_noise_column(&self, n_rows: usize, rng: &mut antecedent_core::execution::rng::CausalRng, output: &mut [f64]) -> core::result::Result<(), antecedent_model::ModelError>
 pub trait fn fn antecedent_model::DynamicMechanism::supports_noise_inference(&self) -> bool {default}
+pub trait fn fn antecedent_model::external_mechanism::ExternalMechanismImplementation::content(&self) -> &[u8]
+pub trait fn fn antecedent_model::external_mechanism::ExternalMechanismImplementation::input_gradient(&self, _inputs: &[f64], _parameters: &[f64]) -> core::result::Result<core::option::Option<alloc::vec::Vec<f64>>, antecedent_model::nonlinear_equilibrium::EquilibriumError> {default}
+pub trait fn fn antecedent_model::external_mechanism::ExternalMechanismImplementation::input_gradient_parameter_derivative(&self, _inputs: &[f64], _parameters: &[f64]) -> core::result::Result<core::option::Option<alloc::vec::Vec<alloc::vec::Vec<f64>>>, antecedent_model::nonlinear_equilibrium::EquilibriumError> {default}
+pub trait fn fn antecedent_model::external_mechanism::ExternalMechanismImplementation::parameter_gradient(&self, _inputs: &[f64], _parameters: &[f64]) -> core::result::Result<core::option::Option<alloc::vec::Vec<f64>>, antecedent_model::nonlinear_equilibrium::EquilibriumError> {default}
+pub trait fn fn antecedent_model::external_mechanism::ExternalMechanismImplementation::spec(&self) -> antecedent_model::external_mechanism::ExternalMechanismSpec
+pub trait fn fn antecedent_model::external_mechanism::ExternalMechanismImplementation::value(&self, inputs: &[f64], parameters: &[f64]) -> core::result::Result<f64, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub trait fn fn antecedent_model::external_mechanism::TrustedMechanismResolver::resolve(&self, recorded: &antecedent_model::external_mechanism::ExternalMechanismSpec) -> core::option::Option<alloc::sync::Arc<dyn antecedent_model::external_mechanism::ExternalMechanismImplementation>>
+pub trait fn fn antecedent_model::external_mechanism::TrustedMechanismResolver::resolve_checked(&self, recorded: &antecedent_model::external_mechanism::ExternalMechanismSpec) -> core::result::Result<core::option::Option<alloc::sync::Arc<dyn antecedent_model::external_mechanism::ExternalMechanismImplementation>>, alloc::string::String> {default}
 pub trait fn fn antecedent_model::local_cyclic::LocalCyclicMechanism::evaluate(&self, inputs: &[f64]) -> core::result::Result<(f64, alloc::vec::Vec<f64>), antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub trait fn fn antecedent_model::local_cyclic::LocalCyclicMechanism::id(&self) -> &str
 pub trait fn fn antecedent_model::local_cyclic::LocalCyclicMechanism::reads(&self) -> &[usize]
@@ -4895,6 +5952,9 @@ pub use antecedent_model::temporal_rollout::TemporalPath = antecedent_model::Tem
 pub use antecedent_model::temporal_rollout::TemporalPlan = antecedent_model::TemporalPlan
 pub use antecedent_model::temporal_rollout::rollout_temporal = antecedent_model::rollout_temporal
 pub use antecedent_model::tree::TreeEnsemble = antecedent_model::TreeEnsemble
+pub use antecedent_model::typed_mechanism_transport::MechanismRole = antecedent_model::mechanism_transport::MechanismRole
+pub use antecedent_model::typed_mechanism_transport::UNCERTAINTY_SCOPE = antecedent_model::mechanism_transport::UNCERTAINTY_SCOPE
+pub use antecedent_model::typed_mechanism_transport::selection_targets = antecedent_model::mechanism_transport::selection_targets
 pub variant antecedent_model::BasisTerm::Power { parent: u32, degree: u8 }
 pub variant antecedent_model::BasisTerm::Product { left: u32, right: u32 }
 pub variant antecedent_model::BasisTerm::Truncated { parent: u32, knot: u32 }
@@ -5156,6 +6216,21 @@ pub variant antecedent_model::discretized_scm::ParityRoute::TransportedCohortDec
 pub variant antecedent_model::discretized_scm::ParityRoute::TransportedPolicy
 pub variant antecedent_model::discretized_scm::ParityRoute::TransportedSynthesis
 pub variant antecedent_model::discretized_scm::ParityRoute::WholePathUncertainty
+pub variant antecedent_model::external_mechanism::DerivativeDeclaration::Analytic
+pub variant antecedent_model::external_mechanism::DerivativeDeclaration::FiniteDifference { step: f64, scheme: antecedent_model::external_mechanism::DifferenceScheme }
+pub variant antecedent_model::external_mechanism::DifferenceScheme::Central
+pub variant antecedent_model::external_mechanism::DifferenceScheme::Forward
+pub variant antecedent_model::external_mechanism::ExternalFitParameter::Intercept { equation: usize }
+pub variant antecedent_model::external_mechanism::ExternalFitParameter::Parameter { equation: usize, parameter: usize }
+pub variant antecedent_model::external_mechanism::ExternalRefusalKind::Changed
+pub variant antecedent_model::external_mechanism::ExternalRefusalKind::DeclarationInvalid
+pub variant antecedent_model::external_mechanism::ExternalRefusalKind::ResolverFailed
+pub variant antecedent_model::external_mechanism::ExternalRefusalKind::ResolverMissing
+pub variant antecedent_model::external_mechanism::ExternalRefusalKind::Unavailable
+pub variant antecedent_model::external_mechanism::MechanismTrust::Native
+pub variant antecedent_model::external_mechanism::MechanismTrust::VerifiedExternal
+pub variant antecedent_model::external_mechanism::SystemEquation::Builtin { equation: antecedent_model::nonlinear_equilibrium::Equation }
+pub variant antecedent_model::external_mechanism::SystemEquation::External { id: alloc::string::String, intercept: f64, parameters: alloc::vec::Vec<f64>, mechanism: antecedent_model::external_mechanism::ExternalMechanismSpec }
 pub variant antecedent_model::history_operators::DelayedAction::Pulse { at_step: i32, level_bits: u64 }
 pub variant antecedent_model::history_operators::DelayedAction::Sustained { from_step: i32, until_step: i32, level_bits: u64 }
 pub variant antecedent_model::history_operators::FeedbackSearch::Identified { cap: antecedent_model::history_operators::FeedbackSearchCap }
@@ -5279,6 +6354,16 @@ pub variant antecedent_model::nonlinear_equilibrium::EquilibriumError::Singular
 pub variant antecedent_model::nonlinear_equilibrium::EquilibriumError::Uncertified { bound: f64 }
 pub variant antecedent_model::nonlinear_equilibrium::EquilibriumOutcome::Failed(antecedent_model::nonlinear_equilibrium::EquilibriumSolveFailure)
 pub variant antecedent_model::nonlinear_equilibrium::EquilibriumOutcome::Solved(antecedent_model::nonlinear_equilibrium::EquilibriumResult)
+pub variant antecedent_model::nonlinear_sde::SdeBoundaryRule::Clamp
+pub variant antecedent_model::nonlinear_sde::SdeBoundaryRule::Reflect
+pub variant antecedent_model::nonlinear_sde::SdeError::Invalid(alloc::string::String)
+pub variant antecedent_model::nonlinear_sde::SdeError::Numerical(alloc::string::String)
+pub variant antecedent_model::nonlinear_sde::SdeError::Resource(alloc::string::String)
+pub variant antecedent_model::nonlinear_sde::SdeError::Unsupported { code: &'static str, detail: alloc::string::String }
+pub variant antecedent_model::nonlinear_sde::SdeInterpolation::Linear
+pub variant antecedent_model::nonlinear_sde::SdeInterpolation::PiecewiseConstant
+pub variant antecedent_model::nonlinear_sde::SdeScheme::EulerMaruyama
+pub variant antecedent_model::nonlinear_sde::SdeScheme::Milstein
 pub variant antecedent_model::observation_query::Direction::Lower
 pub variant antecedent_model::observation_query::Direction::Raise
 pub variant antecedent_model::observation_query::ObservationQueryError::Cancelled
@@ -5316,3 +6401,32 @@ pub variant antecedent_model::scc_compile::SccCompileError::NonFiniteEquilibrium
 pub variant antecedent_model::scc_compile::SccCompileError::NotPositiveSemidefinite { index: usize }
 pub variant antecedent_model::scc_compile::SccCompileError::NumericallySingularBlock { members: alloc::vec::Vec<usize> }
 pub variant antecedent_model::scc_compile::SccCompileError::Shape { message: &'static str }
+pub variant antecedent_model::sparse_equilibrium::FactorError::FillBudget(usize)
+pub variant antecedent_model::sparse_equilibrium::FactorError::Interrupted(antecedent_model::nonlinear_equilibrium::EquilibriumError)
+pub variant antecedent_model::sparse_equilibrium::FactorError::NonFinite
+pub variant antecedent_model::sparse_equilibrium::FactorError::Singular
+pub variant antecedent_model::sparse_equilibrium::SolverBudgetCode::BlockSize
+pub variant antecedent_model::sparse_equilibrium::SolverBudgetCode::FactorFill
+pub variant antecedent_model::sparse_equilibrium::SolverBudgetCode::IterationBudget
+pub variant antecedent_model::sparse_equilibrium::SolverBudgetCode::JacobianNnz
+pub variant antecedent_model::sparse_equilibrium::SolverBudgetCode::Memory
+pub variant antecedent_model::sparse_equilibrium::SolverBudgetCode::ModelOrder
+pub variant antecedent_model::sparse_equilibrium::SolverBudgetCode::WallClock
+pub variant antecedent_model::typed_mechanism_transport::MeanSpec::Expression { expression: antecedent_model::mechanism_expr::MechanismExpression, start: alloc::vec::Vec<f64> }
+pub variant antecedent_model::typed_mechanism_transport::MeanSpec::Polynomial { degree: u8, interactions: bool }
+pub variant antecedent_model::typed_mechanism_transport::ParameterDependence::CrossCovariance { blocks: alloc::vec::Vec<antecedent_model::typed_mechanism_transport::CrossBlock> }
+pub variant antecedent_model::typed_mechanism_transport::ParameterDependence::IndependentByDesign { justification: alloc::string::String }
+pub variant antecedent_model::typed_mechanism_transport::ParameterDependence::Joint { variables: alloc::vec::Vec<alloc::string::String>, covariance: alloc::vec::Vec<f64> }
+pub variant antecedent_model::typed_mechanism_transport::ParameterDependence::Unknown
+pub variant antecedent_model::typed_mechanism_transport::ResponseFamily::Bernoulli
+pub variant antecedent_model::typed_mechanism_transport::ResponseFamily::Gamma
+pub variant antecedent_model::typed_mechanism_transport::ResponseFamily::Gaussian
+pub variant antecedent_model::typed_mechanism_transport::ResponseFamily::HeteroscedasticGaussian
+pub variant antecedent_model::typed_mechanism_transport::ResponseFamily::LogNormal
+pub variant antecedent_model::typed_mechanism_transport::ResponseFamily::Poisson
+pub variant antecedent_model::typed_mechanism_transport::TypedFitError::Data(alloc::string::String)
+pub variant antecedent_model::typed_mechanism_transport::TypedFitError::MissingColumn(alloc::string::String)
+pub variant antecedent_model::typed_mechanism_transport::TypedFitError::NotConverged(alloc::string::String)
+pub variant antecedent_model::typed_mechanism_transport::TypedFitError::Singular(alloc::string::String)
+pub variant antecedent_model::typed_mechanism_transport::TypedFitError::Spec(alloc::string::String)
+pub variant antecedent_model::typed_mechanism_transport::TypedFitError::Support { variable: alloc::string::String, family: &'static str, reason: alloc::string::String }

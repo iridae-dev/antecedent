@@ -160,6 +160,22 @@ impl core::clone::Clone for antecedent_validate::ZTransportMechanismSensitivityR
 impl core::clone::Clone for antecedent_validate::ZTransportSensitivityError
 impl core::clone::Clone for antecedent_validate::bayesian_checks::ResidualDiscrepancy
 impl core::clone::Clone for antecedent_validate::bayesian_checks::ResidualStatistic
+impl core::clone::Clone for antecedent_validate::mnar_sensitivity::ArmLoading
+impl core::clone::Clone for antecedent_validate::mnar_sensitivity::MnarAssumptionRange
+impl core::clone::Clone for antecedent_validate::mnar_sensitivity::MnarAssumptionRecord
+impl core::clone::Clone for antecedent_validate::mnar_sensitivity::MnarConclusionKind
+impl core::clone::Clone for antecedent_validate::mnar_sensitivity::MnarDecision
+impl core::clone::Clone for antecedent_validate::mnar_sensitivity::MnarDecisionReport
+impl core::clone::Clone for antecedent_validate::mnar_sensitivity::MnarEstimator
+impl core::clone::Clone for antecedent_validate::mnar_sensitivity::MnarMechanism
+impl core::clone::Clone for antecedent_validate::mnar_sensitivity::MnarModel
+impl core::clone::Clone for antecedent_validate::mnar_sensitivity::MnarPoint
+impl core::clone::Clone for antecedent_validate::mnar_sensitivity::MnarSamplingInterval
+impl core::clone::Clone for antecedent_validate::mnar_sensitivity::MnarSensitivityError
+impl core::clone::Clone for antecedent_validate::mnar_sensitivity::MnarSensitivityResult
+impl core::clone::Clone for antecedent_validate::mnar_sensitivity::MnarSensitivitySpec
+impl core::clone::Clone for antecedent_validate::mnar_sensitivity::MnarTipping
+impl core::clone::Clone for antecedent_validate::mnar_sensitivity::MnarTippingSide
 impl core::clone::Clone for antecedent_validate::predictive_assessment::AssessmentIdentity
 impl core::clone::Clone for antecedent_validate::predictive_assessment::AssessmentUncertainty
 impl core::clone::Clone for antecedent_validate::predictive_assessment::CalibrationDiagnostics
@@ -245,6 +261,10 @@ impl core::cmp::Eq for antecedent_validate::ValidationError
 impl core::cmp::Eq for antecedent_validate::ValidatorId
 impl core::cmp::Eq for antecedent_validate::ZTransportSensitivityError
 impl core::cmp::Eq for antecedent_validate::bayesian_checks::ResidualStatistic
+impl core::cmp::Eq for antecedent_validate::mnar_sensitivity::MnarAssumptionRecord
+impl core::cmp::Eq for antecedent_validate::mnar_sensitivity::MnarConclusionKind
+impl core::cmp::Eq for antecedent_validate::mnar_sensitivity::MnarEstimator
+impl core::cmp::Eq for antecedent_validate::mnar_sensitivity::MnarModel
 impl core::cmp::Eq for antecedent_validate::predictive_assessment::AssessmentIdentity
 impl core::cmp::Eq for antecedent_validate::predictive_assessment::AssessmentUncertainty
 impl core::cmp::Eq for antecedent_validate::predictive_assessment::DependenceDeclaration
@@ -356,6 +376,22 @@ impl core::cmp::PartialEq for antecedent_validate::ZTransportMechanismSensitivit
 impl core::cmp::PartialEq for antecedent_validate::ZTransportSensitivityError
 impl core::cmp::PartialEq for antecedent_validate::bayesian_checks::ResidualDiscrepancy
 impl core::cmp::PartialEq for antecedent_validate::bayesian_checks::ResidualStatistic
+impl core::cmp::PartialEq for antecedent_validate::mnar_sensitivity::ArmLoading
+impl core::cmp::PartialEq for antecedent_validate::mnar_sensitivity::MnarAssumptionRange
+impl core::cmp::PartialEq for antecedent_validate::mnar_sensitivity::MnarAssumptionRecord
+impl core::cmp::PartialEq for antecedent_validate::mnar_sensitivity::MnarConclusionKind
+impl core::cmp::PartialEq for antecedent_validate::mnar_sensitivity::MnarDecision
+impl core::cmp::PartialEq for antecedent_validate::mnar_sensitivity::MnarDecisionReport
+impl core::cmp::PartialEq for antecedent_validate::mnar_sensitivity::MnarEstimator
+impl core::cmp::PartialEq for antecedent_validate::mnar_sensitivity::MnarMechanism
+impl core::cmp::PartialEq for antecedent_validate::mnar_sensitivity::MnarModel
+impl core::cmp::PartialEq for antecedent_validate::mnar_sensitivity::MnarPoint
+impl core::cmp::PartialEq for antecedent_validate::mnar_sensitivity::MnarSamplingInterval
+impl core::cmp::PartialEq for antecedent_validate::mnar_sensitivity::MnarSensitivityError
+impl core::cmp::PartialEq for antecedent_validate::mnar_sensitivity::MnarSensitivityResult
+impl core::cmp::PartialEq for antecedent_validate::mnar_sensitivity::MnarSensitivitySpec
+impl core::cmp::PartialEq for antecedent_validate::mnar_sensitivity::MnarTipping
+impl core::cmp::PartialEq for antecedent_validate::mnar_sensitivity::MnarTippingSide
 impl core::cmp::PartialEq for antecedent_validate::predictive_assessment::AssessmentIdentity
 impl core::cmp::PartialEq for antecedent_validate::predictive_assessment::AssessmentUncertainty
 impl core::cmp::PartialEq for antecedent_validate::predictive_assessment::CalibrationDiagnostics
@@ -459,6 +495,7 @@ impl core::error::Error for antecedent_validate::StalenessError
 impl core::error::Error for antecedent_validate::TargetCertificationError
 impl core::error::Error for antecedent_validate::ValidationError
 impl core::error::Error for antecedent_validate::ZTransportSensitivityError
+impl core::error::Error for antecedent_validate::mnar_sensitivity::MnarSensitivityError
 impl core::error::Error for antecedent_validate::predictive_assessment::PredictiveAssessmentError
 impl core::fmt::Debug for antecedent_validate::AlphaThresholdSensitivity
 impl core::fmt::Debug for antecedent_validate::AssumptionRange
@@ -592,6 +629,22 @@ impl core::fmt::Debug for antecedent_validate::ZTransportSensitivityError
 impl core::fmt::Debug for antecedent_validate::bayesian_checks::ResidualDiscrepancy
 impl core::fmt::Debug for antecedent_validate::bayesian_checks::ResidualStatistic
 impl core::fmt::Debug for antecedent_validate::common::AlignedRefit
+impl core::fmt::Debug for antecedent_validate::mnar_sensitivity::ArmLoading
+impl core::fmt::Debug for antecedent_validate::mnar_sensitivity::MnarAssumptionRange
+impl core::fmt::Debug for antecedent_validate::mnar_sensitivity::MnarAssumptionRecord
+impl core::fmt::Debug for antecedent_validate::mnar_sensitivity::MnarConclusionKind
+impl core::fmt::Debug for antecedent_validate::mnar_sensitivity::MnarDecision
+impl core::fmt::Debug for antecedent_validate::mnar_sensitivity::MnarDecisionReport
+impl core::fmt::Debug for antecedent_validate::mnar_sensitivity::MnarEstimator
+impl core::fmt::Debug for antecedent_validate::mnar_sensitivity::MnarMechanism
+impl core::fmt::Debug for antecedent_validate::mnar_sensitivity::MnarModel
+impl core::fmt::Debug for antecedent_validate::mnar_sensitivity::MnarPoint
+impl core::fmt::Debug for antecedent_validate::mnar_sensitivity::MnarSamplingInterval
+impl core::fmt::Debug for antecedent_validate::mnar_sensitivity::MnarSensitivityError
+impl core::fmt::Debug for antecedent_validate::mnar_sensitivity::MnarSensitivityResult
+impl core::fmt::Debug for antecedent_validate::mnar_sensitivity::MnarSensitivitySpec
+impl core::fmt::Debug for antecedent_validate::mnar_sensitivity::MnarTipping
+impl core::fmt::Debug for antecedent_validate::mnar_sensitivity::MnarTippingSide
 impl core::fmt::Debug for antecedent_validate::predictive_assessment::AssessmentIdentity
 impl core::fmt::Debug for antecedent_validate::predictive_assessment::AssessmentUncertainty
 impl core::fmt::Debug for antecedent_validate::predictive_assessment::CalibrationDiagnostics
@@ -652,6 +705,7 @@ impl core::fmt::Display for antecedent_validate::TargetCertificationError
 impl core::fmt::Display for antecedent_validate::ValidationError
 impl core::fmt::Display for antecedent_validate::ValidatorId
 impl core::fmt::Display for antecedent_validate::ZTransportSensitivityError
+impl core::fmt::Display for antecedent_validate::mnar_sensitivity::MnarSensitivityError
 impl core::fmt::Display for antecedent_validate::predictive_assessment::PredictiveAssessmentError
 impl core::fmt::Display for antecedent_validate::target_native::TargetRefitError
 impl core::hash::Hash for antecedent_validate::EffectScale
@@ -673,6 +727,9 @@ impl core::hash::Hash for antecedent_validate::TargetSuite
 impl core::hash::Hash for antecedent_validate::TippingStatus
 impl core::hash::Hash for antecedent_validate::ValidatorId
 impl core::hash::Hash for antecedent_validate::bayesian_checks::ResidualStatistic
+impl core::hash::Hash for antecedent_validate::mnar_sensitivity::MnarConclusionKind
+impl core::hash::Hash for antecedent_validate::mnar_sensitivity::MnarEstimator
+impl core::hash::Hash for antecedent_validate::mnar_sensitivity::MnarModel
 impl core::hash::Hash for antecedent_validate::predictive_assessment::EnsembleCrpsForm
 impl core::hash::Hash for antecedent_validate::predictive_assessment::Horizon
 impl core::hash::Hash for antecedent_validate::predictive_assessment::LawKind
@@ -732,6 +789,15 @@ impl core::marker::Copy for antecedent_validate::UndirectedLinkStability
 impl core::marker::Copy for antecedent_validate::ValidatorId
 impl core::marker::Copy for antecedent_validate::bayesian_checks::ResidualDiscrepancy
 impl core::marker::Copy for antecedent_validate::bayesian_checks::ResidualStatistic
+impl core::marker::Copy for antecedent_validate::mnar_sensitivity::ArmLoading
+impl core::marker::Copy for antecedent_validate::mnar_sensitivity::MnarAssumptionRange
+impl core::marker::Copy for antecedent_validate::mnar_sensitivity::MnarAssumptionRecord
+impl core::marker::Copy for antecedent_validate::mnar_sensitivity::MnarConclusionKind
+impl core::marker::Copy for antecedent_validate::mnar_sensitivity::MnarEstimator
+impl core::marker::Copy for antecedent_validate::mnar_sensitivity::MnarMechanism
+impl core::marker::Copy for antecedent_validate::mnar_sensitivity::MnarModel
+impl core::marker::Copy for antecedent_validate::mnar_sensitivity::MnarSamplingInterval
+impl core::marker::Copy for antecedent_validate::mnar_sensitivity::MnarTippingSide
 impl core::marker::Copy for antecedent_validate::predictive_assessment::AssessmentUncertainty
 impl core::marker::Copy for antecedent_validate::predictive_assessment::EnsembleCrpsForm
 impl core::marker::Copy for antecedent_validate::predictive_assessment::Horizon
@@ -877,6 +943,22 @@ impl core::marker::Freeze for antecedent_validate::ZTransportSensitivityError [a
 impl core::marker::Freeze for antecedent_validate::bayesian_checks::ResidualDiscrepancy [auto]
 impl core::marker::Freeze for antecedent_validate::bayesian_checks::ResidualStatistic [auto]
 impl core::marker::Freeze for antecedent_validate::common::AlignedRefit [auto]
+impl core::marker::Freeze for antecedent_validate::mnar_sensitivity::ArmLoading [auto]
+impl core::marker::Freeze for antecedent_validate::mnar_sensitivity::MnarAssumptionRange [auto]
+impl core::marker::Freeze for antecedent_validate::mnar_sensitivity::MnarAssumptionRecord [auto]
+impl core::marker::Freeze for antecedent_validate::mnar_sensitivity::MnarConclusionKind [auto]
+impl core::marker::Freeze for antecedent_validate::mnar_sensitivity::MnarDecision [auto]
+impl core::marker::Freeze for antecedent_validate::mnar_sensitivity::MnarDecisionReport [auto]
+impl core::marker::Freeze for antecedent_validate::mnar_sensitivity::MnarEstimator [auto]
+impl core::marker::Freeze for antecedent_validate::mnar_sensitivity::MnarMechanism [auto]
+impl core::marker::Freeze for antecedent_validate::mnar_sensitivity::MnarModel [auto]
+impl core::marker::Freeze for antecedent_validate::mnar_sensitivity::MnarPoint [auto]
+impl core::marker::Freeze for antecedent_validate::mnar_sensitivity::MnarSamplingInterval [auto]
+impl core::marker::Freeze for antecedent_validate::mnar_sensitivity::MnarSensitivityError [auto]
+impl core::marker::Freeze for antecedent_validate::mnar_sensitivity::MnarSensitivityResult [auto]
+impl core::marker::Freeze for antecedent_validate::mnar_sensitivity::MnarSensitivitySpec [auto]
+impl core::marker::Freeze for antecedent_validate::mnar_sensitivity::MnarTipping [auto]
+impl core::marker::Freeze for antecedent_validate::mnar_sensitivity::MnarTippingSide [auto]
 impl core::marker::Freeze for antecedent_validate::predictive_assessment::AssessmentIdentity [auto]
 impl core::marker::Freeze for antecedent_validate::predictive_assessment::AssessmentUncertainty [auto]
 impl core::marker::Freeze for antecedent_validate::predictive_assessment::CalibrationDiagnostics [auto]
@@ -1058,6 +1140,22 @@ impl core::marker::Send for antecedent_validate::ZTransportMechanismSensitivityR
 impl core::marker::Send for antecedent_validate::ZTransportSensitivityError [auto]
 impl core::marker::Send for antecedent_validate::bayesian_checks::ResidualDiscrepancy [auto]
 impl core::marker::Send for antecedent_validate::bayesian_checks::ResidualStatistic [auto]
+impl core::marker::Send for antecedent_validate::mnar_sensitivity::ArmLoading [auto]
+impl core::marker::Send for antecedent_validate::mnar_sensitivity::MnarAssumptionRange [auto]
+impl core::marker::Send for antecedent_validate::mnar_sensitivity::MnarAssumptionRecord [auto]
+impl core::marker::Send for antecedent_validate::mnar_sensitivity::MnarConclusionKind [auto]
+impl core::marker::Send for antecedent_validate::mnar_sensitivity::MnarDecision [auto]
+impl core::marker::Send for antecedent_validate::mnar_sensitivity::MnarDecisionReport [auto]
+impl core::marker::Send for antecedent_validate::mnar_sensitivity::MnarEstimator [auto]
+impl core::marker::Send for antecedent_validate::mnar_sensitivity::MnarMechanism [auto]
+impl core::marker::Send for antecedent_validate::mnar_sensitivity::MnarModel [auto]
+impl core::marker::Send for antecedent_validate::mnar_sensitivity::MnarPoint [auto]
+impl core::marker::Send for antecedent_validate::mnar_sensitivity::MnarSamplingInterval [auto]
+impl core::marker::Send for antecedent_validate::mnar_sensitivity::MnarSensitivityError [auto]
+impl core::marker::Send for antecedent_validate::mnar_sensitivity::MnarSensitivityResult [auto]
+impl core::marker::Send for antecedent_validate::mnar_sensitivity::MnarSensitivitySpec [auto]
+impl core::marker::Send for antecedent_validate::mnar_sensitivity::MnarTipping [auto]
+impl core::marker::Send for antecedent_validate::mnar_sensitivity::MnarTippingSide [auto]
 impl core::marker::Send for antecedent_validate::predictive_assessment::AssessmentIdentity [auto]
 impl core::marker::Send for antecedent_validate::predictive_assessment::AssessmentUncertainty [auto]
 impl core::marker::Send for antecedent_validate::predictive_assessment::CalibrationDiagnostics [auto]
@@ -1194,6 +1292,22 @@ impl core::marker::StructuralPartialEq for antecedent_validate::ZTransportMechan
 impl core::marker::StructuralPartialEq for antecedent_validate::ZTransportSensitivityError
 impl core::marker::StructuralPartialEq for antecedent_validate::bayesian_checks::ResidualDiscrepancy
 impl core::marker::StructuralPartialEq for antecedent_validate::bayesian_checks::ResidualStatistic
+impl core::marker::StructuralPartialEq for antecedent_validate::mnar_sensitivity::ArmLoading
+impl core::marker::StructuralPartialEq for antecedent_validate::mnar_sensitivity::MnarAssumptionRange
+impl core::marker::StructuralPartialEq for antecedent_validate::mnar_sensitivity::MnarAssumptionRecord
+impl core::marker::StructuralPartialEq for antecedent_validate::mnar_sensitivity::MnarConclusionKind
+impl core::marker::StructuralPartialEq for antecedent_validate::mnar_sensitivity::MnarDecision
+impl core::marker::StructuralPartialEq for antecedent_validate::mnar_sensitivity::MnarDecisionReport
+impl core::marker::StructuralPartialEq for antecedent_validate::mnar_sensitivity::MnarEstimator
+impl core::marker::StructuralPartialEq for antecedent_validate::mnar_sensitivity::MnarMechanism
+impl core::marker::StructuralPartialEq for antecedent_validate::mnar_sensitivity::MnarModel
+impl core::marker::StructuralPartialEq for antecedent_validate::mnar_sensitivity::MnarPoint
+impl core::marker::StructuralPartialEq for antecedent_validate::mnar_sensitivity::MnarSamplingInterval
+impl core::marker::StructuralPartialEq for antecedent_validate::mnar_sensitivity::MnarSensitivityError
+impl core::marker::StructuralPartialEq for antecedent_validate::mnar_sensitivity::MnarSensitivityResult
+impl core::marker::StructuralPartialEq for antecedent_validate::mnar_sensitivity::MnarSensitivitySpec
+impl core::marker::StructuralPartialEq for antecedent_validate::mnar_sensitivity::MnarTipping
+impl core::marker::StructuralPartialEq for antecedent_validate::mnar_sensitivity::MnarTippingSide
 impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::AssessmentIdentity
 impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::AssessmentUncertainty
 impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::CalibrationDiagnostics
@@ -1374,6 +1488,22 @@ impl core::marker::Sync for antecedent_validate::ZTransportMechanismSensitivityR
 impl core::marker::Sync for antecedent_validate::ZTransportSensitivityError [auto]
 impl core::marker::Sync for antecedent_validate::bayesian_checks::ResidualDiscrepancy [auto]
 impl core::marker::Sync for antecedent_validate::bayesian_checks::ResidualStatistic [auto]
+impl core::marker::Sync for antecedent_validate::mnar_sensitivity::ArmLoading [auto]
+impl core::marker::Sync for antecedent_validate::mnar_sensitivity::MnarAssumptionRange [auto]
+impl core::marker::Sync for antecedent_validate::mnar_sensitivity::MnarAssumptionRecord [auto]
+impl core::marker::Sync for antecedent_validate::mnar_sensitivity::MnarConclusionKind [auto]
+impl core::marker::Sync for antecedent_validate::mnar_sensitivity::MnarDecision [auto]
+impl core::marker::Sync for antecedent_validate::mnar_sensitivity::MnarDecisionReport [auto]
+impl core::marker::Sync for antecedent_validate::mnar_sensitivity::MnarEstimator [auto]
+impl core::marker::Sync for antecedent_validate::mnar_sensitivity::MnarMechanism [auto]
+impl core::marker::Sync for antecedent_validate::mnar_sensitivity::MnarModel [auto]
+impl core::marker::Sync for antecedent_validate::mnar_sensitivity::MnarPoint [auto]
+impl core::marker::Sync for antecedent_validate::mnar_sensitivity::MnarSamplingInterval [auto]
+impl core::marker::Sync for antecedent_validate::mnar_sensitivity::MnarSensitivityError [auto]
+impl core::marker::Sync for antecedent_validate::mnar_sensitivity::MnarSensitivityResult [auto]
+impl core::marker::Sync for antecedent_validate::mnar_sensitivity::MnarSensitivitySpec [auto]
+impl core::marker::Sync for antecedent_validate::mnar_sensitivity::MnarTipping [auto]
+impl core::marker::Sync for antecedent_validate::mnar_sensitivity::MnarTippingSide [auto]
 impl core::marker::Sync for antecedent_validate::predictive_assessment::AssessmentIdentity [auto]
 impl core::marker::Sync for antecedent_validate::predictive_assessment::AssessmentUncertainty [auto]
 impl core::marker::Sync for antecedent_validate::predictive_assessment::CalibrationDiagnostics [auto]
@@ -1556,6 +1686,22 @@ impl core::marker::Unpin for antecedent_validate::ZTransportSensitivityError [au
 impl core::marker::Unpin for antecedent_validate::bayesian_checks::ResidualDiscrepancy [auto]
 impl core::marker::Unpin for antecedent_validate::bayesian_checks::ResidualStatistic [auto]
 impl core::marker::Unpin for antecedent_validate::common::AlignedRefit [auto]
+impl core::marker::Unpin for antecedent_validate::mnar_sensitivity::ArmLoading [auto]
+impl core::marker::Unpin for antecedent_validate::mnar_sensitivity::MnarAssumptionRange [auto]
+impl core::marker::Unpin for antecedent_validate::mnar_sensitivity::MnarAssumptionRecord [auto]
+impl core::marker::Unpin for antecedent_validate::mnar_sensitivity::MnarConclusionKind [auto]
+impl core::marker::Unpin for antecedent_validate::mnar_sensitivity::MnarDecision [auto]
+impl core::marker::Unpin for antecedent_validate::mnar_sensitivity::MnarDecisionReport [auto]
+impl core::marker::Unpin for antecedent_validate::mnar_sensitivity::MnarEstimator [auto]
+impl core::marker::Unpin for antecedent_validate::mnar_sensitivity::MnarMechanism [auto]
+impl core::marker::Unpin for antecedent_validate::mnar_sensitivity::MnarModel [auto]
+impl core::marker::Unpin for antecedent_validate::mnar_sensitivity::MnarPoint [auto]
+impl core::marker::Unpin for antecedent_validate::mnar_sensitivity::MnarSamplingInterval [auto]
+impl core::marker::Unpin for antecedent_validate::mnar_sensitivity::MnarSensitivityError [auto]
+impl core::marker::Unpin for antecedent_validate::mnar_sensitivity::MnarSensitivityResult [auto]
+impl core::marker::Unpin for antecedent_validate::mnar_sensitivity::MnarSensitivitySpec [auto]
+impl core::marker::Unpin for antecedent_validate::mnar_sensitivity::MnarTipping [auto]
+impl core::marker::Unpin for antecedent_validate::mnar_sensitivity::MnarTippingSide [auto]
 impl core::marker::Unpin for antecedent_validate::predictive_assessment::AssessmentIdentity [auto]
 impl core::marker::Unpin for antecedent_validate::predictive_assessment::AssessmentUncertainty [auto]
 impl core::marker::Unpin for antecedent_validate::predictive_assessment::CalibrationDiagnostics [auto]
@@ -1727,6 +1873,22 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::ZTransport
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::ZTransportSensitivityError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::bayesian_checks::ResidualDiscrepancy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::bayesian_checks::ResidualStatistic [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::mnar_sensitivity::ArmLoading [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::mnar_sensitivity::MnarAssumptionRange [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::mnar_sensitivity::MnarAssumptionRecord [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::mnar_sensitivity::MnarConclusionKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::mnar_sensitivity::MnarDecision [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::mnar_sensitivity::MnarDecisionReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::mnar_sensitivity::MnarEstimator [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::mnar_sensitivity::MnarMechanism [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::mnar_sensitivity::MnarModel [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::mnar_sensitivity::MnarPoint [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::mnar_sensitivity::MnarSamplingInterval [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::mnar_sensitivity::MnarSensitivityError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::mnar_sensitivity::MnarSensitivityResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::mnar_sensitivity::MnarSensitivitySpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::mnar_sensitivity::MnarTipping [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::mnar_sensitivity::MnarTippingSide [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive_assessment::AssessmentIdentity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive_assessment::AssessmentUncertainty [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive_assessment::CalibrationDiagnostics [auto]
@@ -1898,6 +2060,22 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::ZTransportMec
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::ZTransportSensitivityError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::bayesian_checks::ResidualDiscrepancy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::bayesian_checks::ResidualStatistic [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::mnar_sensitivity::ArmLoading [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::mnar_sensitivity::MnarAssumptionRange [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::mnar_sensitivity::MnarAssumptionRecord [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::mnar_sensitivity::MnarConclusionKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::mnar_sensitivity::MnarDecision [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::mnar_sensitivity::MnarDecisionReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::mnar_sensitivity::MnarEstimator [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::mnar_sensitivity::MnarMechanism [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::mnar_sensitivity::MnarModel [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::mnar_sensitivity::MnarPoint [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::mnar_sensitivity::MnarSamplingInterval [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::mnar_sensitivity::MnarSensitivityError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::mnar_sensitivity::MnarSensitivityResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::mnar_sensitivity::MnarSensitivitySpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::mnar_sensitivity::MnarTipping [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::mnar_sensitivity::MnarTippingSide [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_assessment::AssessmentIdentity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_assessment::AssessmentUncertainty [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_assessment::CalibrationDiagnostics [auto]
@@ -1988,6 +2166,7 @@ impl<'a> core::clone::Clone for antecedent_validate::RefutationProblem<'a>
 impl<'a> core::clone::Clone for antecedent_validate::TemporalRefitContext<'a>
 impl<'a> core::clone::Clone for antecedent_validate::functional_mediation::MediationComponent<'a>
 impl<'a> core::clone::Clone for antecedent_validate::functional_mediation::MediationSuite<'a>
+impl<'a> core::clone::Clone for antecedent_validate::mnar_sensitivity::MnarData<'a>
 impl<'a> core::clone::Clone for antecedent_validate::predictive_assessment::IntervalFacts<'a>
 impl<'a> core::clone::Clone for antecedent_validate::target_native::PosteriorPredictiveTarget<'a>
 impl<'a> core::clone::Clone for antecedent_validate::target_native::PriorSensitivityTarget<'a>
@@ -2001,6 +2180,7 @@ impl<'a> core::fmt::Debug for antecedent_validate::PanelSliceTemplate<'a>
 impl<'a> core::fmt::Debug for antecedent_validate::PreparedRefutation<'a>
 impl<'a> core::fmt::Debug for antecedent_validate::RefutationProblem<'a>
 impl<'a> core::fmt::Debug for antecedent_validate::TemporalRefitContext<'a>
+impl<'a> core::fmt::Debug for antecedent_validate::mnar_sensitivity::MnarData<'a>
 impl<'a> core::fmt::Debug for antecedent_validate::predictive_assessment::IntervalFacts<'a>
 impl<'a> core::fmt::Debug for antecedent_validate::target_native::PosteriorPredictiveTarget<'a>
 impl<'a> core::fmt::Debug for antecedent_validate::target_native::PriorSensitivityTarget<'a>
@@ -2009,6 +2189,7 @@ impl<'a> core::marker::Copy for antecedent_validate::RefutationProblem<'a>
 impl<'a> core::marker::Copy for antecedent_validate::TemporalRefitContext<'a>
 impl<'a> core::marker::Copy for antecedent_validate::functional_mediation::MediationComponent<'a>
 impl<'a> core::marker::Copy for antecedent_validate::functional_mediation::MediationSuite<'a>
+impl<'a> core::marker::Copy for antecedent_validate::mnar_sensitivity::MnarData<'a>
 impl<'a> core::marker::Freeze for antecedent_validate::BayesianSuiteContext<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_validate::ExternalAlphaSensitivity<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_validate::MediationPosterior<'a> [auto]
@@ -2020,6 +2201,7 @@ impl<'a> core::marker::Freeze for antecedent_validate::TemporalRefitContext<'a> 
 impl<'a> core::marker::Freeze for antecedent_validate::functional_mediation::MediationComponent<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_validate::functional_mediation::MediationSuite<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_validate::functional_mediation::SensitivityInput<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_validate::mnar_sensitivity::MnarData<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_validate::predictive_assessment::IntervalFacts<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_validate::target_native::PosteriorPredictiveTarget<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_validate::target_native::PriorSensitivityTarget<'a> [auto]
@@ -2032,6 +2214,7 @@ impl<'a> core::marker::Send for antecedent_validate::TemporalRefitContext<'a> [a
 impl<'a> core::marker::Send for antecedent_validate::functional_mediation::MediationComponent<'a> [auto]
 impl<'a> core::marker::Send for antecedent_validate::functional_mediation::MediationSuite<'a> [auto]
 impl<'a> core::marker::Send for antecedent_validate::functional_mediation::SensitivityInput<'a> [auto]
+impl<'a> core::marker::Send for antecedent_validate::mnar_sensitivity::MnarData<'a> [auto]
 impl<'a> core::marker::Send for antecedent_validate::predictive_assessment::IntervalFacts<'a> [auto]
 impl<'a> core::marker::Send for antecedent_validate::target_native::PosteriorPredictiveTarget<'a> [auto]
 impl<'a> core::marker::Send for antecedent_validate::target_native::PriorSensitivityTarget<'a> [auto]
@@ -2047,6 +2230,7 @@ impl<'a> core::marker::Sync for antecedent_validate::TemporalRefitContext<'a> [a
 impl<'a> core::marker::Sync for antecedent_validate::functional_mediation::MediationComponent<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_validate::functional_mediation::MediationSuite<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_validate::functional_mediation::SensitivityInput<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_validate::mnar_sensitivity::MnarData<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_validate::predictive_assessment::IntervalFacts<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_validate::target_native::PosteriorPredictiveTarget<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_validate::target_native::PriorSensitivityTarget<'a> [auto]
@@ -2061,6 +2245,7 @@ impl<'a> core::marker::Unpin for antecedent_validate::TemporalRefitContext<'a> [
 impl<'a> core::marker::Unpin for antecedent_validate::functional_mediation::MediationComponent<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_validate::functional_mediation::MediationSuite<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_validate::functional_mediation::SensitivityInput<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_validate::mnar_sensitivity::MnarData<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_validate::predictive_assessment::IntervalFacts<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_validate::target_native::PosteriorPredictiveTarget<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_validate::target_native::PriorSensitivityTarget<'a> [auto]
@@ -2070,6 +2255,7 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::Mediat
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::OvbPosterior<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::functional_mediation::MediationComponent<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::functional_mediation::SensitivityInput<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::mnar_sensitivity::MnarData<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive_assessment::IntervalFacts<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::target_native::PosteriorPredictiveTarget<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::target_native::PriorSensitivityTarget<'a> [auto]
@@ -2078,6 +2264,7 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_validate::Mediation
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_validate::OvbPosterior<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_validate::functional_mediation::MediationComponent<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_validate::functional_mediation::SensitivityInput<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_validate::mnar_sensitivity::MnarData<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_assessment::IntervalFacts<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_validate::target_native::PosteriorPredictiveTarget<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_validate::target_native::PriorSensitivityTarget<'a> [auto]
@@ -2087,6 +2274,8 @@ pub const <antecedent_validate::TargetQuadrant>::TEMPORAL_BAYESIAN: Self
 pub const <antecedent_validate::TargetQuadrant>::TEMPORAL_FREQUENTIST: Self
 pub const <antecedent_validate::TargetRefuterKind>::ALL: [Self; 14]
 pub const <antecedent_validate::bayesian_checks::ResidualStatistic>::ALL: [Self; 4]
+pub const <antecedent_validate::mnar_sensitivity::MnarEstimator>::ALL: [Self; 4]
+pub const <antecedent_validate::mnar_sensitivity::MnarModel>::ALL: [Self; 2]
 pub const <antecedent_validate::predictive_assessment::ScoreKind>::ALL: [Self; 4]
 pub const antecedent_validate::DEFAULT_EVALUE_THRESHOLD: f64
 pub const antecedent_validate::MIN_MSM_REPLICATES: usize
@@ -2102,6 +2291,27 @@ pub const antecedent_validate::joint_mechanism_sensitivity::JOINT_SENSITIVITY_MA
 pub const antecedent_validate::joint_mechanism_sensitivity::JOINT_SENSITIVITY_MAX_PARENT_LEVELS: usize
 pub const antecedent_validate::joint_mechanism_sensitivity::JOINT_SENSITIVITY_MAX_TOLERANCE: f64
 pub const antecedent_validate::joint_mechanism_sensitivity::JOINT_SENSITIVITY_MIN_TOLERANCE: f64
+pub const antecedent_validate::mnar_sensitivity::MNAR_ASSIGNMENT_ASSUMPTION_ID: &str
+pub const antecedent_validate::mnar_sensitivity::MNAR_ASSUMPTION_RANGE_CLAIM: &str
+pub const antecedent_validate::mnar_sensitivity::MNAR_DEPARTURE_ASSUMPTION_ID: &str
+pub const antecedent_validate::mnar_sensitivity::MNAR_DEPARTURE_ASSUMPTION_STATUS: antecedent_core::assumption::AssumptionStatus
+pub const antecedent_validate::mnar_sensitivity::MNAR_EMPIRICAL_STATUS: &str
+pub const antecedent_validate::mnar_sensitivity::MNAR_FAMILY: &str
+pub const antecedent_validate::mnar_sensitivity::MNAR_INTERPRETATION: &str
+pub const antecedent_validate::mnar_sensitivity::MNAR_MAX_BOOTSTRAP: u32
+pub const antecedent_validate::mnar_sensitivity::MNAR_MAX_COVARIATES: usize
+pub const antecedent_validate::mnar_sensitivity::MNAR_MAX_DECISIONS: usize
+pub const antecedent_validate::mnar_sensitivity::MNAR_MAX_DELTA: f64
+pub const antecedent_validate::mnar_sensitivity::MNAR_MAX_GRID_POINTS: usize
+pub const antecedent_validate::mnar_sensitivity::MNAR_MAX_ROWS: usize
+pub const antecedent_validate::mnar_sensitivity::MNAR_MAX_TILT: f64
+pub const antecedent_validate::mnar_sensitivity::MNAR_MAX_TOLERANCE: f64
+pub const antecedent_validate::mnar_sensitivity::MNAR_MAX_WORK: u64
+pub const antecedent_validate::mnar_sensitivity::MNAR_METHOD: &str
+pub const antecedent_validate::mnar_sensitivity::MNAR_MIN_BOOTSTRAP: u32
+pub const antecedent_validate::mnar_sensitivity::MNAR_MIN_TOLERANCE: f64
+pub const antecedent_validate::mnar_sensitivity::MNAR_SAMPLING_BASIS: &str
+pub const antecedent_validate::mnar_sensitivity::MNAR_TARGET: &str
 pub const antecedent_validate::msm_sensitivity::MSM_ASSUMPTION_RANGE_CLAIM: &str
 pub const antecedent_validate::msm_sensitivity::MSM_FAMILY: &str
 pub const antecedent_validate::msm_sensitivity::MSM_INTERPRETATION: &str
@@ -2196,6 +2406,9 @@ pub enum antecedent_validate::ValidationOutcome
 pub enum antecedent_validate::ValidatorId
 pub enum antecedent_validate::ZTransportSensitivityError
 pub enum antecedent_validate::bayesian_checks::ResidualStatistic
+pub enum antecedent_validate::mnar_sensitivity::MnarConclusionKind
+pub enum antecedent_validate::mnar_sensitivity::MnarEstimator
+pub enum antecedent_validate::mnar_sensitivity::MnarModel
 pub enum antecedent_validate::predictive_assessment::DependenceDeclaration
 pub enum antecedent_validate::predictive_assessment::EnsembleCrpsForm
 pub enum antecedent_validate::predictive_assessment::FiniteTruth
@@ -2748,6 +2961,85 @@ pub field antecedent_validate::functional_mediation::SensitivityInput::mediators
 pub field antecedent_validate::functional_mediation::SensitivityInput::outcome: &'a [f64]
 pub field antecedent_validate::functional_mediation::SensitivityInput::published: f64
 pub field antecedent_validate::functional_mediation::SensitivityInput::treatment: &'a [f64]
+pub field antecedent_validate::mnar_sensitivity::ArmLoading::control: f64
+pub field antecedent_validate::mnar_sensitivity::ArmLoading::treated: f64
+pub field antecedent_validate::mnar_sensitivity::MnarAssumptionRange::effect_lower: f64
+pub field antecedent_validate::mnar_sensitivity::MnarAssumptionRange::effect_upper: f64
+pub field antecedent_validate::mnar_sensitivity::MnarAssumptionRange::empirically_established: bool
+pub field antecedent_validate::mnar_sensitivity::MnarAssumptionRange::is_confidence_interval: bool
+pub field antecedent_validate::mnar_sensitivity::MnarAssumptionRange::parameter_lower: f64
+pub field antecedent_validate::mnar_sensitivity::MnarAssumptionRange::parameter_upper: f64
+pub field antecedent_validate::mnar_sensitivity::MnarAssumptionRecord::id: &'static str
+pub field antecedent_validate::mnar_sensitivity::MnarAssumptionRecord::statement: &'static str
+pub field antecedent_validate::mnar_sensitivity::MnarAssumptionRecord::status: antecedent_core::assumption::AssumptionStatus
+pub field antecedent_validate::mnar_sensitivity::MnarData::covariates: &'a [&'a [f64]]
+pub field antecedent_validate::mnar_sensitivity::MnarData::outcome: &'a [core::option::Option<f64>]
+pub field antecedent_validate::mnar_sensitivity::MnarData::treatment: &'a [f64]
+pub field antecedent_validate::mnar_sensitivity::MnarDecision::name: alloc::string::String
+pub field antecedent_validate::mnar_sensitivity::MnarDecision::threshold: f64
+pub field antecedent_validate::mnar_sensitivity::MnarDecisionReport::acts_at_mar: bool
+pub field antecedent_validate::mnar_sensitivity::MnarDecisionReport::changes_within_range: bool
+pub field antecedent_validate::mnar_sensitivity::MnarDecisionReport::name: alloc::string::String
+pub field antecedent_validate::mnar_sensitivity::MnarDecisionReport::threshold: f64
+pub field antecedent_validate::mnar_sensitivity::MnarDecisionReport::tipping: antecedent_validate::mnar_sensitivity::MnarTipping
+pub field antecedent_validate::mnar_sensitivity::MnarMechanism::loading: antecedent_validate::mnar_sensitivity::ArmLoading
+pub field antecedent_validate::mnar_sensitivity::MnarMechanism::model: antecedent_validate::mnar_sensitivity::MnarModel
+pub field antecedent_validate::mnar_sensitivity::MnarPoint::acts: alloc::vec::Vec<bool>
+pub field antecedent_validate::mnar_sensitivity::MnarPoint::control_mean: f64
+pub field antecedent_validate::mnar_sensitivity::MnarPoint::effect: f64
+pub field antecedent_validate::mnar_sensitivity::MnarPoint::parameter: f64
+pub field antecedent_validate::mnar_sensitivity::MnarPoint::sampling: antecedent_validate::mnar_sensitivity::MnarSamplingInterval
+pub field antecedent_validate::mnar_sensitivity::MnarPoint::treated_mean: f64
+pub field antecedent_validate::mnar_sensitivity::MnarSamplingInterval::lower: f64
+pub field antecedent_validate::mnar_sensitivity::MnarSamplingInterval::standard_error: f64
+pub field antecedent_validate::mnar_sensitivity::MnarSamplingInterval::upper: f64
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivityError::code: &'static str
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivityError::detail: &'static str
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivityError::message: alloc::string::String
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::assumption_range: antecedent_validate::mnar_sensitivity::MnarAssumptionRange
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::assumptions: alloc::vec::Vec<antecedent_validate::mnar_sensitivity::MnarAssumptionRecord>
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::control_missing: usize
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::decisions: alloc::vec::Vec<antecedent_validate::mnar_sensitivity::MnarDecisionReport>
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::empirical_status: &'static str
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::estimator: antecedent_validate::mnar_sensitivity::MnarEstimator
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::family: &'static str
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::grid: alloc::vec::Vec<antecedent_validate::mnar_sensitivity::MnarPoint>
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::inference_claim: &'static str
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::interpretation: &'static str
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::level: f64
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::loading: antecedent_validate::mnar_sensitivity::ArmLoading
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::mar: antecedent_validate::mnar_sensitivity::MnarPoint
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::method: &'static str
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::model: antecedent_validate::mnar_sensitivity::MnarModel
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::observed_case_effect: f64
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::rows: usize
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::sampling_basis: &'static str
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::target: &'static str
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::tipping: alloc::vec::Vec<antecedent_validate::mnar_sensitivity::MnarTipping>
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::tolerance: f64
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::treated_missing: usize
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::treated_rows: usize
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivitySpec::bootstrap_replicates: u32
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivitySpec::decisions: alloc::vec::Vec<antecedent_validate::mnar_sensitivity::MnarDecision>
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivitySpec::estimator: antecedent_validate::mnar_sensitivity::MnarEstimator
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivitySpec::grid_points: usize
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivitySpec::level: f64
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivitySpec::lower: f64
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivitySpec::mechanism: core::option::Option<antecedent_validate::mnar_sensitivity::MnarMechanism>
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivitySpec::sampling_composition: core::option::Option<alloc::string::String>
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivitySpec::seed: u64
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivitySpec::tolerance: f64
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivitySpec::upper: f64
+pub field antecedent_validate::mnar_sensitivity::MnarTipping::at_mar: i8
+pub field antecedent_validate::mnar_sensitivity::MnarTipping::kind: antecedent_validate::mnar_sensitivity::MnarConclusionKind
+pub field antecedent_validate::mnar_sensitivity::MnarTipping::label: alloc::string::String
+pub field antecedent_validate::mnar_sensitivity::MnarTipping::negative: core::option::Option<antecedent_validate::mnar_sensitivity::MnarTippingSide>
+pub field antecedent_validate::mnar_sensitivity::MnarTipping::positive: core::option::Option<antecedent_validate::mnar_sensitivity::MnarTippingSide>
+pub field antecedent_validate::mnar_sensitivity::MnarTipping::threshold: f64
+pub field antecedent_validate::mnar_sensitivity::MnarTippingSide::bracket_lower: f64
+pub field antecedent_validate::mnar_sensitivity::MnarTippingSide::changes_to: i8
+pub field antecedent_validate::mnar_sensitivity::MnarTippingSide::iterations: usize
+pub field antecedent_validate::mnar_sensitivity::MnarTippingSide::parameter: f64
 pub field antecedent_validate::predictive_assessment::AssessmentIdentity::configuration: alloc::string::String
 pub field antecedent_validate::predictive_assessment::AssessmentIdentity::design: alloc::string::String
 pub field antecedent_validate::predictive_assessment::AssessmentIdentity::digest: alloc::string::String
@@ -3121,6 +3413,22 @@ pub fn <antecedent_validate::ValidationSuite>::fn with_configured(self, validato
 pub fn <antecedent_validate::ValidationSuite>::fn with_custom(self, validator: alloc::sync::Arc<dyn antecedent_validate::CustomEffectValidator>) -> Self
 pub fn <antecedent_validate::ValidatorId>::fn as_str(self) -> &'static str
 pub fn <antecedent_validate::bayesian_checks::ResidualStatistic>::const fn name(self) -> &'static str
+pub fn <antecedent_validate::mnar_sensitivity::ArmLoading>::const fn common() -> Self
+pub fn <antecedent_validate::mnar_sensitivity::ArmLoading>::const fn control_only() -> Self
+pub fn <antecedent_validate::mnar_sensitivity::ArmLoading>::const fn opposite() -> Self
+pub fn <antecedent_validate::mnar_sensitivity::ArmLoading>::const fn treated_only() -> Self
+pub fn <antecedent_validate::mnar_sensitivity::MnarConclusionKind>::const fn name(self) -> &'static str
+pub fn <antecedent_validate::mnar_sensitivity::MnarData<'a>>::const fn new(treatment: &'a [f64], outcome: &'a [core::option::Option<f64>]) -> Self
+pub fn <antecedent_validate::mnar_sensitivity::MnarData<'a>>::const fn with_covariates(self, covariates: &'a [&'a [f64]]) -> Self
+pub fn <antecedent_validate::mnar_sensitivity::MnarEstimator>::const fn name(self) -> &'static str
+pub fn <antecedent_validate::mnar_sensitivity::MnarEstimator>::const fn uses_covariates(self) -> bool
+pub fn <antecedent_validate::mnar_sensitivity::MnarEstimator>::fn from_name(name: &str) -> core::result::Result<Self, antecedent_validate::mnar_sensitivity::MnarSensitivityError>
+pub fn <antecedent_validate::mnar_sensitivity::MnarModel>::const fn max_magnitude(self) -> f64
+pub fn <antecedent_validate::mnar_sensitivity::MnarModel>::const fn name(self) -> &'static str
+pub fn <antecedent_validate::mnar_sensitivity::MnarModel>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_validate::mnar_sensitivity::MnarSensitivityError>::const fn detail(&self) -> &'static str
+pub fn <antecedent_validate::mnar_sensitivity::MnarSensitivityError>::const fn reason_code(&self) -> &'static str
+pub fn <antecedent_validate::mnar_sensitivity::MnarSensitivitySpec>::fn new(mechanism: antecedent_validate::mnar_sensitivity::MnarMechanism, lower: f64, upper: f64) -> Self
 pub fn <antecedent_validate::predictive_assessment::AssessmentIdentity>::fn first_difference(&self, other: &Self) -> core::option::Option<&'static str>
 pub fn <antecedent_validate::predictive_assessment::AssessmentUncertainty>::const fn withheld() -> Self
 pub fn <antecedent_validate::predictive_assessment::DependenceDeclaration>::const fn name(&self) -> &'static str
@@ -3218,6 +3526,8 @@ pub fn antecedent_validate::mediation_sensitivity::mediation_sensitivity_fit(tre
 pub fn antecedent_validate::mediation_sensitivity::natural_direct_range(target: antecedent_validate::RefutationTarget, summary: &antecedent_validate::MediationSensitivitySummary, total_effect: f64) -> core::result::Result<antecedent_validate::AssumptionRange, antecedent_validate::ValidationError>
 pub fn antecedent_validate::mediation_sensitivity::residual_correlation(treatment: &[f64], outcome: &[f64], covariates: &[alloc::vec::Vec<f64>]) -> core::result::Result<f64, antecedent_validate::ValidationError>
 pub fn antecedent_validate::mediation_sensitivity::total_effect_slope(treatment: &[f64], outcome: &[f64], covariates: &[alloc::vec::Vec<f64>]) -> core::result::Result<f64, antecedent_validate::ValidationError>
+pub fn antecedent_validate::mnar_sensitivity::assumptions() -> alloc::vec::Vec<antecedent_validate::mnar_sensitivity::MnarAssumptionRecord>
+pub fn antecedent_validate::mnar_sensitivity::mnar_sensitivity(data: &antecedent_validate::mnar_sensitivity::MnarData<'_>, spec: &antecedent_validate::mnar_sensitivity::MnarSensitivitySpec) -> core::result::Result<antecedent_validate::mnar_sensitivity::MnarSensitivityResult, antecedent_validate::mnar_sensitivity::MnarSensitivityError>
 pub fn antecedent_validate::msm_ate_bounds_at(strata: &[antecedent_validate::MsmStratum], lambda: f64) -> core::result::Result<antecedent_validate::MsmPoint, antecedent_validate::MsmSensitivityError>
 pub fn antecedent_validate::msm_ate_sensitivity(strata: &[antecedent_validate::MsmStratum], spec: &antecedent_validate::MsmSensitivitySpec) -> core::result::Result<antecedent_validate::MsmSensitivityResult, antecedent_validate::MsmSensitivityError>
 pub fn antecedent_validate::msm_dirichlet_posterior(strata: &[antecedent_validate::MsmStratum], request: antecedent_estimate::posterior_mean::PosteriorRequest) -> core::result::Result<f64, antecedent_estimate::error::EstimationError>
@@ -3275,6 +3585,7 @@ pub mod antecedent_validate::joint_mechanism_sensitivity
 pub mod antecedent_validate::mechanism_sensitivity
 pub mod antecedent_validate::mediation
 pub mod antecedent_validate::mediation_sensitivity
+pub mod antecedent_validate::mnar_sensitivity
 pub mod antecedent_validate::msm_sensitivity
 pub mod antecedent_validate::omitted_variable_bias
 pub mod antecedent_validate::overlap
@@ -3408,6 +3719,20 @@ pub struct antecedent_validate::common::AlignedRefit
 pub struct antecedent_validate::functional_mediation::MediationComponent<'a>
 pub struct antecedent_validate::functional_mediation::MediationSuite<'a>
 pub struct antecedent_validate::functional_mediation::SensitivityInput<'a>
+pub struct antecedent_validate::mnar_sensitivity::ArmLoading
+pub struct antecedent_validate::mnar_sensitivity::MnarAssumptionRange
+pub struct antecedent_validate::mnar_sensitivity::MnarAssumptionRecord
+pub struct antecedent_validate::mnar_sensitivity::MnarData<'a>
+pub struct antecedent_validate::mnar_sensitivity::MnarDecision
+pub struct antecedent_validate::mnar_sensitivity::MnarDecisionReport
+pub struct antecedent_validate::mnar_sensitivity::MnarMechanism
+pub struct antecedent_validate::mnar_sensitivity::MnarPoint
+pub struct antecedent_validate::mnar_sensitivity::MnarSamplingInterval
+pub struct antecedent_validate::mnar_sensitivity::MnarSensitivityError
+pub struct antecedent_validate::mnar_sensitivity::MnarSensitivityResult
+pub struct antecedent_validate::mnar_sensitivity::MnarSensitivitySpec
+pub struct antecedent_validate::mnar_sensitivity::MnarTipping
+pub struct antecedent_validate::mnar_sensitivity::MnarTippingSide
 pub struct antecedent_validate::predictive_assessment::AssessmentIdentity
 pub struct antecedent_validate::predictive_assessment::AssessmentUncertainty
 pub struct antecedent_validate::predictive_assessment::CalibrationDiagnostics
@@ -3836,6 +4161,15 @@ pub variant antecedent_validate::bayesian_checks::ResidualStatistic::Curvature
 pub variant antecedent_validate::bayesian_checks::ResidualStatistic::ExcessKurtosis
 pub variant antecedent_validate::bayesian_checks::ResidualStatistic::Skewness
 pub variant antecedent_validate::bayesian_checks::ResidualStatistic::VarianceTrend
+pub variant antecedent_validate::mnar_sensitivity::MnarConclusionKind::Decision
+pub variant antecedent_validate::mnar_sensitivity::MnarConclusionKind::ExcludesNull
+pub variant antecedent_validate::mnar_sensitivity::MnarConclusionKind::Sign
+pub variant antecedent_validate::mnar_sensitivity::MnarEstimator::AugmentedInverseProbabilityWeighting
+pub variant antecedent_validate::mnar_sensitivity::MnarEstimator::DifferenceInMeans
+pub variant antecedent_validate::mnar_sensitivity::MnarEstimator::InverseProbabilityWeighting
+pub variant antecedent_validate::mnar_sensitivity::MnarEstimator::RegressionAdjusted
+pub variant antecedent_validate::mnar_sensitivity::MnarModel::DeltaPatternMixture
+pub variant antecedent_validate::mnar_sensitivity::MnarModel::ExponentialTiltingSelection
 pub variant antecedent_validate::predictive_assessment::DependenceDeclaration::Cluster { labels: alloc::vec::Vec<u32> }
 pub variant antecedent_validate::predictive_assessment::DependenceDeclaration::Iid
 pub variant antecedent_validate::predictive_assessment::DependenceDeclaration::Serial { time_index: alloc::vec::Vec<u64>, truncation_lag: u32 }

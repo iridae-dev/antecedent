@@ -1887,6 +1887,7 @@ pub field antecedent_data::GroupAccounting::label: alloc::sync::Arc<str>
 pub field antecedent_data::GroupAccounting::observed: usize
 pub field antecedent_data::GroupAccounting::total: usize
 pub field antecedent_data::ImputationSpec::assumption: antecedent_data::MissingnessAssumption
+pub field antecedent_data::ImputationSpec::bootstrap_replicates: u32
 pub field antecedent_data::ImputationSpec::imputations: u32
 pub field antecedent_data::ImputationSpec::iterations: u32
 pub field antecedent_data::ImputationSpec::model: antecedent_data::ImputationModel
@@ -2109,6 +2110,7 @@ pub fn <antecedent_data::ImputationModel>::const fn name(self) -> &'static str
 pub fn <antecedent_data::ImputationModel>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_data::ImputationSpec>::const fn new() -> Self
 pub fn <antecedent_data::ImputationSpec>::const fn with_assumption(self, assumption: antecedent_data::MissingnessAssumption) -> Self
+pub fn <antecedent_data::ImputationSpec>::const fn with_bootstrap_replicates(self, replicates: u32) -> Self
 pub fn <antecedent_data::ImputationSpec>::const fn with_imputations(self, imputations: u32) -> Self
 pub fn <antecedent_data::ImputationSpec>::const fn with_iterations(self, iterations: u32) -> Self
 pub fn <antecedent_data::ImputationSpec>::const fn with_model(self, model: antecedent_data::ImputationModel) -> Self
