@@ -73,3 +73,93 @@ expected_seconds = 200
 path = "crates/antecedent-design/tests/coordinate_parity.rs"
 name = "consume_python_fixtures"
 reason = "Consumes py_* fixtures that only a Python regeneration writes (ANTECEDENT_WRITE_FIXTURES=1 pytest ... regenerate_python_fixtures); without them it fails on a missing file, so it cannot run on its own."
+
+[[other]]
+path = "crates/antecedent/tests/temporal_response_observation_adjusted_reference.rs"
+name = "print_the_library_streams"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-estimate/src/learned_trial_reference_tests.rs"
+name = "emit_plan"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-estimate/src/observational_survival_reference_tests.rs"
+name = "emit_folds"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-estimate/src/propensity/penalized_reference_tests.rs"
+name = "emit_inner_folds"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-estimate/tests/bayesian_robust_ate_reference.rs"
+name = "dump_stream_inputs"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-estimate/tests/estimate_association_reference.rs"
+name = "association_dump_library_streams"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-estimate/tests/observational_policy_reference.rs"
+name = "emit_splits"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-estimate/tests/recovery_sampled_observation_reference.rs"
+name = "dump_replicate_stream"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-estimate/tests/temporal_dependent_interval_reference.rs"
+name = "dump_temporal_interval_stream"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-estimate/tests/temporal_sequential_reference.rs"
+name = "temporal_sequential_dump_reference_inputs"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-validate/src/bayesian_checks/ppc_prior_sensitivity_reference_tests.rs"
+name = "ppc_prior_sensitivity_emit"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-validate/tests/bootstrap_refute_reference.rs"
+name = "emit_indices"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-validate/tests/functional_reference.rs"
+name = "functional_emit"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-validate/tests/joint_uncertainty_reference.rs"
+name = "emit_draws"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-validate/tests/robustness_refuters_reference.rs"
+name = "emit"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-validate/tests/simulated_unobserved_confounder_reference.rs"
+name = "emit"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-validate/tests/static_mediation_reference.rs"
+name = "emit"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-validate/tests/temporal_mediation_refuter_reference.rs"
+name = "emit"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
