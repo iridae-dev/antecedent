@@ -24,3 +24,29 @@ test_sources = [
   "crates/antecedent-io/src/measured_inference.rs",
   "python/tests/test_measured_inference.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "nested_markov_fisher_internal in crates/antecedent-estimate/src/nested_markov_uncertainty.rs: the analytic cell derivatives of the eleven-parameter law, the expected information N sum_i dp_i dp_i^T / p_i, its Cholesky inverse with the residual check, the delta propagation of the full covariance to E[X4|do(X2=0)], E[X4|do(X2=1)] and their difference, and the normal interval candidates (z at 0.90 and 0.95). Relies on the fit review of identify.binary_nested_markov for the parameters at which the information is evaluated. Not a review of any repeated-sampling coverage (calibration is unmeasured), of the measured-adapter layer in antecedent-io, or of the sampling design (IID multinomial counts are an assumption, and a count table cannot authenticate them)."
+assumptions = ["The information of an IID multinomial sample of N cells in the eleven-parameter law is N sum_i (dp_i/dtheta)(dp_i/dtheta)^T / p_i evaluated at the maximum-likelihood parameters; the asymptotic covariance of a smooth function is J I^-1 J^T.", "The reference differentiates the cell function and the do-means by 60-digit central differences (step 1e-20) instead of the analytic rows used by the product, inverts I with mpmath, and takes the parameters from the independent maximum-likelihood fit of the nested_markov_binary reference.", "Tables are integer counts with an interior fitted maximum; the information matrix is positive definite there."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are named by title and are not redistributed."
+limitations = "The primary paper's theorem on regularity of the model (Evans and Richardson 2019, Theorem 5.5 and Corollary 5.6, recorded as read in the record) is not re-read here; the reference checks the arithmetic of the information and the delta step, not that the model is regular, so the asymptotic claim stays an assumption. The reference parameters come from an optimizer whose accuracy bounds the comparison at a relative 2e-4 of the larger variance; the check is not tighter than that. Ten tables are checked (28 to 1e6 counts; heavy-tailed, tiny, mixed decades). The condition number of the information is at most about 6e5 in these tables, so a near-singular information (the product refuses beyond residual 1e-8) is not exercised numerically. The existing test pins the symmetric analytic case. Coverage of the intervals is not measured; the intervals are candidates, not licensed."
+sources = ["Evans and Richardson (2019), Smooth, identifiable supermodels of discrete DAG models with latent variables, Bernoulli 25(2) (Theorem 5.5 and Corollary 5.6 recorded as read in the record text)"]
+findings_resolved = ["On ten interior tables the product's 3 x 3 effect covariance of (mean0, mean1, contrast) equals the high-precision information inverse with delta propagation to a relative 2e-4 of the larger variance, the inverse residual stays below 1e-8, the interval candidates equal centre +/- 1.959963984540054 sd with the centre equal to the reference do-mean, and the sample count equals the table total.", "No defect was found and no product code changed."]
+record_sha256 = "442ca87969a187dd2658c094c0e5f6449398bd5970f438db0f02b110cd838edd"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/nested_markov_uncertainty.rs"
+sha256 = "7241767ca48f317daba8c03ab12fd8aa039b3b5a4785e777e4a240899582bb9a"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/nested_markov_fisher_reference.rs"
+sha256 = "7a14f5dc43a687276aff9e443adfa1cce19ef61ed99a400c65c00790e8a98b0c"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/nested_markov_fisher_reference.py"
+sha256 = "4ff243041daba1752d136d1b607b058506e32ccccc2683ff6316a578b038d2d7"

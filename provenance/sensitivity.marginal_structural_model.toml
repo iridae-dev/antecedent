@@ -34,11 +34,42 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+ "crates/antecedent-validate/tests/msm_sensitivity_reference.rs (exhaustive vertex enumeration of the marginal sensitivity polytope in exact rationals, the hand-derived binary example, zero-probability atoms with tied unsorted values, five atoms at an outcome offset of 1e6 with propensities 0.001 and 0.999 and Lambda to 1e6, single-atom arms, and the exact tipping Lambda by bisection to 1e-30)",
  "python/tests/test_decision_flow_bridge.py (test_empirical_msm_result_handoff_keeps_sample_bounds_distinct, test_empirical_msm_refuses_missing_arm_and_changed_adjustment, test_empirical_msm_adjustment_errors_are_domain_errors, test_empirical_msm_support_limit_rejects_new_distinct_outcome)",
-
-  "hand-derived two-stratum binary-outcome example (identified 0.3; bounds [0.04375, 0.4875] at Lambda 2; tipping (2 + sqrt(193))/7) and a three-atom fractional-split example",
-  "crates/antecedent-validate/tests/msm_sensitivity.rs",
-  "crates/antecedent-io/tests/msm_sensitivity_adapter.rs",
-  "crates/antecedent/tests/msm_sensitivity_decision.rs",
-  "python/tests/test_msm_sensitivity.py",
+ "hand-derived two-stratum binary-outcome example (identified 0.3; bounds [0.04375, 0.4875] at Lambda 2; tipping (2 + sqrt(193))/7) and a three-atom fractional-split example",
+ "crates/antecedent-validate/tests/msm_sensitivity.rs",
+ "crates/antecedent-io/tests/msm_sensitivity_adapter.rs",
+ "crates/antecedent/tests/msm_sensitivity_decision.rs",
+ "python/tests/test_msm_sensitivity.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "msm_ate_bounds_at and msm_ate_sensitivity in crates/antecedent-validate/src/msm_sensitivity.rs: the sharp ATE bounds sum_x P(x)(L_1 - U_0) and sum_x P(x)(U_1 - L_0) of the stratified marginal sensitivity model with the exact constraint E[rho] = 1 per stratum and arm, computed by the fractional-knapsack closed form m + (1 - e)(Lambda - 1/Lambda)(T_top - tau m), tau = 1/(Lambda + 1); the Lambda grid; the bisection tipping point with its certified bracket and status; and the contract refusals (sampling composition, Lambda below one, propensity outside (0, 1), masses and laws not summing to one, tolerance, grid and size bounds). The sampling interval is withheld by contract and nothing is estimated. Not the empirical plug-in adapter in antecedent-io and the Python result handoff (they build the strata from a supplied sample and are covered by their own tests), not msm_dirichlet_posterior (a Dirichlet posterior mean pushed through the lambda = 1 value, which relies on the posterior-mean kernel review), and not the percentile-bootstrap interval of the cited paper, which is not implemented."
+assumptions = ["Strata masses, propensities and outcome laws are exact population quantities; the bounds are an assumption range, never a confidence interval.", "One Lambda is shared by every stratum and both arms, whose unobserved laws are separate free parameters, so the arm bounds combine independently.", "The marginal sensitivity set per stratum and arm is { rho : 1/Lambda <= rho <= Lambda, E_f[rho] = 1 }; consistency, ignorability for the declared sample and positivity are taken as given."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library (fractions, itertools). The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Four designs of 1 to 3 strata with up to five atoms per arm, Lambda from 1 to 1e6 and seven tipping thresholds (three of them bracketed): bounds agree with the exact vertex enumeration to 1e-12 relative (absolute slack 1e6 times machine epsilon at the 1e6 outcome offset), and every bracketed tipping Lambda lies inside the product's certified bracket widened by 1e-9 relative. The vertex enumeration is exhaustive in the number of atoms (at most six per arm here), so it validates the closed form but cannot scale to large laws; large laws and the 4096-stratum limits are checked only by the module's own tests. The bracket is certified against the binary64 evaluation of the closed form, not exact arithmetic. The cited papers were not retrieved in this review: the correspondence is between the product and the polytope the module's documentation states, verified numerically. The adapter and the Python result handoff are not re-derived. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["No defect found: the sharp ATE lower and upper bounds equal the exhaustive vertex enumeration of the marginal sensitivity polytope at every Lambda, including Lambda = 1 (the identified value, with lower equal to upper), a zero-probability atom, tied and unsorted values, extreme propensities and Lambda up to 1e6.", "The tipping Lambda is bracketed around the exact crossing for both directions (lower bound falls, upper bound rises), reaches the origin when the identified value is already at the threshold, and reports not-reached-in-box when it is.", "A requested sampling composition, Lambda below one or not finite, a propensity of one, masses or laws not summing to one, a tolerance below 1e-12 and a Lambda range that does not exceed one are refused rather than ignored."]
+record_sha256 = "f72a9d1c0a06cab3dd4f3a62c41bf8775405f6003b251ee50e509a2ac856d247"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/msm_sensitivity.rs"
+sha256 = "6966211856296e8e2bfe367298cf6d08aab4ad705c26690046e0449dc32e6bbc"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-validate/tests/msm_sensitivity_reference.rs"
+sha256 = "611a31fffbfab213e1e6a91c4c2d54e5b8ec75b80f7c3c93a11feb11cd64b20f"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-validate/tests/oracle_data/msm_sensitivity_reference.py"
+sha256 = "37cfc1cb6da8cd9dd0bf4314014e5db0cfbce278c58c991b5d764700d2219aee"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-validate/tests/oracle_data/msm_sensitivity_reference.json"
+sha256 = "e538f23c99b4a150eb8145925c136bba8d82c66cb3b9895a2bb204b85b7f2a8b"

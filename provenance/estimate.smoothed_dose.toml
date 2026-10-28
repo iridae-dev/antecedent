@@ -22,4 +22,41 @@ upstream_implementations_observed = []
 
 test_sources = [
   "crates/antecedent/tests/smoothed_dose_calibration.rs",
+  "crates/antecedent/tests/smoothed_dose_reference.rs (50-digit cross-fitted smoothed score: fold plumbing, knot-split quadrature, odds weights, augmentation)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "estimate_smoothed_dose and evaluate_smoothed_dose_models in crates/antecedent-estimate/src/smoothed_dose.rs for the Epanechnikov kernel, a linear outcome learner over the dose-by-covariate polynomial or hinge basis and an unpenalised logistic membership learner over [1, x]: the cross-fit (each row scored by the models that exclude its fold), the knot-split Gauss-Legendre integral of the fitted curve over each target row's window, the odds weights (1 - p) / p, the kernel residual augmentation with the known dose density, the grid-point estimate (plug-in mean plus augmentation), the plug-in difference at half the bandwidth, the largest odds weight and the smallest out-of-fold membership probability. Not the bootstrap interval (closed in the public route), the support and bounds refusals other than as exercised, non-polynomial learners and their quadrature-tolerance gate, the artifact replay, or the sampling designs' only difference, which acts in the bootstrap."
+assumptions = ["Randomised dose with a known conditional density, a certified baseline-standardisation certificate and overlap of the target covariates in the source are declared by the transport identification, not checked from the data.", "The fold assignment is the module's stratified seeded deal; the reference takes it as a recorded input and the test pins it and checks that every fold holds both roles in balanced numbers.", "The outcome and membership models are the ordinary least-squares and unpenalised maximum-likelihood fits the learner specs name; the double-robustness claim is the module's and is not examined."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Four synthetic datasets of 105 to 130 rows with one covariate and three folds: a quadratic dose basis with interactions at three grid doses, a degree-one basis with hinge knots at 1.4 and 2.6 inside the integration window at bandwidth 0.9, a membership model with out-of-fold probabilities down to 0.003 (odds weights above sixteen) and an outcome offset of 1e6 with a covariate offset of 50. Plug-in and estimate are asserted to 1e-8, the augmentation and the half-bandwidth difference to 1e-6 relative to the larger of one and the value, because the product's logistic fit stops at a score norm near 1e-8. The fold assignment is a recorded input of the reference, not an independent derivation of the module's shuffle. One covariate, the Epanechnikov kernel only (the only one the module has), a linear learner and a logistic membership model: tree, boosted and penalised learners have no exact reference, and the gate that compares coarse and fine quadratures for them is not exercised. The smoothing-bias extrapolation is checked only through the half-bandwidth difference it is built from. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://mpmath.org/"]
+findings_resolved = ["No defect found: the plug-in mean, the augmentation, the estimate, the half-bandwidth difference, the smallest membership probability and the largest odds weight equal the 50-digit reference for every case, including hinge knots inside the window (the knot-split rule integrates the piecewise polynomial exactly), odds weights above sixteen and an outcome offset of 1e6.", "The route relies on the learner records for the least-squares and logistic fits; its own arithmetic is the fold plumbing, the quadrature and the augmented score, which this review checks."]
+record_sha256 = "41332ee4c36f40837dda0d0e42ec0bffc7df8acc65c51b3472f8b329cb07ecaa"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/smoothed_dose.rs"
+sha256 = "b77719797069632898a1f3491aa82ebef4a29e7e8a3917ce6516d5beb44dea76"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/smoothed_dose_reference.rs"
+sha256 = "2e9c66d76deef0be470f57c8402e17f57c76aee8837423de56bf9665da845a61"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent/tests/oracle_data/smoothed_dose_reference.py"
+sha256 = "f1ed32b86ebf4e7ef7a0dee75346e674cdf6b84a04e9939f5b5ea2918eee4126"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent/tests/oracle_data/smoothed_dose_reference.json"
+sha256 = "4c0f0c4a8ec41a63c70c54a6879950e8b4df0543f91ec4ceb037941446aedfa3"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent/tests/oracle_data/smoothed_dose_reference_folds.json"
+sha256 = "edb2a8da1fc4de1865443fcb9e8060df74d6e6afe555efc8b214874eb6287d88"

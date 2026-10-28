@@ -24,7 +24,13 @@ implementation_deviations = [
 
 upstream_implementations_observed = []
 
+modules = [
+ "crates/antecedent-design/src/decision.rs",
+ "crates/antecedent-design/src/preposterior.rs",
+]
+
 test_sources = [
+ "crates/antecedent-design/tests/decision_exact_reference.rs (120 problems against exact-rational Bayes action, regret and binomial EVSI)",
  "python/tests/test_design_objectives.py (test_callable_regret_reaches_native_exact_preposterior_without_affine_restriction, test_callable_regret_preserves_native_callback_refusal)",
 
  "crates/antecedent-design/src/decision.rs unit tests",
@@ -33,3 +39,39 @@ test_sources = [
  "crates/antecedent-design/tests/design_oracle.rs (decision_enumeration_matches_exact_feasibility_contract)",
  "conformance/design/decision_ranking",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "evaluate_decision and DecisionTable in crates/antecedent-design/src/decision.rs (admissible set from chance constraints at a threshold, Bayes action with the lowest index on ties, expected regret against perfect information over the admissible actions) and the finite-draw routes of PreposteriorAnalysis in crates/antecedent-design/src/preposterior.rs for a binomial signal (new, new_weighted, exact_evsi, expected_value_of_perfect_information, bayes_action, prior_expected_utility): gaps to the Bayes action, the likelihood table over prior draws, and the weighted-belief variant. The conjugate-normal route is checked through the ranking-artifact replay (expected maximum of affine functions against quadrature) and by the existing closed-form tests, not re-derived here. Not the Monte Carlo EVSI sampler, the ReduceDecisionRegret ranker, or the Python callback declaration."
+assumptions = ["Chance-constraint satisfaction is reported by the caller's callback as a fraction of the supplied draws; admissibility is satisfaction at least the threshold (within 1e-12), and inadmissible actions are excluded from both the choice and the perfect-information benchmark rather than penalised.", "Draws are equally weighted except on new_weighted, whose weights are normalized; the signal is Binomial(n, theta) with theta the state, so draws must lie in [0, 1]."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared its results with definitions evaluated by an executing exact-rational reference written for this review (fractions.Fraction); no upstream implementation or test source was consulted or copied. The cited textbook and article were not retrieved in this review: the correspondence is between the product code and the standard definitions of opportunity loss, EVPI and preposterior EVSI, verified numerically."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. Its output is frozen in the JSON file and compared by the test."
+limitations = "One hundred and twenty random problems of 1 to 7 dyadic draws and 2 to 4 affine actions (utility offsets up to 1e6, exact ties between actions, 40 with a draw-by-draw chance constraint including satisfaction exactly at the threshold, 8 with no admissible action, 40 weighted with weights from 1 to 2^-20) are compared at 1e-9 absolute plus 1e-12 relative on the Bayes action, its expected utility, the regret, EVPI and the binomial EVSI at 1, 2, 5, 12 and 60 trials. Chance constraints are not combined with weights (the product refuses that combination). The Monte Carlo EVSI for continuous signals, trial counts above 60, thousands of draws and non-affine utilities are not compared with a reference; the existing value_of_information tests cover a quadrature check of the Gaussian-signal sampler. The constraint tolerance of 1e-12 is the product's choice. The cited works were not retrieved."
+sources = ["https://doi.org/10.1177/0272989X04263162"]
+findings_resolved = ["No defect found in the routes exercised: the Bayes action (lowest index on ties), expected utility, regret, EVPI and binomial EVSI agree with the exact-rational reference on all 120 problems, the regret and EVSI are unchanged by a common utility offset up to 1e6, an empty admissible set is a typed refusal on both entry points, and constraint satisfaction exactly at the threshold admits the action."]
+record_sha256 = "9950b993e08dde7880df26262c91d11944ace1c93cc589762844531da41bbbd2"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision.rs"
+sha256 = "e9b1a0bd25db9861a3486bd1e76cf6fcc658b888fab43c4557fd613d9d2e84a5"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/preposterior.rs"
+sha256 = "581d045978b048ef2df00330e850cb3af74dd10bbb36ec2d2ec84920722ef725"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/decision_exact_reference.rs"
+sha256 = "3cba53091e412f5a1ab25c241e82898b5732fa4a441930cdda14984ee1f80286"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-design/tests/oracle_data/decision_exact_reference.py"
+sha256 = "6899db90fe32b2738704eccca184b47bb429fed7e9e2f9558be3f45f1eae6838"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-design/tests/oracle_data/decision_exact_reference.json"
+sha256 = "5e68051a42cd53586b75f8428c20aa119bfbdac8ccf8d98f4243f18fec2716fe"

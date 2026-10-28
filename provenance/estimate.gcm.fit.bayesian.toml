@@ -52,4 +52,26 @@ test_sources = [
  "conformance/estimate/staged_attribution (known-truth anomaly fixture: linear chain with one injected outlier row)",
  "conformance/estimate/staged_static_kinds (Bayesian counterfactual mean ITE pin)",
  "crates/antecedent/tests/attribute_mechanism_posterior.rs (a_change_attribution_has_a_posterior_over_the_mechanisms, a_change_attribution_has_a_bootstrap_beside_its_posterior, an_intrinsic_influence_has_a_posterior_over_the_mechanisms, the_other_fitted_model_targets_say_they_report_the_fitted_answer)",
+ "crates/antecedent/tests/gcm_bayesian_refit_reference.rs (every Bayesian counterfactual draw equals the product of the weighted least-squares slopes of its regenerated Dirichlet weight vector)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The Bayesian counterfactual route in crates/antecedent/src/analysis/execute/attribution_path.rs (dirichlet_counterfactual_estimate): one Dirichlet(1,...,1) row-weight vector per draw from the (Attribution, 0x0CF0) stream, a weighted refit of every selected mechanism, abduction-action-prediction on the original units under that draw, and the published mean-contrast draws. Not the anomaly route (the per-draw mean anomaly score), the intrinsic-influence and root-cause fitted-model routes, the per-unit intervals, the categorical-noise posterior, or the mechanism-family selection."
+assumptions = ["Unconfoundedness and the parametric structural model are taken as given: the graph is a causal DAG with independent disturbances and the selected mechanism families are correct.", "Family selection (5-fold cross-validated score) is made once on the unweighted data; this review does not examine it and relies on the closed form below holding only when the selected family is the linear one.", "The posterior is a Dirichlet row-weight refit bootstrap of the fitted model, not a coefficient-prior posterior."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The closed-form references are written in the repository-authored (MIT OR Apache-2.0) test file; the test uses only the standard library and the repository's own random-number stream to regenerate the weight vectors under review. No reference script or frozen output is involved."
+limitations = "Sixteen draws on one 24-row chain with a binary treatment; each draw is asserted equal to the product of its two weighted least-squares slopes (group-mean difference of m on t and weighted slope of y on m) to 1e-9 relative, using the weights regenerated from the documented stream. The anomaly route's per-draw weighted mean of refit anomaly scores, the intrinsic-influence refits (capped at 100), root-cause attribution and the per-unit quantile intervals have no independent reference here and are covered only by the existing smoke tests; the anomaly score of a refit depends on the abducted noise and the marginal reference, whose closed form was not derived. The reference is a closed form evaluated in binary64 inside the test file (not an independent script with a frozen output), and the weight vectors are regenerated from the same documented stream of the execution context; a change of stream or draw order is therefore a failing test rather than silently matched, but the test cannot detect a defect in the shared Dirichlet(1,...,1) weight generator itself (data.bayesian_bootstrap)."
+sources = ["https://doi.org/10.1214/aos/1176345338", "https://doi.org/10.1017/CBO9780511803161"]
+findings_resolved = ["No defect on the counterfactual route: each of sixteen posterior draws equals the closed-form weighted-slope product of the weight vector the documented stream produces, so the weights are drawn once per draw, in order, over the original rows, and reach every mechanism."]
+record_sha256 = "9598d443139658aac8bffff40e1b9b22c7ada895b65f6f4e17a1adcf49584c63"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/execute/attribution_path.rs"
+sha256 = "f57020e36b3586bf1efdb19e0106486c0efc993a26797dfc88fb20314bc97d4f"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/gcm_bayesian_refit_reference.rs"
+sha256 = "04f777385461cf2cd31694de733a6ca79f6fb5ec94dc7efeb108b51daaf08228"

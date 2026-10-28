@@ -25,6 +25,8 @@ pub use streaming::{
     stream_panel_law, stream_temporal_law,
 };
 #[cfg(test)]
+mod ar1_random_intercept_reference_tests;
+#[cfg(test)]
 mod family_tests;
 #[cfg(test)]
 mod tests;

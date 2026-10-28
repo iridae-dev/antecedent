@@ -27,6 +27,38 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+ "crates/antecedent-estimate/src/observational_survival_reference_tests.rs (40-digit logistic propensity, Breslow Cox event and censoring models on recorded folds with the augmented inverse-probability and censoring-weighted scores of S(t*) and the restricted mean survival time by their step-function definitions: independent and at-random censoring, ties between events and censoring, a covariate offset of 50 and a horizon before most events)",
  "crates/antecedent-estimate/tests/observational_survival_effects.rs (exponential event times with a proportional-hazards treatment effect and six confounder cells: closed-form survival probability and restricted mean survival time per arm, independent of the estimator)",
  "python/tests/test_observational_survival.py (the same closed form through the Python surface)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "ObservationalSurvival::estimate in crates/antecedent-estimate/src/observational_survival.rs: per cross-fit fold the logistic treatment propensity, per-arm Cox event and censoring models with Breslow step baselines (censoring on the declared covariates or on none), the exact step-function evaluation of S_a(t*|Z), of R_a(t*|Z) = integral_0^{t*} S_a and of both augmentation integrals against the martingale increment with the left-continuous censoring survival G(u-), the arm and contrast means, the iid influence-function standard errors, and the propensity and censoring-support floors. The seeded fold plan, the Cox partial-likelihood solver (antecedent-stats cox_breslow) and the logistic solver are separate kernels: the test records the folds, asserts the product's plan reproduces them and compares the fitted models only through the scores they produce against independent Newton solves."
+assumptions = ["Conditional exchangeability, positivity of both treatment levels, consistency, no interference and coarsening at random (or independent censoring within arm) are identification assumptions taken as given.", "The nuisance models are exact Cox and logistic maximum likelihood on fixed folds; double robustness under misspecification of both sides carries no guarantee.", "Independent rows; the standard error is the iid standard deviation of the cross-fitted scores, not an efficiency-bound variance, and no coverage is claimed."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Four finite samples of 100 to 140 subjects with one or two covariates, two to four folds, horizons of 0.1 to 1.5 and events in 37 to 76 rows; arm summaries, contrasts, standard errors, support minima and every row score are compared to 1e-6 relative. The reference fixes the fold of every row (the test asserts the product's plan equals it) and fits the nuisances itself, so it reviews the orthogonal score and its integrals, not the learner or the fold plan; flexible learners, repeated cross-fitting, delayed entry, competing risks, time-varying covariates and informative censoring are out of scope, and the standard error's coverage is not reviewed. Tied event and censoring times are reviewed at one grid of 0.25. The cited papers were not retrieved in this review: the correspondence is between the product and the efficient-influence-function score its documentation writes, verified numerically against step-function definitions. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.1080/01621459.2023.2205060", "https://doi.org/10.1111/ectj.12097", "https://doi.org/10.1080/01621459.1995.10476494", "https://mpmath.org/"]
+findings_resolved = ["No defect found: both arms' doubly robust S(t*) and restricted mean survival time, their influence-function standard errors, the survival and restricted-mean contrasts, the smallest propensity and smallest censoring survival and every per-row score equal the 40-digit reference on the recorded folds, including Breslow ties, a left-continuous censoring survival at event times and a horizon with no event jump in some training folds."]
+record_sha256 = "7f182fde1f1a9f04112beda660be761e36fd1b7f588523e74ae3ea960106dadd"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/observational_survival.rs"
+sha256 = "2db640069bec913d5ce1884e3934de239811c681687fc5581d41aec5fa43474f"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/src/observational_survival_reference_tests.rs"
+sha256 = "bbbd9475897227983f216ba766fcb8b47dd43ed50b3676076bbb9fded21deff7"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/observational_survival_reference.py"
+sha256 = "f389a22827da7aa0c1b1452403a70d2616b6d5526362da00ec575e90d5ec679e"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/observational_survival_reference.json"
+sha256 = "18c3a84c730523327034fc27a5447b1ac4649ac38d4826be3721cb2887b477c3"

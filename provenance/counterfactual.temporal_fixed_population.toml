@@ -22,4 +22,53 @@ test_sources = [
  "crates/antecedent-counterfactual/tests/temporal_cross_world.rs",
  "crates/antecedent-io/tests/temporal_counterfactual_artifact.rs",
  "python/tests/test_temporal_counterfactual.py",
+ "crates/antecedent-counterfactual/tests/temporal_fixed_population_reference.rs",
+ "crates/antecedent-counterfactual/tests/oracle_data/temporal_fixed_population_reference.py",
+ "crates/antecedent-counterfactual/tests/oracle_data/temporal_fixed_population_general_reference.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "evaluate_temporal_counterfactual in crates/antecedent-counterfactual/src/temporal_cross_world.rs (the fixed two-slice route L0 -> A0 -> L1 -> A1 -> Y with additive-noise linear mechanisms) and, because the module documents it as the same argument for any horizon and any number of worlds, evaluate_general_temporal_counterfactual in temporal_cross_world/general.rs: exact residual abduction of each unit's exogenous history, replay of every named action history against that same history, the per-unit outcomes, the world means and the sample mean contrast, the noise-support check (a residual larger than the declared half-width refuses with a witness) and the unit-pairing checks. Not a review of the receipt digests (their values are not checked against an independent implementation), of the artifact serialization, or of the staged executor beyond its bit-identity with the one-shot evaluators (mapped under cross_world_execution.temporal_selective)."
+assumptions = ["Every non-action node is V = intercept + sum of coefficient times parent + U with additive noise, so abduction is an exact residual (an invertible model); the supplied mechanism fit equals the data-generating coefficients (declared, not checked).", "The graph is fully observed and Markovian; latent confounding and non-additive or non-invertible mechanisms are refused or outside the class.", "The Gaussian family is never used numerically; an optional half-width declares a bounded noise support, so a residual outside it is a refuting witness rather than a probability statement."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary source is linked by DOI and is not redistributed; the generating scripts use only the standard library."
+limitations = "The primary source (Pearl, Causality, abduction-action-prediction) was not retrieved or re-read in this review (no downloads were made and no copy is available from this environment); the reference restates the three steps from their standard definition and an error in how the book states them would not be detected here. The reference shares the abduction-action-prediction reading with the product and is independent of it in arithmetic only: it generates histories by forward simulation of the structural equations in exact fractions, rounds them to doubles, abduces the noise from those doubles by exact rational residuals and replays forward. It does not test model adequacy (the supplied coefficients are taken as the truth), the sampling uncertainty of the fit (the route is point-only), non-additive mechanisms or latent confounding (refused), or the BLAKE3 and FNV digest values. The cases run at most 9 units for the fixed route and 9 for the general route, horizons 1 to 4 and up to four worlds; larger populations use the same loop with a cancellation poll every 1024 units, which is not exercised here. At offsets near 1e9 the product agrees with the exact rational answer to one double spacing of the answer (4.8e-7), which is the arithmetic limit of f64 levels of that size and not an algorithmic error. Calibration remains deferred."
+sources = ["https://doi.org/10.1017/CBO9780511803161"]
+findings_resolved = ["Seven fixed-route cases (a closed-form four-unit model, a non-dyadic seven-unit model with a zero and negative coefficients, two nine-unit models with levels near 1e9, one dyadic and one not, a single unit, identical histories and a noise-support boundary) agree with the exact rational reference: per-unit factual, plus and minus outcomes and the three means agree to a worst absolute 1.8e-15 on O(1) levels, exactly on the dyadic 1e9 model and to 4.8e-7 (one double spacing) on the non-dyadic 1e9 model; identical action histories give an exactly zero contrast; unit order changes no bit of the answer or the receipt digest.", "A residual exactly equal to the declared half-width is accepted and one 2^-20 larger refuses with the unit, node, residual and bound in the witness; a world that omits a unit, names an extra unit or has misaligned times refuses.", "Six general-horizon cases (horizons 1, 3, 3, 4, 4 and 3; dense and sparse parent sets, parents several slices back, an outcome with no direct action parent; three or four worlds; an odd and a single-unit population) agree with the exact reference to 1e-12 relative, the general route at horizon two equals the fixed route bit for bit, and the staged executors return exactly the one-shot results and reuse the abduction on a repeated request. No defect was found and no product code changed."]
+record_sha256 = "43fb701691e3d78cae1469e00c85c73074993bd1a494bdd9d4575bab79976390"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-counterfactual/src/temporal_cross_world.rs"
+sha256 = "50496219e0294003301723c38e6efc7460112118fd46c33e8226c9342ce1dd4b"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-counterfactual/src/temporal_cross_world/general.rs"
+sha256 = "6c8de8ef83b22506aa0c0e70b771e4e29ab4199d9f3d86c7d1e9cbcf8dbcad3e"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-counterfactual/tests/temporal_fixed_population_reference.rs"
+sha256 = "56c9df120ddd2dbd7f7252d371e508536eb3fe66b39d7d55401353373f670b43"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-counterfactual/tests/oracle_data/temporal_fixed_population_reference.py"
+sha256 = "c1eabc7b08894d86bf8286b7f8985e369c7fe067fa49c59443b0a51130b47e4b"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-counterfactual/tests/oracle_data/temporal_fixed_population_general_reference.py"
+sha256 = "5bdd9093025657183a8891605edc4410ad23e272aba6b7bdbfbfdde4e7b30e95"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-counterfactual/tests/oracle_data/temporal_fixed_population_reference.json"
+sha256 = "8f2815d13b52a7c6781eedde9f57024c9a3500877474139e4bc86c1fa754a487"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-counterfactual/tests/oracle_data/temporal_fixed_population_general_reference.json"
+sha256 = "e7ab6fef01520315eec7729d165c16ff51ca1bee405c736f79a5e6e324e59105"

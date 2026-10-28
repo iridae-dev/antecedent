@@ -993,3 +993,35 @@ path = "tests/scenario_treatment_levels.rs"
 [[test]]
 name = "scenario_route_declarations"
 path = "tests/scenario_route_declarations.rs"
+
+[[test]]
+name = "period_refresh_reference"
+path = "tests/period_refresh_reference.rs"
+
+[[test]]
+name = "estimate_uncertainty_reference"
+path = "tests/estimate_uncertainty_reference.rs"
+
+[[test]]
+name = "mapped_posterior_transfer_reference"
+path = "tests/mapped_posterior_transfer_reference.rs"
+
+[[test]]
+name = "smoothed_dose_reference"
+path = "tests/smoothed_dose_reference.rs"
+
+[[test]]
+name = "scientific_bridge_interval_reference"
+path = "tests/scientific_bridge_interval_reference.rs"
+
+[[test]]
+name = "gcm_bayesian_refit_reference"
+path = "tests/gcm_bayesian_refit_reference.rs"
+
+[[test]]
+name = "sample_split_analysis_reference"
+path = "tests/sample_split_analysis_reference.rs"
+
+[[test]]
+name = "estimate_response_kennedy_dr_declarations"
+path = "tests/estimate_response_kennedy_dr_declarations.rs"

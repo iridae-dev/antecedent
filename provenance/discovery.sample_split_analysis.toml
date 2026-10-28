@@ -20,5 +20,45 @@ implementation_deviations = [
 ]
 upstream_implementations_observed = []
 test_sources = [
-  "crates/antecedent-discovery/tests/selective_discovery.rs",
+ "crates/antecedent/tests/sample_split_analysis_reference.rs (split, weights, Kish size, weighted HC3 effect and Student interval against exact references)",
+ "crates/antecedent-discovery/tests/selective_discovery.rs",
+ "crates/antecedent-discovery/tests/selective_populations_and_split.rs",
+ "crates/antecedent/tests/sample_split_analysis_facade.rs",
+ "crates/antecedent/tests/sample_split_weighted_acceptance.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The facade's sample-split analysis in crates/antecedent/src/analysis/sample_split_analysis.rs and the row split in crates/antecedent-discovery/src/selective/reuse.rs: the filtering order (analysis mask first, then completeness of the searched columns, the exclusions recorded in the receipt), the explicit and seeded (splitmix64-driven Fisher-Yates, round(m times fraction) discovery rows) assignment, the gathering of columns and unnormalised weights with their rows, the Kish size of each part, the estimate of a linear effect on the analysis part under the part's own weights with the HC3 sandwich (zero-weight rows excluded and counted, weights normalised to mean one), and SplitAnalysisEffect::interval, the Student interval at the Kish size of the rows used (the row count when unweighted) less the regression's coefficients. The regression engine behind the effect is LinearAdjustmentAte, reviewed in estimate.linear_adjustment and estimate.sampling_weights; the discovery that precedes the split and the claim-binding machinery (receipts, identities, tamper checks) are not reviewed here."
+assumptions = ["Rows are exchangeable; the effect is conditional on the selected graph and speaks for the weighted population the analysis weights represent. The review checks arithmetic and the declared conventions, not those premises.", "Weighted HC3 is the convention the code states: psi_i = w_i e_i x_i / (1 - h_i), h_i = w_i x_i' (X'WX)^-1 x_i with weights normalised to mean one over the rows used; the reference implements that statement independently, so agreement shows the code follows its own documented convention, not that the convention is the unique definition in the literature.", "The Student quantile is that of the special-function kernels, reviewed elsewhere; the reference evaluates it at 60 digits."]
+historical_exposure = "Historical author exposure cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with definitions evaluated by an executing reference written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review (no paper was downloaded or read here): the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library and mpmath (BSD-3-Clause, imported at run time and not redistributed). It declares inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "One 70-row table of three searched columns and one unsearched column with four missing searched cells, four masked rows (one also incomplete, where the mask wins), six exact zero weights and weights spread over about two orders of magnitude; seeded and explicit rules; one weighted run (29 rows of positive weight, Kish size 18.4, interval degrees of freedom 15.4) and one unweighted run, with the interval at levels 0.9, 0.95 and 0.99. Part rows, exclusions, carried weights (bitwise), Kish sizes (1e-12 relative), effect and sandwich standard error (1e-9 relative) and interval endpoints (1e-7 relative, set by the quantile solver's tolerance) agree with the references. Not covered: clustered analysis parts, the historical HC1 entry point, many adjustment columns, extreme weight spread, near-singular analysis designs (the shared regression kernel refuses by its own rule), interval levels near 0 or 1, a mask that removes a whole part, or any coverage claim (the weighted whole-method calibration is explicitly unmeasured in the code). The Cox (1975) note on data splitting was not retrieved in this review; it is cited as context for the single-split idea and the executed check is of the stated conventions."
+sources = ["crates/antecedent/tests/sample_split_analysis_reference.rs", "crates/antecedent/tests/oracle_data/sample_split_analysis_reference.py", "https://mpmath.org/"]
+findings_resolved = ["No defect found: the split, the carried weights, the Kish sizes, the weighted and unweighted HC3 effects and the effective-size Student interval agree with the exact references.", "The existing floating-point weighted-least-squares oracle in sample_split_weighted_acceptance.rs is now complemented by an exact rational reference with a masked, incomplete and zero-weight table."]
+record_sha256 = "255eb28c9aa30ac7b4ebb505799284ddda621eae659d88072d5477f815cd560f"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/sample_split_analysis.rs"
+sha256 = "8254582cd4a341f7bc0b920f5b27d01d81062f53136df53f9228ae6349f97511"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/selective/reuse.rs"
+sha256 = "69bcc96b78d6b253500c2747782639a7ab2aed6ff5e735159e421f20109e2977"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/sample_split_analysis_reference.rs"
+sha256 = "72b288c46926f8301c23cc990bc028ed8aa3a3e41634e9e086ceaff483d60d12"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent/tests/oracle_data/sample_split_analysis_reference.py"
+sha256 = "72866309f647568ceae906e1741232c352462a6ccd5500604422bc9f3ca2e823"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent/tests/oracle_data/sample_split_analysis_reference.json"
+sha256 = "5fd94f70ab570869034a15380f5f756dea83ea5de5f899fb5941aac483f143f9"

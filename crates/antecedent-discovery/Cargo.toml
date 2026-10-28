@@ -72,3 +72,23 @@ path = "tests/exact_marginals_reference.rs"
 [[test]]
 name = "fci_pag_class_exhaustive"
 path = "tests/fci_pag_class_exhaustive.rs"
+
+[[test]]
+name = "bootstrap_stability_reference"
+path = "tests/bootstrap_stability_reference.rs"
+
+[[test]]
+name = "ci_screened_posterior_reference"
+path = "tests/ci_screened_posterior_reference.rs"
+
+[[test]]
+name = "exact_pag_posterior_reference"
+path = "tests/exact_pag_posterior_reference.rs"
+
+[[test]]
+name = "jpcmci_plus_dsep_oracle"
+path = "tests/jpcmci_plus_dsep_oracle.rs"
+
+[[test]]
+name = "multi_dataset_constraints_reference"
+path = "tests/multi_dataset_constraints_reference.rs"

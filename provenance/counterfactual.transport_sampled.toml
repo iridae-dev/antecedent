@@ -31,4 +31,48 @@ test_sources = [
  "crates/antecedent-identify/tests/support/counterfactual_transport_cases.rs",
  "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs",
  "crates/antecedent-io/tests/sampled_counterfactual_transport_artifact.rs",
+ "crates/antecedent-estimate/tests/counterfactual_transport_sampled_multi_table_reference.rs",
+ "crates/antecedent-estimate/tests/oracle_data/sampled_transport_multi_table_reference.py",
+ "crates/antecedent-estimate/tests/oracle_data/sampled_transport_delta_reference.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "estimate_sampled_counterfactual_transport in crates/antecedent-estimate/src/counterfactual_transport_sampled.rs and its delta-method standard error (counterfactual_transport_sampled/inference.rs) for independent multinomial count tables with no unseen cell, and for additive smoothing of one table with an unseen cell: the plug-in of the stored derivation on the count shares, the smoothed shares (n + a) / (N + K a), and the first-order delta variance as the sum over independent datasets of (1/N)[sum p g^2 - (sum p g)^2] with a central-difference gradient at relative step 1e-5. The two-source joint counterfactual P*(Y_{x=1}=1, X=0) is used because it reads several independent datasets. The single-table chain case is the existing 50-digit reference (oracle_data/sampled_transport_delta_reference.py) that this review relies on and does not repeat. Not a review of the unseen-mass envelope, stratified (fixed-total) designs, shared-unit datasets, the calibration-internal Wald interval, the pooled averaging of unread coordinates beyond the existing chain case, or the artifact layer."
+assumptions = ["Each table is a multinomial sample of independent units, tables are independent datasets unless a dependence is declared, and the stored derivation is a smooth function of the cell shares away from zero conditioning mass; the standard error is the linearization and is labelled uncalibrated.", "The identification of the derivation (counterfactual.transport_general) is relied on and not re-checked; this review takes the stored derivation as the functional and checks the plug-in and the variance of that functional.", "A table with an unseen cell is smoothed with a symmetric Dirichlet(a) pseudo-count over its non-structural cells; tables with no unseen cell are not smoothed."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; mpmath is used only to generate the frozen JSON and is not a product dependency."
+limitations = "No paper was retrieved or re-read (no downloads were made and no copy is available from this environment); the delta method is the textbook linearization of a smooth function of multinomial proportions and the reference restates it. The reference differentiates the closed form of the functional the derivation encodes, which is the functional itself and not an independent derivation of it; a defect in the identification would not be seen here. The standard error is a first-order approximation: near a boundary (cells with very few counts, conditioning events with little mass) it can be far from the sampling variance, and whole-method coverage is unmeasured (the interval route is closed, and the calibration is a separate promotion record). The smoothed-table case checks the convention the product uses (shares smoothed, the table's own N in the variance) against the same convention in the reference, not against a repeated-sampling truth. Tables of at least 20 units are required by the module; the smallest swept table has 20 units. Dependence between tables is not reviewed here."
+sources = ["https://doi.org/10.1017/CBO9780511802256"]
+findings_resolved = ["For the two-source joint counterfactual on six count designs (balanced, 20 to 25 unit tables, sizes from 20 units to about a million, cells with one count in 1e5, one unseen cell smoothed at a = 0.5 and a = 1) the plug-in equals the 50-digit reference to 1e-12 and the standard error, summed over four independent datasets (the cited regime supplies a fourth table that the derivation does not read, which contributes zero), equals it to a relative 1e-6, the bound set by the stated central difference.", "Ten times the counts with identical shares leaves the point unchanged and divides the standard error by sqrt(10) to 1e-6; changing the counts of the table the derivation does not read changes no bit of the point or the standard error. No defect was found and no product code changed."]
+record_sha256 = "4d6c48e80f97e65f5a4108ec969fe52ef26ff71d6e6cb29af8468948b1ad8275"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/counterfactual_transport_sampled.rs"
+sha256 = "4e98b9551b5dee46668d6e44d2e96a6e1c588736711e114fdeb7c56b560247f6"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/counterfactual_transport_sampled/inference.rs"
+sha256 = "f162e02639693c3c426a59e1c288d38ac1e61629ee4cec1ff60fea64a00e6a74"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/counterfactual_transport_sampled/counts.rs"
+sha256 = "cbfb2ebdfb320db763c580c104e3b0fd3ee2c5c3ed231b1281131b58a173b048"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/counterfactual_transport_sampled_multi_table_reference.rs"
+sha256 = "d17b6f635c0ce7994795273bbc8f0e36dc52b56a157e1b7d8a0e553aa79b4f02"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/sampled_transport_multi_table_reference.py"
+sha256 = "ebd459e1e9415ab99e70c242c6279de8a152916b81970667f8ead539905fb095"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/sampled_transport_multi_table_reference.json"
+sha256 = "99be72a9df3574963b311cafbeb00b776f34d040fe0ebd4e5611e7c1b3de1480"

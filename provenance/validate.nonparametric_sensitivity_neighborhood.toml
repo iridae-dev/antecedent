@@ -23,7 +23,39 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
+ "crates/antecedent-validate/src/nonparametric_sensitivity_neighborhood_reference_tests.rs (brute-force 60-digit truncated leave-one-out smoother; compiled as a child of sensitivity.rs)",
  "crates/antecedent-validate/src/sensitivity.rs unit tests (equality with the exact smoother when neighbours cover all rows, thread invariance, leave-one-out fixtures, 30000-row regression recovery)",
  "crates/antecedent-validate/src/tests.rs (neighborhood_sensitivity_reproduces_the_tipping_value_of_the_true_residuals)",
  "crates/antecedent-validate/src/sensitivity.rs (scalable_cases: exact_sensitivity_retained_at_small_sizes, nonparametric_sensitivity_beyond_20k_50000_rows, nonparametric_sensitivity_beyond_20k_100000_rows, scalable_sensitivity_replacement_validated_separately)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The neighbourhood-truncated leave-one-out Nadaraya-Watson smoother neighborhood_loo_predict_pair (with CovariateCells) of crates/antecedent-validate/src/sensitivity.rs, which is the one place this method departs from validate.confounding_sensitivity: the grouping of identical covariate rows into cells, the selection of the declared number of nearest other cells, the own-cell contribution with the row itself removed, the weights exp(-(d^2 - d_min^2)/(2 h^2)), and the multiplicity-weighted means of two targets. Not the partial-R2 grid, the orthogonalized simulated confounder, the robustness value or the pass threshold, which are the exact-smoother route's and were reviewed in validate.confounding_sensitivity (this record relies on that review for them, and its own tests in sensitivity.rs exercise them through NeighborhoodSensitivity); not the k-d tree search of antecedent-stats beyond what the selected neighbours show."
+assumptions = ["The smoother is repository-defined truncation of the kernel regression estimator; it equals the cited estimator only when the neighbours cover every row, as the record states. This review checks the truncated smoother against its declared definition, not its bias against the cited estimators.", "The reference selects neighbours by Euclidean distance between distinct covariate cells and its generator refuses data with a distance tie at the neighbour-count boundary, so the chosen set is unambiguous; ties at that boundary are therefore not exercised.", "The covariate matrix is already standardized by the caller, so one isotropic bandwidth is meaningful."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the smoother and wrote its own brute-force reference from the declared definition at 60 digits (exact-rational squared distances, mpmath exp); no upstream implementation was consulted and no paper was retrieved."
+redistribution = "The reference script, frozen output and Rust test are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited papers are linked or named, not redistributed."
+limitations = "The four cited sources (Nadaraya, Watson, Silverman and the Cinelli-Hazlett paper) were not retrieved; none is used as an oracle. The comparison covers eight designs (one to three covariate dimensions, rows repeated so cells hold several rows, neighbour counts from 1 to more than the number of cells, bandwidths from 1e-3 to 25, a two-row sample of identical rows) at 1e-10 relative, and the refusal of a one-row sample. It does not run the full refuter (grid, tipping value) against an independent reference in this record, does not assess the bias of the truncation relative to the exact smoother at the default 256 neighbours, and does not test the work cap or the memory refusal. Distance ties at the neighbour-count boundary depend on the k-d tree and are not pinned."
+sources = ["https://mpmath.org/doc/1.3.0/", "https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["The cell grouping, neighbour selection, own-cell removal, weight shift and multiplicity-weighted means agree with the brute-force reference on every design; the neighbour count changes the prediction. No defect found in the reviewed smoother."]
+record_sha256 = "1cbb4553d23077f9143d807ec8bfe2350429367e021c5cfe0c36c4f7503eddd6"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/sensitivity.rs"
+sha256 = "5a1c49490282fc469de122e4ebeb95fb0e48276174ef543db0647ea22b84b8e6"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-validate/src/nonparametric_sensitivity_neighborhood_reference_tests.rs"
+sha256 = "57cdfec1109c593be86c5fd4e5a99d72c117a2b073152657af564fb7e73d5567"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-validate/tests/oracle_data/nonparametric_sensitivity_neighborhood_reference.py"
+sha256 = "4da45e342b019fe6dbbd7033586826dda9a993609a8df5e53980adddd2920fd8"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-validate/tests/oracle_data/nonparametric_sensitivity_neighborhood_reference.json"
+sha256 = "6438da98604e3acd7700011bb216c3def3cedea1c0e8494de498435db64d3db5"

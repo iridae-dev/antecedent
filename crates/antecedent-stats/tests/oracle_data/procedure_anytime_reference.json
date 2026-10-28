@@ -1,0 +1,375 @@
+{
+ "exclusions": [
+  {
+   "name": "fixed_two_arms_loose_level",
+   "declaration": {
+    "arms": 2,
+    "assignment": {
+     "kind": "fixed",
+     "probabilities": [
+      "1/2",
+      "1/2"
+     ]
+    },
+    "enrolment": [
+     2,
+     2,
+     2
+    ],
+    "stopping": {
+     "kind": "none"
+    },
+    "selection": {
+     "kind": "none"
+    }
+   },
+   "truth": [
+    "1/4",
+    "3/4"
+   ],
+   "alpha": "0.9",
+   "tuning": 5,
+   "exclusion_probability": 0.01459503173828125,
+   "terminal_states": 84
+  },
+  {
+   "name": "thompson_early_stop_by_probability_best",
+   "declaration": {
+    "arms": 2,
+    "assignment": {
+     "kind": "thompson",
+     "prior": [
+      1,
+      1
+     ]
+    },
+    "enrolment": [
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1
+    ],
+    "stopping": {
+     "kind": "best",
+     "threshold": "73/100",
+     "prior": [
+      1,
+      1
+     ]
+    },
+    "selection": {
+     "kind": "none"
+    }
+   },
+   "truth": [
+    "1/5",
+    "4/5"
+   ],
+   "alpha": "0.8",
+   "tuning": 2,
+   "exclusion_probability": 0.03913385563718821,
+   "terminal_states": 120
+  },
+  {
+   "name": "three_arm_ucb_resource_cap",
+   "declaration": {
+    "arms": 3,
+    "assignment": {
+     "kind": "ucb",
+     "exploration": "2"
+    },
+    "enrolment": [
+     1,
+     1,
+     1,
+     1,
+     1,
+     1
+    ],
+    "stopping": {
+     "kind": "cap",
+     "max_units": 5
+    },
+    "selection": {
+     "kind": "none"
+    }
+   },
+   "truth": [
+    "1/4",
+    "1/2",
+    "3/4"
+   ],
+   "alpha": "0.7",
+   "tuning": 3,
+   "exclusion_probability": 0.0,
+   "terminal_states": 27
+  },
+  {
+   "name": "lagged_epsilon_greedy_with_loss",
+   "declaration": {
+    "arms": 2,
+    "assignment": {
+     "kind": "epsilon_greedy",
+     "epsilon": "1/5",
+     "prior": [
+      1,
+      1
+     ]
+    },
+    "enrolment": [
+     1,
+     1,
+     1,
+     1,
+     1
+    ],
+    "stopping": {
+     "kind": "none"
+    },
+    "selection": {
+     "kind": "none"
+    },
+    "lag": 1,
+    "retain": [
+     "3/4",
+     "3/4"
+    ]
+   },
+   "truth": [
+    "1/2",
+    "1/2"
+   ],
+   "alpha": "0.6",
+   "tuning": 4,
+   "exclusion_probability": 0.0,
+   "terminal_states": 70
+  },
+  {
+   "name": "truth_on_the_boundary_of_the_support",
+   "declaration": {
+    "arms": 2,
+    "assignment": {
+     "kind": "fixed",
+     "probabilities": [
+      "1/2",
+      "1/2"
+     ]
+    },
+    "enrolment": [
+     2,
+     2,
+     2
+    ],
+    "stopping": {
+     "kind": "none"
+    },
+    "selection": {
+     "kind": "none"
+    }
+   },
+   "truth": [
+    "0",
+    "1"
+   ],
+   "alpha": "0.9",
+   "tuning": 1,
+   "exclusion_probability": 0.0,
+   "terminal_states": 7
+  },
+  {
+   "name": "exposure_failure_delivered_attribution",
+   "declaration": {
+    "arms": 2,
+    "assignment": {
+     "kind": "fixed",
+     "probabilities": [
+      "1/2",
+      "1/2"
+     ]
+    },
+    "enrolment": [
+     2,
+     2
+    ],
+    "stopping": {
+     "kind": "none"
+    },
+    "selection": {
+     "kind": "none"
+    },
+    "exposure": {
+     "failure": [
+      "0",
+      "1/4"
+     ],
+     "fallback": 0,
+     "attribution": "delivered"
+    }
+   },
+   "truth": [
+    "1/3",
+    "2/3"
+   ],
+   "alpha": "0.9",
+   "tuning": 3,
+   "exclusion_probability": 0.020574122299382717,
+   "terminal_states": 35
+  }
+ ],
+ "reports": [
+  {
+   "counts": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "alpha": "0.05",
+   "tuning": 10,
+   "alpha_per_cell": 0.025,
+   "cells": [
+    {
+     "mean": null,
+     "lower": 0.0,
+     "upper": 1.0,
+     "units": 0
+    },
+    {
+     "mean": null,
+     "lower": 0.0,
+     "upper": 1.0,
+     "units": 0
+    }
+   ]
+  },
+  {
+   "counts": [
+    3,
+    1,
+    0,
+    0
+   ],
+   "alpha": "0.05",
+   "tuning": 10,
+   "alpha_per_cell": 0.025,
+   "cells": [
+    {
+     "mean": 0.75,
+     "lower": 0.0,
+     "upper": 1.0,
+     "units": 4
+    },
+    {
+     "mean": null,
+     "lower": 0.0,
+     "upper": 1.0,
+     "units": 0
+    }
+   ]
+  },
+  {
+   "counts": [
+    30,
+    10,
+    5,
+    25
+   ],
+   "alpha": "0.2",
+   "tuning": 50,
+   "alpha_per_cell": 0.1,
+   "cells": [
+    {
+     "mean": 0.75,
+     "lower": 0.4797668493399753,
+     "upper": 1.0,
+     "units": 40
+    },
+    {
+     "mean": 0.16666666666666666,
+     "lower": 0.0,
+     "upper": 0.5024964454810676,
+     "units": 30
+    }
+   ]
+  },
+  {
+   "counts": [
+    1,
+    0,
+    0,
+    1
+   ],
+   "alpha": "0.99",
+   "tuning": 1,
+   "alpha_per_cell": 0.495,
+   "cells": [
+    {
+     "mean": 1.0,
+     "lower": 0.0,
+     "upper": 1.0,
+     "units": 1
+    },
+    {
+     "mean": 0.0,
+     "lower": 0.0,
+     "upper": 1.0,
+     "units": 1
+    }
+   ]
+  },
+  {
+   "counts": [
+    400,
+    600,
+    250,
+    250
+   ],
+   "alpha": "0.01",
+   "tuning": 1000,
+   "alpha_per_cell": 0.005,
+   "cells": [
+    {
+     "mean": 0.4,
+     "lower": 0.3248675106440096,
+     "upper": 0.4751324893559904,
+     "units": 1000
+    },
+    {
+     "mean": 0.5,
+     "lower": 0.3715354143672025,
+     "upper": 0.6284645856327975,
+     "units": 500
+    }
+   ]
+  },
+  {
+   "counts": [
+    2,
+    2,
+    2,
+    2
+   ],
+   "alpha": "0.5",
+   "tuning": 0.5,
+   "alpha_per_cell": 0.25,
+   "cells": [
+    {
+     "mean": 0.5,
+     "lower": 0.0,
+     "upper": 1.0,
+     "units": 4
+    },
+    {
+     "mean": 0.5,
+     "lower": 0.0,
+     "upper": 1.0,
+     "units": 4
+    }
+   ]
+  }
+ ],
+ "smallest_gap": 0.0053729421438860545
+}

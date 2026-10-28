@@ -82,3 +82,7 @@ path = "tests/resample_law_reference.rs"
 [[test]]
 name = "surrogate_reference"
 path = "tests/surrogate_reference.rs"
+
+[[test]]
+name = "jpcmci_plus_pooled_frame_reference"
+path = "tests/jpcmci_plus_pooled_frame_reference.rs"

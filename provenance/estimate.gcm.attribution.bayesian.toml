@@ -38,4 +38,31 @@ test_sources = [
  "crates/antecedent/src/analysis/execute/checked_attribution.rs (in-module tests: change_posterior_keeps_total_and_shapley_components_coupled)",
  "crates/antecedent/tests/checked_attribution_route_evidence.rs (all_bayesian_static_dag_attribution_plans_are_sealed_and_dependency_refused)",
  "conformance/estimate/staged_attribution (known-truth change fixture: two-period intercept-shift chain with total change 5.0)",
+ "crates/antecedent/tests/gcm_bayesian_refit_reference.rs (change-attribution draws from regenerated per-population Dirichlet weights: exact intercept component, weighted-mean covariate component, efficiency)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The Bayesian change-attribution route in crates/antecedent/src/analysis/execute/attribution_path.rs (change_attribution_posterior) with antecedent_attribution::distribution_change_with_row_weights: one weight vector per population per draw from the (Attribution, 0xC4A6_7A7E) stream, shared by every mechanism of that population, a weighted refit of both populations, and the total change and Shapley components of the same refit. Not the Shapley sampler itself or the coalition value estimator (attribution.distribution_change, model.gcm_sampling), non-linear mechanisms, or the root-cause and intrinsic-influence routes."
+assumptions = ["Unconfoundedness and the parametric structural model are taken as given: the graph is a causal DAG with independent disturbances and the selected mechanism families are correct.", "Family selection (5-fold cross-validated score) is made once on the unweighted data; this review does not examine it and relies on the closed form below holding only when the selected family is the linear one.", "The two populations are the resolved baseline and comparison row sets; the posterior is conditional on the family selection from the unweighted populations."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The closed-form references are written in the repository-authored (MIT OR Apache-2.0) test file; the test uses only the standard library and the repository's own random-number stream to regenerate the weight vectors under review. No reference script or frozen output is involved."
+limitations = "One exactly linear two-period chain x -> y (y = 1 + 2x, then 6 + 2x, 40 rows per period, covariate values a permutation of 0 to 3.9), sixteen draws, exact two-player Shapley. Because the fits have zero residuals under any weights, the intercept mechanism's component is asserted equal to 5 to 1e-6 in every draw and the components are asserted to add up to the total to 1e-9; the covariate component is asserted within 0.2 of twice the difference of the draw's weighted covariate means, which holds only up to the Monte Carlo error of the sampled covariate marginals (2000 samples per coalition), so the weighted covariate shift is checked to that accuracy and not exactly. Residual noise, unequal slopes between periods, nonlinear or discrete mechanisms, more than two players, approximate Shapley allocation and the coalition value estimator are not examined. The reference is a closed form evaluated in binary64 inside the test file (not an independent script with a frozen output), and the weight vectors are regenerated from the same documented stream of the execution context; a change of stream or draw order is therefore a failing test rather than silently matched, but the test cannot detect a defect in the shared Dirichlet(1,...,1) weight generator itself (data.bayesian_bootstrap)."
+sources = ["https://doi.org/10.48550/arXiv.2102.13384", "https://doi.org/10.1214/aos/1176345338"]
+findings_resolved = ["No defect: in all sixteen draws the intercept component is exactly the period shift, the covariate component tracks the weighted covariate shift of that draw's two regenerated weight vectors within sampling error, and total change equals the sum of components, so the draw is one coupled refit with one weight vector per population."]
+record_sha256 = "b2d014980e89b809c91bc263606e31403d7de365a9ab4646d0bc97a913eda442"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/execute/attribution_path.rs"
+sha256 = "f57020e36b3586bf1efdb19e0106486c0efc993a26797dfc88fb20314bc97d4f"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-attribution/src/distribution_change.rs"
+sha256 = "77a9f7b718a51e5efa4dd606cdc12be3675cfbc2c89b495ad9d39b96574848bd"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/gcm_bayesian_refit_reference.rs"
+sha256 = "04f777385461cf2cd31694de733a6ca79f6fb5ec94dc7efeb108b51daaf08228"

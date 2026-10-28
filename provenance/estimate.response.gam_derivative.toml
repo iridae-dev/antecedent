@@ -27,7 +27,49 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
+  "crates/antecedent-estimate/tests/estimate_response_gam_derivative_reference.rs (exact additive-GAM Jacobian, directional derivative, level and scales)",
   "conformance/response/staged_derivatives",
   "crates/antecedent-estimate/src/response/tests.rs",
   "crates/antecedent-stats/src/gam.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "ContinuousResponseEstimator::jacobian and ::directional_derivative (derivative.rs) with plugin_gradient_run / plugin_gradient_at_fit and the target fit of nuisance.rs (fit_outcome_target, outcome_target_specs, fit_outcome_target_weighted) for the Frequentist route: the shared complete-case row set across outcomes, the additive cubic-spline outcome fit with unpenalized treatment smooths and adjuster smooths at the caller's lambda, the analytic derivative of each treatment smooth (exactly zero outside the half-open knot interior), the plug-in level as the covariate average of the fitted function, the identity, log-treatment, log-outcome and log-log scales (the last two refused at a non-positive level), the directional derivative as the gradient dotted with the direction, and that no interval is published. Relies on the stats.gam review for the penalized fit, its knots and the smooth_derivative implementation, whose value is also checked here against an independent degree-drop derivative. Not the plug-in sandwich interval (withheld by the public route), the Bayesian route, more than two treatments, or the cross-fitted average derivative."
+assumptions = ["The outcome surface is additive in the treatments and the adjusters; a treatment-covariate or treatment-treatment interaction is not learned, so the plug-in gradient is the gradient of the best additive approximation, not of the true surface.", "Identification (the adjustment set) is taken as given; the support check is marginal, not joint."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library (shared module estimate_response_kennedy_dr_reference.py, which uses mpmath for its density work, not needed here). It is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Three frozen designs: one treatment and one adjuster at 70 rows, evaluated at two interior points, at the left knot edge, at the open right edge, and outside the range on both sides; two correlated treatments, one adjuster and two outcomes at 90 rows (Jacobian on all four scales and a directional derivative); a treatment offset of 1e3 with an outcome of 1e5 and an adjuster on scale 250 at 80 rows and basis 6. The exact fit is at lambda 1 or 1/2 and basis 5 or 6 only. Agreement is 1e-6 relative on the first two designs and 3e-5 plus 2e-4 absolute on the offset design, where the backfit stops relative to the largest fitted value (see estimate.response.kennedy_dr). No uncertainty is published for this route and none is reviewed: the plug-in sandwich of plugin.rs, which the calibration harness uses, is not checked here. Sieve bias, a non-additive surface and the difference between a derivative of the fit and the derivative of the true surface are not examined, and the support check (marginal ranges) is only exercised, not validated. The cited publication (Hastie and Tibshirani, generalized additive models) was not retrieved in this review: the reference is the penalized additive cubic-spline minimizer and its analytic derivative, as the module states them. The reference script is not run in a locked, isolated environment and is not wired into any gate."
+sources = ["https://doi.org/10.1214/ss/1177013604", "https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["Defect repaired (shared with estimate.response.kennedy_dr): the plug-in target backfit stopped at a relative 1e-6 on either the change of the smooths or the change of the residual sum of squares, the second being second order in the coefficient error. With an adjuster correlated with the treatment the fitted values were right but the treatment smooth, and therefore its derivative, was not: at the same data the derivative at 0.3 differed from the converged fit by 4e-5 (relative) on one design and 2e-4 on another, which the 1e-6 comparison with the exact fit would have rejected. The target and nuisance backfits now run at 1e-10 with a 2000-sweep budget.", "The Jacobian on every scale and the directional derivative equal the exact degree-drop derivatives and covariate-average level, including the derivative of exactly zero outside the open knot interior and at the right knot edge, a nonzero derivative at the left edge, two treatments with two outcomes, and the refusal of a log-outcome or log-log scale at a non-positive fitted level.", "Differential missingness across outcomes is refused with the shared complete-case row-set message instead of fitting outcomes on different rows, and the withheld interval is disclosed as response.derivative_interval_withheld with an uncertainty of None."]
+record_sha256 = "7ba135c7bf6666839e2b24526cf159bf3986b47dfc065c7e4714ff23feec86fd"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/response/plugin.rs"
+sha256 = "1f1c2c170c609d6f0bf0110a54c10a74897a115d36abd4a0c44cec8161474d09"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/response/nuisance.rs"
+sha256 = "c642ac42905f6c510772c5ae6f8e3acee479636180a35707e098506e6d2c8446"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/response/crossfit.rs"
+sha256 = "da2fdb943a3f263eaae29bcdd56e4875ede7e7e7510c9a7c9598cfaece0035f9"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/estimate_response_gam_derivative_reference.rs"
+sha256 = "ec4c313f08cc64b1378bc3c0b4fd554ea71a32390491ca0adb13544aa931bc7b"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/estimate_response_gam_derivative_reference.py"
+sha256 = "7085f3190c1087f57f6924ab6a6d8220862804e7fd77fd7f8d901ec42c62e61d"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/estimate_response_gam_derivative_reference.json"
+sha256 = "40bdce16794abe2db8d8101868dbc2127180b1b7b224b00c2cfbddf188f5619b"

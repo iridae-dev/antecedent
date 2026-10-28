@@ -43,3 +43,35 @@ test_sources = [
   "python/tests/test_measured_inference.py",
   "python/tests/test_measured_joint_transport.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "learned_joint_transport::fit_learned_joint_transport: the raw-monomial basis phi(x) of degree 1 to 6 per covariate, the transport design [A, A*phi, phi | varying block], the dense Gaussian prior as it passes through the learn crate's known-variance basis regression (diagonal variances plus coefficient correlation), exact posterior mean and covariance, effect vectors from mean basis values of each sample, the rank guard and the iid draws. Relies on the conjugate Gaussian update reviewed for provenance/transport.joint_bayesian.toml and on antecedent-learn's conjugate backend, whose route-specific use (prior and weights passed, exact covariance returned) is checked here by comparison with the exact reference. Not the overlap box, conflict diagnostics, artifacts or the closed interval route."
+assumptions = ["Known noise variance per source, independent sources, a polynomial mean in the certified covariates, a proper Gaussian prior with dense covariance, and the supplied structural certificate."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. No cited publication was retrieved in this review: the correspondence is between the product code and the standard definitions, verified numerically, not a page-level reading of any paper."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Five designs against Fraction Gauss-Jordan posteriors: a quadratic basis with a banded dense prior and nonzero mean over two sources; a cubic basis with covariates offset by 4 (collinear monomials still above the rank guard); two covariates at degree 2 with a 2^16 noise-variance ratio and unbalanced sources; degree 6 with a nearly flat prior; and a cubic basis with covariates offset by 16, which the product refuses as rank_deficient (relative pivot 6e-11) although the exact proper-prior posterior exists. That refusal follows from the declared raw-monomial parameterization (the prior is on raw coefficients, so centering would change the model) and is recorded as a limitation, not repaired. Posterior and effect moments are asserted to 1e-8 relative and the target-effect draws to Monte Carlo error. Ill-conditioned monomial bases beyond the guard, degree-6 designs with several covariates and unknown noise variance are not covered; coverage is not measured and the interval route stays closed."
+sources = ["Textbook conjugate Gaussian linear model with known variance and a polynomial basis (no paper retrieved; the definition is evaluated by the reference)"]
+findings_resolved = ["No defect found: moments match the exact rational reference, including the dense nondiagonal prior being honored through the learn backend. The rank-guard refusal of a collinear raw-monomial design is recorded as a documented limit."]
+record_sha256 = "8c797a4e48df1849a429a4a031446f7e942af5e9b68feb5b4efa5e1e462c2d85"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/learned_joint_transport.rs"
+sha256 = "b3c2af388f5352587ddec9973ff30b3fe7007b4db84ad786a102ec9f8c56a2a4"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/learned_joint_transport_reference.rs"
+sha256 = "b9f8d039a57846c0eb37da41eef33f47cfd547233c4135cc89a12df59cdb3ec2"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/learned_joint_transport_reference.py"
+sha256 = "e2e753ac176c6c505e7fef42f1faedc760df0238f4a527dc11e3fe1fc70e76cb"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/learned_joint_transport_reference.json"
+sha256 = "2d69e0c0a08509e087b8241c9c5843601dd6837091a237c96b6fc4baa532e32e"
+

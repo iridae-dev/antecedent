@@ -9,6 +9,8 @@ copied_tests = false
 # this module evaluates the resulting expression rather than performing ID.
 # The primary paper is linked through the authors' institutional archive;
 # no unverified DOI is supplied. IDC shares its source with identify.idc.toml.
+modules = ["crates/antecedent-estimate/src/functional_distribution.rs"]
+
 papers = [
  { title = "Identification of Joint Interventional Distributions in Recursive Semi-Markovian Causal Models", url = "https://escholarship.org/uc/item/9598x714", sections = ["Algorithm ID: lineage of the already identified expression, not the empirical plug-in evaluator"] },
  { title = "Identification of Conditional Interventional Distributions", doi = "10.48550/arXiv.1206.6876", sections = ["IDC algorithm"] },
@@ -27,4 +29,41 @@ test_sources = [
  "conformance/estimate/functional_plugin (clean-room known-truth fixture for one backdoor interventional mean; does not exercise IDC or general ID expressions)",
  "in-crate unit tests (crates/antecedent-estimate/src/functional_distribution.rs): plug-in matches known interventional mean, bootstrap SE finiteness, no-bootstrap replicate-count invariant",
  "conformance/estimate/admg_frontdoor_functional (frozen binary front-door ADMG law: the plug-in front-door functional equals the analytic 0.3 through the staged Frequentist ATE path, explicit and accepted, at every licensed validation level)",
+ "crates/antecedent-estimate/tests/functional_distribution_reference.rs (exact-rational back-door, front-door, napkin free-variable and path-specific mediation identities from contingency counts, and refusal of a required empty cell)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "FunctionalDistribution::prepare and ::estimate in crates/antecedent-estimate/src/functional_distribution.rs for a point (non-resampled) evaluation: the empirical conditional tables built from the complete-case rows, their evaluation in an identified general.id functional, the atoms over the outcome support, the interventional mean, and the average over the empirical law of the free variables of the identity. Not the ID or IDC algorithms (the papers listed are lineage of the evaluated expression), the bootstrap and Bayesian-bootstrap paths, or the atom intervals."
+assumptions = ["The functional handed to the evaluator is the identified expression (identify.id / path_specific); this review does not examine identification, which is reviewed with those records.", "Discrete variables with finite observed support; the empirical conditional tables are unsmoothed.", "Rows are independent, complete cases."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. It is not run in a locked, isolated environment and is not wired into any gate; its output is frozen and compared by the test."
+limitations = "Five contingency tables of 40 to 150 rows evaluated exactly with fractions.Fraction: a ternary adjustment variable with ternary outcome and unbalanced or singleton cells, a front-door ternary mediator, a binary napkin with a free variable and a path-specific mediation functional on four binary variables; atoms and means are asserted to 1e-12 absolute. A table that lacks a required cell is refused, for the contrast that reads it only. The evaluator relies on the expression arena, the empirical-table provider and the program evaluator of antecedent-expr, whose arithmetic is exercised here only through these queries and is not reviewed on its own. Not examined: the row bootstrap and Bayesian-bootstrap standard errors and posteriors, the bounded logit atom intervals, the row-weight paths, the stratified or block resampling, the IDC conditioning values, cluster-dependent rows, and the free-variable average beyond the one napkin case. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://escholarship.org/uc/item/9598x714", "https://doi.org/10.48550/arXiv.1206.6876"]
+findings_resolved = ["No defect: the distribution atoms and the mean of the back-door query on a ternary adjustment variable, the napkin query with a free variable averaged by its empirical law over the supported values, and the effect through the front-door and path-specific functionals equal the exact rational identities.", "A do-level whose adjustment cell is empty is refused, not zero-filled, and the other arm of the same table is still answered."]
+record_sha256 = "6ca6e371a95756f5c8a32c9d993678e33676e5a96f47a8b3d1ecfb66eb7a473f"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/functional_distribution.rs"
+sha256 = "1c1244602640fbaf0f2e07305b0bb2cbe795be94eb4ecdf366c2487de0f4d278"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/functional_distribution_reference.rs"
+sha256 = "ce9fb12b36478c50064dcb47485af9b0100ace9ed4fdbc50ddfb4d696c440458"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/functional_distribution_reference.py"
+sha256 = "4880acab38c437fdcaade4ea54a87c24ede36b9ea8668f06542f540a87ec7f04"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/functional_distribution_reference.json"
+sha256 = "2d8910b4cb26e41a06f345c395e87165187b584407212248bc3950d7bf570e1b"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/table_support.rs"
+sha256 = "b1ea24c5e276526e60ac330f732477945909496ff3d03ecf38f12f50f61eafbc"

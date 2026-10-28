@@ -1173,4 +1173,43 @@ mod tests {
         assert!(text.contains("parent_set_effect.conflict_resolution_budget"), "{text}");
         assert!(text.contains("2 colliders") && text.contains("above the 1"), "{text}");
     }
+    fn coefficient(point: f64, lower: f64, upper: f64, standard_error: f64) -> AdjustedEffect {
+        AdjustedEffect {
+            point,
+            lower,
+            upper,
+            level: 0.95,
+            standard_error,
+            degrees_of_freedom: 30.0,
+            rows: 40,
+            adjustment_set: Vec::new(),
+        }
+    }
+
+    /// The mean ratio is the exponential of the shifted log-scale coefficient, its interval is
+    /// the exponential image of the log-scale interval with the endpoints put in order (a
+    /// negative shift reverses them), and its standard error is the delta-method image
+    /// `ratio * |shift| * se`; a linear study reports the coefficient unchanged.
+    #[test]
+    fn the_reported_effect_is_the_declared_image_of_the_coefficient() {
+        let log = coefficient(0.4, 0.1, 0.7, 0.15);
+        for shift in [0.5_f64, 1.0, -2.0, 1e-3] {
+            let got = reported_effect(Transformation::LogLinear, Some(shift), &log);
+            let ratio = (shift * 0.4).exp();
+            assert_eq!(got.name, MEAN_RATIO);
+            assert!((got.point - ratio).abs() <= 1e-15 * ratio);
+            let (a, b) = ((shift * 0.1).exp(), (shift * 0.7).exp());
+            assert!((got.lower - a.min(b)).abs() <= 1e-15 * a.min(b), "shift {shift}");
+            assert!((got.upper - a.max(b)).abs() <= 1e-15 * a.max(b), "shift {shift}");
+            assert!(got.lower <= got.point && got.point <= got.upper, "shift {shift}");
+            let se = ratio * shift.abs() * 0.15;
+            assert!((got.standard_error - se).abs() <= 1e-15 * se.max(1e-300), "shift {shift}");
+        }
+        let linear = reported_effect(Transformation::Linear, None, &log);
+        assert_eq!(linear.name, TOTAL_EFFECT);
+        assert_eq!(
+            (linear.point, linear.lower, linear.upper, linear.standard_error),
+            (0.4, 0.1, 0.7, 0.15)
+        );
+    }
 }

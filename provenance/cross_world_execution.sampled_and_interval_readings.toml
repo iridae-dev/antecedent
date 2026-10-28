@@ -5,16 +5,15 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-papers = [
-  { title = "Causality: Models, Reasoning, and Inference (2nd edition), chapter 7, abduction-action-prediction", sections = ["7.1 structural model semantics"] },
-  { title = "Counterfactual Probabilities: Computational Methods, Bounds and Applications (Balke and Pearl, UAI 1994)", sections = ["exogenous response-type enumeration"] },
-  { title = "Direct and Indirect Effects (Pearl, UAI 2001)", sections = ["natural direct and indirect effects as nested counterfactuals"] },
-]
+# Explicit judgment, not an unfilled field: this record names the CLOSED readings of the finite
+# cross-world executor (a sampled exogenous posterior, and interval or posterior readings). Nothing is
+# implemented that a paper introduces; the abduction-action-prediction enumeration whose point value is
+# the only open reading is cited by cross_world_execution.finite_markovian_scm.
+papers = []
 
 implementation_deviations = [
-  "Exact enumeration of a product of finite independent exogenous terms (at most 65536 joint states per unit) rather than the papers' linear-programming bounds; mechanisms and the exogenous law are declared, so the counterfactual is point-valued, not partially identified.",
-  "Pearl's abduction-action-prediction is implemented as one exogenous posterior shared by all worlds; the retained abduction is keyed by a canonical dependency digest, which is an engineering addition with no counterpart in the cited work.",
-  "No sampling, interval or posterior route exists; the cited papers' guarantees are not claimed beyond point values under the declared model.",
+  "No sampling, interval or posterior route exists for the finite cross-world executor: a request for a sampled exogenous posterior is refused before any work (cell_not_licensed, cross_world_execution.sampled_abduction_not_licensed) and an interval or posterior reading is refused by the joint-law propagation rule (cell_not_licensed, interval_route_closed or posterior_route_closed). The only open reading is the exact point value.",
+  "A Spread reading passes the propagation rule for an exactly enumerated row and is answered with the point value labelled point_only, with no spread attached; the facade and Python surfaces never request it (they expose point, interval and posterior only), so this is reachable only through the Rust request type.",
 ]
 
 upstream_implementations_observed = []
@@ -24,4 +23,23 @@ test_sources = [
   "crates/antecedent-counterfactual/tests/cross_world_execution_temporal.rs",
   "crates/antecedent-io-core/tests/cross_world_execution_artifact.rs",
   "crates/antecedent/tests/cross_world_execution_facade.rs",
+  "crates/antecedent-counterfactual/tests/cross_world_execution_sampled_and_interval_readings.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "closed_variant"
+rationale = "The closed readings of the finite cross-world executor: a sampled exogenous posterior and interval or posterior readings are refused with registered codes before any abduction, prediction or sampling work."
+no_independent_algorithm = "finite_executor.rs static_checks refuses PosteriorSampling and the joint-law propagation rule refuses Interval and Posterior readings; the module takes no draw (shared_draws stays zero) and computes no interval, posterior or spread. The exact enumeration or elimination that produces the open point value is covered by cross_world_execution.finite_markovian_scm."
+covered_by = ["cross_world_execution.finite_markovian_scm"]
+record_sha256 = "0e659d67f94c598750c05325d677a214d7c37de20f87dd623ea358e3328fade3"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-counterfactual/src/selective/finite_executor.rs"
+sha256 = "966fe4744923b92ed9543bc346f7d66e164305275d4bcf1d1498cae5632de2f6"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-counterfactual/tests/cross_world_execution_sampled_and_interval_readings.rs"
+sha256 = "a3ee881c78f1b4a6c6203818c62685cbe8722cb4527b092b5fa24ad01fca1aac"

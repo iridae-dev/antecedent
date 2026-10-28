@@ -11,4 +11,51 @@ implementation_deviations = [
   "The finite quadrature fixture represents the exact source posterior first two moments; it does not grant interval calibration or upgrade source trust.",
 ]
 upstream_implementations_observed = []
-test_sources = ["crates/antecedent-estimate/src/bayesian/hydrate.rs", "crates/antecedent-estimate/src/bayesian/tests.rs", "crates/antecedent/tests/dense_prior_hydration.rs", "crates/antecedent/tests/mapped_posterior_transfer.rs"]
+test_sources = [
+  "crates/antecedent-estimate/src/bayesian/hydrate.rs",
+  "crates/antecedent-estimate/src/bayesian/tests.rs",
+  "crates/antecedent/tests/dense_prior_hydration.rs",
+  "crates/antecedent/tests/mapped_posterior_transfer.rs",
+  "crates/antecedent/tests/mapped_posterior_transfer_reference.rs (exact-rational moments of the finite draws under a permuted bijection, offsets, near-collinear correlation and N-1 sample covariance)",
+]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "mapped_posterior_transfer_with in crates/antecedent/src/inference.rs with the NamedParameters hydration in crates/antecedent-estimate/src/bayesian/hydrate.rs and the artifact moments in crates/antecedent-io-core/src/distribution_artifact.rs, for equally weighted joint parameter-posterior draws with a constant residual-variance coordinate and a complete stable-ID bijection: the artifact mean and covariance of the finite distribution of the draws (denominator N), the target-order permutation of the mean, the variance Sigma_ii / sigma2 with its floor, the permuted correlation carried as a dense V0, and coefficient_covariance_from_draws (the posterior-artifact sample covariance, denominator N - 1). Not the identity, snapshot and contract refusals (asserted elsewhere), weighted or masked draws (refused), the effect-functional and identical-subspace hydrations, or any use of the prior in a fit."
+assumptions = ["The source artifact is a finite joint sample of a known-variance Gaussian posterior and its moments are those of the sample; whether the sample represents the source posterior is a property of the source, not of the transfer.", "The target known residual variance equals the source's constant residual-variance coordinate (the route refuses otherwise), so V0 = Sigma / sigma2.", "A correlation that is not positive definite is dropped to the diagonal and recorded; the precision of that decision is not examined."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library (fractions), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Five synthetic sources of 6 to 9 draws of three coefficients: a three-cycle target order, coordinates offset by 1e6 and -3e5 with spreads of 1e-3 and 5e-4, a correlation within 3e-9 of one, a known variance of 1e4 and the identity order, with known variances from 0.04 to 1e4. The prior mean is asserted to 1e-9, the variance to 1e-6 relative (the variance of a coordinate offset by 1e6 with a spread of 1e-3 is the hardest) and the correlation to 1e-9 absolute; the N - 1 sample covariance to 1e-7. The route is two-pass in binary64, which these regimes support; a source with spread below about 1e-10 of its offset would not be. A source whose covariance is not positive definite (a constant coordinate) takes the diagonal fallback, which existing tests assert but this review does not bind to a reference. The route's consequence for a fit (sequential updating equals pooling) is the existing mapped_posterior_transfer test and is not repeated. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["No defect found: the prior mean, the variance converted to V0 and the permuted correlation equal the exact rational moments of the finite draws for every case, including a non-trivial three-cycle permutation, a source with offsets of 1e6 and a near-singular correlation, and the sample covariance of the posterior-artifact hydration equals the exact N - 1 covariance.", "The route reuses the dense-covariance hydration (the posterior-moment kernel) and adds the stable-ID bijection and the permutation, which is what this review exercises."]
+record_sha256 = "81f37b7da62aad936df0b73178c2db9dda74d59d79bb29d952e8bb49ddc0deb2"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/inference.rs"
+sha256 = "a8a9afd21ab9f24375d03bc6586b16d2a6185be6f23c01cb70c41d679e9cc870"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/bayesian/hydrate.rs"
+sha256 = "70e8fe1facd5d19335e381a5a59f4100dc678be568d8da6dc5c3efa18e53974d"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/distribution_artifact.rs"
+sha256 = "9918dadc1ba0df7aaab50019ba02568ae8782a82cd2f50e8a0b47ca2e600c245"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/mapped_posterior_transfer_reference.rs"
+sha256 = "8a950f21a4f99fef87c2b7535352202fa3759344988e07a3922d628311c5c709"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent/tests/oracle_data/mapped_posterior_transfer_reference.py"
+sha256 = "97b16e5c19dfa7da22cf0c59483fba44398eac89df6135387158d59a6ac29093"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent/tests/oracle_data/mapped_posterior_transfer_reference.json"
+sha256 = "33ebdd5b9f957ce0beb1ac79777367d73c6384e3a926c480ceb5fcf325ce75ff"

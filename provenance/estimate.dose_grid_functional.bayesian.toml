@@ -5,15 +5,62 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+# No primary paper introduces this route. It is textbook conjugate Gaussian regression (the
+# coefficient posterior of a ridge-prior polynomial fit, with a known or inverse-gamma residual
+# variance) pushed through a linear map from coefficients to the dose-response level, derivative
+# or contrast. The conjugate kernel is covered by prob.conjugate_gaussian and the scale
+# marginal by the normal-inverse-gamma review; the Bayesian bootstrap and local-quadratic
+# posterior mean are other records.
 papers = []
 
 implementation_deviations = [
-  "The published number is the dose-grid level and derivative at the posterior mean of the local-quadratic slope coefficients. No interval is produced.",
-  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+  "The published posterior is the joint posterior of a level, derivative or contrast of a randomized-dose response curve m(d) = sum_j beta_j z^j, z = (2d - lo - hi)/(hi - lo), under the declared coefficient prior beta_j | sigma^2 ~ N(0, sigma^2 s_j^2) and a known or inverse-gamma residual variance. The coefficient scales s, the degree and the residual prior are the prior and are reported with the request; a smoothing parameter alone is not a posterior. A dose outside the observed range is refused, never extrapolated, and an observational dose design is refused.",
+  "One coefficient draw gives every grid dose at once, so the draws preserve the covariance across the grid; the posterior mean, equal-tailed 95 percent interval and joint covariance reported with the draws are Monte Carlo summaries, and under a known residual variance the exact Gaussian mean and covariance are reported beside them. The contrast covariance is the draw variance of the difference with divisor n_draws.",
+  "The posterior is for the curve m, not for a new outcome Y. It is uncalibrated: no coverage record measures it and the route is not licensed. A smoothing bias is not part of the target because the target is the polynomial curve itself.",
+  "A separate point-only route in the same module family publishes the level and derivative at the posterior mean of a Gaussian-kernel local-quadratic fit (LocalQuadraticNamespace::DoseGrid in posterior_mean.rs); its arithmetic is the one reviewed under estimate.quadratic_dose.bayesian and is not part of this record's review.",
 ]
 
 upstream_implementations_observed = []
 
 test_sources = [
-  "crates/antecedent-estimate/tests/posterior_mean_linear.rs",
+  "crates/antecedent-estimate/tests/dose_grid_functional_bayesian_reference.rs (14 cases against 50-digit conjugate moments: level, derivative and contrast, known and inverse-gamma residual variance, doses and support offset by 1e6 and -3e5 or 2e5, more coefficients than rows, three rows, a support wider than the data, prior scales 1e-3 to 1e6; exact moments to 1e-8, retained draws to Monte Carlo accuracy; every declaration used or refused)",
+  "crates/antecedent-estimate/src/dose_grid_posterior.rs (in-crate unit tests against numpy)",
+  "crates/antecedent/tests/bayesian_design_posterior_routes.rs",
+  "crates/antecedent-estimate/tests/posterior_mean_linear.rs (the point-only DoseGrid namespace)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "estimate_dose_grid_posterior of crates/antecedent-estimate/src/dose_grid_posterior.rs with the conjugate regression it calls (fit_basis_regression and checked_basis_prior of dose_basis_regression.rs): the rescaling of the dose to [-1, 1] on the declared support, the polynomial design, the coefficient posterior under N(0, sigma^2 s_j^2) priors with a known or inverse-gamma residual variance, the level, derivative and two-dose contrast maps, the retained joint draws with their mean, equal-tailed 95 percent interval and draw covariance, the exact Gaussian mean and covariance of the functional under a known variance, and the refusals of an observational design, a dose outside the observed or declared range, a derivative of a constant curve and an invalid prior or draw count. Not the antecedent-prob conjugate sampler beyond its agreement with the exact moments (relied on through prob.conjugate_gaussian), the tiled prediction streaming beyond the values it returns, the point-only local-quadratic route, the artifact format, or coverage."
+assumptions = ["Rows are independent given the dose, the dose is independent of the potential-outcome process (a caller attestation as in the frequentist row), and the residual is Gaussian with a known variance or an inverse-gamma prior.", "The coefficient prior is centred at zero with the declared scales on every coefficient, the intercept included; the scales are the smoothing prior and are the caller's choice.", "The reference evaluates the exact binary64 inputs at 50 digits, so only the polynomial design, the solve and the functional maps are compared, not the formation of the data."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with the textbook conjugate identities evaluated at 50 digits by a reference written for this review; no upstream implementation or test source was consulted or copied. The record cites no publication; the arithmetic is checked against its stated definition."
+redistribution = "No work is redistributed; the identities are textbook conjugate algebra stated in the reference script. The script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Fourteen cases of 3 to 20 rows with polynomial widths 1 to 5. Known-variance exact moments agree to a relative 1e-8 (1e-5 when the doses sit at 1e6 or -3e5 and the rescaling loses digits). The retained draws (1e5) agree with the reference mean within five Monte Carlo standard errors and with the covariance to 3 percent (known variance) or 6 percent (inverse-gamma) of the geometric mean variance, so the draws are not compared more tightly than that, and the inverse-gamma moments are the Student-t covariance b_n/(a_n - 1) V, reached only through those draws. The posterior of the coefficients is Gaussian or Student-t exactly, so no approximation error is assessed; the interval is equal-tailed from draws and its frequentist coverage is not measured. Not exercised: widths above 5, thousands of rows, heavy-tailed outcomes, and the streaming of tiles larger than the memory admission. The cited conjugate theory was not retrieved in this review; the reference states the identities it checks. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file."
+sources = ["https://mpmath.org/doc/1.3.0/", "https://en.wikipedia.org/wiki/Bayesian_linear_regression"]
+findings_resolved = ["Replaced the record's description: it described the point-only Gaussian-kernel local-quadratic posterior mean and cited its test, while the executing route this record is linked to (bayesian.dose_grid, the joint polynomial posterior in dose_grid_posterior.rs) had no description or reference of its own. The local-quadratic route is now named as a separate route covered by estimate.quadratic_dose.bayesian.", "Under a known residual variance the exact mean and covariance of every level, derivative and contrast equal the 50-digit (X'X + diag(1/s^2))^-1 X'y and v (X'X + diag(1/s^2))^-1 pushed through the functional rows, including a support wider than the data, doses offset by 1e6, more coefficients than rows and three rows.", "The retained draws reproduce the same moments (and the Student-t moments b_n/(a_n - 1) V for an inverse-gamma prior), the pointwise interval is the normal quantile pair of the exact moments, and the joint covariance across grid doses is the exact off-diagonal, not independent per-point draws.", "No product defect was found in this record."]
+record_sha256 = "1c26dd4e8e25b7c7b0c58c3adcde9567e4a1f2b128037f1fa5e38bd8bbcc9461"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/dose_grid_posterior.rs"
+sha256 = "c18014a9246632af975cd18dfe7f0af43258d8e3685176229ecb9f6903a6ddb7"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/dose_basis_regression.rs"
+sha256 = "41f2eaef2dd900f95159d59a1c239fce104ca8afd0440d6f064e64545c41e94d"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/dose_grid_functional_bayesian_reference.rs"
+sha256 = "efbca1ee32eb7bb6a7a7a89e459e480240981f8e23b65423ffe14ae22729fc9e"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/dose_grid_functional_bayesian_reference.py"
+sha256 = "c93ec77b21c8aefb76671ec897c2448a87fde1e9b424e91a497a8b3148c9435a"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/dose_grid_functional_bayesian_reference.json"
+sha256 = "767fdc86fc0751ad9c09922ce9398cb6010bc0b7734a165e3b258c5956c6587e"

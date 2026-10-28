@@ -7,4 +7,41 @@ copied_tests = false
 papers = [{ title = "Bayesian Data Analysis", sections = ["Gaussian regression; posterior functionals"] }]
 upstream_implementations_observed = []
 implementation_deviations = ["Linear additive Gaussian regression with posterior coefficient projection at each intervention level, standardized over fixed observed covariates. Supports one treatment and complete observations.", "Pointwise equal-tail credible intervals only, with empirical support diagnostics. No doubly robust, nonlinear, superpopulation-covariate, simultaneous-band, derivative or stochastic-policy claim. This is a separate response.bayesian estimator, not Kennedy DR with a Bayesian label."]
-test_sources = ["conformance/bayesian/response_surfaces", "python/tests/test_posterior_moments.py"]
+test_sources = [
+  "crates/antecedent-estimate/tests/estimate_response_bayesian_reference.rs (exact Student-t posterior of response levels, policy reductions and the joint-draw band)","conformance/bayesian/response_surfaces", "python/tests/test_posterior_moments.py"]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "ContinuousResponseEstimator::estimate_bayesian in crates/antecedent-estimate/src/response/bayes.rs for the Gaussian-identity MeanCurve and InterventionResponse functionals: the design (intercept, primary treatment, further treatments, adjusters), the response level of a coordinate as the posterior functional w'b with every non-treatment column at its sample mean, the reduction of a set, shift (sample mean plus the shift), Bernoulli (p), Gaussian (its mean) and categorical (its mean index) policy to a level, the joint policy on several treatments, the streaming evaluation of the coefficient draws over the grid (stream_response_grid, Gaussian branch), the equal-tail credible interval and standard deviation of the draws, the retained draws, and the fixed-grid credible band from the joint draws (simultaneous_posterior_band). The conjugate Normal-Inverse-Gamma posterior and its draws are the BayesianGComputationAte::fit kernel, reviewed in estimate.bayesian_gcomp and prob.conjugate_gaussian; this review relies on those and checks the route arithmetic that sits on them. Not the Bayesian derivative functionals (estimate_bayesian_derivative), the non-Gaussian likelihood branch, or the Laplace backend."
+assumptions = ["The outcome mean is linear and additive in the treatments and the adjusters on the identity link, with independent homoskedastic Gaussian errors; each posterior draw is evaluated over the observed covariate distribution, with no uncertainty in that distribution.", "Identification of the response through the adjustment set is taken as given; the interval describes the policy mean (not a predictive draw), and local support at a mean does not certify support over a stochastic policy.", "The prior is the isotropic N(0, s2 c0^2) coefficient prior with the Inverse-Gamma(1e-3, 1e-3) residual prior of the conjugate fit; the coefficients are on the raw scale, so a large outcome or treatment offset is shrunk toward zero through the intercept and slope."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script declares its inline metadata for mpmath (BSD-3-Clause) and imports it at run time, not redistributing it. It is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Three frozen designs of 60 and 70 rows with 200,000 conjugate draws: a mean curve at four coordinates (one far outside the observed range) with a point mass, a shift, Bernoulli, Gaussian and categorical policy on one treatment; two treatments under a joint point mass and under a point mass with a shift; and a treatment offset of 1e3 with an outcome offset of 1e5 on a covariate scale of 250. The comparison is Monte Carlo: the mean is held to five Monte Carlo standard errors of the exact Student-t posterior, the standard deviation to 8 / sqrt(draws) relative and the interval ends to 3 percent of the posterior standard deviation, so a bias smaller than those is not excluded; the band is recomputed from the retained draws to 1e-3 of the standard deviation. The logistic and other non-Gaussian likelihoods, the derivative functionals, the Laplace backend, a transferred prior and the interval's repeated-sampling coverage (a calibration question) are not covered. The options of the frequentist nuisance path (folds, nuisance basis and lambda) are read by nothing in this route; the bandwidth is read only by the support diagnostic. A declared clustered panel or dependent series is refused upstream for a Bayesian static route (scenario_route_declarations.rs), so the independence of the rows is not silently assumed. The cited text (Gelman et al., Bayesian Data Analysis, Gaussian regression and posterior functionals) was not retrieved in this review: the reference is the standard conjugate regression posterior, evaluated exactly. The reference script is not run in a locked, isolated environment and is not wired into any gate."
+sources = ["https://mpmath.org/"]
+findings_resolved = ["The posterior of every response level (mean-curve coordinates including one outside the observed range, set, shift, Bernoulli, Gaussian and categorical policies, joint policies on two treatments, and an offset design) matches the exact Student-t posterior of the linear functional within the Monte Carlo resolution; the reductions of the policies to a level (the shift to the sample mean plus the shift, Bernoulli to p, Gaussian to its mean, categorical to its mean index) are correct.", "The fixed-grid credible band equals the maximum standardized deviation of the retained draws at the Monte Carlo rank, floored at the pointwise interval, and contains it.", "No defect was found in this route; the shared backfit and quadrature defects found in the frequentist response routes do not enter a linear conjugate fit."]
+record_sha256 = "df08f4a43f631c4650f02e4b040102b52ebd262fd2e3c39320cee0b008bee6c8"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/response/bayes.rs"
+sha256 = "e41a728069ab29c45256782de7829a099804dc813e028c8fde71f7ae866e5b64"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/response/band.rs"
+sha256 = "89fe5fca07635b8f8f54eb2662875156b0e942796baa5d6edad68e35065fa847"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/estimate_response_bayesian_reference.rs"
+sha256 = "220129a0e8e5d7cd05769f20df402a23a05d47d253f33d7cff8f428b1e4d165b"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/estimate_response_bayesian_reference.py"
+sha256 = "854521e6d10d2e7369a05e88ba5faedf66ed64c996dfa42a09ca1114fc7ffcaa"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/estimate_response_bayesian_reference.json"
+sha256 = "23c11522bd9078b2447bb33c818e24cdc2aabf531662e7639219460ccd774f1e"

@@ -2656,3 +2656,7 @@ mod scalable_cases {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "nonparametric_sensitivity_neighborhood_reference_tests.rs"]
+mod nonparametric_sensitivity_neighborhood_reference;

@@ -8,12 +8,16 @@ copied_tests = false
 # Ties the transportability premise of a trial-level surrogate-to-terminal bridge to a declared
 # selection diagram: the premise holds only when no selection node points into the terminal
 # outcome or into a declared modifier of the relation.
-papers = [
-  { title = "External Validity: From Do-Calculus to Transportability Across Populations", citation_note = "Previously recorded title and bibliographic detail: External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"] },
-  { title = "Surrogate endpoints in clinical trials: Definition and operational criteria", citation_note = "Previously recorded title and bibliographic detail: Surrogate endpoints in clinical trials: definition and operational criteria (Prentice, Stat Med 8:431-440)", doi = "10.1002/sim.4780080407", sections = ["surrogate endpoint criteria"] },
-  { title = "The validation of surrogate endpoints in meta-analyses of randomized experiments", citation_note = "Previously recorded title and bibliographic detail: The validation of surrogate endpoints in meta-analyses of randomized experiments (Buyse, Molenberghs, Burzykowski, Renard and Geys, Biostatistics 1:49-67)", doi = "10.1093/biostatistics/1.1.49", sections = ["trial-level association between treatment effects on surrogate and terminal outcome"] },
-]
+# papers = [] is an explicit judgment, read against crates/antecedent-design/src/transported_bridge.rs: the module
+# states the transportability premise of a trial-level surrogate bridge and checks it against a declared
+# selection diagram (no selection node into the terminal outcome or a declared modifier; a node into the
+# surrogate is allowed). The linear trial-level mapping and the point value are derived by the bridge contract,
+# which provenance/scientific_bridge.typed_bridges.toml covers. The surrogate-validation literature
+# (Prentice 1989; Buyse et al. 2000) and the selection-diagram rule (Pearl and Bareinboim 2014) were not
+# retrieved in this review.
+papers = []
 implementation_deviations = [
+  "Reviewed as a justified non-algorithm mapping by reading the module; the premise stays an unresolved obligation of the derived claim and nothing here validates the surrogate",
   "Checks the premise against a declared diagram; it does not discharge it. The premise stays an unresolved obligation of the derived claim.",
   "The bridge itself remains the contract's route: point-only, a mean, one trial-level linear mapping inside the validated surrogate range; no interval and no substitution for an identified causal effect.",
   "A selection node into the surrogate does not contradict the premise because the surrogate's effect in the target is the claim being bridged and is measured there.",
@@ -22,3 +26,21 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-design/tests/transported_bridge.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "A declaration and binding check: it turns a declared selection diagram into the transportability premise of a surrogate bridge contract, or refuses naming the premise."
+no_independent_algorithm = "The module compares populations and variable names, hashes the sorted selection targets into the premise evidence and delegates the mapping value and range check to derive_bridged_claim; the test asserts the contract-derived value 0.796 for surrogate effect 0.8, a number the module does not compute."
+covered_by = ["scientific_bridge.typed_bridges"]
+record_sha256 = "c966aaef4b8ebb0e8a1057a4c418e821279e79ba9c90461129b674fdd89562c9"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/transported_bridge.rs"
+sha256 = "f48f69c9d35cd1941044795dcac110d084ebd97d6707b41bcce393c02b03ab96"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/transported_bridge.rs"
+sha256 = "81db256296c5eb9d9eeae8643ad1e253b024917de3c2236848a51e106079703f"

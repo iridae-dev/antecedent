@@ -647,3 +647,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "learned_trial_reference_tests.rs"]
+mod reference_tests;

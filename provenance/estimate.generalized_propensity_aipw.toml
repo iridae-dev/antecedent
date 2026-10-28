@@ -5,6 +5,8 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+modules = ["crates/antecedent-estimate/src/propensity/generalized.rs"]
+
 papers = [
  { title = "The role of the propensity score in estimating dose-response functions", doi = "10.1093/biomet/87.3.706", sections = ["generalized propensity score: weak unconfoundedness and the balancing property for a multi-valued treatment"] },
  { title = "Efficient semiparametric estimation of multi-valued treatment effects under ignorability", doi = "10.1016/j.jeconom.2009.09.023", sections = ["multi-valued treatment AIPW / efficient score under ignorability"] },
@@ -28,4 +30,41 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent-estimate/tests/treatment_levels.rs (three-level simulated truth: closed-form full-population effect and a numerically integrated pairwise-subpopulation effect, independent of the estimators)",
  "crates/antecedent/tests/multilevel_interval_calibration.rs (ignored repeated-sampling design for the full-population interval on the confounded three-level simulation; plain tests pin the construction key and the withheld status)",
+ "crates/antecedent-estimate/tests/generalized_propensity_aipw_reference.rs (fixed-fold 60-digit multinomial-logit propensities, per-level least-squares outcome models, propensity floor, level means and every pairwise contrast with the iid influence standard error; refusal of an undeclared level and of a trim)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "MultiLevelAipw::fit with the full-population target in crates/antecedent-estimate/src/propensity/generalized.rs: the cross-fitted multinomial-logit generalized propensity on each training fold, the per-level ordinary-least-squares outcome regressions, the floor on the propensity, the per-level scores phi_k = m_k + 1{T=k}(Y - m_k)/max(e_k, floor), the standardized level means, and any pairwise contrast with its iid influence-function standard error from the score table. Relies on the level-stratified cross-fit plan (asserted equal to the recorded plan), the multinomial-logit fit of antecedent-stats and the score-table summary. Not the pairwise-subpopulation target (binary AIPW on the rows at two levels, estimate.aipw), the facade interval and its calibration record, or the learner choice."
+assumptions = ["Weak unconfoundedness given the adjustment set and positivity of every declared level are identification assumptions taken as given.", "Independent complete-case rows, each at a declared level; the standard error is the plug-in iid score variance of cross-fitted scores, not an efficiency-bound variance."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Eight compared tables of 80 to 120 rows with three or four levels, one or two covariates and three to five folds, whose level-stratified fold plan for the recorded seed is part of the case and asserted equal to the product's: a floor that binds on fitted propensities down to 0.01, an outcome offset of 1e7, a covariate offset of 1e3 at scale 250, two covariates 1e-2 apart, and two covariates 1e-4 apart (correlation 1 - 5e-9). Level means and contrasts are asserted to 1e-6 and standard errors to 1e-5 relative. Not examined: the choice of the plan itself (crossfit_plan), separation handling by the ridge fallback of the GLM, a training fold with a sparse level (refused, tested only by the module's own tests), the pairwise-subpopulation target, cluster or weighted rows, and the 95% interval, whose publication depends on a coverage record. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.1093/biomet/87.3.706", "https://doi.org/10.1016/j.jeconom.2009.09.023", "https://doi.org/10.1111/ectj.12097", "https://mpmath.org/"]
+findings_resolved = ["No numerical defect: level means, every pairwise contrast and its standard error equal the 60-digit fixed-fold reference on every compared case, including a binding floor and a covariate offset of 1e3.", "An undeclared treatment level is refused rather than dropped, and a declared trim is refused rather than ignored, so neither declaration is silently unused.", "Recorded limit: the multinomial-logit IRLS does not converge on two covariates differing by 1e-4 and refuses with a non-convergence error, where the binary logistic of the cross-fitted AIPW score converges on a comparable design."]
+record_sha256 = "4a191ffe0ba96998accf08d76e911b5b08e9967810a37847bbe004569d777a3c"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/propensity/generalized.rs"
+sha256 = "15e317a98a7f8a6158531b7ff0a373c8c390f3e3d2affc333b285ae6a97d7b0c"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/generalized_propensity_aipw_reference.rs"
+sha256 = "8b092fe06d7cbd97038edbf2c3afa49d5389847f8efefc8fc0f0b711069326c9"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/generalized_propensity_aipw_reference.py"
+sha256 = "63b6ed32c48917664739f9058171773a70498525aace44a63d955fcd88215630"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/generalized_propensity_aipw_reference.json"
+sha256 = "3d2c58d36884dc34651e3317d959a90a6d4a68fc7b32943b941db07e15010e9d"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/table_support.rs"
+sha256 = "b1ea24c5e276526e60ac330f732477945909496ff3d03ecf38f12f50f61eafbc"

@@ -25,4 +25,26 @@ upstream_implementations_observed = [
 test_sources = [
  "conformance/estimate/staged_static_kinds",
  "crates/antecedent/tests/bayesian_functional_routes.rs",
+ "crates/antecedent/tests/gcm_bayesian_refit_reference.rs (counterfactual unit contrast of a three-node chain equals the product of the fitted least-squares slopes at unit weights)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The frequentist counterfactual route of the staged GCM estimator in crates/antecedent/src/analysis/execute/attribution_path.rs (fit_gcm followed by the abduction-action-prediction unit contrast and its mean) on a chain t -> m -> y with a binary treatment: for linear additive mechanisms the contrast of every unit is the product of the fitted slopes. Not the mechanism-family selection, non-additive or nonlinear mechanisms, categorical disturbances, the anomaly, change and mediation attributions, or the numerics of the abduction and sampling kernels (counterfactual.aap, model.gcm_sampling), on which the route relies."
+assumptions = ["Unconfoundedness and the parametric structural model are taken as given: the graph is a causal DAG with independent disturbances and the selected mechanism families are correct.", "Family selection (5-fold cross-validated score) is made once on the unweighted data; this review does not examine it and relies on the closed form below holding only when the selected family is the linear one."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The closed-form references are written in the repository-authored (MIT OR Apache-2.0) test file; the test uses only the standard library and the repository's own random-number stream to regenerate the weight vectors under review. No reference script or frozen output is involved."
+limitations = "One 24-row chain with a binary treatment and sine and cosine disturbances; the point contrast is asserted equal to the product of the two closed-form slopes to 1e-9 relative. This establishes that fitting, abduction and prediction compose to the least-squares slopes where the selected families are linear; it does not examine what is selected when the truth is nonlinear, how ties between families are broken, interactions, splines or discrete mechanisms, or the Frequentist route's lack of sampling uncertainty (the record's stated limit). The reference is a closed form evaluated in binary64 inside the test file (not an independent script with a frozen output), and the weight vectors are regenerated from the same documented stream of the execution context; a change of stream or draw order is therefore a failing test rather than silently matched, but the test cannot detect a defect in the shared Dirichlet(1,...,1) weight generator itself (data.bayesian_bootstrap)."
+sources = ["https://doi.org/10.1017/CBO9780511803161"]
+findings_resolved = ["No defect: the fitted counterfactual contrast of the chain equals the product of the least-squares slope of m on t and of y on m."]
+record_sha256 = "85470325b0bb7f2f1d49ba98f625733685781e32beda4e8ceaa7b8bba14cb868"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/execute/attribution_path.rs"
+sha256 = "f57020e36b3586bf1efdb19e0106486c0efc993a26797dfc88fb20314bc97d4f"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/gcm_bayesian_refit_reference.rs"
+sha256 = "04f777385461cf2cd31694de733a6ca79f6fb5ec94dc7efeb108b51daaf08228"

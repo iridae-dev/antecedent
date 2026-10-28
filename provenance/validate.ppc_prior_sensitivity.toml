@@ -28,3 +28,11 @@ test_sources = [
  "conformance/bayesian/prior_sensitivity",
  "conformance/validate/bayesian_checks",
 ]
+
+# Review status: not reviewed (no method_review, no mapping). bayesian_checks/predictive.rs,
+# sbc.rs, calibration.rs and prior_sensitivity.rs compute Monte Carlo predictive p-values,
+# realized-discrepancy axes, simulation-based-calibration rank statistics and refits over a prior grid
+# from posterior draws. An executing reference needs the exact conjugate predictive law of the fitted
+# model and an independent draw-free evaluation of each discrepancy; none was built, and reviewing
+# only PriorSensitivity::to_report (a max/min range over supplied means) would not cover the cited
+# predictive-check methods. Not mapped: the module contains its own sampling and arithmetic.

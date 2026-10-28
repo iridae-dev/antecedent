@@ -19,4 +19,62 @@ test_sources = [
  "crates/antecedent-stats/tests/adaptive_inference_oracle.rs",
  "crates/antecedent-estimate/tests/adaptive_inference.rs",
  "crates/antecedent/tests/adaptive_inference_facade.rs",
+ "crates/antecedent-stats/tests/adaptive_decision_stopping_reference.rs (decision report against exact path enumeration)",
+ "crates/antecedent-estimate/tests/adaptive_decision_stopping_posterior_reference.rs (posterior and stop decisions against exact rationals)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "decision_report in crates/antecedent-stats/src/adaptive_inference/procedure_uncertainty.rs (stop probability at each look, no-stop probability, expected enrolment, probability of deciding each arm, wrong-decision probability with ties in the truth, expected regret) with the posterior-expected-loss and futility rules it reports on (crates/antecedent-stats/src/adaptive_inference/procedure_law.rs, Rules::assess), and expected_loss_stopping with the posterior it thresholds in crates/antecedent-estimate/src/adaptive_inference.rs (the arm named best, the probability-best and expected-loss stop conditions). Relies on the Beta posterior kernel reviewed under adaptive_inference.bayesian_posterior and on the exact-law review of adaptive_inference.procedure_law; checks its own arithmetic here. Not the reliability of the rule (stated closed), other losses, or more than two arms in the exact comparison."
+assumptions = ["The loss is the regret of choosing an arm in success probability (E[max theta] - E[theta_chosen]) under independent Beta posteriors of the observed counts.", "An outcome-dependent loss of outcomes is refused by the premise gate, so the observed counts alone are the likelihood."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review (nothing was downloaded and no local copy exists): the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference scripts and their frozen outputs are repository-authored (MIT OR Apache-2.0) and use only the Python standard library. The scripts declare their inline script metadata but are not run in a locked, isolated environment and are not wired into any gate; their output is frozen in the JSON files and compared by the tests."
+limitations = "Thompson's 1933 paper was not retrieved (nothing downloaded, no local copy); the check is of the code against the definitions of the posterior probability and the expected loss, not a reading of the paper. The reference evaluates P(Y > X) for integer Beta shapes from the binomial tail and E[(Y - X)+] = E[Y; Y > X] - E[X; Y > X] in exact rational arithmetic (cross-checked against the Miller sum). Posterior part: a 10 x 10 grid of count pairs of two arms (counts to 40/25, empty and one-sided arms) under the uniform prior, probability best and loss to 1e-9 and the stop decision at thresholds 1e-6 either side of every exact value, the best arm at exact ties. Decision part: six procedures (fixed and Thompson assignment, expected-loss and futility rules, with a lag of one, equal arms for the wrong-decision rule) against the exact path enumeration at 1e-12. Two-arm cases only for the exact comparison; priors other than the uniform one in the posterior grid are covered by the bayesian_posterior review; the reliability of the rule (probability of a wrong stop, regret over repeated use) is not derived or measured and stays closed, as the record states."
+sources = ["https://docs.python.org/3/library/fractions.html", "https://docs.python.org/3/library/decimal.html", "https://doi.org/10.1093/biomet/25.3-4.285"]
+findings_resolved = ["Defect repaired (shared by the law, the decision report and the participant procedure): the stopping rules compared numerically integrated posterior quantities with their thresholds with no band. At small counts those quantities are rational numbers that land exactly on round thresholds (the expected loss of choosing an arm after two units on one arm is exactly 1/20; the posterior probability that an arm is best is exactly 4/5 after three failures of the other), and the integral carries about 1e-15 of rounding, so the rule stopped or continued at those states by the sign of the rounding; the arm named at an exact tie followed it too (the estimate-crate rule named the last arm). The reference (exact Fractions) stops with probability 0.3125 at look 1 of a lagged expected-loss rule and the product reported 0.625, and the exact-futility tie case differed in mass (0.00463 against 0.00617). The rules now read a quantity within 1e-12 of its threshold as equal (at least holds at equality, below does not) and name the lowest arm among equal ones; every case of the frozen reference now agrees to 1e-12. The participant procedure (adaptive_inference.participant_family) uses the same reading with a band of 1e-9, because its logit quadrature is accurate to about 4e-11 (one completed participant with no success among two responses reads an expected loss of 0.04999999996915 where the exact value is 1/20); a history of that participant replayed as stopped at a threshold of exactly 0.05 and now continues.", "Defect repaired: expected_loss_stopping named the last of equally likely best arms (max_by returns the last maximum), so equal evidence named arm 1 where the procedure rules and the exact reading name arm 0; it now names the lowest arm within the same band."]
+record_sha256 = "d2dae097d3abb404163ac2d59c6f27bb077db05be9ddeb28138596346661dbb0"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/adaptive_inference/procedure_uncertainty.rs"
+sha256 = "ba9993956dd5542f88a9a4d554c52d4fa9b32b8483a5e7a7ef0e94806390feb2"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/adaptive_inference/procedure_law.rs"
+sha256 = "e44c1f2313fccea86ffedc1eafe86f9f889afc5866e9801ecd3dd105b7c13cd4"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/adaptive_inference.rs"
+sha256 = "6a6d5d8f0395eec7eeb167dc57fec8e674fb4f34942dc807597aca946e7a3fa3"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/adaptive_decision_stopping_reference.rs"
+sha256 = "6f9e8d71d7bcfc15b61ca8b459484a4f9b025b718a03e16e10a6103ec8169211"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/adaptive_decision_stopping_posterior_reference.rs"
+sha256 = "42c8e0bd84c91e2e4d29e6c6d2535ff6425537cff870df11c89b12c0bf39404c"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/support/adaptive_procedure_reference.rs"
+sha256 = "9f51d015a392aa06ce800ee188d32509e63e69292bd667fa9f374638a0eac680"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/procedure_decision_reference.py"
+sha256 = "aeffcf7dbee58f8dc8231e5693cfece72b355dd215e68b9c3dabb4fa8a2df2ee"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/procedure_exact.py"
+sha256 = "78c9b55f97adfd2b2c0cef5c95e82037b147c6a9eb58a5f35001358ede3d1c3f"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/procedure_decision_reference.json"
+sha256 = "406fdc0ea71526af2cc376cc904c4ef328e8e0b74608ec4a9d6e3e5f81026512"

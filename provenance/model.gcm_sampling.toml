@@ -29,4 +29,36 @@ test_sources = [
  "conformance/gcm/do_sampling_grid",
  "crates/antecedent-model/benches/sample_overlay.rs",
  "crates/antecedent-model/src/do_sampler.rs unit tests (weighting_recovers_treated_mean, weighting_ess_flags_tail_degeneracy, kde_and_mcmc_run)",
+  "crates/antecedent-model/tests/gcm_sampling_reference.rs (50-digit reference for the weighting estimator, kernel density and Silverman bandwidth; stationary-law moment check of the Metropolis chain)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "WeightingDoSampler::estimate (root-treatment window and the confounded kernel/density importance weights with the 1e6 cap, normalisation, Kish effective sample size, weighted mean and the degenerate-weights note), KdeDoSampler::density and the reported Silverman normal-reference bandwidth (including the 1e-8 floor of the weighting kernel and the range floor of the shared rule), and a moment check of McmcDoSampler against the kernel density of its own pilot. The treatment density is the normal density of a linear-Gaussian treatment mechanism set to the reference parameters; fitting the mechanism is not reviewed here. Not reviewed: the distribution of the interventional ancestral draws, the grid sampler, categorical or non-Gaussian treatment densities, and the dropped-non-finite-density path."
+assumptions = ["The fitted treatment mechanism supplies the true conditional density f(T | parents); the weighting estimator is the self-normalised kernel-weighted ratio the module documents (not a Horvitz-Thompson estimator), so its consistency needs the do-value in the interior of the support and a vanishing bandwidth, which the global Silverman bandwidth does not provide.", "Data are exact binary64 values; the reference treats them as exact."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library together with mpmath 1.3.0 at 50 digits (not a product dependency). It declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Five weighting regimes (central do-value, far tail with degenerate weights, a narrow fitted conditional that caps eight of ten weights at 1e6, a treatment narrower than the 1e-8 kernel floor, and a 1e6 offset) at relative 1e-9 for the weights, effective sample size and mean; four root-window cases (default 1e-9, exact, wide, empty window) and three invalid windows; density at four bandwidths including the 1e-8 floor and underflow; three frozen bandwidth samples. The cap changes the estimator: capped weights are no longer proportional to K/f, so the estimate is biased wherever the cap binds, which the module's note about degenerate weights reports only through the effective sample size. The Metropolis check is statistical: with a pilot of 6000 draws and a fixed seed the chain mean must lie within 0.15 of the pilot mean and the variance within 20 percent of the kernel-density variance (pilot variance plus squared bandwidth); this detects a wrong acceptance ratio or a wrong proposal, not a small bias, and no convergence diagnostic is produced by the product. KdeDoSampler::density ignores result weights and assumes equal weights; applied to a weighting result it would be silently unweighted. WeightingDoSampler::estimate accepts an ExecutionContext and never reads it, so neither cancellation nor a memory limit is honoured on that route (left as found; changing it alters the signature contract). Silverman's text and the sampling reference were not retrieved."
+sources = ["https://doi.org/10.1201/9781315140919", "https://doi.org/10.1017/CBO9780511803161"]
+findings_resolved = ["No defect found in the reviewed arithmetic: weights, effective sample size, weighted mean, root window, density and bandwidth matched the 50-digit reference. The weight cap and the equal-weight density of KdeDoSampler are limitations recorded above, not arithmetic errors."]
+record_sha256 = "120e4541a3239604c08601fb29d7b1731649a5a9b0a39506f4647bf14d83716f"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/do_sampler.rs"
+sha256 = "9d9d0f2df61636daef75df5361c511f305d44b396c3f1387f27e9c09af7108db"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/gcm_sampling_reference.rs"
+sha256 = "81b16d8733d975995fd122c2dfcb209c41c430e77d5bc0252aa4e9a64470380a"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-model/tests/oracle_data/gcm_sampling_reference.py"
+sha256 = "4bb2b524293563fb65444a611035df622e085ac447307bb06c9e789e7d646178"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-model/tests/oracle_data/gcm_sampling_reference.json"
+sha256 = "f538e5bae67c3335de637af6961693e5ea84fdbb81fd82d7886d591a74754d53"

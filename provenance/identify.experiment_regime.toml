@@ -5,9 +5,11 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-papers = [
- { title = "Learning Linear Cyclic Causal Models with Latent Variables", sections = ["The fully observed clamp-design input: a shared source, a dependence premise, a unit mask that does not drop a targeted unit, and a target inside the declared units. This contract does not implement the paper's estimator."] },
-]
+# `papers = []` is deliberate (see provenance/README.md): this module is the input contract
+# for a clamp-design judge in the setting of Hyttinen, Eberhardt and Hoyer's multi-experiment
+# linear cyclic model (JMLR 13, 2012). It implements none of that paper's estimator, so the
+# paper is context, not a source this code is checked against; the paper text was not retrieved.
+papers = []
 
 implementation_deviations = [
  "This is the input contract for a later clamp-design judge. It does not call that judge and it does not issue coefficient recovery.",
@@ -21,3 +23,16 @@ upstream_implementations_observed = []
 test_sources = [
  "inline unit tests (crates/antecedent-identify/src/experiment_regime.rs)",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Input contract for a later clamp-design judge: it checks a shared source identity, a dependence premise, a unit mask that must not drop a targeted unit, and that every regime target lies inside the declared units, and returns an accepted contract or a typed refusal with the next attempt."
+no_independent_algorithm = "experiment_regime.rs holds identity, set-membership and equality checks over declared regimes and a mask (units, sources, premises, targets). It contains no square root, logarithm, exponential, power, solve or sum over data; the words rank and stability appear only in doc comments saying they are not checked. Its inline tests execute the accepted and every refused case."
+inline_tests = true
+record_sha256 = "1a16cb2ae2b51107d5a29abcca101879bc5d9cc24f3630b7d0b779f374a44136"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/experiment_regime.rs"
+sha256 = "1662b52b7d64d73ff08bb9dbd11433b69f6b51a09c6828cd9d8f00cf0cf2ebb6"

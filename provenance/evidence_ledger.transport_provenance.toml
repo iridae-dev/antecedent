@@ -5,9 +5,12 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-papers = [
-  { title = "External Validity: From Do-Calculus to Transportability Across Populations", citation_note = "Previously recorded title and bibliographic detail: External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: the carried object recorded by a transport identity (the ledger does not implement the transport calculus)"] },
-]
+# papers = [] is an explicit judgment. The module records which sources carry a transport identity
+# (source populations, target population, stated assumptions, a digest of the selection diagram) and
+# refuses to count a transported claim as native target data; it does not implement the transport
+# calculus of Pearl and Bareinboim or any transported estimator, so that publication is not a source
+# of anything computed here. The transported estimators are their own records.
+papers = []
 implementation_deviations = [
   "Records and checks transport identity only; it does not identify, estimate or validate a transported effect, and the selection diagram is carried as a digest, not interpreted.",
 ]
@@ -16,3 +19,31 @@ test_sources = [
   "crates/antecedent-contract/tests/evidence_ledger.rs",
   "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Transport provenance of the evidence ledger: a source may carry a transport identity (source populations, target population, stated assumptions, selection-diagram digest); the ledger refuses a transport that names no assumption or names its own target as a source, refuses transport of raw observations, requires the transported claims of a CausalTransport operation to carry an identity and the native ones not to, refuses a source used as both, and carries the sorted identity digests onto every result that cites it."
+no_independent_algorithm = "Set membership, sorting and digest equality over declared identities. The only floating-point comparison in the pooling check that sits beside it is the positive-definiteness interval (-1/(k-1), 1) for a declared dependence range, a bound on a declared number and not an estimate; no square root, logarithm, exponential, solve or sampling touches transport. The effect transport itself is not implemented here."
+covered_by = ["evidence_ledger.statistical_pooling"]
+record_sha256 = "90b2f7a39a04dfd3f03d97478835a92d2a7b32f801526aad5efc83efd4faf83a"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/evidence_ledger/ledger.rs"
+sha256 = "fe005ce70708e0fdaed693b442de0fe2749135d573e6f0e9caffeb4ff0238123"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/evidence_ledger/source.rs"
+sha256 = "1e92a53986b0ed6928c5e640e1939637b4c5983726b424c73f2413d956942d5c"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/evidence_ledger/operation.rs"
+sha256 = "46d1412a934028d2cbd2ddc26c52a0335471800fac45966644aa274f4c152bd2"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-contract/tests/evidence_ledger.rs"
+sha256 = "4e3a7547b2542d7d8c1f83166c4a64969993b57087b218c1fed50cea771bd1e5"

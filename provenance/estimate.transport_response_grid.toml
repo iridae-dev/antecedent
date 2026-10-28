@@ -25,5 +25,37 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+ "crates/antecedent-estimate/tests/transport_response_grid_reference.rs (exact-rational augmented grid: signed local weights, selection odds 1e6 and 1e-6, outcome offset 1e8, single source and single target rows, ties, vanishing weights, unused target outcomes; contract refusals)",
  "inline unit tests (crates/antecedent-estimate/src/transport.rs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "transport_augmented_response_grid in crates/antecedent-estimate/src/transport.rs: the augmented transported mean at each grid point, theta_g = (1/n_target) [ sum over target rows of the supplied regression at the grid point + sum over source rows of ((1-p)/p) w_g (Y - m) ], the signed-weight effective sample size (sum |c|)^2 / sum c^2 of the source correction weights at each grid point, the selection-overlap summary (min and max source selection probability, Kish effective size and extreme-odds count of the selection odds), the layout of the rectangular inputs, and the input contract (probabilities strictly inside (0,1) on every row, finite outcomes, regressions, weights and grid, both source and target rows, refusal of a recursive-factorization certificate). Not the nuisance estimators, kernel weights, uncertainty or the other estimators in the file."
+assumptions = ["The caller supplies the outcome regression at the grid point for target rows, the regression at the observed treatment for every row, the selection probabilities and the signed local weights; the function evaluates the equation and fits nothing.", "Identification of the transported dose-response is taken as given by the certified Direct or Standardize formula; a recursive-factorization certificate is refused.", "Rows are independent draws and the selection probability is P(S=1|X)."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with the equation evaluated in exact rational arithmetic by a reference written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the displayed augmented estimator as the record and the code comments state it (sum of target regressions plus selection-odds-weighted source residuals over the target count), not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0) and use only the Python standard library; the script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Eight finite cases of 6 to 12 rows and 1 to 4 grid points: signed local weights, selection odds of 1e6 and 1e-6 (three odds above the extreme threshold), an outcome offset of 1e8, one source row, one target row, all-tied probabilities, a grid point whose weights all vanish (effective size 0) and target rows carrying outcomes of +-1e12 and weights of +-1e9 that must not enter. The mean is asserted to 64 machine epsilons of the sum of absolute terms. The review covers transport_augmented_response_grid, its signed-weight effective sample size and the selection-overlap summary only. It is a primitive that evaluates caller-supplied nuisances and weights: nuisance fitting, kernels, bandwidths, uncertainty, and the trial-to-target IPW/AIPW estimators in the same file (a separate record) are not examined. No double-robustness or curve-inference property of the composition is claimed or tested. The cited publications were not retrieved."
+sources = ["https://doi.org/10.1002/sim.8426", "https://doi.org/10.1111/rssb.12212"]
+findings_resolved = ["The grid means equal the exact rational augmented estimator at every grid point, including signed weights, selection odds of 1e6 and 1e-6 and an outcome offset of 1e8 where the correction is a difference of near-equal numbers.", "The signed effective sample size, the probability range, the Kish size and the extreme-odds count of the selection overlap equal their definitions, and an all-zero correction reports effective size 0.", "Target-row outcomes and weights are validated finite but do not enter the mean, as the doc comment states; every contract refusal executes (probability 0, 1, NaN or negative on a target row, non-finite outcome, weight, regression or grid, length mismatch, no source or no target rows, recursive factorization)."]
+record_sha256 = "79278c3a34d627ab45598b6bca1a7a8928b542276601aaad4c4aba7e679500b7"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/transport.rs"
+sha256 = "a190456f974409a14fdac5312ba8e5367ed1c71452285b261a0560bc03706b1f"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/transport_response_grid_reference.rs"
+sha256 = "236964b062cb31c7bb361d688a07b8bfe9fe1a418a9fbb1ebf942c95e25955d7"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/transport_response_grid_reference.py"
+sha256 = "9ec0510630bd9536cd764116e687e7353d814eced556ad20103eac96a1190e1b"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/transport_response_grid_reference.json"
+sha256 = "71b253d2c84262658bac8e204095b40ee80134b3c2ba75509d01b2cd6ba2f5a7"

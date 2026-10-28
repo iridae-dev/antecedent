@@ -26,6 +26,49 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+ "crates/antecedent-estimate/tests/observational_policy_reference.rs (60-digit multinomial-logit and per-action least-squares nuisances on recorded splits: prespecified, held-out and cross-fitted learned policies, a known constant propensity, and an outcome offset of 1e6 with a covariate offset of 1e3)",
+ "crates/antecedent-stats/tests/multinomial_offset_reference.rs (location invariance of the unpenalised multinomial-logit fit at covariate offsets of 1e2, 1e3 and 1e4, weighted and unweighted, against the centred fit verified by its score equations)",
  "crates/antecedent-estimate/tests/observational_policy_value.rs (a confounded normal-covariate process with closed-form policy values for a binary and a three-action policy, and a no-effect process with noise covariates exposing the selection bias of an in-sample plug-in)",
  "python/tests/test_observational_policy.py (the same closed form through the Python surface)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "ObservationalPolicyValue::estimate in crates/antecedent-estimate/src/observational_policy.rs for a prespecified policy, a policy learned on a held-out part (greedy over the per-action outcome models) and cross-fitted learned policies: the per-split baseline-category multinomial-logit propensity (or a declared known propensity), the per-action least-squares outcome regressions on the declared covariates, the augmented scores mu_c + 1{T = c}(y - mu_c)/e_c, the policy choice (first of equals, maximise or minimise), the policy value, the per-action values, the paired difference with the reference action, the policy shares, the smallest propensity per action and the positivity floor. The seeded split plan and the multinomial-logit solver are separate kernels: the test records the splits and asserts the product reproduces them, and the logit solution is compared with an independent Newton solve."
+assumptions = ["Conditional exchangeability given the declared covariates, positivity of every declared action, consistency and no interference are identification assumptions taken as given.", "The nuisances are an unpenalised multinomial logit and per-action ordinary least squares, so the cross-fitted scores are determined; double robustness under a flexible learner is not examined.", "Independent rows; the standard error is the iid standard deviation of the scores and, for cross-fitted learning, treats the fold policies as fixed."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Five finite tables of 90 to 150 rows with one or two covariates and two or three actions: a prespecified threshold policy with a reference action, a learned policy on 40% held out rows (minimise), cross-fitted learning with four folds, a known constant propensity, and an outcome offset of 1e6 with a covariate offset of 1e3 and scale 1 (a case the product refused before the repair above). Values, standard errors and every row score are compared to 1e-7 relative (1e-5 at the offset). The reference takes the split of every row as an input and the test asserts the product's scored order reproduces it; the seeded split plan itself, tie behaviour of the greedy rule beyond first-of-equals, a learned policy whose rule differs between folds (where the pooled standard error is approximate) and coverage are not reviewed. The cited papers were not retrieved in this review: the correspondence is between the product and the doubly robust score its documentation states. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.3982/ECTA15732", "https://doi.org/10.1111/ectj.12097", "https://doi.org/10.1214/14-STS500", "https://mpmath.org/"]
+findings_resolved = ["Defect repaired: the baseline-category multinomial-logit Fisher scoring that fits the propensity of this route (and of every route that fits a multinomial or weighted binary logit through it) capped each Newton step at 5 in coefficient units, so a covariate offset of 1e3 (an intercept that must move by order 1e3) was spread over hundreds of damped iterations and the fit was refused as not converged after 50 (failing-first: crates/antecedent-stats/tests/multinomial_offset_reference.rs failed at offset 1000 and the offset case of this reference could not be fitted). The trust region is now on the change of each linear predictor, which does not depend on where a covariate is centred; fitted probabilities and deviance at offsets of 1e2, 1e3 and 1e4 equal the centred fit, weighted and unweighted, and the antecedent-stats library suite passes.", "No defect found: the policy value and standard error, every action's value and standard error, the paired reference-action difference, the policy shares, the smallest propensities and each row's score equal the 60-digit reference on the recorded splits for prespecified, held-out and cross-fitted policies.", "A declared known propensity replaces the fitted model and equals the reference; a policy learned on the scoring rows, an action outside the declared support, an observed treatment outside it, a propensity below the floor and malformed declarations are refused (existing and new assertions) rather than scored."]
+record_sha256 = "99961c6abedad366fb88a0b8ee7dd0ff29416a7d140e9c2514559a626816b9cd"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/observational_policy.rs"
+sha256 = "7cb348b80714414f5af465c569b81980b3470dbc278cdae681d6ad3b40003a7d"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/glm/multinomial.rs"
+sha256 = "8423b2691b9a0e7c6c674fbcb74c849e0813c655d95ebbd871ed8e6c7fecf49f"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/observational_policy_reference.rs"
+sha256 = "8017d3b78446d61e694398614e0dac2edc8c0f1fd98c76ad580c1ba9dfc39ad1"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/multinomial_offset_reference.rs"
+sha256 = "5124384f64a8287578c807695dfd7e3983ee9d30916e96bde80d83fd96f93fe4"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/observational_policy_reference.py"
+sha256 = "8556646e43a094ad9f07a57e92f7f029c0059bba59ce005aa89d439c85e4c650"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/observational_policy_reference.json"
+sha256 = "6c377a34f2fd5858811e9edc220143aafaadb4135547c87ec7150c0685de8202"

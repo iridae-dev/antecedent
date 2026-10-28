@@ -20,11 +20,54 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
-  "crates/antecedent-discovery/src/jpcmci_plus.rs unit tests (jpcmci_plus_two_env_toy, observed_context_enters_ci, multivariate_space_dummy_uses_single_logical_node)",
-  "crates/antecedent-discovery/tests/jpcmci_plus_oracle_matrix.rs (Tigramite canonical temporal skeleton equality with context and dummy nodes disabled)",
-  "crates/antecedent-discovery/tests/discovery_jpcmci_plus_two_env_edges.rs (Tigramite system-only edge equality with the space dummy disabled)",
-  "conformance/discovery/jpcmci_plus_two_env (library structure pin; not full Tigramite context/dummy equality)",
-  "conformance/discovery/jpcmci_plus_two_env_edges (Tigramite system-only edges without context or dummy nodes)",
-  "conformance/discovery/jpcmci_plus_matrix (Tigramite canonical temporal skeleton with context and dummy nodes disabled)",
-  "conformance/discovery/jpcmci_plus_two_env_space_dummy_mv (library-only multivariate-dummy structure and diagnostic pin)",
+ "crates/antecedent-discovery/tests/jpcmci_plus_dsep_oracle.rs (J-PCMCI+ under a d-separation oracle with an environment dummy and an observed context)",
+ "crates/antecedent-data/tests/jpcmci_plus_pooled_frame_reference.rs (the pooled frame and dummy encodings against direct construction)",
+ "crates/antecedent-discovery/src/jpcmci_plus.rs unit tests (jpcmci_plus_two_env_toy, observed_context_enters_ci, multivariate_space_dummy_uses_single_logical_node)",
+ "crates/antecedent-discovery/tests/jpcmci_plus_oracle_matrix.rs (Tigramite canonical temporal skeleton equality with context and dummy nodes disabled)",
+ "crates/antecedent-discovery/tests/discovery_jpcmci_plus_two_env_edges.rs (Tigramite system-only edge equality with the space dummy disabled)",
+ "conformance/discovery/jpcmci_plus_two_env (library structure pin; not full Tigramite context/dummy equality)",
+ "conformance/discovery/jpcmci_plus_two_env_edges (Tigramite system-only edges without context or dummy nodes)",
+ "conformance/discovery/jpcmci_plus_matrix (Tigramite canonical temporal skeleton with context and dummy nodes disabled)",
+ "conformance/discovery/jpcmci_plus_two_env_space_dummy_mv (library-only multivariate-dummy structure and diagnostic pin)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "JpcmciPlus::run in crates/antecedent-discovery/src/jpcmci_plus.rs on two environments with the scalar space dummy and, in a second configuration, one observed space context: the four phases (lagged PC1 on the system, context-to-system MCI, dummy-to-system MCI, system MCI), the merge and thresholding of the scored links, the symmetrisation of contemporaneous system links, the directed exogenous links, the graph assembly and the collider and Meek orientation, under a population d-separation oracle in place of the statistical test; and the pooled frame the search reads (crates/antecedent-data/src/pooled_frame.rs) by direct construction. The oracle's graph is the generating process unrolled over ten steps with the environment indicator as a root that shifts a random subset of the processes (and a second root for the context). Not reviewed: the statistical conditional-independence tests, finite-sample behaviour, the time dummy and one-hot time encoding in the search, the multivariate-block dummy mode (three or more environments), and the Tigramite correspondence, which remains the existing system-only black-box comparison."
+assumptions = ["With a perfect conditional-independence oracle the search should keep every generating adjacency (an oracle never separates d-connected variables), direct each exogenous link out of the exogenous node, point lagged links forward, orient a contemporaneous edge only in its generating direction, and record only separating sets that d-separate; links the single-subset contemporaneous phase fails to remove are counted and bounded, not asserted absent.", "The pooled population is treated as a model with the environment indicator as a root node; the real pooled data of two environments make the dummy a deterministic function of the environment, and with a context variable the dummy and the context are perfectly collinear in data though independent roots in the oracle's population, so the second configuration checks the algorithm's logic, not its behaviour on such data.", "The Günther link assumptions (nothing causes an exogenous node, exogenous nodes are not linked, only the time context acts with a delay) are taken as implemented; their table is reviewed in discovery.multi_dataset_constraints."]
+historical_exposure = "Historical author exposure cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with definitions evaluated by an executing reference written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review (no paper was downloaded or read here): the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. It declares inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Two configurations of 60 random cases each (three or four processes, lagged edges up to lag 2, contemporaneous edges, one or two exogenous roots), two environments: every generating lagged, contemporaneous, dummy and context link is retained, every exogenous link is directed out of the exogenous node, every oriented contemporaneous edge has its generating direction and every recorded separating set d-separates in the generating graph; extra links (d-separable pairs the single-subset phase leaves in) are below 5% of the true links in the dummy-only configuration and below 10% with a context root (6% observed). Orientation completeness is not asserted. The oracle replaces the statistical test, so the dependence of the result on test power, sample size, collinearity of the dummy with a context in real data, and the multivariate-block mode are untouched; the Tigramite comparison is still system-only. The primary paper (Günther, Ninad and Runge) was not retrieved in this review; the executed check is that the algorithm is sound and complete in the oracle limit for the stated link assumptions, not a comparison with the paper's algorithm listing."
+sources = ["crates/antecedent-discovery/tests/jpcmci_plus_dsep_oracle.rs", "crates/antecedent-data/tests/jpcmci_plus_pooled_frame_reference.rs", "crates/antecedent-data/tests/oracle_data/jpcmci_plus_pooled_frame_reference.py"]
+findings_resolved = ["Defect repaired (failing first): J-PCMCI+ dropped every contemporaneous observed-context-to-system and dummy-to-system link from its result graph. The link assumptions test an exogenous link in the one allowed direction, but the result passed through symmetrize_contemporaneous_links, which keeps a contemporaneous link only when both directed tests survive, so each exogenous link was discarded after being found (the phase's own parent list contained it, the graph did not). Under the oracle, the dummy node was isolated in all cases with a shifted process. Exogenous links now bypass the intersection; system links are unchanged. No existing test asserted an exogenous link in the output graph (the library pins check only that some link exists), which is why it went unseen.", "After the repair both oracle configurations pass: 120 random cases keep every generating link, and the Tigramite system-only comparisons, the library pins and the 377 crate unit tests still pass.", "The pooled frame (stacking without cross-environment windows, the space dummy, the integer and one-hot time dummies repeated on every lag slot, and synthetic ids past the schema) equals direct construction for ten configurations."]
+record_sha256 = "edb3c5210212ab485ade3ceb3d7f5e5dfcfec9f467ae22bee490610a599928ce"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/jpcmci_plus.rs"
+sha256 = "600eaeff2e438f5368161f849aa3784c7958f057881c2d709d10dbd92804fe08"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-data/src/pooled_frame.rs"
+sha256 = "0b4beb33cbc5d0fd9352d5b07112d91d00b1730efeeed4a9675c9fcbaa129d07"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/tests/jpcmci_plus_dsep_oracle.rs"
+sha256 = "4fc5b28e2a1bda9a943e5474dfa8f2fbbc1f122292f77450600d965a246bb871"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-data/tests/jpcmci_plus_pooled_frame_reference.rs"
+sha256 = "da373a8bb0f47c878274afed87608a4ec2f5280dfcdb7c8c1054880e79550d82"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-data/tests/oracle_data/jpcmci_plus_pooled_frame_reference.py"
+sha256 = "17f76c993cfaf59390122992efba07244dc3981a04b0a7e9a5ad9837d4594f18"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-data/tests/oracle_data/jpcmci_plus_pooled_frame_reference.json"
+sha256 = "db2d00b23a22f8d501dcea35d975c24c26255c9a3bdebddf3d015824e929050e"

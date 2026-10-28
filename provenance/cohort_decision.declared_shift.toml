@@ -5,10 +5,16 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-papers = [
-  { title = "External Validity: From Do-Calculus to Transportability Across Populations", citation_note = "Previously recorded title and bibliographic detail: External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: the declared premise that the selection node enters only the covariates"] },
-  { title = "The Use of Propensity Scores to Assess the Generalizability of Results from Randomized Trials", citation_note = "Previously recorded title and bibliographic detail: The use of propensity scores to assess the generalizability of results from randomized trials (Stuart, Cole, Bradshaw and Leaf, 2011)", doi = "10.1111/j.1467-985X.2010.00673.x", sections = ["conditions for generalizing a conditional treatment effect to a target population"] },
-]
+# papers = [] is an explicit judgment, read against crates/antecedent-io-core/src/cohort_decision.rs:
+# the module compares declared population identities, the declared invariant modifiers and the
+# declared assumption label with the retained model and the cohort, then checks the rows against
+# the model's own support box. It computes no density ratio, weight, propensity or transported
+# estimate, so there is no procedure to cite. The covariate-shift identification of Pearl and
+# Bareinboim (selection diagrams) and of Stuart et al. (generalizability) is the premise the
+# declaration states, not something executed; the numerics of the cohort mean are carried by
+# cohort_decision.mean_contrast.
+papers = []
+
 implementation_deviations = [
   "Original bounded route under a declared invariance premise; the premise is a declaration and is not tested. The cited literature is the statement of the covariate-shift identification, not an implemented algorithm.",
   "Only the support box is checked as a positivity necessary condition; no density ratio, overlap weight or transported variance is computed, and the result is labelled extrapolative and point-only.",
@@ -18,3 +24,26 @@ test_sources = [
   "crates/antecedent-io-core/src/cohort_decision/tests.rs",
   "crates/antecedent-design/tests/cohort_decision_input.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "A declaration and refusal contract: a cohort from another population is accepted only with a covariate-shift declaration whose source population, target population, sorted invariant modifiers and assumption label equal the model's and the cohort's, and only when every cohort row lies in the model's support contract; the result is labelled extrapolative and point-only."
+no_independent_algorithm = "resolve_shift compares four declared strings and the sorted feature list and returns a bool; the support check is the model's own box or mask evaluated inclusively by the compact-export check; the prediction and weighted mean that follow are carried by cohort_decision.mean_contrast and nothing is reweighted, estimated or transported here. The tests assert the required, unneeded and mismatched declarations (a changed population, a changed modifier set, a changed assumption label), the inclusive support edge against the next representable value outside it, and the hand-computed mean 2.225 of the shifted cohort."
+covered_by = ["cohort_decision.mean_contrast"]
+record_sha256 = "447132ecc32e506e8c2ab8132055010dce687ec91261f9120bb2b4d47343876e"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/cohort_decision.rs"
+sha256 = "f03b21b476fd4800d9d1347e8a57f5388dc63deec053d55ad9ed8609dbe5d3ab"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-io-core/src/cohort_decision/tests.rs"
+sha256 = "35285a5769ea8238cacb3802bdaac1e5ae9590577c89de691b02647227c57d85"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/cohort_decision_input.rs"
+sha256 = "d7e1efa7affcd4c3713f37c95d18b46c52eae768e8660f6c4c5cc6c445cb6a60"

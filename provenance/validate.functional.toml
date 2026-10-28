@@ -12,3 +12,10 @@ implementation_deviations = [
  "Cheap uses twenty 80-percent subsets; full adds twenty 50-percent subsets. Sparse CPT failures propagate rather than manufacturing a successful report.",
 ]
 test_sources = ["conformance/estimate/functional_validation", "crates/antecedent/tests/prepared_analysis.rs::functional_validation_staged_known_truth"]
+
+# Review status: not reviewed (no method_review, no mapping). refute_path, refute_distribution and
+# refute_window_contrast refit FunctionalEffect / FunctionalDistribution on Bernoulli row subsets,
+# contiguous stretches and rotated treatment columns. An independent executing reference needs an
+# IdentificationResult arena for a finite SCM plus an exact evaluation of the identified functional
+# on every subset; none was built. The pure helpers (max_conditional_tv, rotate_columns, row_range,
+# the split-half z statistic, the rotation-count rule) have only same-author inline tests.

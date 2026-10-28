@@ -89,3 +89,32 @@ path = "tests/diagnostic_propensity_reference.rs"
 [[test]]
 name = "predictive_assessment_reference"
 path = "tests/predictive_assessment_reference.rs"
+
+[[test]]
+name = "bootstrap_refute_reference"
+path = "tests/bootstrap_refute_reference.rs"
+
+[[test]]
+name = "robustness_refuters_reference"
+path = "tests/robustness_refuters_reference.rs"
+
+[[test]]
+name = "graph_refute_reference"
+path = "tests/graph_refute_reference.rs"
+
+[[test]]
+name = "msm_sensitivity_reference"
+path = "tests/msm_sensitivity_reference.rs"
+
+[[test]]
+name = "simulated_unobserved_confounder_reference"
+path = "tests/simulated_unobserved_confounder_reference.rs"
+
+[[test]]
+name = "static_mediation_reference"
+path = "tests/static_mediation_reference.rs"
+
+[[test]]
+name = "joint_uncertainty_reference"
+path = "tests/joint_uncertainty_reference.rs"
+required-features = ["calibration-internal"]

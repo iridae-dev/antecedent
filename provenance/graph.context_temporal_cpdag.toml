@@ -5,15 +5,16 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-papers = [
- { title = "A characterization of Markov equivalence classes for acyclic digraphs", doi = "10.1214/aos/1031833662", sections = ["static same-skeleton / same-v-structure characterization only; no context-augmented equivalence theorem is claimed"] },
- { title = "Causal discovery for time series from multiple datasets with latent contexts", doi = "10.48550/arXiv.2306.12896", sections = ["context-variable semantics from J-PCMCI+ only; discovery and latent-context identification are not implemented here"] },
-]
+# Explicit judgment, not an unfilled field: the context-node support is a node kind in the same marked-edge
+# container; no J-PCMCI+ discovery, context-system identification or context-specific equivalence is implemented,
+# so no paper introduces what it computes. graph.temporal_cpdag carries the container's mapping.
+papers = []
 
 implementation_deviations = [
  "The implementation augments a TemporalCpdag with typed context nodes and edges; it does not implement J-PCMCI+, context-system discovery, conditional-independence testing, or latent-context identification.",
  "Context insertion is representational and does not derive or certify a context-specific Markov equivalence class.",
  "The static same-skeleton and same-v-structure theorem does not by itself establish completeness for temporal or context-augmented orientations.",
+ "Context nodes carry no time order and no orientation constraint in the container: a directed edge from a lagged node to a context node is accepted, and a graph that holds a context node cannot be converted to a TemporalDag (which holds lagged nodes only) even when every edge is directed.",
 ]
 
 upstream_implementations_observed = [
@@ -22,4 +23,27 @@ upstream_implementations_observed = [
 
 test_sources = [
  "TemporalCpdag context-node unit tests (crates/antecedent-graph/src/cpdag.rs)",
+  "crates/antecedent-graph/tests/temporal_cpdag_invariants_reference.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "A marked-edge container for temporal CPDAGs with typed context nodes: it stores Tail-Arrow, Tail-Tail and Conflict-Conflict marks between lagged or context nodes and enforces local invariants (no duplicate edge, no contemporaneous or lagged self edge, no directed cycle, no future-to-past directed edge, orientation only of an existing undirected edge)."
+no_independent_algorithm = "cpdag.rs and marked_storage.rs contain adjacency bookkeeping, directed reachability for the cycle check and conversion to a TemporalDag; they contain no square root, logarithm, exponential, solve or sampling and no orientation or completion rule. An independent edge-map model with depth-first reachability agrees with the container on the accept or reject decision and the stored edges after every operation of every short sequence over four, three and six nodes, and on the conversion to a TemporalDag at the end of each."
+record_sha256 = "d1d0a001a9d06bae16b9fe3ebee6e36525e7901b05828ab31f02710abd870806"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-graph/src/cpdag.rs"
+sha256 = "1dfc101ba355198c5f20608a66d0239f781dd037f2b6248e483c091b15f5bc36"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-graph/src/marked_storage.rs"
+sha256 = "ae810ffcb5d706bd3daf372a8973979f6f097adea7c73b850acc382bb905d6af"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-graph/tests/temporal_cpdag_invariants_reference.rs"
+sha256 = "257b88eae68c6c1bdedecb57dc8473c11b79c3f05a5b8912c0d0306a27e4cab9"

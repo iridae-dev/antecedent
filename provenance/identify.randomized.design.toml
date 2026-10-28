@@ -8,9 +8,11 @@ copied_tests = false
 # Strategy-table id: identify.randomized.design (IdentifierId::RandomizedDesign).
 # The graph is schema only. Identification is the caller-declared assignment
 # mechanism, recorded in checked_randomized::randomized_identification.
-papers = [
- { title = "On the Application of Probability Theory to Agricultural Experiments. Essay on Principles. Section 9", doi = "10.1214/ss/1177012031", sections = ["completely randomized comparison of treatments; the translation is the classical finite-population design argument this identifier records"] },
-]
+# `papers = []` is deliberate (see provenance/README.md): the route records the caller-declared
+# assignment mechanism as the identifying statement (randomization-based design argument going
+# back to Neyman 1923 / 1990 translation). It derives no functional from a graph and estimates
+# nothing here; the paper text was not retrieved.
+papers = []
 
 implementation_deviations = [
  "No graph search. The identifier stamps consistency, positivity, and the design's known-assignment statement; it does not derive an identifying functional from a DAG.",
@@ -25,3 +27,21 @@ test_sources = [
  "crates/antecedent/src/analysis/execute/checked_randomized.rs",
  "crates/antecedent/tests/randomized_trial_route.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "randomized_identification stamps the identification of a randomized-effect query: an expectation functional of the outcome, the rule name (intention-to-treat, multi-arm, Wald complier, one-sided treatment on the treated), and the declared assumptions of the assignment design, noncompliance, covariate adjustment and a requested exact test."
+no_independent_algorithm = "The identification builder interns an expression node and pushes declared assumption records chosen by matching on the query's design, estimand and options; it computes nothing. The mapped module also orchestrates execution: its arithmetic is counting assignment cells, 1 - propensity, and the CUPED residual y - coefficient * x with a caller-fixed coefficient; it has no square root, logarithm, exponential, power or solve. Intervals, variances and exact tests are the covered records' code."
+covered_by = ["estimate.randomized.ht_itt", "estimate.randomized.neyman_itt", "estimate.randomized.multi_arm", "estimate.randomized.wald_cace_late", "estimate.randomized.fixed_cuped_ht_itt", "estimate.randomized.ancova_itt", "estimate.randomized.switchback_ht_itt"]
+record_sha256 = "b3cfbe62502a512c030711b5c68b8f20af3a438dfd4e99c50b432c8f28be388b"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/execute/checked_randomized.rs"
+sha256 = "8d9863c7c2758f71345dfbfd561cb00765a2a07972a63e5bed21a49362c42eef"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/randomized_trial_route.rs"
+sha256 = "e045417284fe766937ba59b9b228002fa627d981bab64cc0e2ee077ed42ae1cc"

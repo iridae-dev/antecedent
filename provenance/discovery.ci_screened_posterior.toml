@@ -21,6 +21,38 @@ upstream_implementations_observed = []
 
 test_sources = [
  "crates/antecedent-discovery/src/ci_screened_posterior.rs unit tests",
+ "crates/antecedent-discovery/tests/ci_screened_posterior_reference.rs (screened pairs, constraint merge, restricted enumeration marginals and the floor against an independent four-variable reference)",
  "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs (CI-screened sampler against exact restricted three-node Gaussian-BIC targets)",
- "conformance/discovery/graph_mcmc_exact (component target fixture; no citation or external oracle covers the composed PC-screened posterior method)",
+ "conformance/discovery/graph_mcmc_exact (component target fixture)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "CiScreenedPosterior::run in crates/antecedent-discovery/src/ci_screened_posterior.rs on four-variable Gaussian-BIC data: the choice of candidate pairs from the conditional-independence screen (pairs both of whose directions are forbidden are dropped, a pair with a required direction is always kept, the parent limit is not applied to the screen), the merge of the engine's and the caller's constraints (forbidden and required links as unions, the smaller of the two parent caps), the restriction of the structure-MCMC posterior to the candidate pairs, the disclosure notes (retained count and the screened-out pairs), and the floor min(prior, alpha)/2 on both cells of a screened-out pair under a stated edge-inclusion prior, with a forbidden pair keeping an exact zero. The PC skeleton is the reviewed discovery.pc and the sampler is the reviewed discovery.structure_mcmc; the soft Bayes-factor and posterior-dependence weights are not reviewed (they only write a note)."
+assumptions = ["The screen drops a pair when some conditioning set of at most three other variables does not reject independence at level alpha and keeps it when every set rejects; the reference asserts that no decision is marginal (a dropped pair has a set with p of at least 3 alpha, a kept pair has every set below alpha/20), so the answer does not depend on the order in which a search visits pairs.", "The posterior is the exact Gaussian-BIC pseudo-posterior restricted to DAGs on the retained pairs (it is not the posterior over all DAGs conditioned on the screen's data-dependent decision, and the screen's own error is not modelled); a Bernoulli edge prior is independent over ordered pairs.", "A Monte-Carlo cell agrees within 0.03 absolute with four chains, 1000 warmup and 8000 retained draws; the screened-out cells are exact (zero or the floor)."]
+historical_exposure = "Historical author exposure cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with definitions evaluated by an executing reference written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review (no paper was downloaded or read here): the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library and mpmath (BSD-3-Clause, imported at run time and not redistributed). It declares inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Two four-variable linear-Gaussian data sets of 250 rows (a fork and a collider) and eleven configurations: the plain screen, forbidden links split across the engine and the caller (one direction each side is a union that keeps the pair; both directions split across the sides removes the pair), a required link off the skeleton, the parent cap declared by the engine only, by the caller only and by both (in both orders), and Bernoulli(0.01) and Bernoulli(0.3) edge priors with a forbidden pair. Retained pairs and the screened-out list are asserted equal to the independently computed screen, the screened-in marginals to the enumerated ones within 0.03 and the screened-out cells to 1e-12; the default Benjamini-Hochberg adjustment is checked to keep the same pairs on the first two data sets only. Marginal screening decisions (p-values near alpha), where the retained set depends on the visiting order or on the multiplicity correction, are excluded by construction and are not reviewed; tiers, lagged links, more than four variables and non-Gaussian data are not exercised. The floor is a documented conservative approximation, not a Bayesian update, and the posterior is conditional on the screen. The chain tolerance would not detect a bias of a few hundredths in a marginal."
+sources = ["crates/antecedent-discovery/tests/ci_screened_posterior_reference.rs", "crates/antecedent-discovery/tests/oracle_data/ci_screened_posterior_reference.py", "https://mpmath.org/"]
+findings_resolved = ["No defect found: in all eleven configurations the retained pairs equal the independently screened pairs, the screened-in edge marginals equal the enumerated restricted-DAG marginals, the merged forbidden, required and cap constraints bind as the union and the smaller cap, and a screened-out pair carries exactly min(prior, alpha)/2 on both cells while a forbidden pair keeps zero.", "Replaced the three-node uniform-prior comparison and the unit tests that only asserted a positive floor as the executing evidence for the composed method with a four-variable comparison that exercises the constraint merge and the floor value."]
+record_sha256 = "3758a4a4fd0ad4a28060ad3f57f5619138d00624c95ba7f650d989160941bd95"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/ci_screened_posterior.rs"
+sha256 = "1b0a1e79cdf256973ce67da9405b59ebd2c5482f258cec2aa7054dec288fb6f9"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/tests/ci_screened_posterior_reference.rs"
+sha256 = "708cdc8e8aaab80c362a9f1ac83993b2ea633e123f94c850745043e7d90cb2bd"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-discovery/tests/oracle_data/ci_screened_posterior_reference.py"
+sha256 = "a01fe05ebdf3d260e25f8b353fb2bce78979efbadf324ef2f6356122450c1a6c"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-discovery/tests/oracle_data/ci_screened_posterior_reference.json"
+sha256 = "643bc0be7454acf6955bdcef9fe877272927c022960492c1410790997eba46d8"

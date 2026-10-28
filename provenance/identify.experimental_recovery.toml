@@ -26,3 +26,29 @@ upstream_implementations_observed = []
 test_sources = [
  "inline unit tests (crates/antecedent-identify/src/experimental_recovery.rs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "decide_experimental_recovery in crates/antecedent-identify/src/experimental_recovery/decide.rs for the fully observed canonical model x = Kx + e (zero diagonal) with randomized clamp experiments, independent Gaussian disturbances and declared weak stability: the pair-coverage verdict, that is, for which target rows the declared experiments determine every incoming direct effect, and the goal_closed / recoverable / unresolved partition built from it. Not a review of the rank-declaration bookkeeping (a declared column rank is an input, not computed), of recover_assembled_coefficients or the nullspace report it calls in experiment_moments.rs (the constraint block's solve and rank report are outside the reviewed experiment_moments scope and are not exercised here), of the draw / uncertainty types, of the latent-variable expansion, or of any finite-sample claim."
+assumptions = ["A clamp experiment partitions the nodes into clamped J and passive U; clamped columns are drawn independently and the passive columns follow x_U = (I - K_UU)^-1 K_UJ x_J, so the experimental effect of clamping j on passive u is T = (I - K_UU)^-1 K_UJ.", "Differentiating x_t = sum_s K_ts x_s in the clamped x_j gives, for each probe j in J and passive target t, K_tj + sum over passive u != t of T[u][j] K_tu = T[t][j]; the stacked rows over every experiment in which t is passive determine K_t. exactly when they have rank n - 1 (the number of unknown incoming coefficients).", "Generic rank is what the recipe's pair condition claims; the reference tests it on two fixed dense rational systems and requires both to agree, so a measure-zero cancellation of one system cannot decide the verdict."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are named by title and are not redistributed."
+limitations = "The primary source (Hyttinen, Eberhardt and Hoyer, JMLR 2012) was not retrieved or re-read; the row equations are derived in the reference from the definition of the experimental effect, not copied from the paper, and a difference between that derivation and the paper's statement of the pair condition would be caught only through the agreement computed here. Only three-node and four-node systems with at most three experiments each are enumerated (510 sets), so five-node and larger systems and longer experiment lists use the same code unchecked. Systems are generic by two fixed rational draws; a non-generic true K (zero coefficients, exact cancellations) can lose rank that the declaration-only judge still reports as covered, which the module documents as generic identification and not a verified rank. Declared ranks, nullspaces, finite-sample conditioning, uniqueness restrictions and physical stability are not exercised here beyond the module's inline tests. The assembled-block solve (constraint_column_report) is unreviewed numerics. Calibration remains deferred."
+sources = ["Hyttinen, Eberhardt and Hoyer (2012), Learning Linear Cyclic Causal Models with Latent Variables, JMLR 13 (title as listed in papers; no identifier recorded and the text was not retrieved)"]
+findings_resolved = ["Over all 510 sets of at most three clamp experiments on three and four units (experiments with a non-empty clamped and a non-empty passive side), the set of targets the judge leaves free of an incomplete-pair-coverage direction equals the set of targets whose stacked rows have exact rank n - 1 in rational arithmetic on both systems, and the judge lists every incoming coefficient of exactly those targets as recoverable; goal_closed holds exactly when all n targets are determined. The reference first checks that the true K satisfies every row it builds.", "No defect was found and no product code changed."]
+record_sha256 = "59ce59365c8a5f04f4b6476e0aa108b4239690d9012d9d309f9d243d237ff727"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/experimental_recovery/decide.rs"
+sha256 = "82fa9d9ace80c226d286232885f7cd74e2b0a3fa05a8f1d99c21af408c074f95"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-identify/tests/experimental_recovery_reference.rs"
+sha256 = "e54bf726205a51f58e648330a4d9d3f0b5eb1ef3834e600c8f8bf95b60f4c66a"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-identify/tests/oracle_data/experimental_recovery_reference.py"
+sha256 = "249706d761658376c8782a4f95635c59f4a4ab365194e6a6185595b2217fe413"

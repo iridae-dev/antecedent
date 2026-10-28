@@ -19,4 +19,46 @@ implementation_deviations = [
 upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs",
+  "crates/antecedent-stats/tests/adaptive_procedure_law_reference.rs (exact rational path enumeration of 18 procedures, state by state)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "enumerate_law and the assignment, stopping and selection logic it shares with the simulation (Rules::policy_row, assess, select, deliveries, apply_exploration_floor) in crates/antecedent-stats/src/adaptive_inference/procedure_law.rs: the exact terminal law of a declared single-context two- to three-arm Bernoulli procedure by dynamic programming over the observed counts, with outcome delay, random and outcome-dependent loss, exposure failure under both attributions, the fixed, epsilon-greedy, Thompson, floored-Thompson and UCB rules, the resource-cap, posterior-probability-best, expected-loss, futility and Wald-boundary stopping rules, and both final selections, under a fixed truth or the Beta prior predictive. Relies on the Beta posterior kernel reviewed under adaptive_inference.bayesian_posterior for the posterior probabilities and losses it thresholds; its own route arithmetic (the merging of states, delay, loss, delivery and the rule logic) is checked here against an independent path enumeration. Not contexts with more than one stratum, the capacity bounds, or any interval or calibration claim."
+assumptions = ["Units are independent given the policy row, which is a function of the observed (revealed, retained) counts only; the Bernoulli outcome of a unit depends on its delivered arm only.", "Under the prior predictive each delivered cell is an independent Polya urn, so the joint law of assignments and outcomes does not depend on the order in which outcomes are revealed.", "Posterior probabilities and losses are those of integer-shape Beta posteriors; the reference evaluates them exactly and the product by quadrature."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied, and no primary paper is claimed for this record."
+redistribution = "Primary work is cited, not redistributed. The reference scripts and their frozen outputs are repository-authored (MIT OR Apache-2.0) and use only the Python standard library. The scripts declare their inline script metadata but are not run in a locked, isolated environment and are not wired into any gate; their output is frozen in the JSON files and compared by the tests."
+limitations = "No primary paper is claimed: the law is an enumeration of a finite-state Markov process and the record's papers list is empty by judgment. The reference is a path-by-path enumeration written for this review (procedure_exact.py: every unit expanded in order with Fraction probabilities, exceedance probabilities from the binomial-tail identity cross-checked against the Miller finite sum); it shares the problem statement with the product, not its merged-state recursion. Eighteen procedures of 4 to 8 units are compared state by state at 1e-12: unequal batches, three arms with ties, epsilon-greedy with a lag of one and with a three-way tie, Thompson with a probability-best stop, floored Thompson at truths 1/1000 and 999/1000, UCB over three arms under a cap, exposure failure under both attributions, success-dependent loss with policy feedback, loss with a lag of two and exposure failure, the prior predictive with an expected-loss stop and with a lag, a futility stop, two-sided and upper Wald boundaries, and two threshold-equals-exact-value cases. Thompson, probability-best, expected-loss and futility use the two-arm identity, so the Thompson row and the posterior rules are not referenced for three or four arms (the UCB and epsilon-greedy rules are); the floor of more than two arms is checked under adaptive_inference.participant_family; more than one context stratum, 24-look and 65535-unit schedules and the capacity refusals are not compared with a reference; UCB scores are compared in 60-digit decimal, and a tie between arms of different counts that the decimals do not break was not looked for; thresholds are kept at least 1e-9 from an exact posterior value except in the two cases that test equality. The Wald statistic is compared in 60-digit decimal against float critical values at least 1e-9 away."
+sources = ["https://docs.python.org/3/library/fractions.html", "https://docs.python.org/3/library/decimal.html"]
+findings_resolved = ["Defect repaired (shared by the law, the decision report and the participant procedure): the stopping rules compared numerically integrated posterior quantities with their thresholds with no band. At small counts those quantities are rational numbers that land exactly on round thresholds (the expected loss of choosing an arm after two units on one arm is exactly 1/20; the posterior probability that an arm is best is exactly 4/5 after three failures of the other), and the integral carries about 1e-15 of rounding, so the rule stopped or continued at those states by the sign of the rounding; the arm named at an exact tie followed it too (the estimate-crate rule named the last arm). The reference (exact Fractions) stops with probability 0.3125 at look 1 of a lagged expected-loss rule and the product reported 0.625, and the exact-futility tie case differed in mass (0.00463 against 0.00617). The rules now read a quantity within 1e-12 of its threshold as equal (at least holds at equality, below does not) and name the lowest arm among equal ones; every case of the frozen reference now agrees to 1e-12. The participant procedure (adaptive_inference.participant_family) uses the same reading with a band of 1e-9, because its logit quadrature is accurate to about 4e-11 (one completed participant with no success among two responses reads an expected loss of 0.04999999996915 where the exact value is 1/20); a history of that participant replayed as stopped at a threshold of exactly 0.05 and now continues.", "The remaining 16 procedures, including delay, loss, exposure failure and the prior predictive, agree with the exact enumeration at 1e-12 with no change to the recursion."]
+record_sha256 = "b47d7660c7748b445d3b5891d739163530eb42d6ffce503b8bb6c1297aad04df"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/adaptive_inference/procedure_law.rs"
+sha256 = "e44c1f2313fccea86ffedc1eafe86f9f889afc5866e9801ecd3dd105b7c13cd4"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/adaptive_procedure_law_reference.rs"
+sha256 = "9e76fa1311ff093152810bf7453504c5a0f2954bda27d083fb67ec83ca90b3ad"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/support/adaptive_procedure_reference.rs"
+sha256 = "9f51d015a392aa06ce800ee188d32509e63e69292bd667fa9f374638a0eac680"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/procedure_law_reference.py"
+sha256 = "cfe5a4c8f5a307238f8b976f41ed57e74b30d7b649d4db7dab9cfe8b58f8c3ad"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/procedure_exact.py"
+sha256 = "78c9b55f97adfd2b2c0cef5c95e82037b147c6a9eb58a5f35001358ede3d1c3f"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/procedure_law_reference.json"
+sha256 = "b4fc616df3d118c9bae57f79a07fafeb6d8ff20937e421ea711effb3a29c241f"

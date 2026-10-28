@@ -464,6 +464,46 @@ fn a_shifted_cohort_outside_the_support_is_a_transport_support_failure() {
     assert_eq!(error.detail, "cohort_decision.shift_support_failure");
 }
 
+/// The shift gate compares four declared strings and the support box inclusively: a declaration
+/// whose assumption label was changed is not certified, the fitted box edge is inside the
+/// support and the next representable value outside it is a transport support failure, and the
+/// refusal for an unshifted cohort names the plain out-of-support detail instead.
+#[test]
+fn the_shift_gate_is_exact_on_the_assumption_label_and_the_support_edge() {
+    let model = portable(Some(box_support()), "claim-a");
+    let on_edge = cohort_with("clinic_b", &[-1.0, 1.0], &[0.5, 0.5]);
+    let declared = CovariateShiftDeclaration::new("target", "clinic_b", &["z"]);
+    let options = CohortOptions { shift: Some(declared.clone()), expected_contrast_regime: None };
+    // tau(-1) = 1.5 and tau(1) = 2.5: the edges of the fitted box are inside the support.
+    let source = CohortDecisionSource::build(&model, &on_edge, "mmHg", &options, &ctx()).unwrap();
+    approx(source.mean_contrast(), 2.0);
+    assert_eq!(source.support_status(), SupportStatus::Extrapolative);
+
+    let mut relabelled = declared;
+    relabelled.assumption.push('x');
+    let options = CohortOptions { shift: Some(relabelled), expected_contrast_regime: None };
+    let error =
+        CohortDecisionSource::build(&model, &on_edge, "mmHg", &options, &ctx()).unwrap_err();
+    assert_eq!(error.detail, "cohort_decision.shift_declaration_mismatch");
+
+    let just_outside =
+        cohort_with("clinic_b", &[-1.0, f64::from_bits(1.0_f64.to_bits() + 1)], &[0.5, 0.5]);
+    let options = CohortOptions {
+        shift: Some(CovariateShiftDeclaration::new("target", "clinic_b", &["z"])),
+        expected_contrast_regime: None,
+    };
+    let error =
+        CohortDecisionSource::build(&model, &just_outside, "mmHg", &options, &ctx()).unwrap_err();
+    assert_eq!(
+        (error.code, error.detail),
+        ("transport_support_failure", "cohort_decision.shift_support_failure")
+    );
+    let unshifted =
+        cohort_with("target", &[-1.0, f64::from_bits(1.0_f64.to_bits() + 1)], &[0.5, 0.5]);
+    let error = build(&model, &unshifted).unwrap_err();
+    assert_eq!(error.detail, "cohort_decision.outside_support");
+}
+
 // ---------------------------------------------------------------------------
 // Artifact
 // ---------------------------------------------------------------------------

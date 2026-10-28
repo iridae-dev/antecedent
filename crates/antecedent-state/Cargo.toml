@@ -54,3 +54,7 @@ path = "tests/suite_01.rs"
 [[test]]
 name = "scenario_refresh_designs"
 path = "tests/scenario_refresh_designs.rs"
+
+[[test]]
+name = "state_incremental_particle_graph_score_reference"
+path = "tests/state_incremental_particle_graph_score_reference.rs"

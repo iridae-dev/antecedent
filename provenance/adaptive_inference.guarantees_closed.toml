@@ -28,7 +28,7 @@ record_sha256 = "d2dbae56d38be30fc53ae4782e9b516173a65b9d095b6524d3bbea1ae173486
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/adaptive_inference.rs"
-sha256 = "9fe5b43e88c99d9a693ae8ceca118d36142009a4410f3eaef1c4933c2fbb9b7c"
+sha256 = "6a6d5d8f0395eec7eeb167dc57fec8e674fb4f34942dc807597aca946e7a3fa3"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

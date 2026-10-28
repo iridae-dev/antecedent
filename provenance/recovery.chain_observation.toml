@@ -34,4 +34,41 @@ test_sources = [
   "crates/antecedent-estimate/tests/ordered_response_recovery_chain_truth.rs",
   "crates/antecedent-io/tests/recovery_chain_artifact.rs",
   "python/tests/test_recovery_chain.py",
+  "crates/antecedent-estimate/tests/recovery_chain_observation_reference.rs (24 exactly enumerated structural models with probabilities down to 1/1000, both chain heads and tail shapes, complete-case cells down to 4e-10, the wrong-plan check and the self-censoring witness re-enumerated over fractions)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "decide_chain_recovery and verify_chain_witness of crates/antecedent-identify/src/recovery_chain.rs and evaluate_chain_recovery of crates/antecedent-estimate/src/recovery_chain.rs for the two-variable binary m-graph with one response edge R_h -> R_t and an optional X_h -> R_t: the classification of the graph into a recovery plan (head, tail shape) or a self-censoring witness, the recovery formula p(x_h, x_t) = both(x_h, x_t) / (P(R_h = 1) q(x_h)) with q a ratio of observed pattern margins (or the complete-case share when the tail does not depend on the head variable), its positivity refusals, and the integer verification of the two-model nonrecoverability witness over 60^4 mechanism cells. Not the exact binary recovery row without a response chain, the sampled provider and its intervals (recovery.sampled_observation), graphs outside the row (refused, not decided), or any statement that the m-graph premises hold for real data."
+assumptions = ["The m-graph is the data-generating Markov structure: the head response has no parent other than a possible self-censoring edge, and the tail response depends on the head response and, optionally, on the head variable only.", "Positivity: P(R_h = 1) > 0 and every complete-case cell has mass; a violation is refused, not smoothed.", "The observed pattern law is an exact nine-cell law supplied as binary64 numbers; sampled counts are another record."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with the definition of the quantity (the enumerated joint of a structural model, marginalised to the observed pattern law and to the target law) evaluated in exact rational arithmetic by a reference written for this review; no upstream implementation or test source was consulted or copied. The cited publication was not retrieved in this review: the correspondence is between the product code and the definition of recovery by exhaustive enumeration, not a page-level reading of the paper, and the paper's own criterion is not checked."
+redistribution = "No work is redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0) and use only the Python standard library (fractions)."
+limitations = "Twenty-four structural models, eight with probabilities between 0.001 and 0.999 drawn at random and sixteen with probabilities pinned to 1/1000 or 999/1000 where the draw lands in the tails, which makes the smallest complete-case cell 3.9e-10; both chain heads and both tail shapes, with the recovered cells compared to the exact enumerated law to a relative 1e-12. The witness is re-enumerated for the two self-censoring edges with the doc's two models. Only the binary two-variable row exists: no larger m-graph, no continuous or multi-level variable, no instance where the tail also depends on the head response through a third variable, and graphs outside the row are refused, not shown unrecoverable. The paper's general criterion is not examined and the paper was not retrieved. A wrong-plan check (the independent-tail plan on a dependent tail) shows the recovery is not complete-case analysis, but no statement is made about the identifiability of any graph outside the row. The reference script is not wired into a gate; its output is frozen in the JSON file."
+sources = ["https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["The recovery formula returns the exactly enumerated P(X1, X2) for both heads and both tail shapes on every case, including complete-case cells down to 3.9e-10 and probabilities of 0.001 and 0.999, to a relative 1e-12.", "The independent-tail plan applied to a tail that depends on the head variable misses the truth by more than 1e-4, so the plan fields, not the data, select the formula; a zero complete-case cell is the positivity refusal.", "For a self-censoring edge on either variable the returned witness models, re-enumerated by an independent integer routine, agree on all nine observed cells and give P(X_i = 1) of 1/2 against 2/5, matching the exact-fraction enumeration in the reference.", "A tail-to-head-response edge is refused as an unsupported mechanism, not decided; no product defect was found in this record."]
+record_sha256 = "a74ec5e27b4e0bd96bcc958cabeb0adf4030d6d45be72ca054f34c47ac54767a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/recovery_chain.rs"
+sha256 = "4db72460d0a965b1139b599b019acbfae64007cae1620b080f1a1081b287a9c4"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/recovery_chain.rs"
+sha256 = "dbc719a3e317174ab9852cbd5b8203c83ca15fe0ef789a7bfb57b3ef39b06f0f"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/recovery_chain_observation_reference.rs"
+sha256 = "a01029820ff0ffb92c6f0ba28d008c6d40c99d735dd792e02f6628aeb97589a2"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/recovery_chain_observation_reference.py"
+sha256 = "b5bbca2ec391216cec7bc1522b92f1692cca0bd56ead6b2433e76ef8f43b3e90"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/recovery_chain_observation_reference.json"
+sha256 = "b654dbdedba7ba3ffa5d9293ee09a55a08b04dc8cfd2e3abf69f2d0e64682c8c"

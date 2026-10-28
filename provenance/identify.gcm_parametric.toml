@@ -5,7 +5,29 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-papers = [{ title = "Causality: Models, Reasoning, and Inference", sections = ["Chapter 7 abduction-action-prediction"] }]
+# `papers = []` is deliberate (see provenance/README.md): this record stamps the identification
+# of a counterfactual under supplied acyclic structural mechanisms (abduction, action, prediction,
+# Pearl, Causality, 2nd ed., ch. 7). It computes nothing; the mechanisms are fitted and the
+# counterfactual evaluated by counterfactual.aap. The book text was not retrieved.
+papers = []
 implementation_deviations = ["Identification is under acyclic fitted mechanism restrictions, not nonparametric identification from observational data alone.", "The licensed staged query is one-treatment, one-outcome ITE with hard interventions; nested and temporal requests refuse."]
 upstream_implementations_observed = []
 test_sources = ["conformance/estimate/staged_static_kinds"]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Builds the inspectable identification result for a counterfactual on a Dag with fitted structural mechanisms: an expectation functional naming the intervened variables and outcomes, an empty adjustment set, the single parametric-restriction assumption, and the status IdentifiedUnderParametricRestrictions."
+no_independent_algorithm = "parametric_scm_identification interns an expression node and an assumption record and assembles an IdentificationResult; dispatch validates that the query is a counterfactual with hard Set interventions and in-range variables and otherwise refuses. The mapped helper module contains no square root, logarithm, exponential, power or solve (the only substring matches are 'resolve'); the structural fit and the counterfactual evaluation are other records' code."
+covered_by = ["counterfactual.aap"]
+record_sha256 = "936bf7f079a64163dd28f6660832a5cbff0c1c653e201aca869e1a17f142eb93"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/execute/execute_helpers_parametric.rs"
+sha256 = "ccdf3ac5379f5bead1ec195e5749160f8bfdb8c2d08fb01b0a9813eb088d0b92"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/src/analysis/execute/tests.rs"
+sha256 = "45c599d72e7105b230b899e0fc90d15c2621e2340e643fa605005b679abf8366"

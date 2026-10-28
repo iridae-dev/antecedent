@@ -27,7 +27,39 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+  "crates/antecedent-estimate/tests/estimate_response_observation_adjusted_reference.rs (exact selected-outcome pseudo-values and the composed Kennedy level; refusals)",
   "crates/antecedent-estimate/src/observation.rs",
   "python/src/observation_api.rs",
   "python/tests/test_observation_stage_api.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "ObservationMechanismEstimator::adjusted_outcome (selected-outcome branch) and ::estimate_mean_curve in crates/antecedent-estimate/src/observation.rs for the static MeanCurve composition under an ObservationSpec::Selected claim: the in-sample logistic selection model and the pseudo-value R y / p of plain IPW, the cross-fitted augmented path (row i in fold i mod K, the selection model fitted on the other rows, the outcome regression fitted by least squares on the other rows' selected rows, both evaluated out of fold, the pseudo-value m + R (y - m) / p), the clamp of the fitted probability into [floor, 1 - floor], the containment of the treatment and every adjuster in the declared conditioning set, the replacement of the outcome by the pseudo-values in the Kennedy curve, the withheld interval and its disclosure, the method label, and the refusals of an incomplete conditioning set, of a delayed entry on a selected outcome and of a simultaneous band. Relies on estimate.observation_selected for the logistic observation fit and the pseudo-value primitive in antecedent-stats, and on estimate.response.kennedy_dr for the curve; this review checks the route arithmetic that sits on them. Not the Kaplan-Meier and Cox IPCW branches (reviewed in estimate.observation_km_ipcw and estimate.observation_cox_ipcw, and here only through their composition), the interval and truncation likelihood, the temporal entry points (adjust_temporal_series, adjust_temporal_anchors) with their time-block folds and downstream-design regressors, or the Gaussian interval likelihood."
+assumptions = ["The selected outcome is missing at random given the declared conditioning set (the treatment and every adjuster), and the selection probability is bounded away from zero by the floor; the correction cannot repair a violation of either, and a clamped probability changes the estimand.", "The composed curve inherits the Kennedy estimator's additive nuisance and Gaussian treatment-density restrictions and its identification assumptions, taken as given."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. It is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Five frozen designs of 100 to 160 rows with one adjuster: plain IPW; augmented selection at 5 folds; a selection model that puts 46 of 160 fitted probabilities under the floor (the clamp is exercised); an outcome offset of 1e5 with a treatment offset of 1e3; and 2 folds. The pseudo-values agree with the exact logistic and least-squares fits to 2e-6 relative (the product's logistic fit stops at a score norm near 1e-8) and the composed level to 1e-4 plus 2e-9 of the largest observed outcome. Only the Selected branch has its own exact reference; the Kaplan-Meier and Cox censoring branches are not re-derived here and are relied on through their kernel records, and the temporal entry points, the cross-fit time blocks and the downstream-design outcome regressors are not examined. No interval is published for this route, and none is reviewed: the omission is the stated contract (complete-data curve bands would not account for the estimated observation mechanism), and the joint uncertainty of the composition remains an open limit of the method, not a finding of this review. Nothing here demonstrates the joint double robustness or efficiency of the composition, which no cited paper derives. The cited publications (Bang and Robins; Robins and Rotnitzky; Kennedy et al.) were not retrieved in this review: the reference is the augmented and inverse-probability pseudo-values as the module states them, evaluated exactly. The reference script is not run in a locked, isolated environment and is not wired into any gate."
+sources = ["https://doi.org/10.1111/j.1541-0420.2005.00377.x", "https://mpmath.org/"]
+findings_resolved = ["The selected-outcome pseudo-values (IPW and cross-fitted AIPW, including the floor clamp, two folds and an outcome offset of 1e5) and the composed Kennedy level equal the exact logistic maximum-likelihood, least-squares and local-quadratic pipeline; no defect was found in this module.", "The composition publishes no interval, names its method and the withheld uncertainty, and refuses a conditioning set that omits the treatment or an adjuster, a simultaneous band and a delayed entry on a selected outcome rather than ignoring them.", "The composed curve rests on the Kennedy nuisance backfit corrected in estimate.response.kennedy_dr (the level was otherwise off by up to the 0.2 percent treatment-smooth error recorded there)."]
+record_sha256 = "6a9bdc656fb17fb782227ed1e03e8f5edfc930da44f140d0885667a482653ca0"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/observation.rs"
+sha256 = "88c7cc97648ca76e132a08a27f09646c9f321e966eacaf72d0223961108f4c81"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/estimate_response_observation_adjusted_reference.rs"
+sha256 = "4a24db6b0d58adb7df026cbe5e3be26ca9680fca5c0b494d2223c0683bde0467"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/estimate_response_observation_adjusted_reference.py"
+sha256 = "0a5c60771f77b3331eb590a304163f7fa9e2b2a85d20652666c7b41d03c18317"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/estimate_response_observation_adjusted_reference.json"
+sha256 = "986c5de77abe2795e1996c61a18dbe0293e8f2cd7ebecf30397eabb69d8effb0"

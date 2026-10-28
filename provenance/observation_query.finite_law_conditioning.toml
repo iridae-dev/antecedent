@@ -28,4 +28,36 @@ test_sources = [
   "crates/antecedent-io-core/tests/observation_query_artifact.rs",
   "crates/antecedent/tests/observation_query_facade.rs",
   "conformance/composition/dirichlet_conditioning/expected.json (independent Beta quadrature for posterior-functional moments; no sampling-coverage claim)",
+  "crates/antecedent-model/tests/finite_law_conditioning_reference.rs (exact rational enumeration of condition, intervene, observation after intervention, measured-indicator and threshold queries)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "observation_query::condition, intervene, condition_after_intervention, condition_on_measured and threshold_crossing_observations on a composed finite model with tabular mechanisms: the conditional law as a ratio of sums of the exact joint, the interventional law, observation after intervention, the Bayes-inverted conditional given the recorded value of an indicator with a declared likelihood, and the per-level threshold-crossing table with its tolerance and unreachable refusal. The joint law and truncated factorization are produced by ComposedFinite (record mechanism_composition.acyclic_joint_model, which carries its own review); this review does not take that joint on trust: the reference enumerates the declared tables itself and the product must agree on every query. Not reviewed: the Gaussian conditioning route (condition_gaussian), the finite Bayes model and Beta-Bernoulli updates and the evidence-requirement solves (reviewed under observation_query.posterior_update and observation_query.evidence_requirement), the Dirichlet and Normal-Inverse-Gamma parameter redraw, and the wire/artifact encodings."
+assumptions = ["The model is a finite Markovian composition whose tables the caller declared; the reference uses the same tables and the premise that the indicator is conditionally independent of every other variable given the construct.", "Probabilities are dyadic so the doubles handed to the product are exact rationals; the product's floating-point sums are compared to the exact values at 1e-12 absolute."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library (Fraction). It declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Three random dyadic models of four variables (a three-level root, a binary child, a ternary indicator with a level of zero probability under every parent, and a ternary outcome with two parents) with 5 to 6 conditionings, 4 interventions, 3 observations after intervention, 11 measured-indicator queries (likelihoods including zeros and an indicator that excludes a construct level) and 28 to 42 threshold queries per model (thresholds at an attained conditional, at the extremes and just above the largest), plus the zero-evidence and unreachable refusals, all compared at 1e-12. The measured-indicator oracle adds the indicator as an extra variable and conditions the enlarged model, which is the definition the product's summation formula must agree with. Models are small (at most 54 joint cells); wide laws, large level counts and the cancellation guards of a long chain are covered only by the existing tests of the module, not by this reference. Conditioning on an observation of probability zero is checked as a refusal only for the routes listed. The Rogan-Gladen citation supplies the sensitivity/specificity parameterisation only and nothing of it is implemented; no paper was retrieved."
+sources = ["https://doi.org/10.1017/CBO9780511803161"]
+findings_resolved = ["No defect found: condition, intervene, condition_after_intervention, condition_on_measured and threshold_crossing_observations agreed with the exact enumeration on every query, including refusals. Level order of the law is the model's own and differs from the declared order of a table; the review matches levels by name."]
+record_sha256 = "935518107bd707258ef0dbd9983af474ceccfefd0b9ef8dae264693b6c8a7f46"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/observation_query.rs"
+sha256 = "ea233bd1ba747668e5786ff0e485e68dc81082e233f5f0518842bf1ccd0141a6"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/finite_law_conditioning_reference.rs"
+sha256 = "598d32121cc6d7cab005a250e1f8904c82ce99ec585de319521713f3fe962f84"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-model/tests/oracle_data/finite_law_conditioning_reference.py"
+sha256 = "4bfc55b393da4fb3f9a953a9bc275c2d4eb11c6e9bf09bc02d055a6c95215d24"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-model/tests/oracle_data/finite_law_conditioning_reference.json"
+sha256 = "b9527895d7a96ebbd5d17e8fe64ec3314b107ae13cea148ad591d1587c6de65f"

@@ -5,27 +5,70 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-# Independently written plug-in g-computation for hard, additive-shift, and
-# stochastic policies. Stochastic policies are integrated by 256 fixed-seed,
-# independent-coordinate inverse-CDF Monte Carlo draws generated with SplitMix64;
-# soft and longitudinal interventions fail closed.
+# Independently written plug-in g-computation for hard, additive-shift and stochastic policies on
+# an additive cubic-spline outcome fit. Discrete policies (set, shift, Bernoulli, categorical) are
+# integrated exactly over their finite support; a Gaussian policy by a composite Gauss-Legendre rule
+# over the knot intervals of the clamped spline plus the exact normal mass of the two clamped tails.
+# Nothing is sampled, so the Monte Carlo and SplitMix64 citations this record once carried (for a
+# 256-draw sampler the module no longer has) are not listed. Soft and longitudinal interventions fail
+# closed.
 papers = [
   { title = "Population intervention causal effects based on stochastic interventions", doi = "10.1111/j.1541-0420.2011.01685.x", sections = ["Section 2: stochastic intervention parameter and identifying g-computation formula"] },
   { title = "Nonparametric causal effects based on longitudinal modified treatment policies", doi = "10.1080/01621459.2021.1955691", sections = ["Section 2, Definition 1: modified treatment-policy estimand only; no longitudinal sequential-regression theorem is claimed"] },
-  { title = "The Monte Carlo Method", doi = "10.1080/01621459.1949.10483310", sections = ["pp. 335-341: Monte Carlo integration by repeated random sampling"] },
-  { title = "Fast Splittable Pseudorandom Number Generators", doi = "10.1145/2660193.2660195", sections = ["Section 3: SplitMix generator and mixing function"] },
-]
+ ]
 
 implementation_deviations = [
   "The outcome regression is a fixed additive cubic-spline GAM with one-dimensional smooths, fixed regularization, and no interactions; it is a plug-in g-computation estimator rather than the cited doubly robust stochastic-intervention procedures.",
-  "Set, shift, Bernoulli, and categorical interventions are integrated exactly subject to a finite support-product budget, while Gaussian interventions use exactly 256 deterministic SplitMix64 Monte Carlo draws.",
-  "Monte Carlo error for Gaussian policies and outcome-model fitting uncertainty are not reported.",
+  "Set, shift, Bernoulli, and categorical interventions are integrated exactly subject to a finite support-product budget (4096 joint combinations); Gaussian interventions are integrated deterministically by a composite Gauss-Legendre rule over each knot interval inside ten standard deviations (pieces no wider than one standard deviation) plus the exact normal mass of the two clamped tails, so no sampling error enters.",
+  "Outcome-model fitting uncertainty enters the interval only through the fixed-basis HC2 coefficient sandwich conditional on the knots and the adjuster penalty; policy-integration error is not reported (it agrees with an independent adaptive quadrature to 1e-6 relative in the review).",
   "The implementation is cross-sectional: longitudinal modified treatment policies, treatment-confounder feedback, soft structural interventions, and intervention sequences are refused.",
-  "Support checking is marginal rather than joint, and no confidence interval is produced.",
+  "Support checking is marginal rather than joint; the published interval is the normal interval of the HC2 sandwich error and excludes knot selection, sieve-approximation bias of a non-additive surface and penalty-induced shrinkage.",
 ]
 
 upstream_implementations_observed = []
 
 test_sources = [
+  "crates/antecedent-estimate/tests/estimate_response_intervention_gcomp_reference.rs (exact rational additive g-computation level and HC2 sandwich error; refusals)",
   "crates/antecedent-estimate/src/response/tests.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "ContinuousResponseEstimator::intervention_response in crates/antecedent-estimate/src/response/curve.rs with policy.rs and the plug-in influence of plugin.rs for the Frequentist DAG route: the unpenalized-treatment additive-spline target fit, the policy law of each intervention (point mass, shift of the factual value, Bernoulli, categorical, Gaussian), the exact finite mixture for discrete policies and its 4096-combination budget, the composite rule for a Gaussian policy over the knot intervals of the clamped spline, the additive row mean, the estimate as the mean of the row means, the fixed-basis HC2 coefficient sandwich with the covariate-average term (and the special case of the identity shift, whose influence is the outcome's own), the normal interval, and the refusals of a soft intervention, a duplicated target, a Gaussian policy with zero variance and a joint support over budget. Relies on the stats.gam review for the penalized spline fit and its knots. Not the Bayesian route (bayes.rs), the cell-AIPW and ADMG functional estimators that can also answer an intervention response, or the cross-fitted doubly robust estimators the cited papers analyse."
+assumptions = ["Identification of the intervention response through the adjustment set is taken as given; the outcome surface is additive in the treatments and the adjusters, so a treatment-covariate or treatment-treatment interaction is not learned.", "The interval is the normal interval of a coefficient sandwich conditional on the fitted knots and adjuster penalty; it excludes knot selection, sieve-approximation bias and penalty-induced shrinkage."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. It is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Eleven frozen designs: one treatment under a point mass, a shift of 0.3, the shift of 0 (the observed mean), Bernoulli(0.3), a three-level categorical, a Gaussian policy inside the knot range and a Gaussian policy with a standard deviation of 2 against knots over about 4; two treatments under a point mass with a Gaussian, and a shift with a categorical; and a treatment offset of 1e3 with an outcome of 1e5. Levels are held to 1e-6 relative, errors and interval ends to 2e-4 of the error (the offset design carries an absolute 1e-3 for the backfit resolution). The Gaussian reference integrates the exact rational spline by mpmath quadrature over the knot intervals, not by a quadrature of the same family as the product. The error reference reproduces the fixed-basis HC2 sandwich from the definition (reduced design, restricted second-difference penalty, exact leverages); it is a check of the arithmetic, not evidence that the interval covers: the coverage claim rests on calibration tests elsewhere that this review did not re-run. The record's Monte Carlo and SplitMix64 citations described a sampler the module no longer has and were removed; nothing in the module is sampled. The cited publications (Diaz and van der Laan; Diaz et al.) were not retrieved in this review: the estimator is a plug-in g-computation of the stated estimand, not their doubly robust procedures, and the doubly robust property is not claimed. The Bayesian route and the other estimators that answer an intervention response are not covered. The reference script is not run in a locked, isolated environment and is not wired into any gate."
+sources = ["https://doi.org/10.1111/j.1541-0420.2011.01685.x", "https://mpmath.org/"]
+findings_resolved = ["Defect repaired: a Gaussian intervention was integrated by a fixed 48-node Gauss-Hermite rule, but the integrand is a clamped cubic spline (cubic between knots, constant outside), which a Hermite rule resolves only while the policy is narrow against the knot spacing; for a policy with a standard deviation of 2 against knots spanning about 4 the level was 0.6199 against the exact 0.5977, 15 percent of its standard error, and the sandwich gradient inherited the same error. The policy is now integrated by a composite Gauss-Legendre rule over each knot interval (pieces no wider than one standard deviation, ten standard deviations either side) plus the exact normal mass of the two clamped tails; the narrow-policy cases are unchanged to 1e-6.", "Defect repaired (shared with estimate.response.kennedy_dr): the plug-in target backfit stopped at a relative 1e-6 on either the change of the smooths or the change of the residual sum of squares; the nuisance and target backfits now run at 1e-10.", "The level and the HC2 error equal the exact references for the point mass, the shift (including the identity shift whose influence is y - mean(y)), Bernoulli, categorical and both Gaussian regimes, with two treatments and with offsets; duplicated targets, a zero-variance Gaussian policy and a joint categorical support of 65 x 65 are refused, the last with the exact-mixture budget message."]
+record_sha256 = "cd5b0b80be618b7a78d661d435e41b2e18e787c29c2bc37d56eb72020a324615"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/response/curve.rs"
+sha256 = "5fa78688d2f823851d49bff4d82cf3aa001508792536cd80802c0ede83370b26"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/response/policy.rs"
+sha256 = "846c46976799fe6d1ae3c70fa4d655926998064982d8cc585a00e56e72adec9b"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/response/plugin.rs"
+sha256 = "1f1c2c170c609d6f0bf0110a54c10a74897a115d36abd4a0c44cec8161474d09"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/estimate_response_intervention_gcomp_reference.rs"
+sha256 = "62fcf96dadc9f13daf0410b35488de7f88aaca6d275e4ff9f7252a9fb09fffa9"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/estimate_response_intervention_gcomp_reference.py"
+sha256 = "836ac96e149bf31f1dccd03201f3d600b3c43c961050703c7940cb5dcf042a4e"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/estimate_response_intervention_gcomp_reference.json"
+sha256 = "4fe63a1e9bb11fde8eb86a89c0fa42396c8a500bb780b7107e5133fda1b986c2"

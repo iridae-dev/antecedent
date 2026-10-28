@@ -7,4 +7,40 @@ copied_tests = false
 papers = []
 upstream_implementations_observed = []
 implementation_deviations = ["Applicable temporal effect refuters run on every contributing atom design against the mixture effect and mix by posterior mass. Unidentified mass stays separate; failed atoms and interactive subsampling cannot contribute refuter mass.", "Prior and posterior predictive checks and full prior-sensitivity refit all contributing atom designs with their normalized weights. Unidentified mass stays separate; failed atoms and interactive subsampling cannot anchor refuters on an excluded graph."]
-test_sources = ["conformance/bayesian/known_truth_mixtures", "python/tests/test_posterior_moments.py"]
+test_sources = ["crates/antecedent-validate/src/dbn_posterior_reference_tests.rs (exact-rational posterior-mass mixture of per-atom refutation reports; compiled into the library test build)", "conformance/bayesian/known_truth_mixtures", "python/tests/test_posterior_moments.py"]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The posterior-mass mixture of per-atom refutation reports that the record's refuter mixing reduces to: RefutationReport::mixture_weighted in crates/antecedent-validate/src/common.rs and QueryRefutationPlan::mix_weighted in crates/antecedent-validate/src/mediation.rs (grouping by refuter id in order of first appearance, dropping non-positive weights and mismatched ids, weighted means of the original, refuted and comparison fields, the maximum replicate count, informative if any atom is, and pass only if every contributing atom passed, with the first failing atom's text). Not the facade orchestration that decides which atoms contribute, runs each atom's refuters or keeps unidentified mass separate (crates/antecedent/src/analysis/execute/atom_mix.rs, bayesian_path.rs, execute_helpers_envelope.rs), not PredictiveCheckReport::mixture_weighted, and not any per-atom refuter arithmetic."
+assumptions = ["Weights are graph-posterior masses supplied by the caller; this review does not check that they are normalized or that the atoms are the right ones.", "The documented contract (fail-closed: the mixture passes only when every positive-weight contributing atom passed) is the specification checked here.", "A weight that is not finite and positive is not a contributing mass; a non-finite largest weight yields no mixture."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the mixture reduction and wrote its own reference from the documented definition in exact rational arithmetic over the supplied doubles; no upstream implementation was consulted and no paper applies."
+redistribution = "The reference script, frozen output and Rust test are repository-authored under MIT OR Apache-2.0; the script uses only the Python standard library."
+limitations = "Only the report-mixing reduction is reviewed. The record's other claims (refuters run on every contributing atom design, unidentified mass stays separate, failed atoms and interactive subsampling contribute no refuter mass, prior and posterior predictive checks and prior-sensitivity refit all atoms with normalized weights) live in the facade orchestration and were not reviewed, nor was the mixture of predictive-check summaries. The comparison covers fourteen weighted sets (masses from 1e-300 to 1e305, a failing atom of relative mass 1e-14 and 1e-300, zero, negative and mismatched-id atoms, cancelling large values, a single atom, no positive weight) and one two-atom, three-refuter plan, at 1e-13 relative. No paper applies; the record cites none."
+sources = ["https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["Defect fixed: RefutationReport::mixture_weighted decided the verdict by passed_mass / total_mass >= 1 - 1e-12, so a failing atom whose posterior mass was below about 1e-12 of the total (or any failing atom among weights of very different scale) left the mixture passing, contrary to its documented fail-closed contract; the verdict is now the absence of any failing contributing atom (failing-first test failing_atom_of_negligible_mass_still_fails).", "Defect fixed: weights were summed unscaled, so weights near 1e300 overflowed the weighted sums to infinity and NaN; weights are now rescaled by the largest contributing weight before the means are formed.", "The weighted means, replicate maximum, informative-any rule, id grouping and non-positive-weight handling agree with the exact reference on every set."]
+record_sha256 = "ce354444105986188cb7a99e2eddc54a55659fb846c23043c1688d87a93feb54"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/common.rs"
+sha256 = "6410463f77eb2989ddf9e3dc2ab904078fb0f3b703798cdcc65c98f8837326a0"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/mediation.rs"
+sha256 = "5c1f533aea0c6eba0bb2cf50c1a6f98f5b611c22d52b2e45a221777906550a58"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-validate/src/dbn_posterior_reference_tests.rs"
+sha256 = "dc14871c399026bda6f8be2f8ff3ecdab8eff405200839826914288825704268"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-validate/tests/oracle_data/dbn_posterior_reference.py"
+sha256 = "6e7c3e1fe7e0883fe52af4aaabe32d242ced379e5172f969bf7304b66c1703be"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-validate/tests/oracle_data/dbn_posterior_reference.json"
+sha256 = "5bb21b49c88d73630648aede3bff071e71eb3f9acdbbd764b29c4d7cf783bc8d"

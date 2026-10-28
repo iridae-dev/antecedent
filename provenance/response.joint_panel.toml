@@ -4,6 +4,9 @@ source_translation = false
 copied_code = false
 copied_comments = false
 copied_tests = false
+# Explicit judgment, not an unfilled field: the module is an independent construction of a declared Gaussian
+# panel family; its likelihood uses the textbook stationary AR(1) covariance and Gaussian marginalization, which
+# no single paper introduces, and no paper was retrieved for this review.
 papers = []
 implementation_deviations = [
   "Independent construction of the explicitly declared finite-lag Gaussian panel family; no external implementation or claimed replication of a published complete procedure.",
@@ -34,4 +37,37 @@ test_sources = [
   "python/tests/test_joint_panel_reference_decomposition.py (public Python native source, population transport, independent truth, refusal and current/historical artifacts)",
   "parity/fixtures/joint_panel_decomposition.toml (component/transport and method specification; no calibration promotion)",
   "docs/guides/joint-intervention-responses.md (scope and acceptance evidence; no calibration promotion)",
+ "crates/antecedent-estimate/src/joint_panel/ar1_random_intercept_reference_tests.rs",
+ "crates/antecedent-estimate/tests/oracle_data/joint_panel_ar1_reference.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The independent-group marginal law of joint_panel/likelihood.rs: ar1_random_intercept (the stationary Gaussian AR(1) precision with the group random intercept integrated out by a rank-one update, giving the marginal log-likelihood and the conditional mean and variance of the intercept) and its use by marginal() for non-spatial families, for one group's residual vector. Not a review of the other roughly 6000 lines of the module: the feature programs, carryover and saturation transforms, the limited-memory optimizer, numerical derivatives and the cluster sandwich, the model-based bootstrap, the Metropolis sampler, the spatially correlated Woodbury marginal (spatial_marginal), time-varying attempts, decomposition and Shapley averaging, population standardization and the artifacts."
+assumptions = ["Within a group the residual is u 1 + e with u ~ N(0, tau^2) independent of e, a stationary Gaussian AR(1) process e_t = rho e_{t-1} + sigma z_t (|rho| < 1, sigma > 0) so Cov(e_i, e_j) = sigma^2 rho^|i-j| / (1 - rho^2); groups are independent.", "The residual vector is the outcome minus the mean response under the supplied parameters; the review takes the residuals as given and does not check the mean response."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the covariance definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The reference is repository-authored under MIT OR Apache-2.0 and runs inside the crate's own unit tests; mpmath is used only to generate the frozen JSON and is not a product dependency."
+limitations = "No paper was retrieved or read for this review (no downloads were made and none is available from this environment); the model statement (stationary AR(1) errors plus a Gaussian random intercept) is the one the module documents, and whether it is the right model for a given panel is outside the check. Only the closed-form independent-group likelihood is reviewed; the spatially correlated Woodbury marginal, the optimizer that maximizes this likelihood, the numerical derivatives and cluster sandwich, the bootstrap, the Bayesian engine and every other route of the module have no independent reference in this review and the record's other test sources are the only evidence for them. Cases cover groups up to 150 observations with |rho| up to 0.999 and sigma, tau from 1e-3 to 1e3; a rho closer to one than 0.999, groups much longer than 150 and a missing-observation pattern inside a group are not covered. The reference solves the dense covariance, so it shares no algebra with the product but both read the same residual convention (r = outcome minus mean)."
+sources = ["https://doi.org/10.1017/CBO9780511802256", "stationary AR(1) covariance Cov(e_i, e_j) = sigma^2 rho^|i-j| / (1 - rho^2) and the Gaussian conditioning identities (textbook; written out in crates/antecedent-estimate/tests/oracle_data/joint_panel_ar1_reference.py)"]
+findings_resolved = ["Over 14 groups (one observation to 150, rho in {-0.999, -0.7, 0, 0.3 to 0.9, 0.999}, sigma and tau each from 1e-3 to 1e3, residuals offset by 1e6 with a wide and a narrow intercept scale) the marginal log-likelihood agrees with the dense 120-digit reference to a relative 2.2e-16 or better (worst absolute 1.2e-10 at a log-likelihood of -1.9e12), the conditional intercept mean to 1.2e-10 absolute at an offset of 1e6, and the conditional intercept variance to 5e-16 absolute. The completed-square form is stable where the offset residual is explained by a wide intercept.", "Invalid rho (|rho| >= 1 or NaN), non-positive or non-finite sigma and tau, empty and non-finite residual vectors are refused (None) rather than evaluated; the likelihood is time-reversible for a stationary series and changes under any other reordering. No defect was found and no product code changed."]
+record_sha256 = "67a0a93bbb95706d7a3f7e2bbe49d91ab42e338d33f2150eb3d9d5c82ab07e78"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/joint_panel/likelihood.rs"
+sha256 = "197f2485d6b4616514e2be5c137ad48f8f014408481d25782918b2d012466e2f"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/src/joint_panel/ar1_random_intercept_reference_tests.rs"
+sha256 = "d5cba716025dd69e11b03f50fcc0cb26661eb6101e7d29f75cee6c4121b9223c"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/joint_panel_ar1_reference.py"
+sha256 = "2711e40204bc766cfcfda75d7d0806f003a96e3e738a4054ca2b39dcad08334d"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/joint_panel_ar1_reference.json"
+sha256 = "337104131d0896233ded7fd16f6c31696f5a25e7f6f8dce245e7bcaf5461c730"

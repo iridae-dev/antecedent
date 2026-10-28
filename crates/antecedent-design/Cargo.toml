@@ -91,3 +91,19 @@ path = "tests/effect_width_reference.rs"
 [[test]]
 name = "winners_curse_reference"
 path = "tests/winners_curse_reference.rs"
+
+[[test]]
+name = "decision_reliability_reference"
+path = "tests/decision_reliability_reference.rs"
+
+[[test]]
+name = "decision_exact_reference"
+path = "tests/decision_exact_reference.rs"
+
+[[test]]
+name = "design_ranking_replay_reference"
+path = "tests/design_ranking_replay_reference.rs"
+
+[[test]]
+name = "certified_program_search_reference"
+path = "tests/certified_program_search_reference.rs"

@@ -9,10 +9,14 @@ copied_tests = false
 # target-population composed model. The admission rule is the selection-diagram rule (a mechanism
 # with no selection node into it, or into a latent cause it loads on, is shared); the composed
 # model and its closed-form interventional means are the existing composition engine.
-papers = [
-  { title = "External Validity: From Do-Calculus to Transportability Across Populations", citation_note = "Previously recorded title and bibliographic detail: External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"] },
-]
+# papers = [] is an explicit judgment, read against crates/antecedent-model/src/mechanism_transport.rs: the
+# module decides which fitted mechanisms are carried (no selection node into the variable or a latent cause it
+# loads on), gives a natively refitted target mechanism precedence, and hands the assembled spec to the
+# composition engine. It computes no mean, covariance or contrast itself. The selection-diagram rule is that of
+# Pearl and Bareinboim (External Validity, Stat. Sci. 2014), not retrieved in this review.
+papers = []
 implementation_deviations = [
+  "Reviewed as a justified non-algorithm mapping by reading the module; the numerics are the composition record's",
   "Bounded executed route, not a published algorithm: only fitted linear-Gaussian mechanisms are carried; finite tables are decided by the finite counterfactual transport derivation and are refused here with a pointer to it.",
   "A natively refitted target mechanism always takes precedence over a carried one for the same variable; the two are never averaged.",
   "A mechanism that loads on a shared latent cause is carried only with the analyst's explicit population-invariance declaration, as the composition checker requires; the diagram alone does not cover a latent.",
@@ -24,3 +28,26 @@ test_sources = [
   "crates/antecedent-model/tests/transport_obstruction_agreement.rs",
   "crates/antecedent-model/tests/transport_fixture/mod.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Admission of fitted additive-noise linear-Gaussian mechanisms from a source population into a target composed model under a declared selection diagram, with typed refusals and a disposition for every component."
+no_independent_algorithm = "Admission is set membership against the diagram's selection targets plus the declared latent invariance; mean_contrast and mean_contrast_uncertainty forward to ComposedLinearGaussian unchanged, so every sum, covariance and delta-method variance is computed by the composition engine."
+covered_by = ["mechanism_composition.acyclic_joint_model"]
+record_sha256 = "3d36e214f11a4979314edc7862c00682ba1079f23523c2d542ca21a334d92c73"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/mechanism_transport.rs"
+sha256 = "c78aabed116518810567eb6caa3b7e36b2ff28f865ea9d32a54a598f854eabb9"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/mechanism_transport.rs"
+sha256 = "a0b1ed4a35e19b9c1ede071e1543204c71d46065538fe06b0095cd4a8ef9b7bb"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/transport_obstruction_agreement.rs"
+sha256 = "e399508e4c0121cc6e524a3d7d59e5b78789f0d265020f072eb3a0e6f23b47e2"

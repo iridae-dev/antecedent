@@ -20,4 +20,41 @@ implementation_deviations = [
 upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-stats/tests/adaptive_repeated_measures_oracle.rs",
+  "crates/antecedent-stats/tests/adaptive_repeated_measures_reference.rs (summary variances against exact inverses; fixed-allocation law against exact binomial weights to 4000 units)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The covariance and the exact fixed-allocation law of crates/antecedent-stats/src/adaptive_inference/procedure_repeated_measures.rs: the correlation matrices of compound symmetry, first-order autoregression and a unit random effect, the variance of the unit mean and of the generalized-least-squares unit summary and the design effect (Covariance::summary_variance, weights), and exact_fixed_contrast_law (the binomial mixture of normals over the number of units in each arm, its mean, variance, distribution function and undefined mass). Relies on the GLS summary reviewed under adaptive_inference.repeated_measures_posterior and, for the weighted analysis, on adaptive_inference.adaptive_weighting. Not the Gaussian simulation of the adaptive procedure, the cluster-robust, pooled and weighted analyses inside it, the premise gates or the cell labels, which stay with the independent oracle tests of adaptive_repeated_measures_oracle.rs and are not compared with a frozen reference here."
+assumptions = ["Gaussian measurements with the declared marginal variance and within-unit correlation; units independent.", "With a fixed two-arm allocation the number of plus-arm units among the revealed units is binomial, and given it the contrast of arm means of unit summaries is normal with variance v (1/k + 1/(n - k))."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied, and no primary paper is claimed for this record."
+redistribution = "Primary work is cited, not redistributed. The reference scripts and their frozen outputs are repository-authored (MIT OR Apache-2.0) and use only the Python standard library (mpmath 1.3.0 for the normal distribution function in the mixture cdf). The scripts declare their inline script metadata but are not run in a locked, isolated environment and are not wired into any gate; their output is frozen in the JSON files and compared by the tests."
+limitations = "No primary paper is claimed (standard closed forms of the intraclass correlation and generalized least squares). The reference builds each correlation matrix explicitly and inverts it exactly (Gauss-Jordan on Fractions) to obtain the GLS weights R^-1 1 / (1' R^-1 1) and the variance s2 / (1' R^-1 1), with no closed form assumed: 120 unit-summary cases (2, 3, 5, 12 and 32 measurements; compound symmetry at correlations 0, 1/2, 0.99 and values 90% and 67% of the way to the lower positive-definite limit; autoregression at 0, 1/2, -0.9 and 0.99; random effects with between-unit variance 0, 1/100 and 3/2 against within-unit variances 1/2 to 5), agreeing to 1e-9 relative. The mixture is compared for seven allocations from 5 to 4000 revealed units (including 1100, 2000 and 4000 at an even allocation and 300 at 9/10): weights against exact Binomial Fractions, the defined and undefined mass, the variance and the cdf (mpmath, 30 digits). Not covered by a reference: more than 4000 revealed units (the constructive recursion runs to 65535 but was not compared past 4000), three or more arms (no closed form), adaptive assignment, the simulation of the Gaussian draws and the analyses, and the cell and premise logic."
+sources = ["https://docs.python.org/3/library/fractions.html", "https://docs.python.org/3/library/decimal.html", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["Defect repaired: exact_fixed_contrast_law started its binomial recursion at q^n computed as exp(n ln q), which is zero beyond about a thousand units at an even allocation (1100 units gave a defined mass of 0 against 1), so every weight of the law was zero for realistic trial sizes (n = 1100, 2000 and 4000 failed in the first run of the reference). The masses are now anchored at the mode in log space, extended by the ratio of neighbouring masses and rescaled to the total that the exact undefined mass p^n + q^n leaves; all seven allocations agree.", "The unit-summary variances, GLS weights and design effects agree with the exact inverse in every structure."]
+record_sha256 = "3c1072f97b39259ce7da8cf16c5ccd0996ee8b3630943e30651717546b2ff769"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/adaptive_inference/procedure_repeated_measures.rs"
+sha256 = "be0206065f9b534173a09ebf1c2e3bebd918f55b1fddc35e99df69e2a8f48d34"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/adaptive_repeated_measures_reference.rs"
+sha256 = "a5e59ee32372f77ba15d5cbbf0a76dcfc2ce77e53599f033249b03eb6d62cc15"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/support/adaptive_procedure_reference.rs"
+sha256 = "9f51d015a392aa06ce800ee188d32509e63e69292bd667fa9f374638a0eac680"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/procedure_repeated_reference.py"
+sha256 = "f1d5986ff9ccbc55d9315d559508fe554b738cc1d7bd8f6d127da02f4906b4fc"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/procedure_repeated_reference.json"
+sha256 = "e7fe47239fbd3130ac27b000af7860598cf9d3becbc44bc7fb13c3a6101364b6"

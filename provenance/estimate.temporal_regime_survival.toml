@@ -19,4 +19,41 @@ implementation_deviations = [
 test_sources = [
   "crates/antecedent-estimate/src/temporal_design/survival.rs",
   "crates/antecedent/tests/temporal_design_routes.rs",
+  "crates/antecedent-estimate/tests/temporal_regime_survival_reference.rs (50-digit pooled-logistic inverse-probability-weighted regime survival: truncation, censoring weights, absent censoring model, strong confounding)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "ipw_procedure through fit_regime_survival in crates/antecedent-estimate/src/temporal_design/survival.rs for static always-treat and never-treat regimes: the person-period feature rows, the pooled treatment and censoring logistic fits, the cumulative regime-consistent inverse-probability-of-treatment and censoring weights, the weighted period hazards, the product-limit survival and its contrast, the horizon truncation, the absence of a censoring model when no row is censored, and the smallest regime-consistent action probability. Not the subject bootstrap interval (its draws come from a seeded stream; only its shape is asserted), the Bayesian g-formula in the same file, or the observational and trajectory survival modules."
+assumptions = ["Sequential exchangeability of treatment and censoring given the measured history, positivity of both regimes and consistency are declared, not checked.", "The treatment model P(A_k | L_k, A_{k-1}, k/K) and the censoring model P(C_k | L_k, A_k, k/K) are correctly specified pooled logistic models; their fit is the unpenalised maximum likelihood (plus a precision of 1e-10 the module adds for numerical definiteness).", "A subject censored in period k contributes its weight to no hazard of period k; events are observed only in uncensored periods."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Three simulated designs verified against the reference: 70 subjects with up to six periods truncated at a horizon of four and censoring, 60 subjects with no censoring at all (the censoring model is absent), and 140 subjects with strong confounding and a positivity floor of 0.005 (smallest regime probability 0.058). The survival difference and both arm survivals are asserted to 1e-6 relative and the smallest regime-consistent probability to 1e-6. A fourth design of 36 subjects is generated and refused by the product because more than five percent of its subject-bootstrap replicates lose regime support, so its point is not published and could not be compared; the thin-design regime is therefore a recorded gap, not a verified one. The public entry point couples the point to the bootstrap, so the point was checked through the whole fit; the bootstrap standard error and percentile interval are asserted only to be finite, ordered and inside the range of a survival difference. The reference is a 50-digit maximum likelihood fit, so a design with separated covariates (no finite fit) is not representable; the product refuses it. One confounder, static regimes, discrete hazard by weighted event share. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.1097/00001648-200009000-00011", "https://mpmath.org/"]
+findings_resolved = ["No defect found: the always-treat and never-treat survivals, their difference and the smallest regime probability equal the 50-digit reference for the censored and truncated design, the uncensored design (no censoring model) and the strongly confounded design.", "The weight of a regime-consistent row is the product, over the periods up to and including it, of the inverse treatment probability of the regime and the inverse of one minus the censoring probability under the regime (floored), and a censored row ends its subject's contribution before the hazard sums; both match the definition."]
+record_sha256 = "3b3309226dbc6793be124c67f2dd62837de3c782b0bcffe4caf7c02194e9b3e8"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/temporal_design/survival.rs"
+sha256 = "7c41faa544c667cc750b25b0df620f2ac57bf9851b7da4418dcbc0b50429c086"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/temporal_design/linalg.rs"
+sha256 = "9dba06a1c63c7344a3d77d1c4d420696e2d94f9381dc83380bc52d9168770484"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/temporal_regime_survival_reference.rs"
+sha256 = "069115acbc6d74479114ec81ea11ace4f4431b01a8cbd0f6435e2f00b938b62e"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/temporal_regime_survival_reference.py"
+sha256 = "c6f51c8802639a3d300b476eb04d3cd853f025a3c4099cfd4446f6c6e789ceda"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/temporal_regime_survival_reference.json"
+sha256 = "2eddea7b13dcb1ffe9ce7fc65d47a5099ddd2e2b1664765cc217ca9f50a614ec"

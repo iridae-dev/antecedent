@@ -27,3 +27,11 @@ blake3 = { workspace = true }
 [[test]]
 name = "suite_01"
 path = "tests/suite_01.rs"
+
+[[test]]
+name = "interface_cyclic_composition_reference"
+path = "tests/interface_cyclic_composition_reference.rs"
+
+[[test]]
+name = "typed_bridges_reference"
+path = "tests/typed_bridges_reference.rs"

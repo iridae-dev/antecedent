@@ -7,7 +7,7 @@ copied_tests = false
 
 implementation_deviations = [
  "The Gaussian local BIC score counts intercept and parent coefficients but omits residual variance from the parameter count; this shifts absolute BIC scores by 0.5 * ln(n), although parent-set score differences are unchanged.",
- "The Gaussian score floors residual variance at 1e-12 and rejects singular parent Gram matrices rather than defining a regularized or generalized-inverse score.",
+ "The Gaussian score refuses a rank-deficient parent set and a fit with zero residual variance (an exact linear function of the parents has no finite likelihood) instead of reporting an infinite or regularized score; it recomputes the residual sum of squares from the residuals when the Schur complement would cancel.",
  "The particle filter is restricted to a scalar linear-Gaussian model with unit observation loading and initializes x0 from N(0, process_variance).",
  "Resampling is adaptive at ESS below half the particle count and uses systematic resampling; Gordon, Salmond, and Smith describe the bootstrap weighted-resampling filter but do not supply this systematic-resampling scheme.",
 ]
@@ -20,7 +20,44 @@ papers = [
 upstream_implementations_observed = []
 
 test_sources = [
+  "crates/antecedent-state/tests/state_incremental_particle_graph_score_reference.rs (exact rational Gaussian BIC scores, deltas and totals; definition-driven bootstrap filter steps)",
  "conformance/design_state/incremental_graph_score_match (exercised via crates/antecedent/tests/design_state.rs)",
  "conformance/design_state/incremental_particle_filter_match (exercised via crates/antecedent/tests/design_state.rs)",
  "conformance/design_state/particle_filter_kalman (exercised via crates/antecedent-state/tests/particle_filter_oracle.rs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The Gaussian BIC family of LocalScoreCache in crates/antecedent-state/src/graph_score.rs (local_score, score_graph, delta_score, full_graph_score; the centered compensated Gram, the equilibrated Cholesky Schur complement with its corrected-semi-normal-equations refinement, bic_from_rss, the (node, parents) cache and its refusal of other data) and the bootstrap/SIR step of ParticleFilterState in crates/antecedent-state/src/particle_filter.rs for the scalar linear-Gaussian model with unit observation loading (init, step, the log-weight update, the weight normalization, Kish size and weighted mean, the half-particle resampling rule and the systematic resample). Not the Laplace-noise family of the same cache, retention or byte-budget bookkeeping, the choice of model parameters, or the particle filter as an estimator of an arbitrary posterior."
+assumptions = ["Independent rows with linear Gaussian conditional mechanisms for the score; the score is a likelihood-based criterion, not a test, and its use to compare graphs rests on the BIC approximation.", "The latent model is x_t = a x_(t-1) + s_proc e, y_t = x_t + s_obs h with the initial law N(0, s_proc^2); the parameters are given, not estimated.", "The step reads one stream of normal and uniform draws in a fixed order (a normal per particle, then one uniform on a resample), so a step is reproduced exactly by an independent derivation that consumes the same stream."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script declares its inline metadata for mpmath (BSD-3-Clause) and uses the standard library fractions, importing mpmath at run time and not redistributing it. It is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Seven frozen score graphs (outcome offset 1e9; parents differing by 4e-6; a child fitted to noise 1e-5 of its spread; columns on scales 2^-40 and 2^40; three and four rows; a six-variable graph edited edge by edge through 8 edits) held to 1e-9 relative in the local scores and the totals, plus the executed refusals of a repeated parent, a deterministic child, a self-parent, one row and an edit that fails (which leaves the total bit for bit). The filter is checked against the definition driven by the same random stream in four regimes (default parameters, an observation 400 standard deviations out that leaves one particle with the weight and forces the resample, a single particle, observation units of 1e-150), to bit equality in the particles and 1e-13 in the weights; this verifies the arithmetic of the step and of the systematic resample, not that the stream is a good generator, and it does not show the filter converges to the filtering law. That is the statistical agreement with the exact scalar Kalman moments in the frozen fixture conformance/design_state/particle_filter_kalman/expected.json, asserted by crates/antecedent-state/tests/particle_filter_oracle.rs at the stated tolerances, and neither the particle count nor the tolerance is re-derived here. The BIC counts the intercept and the parent coefficients and omits the variance parameter, shifting every local score by half the logarithm of n; differences between parent sets are unaffected. The cited publications (Schwarz, estimating the dimension of a model; Gordon, Salmond and Smith) were not retrieved in this review: the reference is the standard Gaussian profile likelihood and the bootstrap-filter recursion those works state. The reference script is not run in a locked, isolated environment and is not wired into any gate."
+sources = ["https://mpmath.org/", "https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["The cached local score, the incremental delta, the running total and the cache-free full_graph_score equal the exact rational residual sum of squares and the 60-digit logarithms across the offset, near-collinear, tiny-noise, extreme-scale and tiny-sample designs; no defect was found in the score.", "A repeated parent column, a child that is an exact linear function of its parents and a node that parents itself are refused, a refused edit leaves the cached total unchanged bit for bit, and a cache bound to one dataset refuses another.", "Every bootstrap step equals the definition: the predicted particle, the unnormalized log-weight update, the max-shifted normalization, the Kish size, the weighted mean and the systematic resample, including the single-particle case, the one-particle-holds-all weight case that forces the resample, and observation units of 1e-150; no defect was found in the filter.", "The record's deviation about a 1e-12 variance floor was out of date: a zero residual variance is a refusal, and the text now says so."]
+record_sha256 = "82476cf06fd803a7b8413e5a42c8d7b60af72ae6d5be97d1b660382617ec9a54"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-state/src/graph_score.rs"
+sha256 = "ec713b89209825fb1dc8be3f956fcd36158d5b7fe8598bf35a37e2cd98c63379"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-state/src/particle_filter.rs"
+sha256 = "c677bf88fec95fdd866bc16ee14b430e2c695e3c94d57bd02cc402508f7c3770"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-state/tests/state_incremental_particle_graph_score_reference.rs"
+sha256 = "0c644e59aaf33cfa0edff4fe2b5bcdea6560ed39193fd35a1eb25196f99efc6e"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-state/tests/oracle_data/state_incremental_particle_graph_score_reference.py"
+sha256 = "59d57da8e2c75e0db38802608eea3f218bfc914936b691df3bc42740165fc963"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-state/tests/oracle_data/state_incremental_particle_graph_score_reference.json"
+sha256 = "0d616dac3500d1b73e6195c0d1b9cead63116e4fcdcd5e0f3b490f434214f10b"

@@ -23,6 +23,43 @@ upstream_implementations_observed = []
 
 test_sources = [
  "crates/antecedent-discovery/src/stability.rs unit tests (hand-built CPDAG resamples with known pair, mark and whole-structure frequencies)",
+ "crates/antecedent-discovery/tests/bootstrap_stability_reference.rs (exact rational counting of adjacency, mark and whole-structure frequencies over seeded PAG structures, ties, skew and the acceptance boundary)",
  "crates/antecedent/tests/structure_uncertainty_routes.rs (compiled stability searches over a table, a series and a panel against the engines on the same fixtures)",
  "python/tests/test_structure_uncertainty_routes.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "StructureStability::tabulate in crates/antecedent-discovery/src/stability.rs: the per-pair adjacency frequency, the per-pair endpoint-mark frequencies and their ordering, the whole-structure counts and frequencies and their ordering, the reference frequency, the failed-mass accounting and the acceptance rule (at least two successes and at least half of the requested resamples), tabulated over PAG structures with tail, arrow and circle marks. The resample draws (rows with replacement, circular blocks, whole units) are made by the data resampling kernels reviewed in data.resample and by the facade in crates/antecedent/src/analysis/structure_stability.rs, which this review read but did not re-derive; the searches that produce the structures are reviewed in their own records."
+assumptions = ["A structure is the set of its marked node pairs; the search-state middle mark does not separate two structures, which is the documented rule and the one the reference uses.", "The frequencies are over the resamples on which the search returned a structure; a failed resample is failed mass that is reported, never redrawn or imputed.", "The resample draws are exchangeable replicates of the declared sampling design; that the design is the right one for the study is the caller's declaration."]
+historical_exposure = "Historical author exposure cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with definitions evaluated by an executing reference written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review (no paper was downloaded or read here): the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library (fractions, random, json). It declares inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Eleven seeded configurations over four-node PAG structures (skewed pool of six structures with 97 successes of 120, four fully tied counts, 60 distinct structures, a single structure, a reference no resample returned, empty structures, and the acceptance boundary at exactly half, just under half, one success, none requested and more structures than requested): every adjacency, mark and whole-structure frequency equals the exact rational count to 1e-14. Tie order among whole structures with equal counts is by a content digest the reference cannot reproduce, so only the non-increasing count order is asserted there. The draws of the resamples are not independently tested at the facade here: the block-length rule (the larger of the lag span and the integer cube root of the series length), the refusal of masked or weighted tables and the per-resample keyed streams are read, not executed against a reference, and the indexing laws rely on the data.resample review whose own limits (statistical comparison, no coverage claim) carry over. Coverage of the frequencies as an estimate of the search's sampling law, stability-selection error bounds and the circular-block seam effect on lagged windows are not measured; temporal and multi-environment structures use the same counting code but were exercised here only through PAG structures."
+sources = ["crates/antecedent-discovery/tests/bootstrap_stability_reference.rs", "crates/antecedent-discovery/tests/oracle_data/bootstrap_stability_reference.py"]
+findings_resolved = ["No defect found: for all eleven configurations the product's adjacency, endpoint-mark and whole-structure frequencies, the reference frequency (including zero for a reference no resample returned), the failed mass and the refusal exactly at the acceptance boundary agree with the definition-level rational counts, and the structure masses sum to one.", "Replaced hand-built three-node unit cases as the only executing evidence for the tabulation with a seeded exact-count comparison that includes ties, skew, empty structures and the boundary of the success rule."]
+record_sha256 = "3c0717c8aac0d99a1efb885713a498741f68b480e43266bc3c2aaddb83b3210d"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/stability.rs"
+sha256 = "8a72da3e80c5455e94da48cc13c55f9fea3a45aedf2f10d595ebfe8937bcd6d1"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/structure_stability.rs"
+sha256 = "b37f3fa627d2cd873724c28b0053550d37642d242adab39729e35186f746ecbd"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/tests/bootstrap_stability_reference.rs"
+sha256 = "f0901f832d1d316086e02b3ec58029311ca15f8e2c77455088e48da05e6c2054"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-discovery/tests/oracle_data/bootstrap_stability_reference.py"
+sha256 = "915fb6782cc14d7fb269fc1f6ca3ce5e212d9b1b94420819c32f6978b4d31c77"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-discovery/tests/oracle_data/bootstrap_stability_reference.json"
+sha256 = "51ed6d110a9fa1262c62713b0d30edb0da0bb2cc992bc93703726b37a00fda1b"

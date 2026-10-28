@@ -5,10 +5,11 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-papers = [
- { title = "A characterization of Markov equivalence classes for acyclic digraphs", doi = "10.1214/aos/1031833662", sections = ["static same-skeleton / same-v-structure Markov equivalence characterization only; no temporal construction theorem is claimed"] },
- { title = "Causal Inference and Causal Explanation with Background Knowledge", doi = "10.48550/arXiv.1302.4972", sections = ["orientation-rule and MPDAG background only; TemporalCpdag stores marks but does not run MPDAG completion"] },
-]
+# Explicit judgment, not an unfilled field: TemporalCpdag is a marked-edge container with local
+# invariants (legal marks, no duplicate or self edge, no directed cycle, no future-to-past directed edge). It
+# derives no CPDAG or MPDAG, runs no orientation rule and tests no equivalence, so no paper introduces what it
+# computes; the Markov-equivalence characterization it is the container for is cited by graph.cpdag_completion.
+papers = []
 
 implementation_deviations = [
  "TemporalCpdag is principally a marked-edge representation with lag metadata; it does not derive a CPDAG or MPDAG from a DAG, run the cited orientation rules, or certify Markov-equivalence-class completeness.",
@@ -22,4 +23,27 @@ upstream_implementations_observed = [
 
 test_sources = [
  "TemporalCpdag mark-invariant unit tests (crates/antecedent-graph/src/cpdag.rs)",
+  "crates/antecedent-graph/tests/temporal_cpdag_invariants_reference.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "A marked-edge container for temporal CPDAGs: it stores Tail-Arrow, Tail-Tail and Conflict-Conflict marks between lagged nodes and enforces local invariants (no duplicate edge, no contemporaneous or lagged self edge, no directed cycle, no future-to-past directed edge, orientation only of an existing undirected edge)."
+no_independent_algorithm = "cpdag.rs and marked_storage.rs contain adjacency bookkeeping, directed reachability for the cycle check and conversion to a TemporalDag; they contain no square root, logarithm, exponential, solve or sampling and no orientation or completion rule. An independent edge-map model with depth-first reachability agrees with the container on the accept or reject decision and the stored edges after every operation of every short sequence over four, three and six nodes, and on the conversion to a TemporalDag at the end of each."
+record_sha256 = "98eaa06036cdb3964d7af698503f3b4b7a28a120f53be80edb52ca2e594f8948"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-graph/src/cpdag.rs"
+sha256 = "1dfc101ba355198c5f20608a66d0239f781dd037f2b6248e483c091b15f5bc36"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-graph/src/marked_storage.rs"
+sha256 = "ae810ffcb5d706bd3daf372a8973979f6f097adea7c73b850acc382bb905d6af"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-graph/tests/temporal_cpdag_invariants_reference.rs"
+sha256 = "257b88eae68c6c1bdedecb57dc8473c11b79c3f05a5b8912c0d0306a27e4cab9"

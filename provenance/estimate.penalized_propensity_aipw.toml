@@ -22,6 +22,38 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
-  "crates/antecedent-estimate/tests/penalized_aipw.rs",
-  "crates/antecedent/tests/aipw_ate_route_evidence.rs",
+ "crates/antecedent-estimate/src/propensity/penalized_reference_tests.rs (independent float64 penalised logistic solves with inner-CV penalty ranking on recorded inner folds: a default ridge grid, a lasso with a constant column and a near-collinear pair, a weighted ridge, and a ridge at a covariate offset of 1000)",
+ "crates/antecedent-estimate/tests/penalized_aipw.rs",
+ "crates/antecedent/tests/aipw_ate_route_evidence.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "fit_penalized_fold (ridge and lasso) in crates/antecedent-estimate/src/propensity/penalized.rs for one cross-fit fold: the standardisation of each non-intercept training column by its (weighted) mean and population standard deviation with a column of no spread zeroed, the inner stratified cross-validation that ranks the declared penalty grid by the (weighted) out-of-fold log loss with the later (larger) penalty winning an exact tie, the refit of the winner on all training rows, the lasso's selected support, and the validation-row probabilities that feed the cross-fitted AIPW score. The penalised logistic solutions themselves (antecedent-learn RidgeLogisticLearner and LassoLogisticLearner) are compared with an independent solver through the quantities above. Not the outer AIPW score assembly and its influence-function standard error (reviewed with estimate.aipw), the outer fold plan, the declared-fallback and identity-digest machinery, or the interval claim."
+assumptions = ["The objective is -loglik + (lambda/2)|b|^2 (ridge) or -loglik + lambda|b|_1 (lasso) on a sum log likelihood with the intercept unpenalised, on training-standardised columns, as the module documents.", "Cross-fitting keeps the evaluation fold out of penalty and support selection; unconfoundedness and positivity are identification assumptions taken as given.", "The reference fixes the inner fold ids; the seeded inner plan is asserted equal to them."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses numpy (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Four folds of 70 to 100 training rows and 25 to 30 validation rows with two to five covariate columns: selected penalties are compared exactly, the lasso support exactly, the inner loss to 1e-6 relative and validation probabilities to 1e-5 relative. The reference solves float64 problems (Newton for the ridge, proximal Newton with coordinate descent for the lasso accepted only at KKT violation below 1e-9), so it is independent of the product's solver but not high precision. Ties in the inner loss are exercised only through the lasso's flat tail; sparse folds where a penalty fails, the boundary-saturation overlap policy, the fallback destinations and the outer AIPW estimate with a penalised propensity (reviewed only through the fold-level probabilities) are not reviewed. The cited works were not retrieved in this review. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://numpy.org/"]
+findings_resolved = ["No defect found: the penalty chosen by inner cross-validation, the lasso's selected columns (with the constant column zeroed) and the validation probabilities equal the independent solves for ridge, lasso and weighted ridge, and a covariate offset of 1000 at scale 50 does not change the selection because columns are standardised on the training rows."]
+record_sha256 = "1a3d8cbf008b0da39075765a2f0ca67011fa98a6021b7dc041a7c62828642009"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/propensity/penalized.rs"
+sha256 = "ca99d22ae54b80c7bece4c038939fa6c8c41309c8f96bb593025910a6855020c"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/src/propensity/penalized_reference_tests.rs"
+sha256 = "37b667ff5ab29be6ee328b3743109c96c6cc9e6c0340fbae53a3f4eb030d2f2c"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/penalized_propensity_reference.py"
+sha256 = "abc5383aeb4ab842eb46445d447f4d339e9de472ca94919ace89b7f8255a1af1"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/penalized_propensity_reference.json"
+sha256 = "f793411ecd88fe7dc6ac3d0d4c8ed28d84c51ac51bc807b2354c195b9baee659"

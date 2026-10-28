@@ -5,6 +5,8 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+modules = ["crates/antecedent-estimate/src/dr.rs"]
+
 papers = [
  { title = "Towards optimal doubly robust estimation of heterogeneous causal effects", citation_note = "Previously recorded title and bibliographic detail: Optimal doubly robust estimation of heterogeneous causal effects", doi = "10.48550/arXiv.2004.14497", sections = ["DR-Learner"] },
 ]
@@ -22,4 +24,41 @@ test_sources = [
  "crates/antecedent/tests/recalc_dr.rs",
  "python/tests/test_recalc_dr.py",
  "independently generated interaction SCM with monotone CATE in Z",
+ "crates/antecedent-estimate/tests/dr_learner_reference.rs (fixed-fold 60-digit marginal effect, retained-row least-squares final stage, CATE at every row, HC0 standard errors, exact-support profiles, trim, clip, offsets, near-collinear covariates, and integer sampling weights against row replication)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "DrLearner::fit and DrLearner::fit_pointwise_profiles in crates/antecedent-estimate/src/dr.rs for a linear outcome learner, an unpenalised logistic treatment learner, a linear final stage and a recorded fold assignment: the marginal effect and its influence standard error (relying on the cross-fitted AIPW score reviewed in estimate.dml: cached_aipw_nuisances and aipw_marginal_from_nuisance), and this route's own arithmetic, namely the ordinary-least-squares regression of the pseudo-outcome on the adjustment design over the trim-retained rows, the fitted CATE at every row, its HC0 sandwich standard error (linear_cate_pointwise_se), and the exact-support profile estimate and standard error (pointwise_profile_results). Not a penalised or nonlinear final stage, the cluster-DML publication, the population interval, or the weighted HC0 sandwich beyond the replication identity."
+assumptions = ["Unconfoundedness given the adjustment set and positivity are identification assumptions taken as given.", "The estimand of the fitted CATE is the best linear projection of the pseudo-outcome on the adjustment variables; it is the CATE only when the effect is linear in them, and the HC0 standard error is conditional on the pseudo-outcome (first-stage error is treated as second order by Neyman orthogonality, not examined).", "Independent rows; trimming membership is held fixed."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Ten finite tables of 24 to 90 rows with one to two covariates and 2, 3 or 5 folds with a shuffled assignment: a trim, a clip that binds, both together, an outcome offset of 1e7, a covariate offset of 1e3 at scale 250, two covariates correlated at 0.99999 and a three-valued covariate with exact support in both arms. The marginal effect is asserted to 1e-6 and standard errors to 1e-5 (1e-4 for the per-row HC0 values) relative, because the logistic IRLS stops near a score norm of 1e-8; the CATE to 1e-5 of its largest magnitude. Only the linear final stage has a reference: a ridge, forest or boosted final stage returns no standard error by design and its fit is not examined. A sampling-weighted fit is checked by the identity that an integer weight equals row replication for the effect and the CATE; the weighted HC0 sandwich, which differs from the replicated one by design, has no independent reference here. Cross-fit plans other than the recorded assignment are not examined, and the nuisance learners other than least squares and unpenalised logistic regression are outside this review. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.48550/arXiv.2004.14497", "https://mpmath.org/"]
+findings_resolved = ["The marginal effect and standard error, the final-stage CATE at every row (on the retained rows after a trim) and its HC0 standard error, and the exact-support profile estimate and standard error equal the 60-digit fixed-fold reference on every case, including a trim, a binding clip, a covariate offset of 1e3 and nearly collinear covariates.", "An integer sampling weight reproduces row replication for the marginal effect and every CATE, and the case is built so the weights change the answer, so the declaration is neither ignored nor mis-scaled."]
+record_sha256 = "3b8e7445e1229db07d3db61bc36f9211bb96b958d9aea3a89258840a398a6f7d"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/dr.rs"
+sha256 = "c4ab713e68e3c52ae79be4e32122348c461657d2d2f4ab367c84b39ac2495646"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/dr_learner_reference.rs"
+sha256 = "56c4010efb9b0309e0ba84fe63d1b96eb6d59be16d96f455e9214c57609cee1c"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/dr_learner_reference.py"
+sha256 = "68abda90dc384a672d958f8f0728ccf5ad2d2a0a5ab03a613b919ef669bee39d"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/dr_learner_reference.json"
+sha256 = "6828582f91c5c5a3ba4ae5a2fed9bbe3325f72689b8edbbfb808cd9004d3c644"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/table_support.rs"
+sha256 = "b1ea24c5e276526e60ac330f732477945909496ff3d03ecf38f12f50f61eafbc"

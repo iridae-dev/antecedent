@@ -18,6 +18,38 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+  "crates/antecedent-estimate/tests/estimate_policy_continuous_dose_reference.rs (exact rational dose response, fixed-policy value, paired variance and interval publication)",
  "crates/antecedent-estimate/src/continuous_dose.rs",
  "crates/antecedent/src/analysis/execute/checked_continuous_dose.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "conditional_dose_response and fixed_dose_policy_value in crates/antecedent-estimate/src/continuous_dose.rs: the open-window Epanechnikov weight (3/4)(1 - s^2)/f with the supplied density f in the denominator, the weighted local response, Kish effective size, largest normalized weight, smallest density and weighted outcome deviation per group and target; the fixed-policy value as the group-fraction-weighted sum of those responses at the policy and reference doses; the row scores (n_g/n) w_i/sum(w) (y_i - response_g), the paired policy, reference and incremental variances with the smallest-group n/(n-1) correction; the support diagnostics; the thresholds that publish or withhold the pointwise normal intervals (n >= 600, group rows >= 300, local rows >= 80, Kish size >= 50, largest normalized weight <= 0.05, density >= 0.2, density known); and the refusal of a rule that does not name every observed group exactly once or of a window with too little support. Not the route lowering in checked_continuous_dose.rs beyond what its probes show, the Bayesian dose-policy posterior, or the correctness of a supplied density (it is not estimated)."
+assumptions = ["Conditional exchangeability within the supplied baseline groups, positivity at every requested dose, no interference and a correct supplied dose density are identification assumptions taken as given; the estimand is the kernel-smoothed value, not the response to do(D = d).", "Rows are independent subjects; the variance is the sum of squared influence scores, so it does not read clusters or serial dependence (a declared dependent design is refused upstream by the route).", "Group labels and both dose rules were fixed without using the outcomes."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. It is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Four frozen designs evaluated on dyadic inputs: three unbalanced groups of 4, 9 and 30 rows at an outcome offset of 1e9, densities over four decades and doses exactly on the window edge (excluded by the open window); two groups of 10 rows where one row carries 99.997 percent of the weight (densities 2^-12 against 2^6); and a 2 x 350 row design in which the intervals are published with a known density and withheld without it. Responses are held to 3e-16 relative (the resolution of the offset), variances to 1e-12 relative (1e-8 in the single-dominant-row case, where every other row's score is a cancellation near the dominant outcome). The smallest-group n/(n-1) correction is the product's stated convention, not a derived finite-sample result: the reference reproduces it by definition and does not show that the intervals cover; the coverage claim rests on the Monte Carlo test inside the module and on the 2 x 350 design only through the thresholds, not through a derivation. The density is supplied, never estimated, and its correctness is not examined. The cited publication (Hirano and Imbens, the propensity score with continuous treatments) was not retrieved in this review: the reference is the inverse-density kernel definition the module states, evaluated exactly. The reference script is not run in a locked, isolated environment and is not wired into any gate."
+sources = ["https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["Defect repaired: the local weighted mean was summed at the raw outcome and the scores were deviations from that rounded mean, so an outcome offset far above the spread cost the policy-minus-reference difference and the paired variances their digits (an offset of 1e9 gave an incremental value off by 1.3e-7 on a value of -0.114, and a variance off by 9e-9 relative). The mean is now summed about the first local outcome and the scores are deviations from the unrounded shifted mean, in both the dose response and the policy value; the incremental value is within two units in the last place of the policy value and the variances within 1e-12 relative.", "The weight, response, Kish size, weighted deviation, support diagnostics, row scores, paired variances and interval thresholds equal the exact rational reference, including doses exactly on the window edge, unbalanced groups, densities over four decades and a single row carrying nearly all the weight.", "A rule that omits, duplicates, adds an unknown group or carries a non-finite dose is refused for the policy and for the reference, and a target window with fewer rows than the declared support is a support failure with the open window excluding its edge row.", "The route already refuses a declared clustered or dependent design, table weights and missing values (scenario_route_declarations.rs), so no declaration is silently ignored here."]
+record_sha256 = "0b536a7117f707ce814ff1bdab84b0c3082dbf2aed25a75a777641daf481daa7"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/continuous_dose.rs"
+sha256 = "b52c5e28ad65c0ffc80d7676aec36b6a49c42bf037e9142e7c44828789912746"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/estimate_policy_continuous_dose_reference.rs"
+sha256 = "85e6370b25b9880aa0d21ea4a9c5f09a9108e872f60ca62f81bbbdeaa646128f"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/estimate_policy_continuous_dose_reference.py"
+sha256 = "cd8fddee41e2c2a413b26aa33065aefa529d3b3c3942983238be6739d45a0a35"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/estimate_policy_continuous_dose_reference.json"
+sha256 = "a00548cc8b54d4af7d7e1bd1cd75f296caa43049370aeb5f149e660b0a6735fa"

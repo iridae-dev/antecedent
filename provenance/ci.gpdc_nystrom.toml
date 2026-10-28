@@ -22,8 +22,45 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
+ "crates/antecedent-stats/src/ci/advanced/nystrom_reference_tests.rs (50-digit mpmath Nystrom residuals on the frozen inducing draw: rank below n, all rows inducing, scale 1e4 offset 1e6, tied conditioning values, six rows, wide length scale, empty set)",
  "crates/antecedent-stats/src/ci/advanced.rs (gpdc_nystrom unit tests: dense independent reference, known-truth residual recovery, agreement with the exact GP, 6000-row dependence)",
  "crates/antecedent-stats/src/ci/calibration.rs (gpdc_nystrom_conditional_null_gate, gpdc_nystrom_conditional_null_large_n_gate, gpdc_nystrom_conditional_power_gate)",
  "crates/antecedent-stats/src/ci/calibration.rs (conditional_gpdc_beyond_4k_8000_rows, conditional_gpdc_beyond_4k_20000_rows, scalable_gpdc_replacement_validated_separately: two conditioning variables, Type I error, power and 2000-replicate coverage)",
  "crates/antecedent-stats/src/ci/advanced.rs (exact_conditional_gpdc_retained_at_small_sizes: the exact test at 2000 rows is bit-identical to its dense construction)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "GpdcNystrom residualization in crates/antecedent-stats/src/ci/advanced/nystrom.rs (nystrom_fit and nystrom_residuals): standardisation of the conditioning columns (population sd, constant column to zero) in standardized_z, the RBF cross kernel on the inducing rows, the normal equations K_Rn K_nR + lambda K_RR with the relative diagonal jitter, the Cholesky solve for both series as two right-hand sides, and the residual of the centred series; the empty conditioning set returns the centred series. Relies on ci.gpdc for the distance correlation and the permutation null applied to the residuals. Not the inducing-row draw, the row-block thread determinism beyond the crate's own test, or the calibration of the test."
+assumptions = ["The m inducing rows are a draw without replacement from the sample, fixed by the declared seed and the conditioning set, and the predictor is the subset-of-regressors one given those rows.", "The RBF kernel with the declared length scale on standardised Z, ridge lambda and the relative jitter of 1e-10 on the mean diagonal are the construction; a Z effect the m-point kernel cannot represent stays in both residuals.", "Residuals are exchangeable under the null once both series are residualized (the argument of ci.gpdc)."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with the predictor evaluated in 50-digit arithmetic by a reference written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the subset-of-regressors predictor as the record and the code comments state it, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Eight cases of 6 to 48 rows, one or two conditioning columns and ranks 3 to 20, residuals asserted to 1e-6 of their largest magnitude (the worst observed gap is 3.5e-7, on a length scale of 5 where the inducing kernel is nearly rank one and the relative jitter of 1e-10 dominates the conditioning; the others agree to 1e-8 or better). The seeded draw of the inducing rows is taken as a declared input of the reference and frozen; the reviewed object is the predictor given those rows, not the quality of the draw. The reviewed scope is the residualization; the distance correlation and the exchangeable permutation null that consume the residuals are reviewed with ci.gpdc, and the Type I error, power and coverage of the combination at 4000 to 20000 rows are measured by the calibration gates named in the test sources, not re-derived here. Row-block accumulation is exercised only below the block size (2048 rows); the 6000-row dense comparison in the crate tests covers a multi-block fit. The cited publications were not retrieved."
+sources = ["https://doi.org/10.1214/009053607000000505", "https://mpmath.org/"]
+findings_resolved = ["The residuals of both series equal the 50-digit predictor on the frozen inducing rows to 1e-6 of their scale in every case, including a conditioning set at scale 1e4 and offset 1e6 (standardisation removes it), tied conditioning values that make the inducing kernel rank deficient, a six-row sample, a wide length scale and every row inducing.", "The product still draws exactly the frozen inducing rows for each case, so the residual series is a function of the data, the rank and the inducing seed alone.", "An empty conditioning set returns the centred series exactly."]
+record_sha256 = "52ea36850d55f5cebd99db11cf01231ffded68be07d35056dbf7e9ce30ecf751"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/ci/advanced/nystrom.rs"
+sha256 = "858cb26e97d59cbbd6e79f8016f08a7b5746a28a4bfe8f875f34f3fde87ceadc"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/ci/advanced/gpdc.rs"
+sha256 = "6c21de57862b55c2808b9286cbff40573ecb3d012aca34e47a5a68b483efb1d8"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/src/ci/advanced/nystrom_reference_tests.rs"
+sha256 = "90c102d9f7337049e1c9d4e65cc03c90db1ac998535e74c0e51e898f3be661e1"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/gpdc_nystrom_reference.py"
+sha256 = "ec809f8e5851e60723de6eb2ea9e4cc0867c174ecd6e32536e475b62606bd27b"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/gpdc_nystrom_reference.json"
+sha256 = "c85ef32ea11c425dded9740b91bad7d9c801db660bfd4a6221b60952c1f8b26e"

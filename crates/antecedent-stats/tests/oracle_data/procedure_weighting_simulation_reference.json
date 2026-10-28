@@ -1,0 +1,348 @@
+{
+ "cases": [
+  {
+   "name": "thompson_contrast_uniform_weights_with_a_stop",
+   "declaration": {
+    "arms": 2,
+    "assignment": {
+     "kind": "thompson",
+     "prior": [
+      1,
+      1
+     ]
+    },
+    "enrolment": [
+     1,
+     1,
+     1,
+     1,
+     1,
+     1
+    ],
+    "stopping": {
+     "kind": "best",
+     "threshold": "73/100",
+     "prior": [
+      1,
+      1
+     ]
+    },
+    "selection": {
+     "kind": "mean"
+    }
+   },
+   "truth": [
+    "1/3",
+    "2/3"
+   ],
+   "estimand": [
+    "contrast",
+    1,
+    0
+   ],
+   "scheme": "uniform",
+   "outcome_prior": {
+    "mean": "1/2",
+    "strength": 2
+   },
+   "replications": 60000,
+   "stop_probability": 0.8443547368650249,
+   "stop_by_look": [
+    0.0,
+    0.5555555555555556,
+    0.0,
+    0.18724279835390947,
+    0.017695473251028805,
+    0.0838609097045311
+   ],
+   "horizon_probability": 0.15564526313497506,
+   "expected_enrolled": 3.38559670781893,
+   "analysed_units": {
+    "2": 0.5555555555555556,
+    "4": 0.18724279835390947,
+    "5": 0.017695473251028805,
+    "6": 0.23950617283950618
+   },
+   "decided": {
+    "0": 0.2659603283471596,
+    "1": 0.7340396716528403
+   },
+   "defined_probability": 1.0,
+   "estimate_mean": 0.4314411929075852,
+   "estimate_sd": 0.6863296241205369,
+   "variance_mean": 0.0911061945742889,
+   "variance_sd": 0.09884908229993297
+  },
+  {
+   "name": "thompson_arm_mean_variance_stabilizing",
+   "declaration": {
+    "arms": 2,
+    "assignment": {
+     "kind": "thompson",
+     "prior": [
+      1,
+      1
+     ]
+    },
+    "enrolment": [
+     1,
+     1,
+     1,
+     1,
+     1,
+     1
+    ],
+    "stopping": {
+     "kind": "none"
+    },
+    "selection": {
+     "kind": "mean"
+    }
+   },
+   "truth": [
+    "1/4",
+    "3/4"
+   ],
+   "estimand": [
+    "arm",
+    1
+   ],
+   "scheme": "variance_stabilizing",
+   "outcome_prior": {
+    "mean": "1/2",
+    "strength": 1
+   },
+   "replications": 60000,
+   "stop_probability": 0.0,
+   "stop_by_look": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "horizon_probability": 1.0,
+   "expected_enrolled": 6.0,
+   "analysed_units": {
+    "6": 1.0
+   },
+   "decided": {
+    "0": 0.17409773569258433,
+    "1": 0.8259022643074156
+   },
+   "defined_probability": 1.0,
+   "estimate_mean": 0.7335732183337763,
+   "estimate_sd": 0.2593916535100855,
+   "variance_mean": 0.05291947421733994,
+   "variance_sd": 0.0612948139401958
+  },
+  {
+   "name": "lagged_epsilon_greedy_with_random_loss",
+   "declaration": {
+    "arms": 2,
+    "assignment": {
+     "kind": "epsilon_greedy",
+     "epsilon": "1/2",
+     "prior": [
+      1,
+      1
+     ]
+    },
+    "enrolment": [
+     1,
+     1,
+     1,
+     1,
+     1
+    ],
+    "stopping": {
+     "kind": "none"
+    },
+    "selection": {
+     "kind": "mean"
+    },
+    "lag": 1,
+    "retain": [
+     "3/4",
+     "3/4"
+    ]
+   },
+   "truth": [
+    "2/5",
+    "3/5"
+   ],
+   "estimand": [
+    "contrast",
+    1,
+    0
+   ],
+   "scheme": "variance_stabilizing",
+   "outcome_prior": {
+    "mean": "1/2",
+    "strength": 4
+   },
+   "replications": 60000,
+   "stop_probability": 0.0,
+   "stop_by_look": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "horizon_probability": 1.0,
+   "expected_enrolled": 5.0,
+   "analysed_units": {
+    "0": 0.00390625,
+    "1": 0.046875,
+    "2": 0.2109375,
+    "3": 0.421875,
+    "4": 0.31640625
+   },
+   "decided": {
+    "0": 0.49029755859375,
+    "1": 0.50579619140625,
+    "none": 0.00390625
+   },
+   "defined_probability": 0.94921875,
+   "estimate_mean": 0.20092669316424214,
+   "estimate_sd": 0.6070666016502515,
+   "variance_mean": 0.23137925729883235,
+   "variance_sd": 0.2172017637801688
+  },
+  {
+   "name": "exposure_failure_delivered_attribution_batches",
+   "declaration": {
+    "arms": 2,
+    "assignment": {
+     "kind": "epsilon_greedy",
+     "epsilon": "1/2",
+     "prior": [
+      1,
+      1
+     ]
+    },
+    "enrolment": [
+     2,
+     2
+    ],
+    "stopping": {
+     "kind": "none"
+    },
+    "selection": {
+     "kind": "mean"
+    },
+    "exposure": {
+     "failure": [
+      "0",
+      "1/4"
+     ],
+     "fallback": 0,
+     "attribution": "delivered"
+    }
+   },
+   "truth": [
+    "1/3",
+    "2/3"
+   ],
+   "estimand": [
+    "arm",
+    0
+   ],
+   "scheme": "uniform",
+   "outcome_prior": {
+    "mean": "1/3",
+    "strength": 1
+   },
+   "replications": 60000,
+   "stop_probability": 0.0,
+   "stop_by_look": [
+    0.0,
+    0.0
+   ],
+   "horizon_probability": 1.0,
+   "expected_enrolled": 4.0,
+   "analysed_units": {
+    "4": 1.0
+   },
+   "decided": {
+    "0": 0.4409383138020833,
+    "1": 0.5590616861979166
+   },
+   "defined_probability": 1.0,
+   "estimate_mean": 0.3333333333333333,
+   "estimate_sd": 0.3187891720186557,
+   "variance_mean": 0.07621990214725505,
+   "variance_sd": 0.0753388387683176
+  },
+  {
+   "name": "exposure_failure_assigned_attribution_with_cap",
+   "declaration": {
+    "arms": 2,
+    "assignment": {
+     "kind": "fixed",
+     "probabilities": [
+      "1/2",
+      "1/2"
+     ]
+    },
+    "enrolment": [
+     2,
+     2,
+     2
+    ],
+    "stopping": {
+     "kind": "cap",
+     "max_units": 4
+    },
+    "selection": {
+     "kind": "mean"
+    },
+    "exposure": {
+     "failure": [
+      "1/5",
+      "0"
+     ],
+     "fallback": 1,
+     "attribution": "assigned"
+    }
+   },
+   "truth": [
+    "1/3",
+    "2/3"
+   ],
+   "estimand": [
+    "contrast",
+    0,
+    1
+   ],
+   "scheme": "uniform",
+   "outcome_prior": {
+    "mean": "1/2",
+    "strength": 2
+   },
+   "replications": 60000,
+   "stop_probability": 1.0,
+   "stop_by_look": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "horizon_probability": 0.0,
+   "expected_enrolled": 4.0,
+   "analysed_units": {
+    "4": 1.0
+   },
+   "decided": {
+    "0": 0.43705555555555553,
+    "1": 0.5629444444444445
+   },
+   "defined_probability": 1.0,
+   "estimate_mean": -0.26666666666666666,
+   "estimate_sd": 0.48919925833125694,
+   "variance_mean": 0.17948693576388888,
+   "variance_sd": 0.09247995759086014
+  }
+ ]
+}

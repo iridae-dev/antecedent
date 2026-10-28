@@ -33,4 +33,36 @@ test_sources = [
  "crates/antecedent-model/src/falsify.rs unit tests",
  "python/tests/test_graph_falsification.py",
  "python/tests/test_dowhy_comparison.py (rejected and not-rejected outcomes on correct, relabelled and one-edge-short graphs against gcm.falsify.falsify_graph; DoWhy values computed at test time by the pinned version, skipped when it is absent)",
+  "crates/antecedent-model/tests/graph_falsification_reference.rs (60-digit partial-correlation reference with exhaustive relabelling counts, equivalence share and verdicts)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "falsify::falsify_graph with the partial-correlation test: the local Markov implication set (each node against each non-parent non-descendant given its parents), violation counting at the declared level, the count for every non-identity relabelling when n! is within the request, the add-one p-value, the Markov-equivalent relabelling count and share (equal skeleton and unshielded colliders), and the verdicts Rejected, NotRejected and Uninformative. The partial-correlation statistic and its Student-t p-value are the shared CI test of antecedent-stats; this review checks them here only on the design cells reached. Not reviewed: sampled (non-exhaustive) relabellings, permutation-null tests (non-analytic CI tests), the search budget and cancellation stops, and calibration of the rejection rate."
+assumptions = ["Data are fully observed and finite; each implication is tested at the declared level with no multiplicity correction.", "The reference excludes only the identity relabelling, as the product does when it enumerates."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library together with mpmath 1.3.0 at 60 digits (not a product dependency). It declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Twelve designs on 3 to 5 nodes (80 rows or fewer; seven rows with three residual degrees of freedom; columns shifted by 1e8 and scaled by 1e-6; a column duplicated to within 1e-4; a p-value exactly equal to the significance level; a complete graph; chains with large equivalent shares; the same small graph at the default and at a declared equivalence threshold), every count compared exactly and every implication's statistic and p-value at relative 1e-6. With the default threshold (the significance level) no graph on four nodes can be informative, which the review exercises with a declared threshold; the verdict on four nodes therefore rests on the declared share. Exhaustive enumeration only (the sampled branch draws relabellings from a stream and is not compared). The paper's own procedure was not retrieved, so only the repository definition stated in the record is checked. The p-value is a permutation comparison against relabellings of the same graph, not a calibrated test, and the reference does not measure its error rates."
+sources = ["https://doi.org/10.48550/arXiv.2305.09565"]
+findings_resolved = ["No defect found: implication sets, violation counts for the graph and all relabellings, equivalence counts, p-values, statistics and verdicts matched the definition in every design."]
+record_sha256 = "d9f689c587faeeea3c2212af9461612ca879acbf318717e0b988bb7bb363973c"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/falsify.rs"
+sha256 = "c8b3c46cae1e2f4a945e718998b079e31fc92397465ef4aedf89fe2b17ef3f38"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/graph_falsification_reference.rs"
+sha256 = "2ce91a4e94a79d322fc065b5ae4aaba792f5589b2f79a07221d1f1d0a710377f"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-model/tests/oracle_data/graph_falsification_reference.py"
+sha256 = "7f80a97476d3c37dc1f7eee7c078db12d406c013e27f9852b311bd1ce8490c30"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-model/tests/oracle_data/graph_falsification_reference.json"
+sha256 = "51ba31133c3f9876997402384d183bc5f592f8f320061f37e5bf6fbb22a0fff6"

@@ -27,3 +27,29 @@ test_sources = [
  "crates/antecedent-identify/tests/causaleffect_transport_subset.rs",
  "python/tests/test_transport_exact.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "identify_classical_transport and the checked derivation it returns in crates/antecedent-identify/src/sid.rs and transport.rs for a hard-intervention query on a binary selection diagram with the full experimental family in the source: the verdict (identified with a derivation, proven non-transportable with an s-hedge witness verified independently, or not certified), the formula the derivation evaluates, and its numeric value on the exact laws of the source experiments and the target. Relies on the ID review (identify.id) for the target-only ordinary ID attempt the search makes first; this review checks the sID-specific rules (line 3 enlargement over non-ancestors of the outcome and its weighted marginalization, c-component recursion with population-specific factors, direct transport and standardization) by evaluating their formulas. Not a review of the finite-catalog search (a separate sound-incomplete contract), of the completeness theorem, of the Python surface, or of continuous variables."
+assumptions = ["The reference is a finite latent-variable SCM: independent Bernoulli mechanisms with probabilities base + parent weight * (number of parents at 1) + shared weight * (number of latent common causes at 1) + a selection shift on the selected nodes of the target, integrated over three independent latent bits, enumerated by hand in the test with no call into the identification or evaluation code; truth is the target interventional P(Y=1 | do(X=x)) (and joint interventions) from that enumeration.", "A positive verdict is checked by evaluating the returned formula on the exact source experiments and the target observational law and comparing with that truth; a negative verdict is checked by verifying the returned s-hedge witness, which shows the search did not give up (it cannot prove non-identifiability by numerics).", "Line 3 weights the enlarged query by the marginal of the input kernel over V minus W; the evaluated formula therefore needs the observational law on every W cell it weights, a support requirement the published line does not state (recorded in the record's deviations)."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are named by title and are not redistributed."
+limitations = "The primary papers (Bareinboim and Pearl 2013; Pearl and Bareinboim 2014) were not retrieved or re-read here; the rules are checked by the numeric truth of their formulas, so a rule that returns a numerically correct formula the paper states differently is not detected, and completeness (that a non-certified or hedge verdict matches the theorem's classes) rests on the paper and on s-hedge witness verification, not on a numeric reference. The enumerated domain is binary three-node ADMGs ordered by index (all 64 graphs x 8 selection sets x three parameterizations, every single treatment position and two-treatment queries), a four-node frontdoor family with its independent parameterizations, one six-node recursive-district SCM, and a three-parameterization extreme-probability pass (mechanism probabilities 1e-4, 0.999 with negative weights, and zero weights) that was added here and passes at 1e-10 absolute; absolute tolerance makes the 1e-4 regime a check to about 1e-6 relative at best. Larger graphs, non-binary domains, nonzero positivity failure on W cells (the line-3 support requirement) and the 20-covariate standardization bound beyond the budget tests are not enumerated. The frozen causaleffect comparison of the record's test list is a black-box subset check and is not part of this review. Calibration remains deferred."
+sources = ["Bareinboim and Pearl (2013), A General Algorithm for Deciding Transportability of Experimental Results, Journal of Causal Inference (doi 10.1515/jci-2012-0004, title as listed; text not retrieved)", "Pearl and Bareinboim (2014), External Validity: From Do-Calculus to Transportability Across Populations, Statistical Science (doi 10.1214/14-STS486, title as listed; text not retrieved)"]
+findings_resolved = ["Over 512 diagrams per treatment/outcome configuration the formula the search returns equals the interventional truth of the enumerated SCM at 1e-10 for every identified diagram, every non-identified diagram carries an independently verified s-hedge, and no diagram is left uncertified; the same holds for the four-node and six-node families and, newly, for mechanism probabilities of 1e-4, 0.999 (negative weights) and zero weights on the three-node sweep with a treatment at node 0 and at node 1 (the latter with a pre-treatment ancestor, so line 3 and its weighted marginalization are numerically exercised).", "No defect was found and no product code changed; the only product-adjacent edit is the added extreme-probability test in transport_exact_scm.rs."]
+record_sha256 = "adfc094d26e00dd21047dfd9b9271f5303745f09f2e3bcfe936d4c0a651df6af"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/sid.rs"
+sha256 = "a6a9c73462506d41c2aa63b4b844b3947ec0c71061689efb2d465b5dc3fb1488"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/transport.rs"
+sha256 = "38c6c14cdd70ff4006c4212490de24c3128700d9a9f39a1961dabaae5f3099be"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-identify/tests/transport_exact_scm.rs"
+sha256 = "5330cb82ef30d3e1944bfebc0a49f7fceecc50f05d95448e90513864bb7b1d03"

@@ -26,4 +26,41 @@ test_sources = [
   "crates/antecedent-estimate/src/temporal_design/dose.rs",
   "crates/antecedent-estimate/src/temporal_design/quantile.rs",
   "crates/antecedent/tests/temporal_design_routes.rs",
+  "crates/antecedent-estimate/tests/temporal_design_excursion_reference.rs (exact-rational Horvitz-Thompson scores, cluster-robust ratio covariance and Holm adjustment for the two-arm, multi-arm, factorial and interference designs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The Horvitz-Thompson excursion arm designs in crates/antecedent-estimate/src/temporal_design/contrasts.rs and the cluster accumulation, ratio estimate, linearised cluster-robust covariance, normal interval and Holm adjustment in crates/antecedent-estimate/src/temporal_design/mod.rs: lag pairing across missing periods (lagged_pairs), the two-arm, ordered multi-arm, two-factor factorial and within-cluster interference score vectors with their positivity checks, ClusterScores::accumulate, estimate, covariance, sampling_summary and holm_adjusted. Not the Gaussian multiplier sup-t band, the Bayesian bootstrap, the folded-normal bias-aware critical value, or the quantile, local-quadratic dose, misclassification, observational and whole-regime modules of the same directory."
+assumptions = ["Sequential randomisation with the recorded assignment probabilities, positivity, consistency and no interference between clusters are declared by the design, not derived from the data.", "Clusters are independent; serial dependence inside a cluster is unrestricted and is absorbed by the cluster sums.", "The normal interval is first-order; the product states that no coverage of these intervals has been measured."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Four synthetic panels of 6 to 10 units over 6 to 7 periods with 13 to 20 decision rows left unpaired by missing periods: a two-arm design with probabilities 0.06 and 0.94 and an outcome offset of 1e6, four ordered arms over three clusters, a factorial and an interference design whose clusters have three members one of which is unobserved in some periods. Estimates are asserted to 1e-10, standard errors, covariances and interval ends to 1e-9 and Holm p-values to 1e-7 relative. Lag 1 only; lag 0 and larger lags use the same pairing code but have no separate reference. The sup-t band, the Bayesian bootstrap and the other modules of the directory are not reviewed here and keep their own tests; the quantile and dose routes in particular have no exact reference from this review. The probability tables are taken as recorded; their fitting is another route. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.1080/01621459.2017.1305274", "https://doi.org/10.1198/016214508000000292", "https://mpmath.org/"]
+findings_resolved = ["No defect found: the estimates, cluster-robust covariances, standard errors, intervals and Holm-adjusted p-values of the four designs equal the exact rational references, including probabilities near the floor, rows with no paired outcome, clusters of unequal size and as few as three clusters.", "Per-pair scores, the realised-exposure probabilities of the interference design (product of one minus the other members' probabilities over the members observed that period) and the smallest realised probability reported beside each design equal the definition."]
+record_sha256 = "e05915496b94d19468d336f10b5a3ca74b1223d7c730a539cb2736e4c1c9b08d"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/temporal_design/contrasts.rs"
+sha256 = "529c9ec8de69287f34caae14418c81a34f4fc9959e5c3319d56c2e744dd28806"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/temporal_design/mod.rs"
+sha256 = "bf613b0d56a0fa92a8aaf8e9976563b892f9b89aaaddc890d126aacd0597c2e9"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/temporal_design_excursion_reference.rs"
+sha256 = "88a67b1fe9586a5bb7cbcb6fb336f9fbf27c680c7f32c38e43892e68d3a74404"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/temporal_design_excursion_reference.py"
+sha256 = "e884b735963c0fdf4be9aaec8ac37b45b99bf281247e0accee3c8f43891fb4c1"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/temporal_design_excursion_reference.json"
+sha256 = "c91bf8321f3bfa952681d8dc53ea304cd61efc23d22c9769ea2fd3d1879e0a86"

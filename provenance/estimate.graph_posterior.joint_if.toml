@@ -22,6 +22,38 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+ "crates/antecedent-estimate/tests/joint_if_reference.rs (exact-rational Hajek mean, influence-function covariance and frozen-weight mixture with a 1e8 offset, weights over eighteen orders of magnitude with ties, zero-weight rows, 1e150 weights, collinear columns and zero-weight atoms)",
  "crates/antecedent-estimate/src/joint_if.rs",
  "crates/antecedent/tests/class_posterior_ate.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "weighted_mean, joint_influence_covariance and frozen_weight_mixture_scores in crates/antecedent-estimate/src/joint_if.rs: the Hajek weighted mean of a score column, the joint covariance sum(psi_ij psi_ik)/(n(n-1)) of its influence function psi = n (w/W)(phi - theta) (unweighted psi = phi - theta), and the frozen-weight mixture sum_a (g_a/sum g) phi_a of per-atom influence columns that share rows, whose standard error is the one the graph-posterior aggregate reports. The atom influence columns are inputs: the per-atom estimators that produce them are reviewed in their own records, so this review does not check that a score is an influence function. Not the max-t critical value, the isotonic projections or the Student-t scale in the same file."
+assumptions = ["Graph weights are frozen modeling choices; the mixture standard error is that of the weighted aggregate given those weights, not a sampling law over graph-posterior uncertainty.", "The supplied atom columns are influence functions of their atom estimators on the same rows; rows are independent, so the covariance uses the n/(n-1) divisor of the sample variance of psi.", "Weights are relative and non-negative; zero-weight rows stay in n."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library (fractions). The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Fifteen finite cases of 2 to 40 rows and up to four score columns: a 1e8 score offset (relative agreement 1e-6, limited by the product's binary64 centering), weights spanning 1e-9 to 1e9 with tied scores, zero weights, uniform weights of 1e150, exactly collinear columns, a zero-weight atom carrying a NaN score, and mixture weights from 1e-12 to 1e12. Agreement with the exact-rational values is 1e-11 relative elsewhere. The review checks the linear combination and the variance arithmetic, not that a supplied column is a valid influence function, not the normal approximation, and not the coverage of the resulting interval (calibration unmeasured). The cited textbook was not retrieved in this review. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.1017/CBO9780511802256", "https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["No defect found: the weighted mean, the influence-function covariance (weighted and unweighted, diagonal and cross terms, symmetric) and the frozen-weight mixture equal the exact-rational reference at every case, including zero-weight rows that stay in n and a zero-weight atom whose scores are not finite.", "Invalid declarations are refused rather than ignored: empty or single-row input, mismatched row counts, a weight vector of the wrong length, negative, NaN or all-zero weights, a mixture with no contributing mass, a negative or infinite mixture weight and non-finite contributing scores."]
+record_sha256 = "2bb69005429b2e0bd18844540d53846e0d83f6550abbfdefd767a3bedb23f91c"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/joint_if.rs"
+sha256 = "6d21bc7875889ec9a96b3a7cf60239935f6d024614d8897742f12a350f66d96a"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/joint_if_reference.rs"
+sha256 = "9451c174b7ec73b9ca6b8c41cbfe742fe6edbab69581832652f07f341fd79cdc"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/joint_if_reference.py"
+sha256 = "151fbbb3bba800da970332f41f02e9dba1515c0cf14d45d2f203ec829cd6ab28"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/joint_if_reference.json"
+sha256 = "1526aa5d2e95ee9dedca1c81028b30318efca4db1f5ea321b8fa008d30d71865"

@@ -28,6 +28,7 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+  "crates/antecedent-estimate/tests/recovery_sampled_observation_reference.rs (an exactly enumerated binary structural model: a 4096-row exact-count table recovers the exact backdoor effect and joint; for a 1500-row sampled table, 50-digit point and delete-one-row effects and the BCa bias correction, acceleration, adjusted tails and type-7 endpoints from the product's 2000 bootstrap effects)",
   "python/tests/test_transport_route_contracts.py",
   "crates/antecedent-estimate/tests/recovery_whole_method_calibration.rs",
   "docs/sampled-recovery-bca.md",
@@ -41,3 +42,34 @@ test_sources = [
   "python/tests/test_measured_inference.py",
   "python/tests/test_measured_recovery.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "estimate_sampled_recovery of crates/antecedent-estimate/src/recovery_sampled.rs for the observation-pattern table of a binary m-graph with fully observed and partially observed variables: the tabulation of rows into pattern counts, the recovery of the law and of the effect from the counts (through the exact binary recovery formula, relied on through recovery.binary_observation), the exact delete-one-row effects with their row multiplicities, the BCa bias correction z0 by midrank of the point among the bootstrap effects, the acceleration from the delete-one effects, the adjusted tail probabilities, and the type-7 interval endpoints of the sorted bootstrap effects. Not the seeded resampling stream and the selection digests (checked by golden vectors in recovery_sampled.rs), the receipt digest framing, the exact recovery on larger graphs, the replay and artifact consumers, or the coverage of the interval."
+assumptions = ["Rows are independent draws of the observation pattern, the m-graph is the data-generating Markov structure and positivity holds on the complete-case cells; a zero cell in the sample or in a delete-one table is a refusal, not a smoothed estimate.", "The recovered law is a finite-sample table whose masses need not sum to one; the effect normalises by the evaluated total, which the reference does as well.", "The BCa construction is Efron's transformation applied to a composed recovery functional with no coverage theorem; the bootstrap effects are a seeded stream taken as given."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with the recovery formula derived from the factorisation of the structural model and with the BCa transformation written out from its definition, both evaluated at 50 digits by a reference written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the stated definitions, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test. The bootstrap effects it takes as input were produced by the ignored dump test in the assertion file."
+limitations = "One structural model (five binary variables, every probability a multiple of 1/4, 18 observation patterns) with one exact-count table of 4096 rows and one sampled table of 1500 rows. Only the recovery formula for that graph is derived in the reference; other m-graphs go through the exact recovery row and its own record. The bootstrap effects are a frozen input: the reference does not reproduce the resampling stream, so it checks the BCa arithmetic and the delete-one effects but not that each replicate is the recovery of a with-replacement resample, which the golden selection digests and the receipt replay cover. The cases do not reach the BCa refusals on boundary ranks, ties or poles beyond what the in-crate unit test pins, and no small-sample or near-zero-cell table is compared. The coverage of the interval is not part of this review; the retired percentile failures and the later whole-method measurements recorded above are separate evidence. The cited publications were not retrieved. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file."
+sources = ["https://doi.org/10.1080/01621459.1987.10478410", "https://mpmath.org/doc/1.3.0/", "https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["The table of 4096 rows whose pattern counts are exactly 4096 times the enumerated pattern probabilities recovers the exact backdoor effect 1/4 and the exact recovered joint, so the tabulation and the recovery formula return the finite-SCM truth when the sample is the population.", "On a 1500-row sampled table the point effect and each of the 18 delete-one-row effects equal the 50-digit values from the independently derived recovery formula, and the BCa bias correction, acceleration, both adjusted tail probabilities and the interval endpoints equal the 50-digit transformation of the product's 2000 bootstrap effects and those delete-one effects, including the midrank rule for ties and the type-7 interpolation.", "No product defect was found in this record."]
+record_sha256 = "e29b1f1a9d406b913558aaa297be89c66747c4597db8f365f4043f1275a72a4f"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/recovery_sampled.rs"
+sha256 = "454f11286a47edb2068256e34af98c68357178c77d6c5be1f14e120352cf5f65"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/recovery_sampled_observation_reference.rs"
+sha256 = "84ee95a129acf3e07ae467f761345a9d691c4f5143871b682d41d653d1e34405"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/recovery_sampled_observation_reference.py"
+sha256 = "13cc98f9a0e74e269efee40091e3e854a9d17700557f2454af3aeca8db14ad43"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/recovery_sampled_observation_reference.json"
+sha256 = "409b2c1c685a25d10a08f98c4d3196731d006df6e2773af94a3fd5db9527bca7"

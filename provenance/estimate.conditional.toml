@@ -12,6 +12,7 @@ papers = [
 implementation_deviations = [
  "Fits numeric modifier main effects and separate treatment-by-modifier interactions, plus adjustment-variable main effects. Joint modifiers are enabled by default; the legacy one-modifier setting refuses several modifiers. Nonlinear heterogeneity and modifier-by-modifier interactions are not fitted by this route.",
  "Reports the treatment contrast averaged at the retained sample means of the modifiers, for AllObserved; this is not a conditional-effect curve at user-specified modifier coordinates. Joint-modifier uncertainty carries an explicit uncalibrated assumption rather than borrowing one-modifier coverage.",
+ "Only the Mean outcome functional is fitted: a quantile or an exceedance functional is refused (an exceedance reading needs the outcome transformed to its indicator first, which the facade does before calling the cross-fitted arm-score path). The cross-fitted AIPW arm scores that estimate_with_arm_scores substitutes for a 0/1 treatment are a different estimator and are not part of the interaction-regression review.",
  "The analytic variance adds the sampling variance of the modifier-mean contrast to the homoskedastic OLS coefficient delta-method variance. The independent statsmodels fixture checks the coefficient part after removing that explicit modifier-mean term; it does not validate repeated-sampling coverage. Robust and clustered covariance are not established by this reference.",
 ]
 
@@ -20,6 +21,38 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
+ "crates/antecedent-estimate/tests/conditional_reference.rs (11 designs against a 50-digit least-squares fit: one to three modifiers, adjustment covariates, non-binary and negative levels, a 12 percent treated arm, a modifier offset by 1e4, a near-collinear adjustment covariate, heteroskedastic noise and 8 rows; effect, standard error, both arm means and the arm and contrast influence functions)",
  "in-crate unit tests (crates/antecedent-estimate/src/conditional.rs): noiseless interaction recovery and finite analytic SE under noise",
  "conformance/estimate/conditional_effects (statsmodels-oracle fixture)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "ConditionalLinearAdjustment::estimate_ate (reached through estimate and estimate_with_means, and through estimate_with_arm_scores for a non-0/1 treatment) of crates/antecedent-estimate/src/conditional.rs: the interaction design [1, T, W_1..W_m, T W_1..T W_m, Z..], the least-squares fit, the effect delta (b_T + sum_k b_TWk wbar_k) at the modifier means, its standard error (the homoskedastic delta-method variance of the coefficients plus the sampling variance of the modifier means), the two arm means with the adjustment covariates as observed, the per-arm plug-in influence functions and the contrast influence function, and the refusals of equal levels, a population other than AllObserved, a quantile or exceedance functional, an undeclared third treatment level and fewer than 8 complete rows. Not the cross-fitted AIPW arm scores used for a 0/1 treatment, robust or clustered covariance, the Bayesian conditional estimator, or repeated-sampling coverage."
+assumptions = ["The conditional mean of the outcome is linear in the treatment, the modifiers and the adjustment covariates with a treatment-by-modifier interaction for each modifier (no modifier-by-modifier or covariate-by-treatment terms); the adjustment set identifies the effect under the usual back-door conditions.", "The effect reported is the contrast averaged over the observed modifier values (the interaction coefficient times the modifier mean), not a curve at user-chosen modifier coordinates; the modifier-mean term of the standard error assumes it is uncorrelated with the coefficient term, as the record states.", "Errors are treated as homoskedastic with divisor n - p; the influence functions are the OLS ones and a standard error from them would differ."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with the normal-equation least-squares solution and the stated delta-method and influence formulas evaluated at 50 digits by a reference written for this review; no upstream implementation or test source was consulted or copied. The cited textbook was not retrieved in this review: the correspondence is between the product code and the standard least-squares definitions, verified numerically, not a page-level reading."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Eleven tables of 8 to 60 rows with one to three modifiers and up to two adjustment covariates. Effect, standard error, arm means and influence vectors agree to a relative 1e-9, loosened to 1e-6 for the covariate within 1e-3 of the modifier and 1e-4 for the modifier offset by 1e4 at scale 0.05, where the normal equations lose digits to conditioning. The standard error formula is the one the module states; the reference re-derives it from the same definition and so confirms the arithmetic and the sampling-variance term, not that adding the two variances is the right variance of the averaged effect (the independent statsmodels fixture confirms only the coefficient part, and no coverage is measured). The influence functions use the same linearisation as the code and are not validated against a numerical jackknife. The cross-fitted AIPW arm-score path for a 0/1 treatment, robust covariance, rank-deficient designs (refused through the Gram inverse), large n and weights are not reviewed. The cited textbook was not retrieved. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file."
+sources = ["https://mpmath.org/doc/1.3.0/", "https://doi.org/10.1515/9781400829828"]
+findings_resolved = ["Defect repaired: estimate_ate refused only a quantile functional, so an exceedance or exceedance-grid query was fitted as the mean contrast of the raw outcome and reported as if it answered the declared functional. It now refuses every functional other than Mean, as estimate_with_arm_scores already did; a failing-first test builds the exceedance query.", "The effect at the modifier means, the combined standard error, both arm means and the three influence sequences equal the 50-digit solution on all eleven designs, including a treatment coded 1 and 3 (the contrast scales by active minus control), reversed negative levels, a modifier set of three and a near-collinear adjustment covariate.", "A third treatment level that the contrast does not name is refused instead of being dropped or fitted as a dose; a treatment column of only the two contrast levels with a contrast outside them is a linear extrapolation by design and is not refused."]
+record_sha256 = "0846a58a1374b82803f11ccee53cf743551ecc208b868ffaf71bd27c84dc8ddc"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/conditional.rs"
+sha256 = "5badac795d43276303fad3b25aa9596a157a86d53eaa013d332dca2bffb8694c"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/conditional_reference.rs"
+sha256 = "0df6bf904263e2c01a393fa91071a3e98bd4ce897a104dd3e52f8c2940705d11"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/conditional_reference.py"
+sha256 = "86ba9ad7a58d7f9f037e8bbbd5a89486229ad0e72090911a2c0fff608895d70b"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/conditional_reference.json"
+sha256 = "07638521dfd3301349177b5e2195846a857ddf5a7913cb76cc75264a0a9ad88a"

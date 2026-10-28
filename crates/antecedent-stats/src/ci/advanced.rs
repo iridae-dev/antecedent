@@ -36,6 +36,8 @@ mod knn_tests;
 #[cfg(test)]
 mod null_tests;
 #[cfg(test)]
+mod nystrom_reference_tests;
+#[cfg(test)]
 mod oracle_tests;
 #[cfg(test)]
 mod symbolic_tests;

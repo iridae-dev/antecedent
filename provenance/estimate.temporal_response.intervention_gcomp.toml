@@ -18,14 +18,56 @@ implementation_deviations = [
   "uses one additive linear OLS projection per horizon rather than recursive longitudinal g-computation",
   "this single-coordinate backend supports a hard/constant level or additive shift; other licensed temporal Soft mean families and multi-variable sequences route through estimate.temporal_sequential",
   "single-step Sequence preserves its explicit timing; multi-step and joint Sequence use estimate.temporal_sequential rather than this projection backend. Nested Sequence remains refused",
-  "pointwise bands use the delta-method/linear-functional variance of the standardized mean: cbar(a)' Sigma cbar(a), where Sigma is the homoskedastic OLS coefficient covariance and cbar(a) is the row-averaged design gradient at the requested level or shift, so intercept and adjustment-covariate uncertainty are propagated; bands do not cover heteroskedasticity or autocorrelation (no HAC/robust covariance), do not carry uncertainty from the identification step itself, and rest on the model's linearity assumption",
+  "the pointwise band is published only when joint bootstrap replicates are requested (a joint circular-block bootstrap of the lag-aligned rows, or Dirichlet block-weight draws), at the requested level or at each replicate's own treatment mean plus the shift; with zero replicates no band is published because an analytic OLS band would treat lag-aligned rows as independent; the band is conditional on the unfolded linear regression and not on the identification step",
 ]
 
 upstream_implementations_observed = []
 
 test_sources = [
+  "crates/antecedent-estimate/tests/temporal_response_gcomp_reference.rs (exact-rational per-horizon OLS g-computed levels: dose surface, hard level and additive shift; offsets, near-collinear confounder lags, tiny and long series)",
   "conformance/response/temporal_dose_horizon/expected.json",
   "conformance/response/temporal_horizon_support/expected.json",
   "crates/antecedent/tests/temporal_response_facade.rs",
   "crates/antecedent/tests/temporal_response_redundancy.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The policy-path projection of TemporalResponseEstimator::estimate: InterventionResponse with one Set (hard level) or one additive-shift Soft intervention on the treatment at one or more horizons, point values only: the plan (plan_temporal_intervention resolves the intervention to a level or a shift), the per-horizon lag-aligned ordinary least squares fit and the g-computed level coef'cbar at the level, or at the horizon's treatment mean plus the shift (estimate_intervention_curve, level_at). The shift evaluation relies on the identity that, for a model linear in the treatment with no interaction, averaging fitted outcomes at observed treatment plus the shift equals one evaluation at the mean plus the shift. Not the bands, support classification, Sequence overlays or the Bayesian surface."
+assumptions = ["Backdoor identification supplies the adjustment set; the additive linear regression is the outcome model per horizon.", "A hard level or a shift of the treatment at the horizon's lag is the intervention; the shift is additive in the treatment's natural value.", "The treatment column enters the mean linearly with no interaction, so the row-average of the shifted fitted outcome equals the evaluation at mean plus shift."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by an executing reference written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state (the linear g-computation level beta'cbar(a) for an additive outcome regression), verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0) and use only the Python standard library; the script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Five series (9, 70 and 400 rows) with one treatment, one confounder and horizons 1 and 2, adjustment lags {1,2} and {2} read off the unfolded graph by hand; an outcome offset of 1e6 with a treatment offset of 1e3 and confounder lags correlated at 0.9995. Levels are asserted to 1e-9 of the sum of absolute terms (1e-6 for the nearly collinear case). The review covers the point surface and levels only: the pointwise band is a joint circular-block bootstrap (or Dirichlet block-weight) construction with a fixed-b dispersion inflation and a kernel-bias factor and is not examined here, nor are the simultaneous band, the Bayesian surface, a series with missing time points, sampling weights or the support classification. The adjustment set is taken from the temporal backdoor identifier as hand-checked for this graph; the identifier is a separate record. The cited publications were not retrieved."
+sources = ["https://doi.org/10.1515/9781400829828", "https://www.hsph.harvard.edu/miguel-hernan/causal-inference-book/"]
+findings_resolved = ["The hard-level response equals the exact rational OLS level at that dose at every horizon, and the additive-shift response equals the exact rational level at each horizon's own treatment mean plus the shift, under a 1e6 outcome offset, a 1e3 treatment offset, nearly collinear confounder lags, a nine-row series and 400 rows.", "Record text corrected: the pointwise band is not an analytic delta-method band; with zero replicates none is published and otherwise it is the joint circular-block bootstrap band."]
+record_sha256 = "943bd6c41f43833b5268e2ce212e5acd2aa7f16dff9a3a5efd4be5734a8a13b8"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/temporal_response/mod.rs"
+sha256 = "b390ecfb29684200fd1534264f68973865791a938bf06a78f3226de5f1078bfb"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/temporal_response/surface.rs"
+sha256 = "e00849a5dc07a75025f3e1816cdf949272082bc4efb4299765e66af0e40ba02f"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/temporal_adjustment.rs"
+sha256 = "336e5bcf06ff409c56e2483ff8c69c7eb042d993668c803b2f0868ee0a0fb146"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/temporal_response_gcomp_reference.rs"
+sha256 = "5fe3aefbebc1b22a4b1a218a960ed2e0156545d57ed89641e13bd74b01f18d22"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/temporal_response_gcomp_reference.py"
+sha256 = "32755dd3888933f36ad40fdd8aa0d4dd68a57f76a5db11b8742073dd8b36fac6"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/temporal_response_gcomp_reference.json"
+sha256 = "e524afe0abc5f2c0a3c8a72027e067261fa92e59712cc4e0065842bfe8cc3d0f"

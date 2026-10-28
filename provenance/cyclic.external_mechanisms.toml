@@ -25,6 +25,7 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+  "crates/antecedent-model/tests/external_mechanism_reference.rs (50-digit equilibrium likelihood terms, scores, contraction bound and solve of a three-equation system with two registered external mechanisms: clamps that cut the cycle, correlated, nearly singular and 1e-6-variance covariances, saturated and offset rows, forward and central finite-difference declarations)",
   "closed-form least-squares gain, bisection fixed points and an explicit 2x2 Jacobian determinant from conformance/gcm/external_mechanism_feedback/reference.py",
   "inline crate unit tests for resolution, refusal, finite-difference versus analytic agreement and the linear ODE closed form",
   "python/tests/test_external_cyclic_mechanisms.py, including fresh-process replay with a fresh registry",
@@ -34,3 +35,34 @@ test_sources = [
 id = "external-mechanism-feedback"
 source = "conformance/gcm/external_mechanism_feedback/reference.py"
 truth = "Standard-library least-squares gain, bisection fixed points of the fitted two-equation saturating feedback system and the explicit 2x2 determinant of the equilibrium change of variables; the fit, the solves and the likelihood are compared with these."
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "ResolvedFeedbackSystem in crates/antecedent-model/src/external_mechanism.rs: the equilibrium log-likelihood of known-regime rows split into the Gaussian data term on the free coordinates (marginal disturbance covariance of the free block, Cholesky whitening, log determinant) and log |det(I - J_FF)| per strongly connected block, with the Jacobian from the declared analytic gradient or declared forward/central finite difference (row_terms, log_abs_determinant, ResolvedEquation::evaluate), the analytic scores of both terms (data_term_score, determinant_term_score through the inverse of I - J), the declared-bound contraction bound over the blocks of the free system (contraction_bound), and the equilibrium solve of x = f(x) + u under clamps (solve). Not the optimizer of external_cyclic_fit.rs, the ODE system or the resolution and digest checks."
+assumptions = ["The disturbance is zero-mean Gaussian with the stated covariance and a clamped variable's equation is replaced, so the free coordinates keep the marginal covariance of their sub-block.", "Declared global derivative bounds are true; with every free block's bound below one the equilibrium is unique and the likelihood is a density.", "Rows are known-regime observations at an equilibrium of the (intervened) system."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with definitions evaluated in 50-digit arithmetic by a reference written for this review; no upstream implementation or test source was consulted or copied. The record cites no publication (the equilibrium change of variables is the one recorded with cyclic.general_systems, whose own review is separate); the correspondence checked here is between the code and the stated definitions of the Gaussian data term and the Jacobian determinant of the equilibrium map."
+redistribution = "The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "One three-variable system (two external mechanisms, one with two parameters, and one built-in affine equation) with fixed fitted values; six row sets (no clamps, three clamp sets that cut the cycle in different places, saturated tanh rows, rows at offset 1e3) under three disturbance covariances (correlated, a correlation of 0.9999 and a variance of 1e-6). The data and determinant terms are asserted to 1e-10 of their scale, the scores to 1e-9 relative, the solve to 1e-8, the contraction bound exactly. The scores are compared with 50-digit central differences of the terms, not with an analytic derivation. The reviewed object is the likelihood, its scores, the bound and the solve for a smooth bounded-slope family; the gradient-ascent loop of fit_external_feedback in antecedent-estimate (backtracking, termination, the numerical fallback of the determinant score) is not examined here, nor are the ODE integrator, counterfactual and abduction paths, resolution and digest verification (covered by the crate unit tests and the Python tests), the budgeted large-system solver paths, or a system with a nontrivial strongly connected block of more than two variables. The Lipschitz declarations are caller declarations and are taken as true. No publication is cited or retrieved."
+sources = ["https://mpmath.org/"]
+findings_resolved = ["The data term, the log-determinant term, the analytic scores of both, the contraction bound under each clamp set and the equilibrium equal the 50-digit reference, including clamps that cut the cycle (the determinant term is then zero), a covariance with correlation 0.9999 and one with variance 1e-6, and saturated rows where the Jacobian vanishes.", "A declared finite-difference Jacobian reproduces the analytic likelihood (central 1e-6 to 1e-9), the forward scheme is first order and the central scheme second order as declared, and an undeclared-analytic mechanism makes the analytic determinant score decline so the fit falls back to the declared difference.", "A solve with a certified contraction reports a globally unique, existence-certified equilibrium for every tested clamp set."]
+record_sha256 = "d6d8a6a36804f8ac525075f39e000d49216baa0e3fa8471a2de4e1dec9dbd3d2"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/external_mechanism.rs"
+sha256 = "4b5d79a580edc0cd5da28bf45ddf0320305e5a97ffe4431c62254f65a9ed6161"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/external_mechanism_reference.rs"
+sha256 = "1afb30f26ba04d259ada25c347fa282f9d4250910577153d4b5ae7789f0872e5"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-model/tests/oracle_data/external_mechanism_reference.py"
+sha256 = "c7ebb14c7cd373081aada5aa7d7fa9871fbf7323d49c0bf700b22ccd868a0d4f"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-model/tests/oracle_data/external_mechanism_reference.json"
+sha256 = "25610b4ca4ef8e69635279da14d2f7cf5c0e73f04748e758a6b9c091b738027d"

@@ -34,3 +34,35 @@ test_sources = [
   "python/tests/test_measured_inference.py",
   "python/tests/test_measured_joint_transport.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "joint_bayesian_transport::fit_joint_bayesian_transport: design assembly [A, A*x, x | varying block], the dense Gaussian prior (nonzero mean, nondiagonal covariance), the exact conjugate posterior precision P0 + sum Z'Z/sigma^2 and mean, the effect vectors of every source and the target, the rank guard, and the iid draws against the effect moments. Relies on the conjugate Gaussian update that provenance/transport.learned_joint.toml also instantiates (the two are cross-checked only through the shared exact reference; the learn crate's conjugate backend is a separate path reviewed there). Not the overlap box, the conflict diagnostic, the calibration basis, artifacts or the closed public interval route."
+assumptions = ["Known noise variance per source, independent sources with disjoint units, randomized binary treatment, continuous outcome; the structural certificate is supplied.", "The prior is a proper Gaussian; the posterior is the exact conjugate Gaussian.", "Overlap of the target covariates inside a source box is a conservative support check, not part of this arithmetic."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. No cited publication was retrieved in this review: the correspondence is between the product code and the standard definitions, verified numerically, not a page-level reading of any paper."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Six designs against Fraction Gauss-Jordan posteriors on dyadic inputs: a dense invariant prior with nonzero mean and two independent varying intercepts; covariates offset by 1024 with a shared varying block and a covariate varying block (intercept and covariate nearly collinear); a 2^20 noise-variance ratio between a 3-row and a 12-row source; a nearly flat prior (variance 2^20) with covariates offset by 256; two covariates with the second exactly twice the first; and the smallest balanced sample. Posterior mean and covariance and all effect means and covariances are asserted to 1e-8 relative, and the iid target-effect draws to Monte Carlo error. The exactly collinear-covariates design has an exact proper-prior posterior but the product refuses it as singular_fit by its data-information rank guard; this review records that refusal as designed and does not treat it as a defect. Conditioning beyond cond about 1e10 of the precision matrix, many covariates (more than two) and many sources are not exercised. The draws are checked only by their target-effect first and second moments. Coverage is not measured and the public interval route stays closed."
+sources = ["Textbook conjugate Gaussian linear model with known variance (no paper retrieved; the definition is evaluated by the reference)"]
+findings_resolved = ["No defect found: posterior and effect moments match the exact rational reference in every regime, including offsets of 1024, a 2^20 variance ratio and a 2^20 prior variance. No declared option is ignored: priors (including off-diagonal covariance), noise variances, sharing, varying block, dependence, overlap tolerance and the conflict threshold are each used."]
+record_sha256 = "37312c699ce096044bab52d85ebbfdae0a58b746710177db92c1eb881bc0831b"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/joint_bayesian_transport.rs"
+sha256 = "fa86fc738a0ac0f79fafa92bad6f1f257c3c6fb1dee242debd1301bbcb356a95"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/joint_bayesian_transport_reference.rs"
+sha256 = "4edfd5139ece54497dfd92fb3234d5852c424b69bdc010b2ac03229639f1c6ed"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/joint_bayesian_transport_reference.py"
+sha256 = "5dd93e10239ee596b8e273859035ad292d193f07285502deee15b63429927318"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/joint_bayesian_transport_reference.json"
+sha256 = "119c4b0926d8a1ae281467fc40c63c257c2ba3ee44c44771dfbee976ea5239eb"
+

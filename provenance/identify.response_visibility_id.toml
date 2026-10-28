@@ -26,3 +26,29 @@ test_sources = [
  "hand-derived MAG cases: invisible edge, front-door DAG, non-ancestral input, direct and collider-path visibility witnesses, identification beyond adjustment, null effect, circle-arrow class (conformance/identify/mag_visibility_id)",
  "end-to-end exact recovery of E[Y | do(T)] on a five-node MAG with no adjustment set, and refusal of the front-door ADMG held as a Pag (crates/antecedent/tests/numeric_pins.rs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "identify_pag_response_general on a MAG (a PAG with no circle endpoint) for a single-treatment hard-intervention mean response in crates/antecedent-identify/src/response_id.rs and mag_to_confounded_admg in generalized.rs: generalized adjustment first, then ID (Shpitser-Pearl) on the ADMG that keeps every MAG edge and adds A <-> B beside each invisible directed edge A -> B, with a refusal that clears the hedge when invisible edges were added. Relies on the ID and hedge reviews (identify.id, identify.hedge) for the correctness of ID itself on a given ADMG; this review checks the reduction from the MAG to that ADMG and the numeric exactness of what the route returns. Not a review of PAG circle-completion enumeration (partially identified / graph-dependent classes), of the hedge certificate for a refused confounded ADMG, or of conditional (IDC-style) queries, which the route does not offer."
+assumptions = ["Every represented DAG has latent projection that is an edge-subgraph of the confounded ADMG (a projected directed edge makes A an ancestor of B in the MAG; a projected bidirected edge is an inducing path into both ends, excluded for a visible edge), so a functional ID identifies on the confounded ADMG is valid for every DAG the MAG represents.", "The reference computes, from bitmask ancestry, moral-graph d-separation and exact enumeration of a randomly parameterised binary SCM, the MAG, the latent projection and E[Y | do(T=1)] of each generating DAG, none of it through the identification code; the returned functional is evaluated on the exact observational law and compared with that interventional truth.", "The numeric comparison is made only when the route reports the MAG identified; a refusal is not claimed to be correct beyond the visibility cases of the hand-built tests."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are named by title and are not redistributed."
+limitations = "The primary sources (Zhang 2008, Shpitser-Pearl 2006, Jaber et al. 2019) were not retrieved; the visibility lemmas and the reduction are checked through the brute-force subgraph and numeric tests, not re-derived from the papers. The sweep covers every DAG with up to four observed and one latent, and with two latent variables on three or fewer observed, numerically on every one, and every 97th four-observed two-latent DAG plus 3000 sampled five-observed DAGs (71712 numeric comparisons in the always-run sweep); the exhaustive four-observed two-latent sweep is an ignored test that was not run here. In the always-run sweep all 25524 identifications beyond adjustment concern null effects (the treatment is not an ancestor of the outcome); an identified non-null effect that no adjustment set reaches is covered only by one hand-built five-node test. Soundness is checked, completeness is not: the route is documented as sound and not complete for MAGs and PAGs, so a refusal is never evidence of non-identifiability. PAG circle-completion enumeration and its PartiallyIdentified / GraphDependent classification are not exercised by the brute-force sweep, which feeds MAGs only. Binary variables only. Calibration is not applicable."
+sources = ["Zhang (2008), Causal Reasoning with Ancestral Graphs, JMLR 9 (https://www.jmlr.org/papers/v9/zhang08a.html; title as listed, text not retrieved)", "Shpitser and Pearl (2006), Identification of Joint Interventional Distributions in Recursive Semi-Markovian Causal Models (title as listed in papers; text not retrieved)"]
+findings_resolved = ["Over 64450 DAGs (2202 distinct MAGs) the latent projection of every generating DAG is contained in the confounded ADMG the route runs ID on, the library's latent projection equals the independent one, and for every treatment-outcome pair the route identifies (46188 by adjustment, 25524 by ID beyond adjustment) the returned functional equals the exact interventional mean with worst error 7.8e-16; reading the MAG as an unconfounded ADMG instead returns a wrong functional on 4273 pairs, so the oracle can fail.", "No defect was found and no product code changed."]
+record_sha256 = "b3026e4951a70ded9e071ef3cf239cb27bbd74610fb7a89fe428e21da54291cc"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/response_id.rs"
+sha256 = "d9f179b14b81a5df96f0ab1a81232e57bef0830385981a71bb80d3e637001377"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/generalized.rs"
+sha256 = "47211adb4aa4dfbe65ae5a0ec075ec8a4e12d6cade327754f9ff54cf7b33f283"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-identify/src/mag_id_bruteforce.rs"
+sha256 = "901a1d10b95ba68ebb06a82ee9539c42e2c52df4dd47f64a1a70c7cd7f314d34"

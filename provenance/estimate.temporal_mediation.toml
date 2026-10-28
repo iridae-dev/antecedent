@@ -22,7 +22,39 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
- "unit test recovers positive mediated effect (crates/antecedent-estimate/src/temporal_mediation.rs)",
- "conformance/context/temporal_mediation",
- "conformance/estimate/temporal_mediation_grid",
+  "unit test recovers positive mediated effect (crates/antecedent-estimate/src/temporal_mediation.rs)",
+  "conformance/context/temporal_mediation",
+  "conformance/estimate/temporal_mediation_grid",
+  "crates/antecedent-estimate/tests/temporal_mediation_reference.rs (exact-rational path-product mediation: windows, gaps, two mediators, contrast scaling, iid and Sobel-form errors, target-population refusal)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "TemporalMediationEstimator::estimate_with_adjustment and its validation in crates/antecedent-estimate/src/temporal_mediation.rs for the point estimates and the opt-in iid standard errors: the lag-aligned window design [treatment at the declared horizon, mediators and outcome now, graph-derived adjustment columns at their lags], the mediator regressions M_j ~ [1, T, adjustment], the outcome regression Y ~ [1, T, M, adjustment] and the reduced form Y ~ [1, T, adjustment], the total, direct and path-product mediated effects scaled by the active-minus-control level, the homoskedastic coefficient errors of the total and direct effects and the Sobel-form error of the mediated effect, the gap-selected windows, and the refusal of a declared target population. Not the block bootstrap, the shared multi-horizon bootstrap, the influence-score block-length rule, the effect surface, or the Bayesian and sensitivity routes."
+assumptions = ["The linear no-interaction structural model with the declared mediator set; identification is taken as given.", "Rows are treated as independent for the opt-in analytic errors, which the module documents as anti-conservative under serial dependence (they are NaN unless requested).", "The Sobel-form error of a sum of path products takes the separate mediator regressions as independent of each other and of the outcome regression; that is the formula the product states and the formula checked, not the exact variance of a product of estimates."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library (fractions), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Six synthetic series of 9 to 44 time points: one mediator, an adjustment covariate at two lags with an active level of 2.5, two mediators with a treatment lag of two, outcome and mediator offsets of 1e6 and 1e5, four missing time points, and a tiny series of eight windows. Effects are asserted to 1e-8 and standard errors to 1e-7 relative. The least-squares solve is the shared sequential-regression kernel and is exercised only through these references, not reviewed separately; the Baron-Kenny significance-step procedure the cited paper describes is not implemented, and the Sobel-form error is an approximation whose coverage was not measured. The natural-effect aliases, the multi-horizon grid (the facade slices one query per horizon; an estimator call carrying several horizons fits the first, which the test pins) and every bootstrap, Bayesian and sensitivity route are outside this review. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.1037/0022-3514.51.6.1173"]
+findings_resolved = ["Defect repaired: the estimator ignored MediationQuery::target_population and fitted every observed window with equal weight, so a query declaring the treated, untreated, predicate or retargeted population received the all-observed answer under its name. validate() now refuses any population other than AllObserved with EstimationError::TargetPopulation, the refusal the sibling linear temporal adjustment already made; the failing-first assertion is in temporal_mediation_reference.rs.", "The total, direct and mediated effects, their decomposition (total = direct + mediated) and the iid errors equal the exact rational reference, including two mediators with a shared outcome regression, a non-unit treatment contrast, large offsets, a tiny series and a gapped series fitted on its intact windows."]
+record_sha256 = "d7c7638f1c92c72fa5ef229879ca7e65db56283d0f505d5469a7c4ff575caf31"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/temporal_mediation.rs"
+sha256 = "fa8b2d966ef138af11e69adbeb533eabc444a81f5771ad9905a5be9e58d9def7"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/temporal_mediation_reference.rs"
+sha256 = "dc7f1a53e0166d1f6979cc381109022ef3d7eb458327ae771d1d3d8eff97e5b8"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/temporal_mediation_reference.py"
+sha256 = "0ee5233ac3e389364cf6725e7b91f10112bc221ffb8cf4a554b92f14a773d718"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/temporal_mediation_reference.json"
+sha256 = "6e0d59dd7e4212931a758dffdbc4957ad23143298048c241808ed0c304b29237"

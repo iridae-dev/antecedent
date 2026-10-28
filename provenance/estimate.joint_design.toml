@@ -20,13 +20,55 @@ implementation_deviations = [
 ]
 upstream_implementations_observed = []
 test_sources = [
-  "crates/antecedent-estimate/src/joint_design/randomized.rs",
-  "crates/antecedent-estimate/src/joint_design/longitudinal.rs",
-  "crates/antecedent-estimate/src/joint_design/gaussian_longitudinal.rs",
-  "crates/antecedent-estimate/src/joint_design/local_instrument.rs",
-  "crates/antecedent-estimate/src/joint_design/instrumented.rs",
-  "crates/antecedent-estimate/src/joint_design/rollout.rs",
-  "crates/antecedent-estimate/src/joint_design/switchback.rs",
-  "crates/antecedent/src/analysis/joint_panel/designs/native/tests.rs",
-  "crates/antecedent/tests/joint_panel_experiment_chain/matrix.rs",
+ "crates/antecedent-estimate/tests/joint_design_reference.rs (exact-rational Horvitz-Thompson program means with the independent-unit sandwich, history-inclusion means by enumerating schedules, and the Gaussian AR(1) history posterior by inverting each sequence's full error covariance, with unequal probabilities and weights, an outcome offset of 1e6, the smallest sample, unequal sequence lengths and a carryover of two)",
+ "crates/antecedent-estimate/src/joint_design/randomized.rs",
+ "crates/antecedent-estimate/src/joint_design/longitudinal.rs",
+ "crates/antecedent-estimate/src/joint_design/gaussian_longitudinal.rs",
+ "crates/antecedent-estimate/src/joint_design/local_instrument.rs",
+ "crates/antecedent-estimate/src/joint_design/instrumented.rs",
+ "crates/antecedent-estimate/src/joint_design/rollout.rs",
+ "crates/antecedent-estimate/src/joint_design/switchback.rs",
+ "crates/antecedent/src/analysis/joint_panel/designs/native/tests.rs",
+ "crates/antecedent/tests/joint_panel_experiment_chain/matrix.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "Two of the design owners in crates/antecedent-estimate/src/joint_design: randomized_joint_means (randomized.rs) and switchback_joint_means / switchback_joint_posterior (switchback.rs, with switchback_history_means in crates/antecedent-estimate/src/switchback.rs). Randomized: the Horvitz-Thompson mean of each complete program with fixed population weights, the estimating-equation covariance n/(n-1) sum (s_ij - w_i m_j)(s_il - w_i m_l)/W^2, the premise and probability refusals, and the contrast assembled from the joint covariance. Switchback: the history-inclusion probabilities from the enumerated schedule law, the history means and the sequence-cluster sandwich with unequal sequence lengths, and the moments of the Gaussian history posterior under proper independent mean priors and a known stationary AR(1) residual (checked as sample moments of the aligned draws). Not the exhaustive randomization test in switchback.rs, nor the full-history longitudinal (finite and Gaussian), joint instrumental-variable, local-encouragement, rollout difference-in-differences, synthetic-rollout and compiled-target owners of the module, which remain unreviewed."
+assumptions = ["Known whole-program or whole-schedule assignment probabilities, fixed preassignment population weights, consistency, no between-unit interference and (switchback) explicit no-anticipation and finite carryover are identification premises supplied by the caller and taken as given.", "Units or sequences are independent; the sandwich covariances are asymptotic and uncalibrated.", "The Gaussian posterior assumes proper independent Gaussian mean priors, a stationary AR(1) residual with known variance and coefficient per sequence, and constant conditional responses per history."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library (fractions, itertools). The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Five finite designs: three randomized with 4 to 30 units and 2 to 4 programs (unequal dyadic probabilities, weights of 0.25 to 3, an outcome offset of 1e6), and two switchback designs with 9 sequences of full-factorial two- or three-period schedule laws (carryover one) and 30 sequences of 3 or 4 periods (carryover two, outcome offset 1e5). Means agree with the exact-rational values to 1e-12 relative and covariances to 1e-9 relative; the posterior is compared through 400000 aligned draws within five Monte Carlo standard errors, so it fixes moments to roughly three significant digits and does not check the draw stream or any tail. The majority of the module (full-history longitudinal g-computation with finite and Gaussian mechanisms and their bootstrap and Bayesian variants, joint structural two-stage least squares and its jackknife, joint regime-cohort-time differences in differences, synthetic rollout, the local encouragement route and the compiled target execution) has no independent reference in this review and is not claimed. The cited publications were not retrieved in this review. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://arxiv.org/abs/2009.00148", "https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["No defect found in the reviewed owners: program means and sandwich covariances, history-inclusion means and the sequence-cluster sandwich equal the exact-rational references, the posterior mean and covariance of the AR(1) history model agree with the full-covariance inversion within Monte Carlo error, and the joint contrast variance is the quadratic form of the stored joint covariance.", "A program with no observed unit, duplicate unit identities, absent premises, probabilities that do not sum to one, a non-positive weight, a singular prior, an AR(1) coefficient of one and fewer than two draws are refused."]
+record_sha256 = "552526bcbc638d14bdd6a3c7e9be44b1259a871fa697713ec45007889bf4b35d"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/joint_design/randomized.rs"
+sha256 = "c9e7d28bbe6932b530752153f14f2cbc0fbefece007353de51a4dfd3f1e7294d"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/joint_design/switchback.rs"
+sha256 = "d82416cc55a5e96958be336b5dfaa776f7c03a0724181b0088a6e63d2f31d4ca"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/switchback.rs"
+sha256 = "3907c68c225c728d9c77b640580809891f2153c5e29c677124b3fb61729f86bb"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/joint_design_reference.rs"
+sha256 = "cce74a57702956d883a080a8c608558d7ff26a5369028d158feaf173d4cf938e"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/joint_design_reference.py"
+sha256 = "71642bb1ffe28207865063b9f50fc04cdfe435700a114440b9310107fa3bec64"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/joint_design_reference.json"
+sha256 = "017d5b49194b4039993e297c0143c4154811a0822ad15f1f737b0b80d5d8f5aa"

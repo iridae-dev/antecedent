@@ -19,6 +19,7 @@ implementation_deviations = [
 ]
 upstream_implementations_observed = []
 test_sources = [
+  "crates/antecedent-design/tests/certified_program_search_reference.rs (certified global bound and incumbent on 20 objectives against independent truth values)",
   "crates/antecedent-design/src/program_search.rs",
   "crates/antecedent-design/src/program_search/continuous.rs",
   "crates/antecedent-design/src/program_search/certified.rs",
@@ -33,3 +34,34 @@ test_sources = [
   "crates/antecedent/src/analysis/joint_panel/selection/instrumented.rs",
   "python/tests/test_joint_panel.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "PreparedCertifiedSearch::compile, bounds and execute in crates/antecedent-design/src/program_search/certified.rs: outward-rounded interval enclosure of an expression (add, subtract, multiply, divide with a separated denominator, negate, min, max), best-bound subdivision of a bounded box with linear restrictions, the feasible incumbent, the retained global upper bound and the stop reason, taking the final bound as the minimum over the frontier, the monotone reductions, the separable bound and the concave dual bound when they apply. Checked as a black box through the global upper bound, the incumbent and the certificate stop. Not the panel compiler that derives the objective from a fitted response, the artifact reconstruction of certificates (certified/artifact.rs), the finite-set exhaustive search, the continuous coordinate poller, the max-t intervals, or the whole-procedure selection executor of the rest of this record."
+assumptions = ["The objective is the compiled numerical expression; a certificate is a statement about that function on its box, not about a statistical or population optimum, and the product says so.", "Truth values come from dense scans with golden-section polish, which is accurate for objectives with one smooth or piecewise-smooth extremum per scan cell (true of every case); it is a numerical truth with a recorded error of at most 1e-9 for one control and 1e-5 for two, not an interval proof."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the certificate code named in its scope and compared its output with truth values computed without interval arithmetic by an executing reference written for this review (standard library only); no upstream implementation or test source was consulted or copied. The cited lecture slides on Lagrangian duality were not retrieved in this review (nothing downloaded): the dual bound is exercised only through the soundness of the final bound, not against the text."
+redistribution = "The cited slides are linked, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. Its output is frozen in the JSON file and compared by the test."
+limitations = "Twenty objectives (14 with one control, 6 with two) with budgets, signed boxes, a 1e8 offset under a 1e-2 variation, a box of width 1e-7, a fixed control, competing peaks under max and min, a kink at the optimum, ratios and bilinear and saddle forms are compared: the final global bound never falls below the true maximum, the incumbent is feasible, its enclosure contains the objective at the incumbent and is not above the true maximum, and every Certified stop leaves the true maximum within the requested gap. Only soundness and tightness at the stop are asserted: that the dual, separable or monotone bounds are actually engaged in a given case is not asserted, so their individual correctness is covered only where they would have to make the final bound unsound to be caught. No case has more than two controls, objectives deeper than a few operators, thousands of controls, a restriction with several rows; the SplitLimit stop is exercised by the module's own unit tests, not against a truth value here, and the ResolutionLimit stop has no test at all. Truth values for two controls carry 1e-5 error, so the tightness check there is within that. The whole-procedure statistical behaviour that the rest of the record describes is not reviewed and no coverage is claimed."
+sources = ["https://stanford.edu/~boyd/cvxbook/bv_cvxslides.pdf"]
+findings_resolved = ["No defect found in the bound: on all twenty objectives the final bound encloses the true maximum, the incumbent is feasible with a sound enclosure, and Certified stops are tight, including the competing-peak, kink, 1e8-offset, near-degenerate-box and binding-budget cases."]
+record_sha256 = "0da75d54bd85276dc11b7ac54756dfcee6543c3e131112fcdfebe2598b026e20"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/program_search/certified.rs"
+sha256 = "7dd8f8c2e71f09c230fa6e6e95ce12c1e296c31a9bb83b8712cc31d4e70a06f0"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/certified_program_search_reference.rs"
+sha256 = "87cf3d6ecdb6a56a675fc687e7569b72ee7de8f9cab457298989b6fcf02f2d5f"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-design/tests/oracle_data/certified_program_search_reference.py"
+sha256 = "3de1d6c1424f525cf34c29e1769673330366794011dde48ee2ffec9601cdd128"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-design/tests/oracle_data/certified_program_search_reference.json"
+sha256 = "63038fe16f2cd8b39fafa8ce6bcc5d5c65ccbc7253d8f9a6d4f14c7f28cc84f4"

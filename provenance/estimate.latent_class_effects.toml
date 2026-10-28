@@ -26,7 +26,39 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
-  "crates/antecedent-estimate/tests/latent_class_effects.rs",
-  "crates/antecedent-io/tests/latent_class_artifact.rs",
-  "python/tests/test_latent_class.py",
+ "crates/antecedent-estimate/tests/latent_class_reference.rs (independent 40-digit multi-start EM stationary point of the mixture of Gaussian regressions: two classes with a binary treatment, three classes with a continuous treatment and two covariates, unbalanced weights at an outcome offset of 1e4 and a covariate offset of 100, and no covariates)",
+ "crates/antecedent-estimate/tests/latent_class_effects.rs",
+ "crates/antecedent-io/tests/latent_class_artifact.rs",
+ "python/tests/test_latent_class.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "fit_latent_class_effects in crates/antecedent-estimate/src/latent_class_effects.rs for the selected EM fit of a K-class mixture of Gaussian linear regressions y ~ N(alpha_k + tau_k a + gamma_k'x, s2_k) with constant class weights: the class weights, intercepts, effects, covariate coefficients and residual variances, the observed-data log-likelihood, the BIC, the posterior responsibilities, the effective class sizes, the separation, the canonical class order and the mixture-average effect, together with the declared-premise refusals. Not the seeded initialisation, the label-aligned bootstrap standard errors (their stream and replicate refits are not reproduced), the artifact replay or the Python surface."
+assumptions = ["Treatment is as-if randomized within class given the covariates, the Gaussian-linear class model and constant class weights hold, and K is the true number of classes; the premises are declared, not checked.", "EM finds a local maximum: the reference does not prove global optimality, it keeps the best of 24 independent random starts of its own and polishes it at 40 digits.", "Well-separated classes (mean largest responsibility near one): overlapping designs make the maximum flat and are not reviewed."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Four designs of 200 to 300 rows with two or three classes, binary or continuous treatment and up to two covariates, all with separation above 0.99, plus an outcome offset of 1e4 and a covariate offset of 100. Parameters and responsibilities agree to 1e-6 relative, the log-likelihood and BIC to 1e-9; the product is run with a convergence tolerance of 1e-14 and at most 20000 iterations, whereas the default tolerance of 1e-10 stops EM earlier, so default fits agree with the stationary point only to the looser accuracy of that stopping rule. The bootstrap standard errors, their label alignment, the claim that they are unmeasured for coverage and the identifiability of overlapping classes are not reviewed, and neither the global maximum nor the monotone-likelihood refusal under failure is established by this review. The cited works were not retrieved in this review. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://mpmath.org/"]
+findings_resolved = ["No defect found in the point fit: weights, class intercepts, effects and covariate coefficients, residual variances, effective sizes, separation, BIC, log-likelihood, responsibilities and the mixture-average effect equal the independent stationary point on all four designs, the likelihood trace never decreases, and no standard error is reported when no replicate is requested.", "Undeclared conditional randomization, a single class and a constant treatment are refused rather than fitted."]
+record_sha256 = "1e832a8373df5b306ce7c0b56039e0c81b0b8f99974fb6769e0396bc0735ef84"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/latent_class_effects.rs"
+sha256 = "14ee610e627cd573604aff6616482b3ce4b41717ee3316918ca69847db9d8c1a"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/latent_class_reference.rs"
+sha256 = "d8422ca81c7071d43c4c4b20ec1f0d9d4ae88f7239daf61bf2198d1ee57487fd"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/latent_class_reference.py"
+sha256 = "d964869c36e7ac7a36cd6ca5e060ce213024cf6de8d8152dd4cb5ab074bd1081"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/latent_class_reference.json"
+sha256 = "d7221a52f87479621752b0f0f8d339fa93968b8fc05054c06fa0309616c4fad2"

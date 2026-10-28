@@ -18,4 +18,46 @@ implementation_deviations = [
 upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs",
+  "crates/antecedent-stats/tests/adaptive_anytime_exclusion_reference.rs (bounds and exclusion probability against exact enumeration and a 60-digit radius)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "anytime_valid_report and anytime_exclusion_probability in crates/antecedent-stats/src/adaptive_inference/procedure_uncertainty.rs: the cell bounds [max(m - r, 0), min(m + r, 1)] at the terminal counts with the level split alpha / cells, the whole interval for an unobserved cell, and the exact probability, over the exact law of the declared procedure, that some observed cell's bound excludes its truth. The radius itself (mixture_hoeffding_radius) is reviewed under adaptive_inference.anytime_valid_sequence and the law under adaptive_inference.procedure_law; this review checks the route's own arithmetic against an independent evaluation. Not the theorem that bounds the exclusion by alpha, other boundaries, or contexts (refused)."
+assumptions = ["Outcomes of an arm are an identically distributed prefix of an independent sequence (the premise gate refuses outcome-dependent loss and several contexts).", "The bound is the normal-mixture radius 0.5 sqrt((n + rho) ln((n + rho) / (rho a^2))) / n for outcomes in [0, 1] at per-cell level a = alpha / cells."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review (nothing was downloaded and no local copy exists): the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference scripts and their frozen outputs are repository-authored (MIT OR Apache-2.0) and use only the Python standard library. The scripts declare their inline script metadata but are not run in a locked, isolated environment and are not wired into any gate; their output is frozen in the JSON files and compared by the tests."
+limitations = "The Howard et al. paper was not retrieved (nothing downloaded, no local copy); the radius is evaluated at 60 digits from the formula the module documents, so the check is of the code against that formula, not against the paper's theorem. Six procedures of at most 7 units (fixed, Thompson with a probability-best stop, a three-arm UCB run under a cap, lagged epsilon-greedy with random loss, a truth on the boundary of the support, exposure failure) give exclusion probabilities that agree with the exact rational law at 1e-12, and six count vectors give bounds that agree at 1e-12 (levels 0.01 to 0.99, tuning 0.5 to 1000, unobserved cells, clipping to [0, 1]). With so few units the radius is wide and three of the six exclusion probabilities are small or zero, so the exclusion check is weak evidence that the arithmetic is right and no evidence about the size of the exclusion probability at realistic sample sizes (where the module's own binomial enumeration test applies). The smallest distance of any bound end to its truth is 5e-3, so no comparison is decided by rounding. The result reports derived_unmeasured: no coverage of the whole procedure is measured."
+sources = ["https://docs.python.org/3/library/fractions.html", "https://docs.python.org/3/library/decimal.html", "https://doi.org/10.1214/20-AOS1991"]
+findings_resolved = ["No defect found: bounds, level split, unobserved cells, clipping and the exclusion probability agree with the independent evaluation; the exclusion probability is computed over the exact law and not assumed equal to alpha."]
+record_sha256 = "44fe2b9a789f57da30702c8e73b60fda4f77bc95a49c5b679a058b7599b1d988"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/adaptive_inference/procedure_uncertainty.rs"
+sha256 = "ba9993956dd5542f88a9a4d554c52d4fa9b32b8483a5e7a7ef0e94806390feb2"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/adaptive_anytime_exclusion_reference.rs"
+sha256 = "7f6f733f44d42e5432b9fbb44936369e779506b198bbc5d84d8763ea2c226e7e"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/support/adaptive_procedure_reference.rs"
+sha256 = "9f51d015a392aa06ce800ee188d32509e63e69292bd667fa9f374638a0eac680"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/procedure_anytime_reference.py"
+sha256 = "2815e1098564e62ac0a6ecec1db2f7dd88c0d1615c55c24e0046aa146b768dc9"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/procedure_exact.py"
+sha256 = "78c9b55f97adfd2b2c0cef5c95e82037b147c6a9eb58a5f35001358ede3d1c3f"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/procedure_anytime_reference.json"
+sha256 = "a37aae9397097c39f821e4461187c3a8bb12475c0a12b68ae2dbf49e6d932d54"

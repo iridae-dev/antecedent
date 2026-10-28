@@ -30,6 +30,7 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+  "crates/antecedent-estimate/tests/estimate_response_point_derivative_reference.rs (exact local-polynomial coordinates, bias correction, delta-method and Fieller intervals)",
  "conformance/response/staged_derivatives",
   "crates/antecedent-estimate/src/response/tests.rs",
   "crates/antecedent-estimate/src/response/derivative.rs",
@@ -37,3 +38,44 @@ test_sources = [
   "crates/antecedent-estimate/src/response/bayes.rs",
   "crates/antecedent-stats/src/response.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "ContinuousResponseEstimator::point_derivative (derivative.rs) and its row influence (derivative_influence.rs), with the scale transforms of transform.rs, for the Frequentist route: the conventional local-quadratic coordinates of the cross-fitted Kennedy pseudo-outcome, the bias-corrected coordinates (local-cubic slope, local-quartic level and curvature at the caller bandwidth) and their Eicker-White row influences from gaussian_local_quadratic_bias_corrected_influence in antecedent-stats, the joint covariance of the corrected coordinates, the identity and log-treatment errors taken from the coordinate, the delta-method error of the log-outcome and log-log scales and of the second-order transforms from the gradient of the transform, Fieller's interval for the elasticity, and the refusal of a scale that needs a positive level. The pseudo-outcome and its covariate term are the estimate.response.kennedy_dr route (reviewed there) and the conventional local-quadratic fit is the stats.response.local_polynomial kernel (reviewed there); the bias-corrected cubic and quartic fits are reviewed here, because that record excludes them. Not the Bayesian Dirichlet-weight route (bayes.rs), the average derivative (riesz_ade), the Jacobian or the directional derivative."
+assumptions = ["The regression function is smooth enough that the corrected coordinates are consistent for the true derivative at the caller bandwidth; bandwidth selection, fitted-nuisance uncertainty and simultaneous coverage are outside the interval.", "Rows are independent, the outcome nuisance is additive (so the pseudo-outcome's covariate marginalization is constant in the treatment and moves only the level), and the cross-fitted pseudo-outcome is otherwise treated as data."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. It is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Three frozen designs of 60 to 80 rows with one adjuster: a positive level with a well-separated slope, a level a few standard errors from zero (which makes the log-outcome and elasticity scales swing by orders of magnitude) and a treatment offset of 1e3 with an outcome offset of 1e5; each across orders 1 and 2 and the four scales (identity, log-treatment, log-outcome, log-log), eight transforms per design, estimate, standard error and interval. The gradient in the reference is the numerical derivative of the transform's definition at 50 digits, not the product's closed form. Agreement is 3e-5 relative on the positive-level design and 3e-3 on the other two, with an absolute floor of 1e-4 on the offset design, because the nuisance backfit stops relative to the largest fitted value (see estimate.response.kennedy_dr); a second derivative at bandwidth 0.75 carries that resolution over. The reference takes the cross-fitted pseudo-outcome from the exact Kennedy pipeline, so errors in the nuisance stage would show here as well; the check that the pseudo-outcome itself is right is the Kennedy record's. No coverage is measured: the marginalization term added below is the same one the mean-curve route derives, and its necessity is shown by the size of the level variance (12 times larger with the term on the first design) and not by a calibration run in this review. The Bayesian route, the average derivative and the plug-in Jacobian are not covered. The cited publications (Kennedy et al.; Fan and Gijbels; Calonico, Cattaneo and Farrell; Fieller; Rubin) were not retrieved in this review: the reference is the weighted polynomial fits, the Eicker-White sandwich and the transform definitions the module states, evaluated exactly, so section-level correspondence with the papers is not established. The reference script is not run in a locked, isolated environment and is not wired into any gate."
+sources = ["https://doi.org/10.1111/rssb.12212", "https://mpmath.org/"]
+findings_resolved = ["Defect repaired: every transform that reads the level (log-outcome, log-log, and the second-order log scales) took its delta-method error, and the elasticity its Fieller interval, from the covariance of the corrected coordinates without the covariate-marginalization term that the mean-curve route adds to the level (the pseudo-outcome's offset is estimated from every row, so each row also moves the level through (c_i - mean c)/n). On the first design that term is 92 percent of the level variance (0.0126 with it, 0.00106 without), so the log-outcome error was 1.09e-2 against 1.23e-2 and the log-log error was too small by a similar share; the identity and log-treatment errors, which read no level, were already right. The covariance now carries the term, and so does the row influence the derivative exports (derivative_influence.rs).", "The conventional point, the bias-corrected centre, the corrected cubic-slope and quartic curvature errors, the identity and log-treatment errors, the delta-method errors of the nonlinear scales, the Fieller bounds (and its unbounded case, which withholds the interval) and the refusal of a scale needing a positive level equal the exact local fits on the three designs."]
+record_sha256 = "31d9aec93aa4d6c78b0af0118dc5306de4cf10e3e8bc829822665ed54b3a6b8e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/response/derivative.rs"
+sha256 = "dec50ef5c06105661f6465b54eea1a4f6be8a295f2ee3b4b8cf144730429c175"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/response/derivative_influence.rs"
+sha256 = "4ad31f4f06a3f150fda31a243847323aa16699999bcb4db711b36f00829c6d0e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/response/transform.rs"
+sha256 = "1b68e2d24a8d5983e005afc326c73b97b6a20758614b35087a1cdf39b86b9e1d"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/estimate_response_point_derivative_reference.rs"
+sha256 = "a968a4cdfb70506dc8c4db7486595dd1d6cb0a89c0d108f62a4dc081dbdbc42c"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/estimate_response_point_derivative_reference.py"
+sha256 = "c107c0c917ca1eef20b110c9c0af607fd6e92a6a707ebcba09358bb8afb80a3b"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/estimate_response_point_derivative_reference.json"
+sha256 = "d47f3b7af70b497f1fd83be3a15b5401dff5469be807e60876835c44d9cab471"

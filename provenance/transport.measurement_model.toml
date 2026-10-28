@@ -10,10 +10,14 @@ copied_tests = false
 # Selection-diagram invariance of a mechanism (here the measurement mechanism) is the cited
 # premise; the correction entry points are existing code. No paper introduces this binding
 # layer, so the citation is the premise only.
-papers = [
-  { title = "External Validity: From Do-Calculus to Transportability Across Populations", citation_note = "Previously recorded title and bibliographic detail: External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"] },
-]
+# papers = [] is an explicit judgment, read against crates/antecedent-estimate/src/measurement_transport.rs:
+# the module checks a declared invariance premise against the parameters the model's route uses, re-binds the
+# model to the target population and delegates every correction to the measurement records. It has no estimator
+# of its own. The selection-diagram invariance premise it declares (Pearl and Bareinboim, External Validity,
+# Stat. Sci. 2014) is a declaration here, never tested, and the paper was not retrieved in this review.
+papers = []
 implementation_deviations = [
+  "Reviewed as a justified non-algorithm mapping by reading the module; the corrected value is whatever the covered correction record computes and its uncertainty is that record's, conditional on the premise",
   "Not an implementation of a published estimator. The route re-binds an existing model to the target population only when every parameter the model's route uses is declared invariant; it then runs the existing correction and returns it with a receipt.",
   "The invariance premise is declared and never tested; its uncertainty is not propagated (ParameterUncertainty::NotPropagated). The standard error a correction reports is uncalibrated and conditional on the premise, and no interval is issued.",
   "Differential error is a distinct declared case that carries nothing: only a model established for the target itself is used, and a missing target model refuses rather than pooling another population's rates.",
@@ -24,3 +28,17 @@ test_sources = [
   "crates/antecedent-estimate/src/measurement_transport.rs (module unit tests with hand-computed rates and one negative witness per refusal)",
   "crates/antecedent-contract/tests/interface_adapters.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Carries a measurement model established in one population to another under a declared invariance premise, with a receipt, and refuses differential, replicated and external-posterior routes that have nothing to carry."
+no_independent_algorithm = "The module selects a source model, checks that every parameter the route uses is declared invariant, builds a canonical receipt digest and calls the supplied correction closure on the re-bound model; the only arithmetic in the file is inside its own tests, which compare the correction output to hand-computed rates (0.32/0.7, 0.47/0.65)."
+covered_by = ["measurement.binary_misclassification", "measurement.classical_continuous_error", "measurement.probabilistic_categorical", "measurement.model_contract"]
+inline_tests = true
+record_sha256 = "6a12326d24d543c0bfdb7ef2edb60792c1fc02199a478b37773f89bb917cf955"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/measurement_transport.rs"
+sha256 = "fef938bbf681ce2066dea5d1725f5c6eaa27615558dc47e89c527eb2abaa1365"

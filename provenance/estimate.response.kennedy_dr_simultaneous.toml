@@ -30,6 +30,49 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+  "crates/antecedent/tests/estimate_response_kennedy_dr_declarations.rs (declared dependence with and without a bootstrap setting, table weights)",
+  "crates/antecedent-estimate/tests/estimate_response_kennedy_dr_simultaneous_reference.rs (frozen SplitMix64 multiplier band; band predicted from the exported influences)",
   "crates/antecedent-estimate/src/response/tests.rs",
   "crates/antecedent-stats/src/response.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "simultaneous_multiplier_band in crates/antecedent-estimate/src/response/band.rs as it is reached from ContinuousResponseEstimator::mean_curve (curve.rs) with simultaneous_replicates set: the Rademacher sign stream (one 64-bit SplitMix64 output per row per replicate, low bit zero meaning minus), the per-replicate maximum over the grid of the standardized signed influence sum, the ceil(level (B + 1) - 1e-9)-th smallest maximum as the critical value (infinite when the rank exceeds B), the floor at the normal quantile, and the floor at the widest pointwise Student interval; the refusals of a band without a caller bandwidth or with fewer than 100 replicates. The influences themselves and the pseudo-outcome are the estimate.response.kennedy_dr route (reviewed there); the Bayesian joint-posterior band (simultaneous_posterior_band) is not covered."
+assumptions = ["The band is conditional on the cross-fitted pseudo-outcome, the caller bandwidth and the reported influences; it is a fixed-grid multiplier statement about the requested points, not a coverage theorem for a continuum or for the unknown smoothing bias.", "Rows are independent and the influences sum the contribution of each row; a sign vector then reproduces the sampling variability of the standardized sums under a Gaussian-multiplier approximation."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library (its own SplitMix64). It is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "The band construction is private to the estimator, so the executing reference is a Python implementation on five frozen dyadic influence matrices (one point, a few, nearly collinear columns, a rank that does not exist at 0.995 with 100 replicates, a rank equal to the replicate count at 0.99), the product's RNG is shown to emit the same first six outputs as that SplitMix64, and the same construction written in the test is shown equal to the frozen critical values to 1e-12 and then used to predict the band the estimator publishes from its own exported influences at three levels and replicate counts (including the infinite case); agreement is to 1e-9. This establishes the arithmetic of the multiplier maximum, its quantile rank and its floors; it does not establish that the resulting band covers (no calibration is run here), that a Gaussian-multiplier approximation is adequate at the sample sizes in use, or the influences it reads beyond the composition checked in estimate.response.kennedy_dr. The cited publications (Kennedy et al.; the simultaneous bootstrap band of Neumann and Polzehl) were not retrieved in this review: the band is described as a fixed-grid Rademacher multiplier band conditional on the fitted influences, as the module states, and no claim is made that it reproduces the cited wild-bootstrap procedure. The reference script is not run in a locked, isolated environment and is not wired into any gate."
+sources = ["https://doi.org/10.1111/rssb.12212", "https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["The sign stream is the SplitMix64 stream seeded with the multiplier seed (the product's CausalRng and the reference emit identical outputs), the per-replicate maximum, the Monte Carlo rank rule including the infinite critical value when the rank exceeds the replicates, the normal-quantile floor and the pointwise Student floor equal the definition on the frozen matrices and on the band the estimator publishes from its own influences; the same seed reproduces the band exactly and another seed moves it.", "A band without a caller bandwidth or with fewer than 100 replicates is refused rather than published; no defect was found in the band construction.", "Defect found on the route that reaches it, repaired in the facade: a default mean-curve or intervention response of a DAG with a declared clustered panel or dependent series and bootstrap_replicates above zero was answered with the independent-row influence interval, because the dependence guard treated any positive replicate count as a bootstrap that reads the design while these estimators do not bootstrap at all (the interval was identical with 0 and 20 replicates). It is now refused with option_not_applicable and a next attempt."]
+record_sha256 = "888adf2b9a23ab5a99d12a29acbd9a6a75a175d75a9d9bbad37223c8e949b950"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/response/band.rs"
+sha256 = "89fe5fca07635b8f8f54eb2662875156b0e942796baa5d6edad68e35065fa847"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/estimate_response_kennedy_dr_simultaneous_reference.rs"
+sha256 = "245a95ec2fd8699eb43c4afe921a19c6de4e69a233ce4957f70063e72f87e1bc"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/estimate_response_kennedy_dr_simultaneous_reference.py"
+sha256 = "308174f309d92a610ad352383d88ddbb75e26c40e7f4b2a4b0e5f1d866ded00f"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/estimate_response_kennedy_dr_simultaneous_reference.json"
+sha256 = "f69cbc541db6c8ac55f6e296655f9d9d139fa0489fc04053d9624c8173ed7f5c"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/estimate_response_kennedy_dr_declarations.rs"
+sha256 = "bb3ee9feb2de7f6c432f496ff6becbb5c95ccfaa0800a55f06d82cb1b306854e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/builder/finish.rs"
+sha256 = "3f84ade976fa53bfd041205083caf26714f9b834c057b5edc1683410c543c3c6"

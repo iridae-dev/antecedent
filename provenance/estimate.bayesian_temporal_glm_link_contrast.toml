@@ -19,8 +19,41 @@ implementation_deviations = [
 ]
 
 test_sources = [
+  "crates/antecedent-estimate/tests/temporal_link_bayesian_reference.rs (six designs with two held lags and a treatment-by-lag regime column against 40-digit Newton fits and a 13-point five-dimensional Gauss-Hermite posterior: logit and probit, prior scales 0.15 to 20, a lag offset by 100, a 25 percent treated arm; contrast at the mode, posterior mean and draw standard deviation; the maximum-likelihood contrast and Fisher standard error of the same designs)",
+  "crates/antecedent-estimate/tests/temporal_link_reference.rs (one-lag 40-digit logit and probit references of the shared module; the sibling record estimate.temporal_glm_link_contrast)",
   "crates/antecedent-estimate/src/temporal_link.rs",
   "crates/antecedent-prob/src/laplace.rs",
   "crates/antecedent/tests/panel_link_contrast_route.rs",
   "python/tests/test_panel_link_contrast.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "BayesianTemporalLink::fit of crates/antecedent-estimate/src/temporal_link.rs for a Bernoulli logit or probit decision-time GLM on independent subjects: the isotropic Gaussian prior on every coefficient including the intercept, the Laplace posterior N(mode, (-Hessian)^-1) from the antecedent-prob Laplace backend (relied on through prob.laplace_glm), the transformation of every coefficient draw through both regimes with the lag columns held at their observed values, the rowwise averaged mean-scale contrast of each draw, the contrast at the mode, and the posterior mean and spread of the draws; the maximum-likelihood contrast and Fisher delta-method standard error of the shared module are exercised on the same designs. Not the panel facade that selects one earliest complete lag window per unit (crates/antecedent/src/analysis/execute/panel_link_path.rs), the Laplace backend beyond its agreement with the Gauss-Hermite moments, multimodality or skewness of the true posterior, or coverage."
+assumptions = ["Rows are independent subjects at one decision time each; a single dependent series is refused.", "The posterior is the Laplace normal at the penalised mode with the observed curvature, so the reported mean is the mean of the contrast over that normal, not over the exact posterior.", "The contrast conditions on the empirical covariate distribution; covariate-distribution uncertainty is not propagated."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with 40-digit Newton fits and a Gauss-Hermite integral of the contrast over the Laplace normal, written for this review (and for the sibling record); no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause) and numpy (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Six designs of 60 to 80 rows with five columns (intercept, treatment, two lags, treatment-by-lag), two regime columns and two held lags. The contrast at the mode and the maximum-likelihood estimate agree to a relative 1e-7 and the Fisher standard error to 1e-6; the posterior mean is compared within five Monte Carlo standard errors of 2e5 draws plus 1e-6 for the quadrature, and the draw standard deviation within 2 percent, so the draw-level checks are Monte Carlo accurate, not exact. The Gauss-Hermite rule has 13 nodes per dimension and is trusted at that accuracy for posterior standard deviations of the linear predictor up to about one; the diffuse prior case (scale 20) is the widest. Not exercised: more than two held lags, separated or near-separated data (refused by the backend), more than five columns, a regime column that is not the treatment or its interaction, and any facade-level behaviour: the unit-level selection of one decision time and the way the declared Bayesian configuration reaches this function are covered only by the existing route test, not by an independent reference here. The Laplace approximation error against the exact posterior is not assessed and no coverage is measured. The cited publications were not retrieved. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file."
+sources = ["https://doi.org/10.1201/b16018", "https://doi.org/10.1201/9780203753736", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The contrast at the Laplace mode, the maximum-likelihood contrast, the Fisher delta-method standard error (including the probit expected weight) and the regime coefficients equal the 40-digit values on designs with two held lags, a lag offset by 100 and an unbalanced treatment arm.", "The posterior mean and the draw standard deviation of the contrast match the exact Gaussian integral of the contrast over the Laplace normal for prior scales from 0.15 to 20 under both links, and the gap between the posterior mean and the contrast at the mode (for example 0.172 against 0.166 at scale 1) is reproduced, so the published number is not a renamed mode estimate.", "The prior scale, the seed and the link each change the result as declared, and a non-positive or non-finite prior scale and a zero draw count are refused; no product defect was found in this record."]
+record_sha256 = "b76cfffb3b1ad71ad67a8a885a9ebb1c77eaa753385e1f1ac54eabc3e2b507f1"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/temporal_link.rs"
+sha256 = "4fe573917864e4d053f14b87b238d2cba5e07c19137906747eb409e00d22b8b9"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/temporal_link_bayesian_reference.rs"
+sha256 = "8eacf8f84fc3a739fba57c5db819dc2e07482ade4cf89c26eec90433ad75620b"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/temporal_link_bayesian_reference.py"
+sha256 = "b53f5ba78d87ba933399ed0576e3c120f155814db4b103cf93ade6a23a5b4216"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/temporal_link_bayesian_reference.json"
+sha256 = "243589d8034f2e8b56e99acc2aab44b41311aa8677a791d29abe9ecb8cec6457"

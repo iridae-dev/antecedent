@@ -23,8 +23,46 @@ implementation_deviations = [
 
 upstream_implementations_observed = []
 
+modules = [
+ "crates/antecedent-design/src/sequential_evaluation/gformula.rs",
+ "crates/antecedent-design/src/sequential_evaluation/belief.rs",
+ "crates/antecedent-design/src/sequential_evaluation/offpolicy.rs",
+]
+
 test_sources = [
+ "crates/antecedent-design/tests/sequential_evaluation.rs (exact_values_match_hand_computation_and_the_independent_oracle, off_policy_weighting_recovers_the_enumerated_value_and_the_log_is_counted_once)",
  "hand-solved finite decision tree with delayed outcomes and a stopping boundary",
  "independent forward joint-probability enumeration written in the test",
  "enumerated finite logged population under a dyadic logging policy",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "evaluate_policy (the sequential g-formula walk in gformula.rs: due-outcome credits, stopping boundaries, per-action immediate and delayed utilities, commit tails, terminal utility, censoring), the Bayes belief update of belief.rs (predictive law, observation likelihood, posterior) and evaluate_off_policy (offpolicy.rs: the sequential product of target-over-logging assignment probabilities, the ordinary and self-normalized estimates, the Kish effective size and the positivity check on every reachable history) on one finite inspection model with two latent states, five actions of continue and commit roles, a confusion-matrix observation channel, a resource budget and two stopping boundaries. Not the rollout Monte Carlo cross-check, the comparison and value-of-evidence routes, the artifact encoding, the measurement-model validation that constructs the channels, or any model with more than two latent states."
+assumptions = ["The declared per-action transition and observation laws are the interventional laws of the model, the exchangeability, consistency and positivity premises the module states are taken as given, and the measurement parameters are exact.", "The independent oracle accumulates joint probabilities of latent paths and observed symbols forward and divides only at the end; it never forms a posterior belief inside the walk, and it is written in the test file, not imported from the product."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared the product with an executing forward joint-probability enumeration and a logged-data generator written for the test, plus hand values worked in the test comments; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review (nothing downloaded): the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The oracle and the generator are repository-authored (MIT OR Apache-2.0) and live in the bound assertion file; no external library is used for them."
+limitations = "Ten policies on one two-state inspection model (variants: with and without stopping boundaries, forfeit versus refuse for outcomes beyond the horizon, states relabelled) are compared with the oracle at 1e-12 and with hand values; the dyadic constants make the arithmetic exact in binary, which also means rounding behaviour with non-dyadic probabilities is not exercised. The off-policy estimator is checked against the whole 65,536-trajectory logged population, so its unbiasedness and the weight 8 and effective size N/8 of the target policy are verified exactly, but a finite random log, the sampling spread of the ordinary and self-normalized estimates, and extremely small logging probabilities (weights near the overflow refusal) are exercised only by the refusal tests, not by a reference value. There is no reference for models with three or more latent states, long horizons or continuous observations, and the estimation uncertainty of the measurement model is by design not propagated. The reference lives in the same Rust test file as the assertions rather than in a frozen JSON, so this review binds that file once. Calibration of the standard error is unmeasured and no interval is produced."
+sources = ["https://doi.org/10.1016/0270-0255(86)90088-6", "https://doi.org/10.1198/016214501753382327", "https://doi.org/10.1016/S0004-3702(98)00023-X", "https://doi.org/10.1080/01621459.1952.10483446"]
+findings_resolved = ["No defect found: the product agrees with the forward oracle and the hand values on every policy (including delayed outcomes evolved under a commit action's transition, forced stops from the boundaries and pending outcomes forfeited at the horizon), is invariant to relabelling the latent states, and the importance-weighted mean over the complete logged population equals the enumerated value to 1e-9."]
+record_sha256 = "eaf64e4f0940d18b945b8f8002c5a9e047baf083737288cc15b6f6a41b0cf1b1"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/sequential_evaluation/gformula.rs"
+sha256 = "ae0048d28968f77adf4e77fb0cc560d1425789139a1f2c580394291d19594892"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/sequential_evaluation/belief.rs"
+sha256 = "6d2925c57f7ee666d802cd6bae1023a6da4bd269dfd880b540afdcfac77c1dfd"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/sequential_evaluation/offpolicy.rs"
+sha256 = "a362324fe570478d04c25a955eceac7161339676c00b6bc8b13e68d2e956853b"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/sequential_evaluation.rs"
+sha256 = "d298633c3a228bd9b31554054d4993fdded09e11ce65fced8c9cc2945be796f6"

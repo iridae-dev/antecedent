@@ -26,3 +26,40 @@ test_sources = [
   "crates/antecedent-design/tests/transported_synthesis.rs",
   "crates/antecedent-stats/tests/synthesis_oracle.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "synthesis_transport::{transport_aware_covariance, pool_transported, borrow_transported, transported_prior_update} and the synthesis routines they call (fixed_effect_gls and hierarchical_normal_borrowing): the covariance assembled from the sampling covariance plus one shared transport variance on the diagonal and between summaries sharing a transport key, generalized least squares estimate, variance, weights and heterogeneity, the variance without transport, the effective-variance hierarchical borrowing with a discrete spread prior, and the precision-weighted transported prior update. Not random-effects (DerSimonian-Laird, REML) or the dependence envelope in synthesis.rs, which belong to the evidence-synthesis records."
+assumptions = ["The transport variance of a transport is a declared constant, shared by every summary carried through it.", "Sampling covariance is the caller's declaration; borrowing treats summaries as independent normal draws around a common mean with a discrete spread prior."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. No cited publication was retrieved in this review: the correspondence is between the product code and the standard definitions, verified numerically, not a page-level reading of any paper."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library and mpmath (a pure-Python library, installed offline in the local environment). The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Exact Fraction GLS (including a supplied non-diagonal sampling covariance, shared and distinct transports, a 2^40 variance ratio, a near-collinear shared transport and a single summary), 50-digit mpmath hierarchical posteriors from the marginal-likelihood definition (flat and normal mean prior, a transported study, tau = 0 in the support, a single-point prior), and exact transported-prior updates including a 4096 transport variance. The transport variance declared on a summary that borrowing or the prior route cannot honor is refused, not ignored (shared key in borrowing, native prior, transported likelihood, inconsistent variance, diagonal mismatch, negative variance). A correlation of 1 - 4e-12 produced by a shared transport variance over a tiny sampling variance is refused by the routine's documented correlation-scale singularity test even though the exact answer exists; the test asserts that refusal and the review records it as a limit. The borrowing posterior is evaluated on the declared discrete tau grid only; continuous priors, unequal tau support spacing effects and the sensitivity to the grid are not studied. No interval, calibration or coverage is claimed; the cited books were not retrieved."
+sources = ["Introduction to Meta-Analysis (Borenstein, Hedges, Higgins and Rothstein, 2009), https://doi.org/10.1002/9780470743386, cited and not retrieved", "External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014), https://doi.org/10.1214/14-STS486, cited and not retrieved"]
+findings_resolved = ["No defect found: pooled estimate, variance, weights, heterogeneity, variance without transport, borrowed posterior and prior update match the exact and 50-digit references in every regime."]
+record_sha256 = "299d941d864c7aa4d09dad34940131b13e2153151df90eeed50e7804338b1c05"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/synthesis_transport.rs"
+sha256 = "6c86d5e6406b709b85a23d907289b61fea67604d75370cc35010ab7e07f966bc"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/synthesis.rs"
+sha256 = "68041846370d0dc9960c5f44675a3c1dca583f8c985e9a983df05d63b94d6852"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/transport_synthesis_reference.rs"
+sha256 = "51e07138d056c4f4a85513aa397e884024019af50682ee98aeba1a52f0cbb8d6"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/transport_synthesis_reference.py"
+sha256 = "29dbcd3e70fc8f9fa0a18f2eefb24c47fce6ee66f0c42ba4d11003da67a09991"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/transport_synthesis_reference.json"
+sha256 = "8ee5701ce1bb8376501c87fdb3edf2c82406aa4af748b4fd53992c036cf24b95"
+

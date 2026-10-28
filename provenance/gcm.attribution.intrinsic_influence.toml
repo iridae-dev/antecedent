@@ -36,4 +36,36 @@ test_sources = [
  "crates/antecedent/tests/attribute_mechanism_posterior.rs (an_intrinsic_influence_has_a_posterior_over_the_mechanisms)",
  "python/tests/test_intrinsic_influence.py",
  "python/tests/test_dowhy_comparison.py (per-source shares on a linear Gaussian chain against gcm.intrinsic_causal_influence; DoWhy values computed at test time by the pinned version, skipped when it is absent)",
+  "crates/antecedent-attribution/tests/intrinsic_influence_reference.rs (exact rational Shapley values of the variance game, averaged over 30 seeds)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "intrinsic_influence with exact Shapley allocation for linear-Gaussian and bilinear-interaction mechanisms: the sources (noise of the target and its ancestors), the coalition value estimated by nested Monte Carlo with the analysis-of-variance correction, the exact Shapley allocation over all coalitions, the direct target-variance estimate and the allocation residual. Compared with exact Shapley values of v(S) = Var(E[Y | U_S]) enumerated over orderings in rational arithmetic. The Gaussian noise draws and the noise replay are the model-level kernels (model.noise_replay, model.compiled_scm); this review checks the estimator's agreement with the exact game, not those kernels. Not reviewed: permutation sampling above the exact bound, the reported standard errors and their calibration, the row-bootstrap and Dirichlet mechanism-fit components, and non-Markovian structures (refused)."
+assumptions = ["Exogenous noises are independent and the game is Var(E[Y | U_S]); sources are the noise terms of the target and its ancestors.", "The estimator is unbiased up to Monte Carlo noise, so agreement is judged on the mean of 30 independently seeded estimates against five standard errors of that mean."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library (Fraction). It declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Five games: a diamond whose two paths from the root cancel exactly (truth zero) with intercepts near 1e7 and noise scales from 2^-10 to 30, a root whose two equal and opposite paths cancel through parents of equal scale, an amplifying chain whose shares span a factor 4.7e4, and two product mechanisms with non-zero unequal means (Shapley values 1.375 and 10.125, and 225.0 and 100.0 under offsets of 40 and minus 30) whose interaction is split by the allocation. With 500 outer by 20 inner draws and 4 replicate batches the estimate of a small share beside a large one is very noisy (the standard deviation of the amplifying chain's second share is about 2.6 against a truth of 2.25), so a single run cannot be checked against a derived band; this review therefore averages 30 seeds and rests on five standard errors of the mean, which detects bias of that order but not a small one. The reported standard errors were observed to track the seed-to-seed spread on average (1.7 against 2.6 for that share) but are noisy with four replicates; their calibration is not reviewed. Exact allocation only. The paper was not retrieved; the correspondence is with the variance game defined in the record."
+sources = ["https://doi.org/10.48550/arXiv.2007.00714"]
+findings_resolved = ["No bias found: the mean of 30 estimates agreed with the exact Shapley values and the exact total variance in all five games, including the cancelling-paths source whose truth is zero and the offset product. Single-run error is large in the unequal-share regime; that is Monte Carlo variance, not a defect."]
+record_sha256 = "387e3a192c51181dcabd3cbbdfdb0fe887aa6f0158009c61d9b835cafac5515b"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-attribution/src/intrinsic_influence.rs"
+sha256 = "48c32a3c47c3900e1134313cea23f37ec76d85862ca131a44f10318ed6f496e8"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-attribution/tests/intrinsic_influence_reference.rs"
+sha256 = "734868f68d83abec261c799b6d788ec967c54da6e031784ca3642ea4eb5b0c78"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-attribution/tests/oracle_data/intrinsic_influence_reference.py"
+sha256 = "399c4af244c8084b7a228f0863b52b44c9fd5172403690e45662d745ffd5f4d4"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-attribution/tests/oracle_data/intrinsic_influence_reference.json"
+sha256 = "770fa0b9425e9a0ee37907f85aac14183ef1f43d03fd9dbff9a46469161ad134"

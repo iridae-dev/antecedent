@@ -26,3 +26,35 @@ test_sources = [
   "crates/antecedent-io/tests/scenario_covariance_artifact.rs",
   "python/tests/test_scenario_covariance.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "scenario_covariance::exact_enumeration_covariance, covariance_estimator_moments and shared_row_bootstrap_covariance: the weighted mean and covariance of several plug-in scenario estimators over multinomial whole-row resampling, joint dropping of count vectors on which any estimator fails with renormalization of the surviving mass, the R/(R-1) bootstrap correction, the plug-in entry sampling variance, and the shared count vectors handed to every estimator. Not the NIG, posterior or interval layers built on top, not the statistical calibration of the entry sampling variance, not artifact IO."
+assumptions = ["Rows are iid and the estimators are deterministic functions of the resampled count vector.", "The covariance reported is a bootstrap covariance of the plug-in estimates (point-only); the exact method is the same quantity without Monte Carlo error.", "The documented entry sampling variance is correction^2 * kappa / n_rows with kappa the weighted variance of the centered replicate products; this review checks that arithmetic, not that it is a calibrated variance of the covariance estimator."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. No cited publication was retrieved in this review: the correspondence is between the product code and the standard definitions, verified numerically, not a page-level reading of any paper."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Four designs (4, 2, 5 and 6 rows; 35, 3, 126 and 462 count vectors) enumerate every multinomial count vector with its exact probability n!/(prod c!)/n^n in Fractions: tied linear scores, a ratio estimator that fails when its denominator is zero, a constant estimator (zero-variance row and column), an exactly collinear pair with an extreme-valued third score, and unbalanced strata where 361 of 462 count vectors fail and 487/729 of the mass is dropped. Mean, covariance, dropped mass, dropped count and entry sampling variance are asserted to 1e-11 relative. The moment routine is checked on fixed replicate matrices with the 5/4 correction and a zero-weight replicate. The bootstrap path is checked only against its own recorded replicates: every count vector the estimators receive is recorded, sums to n, and the reported covariance and means equal the R/(R-1)-corrected integer-exact covariance of those values; the generator's uniformity is checked by a loose per-row mean-count bound, not by a statistical test of the splitmix draw. The entry sampling variance is a plug-in heuristic whose calibration against the true variability of the covariance estimator is not examined, and coverage is not measured. The bootstrap paper was not retrieved by this review."
+sources = ["Bootstrap Methods: Another Look at the Jackknife (Efron, Ann. Statist. 1979), cited and not retrieved"]
+findings_resolved = ["No defect found: exact enumeration reproduces the rational reference including the jointly dropped mass and the zero-variance and collinear regimes; the bootstrap covariance equals the corrected covariance of its own recorded replicates exactly."]
+record_sha256 = "c55e6fb25379631038619ed98c05494fff5d086854a00d4eb8533863c32e9ede"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/scenario_covariance.rs"
+sha256 = "c76181124902882858c2e54fa70f14f13f0390c5e13b6828895fc438fc2ce83e"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/shared_scenario_covariance_reference.rs"
+sha256 = "8427f54f13b31888e27488f44b352dac427451813220f64fffb5597293c68aaf"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/shared_scenario_covariance_reference.py"
+sha256 = "19a5a3f5edb95885b366dba092b7eadf602f17ad2074a3db9e67fe248dc06768"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/shared_scenario_covariance_reference.json"
+sha256 = "532d3277fb7e7098093b8aa5cb9aa7d571f029565e755bfb959f9fdba4ac4c4d"
+

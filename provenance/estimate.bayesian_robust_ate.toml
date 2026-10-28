@@ -36,8 +36,40 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+ "crates/antecedent-estimate/tests/bayesian_robust_ate_reference.rs (eight tables of 12 to 60 rows against a 50-digit weighted cross-fitted score: fold-held-out weighted ridge-logistic propensity, per-arm weighted ridge outcomes, clip, orthogonal score, for the first three row-weight vectors of each case; covariate offset 1000, near-collinear covariates, 20 percent treated, binding clip, weak ridge penalty; every declared option used or refused)",
  "crates/antecedent/tests/bayesian_robust_ate.rs (bayesian_robust_ate_all_observed_staged_known_truth)",
  "crates/antecedent-estimate/tests/bayesian_robust_ate_calibration.rs (repeated_sampling_is_scoped_to_one_correct_linear_nuisance: bounded misspecification and overlap scenarios)",
  "conformance/estimate/bayesian_robust_ate (synthetic known-truth fixture: truth with a correctly specified logistic propensity and a misspecified linear outcome nuisance)",
  "python/tests/test_bayesian_estimator_lifecycle.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "estimate_bayesian_robust_ate and plan_bayesian_robust_ate_folds of crates/antecedent-estimate/src/bayesian_robust_ate.rs: for each Bayesian-bootstrap row-weight vector, the per-fold weighted ridge-logistic propensity (intercept unpenalised, penalty lambda/2 on the rest) fitted on the training folds and predicted on the held-out fold, the per-arm weighted ridge outcome regressions on the training rows of each arm, the clip of the held-out propensity, the orthogonal AIPW score psi_i and its weighted mean sum_i w_i psi_i / sum_i w_i as the draw, the fixed treatment-stratified fold plan keyed by stable row id, and the posterior mean, standard deviation and equal-tailed interval of the draws. The weight generator is relied on through the sampling_weights review and the weighted ridge-logistic engine through stats.glm; their outputs for the product's own stream and folds are inputs of this reference. Not the choice of a flexible learner, the facade that prepares rows, populations other than all observed, or coverage."
+assumptions = ["Unconfoundedness given the covariates and positivity are identification assumptions taken as given.", "The interval is a modular bootstrap pushforward of the weighted orthogonal score conditional on the fixed folds, the linear nuisance bases and the penalties; it is not a joint posterior and carries no coverage claim, as the record states.", "The reference fits each nuisance exactly (Newton for the logistic, normal equations for the ridge) on the frozen weights and folds, so it determines the draw; the product's logistic engine stops at a score norm near 1e-8."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared each draw with the cross-fitted weighted orthogonal score evaluated from its definition at 50 digits by a reference written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test. The weights and fold ids it takes as inputs were produced by the ignored dump test in the assertion file."
+limitations = "Seven tables of 16 to 60 rows with one to three covariates, 2 to 5 folds, ridge penalties 0.01 and 1, and clips 0.01 and 0.05, three draws each (21 draws), and an eighth table of 12 rows whose control arm leaves one training row per fold, which is refused. Draws agree with the reference to a relative 1e-6 because the product's logistic engine stops at a score norm near 1e-8. The weights and fold ids are frozen inputs: the reference does not reproduce the Exp(1) stream or the stratified shuffle, so the draw law (Dirichlet weights) and the fold balance are checked only by the relied-on reviews and by the test's own check that every fold holds both arms. Only the first three of the product's draws per case are compared; the posterior mean, standard deviation and interval are summaries of the draws and are checked for option effects only, not against an independent value. No misspecified-nuisance, large-n or many-covariate case is compared, and the repeated-sampling behaviour the record reports (coverage 0.825 and 0.775 under misspecification) is not part of this review. The cited publications were not retrieved. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file."
+sources = ["https://doi.org/10.1214/aos/1176345338", "https://doi.org/10.1111/ectj.12097", "https://doi.org/10.1093/aje/kwq439", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["Defect repaired: a covariate far from zero (mean 1000, spread 4) made the damped weighted ridge-logistic propensity fail with \"the ridge logistic fit did not converge\" in every draw, although the problem is well posed (the 50-digit Newton fit converges and the intercept is unpenalised, so shifting a covariate cannot change the fit). The design now centres each covariate column, which reparametrises only the intercept; a failing-first case with the offset reproduces the non-convergence and now equals the reference.", "Every compared draw equals the 50-digit weighted cross-fitted score on all seven tables, including a covariate offset by 1000 under a ridge penalty (after the repair above), a 12-row table whose training folds leave one control row and are refused, a balanced 16-row table in two folds, two covariates within 1e-5 of each other, a 20 percent treated arm, a binding propensity clip and a ridge penalty of 0.01: the training folds, the per-arm weighted ridge outcomes and the same-weight orthogonal average are as the record states.", "Every fold of the plan holds both treatment arms, the plan depends on the stable row ids and the arm and not on the file order of the rows, and every refit of a draw records that draw's weight fingerprint once per role and fold.", "The ridge penalty, the clip and the fold count each change the draws, the coverage changes only the interval, and one treatment arm, a repeated row id, a non-finite outcome and a coverage of 0, 1 or NaN are refused; nothing declared is ignored.", "No product defect was found in this record."]
+record_sha256 = "a65aa73a28608a32b8ea795aae50b7a4fe1d1bbd27c877e96daab2320fae1ddb"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/bayesian_robust_ate.rs"
+sha256 = "1af9d3f1011fd78ceb722378bdd4744e64d8c4c2fffebdb6d564e02231ab1035"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/bayesian_robust_ate_reference.rs"
+sha256 = "3002d1a74b1442826b90fa90b0b76d5808a4f061ed2cbfa824ec3062ce75a9bb"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/bayesian_robust_ate_reference.py"
+sha256 = "73cb654536fec172007338e5b8ebfa6b2e6e63da1bca8adb1f49555f42933c4f"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/bayesian_robust_ate_reference.json"
+sha256 = "dc3c44d0580265423f82ff58850609e697712ff24bb879173e14e1c8cb75812a"

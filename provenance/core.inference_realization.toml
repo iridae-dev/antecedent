@@ -5,9 +5,13 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-papers = [
- { title = "A General Framework for Updating Belief Distributions", doi = "10.48550/arXiv.1306.6430", sections = ["Section 2", "Section 3", "display (8)"] },
-]
+# Declaration records for how an inference is realized (ordinary likelihood, score, generalized Bayes
+# triple, assumption branch) and which posterior samples each accepts or refuses. Nothing is computed
+# from data: the module stores names, a validated learning rate and digests. papers = [] is an
+# explicit judgment: Bissiri, Holmes and Walker (2016) is the reason the loss, prior and learning
+# rate are recorded together, but no estimator or minimiser from it is implemented here and none
+# of its theory is inherited. That paper was not retrieved in this review.
+papers = []
 
 implementation_deviations = [
  "Generalized Bayes records the loss, the prior, and a finite learning rate w strictly greater than zero, the weight in Bissiri, Holmes, and Walker (2016) display (8). It does not compute the minimizer of the expected loss.",
@@ -23,3 +27,16 @@ upstream_implementations_observed = []
 test_sources = [
  "inline unit tests (crates/antecedent-core/src/inference_realization.rs)",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Typed declarations of an inference realization: an ordinary Bayesian likelihood plus prior, a score model, a generalized-Bayes loss/prior/learning-rate triple, an assumption branch, and the accept/refuse rules for posterior samples and observational identification."
+no_independent_algorithm = "The module body contains no square root, logarithm, exponential, power or linear solve. The only numeric act is accepting a learning rate that is finite and strictly positive (zero, negative zero, negatives and NaN refuse); everything else is name validation, digest construction and enumeration of realization kinds. The loss minimiser and posterior update of generalized Bayes are not implemented."
+inline_tests = true
+record_sha256 = "4bfcf069314563edb89e6d334aaa170b7cc2e6122612ee447fe29056da29f889"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-core/src/inference_realization.rs"
+sha256 = "8ecbac8c74c7f64a87482aa5c94801a66acb1f30412f88a3de08119357708c05"

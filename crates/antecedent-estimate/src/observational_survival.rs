@@ -762,3 +762,7 @@ impl Prepared {
         (1..self.ncols).map(|j| self.design[j * self.n + i]).collect()
     }
 }
+
+#[cfg(test)]
+#[path = "observational_survival_reference_tests.rs"]
+mod reference_tests;

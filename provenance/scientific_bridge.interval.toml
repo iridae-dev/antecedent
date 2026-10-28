@@ -9,6 +9,8 @@ copied_tests = false
 
 # The prediction interval of a new observation from a simple linear regression (classical
 # least squares), the delta method for the Rogan-Gladen correction (Rogan and Gladen 1978).
+modules = ["crates/antecedent-io/src/bridge_interval.rs"]
+
 papers = [
   { title = "Rogan and Gladen (1978), Estimating Prevalence from the Results of a Screening Test, American Journal of Epidemiology 107(1)", sections = ["prevalence corrected for test sensitivity and specificity"] },
   { title = "Buyse, Molenberghs, Burzykowski, Renard and Geys (2000), The Validation of Surrogate Endpoints in Meta-Analyses of Randomized Experiments, Biostatistics 1(1)", sections = ["trial-level surrogacy: regression of treatment effects across trials"] },
@@ -25,4 +27,36 @@ test_sources = [
  "crates/antecedent/tests/scientific_bridge_interval_facade.rs",
  "crates/antecedent/tests/scientific_bridge_interval_calibration.rs",
  "crates/antecedent/tests/scientific_bridge_facade.rs",
+ "crates/antecedent/tests/scientific_bridge_interval_reference.rs (exact-rational line and 50-digit normal and Student-t quantiles: levels 0.5 to 0.9999, one degree of freedom, twenty trials, surrogate offset 1e6, tied effects, zero source standard error, negative slope, clipping at both ends, refusals outside the measured scope)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "construct_bridged_claim_interval in crates/antecedent-io/src/bridge_interval.rs: the Student-t prediction interval of the trial-level least-squares line with variance s^2 (1 + 1/k + (x - xbar)^2/Sxx) + slope^2 se^2 on k - 2 degrees of freedom, the normal exact transform of a declared affine map, and the delta-method interval of the Rogan-Gladen inversion and forward map clipped to [0, 1], together with the refusals outside the measured scope (Youden index, rate standard errors, degenerate line). The bridged value comes from the typed bridge (scientific_bridge.typed_bridges, reviewed separately) and the quantiles from antecedent_stats::normal_ppf and student_t_ppf. Not the coverage-record licence (calibration_slot), which decides publication and is a table lookup of measured coverage, and not the coverage of any interval."
+assumptions = ["The source estimate is approximately normal with the declared standard error and independent of the mapping's evidence; the trial relation is linear with exchangeable residuals and the validation effects are exact points.", "The declared assumptions of the bridge remain unresolved obligations the interval does not discharge."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the text file and compared by the test."
+limitations = "Twenty-three constructed intervals: fourteen trial-level (levels 0.5, 0.9, 0.95, 0.99 and 0.9999 on four trials, a zero source standard error, both ends of the validated range, twenty trials, a surrogate offset of 1e6, three trials at one degree of freedom at levels 0.5, 0.95 and 0.9999, tied effects), four affine (three levels and a negative slope at x = 1e4) and five corrections (both directions, clipping at both ends, Youden just above the published minimum of 0.3). The reference evaluates the variance with exact rational sums and the quantiles at 50 digits (normal through erfinv, Student t by bisection on the distribution function written with the Gauss hypergeometric function). The standard error is asserted to 1e-9 and the interval ends to 1e-7 of the interval width; the bridged value to 1e-9 relative, because at a surrogate offset of 1e6 the value intercept + slope * x loses about 2.5e-11 relative. The coverage of these intervals is a separate, measured claim (the coverage records) and is not examined here; no interval is published here without such a record except the exact transform. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the text file and compared by the test."
+sources = ["https://doi.org/10.1093/oxfordjournals.aje.a112510", "https://doi.org/10.1093/biostatistics/1.1.49", "https://mpmath.org/"]
+findings_resolved = ["No defect in the interval construction: the standard error, the Student-t and normal half-widths, the clipping and the refusals equal the exact references on every case, including one degree of freedom at level 0.9999 (half-width about 2359) and a surrogate offset of 1e6, where the leverage is formed about the mean and does not cancel.", "The related variance defect in the propagated mean-line variance of the typed bridge (a surrogate-offset cancellation) is recorded under scientific_bridge.typed_bridges."]
+record_sha256 = "274e7ec57bce7a2abda000d9f9c46497ea69e37fc732de55e329f23ab4754cc2"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io/src/bridge_interval.rs"
+sha256 = "8d2901637463d7674484538ccf3a323a502e62c4774b4b41ec24324417c3e3f3"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/scientific_bridge_interval_reference.rs"
+sha256 = "9f378ef514894237cf4276c4a83613a2252761000009c612319dd5a1740f64b7"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent/tests/oracle_data/scientific_bridge_interval_reference.py"
+sha256 = "88e43ee307f6ad950840a943a9de4c2d2beabf0fc3ad3be3dd5656d8bfe85ad5"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent/tests/oracle_data/scientific_bridge_interval_reference.txt"
+sha256 = "8049e1ff20fd3a0b7baa534d78ab13bd295af0d73dbd52b7a5ddfc61a3a4d709"

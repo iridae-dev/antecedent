@@ -8,6 +8,8 @@ copied_tests = false
 # Scalar sibling of estimate.functional_distribution: plug-in evaluation of
 # an already identified scalar functional (ATE / path-specific NE) on
 # empirical discrete tables. Identification is identify.id / path_specific.
+modules = ["crates/antecedent-estimate/src/functional_distribution.rs"]
+
 papers = [
  { title = "Identification of Joint Interventional Distributions in Recursive Semi-Markovian Causal Models", url = "https://escholarship.org/uc/item/9598x714", sections = ["Algorithm ID: lineage of the already identified expression, not the empirical plug-in evaluator"] },
  { title = "Identification of Conditional Interventional Distributions", doi = "10.48550/arXiv.1206.6876", sections = ["IDC algorithm"] },
@@ -26,4 +28,41 @@ upstream_implementations_observed = [
 test_sources = [
  "crates/antecedent-estimate/src/functional_distribution.rs (FunctionalEffect)",
  "conformance/estimate/admg_frontdoor_functional",
+ "crates/antecedent-estimate/tests/functional_distribution_reference.rs (exact-rational back-door, front-door and path-specific effects from contingency counts, and refusal of a contrast that needs an empty cell)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "FunctionalEffect::prepare and ::estimate in crates/antecedent-estimate/src/functional_distribution.rs for a point (non-resampled) evaluation of a scalar identified functional (a general.id average-effect contrast and a path_specific.natural functional) on empirical discrete tables. Not the ID algorithm or path-specific identification (the papers listed are lineage of the evaluated expression), the row bootstrap, the Bayesian-bootstrap path or the shared replicate draws."
+assumptions = ["The functional handed to the evaluator is the identified expression (identify.id / path_specific); this review does not examine identification, which is reviewed with those records.", "Discrete variables with finite observed support; the empirical conditional tables are unsmoothed.", "Rows are independent, complete cases."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. It is not run in a locked, isolated environment and is not wired into any gate; its output is frozen and compared by the test."
+limitations = "Five contingency tables of 40 to 150 rows evaluated exactly with fractions.Fraction: a ternary adjustment variable with ternary outcome and unbalanced or singleton cells, a front-door ternary mediator, a binary napkin with a free variable and a path-specific mediation functional on four binary variables; atoms and means are asserted to 1e-12 absolute. A table that lacks a required cell is refused, for the contrast that reads it only. The evaluator relies on the expression arena, the empirical-table provider and the program evaluator of antecedent-expr, whose arithmetic is exercised here only through these queries and is not reviewed on its own. Not examined: the row bootstrap and Bayesian-bootstrap standard errors and posteriors, the bounded logit atom intervals, the row-weight paths, the stratified or block resampling, the IDC conditioning values, cluster-dependent rows, and the free-variable average beyond the one napkin case. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://escholarship.org/uc/item/9598x714", "https://doi.org/10.48550/arXiv.1206.6876"]
+findings_resolved = ["No defect: the back-door effect on a ternary adjustment variable, the front-door effect and the path-specific mediation functional equal the exact rational identities.", "A contrast that needs a cell absent from the table is refused, not zero-filled."]
+record_sha256 = "458d72d798ecdedd2c1b74e46a35f2623641ab23cb88268b977d6d7236a6520e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/functional_distribution.rs"
+sha256 = "1c1244602640fbaf0f2e07305b0bb2cbe795be94eb4ecdf366c2487de0f4d278"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/functional_distribution_reference.rs"
+sha256 = "ce9fb12b36478c50064dcb47485af9b0100ace9ed4fdbc50ddfb4d696c440458"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/functional_distribution_reference.py"
+sha256 = "4880acab38c437fdcaade4ea54a87c24ede36b9ea8668f06542f540a87ec7f04"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/functional_distribution_reference.json"
+sha256 = "2d8910b4cb26e41a06f345c395e87165187b584407212248bc3950d7bf570e1b"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/table_support.rs"
+sha256 = "b1ea24c5e276526e60ac330f732477945909496ff3d03ecf38f12f50f61eafbc"

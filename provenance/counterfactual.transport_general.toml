@@ -36,4 +36,36 @@ test_sources = [
  "crates/antecedent-identify/tests/counterfactual_transport_decisions.rs",
  "crates/antecedent-estimate/tests/counterfactual_transport_execution.rs",
  "crates/antecedent/tests/counterfactual_transport_lifecycle.rs",
+ "crates/antecedent-estimate/tests/counterfactual_transport_general_sweep.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The identified-value path of general finite counterfactual transport: identify_counterfactual_transport (crates/antecedent-identify/src/sid/counterfactual_transport.rs) deriving, for the supplied evidence, a stored derivation of a nested counterfactual, a joint counterfactual and a conditional (effect-on-the-treated) query, and evaluate_counterfactual_transport (crates/antecedent-estimate/src/counterfactual_transport.rs) computing its value on exact finite laws, for three structures: a Markovian ternary-mediator model with a selection node on the covariate, the confounded covariate model with a selection node on the covariate, and the front-door district with a selection node on the mediator. Each structure is run on 16 probability sets, including probabilities 2^-20 from the boundary and unbalanced source and target covariate laws; the expected value of every target is enumerated by the independent finite-SCM oracle from the target population's own structural model. Not a review of the obstruction decisions, the non-transportability witnesses, the search bounds and budgets, the replay and verification of stored derivations, the mixed-source search or the artifact layers; the named-fixture decision tests are the existing evidence for those."
+assumptions = ["Finite discrete acyclic semi-Markovian models in which every latent term is read by a bidirected clique of the declared graph; a selection node flags a variable whose mechanism may differ between source and target while the laws of the exogenous terms are shared (the class the record states).", "The supplied regime laws are exact finite laws of the declared populations; the derivation only reads those laws and never the structural model, while the oracle reads only the structural model.", "Every positive probability in the sweep is strictly inside (0, 1), so every conditioning event has positive mass and every needed regime law is supplied."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The oracle and the sweep are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked and are not redistributed."
+limitations = "No paper was retrieved or re-read (no downloads were made and no copy is available from this environment); the record already states that the procedure is not the published algorithm, and this review checks only that the numbers the module derives equal exact finite-SCM enumeration on the structures swept, not that the module decides the same set of queries as the cited results. The sweep covers three structures; the other fixtures (recanting witness, selection on the outcome mechanism, zero-support conditioning, missing interventional evidence) are only in the older named-case tests, and their obstruction witnesses are re-verified by the module's own exact enumeration, so a defect shared by the witness search and its verifier is outside this check. Only identified targets are swept, so a structure that the module wrongly refuses is detected only for the three swept (it must identify at every parameter set) and not elsewhere. Models larger than three observed variables with up to four levels, more than two worlds in a joint query and tables with many structural zeros are not swept. The oracle is hand-written in the repository and shares the repository's reading of counterfactual semantics (shared exogenous terms, consistency by substitution). Calibration is not part of this route; the sampled route is a separate record."
+sources = ["https://doi.org/10.1515/jci-2012-0004"]
+findings_resolved = ["Over 16 parameter sets of each of three structures (112 targets: four nested natural effects, a joint counterfactual and an effect on the treated, and a front-door interventional query) the identifier derives a formula at every parameter set (identification does not depend on the numbers, including probabilities 2^-20 from the boundary) and the derivation's value equals the enumerated truth to a worst absolute error of 5.6e-16.", "No defect was found and no product code changed. The existing named-case tests were not rerun by this review."]
+record_sha256 = "ddca060ab4c8fee03971de96df92421a8e2cf7e05c2417e5cd82847b08299d60"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs"
+sha256 = "486a6d347908cb7b475447bc6247edb970060f75a196d7969f42da1b9796f665"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/counterfactual_transport.rs"
+sha256 = "d5448bd92d73cfed486897c4c3b4c9b4dbb86a5def34c78566b64d378a7016aa"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/counterfactual_transport_general_sweep.rs"
+sha256 = "9a64152b12214059bf6361cb4947272b84ae2ed37893aa08a35c5de985ea883e"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-identify/tests/support/finite_scm_oracle.rs"
+sha256 = "cb2177d36cc213358f815a8310d75e4b0dde01e6d0f47c7176c79547f9992442"

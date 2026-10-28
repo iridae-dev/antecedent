@@ -16,7 +16,40 @@ implementation_deviations = [
 ]
 upstream_implementations_observed = []
 test_sources = [
+ "crates/antecedent-estimate/src/learned_trial_reference_tests.rs (40-digit cross-fitted logistic membership and per-arm ridge outcome nuisances on recorded folds, the AIPW transport terms, a refit of the whole procedure on every recorded bootstrap resample and the type-7 percentile interval, for a nested cohort and for independent samples at a covariate offset of 100)",
+ "crates/antecedent-estimate/src/learned_trial.rs",
  "crates/antecedent/src/analysis/learned_trial.rs",
  "crates/antecedent-learn/src/categorical.rs",
  "python/tests/test_learned_transport.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "estimate_trial_aipw and learned_trial_uncertainty in crates/antecedent-estimate/src/learned_trial.rs for the binary randomized trial-to-nonparticipant contrast with an unpenalised logistic membership learner and a ridge outcome learner: the cross-fitted out-of-fold membership probabilities and per-arm outcome means (outcome models trained on source rows in the arm and predicted on every row of the held-out fold), the AIPW terms sign (1 - s)/(s arm)(y - mu) on trial rows and mu1 - mu0 on target rows, the estimate and per-row scores, the joint outer bootstrap that refits every nuisance on each resample with duplicates keeping their original row's fold, the strict failure rule, and the equal-tail type-7 percentile interval. The score formula is the one reviewed in estimate.trial_to_target (trial_to_target_parts), which this review relies on; here it is evaluated independently on the cross-fitted nuisances. Not the seeded fold plan or the resampling stream (the test records both and asserts the product reproduces them), not the generic learner implementations, not the facade lifecycle in analysis/learned_trial.rs, and not the recursive finite categorical transport route in antecedent-learn."
+assumptions = ["Randomization probabilities in the source trial are known and supplied; the target sample is an independent representative IID sample (or the trial and target are one nested cohort), positivity of trial selection given the covariates and baseline S-admissibility are identification premises taken as given.", "Nuisance consistency and bootstrap regularity are separate from graphical identification; the percentile interval is nominal and uncalibrated.", "Row order and the declared sampling design determine the resampling groups: one cohort for a nested design, trial and target separately for independent samples."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Two finite problems of 90 to 96 rows (54 to 60 trial rows) with one or two covariates, three folds, nine to eleven replicates at coverage 0.9; the estimate, every out-of-fold nuisance, the per-row scores and every replicate agree with the 40-digit reference to 1e-6 relative. The reference takes the folds and each replicate's rows as inputs (asserted equal to the product's plan and stream, and that independent-sample draws keep the trial size), so it reviews the cross-fit arithmetic, the refit and the percentile rule, not the sampler or the fold plan. Only the unpenalised logistic and ridge learners are exercised; flexible learners, a failed replicate (the strict rule is covered by the module's own tests), the nominal level's coverage and the recursive categorical route are not reviewed. The cited paper was not retrieved in this review: the correspondence is between the product and the augmented inverse odds score its documentation states. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.1002/sim.8426", "https://mpmath.org/"]
+findings_resolved = ["No defect found: the AIPW estimate, the out-of-fold membership probabilities and outcome means, the per-row scores, every bootstrap replicate estimate and the percentile interval equal the 40-digit reference on the recorded folds and resamples; the interval is the type-7 equal-tail interval of the replicate estimates.", "A trial-sampling declaration changes the resampling groups as documented: independent-sample draws keep the trial and target sizes fixed, a nested cohort resamples the whole table."]
+record_sha256 = "f3d19117004f9d5478553a9f2563b2faeb51e8e76f0dd356edc6e53262c68a6a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/learned_trial.rs"
+sha256 = "c7aaecdf275569e1d856b95bfc572f40c3b783da98b97a81055a41e1217a69b8"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/src/learned_trial_reference_tests.rs"
+sha256 = "391c5c5dcb55b15303f0607e0636d8026e166cd93b2228ced55ca6553fa03651"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/learned_trial_reference.py"
+sha256 = "e06de602bdb1e309e181e9e56691f0c599ac6fa3e40c5ed88652439bc49795ed"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/learned_trial_reference.json"
+sha256 = "85ad12bd65eb1e1df35a65eb24e84a3b443500a7298cefb166a8ba90908a402d"

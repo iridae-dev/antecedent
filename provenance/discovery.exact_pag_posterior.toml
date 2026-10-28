@@ -22,6 +22,38 @@ upstream_implementations_observed = []
 
 test_sources = [
  "crates/antecedent-discovery/src/exact_pag_posterior.rs unit tests (graph counts, ancestral and maximal invariants, the empty-graph likelihood in closed form, saturated two-node graphs tying, a chain and a collider of known classes)",
+ "crates/antecedent-discovery/tests/exact_pag_posterior_reference.rs (graph and class counts, PAGs and class weights against a brute-force enumeration with a direct likelihood optimiser)",
  "crates/antecedent/tests/structure_uncertainty_routes.rs (compiled PAG posterior equals the engine; five variables refuse)",
  "python/tests/test_structure_uncertainty_routes.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "exact_pag_posterior for three and four variables in crates/antecedent-discovery/src/exact_pag_posterior.rs: the enumeration of maximal ancestral graphs (ancestral and maximal by m-separation), the Gaussian maximum-likelihood fit of each graph by residual iterative conditional fitting and its BIC (coefficients, variances and bidirected covariances counted, intercepts common), the grouping of graphs into Markov equivalence classes by their sets of m-separation statements, the PAG of each class (a tail or arrowhead only where every member agrees, otherwise a circle) and the class weights exp(BIC) pooled under a uniform prior over graphs. Not reviewed: pag_posterior_mcmc (the sampler used above four variables, its class completion cap and its convergence flag), selection variables, and the packing of the result into a GraphPosterior beyond the atoms and marks compared here."
+assumptions = ["Gaussian data, no selection variables, and a uniform prior over maximal ancestral graphs; the BIC weights are an approximation to the marginal likelihood, so the posterior inherits that approximation and the review does not test it.", "Markov-equivalent maximal ancestral graphs define the same Gaussian model with the same number of parameters, so their maximised likelihoods coincide; the reference checks this to 1e-5 on every well-conditioned data set (it holds to 1e-12 on all 56 graphs of three variables and all 2,492 graphs of four) and uses it only on the nearly singular data set, where its direct optimiser stalls on the ridge for some graphs.", "m-separation is read from the definition by enumerating simple paths; the product searches depth-first with a descendant set and caches signatures by a 128-bit hash, so agreement is between two independent implementations of the same definition."]
+historical_exposure = "Historical author exposure cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with definitions evaluated by an executing reference written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review (no paper was downloaded or read here): the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library, numpy and scipy (BSD-3-Clause, imported at run time and not redistributed). It declares inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Four data sets: three variables with an unobserved confounder of two of them (150 rows), three variables on eight rows, three variables with a pair correlated to within 1e-3 noise (100 rows), and four variables with a latent confounder and a collider (250 rows). The number of maximal ancestral graphs (56 and 2,492), the number of classes (11 and 248), the PAG of every class and every class weight agree: to 1e-5 on the three well-conditioned data sets and to 2e-4 on the nearly singular one, where the largest observed difference is 8e-5 because the product's fits stop at a relative likelihood change of 1e-10 and are looser on a ridge. The reference's own optimiser (BFGS with a Newton polish and several starts, the analytic gradient checked against finite differences, saturated models equal to the closed-form likelihood) is a numerical method, so a systematic error shared by both fits would not be seen; the closed-form saturated likelihood and the within-class equality are the cross-checks. Five or more variables go to the sampler, which is not reviewed; data with an exactly dependent pair (unscorable graphs are counted and excluded) are not exercised here. The cited papers (Richardson and Spirtes on ancestral graph Markov models, Drton and Richardson on iterative conditional fitting, Schwarz) were not retrieved in this review; the references execute the definitions and the Gaussian likelihood, not those texts."
+sources = ["crates/antecedent-discovery/tests/exact_pag_posterior_reference.rs", "crates/antecedent-discovery/tests/oracle_data/exact_pag_posterior_reference.py", "https://doi.org/10.1214/aos/1176344136"]
+findings_resolved = ["No defect found: graph counts, class counts, every class PAG and every class weight agree with the brute-force reference, including the eight-row and nearly collinear data.", "The first reference run disagreed with the product by 0.18 in class weight; the closed-form saturated likelihood (BIC difference -0.4956 against the chain) agreed with the product and showed the reference's first optimiser (L-BFGS that returned a constant when the covariance left the positive-definite region) was stalling, so the reference, not the product, was corrected and now returns the closed-form value on all 19 saturated graphs.", "Quantified the fit accuracy on a nearly singular pair: class weights are within 8e-5 of the reference, from the 1e-10 relative stopping rule."]
+record_sha256 = "2a9c73af8710c39aaa823fc7146c66a0f7e4c815feaaa9ca35da56ee057b2234"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/exact_pag_posterior.rs"
+sha256 = "6d174182ae510eaa089c5a50ba3b8ee5789ca196744f91cc9f5ef13c0efc04d7"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/tests/exact_pag_posterior_reference.rs"
+sha256 = "37b3a32d9add5cc7fb50014a0fb888dc4896be02ff99a06ac8599a65c33e1370"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-discovery/tests/oracle_data/exact_pag_posterior_reference.py"
+sha256 = "5cce3701db8a2bd816f34ddab3293c54f2f51e31d158a5dc831e100574640e40"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-discovery/tests/oracle_data/exact_pag_posterior_reference.json"
+sha256 = "e1f324b3d40eb07ab7ae002ae123ea1fb09d65a3b51ceb0ed9c07e368a4a8342"

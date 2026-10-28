@@ -18,6 +18,38 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+ "crates/antecedent-estimate/tests/marginal_structural_model_reference.rs (exact-rational stabilised-weight least squares, one-subject-per-cluster CR1 sandwich and Kish effective sample size with varying propensities, censoring with unobserved subjects, probabilities at the positivity floor, an outcome offset of 1e7, a rare treatment period and the smallest sample)",
  "crates/antecedent-estimate/src/marginal_structural_model.rs",
  "crates/antecedent/tests/longitudinal_regime_route.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "fit_binary_msm and pointwise_intervals_95 in crates/antecedent-estimate/src/marginal_structural_model.rs: the stabilised sequential weight prod_t [q_t^a (1-q_t)^(1-a)] / [p_t^a (1-p_t)^(1-a) c_t] of each observed subject, the weighted least-squares coefficients of the additive model (intercept and one slope per treatment period), the subject-clustered sandwich B^-1 [sum w^2 x x' e^2] B^-1 times m/(m - columns), the Kish effective sample size and maximum weight, and the support floors that gate the pointwise 95% normal intervals. Treatment and censoring probabilities are supplied, so no propensity model is fitted here; the SubjectHistories container and its generic regime-value summaries live in antecedent-stats and are not reviewed here. Not treatment interactions, unstabilised weights, the g-formula or the sequential doubly robust route."
+assumptions = ["Sequential exchangeability, positivity and consistency are identification assumptions taken as given; the supplied probabilities are the true or correctly fitted conditional probabilities and the stabilising numerators are fixed.", "Subjects are independent clusters of one terminal outcome; the sandwich ignores the estimation of the weights.", "Intervals are separate pointwise normal intervals behind declared support floors (300 subjects, 200 observed, effective sample size 150), not a simultaneous band."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library (fractions). The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Six finite tables of 4 to 50 subjects with one to three periods: varying propensities, censoring probabilities of 0.6 to 1 with unobserved subjects, probabilities of 0.02 and 0.97 against a floor of 0.01 (largest weight and a Kish effective sample size of 3 of 40), an outcome offset of 1e7, a second-period treatment prevalence of 0.1 and four subjects with one period. Coefficients agree with the exact-rational values to 1e-10 relative (1e-7 at the offset), variances to 1e-8 (1e-6 at the offset). The sandwich is the standard CR1 form with one subject per cluster and does not account for estimation of the weights, so its coverage with fitted weights is not reviewed; the simulation test in the module's own tests covers only known-weight coverage. The cited paper was not retrieved in this review: the correspondence is between the product and the standard definitions that work states, verified numerically. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.1097/00001648-200009000-00011", "https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["No defect found: coefficients, intercept and period-effect variances, Kish effective sample size, maximum weight and observed count equal the exact-rational weighted least-squares reference in every case, including probabilities at the floor, unobserved subjects and an outcome offset of 1e7.", "The interval gate is exact at each floor (subjects 300, observed subjects 200, effective sample size 150) and refuses a non-positive or non-finite standard error; the endpoints use the normal 0.975 quantile.", "Declarations that would otherwise be ignored are refused: a numerator vector of the wrong length or outside the floor, a floor above one half, mismatched array lengths, a treatment probability below the floor in a row, and a sample with no observed subject."]
+record_sha256 = "62a322bf0112e9885fc858c63902868e1303cbd777fd05b2b26a2f49e37150dd"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/marginal_structural_model.rs"
+sha256 = "07bcf2644d1b0e06d6dc79b0d26a2148e297c80da0f198febc3d0b3081b89127"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/marginal_structural_model_reference.rs"
+sha256 = "9d209d75a6c98aca4cb4bbb232245afa280a7c166d8ae5120395f6841cca8a1b"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/marginal_structural_model_reference.py"
+sha256 = "c74c41a6623f17310a1db7d7e4b8c3160c6c477d92ccfd1a688d922551b05870"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/marginal_structural_model_reference.json"
+sha256 = "6253d93d6fea7545597b8990eb38124ecbfd96fe164d8de197b8c1811099c23b"

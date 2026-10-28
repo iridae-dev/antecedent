@@ -10,7 +10,7 @@ papers = [
 ]
 
 implementation_deviations = [
- "CrossEnvLinkAssumption and pool_lagged_ci are retained API fields but are explicitly ignored by the Günther pooled-search implementation.",
+ "CrossEnvLinkAssumption and pool_lagged_ci are retained API fields that the Günther pooled search does not read; any value other than the default (Independent, true) is refused by DiscoveryConstraints::validate instead of being accepted and ignored.",
  "The default represents a categorical space dummy as separate scalar one-hot causal nodes; the paper-faithful single logical dummy with multivariate CI is optional rather than the default.",
  "Time-dummy inclusion is disabled by default, and one-hot time encoding has a finite level cap.",
 ]
@@ -20,6 +20,59 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
- "crates/antecedent-discovery/src/constraints.rs unit tests",
+ "crates/antecedent-discovery/tests/multi_dataset_constraints_reference.rs (the link-assumption table, role precedence and the refused declarations)",
+ "crates/antecedent-data/tests/jpcmci_plus_pooled_frame_reference.rs (the pooled frame and dummy encodings against direct construction)",
+ "crates/antecedent-discovery/src/constraints.rs unit tests (multi_dataset_context_flags, gunther_forbids, the refusal of unread declarations)",
  "conformance/discovery/jpcmci_plus_two_env (library structure pin for pooled search; not external context-node equality)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "MultiDatasetConstraints and DiscoveryConstraints::validate in crates/antecedent-discovery/src/constraints.rs: the role of a node (a synthetic dummy before an observed context, an unlisted id a system variable, context kind defaulting to space), the Günther link assumptions gunther_forbids for every pair of roles at lags 0 to 3, and the refusal of declarations the pooled search does not read (a cross-environment link assumption other than Independent, pool_lagged_ci = false); and the dummy and pooled-frame construction in crates/antecedent-data/src/pooled_frame.rs. Not reviewed: how the search uses the roles (reviewed in discovery.jpcmci_plus), background-knowledge handling of required and forbidden links, tiers and the lagged-search compile step."
+assumptions = ["The link-assumption rules are those the module records: nothing causes an exogenous node, exogenous nodes are not mutually linked, and only the time context may act with a delay; the reference writes them out and the table check is therefore a consistency check of the code against its stated rules, not a derivation from the source paper.", "The pooled frame reads each environment independently, so no lag window crosses an environment boundary, and a dummy is constant within an environment (space) or a function of the raw time (time)."]
+historical_exposure = "Historical author exposure cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with definitions evaluated by an executing reference written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review (no paper was downloaded or read here): the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. It declares inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Role and link table: all 100 combinations of five roles and lags 0 to 3, plus dummy-over-context precedence and an unlisted id. Pooled frame: three environments of 12, 15 and 9 rows with an unrequested third variable, depths 2 and 4, five dummy configurations (none, space, space with integer time, space with one-hot time, one-hot time only), every value compared bit for bit and every synthetic id; masked or incomplete environments, environments with different variable sets, a single environment, more than 512 time levels (refused by cap) and the memory-budgeted variant are not exercised. The refusals are checked on the validate path and through a run of the search. The time-dummy CI mode is documented as ignored for the integer encoding and is not changed. The primary paper (Günther, Ninad and Runge) was not retrieved in this review."
+sources = ["crates/antecedent-discovery/tests/multi_dataset_constraints_reference.rs", "crates/antecedent-discovery/tests/oracle_data/multi_dataset_constraints_reference.py", "crates/antecedent-data/tests/jpcmci_plus_pooled_frame_reference.rs"]
+findings_resolved = ["Defect repaired (failing first): CrossEnvLinkAssumption and pool_lagged_ci were accepted by MultiDatasetConstraints and silently ignored by the search, so a caller declaring SharedContemporaneousSkeleton or turning lagged pooling off got an unchanged result with no sign that the declaration had no effect. Any value other than the default is now refused by DiscoveryConstraints::validate with a message naming the declaration; a unit test failed before the change and passes after, and the search refuses through its public entry point.", "The role table and the Günther link assumptions agree with the written-out rules on all 100 combinations, and the pooled frame equals direct construction in ten configurations. The unit test multi_dataset_context_flags previously declared SharedContemporaneousSkeleton and still validated; it no longer does so."]
+record_sha256 = "ee4c3e74096e332a800e44f91399bcf4f202bd04030ab91d259836b07010e1fd"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/constraints.rs"
+sha256 = "2ea623319ec2948ce565f58bff388ce9ab28678193136ed6dc812990c8498f78"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-data/src/pooled_frame.rs"
+sha256 = "0b4beb33cbc5d0fd9352d5b07112d91d00b1730efeeed4a9675c9fcbaa129d07"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/tests/multi_dataset_constraints_reference.rs"
+sha256 = "176c574e1e40e57ce8a1706469938018990dd0f636050b190b523803a5e0f6a3"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-data/tests/jpcmci_plus_pooled_frame_reference.rs"
+sha256 = "da373a8bb0f47c878274afed87608a4ec2f5280dfcdb7c8c1054880e79550d82"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-discovery/tests/oracle_data/multi_dataset_constraints_reference.py"
+sha256 = "e6aa4cb66071d99705e8ac45b08dd4bff4443f52bb276a4a42a53742aab92ef6"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-discovery/tests/oracle_data/multi_dataset_constraints_reference.json"
+sha256 = "71aa6d70f7283e1ec5b3440fa0f3445e5416df0e307e93f089b97e2b3f8f74bc"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-data/tests/oracle_data/jpcmci_plus_pooled_frame_reference.py"
+sha256 = "17f76c993cfaf59390122992efba07244dc3981a04b0a7e9a5ad9837d4594f18"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-data/tests/oracle_data/jpcmci_plus_pooled_frame_reference.json"
+sha256 = "db2d00b23a22f8d501dcea35d975c24c26255c9a3bdebddf3d015824e929050e"

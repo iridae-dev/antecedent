@@ -20,7 +20,41 @@ implementation_deviations = [
   "All outputs are numerical standard errors under the supplied law; no interval, coverage or calibration is claimed.",
 ]
 upstream_implementations_observed = []
+modules = ["crates/antecedent-design/src/decision_reliability/mc_error.rs"]
+
 test_sources = [
+  "crates/antecedent-design/tests/decision_reliability_reference.rs (63 estimates and 42 differences against a definition-level reference)",
   "crates/antecedent-design/tests/decision_reliability.rs",
   "crates/antecedent/tests/decision_reliability_facade.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "estimate and estimate_difference in crates/antecedent-design/src/decision_reliability/mc_error.rs: the iid standard error, non-overlapping batch means with their effective sample size, the self-normalized weighted mean with Kish's effective size (the kish_ess kernel is relied on and exercised through it), the exact Maritz-Jarrett bootstrap standard error of an order statistic (incomplete-beta weights through ln_gamma and a Lentz continued fraction) and the batch-quantile error, the conditional value at risk and its influence-function standard error, threshold probabilities, and the paired (shared stream) and independent-stream difference errors. Not the within-stream dependence declaration, the carrier validation, the ranking, interval, selection or calibration modules."
+assumptions = ["A standard error here is a numerical error under the supplied law and the declared within-stream dependence; the reference takes the same declaration and checks arithmetic only.", "The conditional value at risk influence series is the product's derivation (stated in its deviations), so the reference rebuilds it from the Rockafellar-Uryasev maximum z - E[(z - X)+]/alpha at the smallest maximiser rather than from the paper."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared the product with definitions evaluated by an executing reference written for this review (standard library only; exact rational arithmetic for the Maritz-Jarrett weights); no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review (nothing downloaded): the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. Its output is frozen in the JSON file and compared by the test."
+limitations = "Sixty-three single-series cases (a 60-draw quarter-grid sample with exact ties, an 81-draw lognormal sample, a 5-draw sample, a 200-draw AR(1) stream under three batch plans, a 60-draw sample with lognormal(0, 1.3) weights) over ten functionals (expected utility, two threshold sides, quantiles 0.1, 0.5 and 0.95, lower and upper CVaR at 0.2, 0.25, 0.13 and 1.0) and 42 paired or independent differences are compared at 1e-12 relative on the value and 1e-9 relative on standard errors and effective sizes; the exact Maritz-Jarrett weights are evaluated without the product's twelve-index-standard-deviation truncation, so the truncation error is inside the 1e-9. Draw counts above 200 are not compared, a quantile at an order-index tie of p n within 1e-9 of an integer relies on the product's documented tolerance, and weighted quantiles and CVaR are refused rather than estimated, so no reference exists for them. Batch-mean and batch-quantile errors are not calibrated for coverage and the cited convergence guarantees are not checked for any stream. The papers were not retrieved."
+sources = ["https://doi.org/10.1080/01621459.1978.10480027", "https://doi.org/10.21314/JOR.2000.038", "https://doi.org/10.1198/016214506000000492", "https://doi.org/10.1080/01621459.1994.10476469", "https://doi.org/10.1287/mnsc.38.6.884"]
+findings_resolved = ["No defect found: every standard error, effective sample size and point value agrees with the definition-level reference, including the exact tie structure of the quarter-grid sample, the clamp of the batch effective size to [1, n], the common-random-number cancellation in paired differences, and the upper-tail CVaR by negation."]
+record_sha256 = "b3f5ecd2adbe2017791da172b0805e8c6c56bb59222a64ea0080d6bfb7a3f6a5"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_reliability/mc_error.rs"
+sha256 = "5cc944acb9be378d4da08cfd979571c649bfd702bcc6ca45b8323e14b375f3d5"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/decision_reliability_reference.rs"
+sha256 = "564fe8e4bd22e9a93eb1a339ed41031c58542e39be97f246739dae7d7cc3e37b"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-design/tests/oracle_data/decision_reliability_reference.py"
+sha256 = "24af126f7a08d9db2df77545fe5069fdba02d2a7379b1ab9392dcdb8cd4f8172"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-design/tests/oracle_data/decision_reliability_reference.json"
+sha256 = "d651e4da09571a0e0447282fdffb97b8cc9c628d3ac53929f221fecb1fb355c7"

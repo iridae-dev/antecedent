@@ -18519,6 +18519,13 @@ path = "crates/antecedent-model/tests/evidence_requirement_reference.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "audit-scripts-test-ignored-test-lanes-py"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_ignored_test_lanes.py"
+gates = ["inventory"]
+
+[[test]]
 id = "vector-treatment-reference"
 crate = "antecedent-estimate"
 cargo_target = "vector_treatment_reference"
@@ -18687,6 +18694,20 @@ path = "crates/antecedent-learn/tests/bayesian_basis_reference.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "anomaly-arrow-reference"
+crate = "antecedent-attribution"
+cargo_target = "anomaly_arrow_reference"
+path = "crates/antecedent-attribution/tests/anomaly_arrow_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "distribution-change-reference"
+crate = "antecedent-attribution"
+cargo_target = "distribution_change_reference"
+path = "crates/antecedent-attribution/tests/distribution_change_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "effect-width-reference"
 crate = "antecedent-design"
 cargo_target = "effect_width_reference"
@@ -18729,24 +18750,10 @@ path = "crates/antecedent-validate/tests/predictive_assessment_reference.rs"
 gates = ["inventory", "named"]
 
 [[test]]
-id = "anomaly-arrow-reference"
-crate = "antecedent-attribution"
-cargo_target = "anomaly_arrow_reference"
-path = "crates/antecedent-attribution/tests/anomaly_arrow_reference.rs"
-gates = ["inventory", "named"]
-
-[[test]]
-id = "distribution-change-reference"
-crate = "antecedent-attribution"
-cargo_target = "distribution_change_reference"
-path = "crates/antecedent-attribution/tests/distribution_change_reference.rs"
-gates = ["inventory", "named"]
-
-[[test]]
-id = "audit-scripts-test-ignored-test-lanes-py"
+id = "audit-scripts-test-python-internal-lane-py"
 crate = "scripts"
 cargo_target = "script"
-path = "scripts/test_ignored_test_lanes.py"
+path = "scripts/test_python_internal_lane.py"
 gates = ["inventory"]
 
 [[test]]
@@ -18764,8 +18771,729 @@ path = "crates/antecedent-state/tests/scenario_refresh_designs.rs"
 gates = ["inventory", "named"]
 
 [[test]]
-id = "audit-scripts-test-python-internal-lane-py"
-crate = "scripts"
-cargo_target = "script"
-path = "scripts/test_python_internal_lane.py"
-gates = ["inventory"]
+id = "audit-crates-antecedent-attribution-tests-intrinsic-influence-reference-rs"
+crate = "antecedent-attribution"
+cargo_target = "intrinsic_influence_reference"
+path = "crates/antecedent-attribution/tests/intrinsic_influence_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-attribution-tests-mechanism-change-detection-reference-rs"
+crate = "antecedent-attribution"
+cargo_target = "mechanism_change_detection_reference"
+path = "crates/antecedent-attribution/tests/mechanism_change_detection_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-contract-tests-interface-cyclic-composition-reference-rs"
+crate = "antecedent-contract"
+cargo_target = "interface_cyclic_composition_reference"
+path = "crates/antecedent-contract/tests/interface_cyclic_composition_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-contract-tests-typed-bridges-reference-rs"
+crate = "antecedent-contract"
+cargo_target = "typed_bridges_reference"
+path = "crates/antecedent-contract/tests/typed_bridges_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-counterfactual-tests-cross-world-execution-sampled-and-interval-readings-rs"
+crate = "antecedent-counterfactual"
+cargo_target = "cross_world_execution_sampled_and_interval_readings"
+path = "crates/antecedent-counterfactual/tests/cross_world_execution_sampled_and_interval_readings.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-counterfactual-tests-cross-world-execution-transported-row-rs"
+crate = "antecedent-counterfactual"
+cargo_target = "cross_world_execution_transported_row"
+path = "crates/antecedent-counterfactual/tests/cross_world_execution_transported_row.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-counterfactual-tests-temporal-fixed-population-reference-rs"
+crate = "antecedent-counterfactual"
+cargo_target = "temporal_fixed_population_reference"
+path = "crates/antecedent-counterfactual/tests/temporal_fixed_population_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-counterfactual-tests-transported-additive-reference-rs"
+crate = "antecedent-counterfactual"
+cargo_target = "transported_additive_reference"
+path = "crates/antecedent-counterfactual/tests/transported_additive_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-data-tests-jpcmci-plus-pooled-frame-reference-rs"
+crate = "antecedent-data"
+cargo_target = "jpcmci_plus_pooled_frame_reference"
+path = "crates/antecedent-data/tests/jpcmci_plus_pooled_frame_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-design-tests-certified-program-search-reference-rs"
+crate = "antecedent-design"
+cargo_target = "certified_program_search_reference"
+path = "crates/antecedent-design/tests/certified_program_search_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-design-tests-decision-exact-reference-rs"
+crate = "antecedent-design"
+cargo_target = "decision_exact_reference"
+path = "crates/antecedent-design/tests/decision_exact_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-design-tests-decision-reliability-reference-rs"
+crate = "antecedent-design"
+cargo_target = "decision_reliability_reference"
+path = "crates/antecedent-design/tests/decision_reliability_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-design-tests-design-ranking-replay-reference-rs"
+crate = "antecedent-design"
+cargo_target = "design_ranking_replay_reference"
+path = "crates/antecedent-design/tests/design_ranking_replay_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-discovery-tests-bootstrap-stability-reference-rs"
+crate = "antecedent-discovery"
+cargo_target = "bootstrap_stability_reference"
+path = "crates/antecedent-discovery/tests/bootstrap_stability_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-discovery-tests-ci-screened-posterior-reference-rs"
+crate = "antecedent-discovery"
+cargo_target = "ci_screened_posterior_reference"
+path = "crates/antecedent-discovery/tests/ci_screened_posterior_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-discovery-tests-exact-pag-posterior-reference-rs"
+crate = "antecedent-discovery"
+cargo_target = "exact_pag_posterior_reference"
+path = "crates/antecedent-discovery/tests/exact_pag_posterior_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-discovery-tests-jpcmci-plus-dsep-oracle-rs"
+crate = "antecedent-discovery"
+cargo_target = "jpcmci_plus_dsep_oracle"
+path = "crates/antecedent-discovery/tests/jpcmci_plus_dsep_oracle.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-discovery-tests-multi-dataset-constraints-reference-rs"
+crate = "antecedent-discovery"
+cargo_target = "multi_dataset_constraints_reference"
+path = "crates/antecedent-discovery/tests/multi_dataset_constraints_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-src-joint-panel-ar1-random-intercept-reference-tests-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/joint_panel/ar1_random_intercept_reference_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-src-learned-trial-reference-tests-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/learned_trial_reference_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-src-observational-survival-reference-tests-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/observational_survival_reference_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-src-propensity-penalized-reference-tests-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/propensity/penalized_reference_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-adaptive-decision-stopping-posterior-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "adaptive_decision_stopping_posterior_reference"
+path = "crates/antecedent-estimate/tests/adaptive_decision_stopping_posterior_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-adaptive-repeated-measures-weighting-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "adaptive_repeated_measures_weighting_reference"
+path = "crates/antecedent-estimate/tests/adaptive_repeated_measures_weighting_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-bayesian-robust-ate-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "bayesian_robust_ate_reference"
+path = "crates/antecedent-estimate/tests/bayesian_robust_ate_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-conditional-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "conditional_reference"
+path = "crates/antecedent-estimate/tests/conditional_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-counterfactual-transport-general-sweep-rs"
+crate = "antecedent-estimate"
+cargo_target = "counterfactual_transport_general_sweep"
+path = "crates/antecedent-estimate/tests/counterfactual_transport_general_sweep.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-counterfactual-transport-sampled-multi-table-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "counterfactual_transport_sampled_multi_table_reference"
+path = "crates/antecedent-estimate/tests/counterfactual_transport_sampled_multi_table_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-dose-grid-functional-bayesian-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "dose_grid_functional_bayesian_reference"
+path = "crates/antecedent-estimate/tests/dose_grid_functional_bayesian_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-dr-learner-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "dr_learner_reference"
+path = "crates/antecedent-estimate/tests/dr_learner_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-estimate-policy-continuous-dose-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "estimate_policy_continuous_dose_reference"
+path = "crates/antecedent-estimate/tests/estimate_policy_continuous_dose_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-estimate-response-bayesian-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "estimate_response_bayesian_reference"
+path = "crates/antecedent-estimate/tests/estimate_response_bayesian_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-estimate-response-gam-derivative-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "estimate_response_gam_derivative_reference"
+path = "crates/antecedent-estimate/tests/estimate_response_gam_derivative_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-estimate-response-intervention-gcomp-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "estimate_response_intervention_gcomp_reference"
+path = "crates/antecedent-estimate/tests/estimate_response_intervention_gcomp_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-estimate-response-kennedy-dr-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "estimate_response_kennedy_dr_reference"
+path = "crates/antecedent-estimate/tests/estimate_response_kennedy_dr_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-estimate-response-kennedy-dr-simultaneous-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "estimate_response_kennedy_dr_simultaneous_reference"
+path = "crates/antecedent-estimate/tests/estimate_response_kennedy_dr_simultaneous_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-estimate-response-observation-adjusted-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "estimate_response_observation_adjusted_reference"
+path = "crates/antecedent-estimate/tests/estimate_response_observation_adjusted_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-estimate-response-point-derivative-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "estimate_response_point_derivative_reference"
+path = "crates/antecedent-estimate/tests/estimate_response_point_derivative_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-frontdoor-functional-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "frontdoor_functional_reference"
+path = "crates/antecedent-estimate/tests/frontdoor_functional_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-functional-distribution-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "functional_distribution_reference"
+path = "crates/antecedent-estimate/tests/functional_distribution_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-generalized-propensity-aipw-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "generalized_propensity_aipw_reference"
+path = "crates/antecedent-estimate/tests/generalized_propensity_aipw_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-joint-bayesian-transport-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "joint_bayesian_transport_reference"
+path = "crates/antecedent-estimate/tests/joint_bayesian_transport_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-joint-design-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "joint_design_reference"
+path = "crates/antecedent-estimate/tests/joint_design_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-joint-if-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "joint_if_reference"
+path = "crates/antecedent-estimate/tests/joint_if_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-latent-class-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "latent_class_reference"
+path = "crates/antecedent-estimate/tests/latent_class_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-learned-joint-transport-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "learned_joint_transport_reference"
+path = "crates/antecedent-estimate/tests/learned_joint_transport_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-marginal-structural-model-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "marginal_structural_model_reference"
+path = "crates/antecedent-estimate/tests/marginal_structural_model_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-nested-markov-binary-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "nested_markov_binary_reference"
+path = "crates/antecedent-estimate/tests/nested_markov_binary_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-nested-markov-fisher-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "nested_markov_fisher_reference"
+path = "crates/antecedent-estimate/tests/nested_markov_fisher_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-observational-policy-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "observational_policy_reference"
+path = "crates/antecedent-estimate/tests/observational_policy_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-recovery-chain-observation-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "recovery_chain_observation_reference"
+path = "crates/antecedent-estimate/tests/recovery_chain_observation_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-recovery-sampled-observation-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "recovery_sampled_observation_reference"
+path = "crates/antecedent-estimate/tests/recovery_sampled_observation_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-shared-scenario-covariance-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "shared_scenario_covariance_reference"
+path = "crates/antecedent-estimate/tests/shared_scenario_covariance_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-temporal-design-excursion-bayesian-bootstrap-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "temporal_design_excursion_bayesian_bootstrap_reference"
+path = "crates/antecedent-estimate/tests/temporal_design_excursion_bayesian_bootstrap_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-temporal-design-excursion-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "temporal_design_excursion_reference"
+path = "crates/antecedent-estimate/tests/temporal_design_excursion_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-temporal-linear-adjustment-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "temporal_linear_adjustment_reference"
+path = "crates/antecedent-estimate/tests/temporal_linear_adjustment_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-temporal-link-bayesian-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "temporal_link_bayesian_reference"
+path = "crates/antecedent-estimate/tests/temporal_link_bayesian_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-temporal-mediation-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "temporal_mediation_reference"
+path = "crates/antecedent-estimate/tests/temporal_mediation_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-temporal-regime-survival-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "temporal_regime_survival_reference"
+path = "crates/antecedent-estimate/tests/temporal_regime_survival_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-temporal-response-gcomp-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "temporal_response_gcomp_reference"
+path = "crates/antecedent-estimate/tests/temporal_response_gcomp_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-transport-response-grid-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "transport_response_grid_reference"
+path = "crates/antecedent-estimate/tests/transport_response_grid_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-graph-tests-temporal-cpdag-invariants-reference-rs"
+crate = "antecedent-graph"
+cargo_target = "temporal_cpdag_invariants_reference"
+path = "crates/antecedent-graph/tests/temporal_cpdag_invariants_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-identify-tests-experimental-recovery-reference-rs"
+crate = "antecedent-identify"
+cargo_target = "experimental_recovery_reference"
+path = "crates/antecedent-identify/tests/experimental_recovery_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-io-tests-sample-split-effect-reference-rs"
+crate = "antecedent-io"
+cargo_target = "sample_split_effect_reference"
+path = "crates/antecedent-io/tests/sample_split_effect_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-io-tests-sample-split-parent-set-effect-reference-rs"
+crate = "antecedent-io"
+cargo_target = "sample_split_parent_set_effect_reference"
+path = "crates/antecedent-io/tests/sample_split_parent_set_effect_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-model-tests-acyclic-joint-model-reference-rs"
+crate = "antecedent-model"
+cargo_target = "acyclic_joint_model_reference"
+path = "crates/antecedent-model/tests/acyclic_joint_model_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-model-tests-external-mechanism-reference-rs"
+crate = "antecedent-model"
+cargo_target = "external_mechanism_reference"
+path = "crates/antecedent-model/tests/external_mechanism_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-model-tests-finite-law-conditioning-reference-rs"
+crate = "antecedent-model"
+cargo_target = "finite_law_conditioning_reference"
+path = "crates/antecedent-model/tests/finite_law_conditioning_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-model-tests-gcm-sampling-reference-rs"
+crate = "antecedent-model"
+cargo_target = "gcm_sampling_reference"
+path = "crates/antecedent-model/tests/gcm_sampling_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-model-tests-graph-falsification-reference-rs"
+crate = "antecedent-model"
+cargo_target = "graph_falsification_reference"
+path = "crates/antecedent-model/tests/graph_falsification_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-model-tests-program-expression-reference-rs"
+crate = "antecedent-model"
+cargo_target = "program_expression_reference"
+path = "crates/antecedent-model/tests/program_expression_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-model-tests-registry-weighted-refit-reference-rs"
+crate = "antecedent-model"
+cargo_target = "registry_weighted_refit_reference"
+path = "crates/antecedent-model/tests/registry_weighted_refit_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-model-tests-scm-replay-reference-rs"
+crate = "antecedent-model"
+cargo_target = "scm_replay_reference"
+path = "crates/antecedent-model/tests/scm_replay_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-model-tests-typed-mechanism-transport-reference-rs"
+crate = "antecedent-model"
+cargo_target = "typed_mechanism_transport_reference"
+path = "crates/antecedent-model/tests/typed_mechanism_transport_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-state-tests-state-incremental-particle-graph-score-reference-rs"
+crate = "antecedent-state"
+cargo_target = "state_incremental_particle_graph_score_reference"
+path = "crates/antecedent-state/tests/state_incremental_particle_graph_score_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-stats-src-ci-advanced-nystrom-reference-tests-rs"
+crate = "antecedent-stats"
+cargo_target = "lib"
+path = "crates/antecedent-stats/src/ci/advanced/nystrom_reference_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-stats-tests-adaptive-anytime-exclusion-reference-rs"
+crate = "antecedent-stats"
+cargo_target = "adaptive_anytime_exclusion_reference"
+path = "crates/antecedent-stats/tests/adaptive_anytime_exclusion_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-stats-tests-adaptive-bayesian-martingale-gap-reference-rs"
+crate = "antecedent-stats"
+cargo_target = "adaptive_bayesian_martingale_gap_reference"
+path = "crates/antecedent-stats/tests/adaptive_bayesian_martingale_gap_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-stats-tests-adaptive-decision-stopping-reference-rs"
+crate = "antecedent-stats"
+cargo_target = "adaptive_decision_stopping_reference"
+path = "crates/antecedent-stats/tests/adaptive_decision_stopping_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-stats-tests-adaptive-ordered-p-value-reference-rs"
+crate = "antecedent-stats"
+cargo_target = "adaptive_ordered_p_value_reference"
+path = "crates/antecedent-stats/tests/adaptive_ordered_p_value_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-stats-tests-adaptive-participant-exact-reference-rs"
+crate = "antecedent-stats"
+cargo_target = "adaptive_participant_exact_reference"
+path = "crates/antecedent-stats/tests/adaptive_participant_exact_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-stats-tests-adaptive-procedure-law-reference-rs"
+crate = "antecedent-stats"
+cargo_target = "adaptive_procedure_law_reference"
+path = "crates/antecedent-stats/tests/adaptive_procedure_law_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-stats-tests-adaptive-repeated-measures-reference-rs"
+crate = "antecedent-stats"
+cargo_target = "adaptive_repeated_measures_reference"
+path = "crates/antecedent-stats/tests/adaptive_repeated_measures_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-stats-tests-adaptive-weighting-simulation-reference-rs"
+crate = "antecedent-stats"
+cargo_target = "adaptive_weighting_simulation_reference"
+path = "crates/antecedent-stats/tests/adaptive_weighting_simulation_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-stats-tests-joint-law-transported-composition-reference-rs"
+crate = "antecedent-stats"
+cargo_target = "joint_law_transported_composition_reference"
+path = "crates/antecedent-stats/tests/joint_law_transported_composition_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-stats-tests-multinomial-offset-reference-rs"
+crate = "antecedent-stats"
+cargo_target = "multinomial_offset_reference"
+path = "crates/antecedent-stats/tests/multinomial_offset_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-stats-tests-transport-synthesis-reference-rs"
+crate = "antecedent-stats"
+cargo_target = "transport_synthesis_reference"
+path = "crates/antecedent-stats/tests/transport_synthesis_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-validate-tests-bootstrap-refute-reference-rs"
+crate = "antecedent-validate"
+cargo_target = "bootstrap_refute_reference"
+path = "crates/antecedent-validate/tests/bootstrap_refute_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-validate-src-dbn-posterior-reference-tests-rs"
+crate = "antecedent-validate"
+cargo_target = "lib"
+path = "crates/antecedent-validate/src/dbn_posterior_reference_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-validate-tests-graph-refute-reference-rs"
+crate = "antecedent-validate"
+cargo_target = "graph_refute_reference"
+path = "crates/antecedent-validate/tests/graph_refute_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-validate-tests-joint-uncertainty-reference-rs"
+crate = "antecedent-validate"
+cargo_target = "joint_uncertainty_reference"
+path = "crates/antecedent-validate/tests/joint_uncertainty_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-validate-tests-msm-sensitivity-reference-rs"
+crate = "antecedent-validate"
+cargo_target = "msm_sensitivity_reference"
+path = "crates/antecedent-validate/tests/msm_sensitivity_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-validate-src-nonparametric-sensitivity-neighborhood-reference-tests-rs"
+crate = "antecedent-validate"
+cargo_target = "lib"
+path = "crates/antecedent-validate/src/nonparametric_sensitivity_neighborhood_reference_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-validate-tests-robustness-refuters-reference-rs"
+crate = "antecedent-validate"
+cargo_target = "robustness_refuters_reference"
+path = "crates/antecedent-validate/tests/robustness_refuters_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-validate-tests-simulated-unobserved-confounder-reference-rs"
+crate = "antecedent-validate"
+cargo_target = "simulated_unobserved_confounder_reference"
+path = "crates/antecedent-validate/tests/simulated_unobserved_confounder_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-validate-tests-static-mediation-reference-rs"
+crate = "antecedent-validate"
+cargo_target = "static_mediation_reference"
+path = "crates/antecedent-validate/tests/static_mediation_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-estimate-response-kennedy-dr-declarations-rs"
+crate = "antecedent"
+cargo_target = "estimate_response_kennedy_dr_declarations"
+path = "crates/antecedent/tests/estimate_response_kennedy_dr_declarations.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-estimate-uncertainty-reference-rs"
+crate = "antecedent"
+cargo_target = "estimate_uncertainty_reference"
+path = "crates/antecedent/tests/estimate_uncertainty_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-gcm-bayesian-refit-reference-rs"
+crate = "antecedent"
+cargo_target = "gcm_bayesian_refit_reference"
+path = "crates/antecedent/tests/gcm_bayesian_refit_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-mapped-posterior-transfer-reference-rs"
+crate = "antecedent"
+cargo_target = "mapped_posterior_transfer_reference"
+path = "crates/antecedent/tests/mapped_posterior_transfer_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-period-refresh-reference-rs"
+crate = "antecedent"
+cargo_target = "period_refresh_reference"
+path = "crates/antecedent/tests/period_refresh_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-sample-split-analysis-reference-rs"
+crate = "antecedent"
+cargo_target = "sample_split_analysis_reference"
+path = "crates/antecedent/tests/sample_split_analysis_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-scientific-bridge-interval-reference-rs"
+crate = "antecedent"
+cargo_target = "scientific_bridge_interval_reference"
+path = "crates/antecedent/tests/scientific_bridge_interval_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-smoothed-dose-reference-rs"
+crate = "antecedent"
+cargo_target = "smoothed_dose_reference"
+path = "crates/antecedent/tests/smoothed_dose_reference.rs"
+gates = ["inventory", "named"]

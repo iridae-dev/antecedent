@@ -19,6 +19,40 @@ implementation_deviations = [
 
 upstream_implementations_observed = []
 
+modules = ["crates/antecedent-contract/src/interface_contract/composition.rs"]
+
 test_sources = [
   "hand-enumerated graphs: a three-component cycle, a self-connection, a component downstream of a cycle, and the same components feed-forward",
+  "crates/antecedent-contract/tests/interface_cyclic_composition_reference.rs (every digraph on 3 components with self-connections and on 4 without, decided by transitive closure and permutation scan)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "feed_forward_order and order_components in crates/antecedent-contract/src/interface_contract/composition.rs, reached through check_composition: the Kahn elimination with ties broken by the smallest component name, the cycle path read by walking predecessors inside the unsorted remainder, its rotation to the smallest component name and the single cycle refusal that stops the composition before any pairwise decision. Not the pairwise connection decisions, the inherited-calibration resolution or the disjoint-evidence checks that follow, which are other records."
+assumptions = ["A connection edge is a (producer, consumer) pair of declared components; parallel connections between the same pair collapse to one edge, which does not change reachability.", "Components are named once (a duplicate is refused earlier) and every connection names declared components and ports (also refused earlier), so the graph handed to the ordering is simple apart from self-connections."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared its output with the definitions of reachability and of the lexicographically smallest topological order, evaluated by an executing reference written for this review; no upstream implementation or test source was consulted or copied. The cited publication was not retrieved in this review: the correspondence is between the product code and the standard Kahn elimination, verified by enumeration, not a page-level reading of the paper."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. It is not wired into any gate; its output is frozen in the text file and compared by the test."
+limitations = "The enumeration covers every digraph on three components with self-connections (512) and on four components without (4096), through the public check_composition with one input port per possible producer; it does not reach graphs of five or more components or the multigraph case through distinct ports of one pair. The reference decides cyclic or acyclic by transitive closure and gives the order as the lexicographically smallest topological permutation; for a cyclic graph it does not fix a unique cycle (several may exist), so the test asserts that exactly one refusal is returned and that its path is a simple closed walk over declared connections, begins at its smallest component and uses no missing edge, and the particular cycle chosen is not compared against an oracle. Kahn's paper was not retrieved. Work is linear in the declared sizes and no cancellation or budget exists to test."
+sources = ["https://doi.org/10.1145/368996.369025"]
+findings_resolved = ["No defect found: all 4608 graphs agree with the definition-level reference on cyclic status and on the ordering of every acyclic graph, every refusal names a single real simple cycle spelled from its smallest component, and a component downstream of a cycle never appears in the path."]
+record_sha256 = "1bedb0b4839bdcf80294b85271eac3cd9600b6ede7bb9d42b6d7e133b8ba396e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/interface_contract/composition.rs"
+sha256 = "c2c17cea08bc54045c754b7f7fa363b78cdf6b7287de98922e481f9f2cbebd07"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-contract/tests/interface_cyclic_composition_reference.rs"
+sha256 = "15425bed8239938a29bbfb9f69f58f4bd557433a63f4c479e9ce51ac26a7fed6"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-contract/tests/oracle_data/interface_cyclic_composition_reference.py"
+sha256 = "f5c1a0ce334d418187ffb2f5383e8bccddd393c92a39cf04b781ea4e2c76e221"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-contract/tests/oracle_data/interface_cyclic_composition_reference.txt"
+sha256 = "566f7198c71b52574403176862ee86acc390f8ec0fe0be030406cc67ad1d3cf5"

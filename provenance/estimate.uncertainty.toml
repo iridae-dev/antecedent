@@ -5,9 +5,12 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-papers = [
-  { title = "On the variances of asymptotically normal estimators from complex surveys", doi = "10.2307/1402588", sections = ["The already implemented weighted estimator variances; this record adds no estimator or variance formula"] },
-]
+# papers = [] is an explicit judgment. The record owns the endpoint selector (which published
+# scalar standard error, if any, an effect estimate carries and how its interval is labelled) and the
+# interval estimate +- critical_value * SE. It adds no estimator and no variance formula; the
+# weighted-sampling variance work of Binder that this record used to cite is carried by the
+# estimators that compute those variances, not by the selector.
+papers = []
 
 implementation_deviations = [
   "This is an ownership and evidence record for the existing PublishedScalarUncertainty endpoint selector, not a new numerical method. Analytic-only intervals use the reported standard error and nominal normal quantile; declared finite-cluster references, bootstrap selection and explicit Gaussian population-score APIs remain distinct constructions.",
@@ -19,8 +22,29 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+  "crates/antecedent/tests/estimate_uncertainty_reference.rs (every combination of analytic SE, bootstrap SE and first-stage state against the stated rule, and the normal and Student-t critical values and interval against 50-digit quantiles)",
   "crates/antecedent/src/result.rs::published_scalar_uncertainty_tests (analytic/bootstrap selection and weak-IV withholding)",
   "crates/antecedent/tests/sampling_weight_routes.rs (public weighted trial result, independent Hajek variance and artifact round trip)",
   "crates/antecedent/tests/weighted_interval_calibration.rs (exact informative-sampling construction records)",
   "crates/antecedent/tests/missing_outcome_calibration.rs (exact randomized responder construction records)",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Endpoint selector of the facade: from an effect estimate it publishes at most one scalar standard error (a positive finite bootstrap SE in preference to a positive finite analytic SE, never a bootstrap SE when first-stage diagnostics are present), publishes a valid Anderson-Rubin set as endpoints with no standard error, withholds an instrumental-variable uncertainty it cannot license, and forms estimate +- critical_value * SE."
+no_independent_algorithm = "Selection among supplied numbers and one multiplication; the two quantile functions it reads (the normal quantile at 0.975 and the Student-t quantile at the declared reference degrees of freedom) are the special-function kernels, not code of this record. It estimates no standard error and forms no variance."
+covered_by = ["stats.special_functions"]
+derivation = "For a supplied estimate theta, a positive finite standard error s and nominal level 0.95 the interval is theta -+ q s, with q the 0.975 quantile of the standard normal, or of Student's t with the declared reference degrees of freedom nu > 0 when the SE is the analytic one; crates/antecedent/tests/estimate_uncertainty_reference.rs checks q (1.959963984540054; 12.7062, 4.3027, 3.1824, 2.5706, 2.2622, 2.0423 at nu = 1, 2, 3, 5, 9, 30) and the endpoints against 50-digit root-finding on the exact distribution functions, and the selector against a table of all 140 combinations of analytic SE, bootstrap SE and first-stage state decided from the stated rule."
+inline_tests = true
+record_sha256 = "b560d1962941a50ff8fa5bb9a23ea8bf0195916b7131be2857584b4f91544680"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/result.rs"
+sha256 = "2b34503780c22288be7254a874a648eb1f0eb30ef555dfdfc1b7882db52533d6"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/estimate_uncertainty_reference.rs"
+sha256 = "46cb6ac451f83d535f6f9600b119dc1a6cd68f82f341106309e1b68807fde2d7"

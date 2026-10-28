@@ -1223,3 +1223,7 @@ mod tests {
         assert_eq!(ridge.support, None);
     }
 }
+
+#[cfg(test)]
+#[path = "penalized_reference_tests.rs"]
+mod reference_tests;

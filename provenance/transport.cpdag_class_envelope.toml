@@ -10,13 +10,16 @@ copied_tests = false
 # cited by transport.cpdag_completion; the per-member verdict is the existing structural
 # transport identifier. The envelope itself (status, formulas_agree, unresolved pairs) is
 # original reporting engineering.
-papers = [
-  { title = "External Validity: From Do-Calculus to Transportability Across Populations", citation_note = "Previously recorded title and bibliographic detail: External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams and the structural transportability decision"] },
-  { title = "Ancestral graph Markov models", citation_note = "Previously recorded title and bibliographic detail: Ancestral Graph Markov Models (Richardson and Spirtes, 2002)", doi = "10.1214/aos/1031689015", sections = ["maximal ancestral graphs"] },
-  { title = "Causal Reasoning with Ancestral Graphs (Zhang, JMLR 2008)", url = "https://jmlr.org/papers/v9/zhang08a.html", citation_note = "The previously recorded 10.5555 ACM identifier does not resolve through Crossref; use the primary JMLR publication.", sections = ["visible edges and the do-calculus on a MAG"] },
-  { title = "Equivalence and Synthesis of Causal Models", citation_note = "Previously recorded title and bibliographic detail: Equivalence and Synthesis of Causal Models (Verma and Pearl, UAI 1990; the DOI is the 2022 ACM reprint of the same paper)", doi = "10.1145/3501714.3501732", sections = ["Markov equivalence: same skeleton and same v-structures"] },
-]
+# papers = [] is an explicit judgment, read against crates/antecedent-identify/src/class_transport.rs and
+# crates/antecedent-identify/src/discovered_transport.rs: both modules aggregate the structural verdicts that the
+# existing transport identifier gives on each member of a CPDAG or PAG class (member enumeration is the
+# completion walk of transport.cpdag_completion / graph.completion; the invisible-edge test of Zhang 2008 is
+# generalized::invisible_directed_edges, covered by identify.generalized_adjustment) and report status,
+# formula agreement and unresolved pairs. The modules contain no numerical routine. The publications
+# (Pearl and Bareinboim 2014; Richardson and Spirtes 2002; Zhang 2008; Verma and Pearl 1990) were not retrieved.
+papers = []
 implementation_deviations = [
+  "Reviewed as a justified non-algorithm mapping for the structural envelope modules only. The estimation and bootstrap confidence-set parts described below live in other modules (crates/antecedent/src/analysis/discovered_transport_trial.rs and the estimate crate) and are not reviewed by this mapping; their coverage evidence is the separate collected record named below. The most-confounded reading of a PAG member rests on tests of hand-chosen cases, not on an independent executing oracle of visibility",
   "The additive bounded-outcome confidence-set endpoint uses externally declared potential-outcome support in both populations. Completed scientific nonidentification or a structural range yields the exact contrast support [a-b,b-a], labelled logical, while identified sampling intervals retain the old bootstrap endpoints. Support is not estimated from observed extrema. Original-input verification seals report, query, datasets, support, options and seed, checks proof and retained grids, then deterministically replays under caller limits. This is original engineering and a distinct method with its own collected complete-procedure record: cov.discovered_transport.pag.frequentist.percentile_bootstrap_or_logical_support.l95.discovered_pag_transport_contrast_complete_procedure_coverage.fci_cutoff_0_05_sparse_1023_trial_compatibility_fisher_exact_alpha_0_01_declared_selection_joint_pretreatment_standardization_bounded_outcome_confidence_set. At source 70f19b82ccb1d18cf94c1e288e0d802fc447e4c4, the original participant grids 2000/4000/8000 each used 2000 attempts; whole-procedure coverage cleared .93, identified reporting cleared .9 and median width over all confidence sets was at most 1.5 times the true effect magnitude. Operational errors count as misses. Current attestation and per-execution binding remain required; this does not license the raw conditional interval or arbitrary discovered graphs.",
   "The optional static binary completely randomized source-trial compatibility refinement records one predeclared two-sided Fisher exact independence test. It rejects only no-directed-treatment-to-outcome-path members when that common test rejects, keeps all other members, and still requires unanimous identification and estimability. Its proof includes exact rows, every original graph and every retention decision. This test does not certify graph recovery or complete-procedure interval coverage.",
   "Temporal calibration opts into correction over all predeclared allowed directed MCI links, including contemporaneous directions and p=1 for untested or removed links. This is the declared testing family; adaptive CI query selection and subsequent orientation are not assigned an unconditional FWER theorem.",
@@ -36,3 +39,27 @@ test_sources = [
   "crates/antecedent/tests/discovered_transport_facade.rs",
   "crates/antecedent-estimate/tests/cpdag_scenarios.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Transport under graph uncertainty: the structural transport verdict of every member of a discovered equivalence class side by side, as a typed envelope or a typed refusal naming unresolved pairs and exhausted bounds."
+no_independent_algorithm = "Each member verdict is the transport identifier's; the module's own steps are copying directed and bidirected edges of a completion into an ADMG, adding a bidirected edge for each edge the generalized-adjustment code reports invisible, sorting members, counting identified members and comparing formula texts. Probability, weights and intervals are not produced."
+covered_by = ["identify.transport_sid", "transport.cpdag_completion", "graph.completion", "identify.generalized_adjustment"]
+inline_tests = true
+record_sha256 = "c82a51597b07202f91267f4e75ec0835f51fcf871fd7925ce6f059036ff72194"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/class_transport.rs"
+sha256 = "ae6f6a78c6d1e5511684994b875cb41b47daba1ce7f1ee4f3ef91ddf966d8470"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/discovered_transport.rs"
+sha256 = "f8a950437ff443df9e5bfdad702133e23b4f9026abf33f286d614911f3bc74b7"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-identify/tests/discovered_transport.rs"
+sha256 = "fc6a83132749823004a61eb7b5814a7fe77f754f0493787efe50cd510965d4ca"

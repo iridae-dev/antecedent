@@ -5,10 +5,14 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-papers = [
- { title = "Foundations of Structural Causal Models with Cycles and Latent Variables", doi = "10.48550/arXiv.1611.06221", sections = ["A cyclic model is one component of a feed-forward composition. This module does not implement the paper's solvability theory."] },
- { title = "Learning Linear Cyclic Causal Models with Latent Variables", sections = ["The component may name the ρ(|K|) < 1 family bound. Carrying that name is not the paper's weak-stability certificate and is not the paper's estimator."] },
-]
+# One certified cyclic model admitted as a single node of a feed-forward composition. The module
+# compares a supplied certificate with the one the model yields, binds the model by an integrity
+# digest, and refuses cycles among components and self-citing evidence chains. It does not solve,
+# invert, sample or certify. papers = [] is an explicit judgment: the two cyclic-model works that
+# define the rho(|K|) < 1 family and the solvability theory are what the certificate cited here
+# refers to, but neither is implemented in this module (the section notes of the earlier record
+# said so) and neither was retrieved in this review.
+papers = []
 
 implementation_deviations = [
  "Composition among components stays feed-forward. A cycle among components is refused, and a provenance chain that cites itself is refused. The next attempt is to wrap the cyclic model as one CyclicComponent with an explicit solve contract and to keep its source evidence outside that chain.",
@@ -22,3 +26,16 @@ upstream_implementations_observed = []
 test_sources = [
  "inline unit tests (crates/antecedent-model/src/cyclic_component.rs)",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Admission contract for a cyclic model as one feed-forward component: certificate presence and equality with the model's own certificate, evidence-id checks, a model digest, and refusal of cycles among components and of self-citing provenance chains."
+no_independent_algorithm = "The only square roots in the file are in its inline tests. Production code compares certificate bit patterns, hashes coefficient bit patterns (FNV-style integrity digest), orders component names topologically and extracts a cycle path; it forms no inverse, spectral bound or solve. The certificate itself comes from the linear-structural-map family certificate, not from this module."
+inline_tests = true
+record_sha256 = "fa4f82e783953ea5e0080dabce8e1d8d057748fb05163c4dd4a5d3213b6f8640"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/cyclic_component.rs"
+sha256 = "f7c6c6d1d503f27fd4e9d3d44ad1ab32dcbfd04ce7b9d1d8214118b6f507625c"

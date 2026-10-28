@@ -29,3 +29,35 @@ test_sources = [
   "python/tests/test_typed_mechanism_transport.py",
   "conformance/transport/typed_mechanism_shift/reference.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "typed_mechanism_transport::{fit_mechanism, refit_in_target, invariance_check} for a Gaussian-identity mechanism with a degree-1 polynomial mean: standardization of parents with the source sample, least-squares coefficients, the residual-scale parameter (log s) and its covariance blocks, the target refit on the source design, and the Wald comparison d'(S_source + S_target)^-1 d with its chi-square upper-tail p-value and rejection rule. Not the Fisher-scoring fits of the Bernoulli, Poisson, gamma, log-normal and heteroscedastic families (compared with an external numpy/scipy fit by conformance/transport/typed_mechanism_shift, a fixture this review did not re-read), the expression-mean Gauss-Newton, the Monte Carlo interventional means or the first-order contrast variance."
+assumptions = ["The source and target samples are independent, so the covariance of the parameter difference is the sum of the fit covariances.", "A non-rejection is not evidence of invariance."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. No cited publication was retrieved in this review: the correspondence is between the product code and the standard definitions, verified numerically, not a page-level reading of any paper."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library and mpmath (a pure-Python library, installed offline in the local environment). The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Five cases at 50 digits: a mild intercept shift (p about 0.31), the smallest admissible samples (5 rows each), two parents offset by 10000 with a large shift (p below 1e-200), a scale-only difference, and identical samples (statistic 0, p = 1). Parameters and covariances are asserted to 1e-9 relative, the statistic to 1e-8 and the p-value to 1e-6, the rejection decision at 0.05 and either side of the p-value, and the refusal of a target not on the source design. Only the Gaussian family with a linear mean and the Wald step are reviewed; the other families, the Monte Carlo contrast and its delta-method uncertainty remain covered only by the conformance fixture and unit tests named in the record, so this record is a bounded review of its Gaussian and Wald part and not of the whole route. Coverage and power of the invariance test are not measured."
+sources = ["External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014), https://doi.org/10.1214/14-STS486, cited and not retrieved"]
+findings_resolved = ["No defect found in the reviewed part: Gaussian fits, the Wald statistic and its chi-square tail match the 50-digit reference, including offset covariates and identical samples."]
+record_sha256 = "764f25d35b3b7a6042df11875c623a903ef8375a75e41eca77c7178cb2c88197"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/typed_mechanism_transport.rs"
+sha256 = "bc1fdd1e4131bce81dc619f68487a2e2736689f2facaf56329c5c32a505ec66b"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/typed_mechanism_transport_reference.rs"
+sha256 = "468a6f0b75f34726b5239516b980ef861de985f9b32b5e718a3efb2c2bade71f"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-model/tests/oracle_data/typed_mechanism_transport_reference.py"
+sha256 = "27f2d22f5d75dd74731bbcbc6f4d693335e173e3ab5e39040084dba3a8820c4e"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-model/tests/oracle_data/typed_mechanism_transport_reference.json"
+sha256 = "197ef158a80bf5ee84173518aac96c3755e1d2859bdc83833878fe7d8276c722"
+

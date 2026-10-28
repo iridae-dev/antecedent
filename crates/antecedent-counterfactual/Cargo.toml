@@ -48,3 +48,19 @@ path = "tests/suite_01.rs"
 [[test]]
 name = "finite_scm_reference"
 path = "tests/finite_scm_reference.rs"
+
+[[test]]
+name = "temporal_fixed_population_reference"
+path = "tests/temporal_fixed_population_reference.rs"
+
+[[test]]
+name = "transported_additive_reference"
+path = "tests/transported_additive_reference.rs"
+
+[[test]]
+name = "cross_world_execution_sampled_and_interval_readings"
+path = "tests/cross_world_execution_sampled_and_interval_readings.rs"
+
+[[test]]
+name = "cross_world_execution_transported_row"
+path = "tests/cross_world_execution_transported_row.rs"

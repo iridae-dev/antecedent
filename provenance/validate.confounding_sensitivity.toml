@@ -43,7 +43,7 @@ record_sha256 = "4d0178d049bba156cbfdb3b02cd4bf703cda69c3879acb6a017cc9cc79c4db9
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/sensitivity.rs"
-sha256 = "68de36aaf44550a853bfbcfe619d11853de581bbcb67d9c1338ec97ea89ab71f"
+sha256 = "5a1c49490282fc469de122e4ebeb95fb0e48276174ef543db0647ea22b84b8e6"
 
 [[method_review.artifacts]]
 role = "assertion"

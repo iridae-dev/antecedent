@@ -1,0 +1,990 @@
+{
+ "gaps": [
+  {
+   "name": "thompson_probability_best_stop",
+   "declaration": {
+    "arms": 2,
+    "assignment": {
+     "kind": "thompson",
+     "prior": [
+      1,
+      1
+     ]
+    },
+    "enrolment": [
+     1,
+     1,
+     1,
+     1,
+     1,
+     1
+    ],
+    "stopping": {
+     "kind": "best",
+     "threshold": "73/100",
+     "prior": [
+      1,
+      1
+     ]
+    },
+    "selection": {
+     "kind": "mean"
+    }
+   },
+   "priors": [
+    [
+     1,
+     1
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "cells": [
+    {
+     "prior_mean": 0.5,
+     "expected_posterior_mean": 0.5,
+     "gap": 0.0,
+     "gap_exact": "0/1"
+    },
+    {
+     "prior_mean": 0.4,
+     "expected_posterior_mean": 0.4,
+     "gap": 0.0,
+     "gap_exact": "0/1"
+    }
+   ]
+  },
+  {
+   "name": "epsilon_greedy_lagged_administrative_loss",
+   "declaration": {
+    "arms": 2,
+    "assignment": {
+     "kind": "epsilon_greedy",
+     "epsilon": "1/5",
+     "prior": [
+      1,
+      1
+     ]
+    },
+    "enrolment": [
+     1,
+     1,
+     1,
+     1,
+     1
+    ],
+    "stopping": {
+     "kind": "none"
+    },
+    "selection": {
+     "kind": "mean"
+    },
+    "lag": 1,
+    "retain": [
+     "3/4",
+     "3/4"
+    ]
+   },
+   "priors": [
+    [
+     1,
+     1
+    ],
+    [
+     3,
+     2
+    ]
+   ],
+   "cells": [
+    {
+     "prior_mean": 0.5,
+     "expected_posterior_mean": 0.5,
+     "gap": 0.0,
+     "gap_exact": "0/1"
+    },
+    {
+     "prior_mean": 0.6,
+     "expected_posterior_mean": 0.6,
+     "gap": 0.0,
+     "gap_exact": "0/1"
+    }
+   ]
+  },
+  {
+   "name": "futility_stop_with_posterior_mean_selection",
+   "declaration": {
+    "arms": 2,
+    "assignment": {
+     "kind": "fixed",
+     "probabilities": [
+      "1/2",
+      "1/2"
+     ]
+    },
+    "enrolment": [
+     2,
+     2,
+     2
+    ],
+    "stopping": {
+     "kind": "futility",
+     "margin": "0",
+     "threshold": "3/20",
+     "prior": [
+      1,
+      1
+     ]
+    },
+    "selection": {
+     "kind": "posterior_mean",
+     "prior": [
+      1,
+      1
+     ]
+    }
+   },
+   "priors": [
+    [
+     2,
+     2
+    ],
+    [
+     1,
+     3
+    ]
+   ],
+   "cells": [
+    {
+     "prior_mean": 0.5,
+     "expected_posterior_mean": 0.5,
+     "gap": 0.0,
+     "gap_exact": "0/1"
+    },
+    {
+     "prior_mean": 0.25,
+     "expected_posterior_mean": 0.25,
+     "gap": 0.0,
+     "gap_exact": "0/1"
+    }
+   ]
+  },
+  {
+   "name": "ucb_three_arms_resource_cap",
+   "declaration": {
+    "arms": 3,
+    "assignment": {
+     "kind": "ucb",
+     "exploration": "2"
+    },
+    "enrolment": [
+     1,
+     1,
+     1,
+     1,
+     1
+    ],
+    "stopping": {
+     "kind": "cap",
+     "max_units": 4
+    },
+    "selection": {
+     "kind": "mean"
+    }
+   },
+   "priors": [
+    [
+     1,
+     1
+    ],
+    [
+     2,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "cells": [
+    {
+     "prior_mean": 0.5,
+     "expected_posterior_mean": 0.5,
+     "gap": 0.0,
+     "gap_exact": "0/1"
+    },
+    {
+     "prior_mean": 0.6666666666666666,
+     "expected_posterior_mean": 0.6666666666666666,
+     "gap": 0.0,
+     "gap_exact": "0/1"
+    },
+    {
+     "prior_mean": 0.3333333333333333,
+     "expected_posterior_mean": 0.3333333333333333,
+     "gap": 0.0,
+     "gap_exact": "0/1"
+    }
+   ]
+  },
+  {
+   "name": "outcome_dependent_loss_breaks_the_martingale",
+   "declaration": {
+    "arms": 2,
+    "assignment": {
+     "kind": "fixed",
+     "probabilities": [
+      "1/2",
+      "1/2"
+     ]
+    },
+    "enrolment": [
+     1,
+     1,
+     1
+    ],
+    "stopping": {
+     "kind": "none"
+    },
+    "selection": {
+     "kind": "mean"
+    },
+    "retain": [
+     "1/2",
+     "1"
+    ]
+   },
+   "priors": [
+    [
+     1,
+     1
+    ],
+    [
+     1,
+     1
+    ]
+   ],
+   "cells": [
+    {
+     "prior_mean": 0.5,
+     "expected_posterior_mean": 0.45162760416666664,
+     "gap": -0.04837239583333333,
+     "gap_exact": "-743/15360"
+    },
+    {
+     "prior_mean": 0.5,
+     "expected_posterior_mean": 0.45162760416666664,
+     "gap": -0.04837239583333333,
+     "gap_exact": "-743/15360"
+    }
+   ]
+  },
+  {
+   "name": "loss_of_failures_with_adaptive_assignment",
+   "declaration": {
+    "arms": 2,
+    "assignment": {
+     "kind": "epsilon_greedy",
+     "epsilon": "1/5",
+     "prior": [
+      1,
+      1
+     ]
+    },
+    "enrolment": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "stopping": {
+     "kind": "none"
+    },
+    "selection": {
+     "kind": "mean"
+    },
+    "retain": [
+     "1",
+     "1/3"
+    ]
+   },
+   "priors": [
+    [
+     1,
+     1
+    ],
+    [
+     2,
+     2
+    ]
+   ],
+   "cells": [
+    {
+     "prior_mean": 0.5,
+     "expected_posterior_mean": 0.5736014814814815,
+     "gap": 0.07360148148148148,
+     "gap_exact": "49681/675000"
+    },
+    {
+     "prior_mean": 0.5,
+     "expected_posterior_mean": 0.5519612597631646,
+     "gap": 0.05196125976316453,
+     "gap_exact": "644482/12403125"
+    }
+   ]
+  },
+  {
+   "name": "exposure_failure_attributed_to_the_assigned_arm",
+   "declaration": {
+    "arms": 2,
+    "assignment": {
+     "kind": "fixed",
+     "probabilities": [
+      "1/2",
+      "1/2"
+     ]
+    },
+    "enrolment": [
+     2,
+     2
+    ],
+    "stopping": {
+     "kind": "none"
+    },
+    "selection": {
+     "kind": "mean"
+    },
+    "exposure": {
+     "failure": [
+      "0",
+      "1/2"
+     ],
+     "fallback": 0,
+     "attribution": "assigned"
+    }
+   },
+   "priors": [
+    [
+     1,
+     1
+    ],
+    [
+     4,
+     1
+    ]
+   ],
+   "cells": [
+    {
+     "prior_mean": 0.5,
+     "expected_posterior_mean": 0.5,
+     "gap": 0.0,
+     "gap_exact": "0/1"
+    },
+    {
+     "prior_mean": 0.8,
+     "expected_posterior_mean": 0.7594494047619048,
+     "gap": -0.04055059523809524,
+     "gap_exact": "-109/2688"
+    }
+   ]
+  },
+  {
+   "name": "exposure_failure_attributed_to_the_delivered_arm",
+   "declaration": {
+    "arms": 2,
+    "assignment": {
+     "kind": "fixed",
+     "probabilities": [
+      "1/2",
+      "1/2"
+     ]
+    },
+    "enrolment": [
+     2,
+     2
+    ],
+    "stopping": {
+     "kind": "none"
+    },
+    "selection": {
+     "kind": "mean"
+    },
+    "exposure": {
+     "failure": [
+      "0",
+      "1/2"
+     ],
+     "fallback": 0,
+     "attribution": "delivered"
+    }
+   },
+   "priors": [
+    [
+     1,
+     1
+    ],
+    [
+     4,
+     1
+    ]
+   ],
+   "cells": [
+    {
+     "prior_mean": 0.5,
+     "expected_posterior_mean": 0.5,
+     "gap": 0.0,
+     "gap_exact": "0/1"
+    },
+    {
+     "prior_mean": 0.8,
+     "expected_posterior_mean": 0.8,
+     "gap": 0.0,
+     "gap_exact": "0/1"
+    }
+   ]
+  }
+ ],
+ "report": [
+  {
+   "prior": [
+    1,
+    1
+   ],
+   "counts": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "posteriors": [
+    [
+     1,
+     1
+    ],
+    [
+     1,
+     1
+    ]
+   ],
+   "best": [
+    0.5,
+    0.5
+   ],
+   "loss": [
+    0.16666666666666666,
+    0.16666666666666666
+   ]
+  },
+  {
+   "prior": [
+    1,
+    1
+   ],
+   "counts": [
+    3,
+    1,
+    1,
+    3
+   ],
+   "posteriors": [
+    [
+     4,
+     2
+    ],
+    [
+     2,
+     4
+    ]
+   ],
+   "best": [
+    0.8968253968253969,
+    0.10317460317460317
+   ],
+   "loss": [
+    0.013708513708513708,
+    0.34704184704184704
+   ]
+  },
+  {
+   "prior": [
+    1,
+    1
+   ],
+   "counts": [
+    7,
+    2,
+    2,
+    8
+   ],
+   "posteriors": [
+    [
+     8,
+     3
+    ],
+    [
+     3,
+     9
+    ]
+   ],
+   "best": [
+    0.9926683223896846,
+    0.0073316776103153816
+   ],
+   "loss": [
+    0.0005022067715566167,
+    0.4777749340442839
+   ]
+  },
+  {
+   "prior": [
+    1,
+    1
+   ],
+   "counts": [
+    0,
+    5,
+    5,
+    0
+   ],
+   "posteriors": [
+    [
+     1,
+     6
+    ],
+    [
+     6,
+     1
+    ]
+   ],
+   "best": [
+    0.0010822510822510823,
+    0.9989177489177489
+   ],
+   "loss": [
+    0.7143689643689644,
+    8.325008325008325e-05
+   ]
+  },
+  {
+   "prior": [
+    1,
+    1
+   ],
+   "counts": [
+    12,
+    12,
+    12,
+    12
+   ],
+   "posteriors": [
+    [
+     13,
+     13
+    ],
+    [
+     13,
+     13
+    ]
+   ],
+   "best": [
+    0.5,
+    0.5
+   ],
+   "loss": [
+    0.054531376210596186,
+    0.054531376210596186
+   ]
+  },
+  {
+   "prior": [
+    1,
+    1
+   ],
+   "counts": [
+    1,
+    0,
+    0,
+    1
+   ],
+   "posteriors": [
+    [
+     2,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "best": [
+    0.8333333333333334,
+    0.16666666666666666
+   ],
+   "loss": [
+    0.03333333333333333,
+    0.36666666666666664
+   ]
+  },
+  {
+   "prior": [
+    2,
+    3
+   ],
+   "counts": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "posteriors": [
+    [
+     2,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "best": [
+    0.5,
+    0.5
+   ],
+   "loss": [
+    0.11428571428571428,
+    0.11428571428571428
+   ]
+  },
+  {
+   "prior": [
+    2,
+    3
+   ],
+   "counts": [
+    3,
+    1,
+    1,
+    3
+   ],
+   "posteriors": [
+    [
+     5,
+     4
+    ],
+    [
+     3,
+     6
+    ]
+   ],
+   "best": [
+    0.8426573426573427,
+    0.15734265734265734
+   ],
+   "loss": [
+    0.018785136432195256,
+    0.24100735865441747
+   ]
+  },
+  {
+   "prior": [
+    2,
+    3
+   ],
+   "counts": [
+    7,
+    2,
+    2,
+    8
+   ],
+   "posteriors": [
+    [
+     9,
+     5
+    ],
+    [
+     4,
+     11
+    ]
+   ],
+   "best": [
+    0.9834679409521245,
+    0.01653205904787544
+   ],
+   "loss": [
+    0.0010907917705602454,
+    0.37728126796103645
+   ]
+  },
+  {
+   "prior": [
+    2,
+    3
+   ],
+   "counts": [
+    0,
+    5,
+    5,
+    0
+   ],
+   "posteriors": [
+    [
+     2,
+     8
+    ],
+    [
+     7,
+     3
+    ]
+   ],
+   "best": [
+    0.007610037021801728,
+    0.9923899629781983
+   ],
+   "loss": [
+    0.5005596570612051,
+    0.0005596570612050488
+   ]
+  },
+  {
+   "prior": [
+    2,
+    3
+   ],
+   "counts": [
+    12,
+    12,
+    12,
+    12
+   ],
+   "posteriors": [
+    [
+     14,
+     15
+    ],
+    [
+     14,
+     15
+    ]
+   ],
+   "best": [
+    0.5,
+    0.5
+   ],
+   "loss": [
+    0.05167902635265456,
+    0.05167902635265456
+   ]
+  },
+  {
+   "prior": [
+    2,
+    3
+   ],
+   "counts": [
+    1,
+    0,
+    0,
+    1
+   ],
+   "posteriors": [
+    [
+     3,
+     3
+    ],
+    [
+     2,
+     4
+    ]
+   ],
+   "best": [
+    0.7380952380952381,
+    0.2619047619047619
+   ],
+   "loss": [
+    0.04292929292929293,
+    0.20959595959595959
+   ]
+  },
+  {
+   "prior": [
+    4,
+    1
+   ],
+   "counts": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "posteriors": [
+    [
+     4,
+     1
+    ],
+    [
+     4,
+     1
+    ]
+   ],
+   "best": [
+    0.5,
+    0.5
+   ],
+   "loss": [
+    0.08888888888888889,
+    0.08888888888888889
+   ]
+  },
+  {
+   "prior": [
+    4,
+    1
+   ],
+   "counts": [
+    3,
+    1,
+    1,
+    3
+   ],
+   "posteriors": [
+    [
+     7,
+     2
+    ],
+    [
+     5,
+     4
+    ]
+   ],
+   "best": [
+    0.8589743589743589,
+    0.14102564102564102
+   ],
+   "loss": [
+    0.01558572146807441,
+    0.23780794369029662
+   ]
+  },
+  {
+   "prior": [
+    4,
+    1
+   ],
+   "counts": [
+    7,
+    2,
+    2,
+    8
+   ],
+   "posteriors": [
+    [
+     11,
+     3
+    ],
+    [
+     6,
+     9
+    ]
+   ],
+   "best": [
+    0.9869969040247678,
+    0.013003095975232198
+   ],
+   "loss": [
+    0.0008325160727906723,
+    0.3865468017870764
+   ]
+  },
+  {
+   "prior": [
+    4,
+    1
+   ],
+   "counts": [
+    0,
+    5,
+    5,
+    0
+   ],
+   "posteriors": [
+    [
+     4,
+     6
+    ],
+    [
+     9,
+     1
+    ]
+   ],
+   "best": [
+    0.004524886877828055,
+    0.995475113122172
+   ],
+   "loss": [
+    0.5003095975232198,
+    0.00030959752321981426
+   ]
+  },
+  {
+   "prior": [
+    4,
+    1
+   ],
+   "counts": [
+    12,
+    12,
+    12,
+    12
+   ],
+   "posteriors": [
+    [
+     16,
+     13
+    ],
+    [
+     16,
+     13
+    ]
+   ],
+   "best": [
+    0.5,
+    0.5
+   ],
+   "loss": [
+    0.051423821284246385,
+    0.051423821284246385
+   ]
+  },
+  {
+   "prior": [
+    4,
+    1
+   ],
+   "counts": [
+    1,
+    0,
+    0,
+    1
+   ],
+   "posteriors": [
+    [
+     5,
+     1
+    ],
+    [
+     4,
+     2
+    ]
+   ],
+   "best": [
+    0.7777777777777778,
+    0.2222222222222222
+   ],
+   "loss": [
+    0.030303030303030304,
+    0.19696969696969696
+   ]
+  }
+ ]
+}

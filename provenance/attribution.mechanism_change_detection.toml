@@ -17,8 +17,40 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
- "conformance/attribution/mechanism_change_detect",
- "conformance/attribution/mechanism_change_kernel_shift",
- "conformance/attribution/mechanism_change_change_point",
- "crates/antecedent/tests/attribution.rs",
+  "conformance/attribution/mechanism_change_detect",
+  "conformance/attribution/mechanism_change_kernel_shift",
+  "conformance/attribution/mechanism_change_change_point",
+  "crates/antecedent/tests/attribution.rs",
+  "crates/antecedent-attribution/tests/mechanism_change_detection_reference.rs (exact least-squares residuals, Welch, likelihood-ratio, change-point and MMD statistics and the Benjamini-Hochberg family)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "detect_mechanism_changes in crates/antecedent-attribution/src/mechanism_change.rs for a linear-Gaussian chain with continuous parents: the cross-fitted baseline residuals (round-robin folds, five folds from thirty rows and three below), the full-baseline comparison residuals, their pairing per target, the dispatch to the mean-difference, likelihood-ratio, change-point and kernel two-sample tests, and the Benjamini-Hochberg adjustment of the raw per-target p-values across the query's targets with the decision from the adjusted value. Not the block-permutation variant, the posterior (mechanism_change_posterior and its conjugate Bayes factor), the classifier proxy, the parent-covariate-shift guard threshold, non-Gaussian or non-linear mechanisms, or discrete targets."
+assumptions = ["Both populations are drawn from the same parent distribution (the module refuses a material parent shift), so a residual two-sample test compares mechanisms.", "The mechanism registry's best-score assignment selects the linear-Gaussian mechanism on linear-Gaussian data; the reference residuals are those of ordinary least squares and equality with the product is the evidence that it did.", "Residuals within a population are exchangeable for the permutation p-value of the kernel test, which is checked for its resolution (999 permutations, floor 0.001) but not for its value."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Three synthetic chains x -> y, x -> z with 40 + 40 and 24 + 14 rows: an intercept shift in y (z unchanged), no change, and a small-population case; two targets so the family correction acts. Statistics are asserted to 1e-7 relative (the Welch statistic, the Gaussian likelihood-ratio and change-point statistics, the biased RBF MMD-squared at the median bandwidth) and the Welch and chi-square(2) p-values to 1e-5; the Benjamini-Hochberg adjustment is recomputed in the test from the product's own raw p-values to 1e-12 and from the reference's mean-difference p-values to 1e-5. The permutation p-values (kernel always, likelihood ratio below thirty rows) are checked for range and resolution only, not for value, because their draws come from a seeded stream. The two-sample kernels themselves are the stats.divergence and stats.fdr reviews; this review adds the residual construction, the target pairing and the family wiring. Only one root parent and a single linear mechanism per target are exercised; a mechanism chosen by the registry other than the linear Gaussian one is not. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.1111/j.2517-6161.1995.tb02031.x", "https://mpmath.org/"]
+findings_resolved = ["No defect found: the product's per-target statistics for all four methods equal the definition evaluated on exact least-squares residuals with the product's fold rule, the Welch and chi-square p-values agree, and the adjusted p-values and the changed flags follow the Benjamini-Hochberg step-up of the raw p-values.", "The route relies on the stats.divergence review for the test statistics and the stats.fdr review for the adjustment; its own arithmetic is the cross-fitted residual definition, the pairing and the wiring of the family, which this review checks."]
+record_sha256 = "1c484f81df753b313af6b877137a9168da928a8f0df087e9263f1d61bbc36b4a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-attribution/src/mechanism_change.rs"
+sha256 = "27585bf28718b3834d6afb64c57b18388879bf3ed1f4013663961829d73b4fb9"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-attribution/tests/mechanism_change_detection_reference.rs"
+sha256 = "8d454eeafd66901c47ceb60f3e513a2b8b2922f9b249f6f20741ad4c71f9bf9d"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-attribution/tests/oracle_data/mechanism_change_detection_reference.py"
+sha256 = "eabd8a60e3246f44972602527a484ee3df55b315e4bfb15cb242735a4792746e"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-attribution/tests/oracle_data/mechanism_change_detection_reference.json"
+sha256 = "8fca77abd0c94883fb16d0a7dd0d2530219ec6ecfde0d8ad7821c8f9f9e2e13f"

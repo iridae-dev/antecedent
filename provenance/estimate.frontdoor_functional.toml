@@ -7,6 +7,8 @@ copied_tests = false
 
 # Plug-in of Pearl's front-door functional for a discrete treatment, with an
 # influence-function standard error. Identification is identify.frontdoor.
+modules = ["crates/antecedent-estimate/src/frontdoor_functional.rs"]
+
 papers = [
  { title = "Causal Diagrams for Empirical Research", doi = "10.1093/biomet/82.4.669", sections = ["front-door criterion and adjustment formula"] },
  { title = "Robust inference on population indirect causal effects: the generalized front door criterion", sections = ["Fulcher, Shpitser, Marealle, Tchetgen Tchetgen (JRSS-B 2020): efficient influence function of the front-door functional"] },
@@ -24,4 +26,41 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent-estimate/src/frontdoor_functional.rs (exact population tables of binary and three-arm two-mediator SCMs enumerated over the latent confounder; seeded replicate study of the influence-function SE and 95% coverage for both outcome models)",
  "conformance/estimate/frontdoor_functional",
+ "crates/antecedent-estimate/tests/frontdoor_functional_reference.rs (80-digit mass-derivative reference of the plug-in effect and its influence-function standard error for saturated and arm-linear outcome models: binary and three-arm two-mediator contrasts, a treated arm of five rows, mediator offsets of 1e3 and 1e4, nearly collinear mediators, and the refusal of an unsupported mediator cell)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "FrontDoorFunctional::prepare and ::fit in crates/antecedent-estimate/src/frontdoor_functional.rs for a discrete treatment: the plug-in front-door functional E[g(M) | T=a] with g(m) = sum_t' E[Y | m, t'] P(t'), for the saturated cell-mean outcome model and the per-arm least-squares outcome model, and the influence-function standard error sqrt(sum phi^2)/n (the saturated residual weight P(m|a)/P(m|T) and the arm-linear weight n_T xbar_a' (X_T'X_T)^-1 x). Not the bootstrap standard error, the automatic outcome-model choice, the checked-preparation path, or the identification of the front-door criterion (identify.frontdoor)."
+assumptions = ["The front-door criterion (a mediator set intercepting every directed path, no unblocked back-door path from treatment to the mediators, and the treatment blocking every back-door path from the mediators to the outcome) is taken as given from identification.", "The standard error is the plug-in influence function of independent rows; it is the asymptotic standard error of the plug-in, not a finite-sample interval.", "The arm-linear model assumes within-arm linearity and additivity in the mediators."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Eight tables of 30 to 150 rows. The reference writes the functional as a smooth function of per-row masses (arm mass, weighted cell means, or per-arm weighted least squares) and takes the effect at unit masses and each row's influence as n times the central-difference derivative of the effect with respect to its mass at 80 digits with step 1e-25; the effect is asserted to 1e-8 and the standard error to 1e-6 relative. The standard error carries no n/(n-1) divisor, as the module states. The bootstrap standard error, the Auto model choice (distinct-value thresholds), rank-deficient arm regressions, dependent rows and sampling weights are not examined, and the 95% coverage of the influence standard error is covered only by the module's seeded replicate study, not by this review. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.1093/biomet/82.4.669", "https://mpmath.org/"]
+findings_resolved = ["No defect: the plug-in effect equals the exact functional and the influence standard error equals the mass-derivative reference on every case (saturated with two and three arms and a joint mediator pair, and arm-linear with offsets of 1e3 and 1e4 and two mediators 1e-3 apart).", "A mediator value seen under a contrasted arm and absent from another arm is refused under the saturated model, not extrapolated."]
+record_sha256 = "c8ee8a9d2dd2a1b3267bfd4aba20933d29809f32c6876f00d759c60f4056b319"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/frontdoor_functional.rs"
+sha256 = "1d0a42a2885f2127891a4d05f65c42349c468f79c32ea860e7bb5fc1b65c434d"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/frontdoor_functional_reference.rs"
+sha256 = "d7a55b80d7df7497fd31b08daa094da22a15949611f69c7d9fd43dbd290410dc"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/frontdoor_functional_reference.py"
+sha256 = "322c5647e9dd6ac99874f8c7384023a12d1ed153c912f1c148377fe446d8fb54"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/frontdoor_functional_reference.json"
+sha256 = "693895ea9b0085f45910c6bc36da1485a4081525065c3b4df2c2b7469ba9c2b5"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/table_support.rs"
+sha256 = "b1ea24c5e276526e60ac330f732477945909496ff3d03ecf38f12f50f61eafbc"

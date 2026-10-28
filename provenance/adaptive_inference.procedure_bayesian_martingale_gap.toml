@@ -22,4 +22,46 @@ implementation_deviations = [
 upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs",
+  "crates/antecedent-stats/tests/adaptive_bayesian_martingale_gap_reference.rs (prior-predictive gaps against exact path enumeration)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "posterior_mean_gaps and bayesian_report in crates/antecedent-stats/src/adaptive_inference/procedure_uncertainty.rs: the expectation of the terminal posterior mean of every cell under the prior predictive of the declared procedure against the prior mean, and the Beta posteriors, probability best and expected loss at observed counts under a declared prior. Relies on the exact law of adaptive_inference.procedure_law and the Beta kernel of adaptive_inference.bayesian_posterior. Not the credible interval of the whole procedure (not claimed) or contexts."
+assumptions = ["Policy and stopping read observed history only and loss of an outcome does not depend on its value, so the posterior mean is a martingale of the data-collection process and the gap is zero.", "Independent Beta priors per delivered cell; the posterior of a cell uses the counts attributed to it."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review (nothing was downloaded and no local copy exists): the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference scripts and their frozen outputs are repository-authored (MIT OR Apache-2.0) and use only the Python standard library. The scripts declare their inline script metadata but are not run in a locked, isolated environment and are not wired into any gate; their output is frozen in the JSON files and compared by the tests."
+limitations = "Bayesian Data Analysis (Gelman et al.) was not retrieved (nothing downloaded, no local copy); the ignorability argument is checked numerically, not read. The reference expands every path of eight procedures (Thompson with a probability-best stop, lagged epsilon-greedy with administrative loss, a futility stop with posterior-mean selection, three-arm UCB under a cap, outcome-dependent loss with fixed and adaptive assignment, and exposure failure with the counts attributed to the assigned and the delivered arm) under the prior predictive in exact rational arithmetic: the gap is exactly zero for the four ignorable procedures and for delivered attribution, and nonzero where a premise fails (-0.0484 for lost successes, +0.0736 and +0.0520 for lost failures under epsilon-greedy, -0.0406 for the assigned-attribution cell with failures); the product agrees to 1e-12. Eighteen report rows (priors (1,1), (2,3), (4,1); counts to 12 per cell, empty and one-sided) agree on shapes exactly and on probability best and expected loss to 1e-9. Procedures of at most 6 units and two or three arms; the gap is a diagnostic from the exact law, not a test, and the report is exact for the declared prior only."
+sources = ["https://docs.python.org/3/library/fractions.html", "https://docs.python.org/3/library/decimal.html", "https://doi.org/10.1201/b16018"]
+findings_resolved = ["No defect found: the gap is zero exactly where the ignorability premises hold and equals the exact prior-predictive value where they fail; the report matches the exact Beta quantities."]
+record_sha256 = "932876a2e3aaaa83e1cd586474c6f9fc63f9a7a0785998c1c7269deafc356c78"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/adaptive_inference/procedure_uncertainty.rs"
+sha256 = "ba9993956dd5542f88a9a4d554c52d4fa9b32b8483a5e7a7ef0e94806390feb2"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/adaptive_bayesian_martingale_gap_reference.rs"
+sha256 = "54a76625c8a228ec6741ef819744f86278a143aeaa4ea5813ef6d02a83df367b"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/support/adaptive_procedure_reference.rs"
+sha256 = "9f51d015a392aa06ce800ee188d32509e63e69292bd667fa9f374638a0eac680"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/procedure_gap_reference.py"
+sha256 = "0eda14d0823a5ac4856971f8aa32206edc51a1427a8dead65392c6bdec95c76b"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/procedure_exact.py"
+sha256 = "78c9b55f97adfd2b2c0cef5c95e82037b147c6a9eb58a5f35001358ede3d1c3f"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/procedure_gap_reference.json"
+sha256 = "f95e0688b437f363e55fb7f18ceaee9d051065e43ee51ce5fa18eae063bd9d1c"

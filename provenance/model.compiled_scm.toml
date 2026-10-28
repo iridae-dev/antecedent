@@ -20,4 +20,46 @@ test_sources = [
  "crates/antecedent-model/src/compile.rs unit test compile_chain_topo_order",
  "crates/antecedent-model/src/overlay.rs unit tests (hard_set_overlay, shift_overlay_accumulates_and_is_independent_of_hard_set)",
  "conformance/gcm/gcm_fit_intervene",
+  "crates/antecedent-model/tests/scm_replay_reference.rs (exact rational evaluation of linear structural models under hard sets, shifts and soft overrides; coalition replay; ancestral sampling at a vanishing noise scale)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "CompiledCausalModel::compile (dependency order and the parent gather plan of a DAG whose node ids are not in topological order), InterventionOverlay precedence (hard set over mechanism, additive shift after the mechanism and never on a hard-set node, soft linear override replacing the fitted mechanism) and the ancestral sampler sample_with_overlay for linear-Gaussian mechanisms: each node's value is its structural equation evaluated on its parents' final values. Reviewed through NoiseReplayer::replay on supplied noise (exact comparison) and through the sampler at a vanishing noise scale. Not reviewed: non-Gaussian and nonparametric mechanism families, stochastic policies and programs, conditional interventional sampling, and the mechanism fitting that produces the slots."
+assumptions = ["Exogenous noise terms are mutually independent and enter additively; the reference evaluates the structural equations from the noise the product is given.", "The soft override replaces intercept and coefficients and keeps the noise column; its scale does not enter an evaluation from supplied noise."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library (Fraction). It declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Four linear structural models of 6 to 8 nodes whose ids run against the topological order (a diamond with a collider, the same shape with intercepts near 1e5 and coefficients from 2^-20 to 2^6, a reversed amplifying chain, and a five-parent collider with an isolated node), seven overlays each (none, hard set, shifts, a hard set beside shifts of other nodes, two hard sets, a soft linear override, and a mixed hard set, shift and soft override), exact noise tables, and a node-mask coalition of two tables; the tolerance is 1e-13 times the magnitude of the terms (the same recursion with absolute values). Only the linear-Gaussian family and its soft override are evaluated: discrete, tree, spline, basis, Gaussian-process and state-space mechanisms, value programs and stochastic policies are not covered here (the program executor has its own review), and the ancestral sampler is checked through a vanishing noise scale, not by its distribution. A hard set beside a shift on the same node is refused by the product and the review asserts the refusal. Pearl's text was not retrieved; the correspondence is with the mutilated-model definition of do()."
+sources = ["https://doi.org/10.1017/CBO9780511803161"]
+findings_resolved = ["Defect repaired: InterventionOverlay.active, a public per-node activation mask, was read by no evaluation path, so a node declared inactive was evaluated exactly as if active (a silently ignored declaration); InterventionOverlay::validate now refuses an overlay that declares any node inactive, and the replay test fails before and passes after the change. Compiled evaluation, the overlay precedence and the coalition replay otherwise matched exact rational evaluation of the structural equations in every case, and the sampler matched the deterministic part. The stated precedence (hard set ignores a shift on the same node) is enforced by refusal at overlay validation."]
+record_sha256 = "14950c53cd1e3c6d252f74c42e2e5c707acfba33d7fd6bde640e1a3964478bc0"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/compile.rs"
+sha256 = "4c7620035a3314347cd42a80f8880b0422fea2e4defbed32f8ce9670e5a2d8c2"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/overlay.rs"
+sha256 = "632ff44df9be3864f46eac596b6a48959f1482aac73284fac49b70a11650472f"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/sample.rs"
+sha256 = "3c9bd1783a5b758fbf63da2ab9c929d0f781335a600f4436916f516a58b6b753"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/scm_replay_reference.rs"
+sha256 = "2d43446a3780b43fa7a02287b0dc779337296f91a8e79e1c3c9aa8d687dd74dd"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-model/tests/oracle_data/scm_replay_reference.py"
+sha256 = "399738998e5e91ec0d74231d459d64e9cbea8f5c0e311fa5f17baf6361648142"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-model/tests/oracle_data/scm_replay_reference.json"
+sha256 = "13444eac7f5785a19f58c57cfa62c1fe084550d78bfb8c5c777170c243ae59a0"

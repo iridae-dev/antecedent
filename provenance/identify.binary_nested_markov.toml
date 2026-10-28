@@ -42,3 +42,29 @@ test_sources = [
   "python/tests/test_measured_inference.py",
   "python/tests/test_measured_nested.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "fit_nested_markov, model_means and plugin_means in crates/antecedent-estimate/src/nested_markov_binary.rs for the one selected Verma ADMG over four binary variables with one observational table of positive counts: the constrained maximum-likelihood fit of the eleven-parameter head/tail model P = a(x1) c(x3|x2) Q(x2,x4|x1,x3) (closed form when the empirical law satisfies the constraints, otherwise g profiled inside coordinate ascent over q2, q4), the log-likelihood and deviance it reports, the fitted-boundary refusal, and the model and plug-in do-means of the identifying formula. Not a review of the identification check the pilot runs before fitting (the general ID checker, covered by its own record), of the receipt / artifact / measured-inference layers in antecedent-io, of the Python bindings, of the Bayesian or Fisher producers (their own records), or of any statement that the model is the correct nested Markov model (the head/tail construction is taken as stated in the module; no theorem of either paper was re-read)."
+assumptions = ["The log-likelihood sum n_i ln P_i separates into the a, c and Q blocks, so a and c have the closed-form maximizers (empirical P(x1=0) and P(x3=0|x2)) and the Q block (q2, q4, g) is a separate eight-parameter problem on the box g in [max(0, q2+q4-1), min(q2,q4)].", "The reference maximizes the Q block in an unconstrained logistic chart by BFGS and Nelder-Mead from 41 starts and keeps the best log-likelihood; it is a different algorithm from the product's bisection and block coordinate ascent and is evaluated on the same cell function re-implemented in Python.", "A table whose maximizer lies within 1e-9 of a parameter-box edge, or whose fitted cell falls below 1e-9, is outside the interior model; the product must refuse it as a boundary fit."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are named by title and are not redistributed."
+limitations = "The reference is a numerical optimizer, not a proof of the global maximum: an earlier reference built on SLSQP in all eleven parameters stopped on non-maxima for the hardest tables (it missed the product's higher log-likelihood by 2.3e3 and 8.5e4), which is why the final reference is the chart-based multi-start; the agreement for the eleven fitted tables is within 1e-9 of the total count in log-likelihood, but a still-better maximum that none of 41 starts reaches would not be detected. The do-means are compared at 1e-4 because the likelihood is flat near the maximum, so the check is of the optimum's value and not of its fourth digit in sparse cells. The plug-in means agree with the reference formula to 1e-12. Twelve tables (counts spanning seven decades, 1e12 total counts, tiny counts totalling 28, heavy-tailed tables) are checked; one table with a fitted cell of about 1e-13 is checked only for the boundary refusal. The primary papers were not retrieved; the parameterization and the constraints are taken from the module's own derivation, and the check that an SCM's law satisfies them is the existing enumerated-SCM test. Only the one selected graph exists; no other graph, regime or domain is fitted. Calibration of any interval stays unmeasured."
+sources = ["Evans and Richardson (2019), Smooth, identifiable supermodels of discrete DAG models with latent variables, Bernoulli 25(2) (abstract page only; no theorem verified)", "Richardson, Evans, Robins and Shpitser (2023), Nested Markov properties for acyclic directed mixed graphs, Annals of Statistics 51(1) (abstract page only)"]
+findings_resolved = ["On eleven tables with an interior maximum (a direct-effect SCM at 1e6 and 1e12 counts, tiny counts, random and heavy-tailed tables, a table with counts over seven decades and a skewed table) the fitted log-likelihood equals the reference maximum within 1e-9 of the total count, never above it, the deviance equals 2 (saturated - model), and the model and plug-in do-means match; one table with counts over nine decades (a fitted cell near 1e-13) is refused with nested_markov.fitted_boundary as the reference maximum requires.", "No defect was found and no product code changed; the first reference was the weak party (SLSQP stalled), not the product."]
+record_sha256 = "b95765894ce40fb841fdde7e212a5fd9e04251cdaf7a618497ba616ed64b160c"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/nested_markov_binary.rs"
+sha256 = "ce7799294e79f798577cd218ff93bbf761736243dc1cd1e2965633a626a69e96"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/nested_markov_binary_reference.rs"
+sha256 = "daa561603e8cffbd3fadd777af2da61ab8b081feb6195ff334b4f8f7fe48e0b8"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/nested_markov_binary_reference.py"
+sha256 = "724f7b2bc77a6a88bbaf39ef3d1c9323368e4a40bec426dd2b48656548959f19"

@@ -23,4 +23,46 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs",
   "crates/antecedent-stats/tests/adaptive_inference_oracle.rs",
+  "crates/antecedent-stats/tests/adaptive_ordered_p_value_reference.rs (tail masses and inversion against exact rational enumeration)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "ordering_p_values and inversion_interval in crates/antecedent-stats/src/adaptive_inference/procedure_uncertainty.rs: the stagewise ordering of the terminal states of a fixed-randomization two-arm Wald-boundary procedure (plus-arm stops highest and earlier higher, minus-arm stops lowest and later higher, the rest by the estimate, undefined estimates in both tails), the upper and lower tail masses of an observed terminal state under the exact law, and the confidence set obtained by taking the supremum of each tail over a baseline grid and accepting a contrast when both are at least alpha / 2. Relies on the exact law of adaptive_inference.procedure_law and takes the Wald critical values as declared (their construction from alpha-spending is reviewed under adaptive_inference.group_sequential). Not the normal-theory ordering of the paper, coverage, or adaptive assignment (refused)."
+assumptions = ["Assignment probabilities are fixed in advance (the premise gate refuses adaptive assignment for the group-sequential paradigm).", "Both tails use the same ordering; the confidence set is exact for the declared grid and procedure and untested between grid points."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review (nothing was downloaded and no local copy exists): the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference scripts and their frozen outputs are repository-authored (MIT OR Apache-2.0) and use only the Python standard library. The scripts declare their inline script metadata but are not run in a locked, isolated environment and are not wired into any gate; their output is frozen in the JSON files and compared by the tests."
+limitations = "Tsiatis, Rosner and Mehta (1984) and Lan and DeMets (1983) were not retrieved (nothing downloaded, no local copy); the ordering is the module's own statement of a stagewise ordering over a Bernoulli batched procedure (a deviation the record states), checked here against the same statement written from its definition, not against the paper's construction. The reference path-enumerates the law (procedure_exact.py) of three procedures (two-sided pairs, single-unit looks with undefined estimates, upper boundaries) under six truths and ranks every terminal state by the definition: 350 observed terminal states have upper and lower tails, and undefined mass, equal to the exact value at 1e-12. The inversion (thirteen contrasts, seven baselines on a dyadic grid, 61 laws per level, three levels and observed states) agrees exactly on the accepted set and on the number of laws; the smallest distance of a tail to alpha / 2 is 3.4e-3. Only six units per procedure; boundaries are fixed critical values; the contrast and baseline grid is declared and a contrast with no baseline keeping both arms in [0, 1] is not accepted (it has no evaluated law). Reports derived_unmeasured: no coverage of the set is measured."
+sources = ["https://docs.python.org/3/library/fractions.html", "https://docs.python.org/3/library/decimal.html", "https://doi.org/10.2307/2530924", "https://doi.org/10.1093/biomet/70.3.659"]
+findings_resolved = ["No defect found: the ordering, both tails, undefined mass and the inversion agree with the independent evaluation."]
+record_sha256 = "9d65b5accb68add36e8439f8a803d495eb22b351ad0a499dab87208f0e1a5e60"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/adaptive_inference/procedure_uncertainty.rs"
+sha256 = "ba9993956dd5542f88a9a4d554c52d4fa9b32b8483a5e7a7ef0e94806390feb2"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/adaptive_ordered_p_value_reference.rs"
+sha256 = "eec77bf3b3fb40ae35d569a5e46ae730f5507ac264aa6dad0c9d270ab6f26c34"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/support/adaptive_procedure_reference.rs"
+sha256 = "9f51d015a392aa06ce800ee188d32509e63e69292bd667fa9f374638a0eac680"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/procedure_ordered_reference.py"
+sha256 = "7202911870236b5cbc5f4e8846dc39c46be67f0340cc5631fafa4a0c7b55f31a"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/procedure_exact.py"
+sha256 = "78c9b55f97adfd2b2c0cef5c95e82037b147c6a9eb58a5f35001358ede3d1c3f"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/procedure_ordered_reference.json"
+sha256 = "f1455d3c6a04521e0acbdb02f539254b1c2836deec784c2b0ace78b2a50e8293"

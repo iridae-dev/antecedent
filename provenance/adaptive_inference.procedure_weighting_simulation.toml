@@ -20,4 +20,46 @@ implementation_deviations = [
 upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs",
+  "crates/antecedent-stats/tests/adaptive_weighting_simulation_reference.rs (simulation against the exact law of five procedures)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "simulate_procedure and SimulatedLaw::summarize in crates/antecedent-stats/src/adaptive_inference/procedure_simulation.rs: the seeded whole-procedure simulation of the retained, revealed history (policy rows at enrolment, delivery, attribution, delay, loss, the stopping rule, selection) and the adaptively weighted estimate and plug-in variance at the terminal look. Relies on the weighted estimator reviewed under adaptive_inference.adaptive_weighting and the rule logic of adaptive_inference.procedure_law; this review checks that the simulated law is the exact law of the declared procedure. Not the exact seeded stream (no reference reproduces the generator), coverage or the paper's asymptotic normality at the stopping time."
+assumptions = ["The estimator history is the terminal-look retained history with the policy's realized probabilities at enrolment (the delivered mixture under delivered attribution).", "Loss of outcomes independent of their values; the premise gate refuses outcome-dependent loss for the weighting paradigm."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review (nothing was downloaded and no local copy exists): the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference scripts and their frozen outputs are repository-authored (MIT OR Apache-2.0) and use only the Python standard library. The scripts declare their inline script metadata but are not run in a locked, isolated environment and are not wired into any gate; their output is frozen in the JSON files and compared by the tests."
+limitations = "Hadad et al. (2021) was not retrieved (nothing downloaded, no local copy). A seeded simulation cannot be compared with an exact value digit by digit, so the check is statistical: for five procedures of 4 to 6 units (Thompson with a posterior stop and uniform weights, Thompson with variance-stabilizing weights, lagged epsilon-greedy with random loss, batches with exposure failure under delivered attribution, a resource cap with assigned attribution) the exact path enumeration at 60 digits gives the stop probability, the expected enrolment, the distribution of analysed units and of the decision, the probability that an estimate exists, and the exact mean and standard deviation of the estimate and of the plug-in variance; 60,000 seeded replicates agree within five Monte Carlo standard errors on every one, and the standard deviation within 5%. The exact law shows the stopped contrast estimate to be biased (0.431 for a truth of 1/3 with a stop) and the assigned-attribution contrast to estimate the intention-to-treat value (-0.267 for -1/3), which the simulation reproduces. The seed is fixed, so the test is deterministic; another seed replays differently and the same seed replays identically. Five-sigma agreement does not prove a discrepancy smaller than that cannot exist; a coverage property of the plug-in variance is not measured."
+sources = ["https://docs.python.org/3/library/fractions.html", "https://docs.python.org/3/library/decimal.html", "https://doi.org/10.1073/pnas.2014602118"]
+findings_resolved = ["No defect found: the simulated stop, enrolment, analysed-unit and decision frequencies and the first two moments of the estimate and of the plug-in variance agree with the exact law of each procedure."]
+record_sha256 = "e56ea36634939fe548fbfc09f8788aa2ccc9048547bc7ebe8f0fa80eeba9ff8f"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/adaptive_inference/procedure_simulation.rs"
+sha256 = "d271cccb17bb82581e7aad0eba0f59165a50533930311f1ee1fbb1b8b35f2d54"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/adaptive_weighting_simulation_reference.rs"
+sha256 = "5584019e9bd07adc5b4afd379c9b734b0a777965d69e3639e52cd24e6964d330"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/support/adaptive_procedure_reference.rs"
+sha256 = "9f51d015a392aa06ce800ee188d32509e63e69292bd667fa9f374638a0eac680"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/procedure_weighting_simulation_reference.py"
+sha256 = "1073fafcb536423f128a79623a8721f18c7b62e542d93a2f42ad43a8dc7c65c4"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/procedure_exact.py"
+sha256 = "78c9b55f97adfd2b2c0cef5c95e82037b147c6a9eb58a5f35001358ede3d1c3f"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/procedure_weighting_simulation_reference.json"
+sha256 = "7591c9910ff08be5c77f40b135d10731dec12dba66581a8cfcb0de9430976c90"

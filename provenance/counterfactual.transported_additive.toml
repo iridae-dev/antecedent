@@ -33,4 +33,37 @@ test_sources = [
  "crates/antecedent-io/tests/transported_counterfactual_artifact.rs",
  "crates/antecedent/tests/transported_counterfactual_facade.rs",
  "python/tests/test_transported_counterfactual.py",
+ "crates/antecedent-counterfactual/tests/transported_additive_reference.rs",
+ "crates/antecedent-counterfactual/tests/oracle_data/transported_additive_reference.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "evaluate_transported_path_specific in crates/antecedent-counterfactual/src/transported_path_specific.rs for the declared affine additive-noise class: the per-covariate-point contrast G(z) of two edge assignments (world evaluation with the edge A -> c carrying the treated or the control value), the target and source weighted sums, the covariate-law and overlap checks, the declared-premise checks, and the selection-on-mediator refusal with its two-model witness (which coefficient is perturbed and the two target contrasts). Not a review of the theorem's identification claim (it is derived in the module documentation from the cited ideas and was not checked against a source), of the regime-evidence gate (a closed gate mapped under counterfactual.transported_path_specific), or of the artifact and facade layers."
+assumptions = ["Mechanisms are V = alpha(z) + sum beta_p(z) V_p + U with alpha and every beta affine in the covariates, noises additive, mutually independent, independent of the covariates and with the same law in both populations; one noise draw per unit feeds both worlds (all declared by the caller).", "No selection node points to a mediator or the outcome; the target support lies inside the source support (checked by matching points within 1e-12); the supplied source fit is the structural equation set (declared, not checkable here).", "Covariate-law weights are positive and sum to one within 1e-9; the sums are taken with the weights as supplied."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI and are not redistributed; the generating script uses only the standard library."
+limitations = "No paper was retrieved or re-read (no downloads were made and no copy is available from this environment), and the record states that the combining theorem is derived in-repo rather than taken from a paper: the reference checks the arithmetic of that theorem against the definition (it feeds one explicit noise draw to both worlds, sums over an explicit three-point noise law per mechanism and over the target covariate law, and never uses the claim that the contrast is free of the noise), but it cannot detect an error in the identification argument itself, only that the computed number equals the defined number inside the declared class. The noise supports are three-point laws chosen for exactness; the class allows any law, and that independence from the noise law is exactly what the agreement exercises, not proves. Selection nodes on covariates and the treatment are accepted without any check that the covariate law was the only thing that changed. Weights summing to one only within 1e-9 are not renormalized. Covariate offsets near 1e6 and weights 2^-20 apart are covered; offsets that make the affine form lose precision beyond 1e11 in the answer are not. Calibration remains unmeasured and the claim is point-only."
+sources = ["https://doi.org/10.1214/14-STS486"]
+findings_resolved = ["Across 12 non-refusing cases (a diamond with covariate-dependent intercepts, slopes and coefficients under the direct, indirect, total and empty edge assignments, two non-dyadic variants, covariates near 1e6 with weights 2^-20 apart whose contrast is 9e10, a treatment contrast offset by 1e6, and a two-covariate chain of two mediators with a direct edge under four assignments) the target and source contrasts equal the noise-summing exact reference: exactly on every dyadic case and to 1.8e-15 on the non-dyadic ones.", "Selection on a mediator: when the contrast is sensitive the refusal is transport_proven_non_transportable and carries the witness the reference computes by the documented search order (node, parent, constant before slopes, first coefficient whose +1 perturbation moves the target contrast; contrasts 9.9609375 and 16.1015625 on the diamond), and when the contrast is identically zero it is cell_not_licensed with no witness. Replacing only the target law moves the target contrast and leaves the source contrast unchanged, so neither law is ignored. No defect was found and no product code changed."]
+record_sha256 = "1d2bca85b79d82c2b143dcbc3600c1dc1d4f427f32dbb1bca0d41e48017dbaff"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-counterfactual/src/transported_path_specific.rs"
+sha256 = "a3dc3a0c7a5a442c48c9591673d1565c35c7208b59c3a3dfad65a0071d45f7e3"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-counterfactual/tests/transported_additive_reference.rs"
+sha256 = "144939420bb15245c262dc4fcaf6570fd76cbd17dfd93adcc7ad6b7840027a61"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-counterfactual/tests/oracle_data/transported_additive_reference.py"
+sha256 = "db4533cae6cb29bc64170ac7241bdf400c37d5a19c58740ed4f8b4a4947527a8"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-counterfactual/tests/oracle_data/transported_additive_reference.json"
+sha256 = "a2043eef425338eb0f4f68ce0fdbf766d4f520d2feb811109b3233d868aa777a"

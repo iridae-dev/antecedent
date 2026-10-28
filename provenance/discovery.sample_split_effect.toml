@@ -23,7 +23,70 @@ implementation_deviations = [
 ]
 upstream_implementations_observed = []
 test_sources = [
-  "crates/antecedent/tests/sample_split_effect_facade.rs",
-  "crates/antecedent/tests/sample_split_effect_calibration.rs",
-  "python/tests/test_sample_split_effect.py",
+ "crates/antecedent-io/tests/sample_split_effect_reference.rs (exact rational least squares with offsets and near-collinearity; the route against the split by definition)",
+ "crates/antecedent-io/tests/sample_split_parent_set_effect_reference.rs (acceptance over every marked four-node graph)",
+ "crates/antecedent/tests/sample_split_effect_facade.rs",
+ "crates/antecedent/tests/sample_split_effect_calibration.rs",
+ "python/tests/test_sample_split_effect.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "adjusted_effect and effect_on_structure in crates/antecedent-io/src/measured_inference/split_effect.rs: the treatment's parents read from a fully directed completed graph as the adjustment set (refusal of any unresolved edge, of an outcome oriented into the treatment and of a non-static or non-CPDAG structure), the ordinary least-squares coefficient of the treatment, the homoskedastic standard error sqrt(rss/(n-k) [(X'X)^-1]_tt) and the Student interval on n-k degrees of freedom, and the route's row split (the seeded permutation reproduced from its definition) and composition on frozen five-variable data. The PC search that produces the structure is reviewed in discovery.pc and the Student quantile in the special-function kernels; neither is re-reviewed here, and whole-method coverage (the measured calibration) is not asserted by this review."
+assumptions = ["Linear-Gaussian, causally sufficient and faithful data with a fully orientable class are the premises of the measured family; the review checks arithmetic and acceptance logic, not those premises.", "Discovery uses none of the analysis rows, so the interval is conditional on the selected graph; the frozen data are built so that the treatment is a collider of two independent parents, which makes the discovered class fully directed and the expected adjustment set the true parents.", "The rational reference takes the binary64 values given to the product as exact rationals, so differences are the product's rounding alone."]
+historical_exposure = "Historical author exposure cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with definitions evaluated by an executing reference written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review (no paper was downloaded or read here): the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library and mpmath (BSD-3-Clause, imported at run time and not redistributed). It declares inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Regression: nine designs (60 to 100 rows, up to five covariates) with columns offset by 1e5 to 1e9, a covariate within 1e-4 and 1e-6 of the treatment, the smallest admissible sample (n = k + 2), tiny-scale columns and an exact collinearity (refused); coefficient, standard error and interval at five levels agree with exact least squares to 1e-6 relative at worst (the check is at 1e-6, not tighter). Route: one 800-row five-variable dataset with one split seed, where the split rows equal the definition exactly and the interval equals exact least squares on those rows to 1e-9; discovery is not reproduced in the reference, so that the adjustment set is the true parents is asserted rather than derived. Not covered: heteroskedastic errors (the standard error is the classical one by construction, and the measured calibration is the only evidence about its adequacy), a confounder the search misses, designs with exact ties in a PC test, and any claim about the discovered graph. The primary sources (Cox 1975; Spirtes, Glymour and Scheines) were not retrieved in this review; the single-split idea and the PC algorithm are cited as context, and the reference executes the least-squares definitions, not those texts."
+sources = ["crates/antecedent-io/tests/sample_split_effect_reference.rs", "crates/antecedent-io/tests/oracle_data/sample_split_effect_reference.py", "crates/antecedent-io/tests/oracle_data/sample_split_pipeline_reference.py", "https://mpmath.org/"]
+findings_resolved = ["Defect repaired (failing first): adjusted_effect formed the uncentred normal equations X'X and refused a well-posed design as singular once the columns carried a large offset (a design with outcome near 1e6, treatment near 1e5 and a covariate near -1e6 was refused with split_effect.design_singular, where exact least squares has a unique solution), and lost digits well before that. It now centres the columns (the slopes and their covariance are unchanged by the intercept) and solves by Householder QR, refusing only a column that is constant or within 1e-9 of its own length from the span of the earlier columns. The facade suites for both routes (35 tests) still pass.", "Added an exhaustive check of the fixed-graph acceptance rule over all acyclic marked graphs on four nodes (7,212 patterns, two treatment/outcome choices each): the adjustment set equals the sources of directed edges into the treatment and every unresolved edge anywhere or an outcome parent is refused, with no disagreement.", "The seeded split used by the route equals its splitmix64 Fisher-Yates definition row for row on the frozen data, and the full route's coefficient, standard error and interval equal exact least squares on those rows."]
+record_sha256 = "092611d59e3df9f8a8dbea360e2c119f4672cb1096e8e9ffff8e109de0db94a6"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io/src/measured_inference/split_effect.rs"
+sha256 = "7c42dcea5724b105c12ab85182adb00312ff6b9c14ddbbe983351042b268761b"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/selective/reuse.rs"
+sha256 = "69bcc96b78d6b253500c2747782639a7ab2aed6ff5e735159e421f20109e2977"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-io/tests/sample_split_effect_reference.rs"
+sha256 = "bb9ef2a1217459737b80ef7b2492da4a3f78d2f244c2fbd1f061926c004bebdd"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-io/tests/sample_split_parent_set_effect_reference.rs"
+sha256 = "0e1f30ca6f644f749f07f8aa2aacee3b9903fb1c81983cea507e2ecfb7d7c32c"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-io/tests/oracle_data/sample_split_effect_reference.py"
+sha256 = "d2c6654939b8af4d18472ba3bbe2277ce0fa07033f1efa595b19a6d7879f71dd"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-io/tests/oracle_data/sample_split_effect_reference.json"
+sha256 = "44292d7c5b477ad681629eb89a2cdaf87067ce568a86c06bae797c09c041e43e"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-io/tests/oracle_data/sample_split_parent_set_effect_reference.py"
+sha256 = "0d74d3b2c9428918c660093daec8a768f821ebcae358adc18bac8602f72a6743"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-io/tests/oracle_data/sample_split_parent_set_effect_reference.json"
+sha256 = "ea308435f9602512b40a191c96e10bfd6f436176b57ca359d767494ee14b1ff6"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-io/tests/oracle_data/sample_split_pipeline_reference.py"
+sha256 = "813acb401fbe7b2c051772f04310721a01faf7e559958f529bcc3e3ac7a3f81e"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-io/tests/oracle_data/sample_split_pipeline_reference.json"
+sha256 = "b1cb6d946d5d055ba680f8a2e9b4c6a7b46bee8d61ee592ce16bd4a3edb80c36"

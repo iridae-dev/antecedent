@@ -32,4 +32,56 @@ test_sources = [
  "crates/antecedent/tests/adaptive_participant_facade.rs",
  "crates/antecedent-estimate/tests/adaptive_whole_procedure_calibration.rs",
  "python/tests/test_adaptive_binary_family.py",
+ "crates/antecedent-stats/tests/adaptive_participant_exact_reference.rs (posterior, mass, borrowed prior, floor and threshold ties against exact rationals)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The declared-correlation participant posterior in crates/antecedent-stats/src/adaptive_inference/participant_posterior.rs (exact_posterior: posterior mean and variance, probability of being best, expected loss and exceedance of a margin for two to four arms), the beta-binomial mass of a participant's success count (beta_binomial_pmf), the power-prior arithmetic of crates/antecedent-stats/src/adaptive_inference/historical_prior.rs (ArmPrior::resolve), the exploration floor applied to the Thompson row (apply_exploration_floor) and the decision thresholds of crates/antecedent-stats/src/adaptive_inference/participant_procedure.rs (ParticipantSpec::fired). Relies on adaptive_inference.predictable_plug_in_sequence and adaptive_inference.anytime_valid_sequence for the confidence-sequence readings. Not the estimated-correlation posterior (its integrand is not a polynomial), the whole-procedure simulation, the replay of a retained history or the confidence-sequence readings, which keep their independent oracles in adaptive_participant_family.rs and adaptive_participant_posterior.rs but have no frozen reference in this review."
+assumptions = ["A participant's success count is beta-binomial with mean p_k and intra-participant correlation rho (a stated value), and the arm means have independent integer-shape Beta priors (resolved from the initial prior and the discounted historical sources).", "The power prior is Beta(alpha0 + a0 s, beta0 + a0 (n - s)) per source with a fixed discount a0 in [0, 1]."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review (nothing was downloaded and no local copy exists): the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference scripts and their frozen outputs are repository-authored (MIT OR Apache-2.0) and use only the Python standard library. The scripts declare their inline script metadata but are not run in a locked, isolated environment and are not wired into any gate; their output is frozen in the JSON files and compared by the tests."
+limitations = "The Ibrahim-Chen, Morita-Thall-Mueller, Thompson, Rao-Scott, Howard et al. and Waudby-Smith-Ramdas papers were not retrieved (nothing downloaded, no local copy); the checks are of the code against the definitions the module states. With a declared correlation and integer Beta shapes the posterior density of an arm is a polynomial in p, so the reference obtains every functional as exact Fraction integrals of polynomials, with no quadrature and no special function: eight designs (2, 3, 4, 5, 6 and 8 responses; correlations 0, 1/5, 1/4, 1/3, 1/2 and 9/10; two to four arms; an empty history; an all-failure arm against an all-success arm, where P(best) is 6e-42; 80 participants in adjacent arms; a margin of 1/10, 1/20 and 0) agree with the product's quadrature to 1e-9 on means, variances, probability best, expected loss and exceedance (the quadrature's own error check is below 1e-9). The mass function agrees for 2 to 32 responses at means 0, 0.01, 0.5, 0.99 and 1 and correlations to 0.999; the borrowed prior agrees for four plans (discounts 0, 1/8, 1/4, 1/2 and 1, up to 100,000 historical trials); the exploration floor agrees with its definition max(floor, c p_i) for eight rows of two to six arms (including a zero entry and a floor of exactly 1/arms). Fractional Beta shapes (which a fractional discount produces) are exercised only through the borrowed-prior arithmetic, not through the posterior reference; the estimated-correlation posterior is checked only by the older numpy and mpmath constants inside adaptive_participant_posterior.rs, which are inline and not reproducible from a script in the repository."
+sources = ["https://docs.python.org/3/library/fractions.html", "https://docs.python.org/3/library/decimal.html", "https://doi.org/10.1214/ss/1009212673"]
+findings_resolved = ["Defect repaired (shared by the law, the decision report and the participant procedure): the stopping rules compared numerically integrated posterior quantities with their thresholds with no band. At small counts those quantities are rational numbers that land exactly on round thresholds (the expected loss of choosing an arm after two units on one arm is exactly 1/20; the posterior probability that an arm is best is exactly 4/5 after three failures of the other), and the integral carries about 1e-15 of rounding, so the rule stopped or continued at those states by the sign of the rounding; the arm named at an exact tie followed it too (the estimate-crate rule named the last arm). The reference (exact Fractions) stops with probability 0.3125 at look 1 of a lagged expected-loss rule and the product reported 0.625, and the exact-futility tie case differed in mass (0.00463 against 0.00617). The rules now read a quantity within 1e-12 of its threshold as equal (at least holds at equality, below does not) and name the lowest arm among equal ones; every case of the frozen reference now agrees to 1e-12. The participant procedure (adaptive_inference.participant_family) uses the same reading with a band of 1e-9, because its logit quadrature is accurate to about 4e-11 (one completed participant with no success among two responses reads an expected loss of 0.04999999996915 where the exact value is 1/20); a history of that participant replayed as stopped at a threshold of exactly 0.05 and now continues.", "The posterior functionals, the mass function, the borrowed-prior shapes and the exploration floor agree with the exact references with no change to their code."]
+record_sha256 = "fc833d13952652ab65345aa7483174d6b0cd545200184e73d5b178a73778283c"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/adaptive_inference/participant_posterior.rs"
+sha256 = "e8dfb036c52d12e5a8bd8f562c41e8ea8edd7a550241fee4e176a780aa5cff47"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/adaptive_inference/historical_prior.rs"
+sha256 = "a95dbeedbe9d9ada10f1c4e5088b9ceec444f8f5980b3b9999fb49516d8f2a28"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/adaptive_inference/participant_procedure.rs"
+sha256 = "7bd64d4bcf31e9bd752f34b0264a92dbfd544951d898f897ba540597abb1761c"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/adaptive_inference/procedure_law.rs"
+sha256 = "e44c1f2313fccea86ffedc1eafe86f9f889afc5866e9801ecd3dd105b7c13cd4"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/adaptive_participant_exact_reference.rs"
+sha256 = "075c399b46adfd127dfc1b122e0c2dce9c09db30c7a79ad3abadb7331050b1fc"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/support/adaptive_procedure_reference.rs"
+sha256 = "9f51d015a392aa06ce800ee188d32509e63e69292bd667fa9f374638a0eac680"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/participant_exact_reference.py"
+sha256 = "4fcffc3495a7a6a0fc3e2ff895eb4585f6d4376609eff7304f116d96e083eefe"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/participant_exact_reference.json"
+sha256 = "d12f8735e5aa8ca9a4e7dc65197e37675920f5d00c03d4bd4a85879225e6f637"

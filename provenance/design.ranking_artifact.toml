@@ -33,8 +33,42 @@ implementation_deviations = [
 
 upstream_implementations_observed = []
 
+modules = ["crates/antecedent-design/src/design_ranking_artifact.rs"]
+
 test_sources = [
+  "crates/antecedent-design/tests/design_ranking_replay_reference.rs (stored and natively replayed binomial and Gaussian EVSI and EVPI against exact-rational and quadrature references)",
   "crates/antecedent-design/tests/design_ranking.rs",
   "crates/antecedent-design/tests/design_ranking_artifact.rs",
   "python/tests/test_design_ranking.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The numerical replay of crates/antecedent-design/src/design_ranking_artifact.rs for natively replayed signals: the finite-prior decision baseline (Bayes action, prior value, EVPI), the binomial likelihood table rebuilt through logarithms from the prior draws and the trial count, the expected value of the information summed over that table, and the normal-belief closed form through expected_max_affine, each compared with the value the evaluator stored, with the replay tolerance and the likelihood mass check; plus the seal that stores those numbers. Not the canonical encoding and digest, the graded replay of externally attested laws and decision values, the rank and search receipts, the cost mapping, or the corruption and version handling, which the existing hand-constant tests cover."
+assumptions = ["The decision table is finite (equally weighted prior draws) with constraint-free admissible actions, or a normal belief with affine utilities; the evaluator and the consumer share one expected-maximum-of-affine routine for the Gaussian case, so the Gaussian check is against an independent piecewise Simpson quadrature of the definition, not against a second closed form.", "The reference binomial values use exact rational arithmetic on dyadic draws, so the product receives exactly the inputs the reference used."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared its stored and replayed numbers with definitions evaluated by executing references written for this review (fractions.Fraction for the finite prior, composite Simpson between the crossings of the lines for the normal belief); no upstream implementation or test source was consulted or copied. The record cites no paper by design (serialization and replay), and none was retrieved."
+redistribution = "The reference script and its frozen output are repository-authored (MIT OR Apache-2.0) and shared with the decision review; the script uses only the Python standard library. Its output is frozen in the JSON file and compared by the test."
+limitations = "Forty finite-prior problems of 1 to 7 equally weighted dyadic draws and 2 to 4 affine actions with utility offsets up to 1e6 and exact action ties, at 1, 2, 5, 12 and 60 binomial trials, and seven normal-belief regimes at 1 to 1000 observations are sealed and replayed. Weighted priors and chance-constrained admissible sets are not part of the artifact route and are not exercised; counts above 60 trials, many-draw priors (hundreds of states) and utilities with offsets above 1e6 are not compared with a reference. The Gaussian reference is a quadrature, so it agrees with the closed form to about 1e-9, not to rounding. Monte Carlo values are bound but not replayed and have no reference here. The tolerance of the replay (1e-8 relative to 1 + |value|) is the product's choice; this review shows it is met after the repair below, not that it is the right tolerance."
+sources = ["https://doi.org/10.1177/0272989X04263162"]
+findings_resolved = ["Defect repaired: the consumer replayed a binomial or attested-likelihood EVSI as E[max after information] minus the prior value of the Bayes action, both formed from raw utilities, while the evaluator that stored the value works with gaps to the Bayes action. With a common utility offset of 1e6 (intercepts 999998 and 999999.75, 60 trials) the cancellation put the replayed value outside the 1e-8 tolerance and an honest, freshly sealed artifact was refused with ReplayMismatch on evsi. The replay (and the EVPI baseline) now sums utility gaps to the Bayes action, so a common utility origin cannot enter; the failing-first case is the offset problems of design_ranking_replay_reference.rs."]
+record_sha256 = "d71ae3588df4e73ee2768ed945550ff7af1b8da1b8c1e099d730a0becf14282e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/design_ranking_artifact.rs"
+sha256 = "4a5443b85b648163f58d754b364563e9e5be4c57ff48909788f060374a76e6a9"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/design_ranking_replay_reference.rs"
+sha256 = "e9b6dac276101baccc040a352a7b088e3fe58098778ee16fc167c03551dc0fe7"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-design/tests/oracle_data/decision_exact_reference.py"
+sha256 = "6899db90fe32b2738704eccca184b47bb429fed7e9e2f9558be3f45f1eae6838"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-design/tests/oracle_data/decision_exact_reference.json"
+sha256 = "5e68051a42cd53586b75f8428c20aa119bfbdac8ccf8d98f4243f18fec2716fe"

@@ -1,0 +1,398 @@
+{
+ "designs": [
+  {
+   "name": "hand-derived binary two strata",
+   "strata": [
+    {
+     "mass": 0.5,
+     "propensity": 0.5,
+     "treated": {
+      "values": [
+       0.0,
+       1.0
+      ],
+      "probabilities": [
+       0.2,
+       0.8
+      ]
+     },
+     "control": {
+      "values": [
+       0.0,
+       1.0
+      ],
+      "probabilities": [
+       0.6,
+       0.4
+      ]
+     }
+    },
+    {
+     "mass": 0.5,
+     "propensity": 0.25,
+     "treated": {
+      "values": [
+       0.0,
+       1.0
+      ],
+      "probabilities": [
+       0.5,
+       0.5
+      ]
+     },
+     "control": {
+      "values": [
+       0.0,
+       1.0
+      ],
+      "probabilities": [
+       0.7,
+       0.3
+      ]
+     }
+    }
+   ],
+   "points": [
+    {
+     "lambda": 1.0,
+     "lower": 0.3,
+     "upper": 0.3
+    },
+    {
+     "lambda": 1.5,
+     "lower": 0.14375,
+     "upper": 0.425
+    },
+    {
+     "lambda": 2.0,
+     "lower": 0.04374999999999999,
+     "upper": 0.4875
+    },
+    {
+     "lambda": 2.3333333333333335,
+     "lower": -0.009523809523809552,
+     "upper": 0.5142857142857142
+    },
+    {
+     "lambda": 3.0,
+     "lower": -0.08333333333333334,
+     "upper": 0.55
+    },
+    {
+     "lambda": 7.0,
+     "lower": -0.2357142857142857,
+     "upper": 0.6214285714285714
+    },
+    {
+     "lambda": 100.0,
+     "lower": -0.31875000000000003,
+     "upper": 0.67125
+    }
+   ],
+   "lambda_max": 100.0,
+   "tipping": [
+    {
+     "threshold": 0.0,
+     "status": "bracketed",
+     "lambda": 2.270349141349972,
+     "down": true
+    },
+    {
+     "threshold": 0.5,
+     "status": "bracketed",
+     "lambda": 2.142857142857143,
+     "down": false
+    }
+   ]
+  },
+  {
+   "name": "zero-probability atom, tied values, unsorted input",
+   "strata": [
+    {
+     "mass": 1.0,
+     "propensity": 0.5,
+     "treated": {
+      "values": [
+       2.0,
+       0.0,
+       1.0,
+       1.0
+      ],
+      "probabilities": [
+       0.25,
+       0.25,
+       0.0,
+       0.5
+      ]
+     },
+     "control": {
+      "values": [
+       1.0,
+       2.0,
+       0.0,
+       1.0
+      ],
+      "probabilities": [
+       0.5,
+       0.125,
+       0.125,
+       0.25
+      ]
+     }
+    }
+   ],
+   "points": [
+    {
+     "lambda": 1.0,
+     "lower": 0.0,
+     "upper": 0.0
+    },
+    {
+     "lambda": 2.0,
+     "lower": -0.28125,
+     "upper": 0.28125
+    },
+    {
+     "lambda": 3.0,
+     "lower": -0.5,
+     "upper": 0.5
+    },
+    {
+     "lambda": 1.25,
+     "lower": -0.084375,
+     "upper": 0.084375
+    }
+   ],
+   "lambda_max": 1.25,
+   "tipping": [
+    {
+     "threshold": 0.0,
+     "status": "origin",
+     "lambda": 1.0
+    },
+    {
+     "threshold": 0.25,
+     "status": "not_reached",
+     "lambda": null
+    }
+   ]
+  },
+  {
+   "name": "five atoms, offset 1e6, extreme propensities, three strata",
+   "strata": [
+    {
+     "mass": 0.5,
+     "propensity": 0.001,
+     "treated": {
+      "values": [
+       1000000.5,
+       999997.0,
+       1000007.25,
+       1000000.0,
+       1000001.0
+      ],
+      "probabilities": [
+       0.125,
+       0.25,
+       0.0625,
+       0.5,
+       0.0625
+      ]
+     },
+     "control": {
+      "values": [
+       1000002.0,
+       999999.0,
+       1000000.25,
+       1000005.0,
+       999996.0
+      ],
+      "probabilities": [
+       0.25,
+       0.25,
+       0.125,
+       0.25,
+       0.125
+      ]
+     }
+    },
+    {
+     "mass": 0.25,
+     "propensity": 0.999,
+     "treated": {
+      "values": [
+       -2.0,
+       0.5,
+       3.0,
+       4.5,
+       -0.25
+      ],
+      "probabilities": [
+       0.5,
+       0.125,
+       0.125,
+       0.125,
+       0.125
+      ]
+     },
+     "control": {
+      "values": [
+       0.0,
+       1.5,
+       -1.0,
+       2.25,
+       9.0
+      ],
+      "probabilities": [
+       0.25,
+       0.25,
+       0.25,
+       0.125,
+       0.125
+      ]
+     }
+    },
+    {
+     "mass": 0.25,
+     "propensity": 0.5,
+     "treated": {
+      "values": [
+       5.0,
+       6.0
+      ],
+      "probabilities": [
+       0.75,
+       0.25
+      ]
+     },
+     "control": {
+      "values": [
+       5.5,
+       4.0
+      ],
+      "probabilities": [
+       0.5,
+       0.5
+      ]
+     }
+    }
+   ],
+   "points": [
+    {
+     "lambda": 1.0,
+     "lower": -0.8671875,
+     "upper": -0.8671875
+    },
+    {
+     "lambda": 1.001,
+     "lower": -0.8684842654767106,
+     "upper": -0.8658909836725776
+    },
+    {
+     "lambda": 1.5,
+     "lower": -1.40508984375,
+     "upper": -0.3708515625
+    },
+    {
+     "lambda": 4.0,
+     "lower": -2.94713671875,
+     "upper": 0.8502421875
+    },
+    {
+     "lambda": 1000.0,
+     "lower": -4.2692273671875,
+     "upper": 3.6588366328125
+    },
+    {
+     "lambda": 1000000.0,
+     "lower": -4.272629407054687,
+     "upper": 3.6633626569453126
+    }
+   ],
+   "lambda_max": 1000000.0,
+   "tipping": [
+    {
+     "threshold": 999998.0,
+     "status": "not_reached",
+     "lambda": null
+    },
+    {
+     "threshold": 3.0,
+     "status": "bracketed",
+     "lambda": 13.22183337495281,
+     "down": false
+    }
+   ]
+  },
+  {
+   "name": "single atom per arm is identified at every Lambda",
+   "strata": [
+    {
+     "mass": 0.5,
+     "propensity": 0.3,
+     "treated": {
+      "values": [
+       4.0
+      ],
+      "probabilities": [
+       1.0
+      ]
+     },
+     "control": {
+      "values": [
+       1.0
+      ],
+      "probabilities": [
+       1.0
+      ]
+     }
+    },
+    {
+     "mass": 0.5,
+     "propensity": 0.6,
+     "treated": {
+      "values": [
+       2.0
+      ],
+      "probabilities": [
+       1.0
+      ]
+     },
+     "control": {
+      "values": [
+       3.0
+      ],
+      "probabilities": [
+       1.0
+      ]
+     }
+    }
+   ],
+   "points": [
+    {
+     "lambda": 1.0,
+     "lower": 1.0,
+     "upper": 1.0
+    },
+    {
+     "lambda": 5.0,
+     "lower": 1.0,
+     "upper": 1.0
+    },
+    {
+     "lambda": 50.0,
+     "lower": 1.0,
+     "upper": 1.0
+    }
+   ],
+   "lambda_max": 50.0,
+   "tipping": [
+    {
+     "threshold": 0.0,
+     "status": "not_reached",
+     "lambda": null
+    }
+   ]
+  }
+ ]
+}

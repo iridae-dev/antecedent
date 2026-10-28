@@ -213,6 +213,18 @@ fn every_treatment_position_and_joint_interventions_agree_with_the_oracle() {
     }
 }
 
+#[test]
+fn extreme_mechanism_probabilities_agree_with_the_oracle() {
+    // Mechanism probabilities of 1e-4 and 0.999 make the observational weights that line 3
+    // averages and the conditionals of the c-component recursion span four decades, and a
+    // selection or parent weight of zero makes a declared discrepancy a no-op. Weights may be
+    // negative: each mechanism probability stays inside [0, 1].
+    let parameterizations =
+        [(1.0e-4, 1.0e-4, 1.0e-4, 1.0e-4), (0.999, -3.0e-4, -2.0e-4, 5.0e-4), (0.5, 0.0, 0.0, 0.0)];
+    sweep(&[0], 2, &parameterizations);
+    sweep(&[1], 2, &parameterizations);
+}
+
 #[allow(clippy::too_many_lines, reason = "Independent exhaustive oracle and provider construction")]
 #[allow(clippy::cast_possible_wrap, reason = "fixture dimensions are small literals")]
 fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, f64)]) {

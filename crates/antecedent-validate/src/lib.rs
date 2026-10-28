@@ -150,3 +150,5 @@ pub use vector_sensitivity::{
 mod test_support;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod dbn_posterior_reference_tests;

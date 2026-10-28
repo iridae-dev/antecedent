@@ -22,9 +22,51 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
-  "hand-computed linear-Gaussian chain with total covariance and interventional laws",
-  "independently coded brute-force enumeration of a finite structural causal model",
-  "crates/antecedent-model/tests/mechanism_composition.rs",
-  "crates/antecedent-contract/src/mechanism_composition.rs",
-  "crates/antecedent-io-core/tests/mechanism_composition_artifact.rs",
+ "crates/antecedent-model/tests/acyclic_joint_model_reference.rs (exact rational path algebra, conditioning, delta method and finite enumeration over random compositions)",
+ "hand-computed linear-Gaussian chain with total covariance and interventional laws",
+ "independently coded brute-force enumeration of a finite structural causal model",
+ "crates/antecedent-model/tests/mechanism_composition.rs",
+ "crates/antecedent-contract/src/mechanism_composition.rs",
+ "crates/antecedent-io-core/tests/mechanism_composition_artifact.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The numerical executors of an admitted acyclic composition: ComposedLinearGaussian (joint mean and covariance by path algebra with shared latents, hard interventions, Schur-complement conditioning with its evidence log density, the weighted mean contrast, and the first-order delta-method gradient and variance under the joint, cross-covariance and independent-by-design parameter covariances assembled by assemble_parameter_covariance) and ComposedFinite (exact joint law by the Markov factorization and the truncated factorization under do()), in crates/antecedent-model/src/compose/{gaussian,tabular,uncertainty}.rs. Not reviewed: the coherence and admission checks (coherence.rs, descriptor.rs: units, domains, selection diagrams, invariances, latent reciprocity), which are declaration checks with their own refusal tests; structural and ancestral sampling, which is compared with the closed-form moments only by the existing statistical test; the observation-uncertainty redraw; and any claim built on a composition."
+assumptions = ["The declared mechanisms are the true conditional mechanisms: the composition computes the law implied by them and does not test acyclicity, additivity, Gaussian noise or invariance of the mechanisms.", "The delta method is first order: the contrast is multilinear in the parameters, so the variance omits terms of order Sigma squared, the residual scales are held fixed, and the result is a parameter-covariance variance with no coverage claim.", "The reference derives the exact gradient as a finite difference of a multilinear function and the law by explicit rational matrix inversion, which is a different algorithm from the forward substitution and the sensitivity recursion in the product."]
+historical_exposure = "Historical author exposure cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with definitions evaluated by an executing reference written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review (no paper was downloaded or read here): the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. It declares inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Three random linear-Gaussian compositions (six nodes with two shared latents, four nodes with a child that is -1.25 times its parent plus noise of standard deviation 1/256, eight nodes with a latent shared by a source and a sink) and two finite compositions (four variables of two to three levels with unsorted level names and exact zero cells, and a second with odds up to 997 to 1): laws under zero to four interventions at 1e-11 relative, conditioning on two observed values (including the near-singular parent-and-child block, evidence log density near -2.7e5 at 1e-9 relative) , the contrast and its delta-method gradient and variance under three dependence declarations at 1e-10 relative with a rank-deficient parameter covariance, and every joint state of the finite laws to 1e-12. All coefficients are dyadic so the floats equal the rationals. Larger graphs, intervention values outside a consumer's fitted domain, cyclic inputs, tolerance-edge positive semidefiniteness of the assembled covariance, and the scale-parameter uncertainty (not propagated, by design) are not exercised. The primary sources (Pearl, Bollen, Pearl and Bareinboim) were not retrieved in this review: the correspondence is to the standard identities they state (path algebra, truncated factorization), verified numerically, not to a page-level reading. The sampling path is not newly covered."
+sources = ["crates/antecedent-model/tests/acyclic_joint_model_reference.rs", "crates/antecedent-model/tests/oracle_data/acyclic_joint_model_reference.py"]
+findings_resolved = ["No defect found: the joint mean and covariance under every tested intervention, the Schur-complement conditional law and evidence log density, the contrast, the gradient and the first-order variance under all three dependence declarations, and every joint state probability of the finite laws agree with the exact rational references.", "Added randomised worst cases (shared latents across non-adjacent nodes, a near-deterministic child, eight-node path products, unsorted names, zero cells, extreme odds, a rank-deficient parameter covariance) to the hand-computed three-variable chain and the single enumerated finite model that were the only executing evidence."]
+record_sha256 = "b355908c6b2035da512b4783aeabd9d33c882cf0d46279d59acda5534d30839c"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/compose/gaussian.rs"
+sha256 = "575c16db97a83db4782d88d71479792d432a08fc6003d81b0bdc59a214c5beaf"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/compose/tabular.rs"
+sha256 = "3f883472fe1b858ed48b468dd41997a3f580d16ea7f9b27943ff82111a921bb2"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/compose/uncertainty.rs"
+sha256 = "ec9d197147c5f53ebc27896b3f076ebb9bf94596594aa0064d46ccd5db0d005f"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/acyclic_joint_model_reference.rs"
+sha256 = "d0e9886e7ac6aba582b3c309cd09cc02a720ecc4aba330f079432c5bf20291f8"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-model/tests/oracle_data/acyclic_joint_model_reference.py"
+sha256 = "f64c31f54b5184c44a1b2d79f48371de8a67584835863a10b6add080f869a901"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-model/tests/oracle_data/acyclic_joint_model_reference.json"
+sha256 = "4ffa1975e6ec69e9cf3f105f2a69f0339d45fca02cf970ca5e77b4178647865f"

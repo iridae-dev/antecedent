@@ -5,6 +5,11 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+# No primary paper introduces this interval: it composes the exact joint assumption range of the
+# surrogate z-transport formula with an iid row percentile bootstrap, taking the lower endpoint from
+# the replicate minima and the upper from the replicate maxima. It is original engineering of this
+# repository; the percentile bootstrap itself is textbook, and the contamination range it applies
+# to each draw is checked here against exhaustive vertex enumeration.
 papers = []
 
 implementation_deviations = [
@@ -15,6 +20,39 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
-  "crates/antecedent/tests/joint_sensitivity_lifecycle.rs",
-  "python/tests/test_transport_joint_sensitivity.py",
+ "crates/antecedent-validate/tests/joint_uncertainty_reference.rs (exhaustive vertex enumeration of the contaminated product polytope on every recorded bootstrap draw in exact rationals, with the type-7 percentile endpoints: a balanced 200-row table, a 16-row table whose draws sometimes lose a row, a zero box and an outcome offset of 1e6; runs with the calibration-internal feature)",
+ "crates/antecedent-validate/tests/joint_mechanism_sensitivity.rs (the endpoint bootstrap behind calibration-internal dominates the pointwise interval and is deterministic under its seed)",
+ "crates/antecedent/tests/joint_sensitivity_lifecycle.rs",
+ "python/tests/test_transport_joint_sensitivity.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "joint_sensitivity_bootstrap_interval_internal in crates/antecedent-validate/src/joint_mechanism_sensitivity.rs: for each iid row-bootstrap draw of the cited count table, the exact joint range [min, max] of the surrogate response psi = sum_w P_W(w)[m(w,1) - m(w,0)] over the box of independently contaminated kernel rows and shared parent marginal, the zero-deviation baseline, the failure bookkeeping (a draw with an empty (w, x) row is a failed replicate and the interval is withheld when more than half fail or fewer than two succeed), and the conservative endpoint interval [q_{(1-level)/2}(minima), q_{(1+level)/2}(maxima)] with type-7 quantiles, together with its replicate and level bounds. The per-draw range is checked against exhaustive enumeration of the polytope's vertices rather than the closed form the module uses, so the closed form is exercised here on 249 resampled tables. The resampling stream (z_transport_bootstrap_law_draws) is taken as given: the test records the draws and asserts the product reproduces them. Not the range evaluator's frontier and tipping outputs, the artifact wire or the facade lifecycle."
+assumptions = ["The sampling model is iid rows of the cited count table; the interval is a conservative composition of an assumption range with a percentile bootstrap, not a calibrated confidence interval, and its coverage is unmeasured (the route is wired, not measured).", "The deviation box contaminates each declared factor independently as Q = (1 - e) P + e R with R free in its simplex, and the surrogate formula is the registered z-transport identification.", "The exact supplied law carries no sampling uncertainty, so no interval is produced for it."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library (fractions, itertools). The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Four count tables of 16 to 200 rows with binary parent, treatment and outcome levels (three-way vertex enumeration of 32 vertices per draw), 40 to 99 replicates at levels 0.9 and 0.95 including four failed draws of sixty; lower and upper endpoints and the baseline interval agree with the exact-rational percentiles to 1e-9 (1e-6 at the outcome offset of 1e6). Multi-level parents and outcomes beyond two levels, parent-only or kernel-only boxes other than the zero box and the coverage of the interval are not reviewed; the replicate-failure rule is exercised only for a failure fraction of 6.7%. The module states the formula without a primary source and none is cited: the correspondence is between the product and the contamination model its documentation derives, verified by enumeration. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["No defect found: the published lower and upper endpoints, the pointwise baseline interval and the ok and failed replicate counts equal the exact-rational percentiles of the vertex-enumerated replicate ranges, including a zero box (endpoints equal the baseline interval) and draws that lose a row and are counted as failed rather than dropped silently.", "The sampler's draws equal the recorded draws at the recorded seed, so the reference and the product evaluate the same resamples."]
+record_sha256 = "f64fbd7190c4c3f9f591f47077a70720c5ebbe6b993ae52da5baf4d46a632c7a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/joint_mechanism_sensitivity.rs"
+sha256 = "a2348a1a253c5080383197000dc5132440909e46ef23f6d74a514812504e75c7"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-validate/tests/joint_uncertainty_reference.rs"
+sha256 = "af16ae70fe926815faa5fe70901526492a371b5caab30d8588838aa0107d6139"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-validate/tests/oracle_data/joint_uncertainty_reference.py"
+sha256 = "d4e29d993860b3fd5a06a14cc1b995f86d911a9491000f6a6f1ba10a34f934bc"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-validate/tests/oracle_data/joint_uncertainty_reference.json"
+sha256 = "0efe1858f98e78795322df04598daf3dcf3b1560fb8a26e94aaa7d3d093cb066"

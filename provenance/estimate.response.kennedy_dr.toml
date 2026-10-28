@@ -32,7 +32,49 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+  "crates/antecedent-estimate/tests/estimate_response_kennedy_dr_reference.rs (exact rational cross-fitted pseudo-outcome, level and influence composition; refusal of an undetermined additive split)",
   "crates/antecedent-estimate/src/response/tests.rs",
   "crates/antecedent-stats/src/response.rs",
   "conformance/response/two_point_curve_average_effect (shared-linear-estimand calibration)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The scalar mean-curve path of ContinuousResponseEstimator::mean_curve in crates/antecedent-estimate/src/response (curve.rs, nuisance.rs, crossfit.rs, sample.rs): the index-modulo cross-fitting folds, the penalized additive-GAM outcome nuisance on (treatment, adjusters) and treatment nuisance on the adjusters over each fold's training rows, the treatment residual scale with the effective-degrees-of-freedom divisor, the Gaussian conditional density with its 1e-8 floor, the training-row Gaussian-mixture marginal density (direct and the binned Hermite path above 512 training rows), the marginalization offset over all rows and the treatment smooth, the pseudo-outcome, the covariate term (c_i - mean c)/n, and the composition of the exported influence from the local-quadratic influence of the pseudo-outcome. Relies on the reviews of stats.gam (the penalized additive fit, its knots and centering) and stats.response.local_polynomial (the Gaussian-kernel local quadratic and its leverage-corrected influences); this review checks only the route arithmetic that sits on them. Not the Silverman default bandwidth, the Student critical values, the simultaneous band (estimate.response.kennedy_dr_simultaneous), the winsorization diagnostic or the Bayesian row-weighted draw path."
+assumptions = ["Conditional exchangeability, consistency and positivity given the adjustment set are identification assumptions taken as given.", "The outcome mean is additive in the treatment and the adjusters and the treatment is Gaussian around an additive function of the adjusters with a constant scale; the estimator does not test either, and the covariate term of the influence is derived only for the additive outcome nuisance.", "The data are dyadic in the references so that the product reads exactly the numbers the references use; the nuisances are the product's backfit, so agreement is to the backfit resolution, not to rounding."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. It is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Five frozen designs of 48 to 720 rows with one adjuster: an ordinary confounded design at 3 folds, an outcome offset of 1e6 with a treatment offset of 1e3 and an adjuster on scale 250 at 5 folds, a treatment value far enough from its conditional mean that the density floor binds, a strongly determined treatment (noise 1/8) and a 720-row design whose training mixture exceeds 512 means. The exact references are solved at fixed lambda 0.5 to 1; nothing here checks that those are good nuisance choices. Agreement is held to 2e-5 of the outcome spread (the backfit now stops at 1e-10) plus 2e-9 of the largest outcome, because the backfit tolerance is relative to the largest fitted value including the intercept: an outcome offset of 1e6 admits about 1e-4 absolute in the centered smooths (the gam.rs stopping rule uses max|fitted| for its scale, which is stats.gam's code and is not changed by this review). The influence check composes the product's exported influence from the separately reviewed local-quadratic influence of the product's own pseudo-outcome plus the reference covariate term; the local influence itself is not re-derived here. The cited paper (Kennedy et al., nonparametric doubly robust estimation of continuous treatment effects) was not retrieved in this review: the reference is the pseudo-outcome mapping as the module states it, evaluated exactly, so section-level correspondence with the paper is not established, and the doubly robust property (one nuisance misspecified) is not demonstrated by anything here. The fold rule is index modulo, not random. The reference script is not run in a locked, isolated environment and is not wired into any gate."
+sources = ["https://doi.org/10.1111/rssb.12212", "https://mpmath.org/"]
+findings_resolved = ["Defect repaired: the additive-GAM nuisance backfit of the response estimators stopped at a relative tolerance of 1e-6 on either the change of the smooths or the change of the residual sum of squares, and the second is second order in the coefficient error. With an adjuster correlated with the treatment the fitted values were right but the treatment smooth, which the Kennedy marginalization reads as a function in its own right, was off by 0.2 percent (a pseudo-outcome off by up to 5e-3 on values of order 1). The nuisance and plug-in target backfits now run at 1e-10 with a 2000-sweep budget, and the pseudo-outcome, the level and the exported influence equal the exact pipeline to the stated tolerance.", "Consequence recorded: when the treatment is a smooth function of the adjuster to within 1/64 the additive split between the two smooths is not determined by the data (the same fold gave a treatment smooth of -2.8, 1.47, 1.50 and 2.50 at tolerances 1e-6, 1e-8, 1e-10 and 1e-12), so the earlier answer was a function of the stopping point; the estimator now refuses it with the non-convergence remedy (raise nuisance_lambda or lower nuisance_basis) instead of publishing it.", "The cross-fit folds, the effective-degrees-of-freedom residual scale, the conditional and marginal densities including the floor and the binned mixture, the marginalization offset, the pseudo-outcome, the covariate term and the level equal the exact rational pipeline on the other four designs."]
+record_sha256 = "adb79f392a399be2d42c4e8e7d303f48b95b92c172f2c1b0212efc23e3511f46"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/response/curve.rs"
+sha256 = "5fa78688d2f823851d49bff4d82cf3aa001508792536cd80802c0ede83370b26"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/response/nuisance.rs"
+sha256 = "c642ac42905f6c510772c5ae6f8e3acee479636180a35707e098506e6d2c8446"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/response/crossfit.rs"
+sha256 = "da2fdb943a3f263eaae29bcdd56e4875ede7e7e7510c9a7c9598cfaece0035f9"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/estimate_response_kennedy_dr_reference.rs"
+sha256 = "832db1d271c577446836158c950c30ac55d534a8719d5fece477947c4cfd098e"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/estimate_response_kennedy_dr_reference.py"
+sha256 = "5adc1c1a47466131459f3b8d8c7cd1a8c8f32855f546b9af41afeed6a2182a30"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/estimate_response_kennedy_dr_reference.json"
+sha256 = "6e8bb0fd4fbc201ad72df6f809ff9357f2bb989562665f65a3d70e6bf72d0d1b"

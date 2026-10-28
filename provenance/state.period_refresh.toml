@@ -21,5 +21,37 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+  "crates/antecedent/tests/period_refresh_reference.rs (exact rational replay of the lag rows, least squares and conjugate posterior across contiguous, gapped and restarted periods)",
   "crates/antecedent/tests/period_refresh_lifecycle.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "PeriodRefresh::start and ::refresh in crates/antecedent/src/period_refresh.rs for an autoregressive mechanism of order L: the lag-row construction (lagged_rows, with the absolute time index of each target as its row id), the carried tail of the last L values, the three outcomes of a later period (a contiguous extension that forms the rows reaching back into the tail, an extension over a gap that does not, and a restart on the new period alone when the mechanism was not declared invariant), the refusal of an overlapping or snapshot-reusing period, and that a refused period leaves the fit, the posterior and the event list unchanged. The least-squares summary and the conjugate posterior themselves are the shared state.ols_refresh and state.conjugate_refresh kernels, whose own reviews are relied on; this review checks only that this route hands them exactly the rows an independent replay forms. Not the window-factor survival rules of refresh_survival, the artifact wire format, summary-only retention, row eviction or reprior."
+assumptions = ["The mechanism is v_t = c + sum_k phi_k v_(t-k) + e_t with independent innovations; the stationarity of a mechanism across periods is only what the caller declared.", "The conjugate normal-inverse-gamma posterior and ordinary least squares are determined by the retained rows and the stated prior, so a correct row set fixes every reported number.", "Series values are finite; the series is regularly spaced by the declared cadence."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. It is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Six frozen cases of 14 to 95 values with lag orders 1 to 3: three contiguous periods at an offset of 1e4, two periods at an offset of 1e6, a gap, periods shorter than the lag order (contiguous and across a gap), a restart, a nearly collinear ramp at an offset of 2000 with a weak prior, and a strong prior against few rows; every series value is dyadic so the product reads the reference's numbers exactly. Least squares and the posterior mean are held to 1e-7 relative except at the large offsets, where the raw normal equations of the shared kernels lose the digits their conditioning costs (1e-4 at 1e4, 1e-3 and a posterior rate to 5e-2 on the ramp), and the offset of 1e6 is accepted either refused (a singular posterior precision, the fail-closed outcome the kernel produces when the raw Gram is conditioned near 1e14) or matched to 1e-3. That precision loss belongs to the shared kernels and is not repaired here. Lag order, prior shape and the survival of a window under a changed factor are not swept; refresh_survival is relied on, not reviewed here. The cited publications (Plackett 1950; Gelman et al.) were not retrieved in this review: the reference is the standard definition of the recursive least-squares update and the conjugate regression posterior. The reference script is not run in a locked, isolated environment and is not wired into any gate."
+sources = ["https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["The row identities are the absolute time indices of the targets, including the rows that reach back into the carried tail after a contiguous period and after a period too short to fill the lag window, and the tail is rebuilt from the new values alone after a gap.", "An extension over a gap forms no row that spans the gap, and an extension that leaves no row changes neither the fit nor the posterior.", "A restart fits the new period alone under the originally stated prior and drops the earlier rows; a restart whose new period leaves no row is refused with the earlier fit, posterior and event list unchanged.", "No defect was found in this module: every outcome equals the exact replay; the loss of digits at a large raw offset is the conditioning of the shared normal-equation kernels and is recorded as a limit."]
+record_sha256 = "80ad24fa034898c26b1e34f9a4e48337f670ebc36521efdb48b47503da688a97"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/period_refresh.rs"
+sha256 = "3f5894911387875a062ef06469122a0b29b2df75c9ebc9203da37f661aa6ac17"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/period_refresh_reference.rs"
+sha256 = "5e67c5fcb8cbbfef117ab1d2d6ceac62dbd05e934a8b70ff0aa95abc648a92cc"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent/tests/oracle_data/period_refresh_reference.py"
+sha256 = "c110f20a7817ffeb0987bbe66fd2fde742deb6a438beb8d1826325488e17b777"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent/tests/oracle_data/period_refresh_reference.json"
+sha256 = "a7d56c92602645fea5e15ab7d1397595d67fe69d877cc47625c72d65c23f1a7d"

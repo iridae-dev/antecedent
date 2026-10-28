@@ -41,4 +41,36 @@ test_sources = [
  "crates/antecedent/tests/policy_python_parity.rs and python/tests/test_policy_workflows.py (a prepared policy and the prepare handle equal the one-shot value bit for bit and compile the program once)",
  "python/tests/test_intervention_programs.py (Python programs run the same executor; identity pinned to the Rust digest)",
  "python/tests/test_dowhy_comparison.py (functional intervention and hard-set interventional means, and unit counterfactuals, against gcm.interventional_samples and gcm.counterfactual_samples; DoWhy values computed at test time by the pinned version, skipped when it is absent)",
+  "crates/antecedent-model/tests/program_expression_reference.rs (independent interpreter over random typed expression trees and awkward inputs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The expression language of intervention programs as executed by NodeProgram::compile_columns and the shared postfix executor apply_node_program: constants, reads, negation, + - * /, minimum and maximum (NaN if either is NaN), clipping (NaN if a bound is NaN or inverted), the six comparisons, not/and/or, conditionals selected per row with both branches evaluated, indicators, and the refusal of a non-finite result. Compared with an independent interpreter of the documented definitions in binary64. The dependency ordering, route licensing, transform/assign wiring into a model, history windows and the Python and wire encodings are exercised by the existing intervention_programs tests, not by this reference; Pearl is cited only for what an intervention is, and the language semantics are repository-defined."
+assumptions = ["The documented semantics are the specification: IEEE binary64 operations, a non-finite final value is a refusal, and an unselected conditional branch does not matter even when non-finite.", "Inputs are finite, as the executor requires."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. It declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "220 random typed trees of depth up to four over two columns, each on 24 rows drawn from fifteen awkward values (signed zeros, subnormals, 1e154, plus and minus 1e308, ties): 5280 evaluations of which 859 are refusals, and every finite result must equal the reference exactly (numerical equality, so a signed zero is not distinguished). Overflow, division by zero, inverted clip bounds and equal-value comparisons are therefore all exercised. Callbacks, lagged reads and the generated-value read (transform route) are outside this reference. The reference is a second implementation of the same documented semantics by the same authors, so a shared misreading of the documentation would not be caught; the Pearl text was not retrieved."
+sources = ["https://doi.org/10.1017/CBO9780511803161"]
+findings_resolved = ["No defect found: every finite value and every refusal agreed with the independent interpreter."]
+record_sha256 = "44ef702e4197727395272c9b6a60ab6cbf6631bccbeb1dc8fb7bb801e9443a77"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/program.rs"
+sha256 = "a06b88c72aa10b94ed926e30d8aee6be49ee4dbc494db9d442525cadab8d7923"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/program_expression_reference.rs"
+sha256 = "f420ab60cf4d25aad172d839bc41c76063ac176739f963b01bffa26b37503bc3"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-model/tests/oracle_data/program_expression_reference.py"
+sha256 = "e7648d659ee501ebcd9efe7548d2e28aced1dd9b1496f83ad160ccca02a52fe3"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-model/tests/oracle_data/program_expression_reference.json"
+sha256 = "b38c61caba664b8b7f505442edd6c2728bc26ac95e9adef2fce724f1260ed13b"

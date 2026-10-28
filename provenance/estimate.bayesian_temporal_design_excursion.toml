@@ -18,6 +18,39 @@ implementation_deviations = [
 ]
 
 test_sources = [
+  "crates/antecedent-estimate/tests/temporal_design_excursion_bayesian_bootstrap_reference.rs (exact Dirichlet-weight distribution of the cluster ratio by quadrature: mean, standard deviation and quantile shares for two and three clusters, a decreasing ratio, a sign change, an 8 to 1 count imbalance and a heavy cluster)",
+  "crates/antecedent-estimate/tests/temporal_design_excursion_reference.rs (exact-rational Horvitz-Thompson scores and cluster-robust ratio; shared with the frequentist record)",
   "crates/antecedent-estimate/src/temporal_design/mod.rs",
   "crates/antecedent/tests/temporal_design_routes.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "bayesian_bootstrap and posterior_by_cluster_weights of crates/antecedent-estimate/src/temporal_design/mod.rs for the ratio of cluster scores: one Dirichlet(1, ..., 1) weight vector over the independent clusters per draw (from its own stream, rescaled to mean one), the weighted ratio estimate sum_g w_g S_g / sum_g w_g n_g of every coordinate, and the posterior mean, standard deviation and equal-tailed 95 percent interval of the draws. The Horvitz-Thompson scores that feed it are the frequentist record's. Not the quantile, local-quadratic dose, observational, regime or misclassification functionals that reuse the same weights, the simultaneous band, the Dirichlet generator beyond its agreement with the exact distribution (relied on through the sampling_weights review), or coverage."
+assumptions = ["Clusters are independent units (or interference clusters) and the recorded assignment law is held fixed; the prior supplies no identifying premise.", "The weights are Dirichlet(1, ..., 1) over clusters rescaled to mean one; the ratio is invariant to that rescaling.", "The cluster scores are supplied as exact sums; the reference compares only the weighting, the ratio and the summaries."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared the draws with the exact distribution of the weighted ratio under Dirichlet weights, evaluated by mpmath quadrature in a reference written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the stated definition of the Bayesian bootstrap and of the cluster ratio, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Seven score tables of two or three clusters (one or two coordinates). The posterior mean is compared within five Monte Carlo standard errors over 4e5 draws, the standard deviation within 3 percent, the share of draws below the exact 2.5, 50 and 97.5 percent quantiles within five binomial standard errors (two clusters, where the ratio is monotone in one uniform weight) and the interval endpoints within 2 percent of the interval width; so the check is Monte Carlo accurate, not exact. Three clusters are checked by moments only; there is no exact reference for many clusters, for the thread-count independence of the draws, or for the other functionals that share posterior_by_cluster_weights. The interval is a posterior of a bootstrap functional and no coverage is measured. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file."
+sources = ["https://doi.org/10.1214/aos/1176345338", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The draws of the weighted ratio reproduce the exact Dirichlet-weight mean, standard deviation and quantiles for two clusters (including a ratio that decreases in the weight, a sign change in the numerator, an 8 to 1 imbalance in pair counts and an offset of 1e6 in the scores) and the exact mean and standard deviation for three clusters (one dominating cluster included).", "The posterior mean differs from the point estimate (the unweighted ratio) by the Jensen gap of the ratio, which the reference computes (for example 0.839 against 0.780 on the unbalanced two-cluster table), so the published posterior mean is the Bayesian-bootstrap mean and not a renamed point estimate.", "Draws are reproducible for a seed and change with it; fewer than two draws or fewer than two clusters are refused.", "No product defect was found in this record."]
+record_sha256 = "7ed8590cc1ac8e79f566974a70a1c2d5b9463a9c40f83c7a9e0863d4a3003a57"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/temporal_design/mod.rs"
+sha256 = "bf613b0d56a0fa92a8aaf8e9976563b892f9b89aaaddc890d126aacd0597c2e9"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/temporal_design_excursion_bayesian_bootstrap_reference.rs"
+sha256 = "56f4ad3d768aa8c27ced60c2a1688be0f9afc12261617a64ed08cdd4259acc92"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/temporal_design_excursion_bayesian_bootstrap_reference.py"
+sha256 = "ad2ad3b34be792853cc5aed7a72cf6cd874f6fb36300309410e66fb4173757b6"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/temporal_design_excursion_bayesian_bootstrap_reference.json"
+sha256 = "f626c58fd80da954f2f66709689f7e80aebb5f19d46cc05ad58bcc58f77e8c25"

@@ -36,4 +36,5 @@ test_sources = [
  "conformance/gcm/discrete_hierarchical_glm",
  "conformance/gcm/gaussian_process",
  "conformance/gcm/minnesota_bvar",
+ "crates/antecedent-model/tests/registry_weighted_refit_reference.rs (exact weighted least squares for the weighted refit of linear-Gaussian mechanisms: weights, frequency counts with zeros, offsets, near-collinear parents, residual degrees of freedom; not a review of this record)",
 ]

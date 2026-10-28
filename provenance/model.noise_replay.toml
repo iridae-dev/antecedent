@@ -24,4 +24,41 @@ test_sources = [
  "crates/antecedent-counterfactual/tests/noise_replay_abduction.rs (agreement with CounterfactualEngine::predict)",
  "crates/antecedent/tests/policy_python_parity.rs (a sample with its noise replays bit for bit, caller-supplied noise columns give the same table, replay under a policy is its counterfactual on the same units)",
  "python/tests/test_policy_workflows.py (FittedGcm.sample_noise and replay_noise: bit-identical replay, closed-form counterfactual of a linear chain, refusal of a wrong-width or non-finite matrix)",
+  "crates/antecedent-model/tests/scm_replay_reference.rs (exact rational evaluation of replay and coalition replay on supplied noise)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "NoiseTable and NoiseReplayer in noise_replay.rs: replay of a retained noise table through a compiled model under an intervention overlay, and the two-table coalition source with a node mask. Compared with exact evaluation of the structural equations on the supplied noise (NoiseTable::from_abducted carries the reference noise in), so that the replayed value of each node is its equation on the replayed parents plus that node's own column of the table or of the mask-selected table. The model-level evaluation it delegates to (compile order, overlay precedence, the linear-Gaussian additive-noise evaluation) is the one reviewed under model.compiled_scm; this review adds the table, the coalition selection and the replayer path, not a second review of those kernels. Not reviewed: drawing of the noise streams (blocks, domains and seeds), randomize and fix, abduction (performed by the counterfactual engine, which hands this module its result), the memory budget and cancellation prefix, and every non-additive family."
+assumptions = ["Noise is additive and independent across nodes for the families exercised; a column supplied to from_abducted is taken as the realised noise.", "The coalition mask reads the first table where true and the second where false."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library (Fraction). It declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "The same four models, seven overlays and coalition masks as the compiled-model review, with 4 rows and tolerance 1e-13 times the magnitude of the terms; both single-table replay and the coalition source are asserted, and the refusal of a node that is both hard-set and shifted. Linear-Gaussian mechanisms only. Bit-for-bit equality of a sampled run and its replay, the stream keys and the abducted-noise modes are asserted by the existing noise_replay tests, not by this reference. Pearl's abduction-action-prediction text was not retrieved."
+sources = ["https://doi.org/10.1017/CBO9780511803161"]
+findings_resolved = ["No defect found: single-table and coalition replay matched the exact evaluation in every case."]
+record_sha256 = "fd39b8120a089a5b0a55d1d964da9a962698c8d92e119f5b88b9726b8a5aed91"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/noise_replay.rs"
+sha256 = "0bd2eed5c894f923ed53d074252a598ff05439dede8f92e34943274cd6ea75e7"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/sample.rs"
+sha256 = "3c9bd1783a5b758fbf63da2ab9c929d0f781335a600f4436916f516a58b6b753"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/scm_replay_reference.rs"
+sha256 = "2d43446a3780b43fa7a02287b0dc779337296f91a8e79e1c3c9aa8d687dd74dd"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-model/tests/oracle_data/scm_replay_reference.py"
+sha256 = "399738998e5e91ec0d74231d459d64e9cbea8f5c0e311fa5f17baf6361648142"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-model/tests/oracle_data/scm_replay_reference.json"
+sha256 = "13444eac7f5785a19f58c57cfa62c1fe084550d78bfb8c5c777170c243ae59a0"

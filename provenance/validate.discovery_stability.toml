@@ -37,3 +37,11 @@ test_sources = [
  "crates/antecedent-validate/src/stability/env_holdout.rs unit tests",
  "crates/antecedent-validate/src/stability/pcmci_grid.rs unit tests",
 ]
+
+# Review status: not reviewed (no method_review, no mapping). The six stability wrappers run
+# PCMCI-family discovery under block-bootstrap, regime, surrogate, null-calibration, environment and
+# parameter-grid perturbations and report retention frequencies and false-positive bands. An
+# independent reference needs an independent PCMCI on every perturbed series; the only pure
+# arithmetic (lagged_link_family, null_rate_se, the gapped block layout) has same-author inline tests
+# built from the same formulas. No paper retrieved; the cited stationary-bootstrap paper describes a
+# procedure the fixed-block implementation deliberately does not follow.
