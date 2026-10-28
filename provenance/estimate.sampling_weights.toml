@@ -31,4 +31,36 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent-estimate/tests/sampling_weights.rs (independent weighted normal equations, a weighted Newton logistic fit, a case-weight derivative of the whole refitted estimator, a hand-rolled matched-pair computation, and a simulated super-population sampled with known inclusion probabilities)",
  "crates/antecedent/tests/sampling_weight_routes.rs (Hajek arm means, weighted group means of change scores with a weighted cluster score sandwich, and weighted least squares on lag windows, each computed from the definition)",
+  "crates/antecedent-estimate/tests/sampling_weights_reference.rs (exact rational normalisation, zero-weight accounting and Kish size at scales of 1e308 and 5e-320)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "SamplingWeights, RetainedSamplingWeights and SamplingWeightRecord in sampling_weights.rs: validation of a declaration, removal and counting of zero-weight rows from a row mask, normalisation of the retained weights to mean one, the Kish effective size, the declared weight sum, and the root-weight transform of a design. Not the per-estimator weighted constructions (each is checked by tests/sampling_weights.rs against its own weighted normal equations), the linearisation variance, or the sampling design behind the weights."
+assumptions = ["The declared weights are inverse inclusion probabilities of independent draws, possibly calibrated; the weight sum is never read as a population size.", "Estimates, standard errors and intervals depend on the weights only up to scale, which the normalisation to mean one leaves unobservable."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Five weight vectors of 4 to 30 rows: a mixed mask with two zero-weight rows, a scale of 1e308 (the sum overflows binary64), a scale of 5e-320 (denormal weights whose sum has an overflowing reciprocal), a spread of 1e300 between the largest and smallest weight, and thirty weights spread over 16 decades. Normalised weights and the Kish size are asserted to 1e-12 relative, and to 1e-3 at the denormal scale where binary64 keeps only a few bits. The weighted estimators that consume the normalised weights are reviewed, if at all, in their own records. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.2307/1402588"]
+findings_resolved = ["Defect repaired: normalisation divided by the plain sum of the weights, so finite weights near 1e308 summed to infinity and every normalised weight became zero, and denormal weights (1e-320) made the reciprocal of the sum overflow and produced infinities and NaN; either silently corrupted every weighted estimate. When the sum or its reciprocal is not finite the weights are now normalised relative to the largest weight, which changes only the order of rounding.", "Zero-weight accounting and the Kish size equal the exact rational values at every scale, including a 1e300 spread."]
+record_sha256 = "449ebec630bddc3df91c50e6be03b69d84454f8cca7913546c9138f3bf46fb12"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/sampling_weights.rs"
+sha256 = "294ecf71185c232f69b64787daea03ac829e7336fc9893ff089943e4ad7088e5"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/sampling_weights_reference.rs"
+sha256 = "3968eb7c59fe54ddeb79602413ab4711eed2e5321d92a3de29f61f3a85b8f3bd"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/sampling_weights_reference.py"
+sha256 = "8ab2388748fb1bde9b1bd79562f4c3c4163f7493bc34ad966117476ab1cc7dc4"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/sampling_weights_reference.json"
+sha256 = "506a7b74b5a2304994a02934c2d1228e40d6ca8a3f42100fab5d0f9c2920f692"

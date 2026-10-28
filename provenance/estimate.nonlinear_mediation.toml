@@ -31,4 +31,36 @@ test_sources = [
   "crates/antecedent-estimate/tests/nonlinear_mediation.rs",
   "crates/antecedent-io/tests/nonlinear_mediation_artifact.rs",
   "python/tests/test_nonlinear_mediation.py",
+  "crates/antecedent-estimate/tests/nonlinear_mediation_reference.rs (80-digit fit and exact Gaussian moments on noisy tables of degree two to four with offsets)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "estimate_nonlinear_mediation for the open natural-effects route: the least-squares mediator model on intercept, treatment and covariates with its degrees-of-freedom-corrected residual variance, the polynomial outcome model in the standardised mediator with treatment interaction, and the natural direct, indirect and total effects from the mediation formula integrated over the fitted Gaussian mediator law (the offset moments and Gauss-Hermite rule at n and 2n nodes). Not the bootstrap standard error, the overlap diagnostic's interpretation, the closed interventional estimand, or the artifact replay."
+assumptions = ["Sequential ignorability, cross-world independence and no treatment-induced mediator-outcome confounding are declared and taken as given.", "The mediator is linear-Gaussian with a homoscedastic residual and the outcome is a polynomial of the declared degree in the mediator; the reference evaluates the fitted formula, not the correctness of either model."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Seven noisy tables of 80 to 120 rows with one or two covariates and outcome degree two, three or four: a mediator offset of 1e6, a covariate offset of 1e3, an outcome offset of 1e7, an exponential (skewed) mediator and a mediator residual 1e-3 of its scale. Effects are asserted to 1e-6 relative, the residual variance to 1e-9 and the mediator coefficients to 1e-6. The reference integrates the polynomial exactly over the normal law where the product uses a Gauss-Hermite rule, so quadrature error is exercised through the node count the degree demands. The bootstrap, the overlap check and misspecification of either model are not examined. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://mpmath.org/"]
+findings_resolved = ["No defect found: the natural direct, indirect and total effects, the mediator coefficients and the residual variance equal the 80-digit reference in every case, including the three offsets, a skewed mediator and a nearly deterministic mediator."]
+record_sha256 = "39ea2ef09282b08db1ec83706365babda15ea47d0f31e5a1a0f43175bd5b6b66"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/nonlinear_mediation.rs"
+sha256 = "c85aded950953830f2a19b0cd856ad4ee184019b2a875c77a41ce9bd4c9a01a8"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/nonlinear_mediation_reference.rs"
+sha256 = "fa99c148c6be881964bc359db0348ae04191357ec4b18b9becc8c3f7a1c5d6ec"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/nonlinear_mediation_reference.py"
+sha256 = "5317a5de66b3d4af680407189358e08e28b9c1b4d9ebf173a34ee3df68026686"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/nonlinear_mediation_reference.json"
+sha256 = "e46cb1f5b8a957d02cc04478c742dac27fb21a4d04583db18091f27405b56015"

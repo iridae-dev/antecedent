@@ -20,4 +20,36 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent-stats/src/longitudinal_regime.rs",
  "crates/antecedent/tests/longitudinal_regime_route.rs",
+  "crates/antecedent-stats/tests/longitudinal_regime_reference.rs (exact rational IPW, g-formula and telescoped sequential doubly robust values on five histories)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "evaluate_g_formula_value in antecedent-stats longitudinal_regime.rs: the mean over subjects of the sum of supplied period predictions, with the positivity checks of the supplied probabilities and the minimum action and censoring probabilities, and the arithmetic of the fixed-known-Q pointwise interval (g_formula_fixed_q_pointwise_interval_95 as far as it forms the subject totals and the standard error). Not the fitting or cross-fitting of the predictions, which the caller attests, and not the IPW or doubly robust values."
+assumptions = ["Sequential randomization (no unmeasured confounding of any period's treatment given the recorded history), positivity at the declared floor and exchangeable censoring are identification assumptions taken as given.", "Sequential treatment and censoring probabilities and, where used, the period predictions are supplied inputs; subjects are independent histories. The kernel does not fit or verify them."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the shared helpers in the same file, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Five synthetic cohorts of 50 to 80 subjects and one to four decision periods: a static regime at two periods, a regime followed by about half the subjects with action and censoring probabilities at 0.02 and 0.05 (cumulative weights near 2.5e4), a history-dependent regime, an alternating regime and an outcome offset of 1e8. Values are asserted to 1e-10 to 1e-12 relative, the IPW standard error to 1e-9, and each sequential-DR subject score to 1e-9. The pointwise interval functions apply support floors and a sample-size gate to these quantities; their coverage is measured by the module's repeated-sample tests, not here. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://mpmath.org/"]
+findings_resolved = ["No defect found: the g-formula value equals the exact rational mean of the supplied period predictions on every history, including the outcome offset of 1e8.", "The interval gate and support floors are checked only through their inputs; the interval excludes all uncertainty in the supplied predictions, as the record states."]
+record_sha256 = "81acfdf0f7d18224815dc46c50dff9302c7e07880c31644b8ce924764cd183aa"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/longitudinal_regime.rs"
+sha256 = "de3915dd1fa8c2edee56056b2ca3ef1b5a94715ea79d9980df0cc606c86e9a33"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/longitudinal_regime_reference.rs"
+sha256 = "318566acebbcbd7f450ac1f3a99df91161533cd1472a784059fa473936158e6c"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/longitudinal_regime_reference.py"
+sha256 = "93fc02a91ffc32a2b5d77e93658dcb044236ae00bcbbd4a32f70f90066f4ab92"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/longitudinal_regime_reference.json"
+sha256 = "60f311b89d5a0a2195a12d885eedf2267dd5129c24ca94e015b4cf2271491fe1"

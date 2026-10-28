@@ -26,4 +26,41 @@ test_sources = [
  "independently generated synthetic SCM with U->T, U->Y unmeasured confounding and T->M->Y mediation (no direct T->Y edge), mirroring antecedent-identify's front-door criterion test fixture, with known structural effect through the mediator path",
  "conformance/estimate/frontdoor (known-truth recovery fixture with unequal path coefficients 0.4 and 5 and an uncentred treatment; SE checked against the closed-form delta-method SE; carries an unasserted recorded DoWhy run from the pinned baseline in parity/baselines/dowhy.toml)",
  "conformance/estimate/frontdoor_functional (exact binary table on which the product of coefficients converges to 0.3631 against an enumerated 0.315)",
+  "crates/antecedent-estimate/tests/frontdoor_two_stage_reference.rs (80-digit stacked estimating equations for one to three mediators with HC0, HC1 and cluster meats)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "FrontDoorTwoStage::fit for continuous treatment and one or more continuous mediators without adjustment covariates: the per-mediator slope of the mediator on the treatment, the outcome regression on treatment and all mediators, the path-sum effect scaled by the treatment-level difference, and the analytic standard error from the stacked sandwich (block-diagonal bread, HC0, HC1 and cluster meats with the per-equation small-sample factors, delta-method gradient). Not the bootstrap, the identification of the front-door criterion, or the functional estimator."
+assumptions = ["The front-door criterion and the linear, additive, no-interaction structure the product of coefficients needs (recorded on every result as frontdoor.linear_path_product) are taken as given.", "The per-equation small-sample convention (n/(n-p) for HC1 and G/(G-1) (n-1)/(n-p) for the cluster form, multiplying meat entry (r, s) by sqrt(f_r f_s)) is the product's documented convention; the reference applies it, it does not establish it."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Four tables of 40 to 60 rows with one, two and three mediators, a treatment-level difference of one and two, and clusters of four and six rows, plus a table with offsets of 1e3 (treatment), 1e5 (mediators) and 1e6 (outcome). Effects and standard errors are asserted to 1e-9 relative, except the offsets table at 1e-7 and 1e-5: uncentred columns within 1e-5 of collinear with the intercept leave the least-squares residuals a conditioning-squared error of about 1e-6 relative that the standard error inherits. Homoskedastic, HC2, HC3 and multiway standard errors are refused by the product and are not examined; the bootstrap standard error is not examined. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.1093/biomet/82.4.669", "https://mpmath.org/"]
+findings_resolved = ["No defect found: the path-sum effect and the stacked HC0, HC1 and cluster standard errors equal the 80-digit reference for one, two and three mediators, with cross-mediator and cross-stage covariance and a treatment-level difference of two.", "Recorded limit: with the treatment, mediators and outcome carrying offsets of 1e3 to 1e6 against unit spread the standard error keeps about five digits (1.5e-6 relative error observed) because the design is not centred before the least-squares fit."]
+record_sha256 = "478af3bcdfaa76a2b90b5348b3e25d65b91da7e0748212bd8ed120d54a4e541f"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/frontdoor.rs"
+sha256 = "6b06e29d658e5de771030cbd1d86f770e88a94e47560eb03002618f6be77d016"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/frontdoor_two_stage_reference.rs"
+sha256 = "5643bda6f6ae6a40429498567bd82a33cdbb79a3665200b17551898dc89d9cec"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/frontdoor_two_stage_reference.py"
+sha256 = "938ab1127084b14e5ae3d7950af62116889935814ee5d349159daae3b7aeba4c"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/frontdoor_two_stage_reference.json"
+sha256 = "66dfb07aac4f8f39f6dc53820662dd1ab03c8df99b46d0aab510211ecb957857"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/table_support.rs"
+sha256 = "b1ea24c5e276526e60ac330f732477945909496ff3d03ecf38f12f50f61eafbc"

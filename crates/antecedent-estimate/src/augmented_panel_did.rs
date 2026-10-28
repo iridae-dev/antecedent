@@ -73,9 +73,13 @@ pub fn estimate(
         }
     }
     let denominator = treated_subjects as f64;
+    // The comparison term is the odds-weighted mean of the untreated-change residual with the
+    // weights normalised to sum to one (the improved doubly robust estimator): a constant
+    // error in the supplied prediction then cancels between the treated and comparison terms
+    // instead of leaving the unit-weight mismatch (sum of odds over n_treated) minus one.
     let effect = treated_change / denominator
         - predicted_counterfactual / denominator
-        - control_residual_correction / denominator;
+        - control_residual_correction / control_weight;
     let effective_control_sample_size = control_weight.powi(2) / squared_weights;
     if !effect.is_finite() || !effective_control_sample_size.is_finite() {
         return Err("augmented DiD estimate overflowed finite precision");
@@ -91,7 +95,8 @@ pub fn estimate(
 }
 
 /// The augmented ATT of [`estimate`] with each subject weighted by `weights`; `None` when the
-/// weighted sample has no treated or no comparison subject.
+/// weighted sample has no treated or no comparison subject. Weights multiply the odds, so an
+/// integer weight is the same estimate as repeating the subject.
 fn weighted_effect(
     change: &[f64],
     treated: &[bool],
@@ -113,12 +118,12 @@ fn weighted_effect(
             treated_term += w * (change[i] - prediction[i]);
         } else {
             let odds = propensity[i] / (1.0 - propensity[i]);
-            control_weight += w;
+            control_weight += w * odds;
             correction += w * odds * (change[i] - prediction[i]);
         }
     }
     (treated_weight > 0.0 && control_weight > 0.0)
-        .then(|| (treated_term - correction) / treated_weight)
+        .then(|| treated_term / treated_weight - correction / control_weight)
         .filter(|effect| effect.is_finite())
 }
 
@@ -191,7 +196,7 @@ pub fn resample_augmented_panel(
 mod resample_tests {
     use std::sync::Arc;
 
-    use super::resample_augmented_panel;
+    use super::{estimate, resample_augmented_panel, weighted_effect};
     use crate::rollout_resampling::UnitWeighting;
     use crate::splitmix::FixtureRng;
 
@@ -232,5 +237,29 @@ mod resample_tests {
         assert!((fit.effect - 1.5).abs() < 0.1, "{}", fit.effect);
         let interval = serial.quantities[0].interval.unwrap();
         assert!(interval[0] < fit.effect && fit.effect < interval[1]);
+    }
+
+    #[test]
+    fn an_integer_weight_is_the_same_estimate_as_repeating_the_subject() {
+        let pre = [1.0, 2.0, 0.5, 3.0, 1.5, 2.5, 0.0];
+        let post = [3.0, 2.5, 2.0, 3.5, 2.0, 3.5, 1.0];
+        let treated = [true, true, false, false, true, false, false];
+        let propensity = [0.4, 0.7, 0.2, 0.9, 0.5, 0.05, 0.6];
+        let prediction = [0.3, 0.1, 0.2, 0.0, 0.4, 0.1, 0.2];
+        let change: Vec<f64> = post.iter().zip(&pre).map(|(a, b)| a - b).collect();
+        let weights = [2.0, 1.0, 3.0, 1.0, 1.0, 2.0, 1.0];
+        let mut rep = (vec![], vec![], vec![], vec![], vec![]);
+        for (i, &w) in weights.iter().enumerate() {
+            for _ in 0..w as usize {
+                rep.0.push(pre[i]);
+                rep.1.push(post[i]);
+                rep.2.push(treated[i]);
+                rep.3.push(propensity[i]);
+                rep.4.push(prediction[i]);
+            }
+        }
+        let repeated = estimate(&rep.0, &rep.1, &rep.2, &rep.3, &rep.4).unwrap().effect;
+        let weighted = weighted_effect(&change, &treated, &propensity, &prediction, &weights);
+        assert!((weighted.unwrap() - repeated).abs() < 1e-12, "{weighted:?} {repeated}");
     }
 }

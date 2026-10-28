@@ -19,4 +19,36 @@ upstream_implementations_observed = []
 
 test_sources = [
   "crates/antecedent/tests/augmented_panel_did_route.rs",
+  "crates/antecedent-estimate/tests/augmented_did_reference.rs (exact rational augmented ATT with normalised comparison weights, extreme odds, an outcome offset and a biased prediction)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "augmented_panel_did::estimate and the weighted form used by resample_augmented_panel (weighted_effect): the treated-group ATT from supplied propensity and untreated-change predictions as the treated mean of the residual minus the odds-weighted comparison mean with the weights normalised to sum to one, and the Kish size of the comparison weights. Not the choice or fitting of the nuisances, the interval coverage of the cluster resample, or the Bayesian form."
+assumptions = ["Parallel trends conditional on the covariates the supplied propensity and prediction use, and strict overlap, are identification assumptions taken as given.", "The supplied propensity and untreated-change predictions are fixed inputs, valid for the evaluation rows; their estimation error is not propagated."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Five tables of 4 to 40 subjects: moderate overlap, odds up to 999 (propensity 0.001), an outcome offset of 1e8, a prediction wrong by a constant of 5 and four subjects. The effect is asserted to 2e-7 relative (the 1e8 offset costs the changes about 1e-8 absolute) and the comparison size to 1e-12. The resample's weighted form is checked against repeating subjects by integer weights, not against an interval coverage, which stays unmeasured. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.1016/j.jeconom.2020.06.003"]
+findings_resolved = ["Defect repaired: the comparison term divided the odds-weighted residual sum by the number of treated subjects instead of the sum of the odds. The improved doubly robust estimator normalises the comparison weights to sum to one, so a constant error in the supplied prediction cancels between the treated and comparison terms; the product left the factor (sum of odds / treated count - 1) times the error, which on the biased-prediction table (sum of odds over treated count 8.01, propensities between 0.01 and 0.99) turned a prediction too high by 5 into an effect error of 35. The Kish size already described the normalised weights. The cluster resample's weighted form was repaired the same way and equals the estimator on repeated subjects.", "With normalised weights the effect equals the exact rational reference at extreme odds, with an outcome offset of 1e8 and for four subjects."]
+record_sha256 = "8a425752b0a839b3a2a5bee249ed15c4232ffee3160a9b28ce2d2a5125632d61"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/augmented_panel_did.rs"
+sha256 = "a5181d02975160f5f9ed88a627bfed15b34a09e5f0e85431af9cac653b047096"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/augmented_did_reference.rs"
+sha256 = "a9db5b64bdd274d076fd3e15752e23fd1154e6f3e2ca046ed006e864a5759216"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/augmented_did_reference.py"
+sha256 = "2d3c6dad9d966e4915d113ba375433aae78641c8f10db5b82a0ca3cf14606412"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/augmented_did_reference.json"
+sha256 = "5c8761c1d00f0c86e95bc7ea951902f2cfad4e7ca9d9f3baeb7ef68b49372382"

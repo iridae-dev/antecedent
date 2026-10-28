@@ -20,4 +20,36 @@ upstream_implementations_observed = []
 
 test_sources = [
   "crates/antecedent/tests/panel_did_route.rs",
+  "crates/antecedent-estimate/tests/staggered_did_reference.rs (exact rational cohort-by-period contrasts and cluster sandwich on balanced and unbalanced panels)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "staggered_event_study::estimate, estimate_with and group_time_att: the cohort-by-period contrast of mean outcome change from the cohort's baseline period g-1 between an adoption cohort and the never-treated units, over the units observed at both periods, its cluster-sandwich standard error with the G/(G-1) factor, and the unit, cluster and refusal accounting; the available-case reading of an unbalanced panel. Not pretrend_falsification_statistic or pointwise_interval_95 beyond their stated arithmetic, the coverage simulations in the module tests, not-yet-treated comparison groups, covariates or anticipation (these belong to the rollout estimator)."
+assumptions = ["Parallel trends between each adoption cohort and the never-treated units from the baseline period, no anticipation of adoption, and no spillovers are identification assumptions taken as given.", "Subjects are independent across clusters; the standard error is the G/(G-1) cluster sandwich of the difference of two means with the clusters of both groups pooled.", "On an unbalanced panel a unit's chance of being observed at both periods of a contrast does not depend on its outcome change within cohort; the caller declares it."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Six panels of 32 to 131 unit-periods: three cohorts, clusters that span the treated and never-treated groups, an outcome offset of 1e9 with effects of order 1e-3, two clusters per group, and two unbalanced panels (unit-periods other than the baseline and adoption periods dropped with probability 0.18 and 0.35). Effects and standard errors are asserted to 1e-9 relative. The reference restates the contrast and its sandwich from the definition; it does not examine whether parallel trends is plausible or the interval coverage, which the module's simulations address only for the pointwise normal interval with at least 24 clusters per group. Refusals are exercised for a missing unit-period without the available-case reading and for a group held in one cluster. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.1016/j.jeconom.2020.12.001", "https://mpmath.org/"]
+findings_resolved = ["No defect found: every effect, standard error, subject count and cluster count of the event-time and group-time functions equals the exact rational reference, including the 1e9 offset and the available-case panels.", "The group-time function reports the post-adoption subset of the event-time contrasts with identical values."]
+record_sha256 = "2e3ab0fcc4e40a12399e5da3c566fb39dbc63610bc871b4913819de66b803e63"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/staggered_event_study.rs"
+sha256 = "2c90afef14ecb536b0743f9f35f5b9c303d8b89f39d955f7094f050d5c5004bc"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/staggered_did_reference.rs"
+sha256 = "9021a53fee49dfc4dbc5dfcb12a1fa57d319ff38e22009436d8c587d568a9955"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/staggered_did_reference.py"
+sha256 = "ee06704ec70f71ea5c3575995a6cfe6030c061ef4d317278abf027ee9f6ce4ac"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/staggered_did_reference.json"
+sha256 = "e25b276304ae82453fc2b82ec8f9a1d88bf6ad47d6e64228e179ba9c566438a4"

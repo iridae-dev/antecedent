@@ -18079,3 +18079,45 @@ crate = "antecedent-discovery"
 cargo_target = "exact_marginals_reference"
 path = "crates/antecedent-discovery/tests/exact_marginals_reference.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "estimate-staggered-did-reference"
+crate = "antecedent-estimate"
+cargo_target = "staggered_did_reference"
+path = "crates/antecedent-estimate/tests/staggered_did_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "estimate-augmented-did-reference"
+crate = "antecedent-estimate"
+cargo_target = "augmented_did_reference"
+path = "crates/antecedent-estimate/tests/augmented_did_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "estimate-nonlinear-mediation-reference"
+crate = "antecedent-estimate"
+cargo_target = "nonlinear_mediation_reference"
+path = "crates/antecedent-estimate/tests/nonlinear_mediation_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "estimate-frontdoor-two-stage-reference"
+crate = "antecedent-estimate"
+cargo_target = "frontdoor_two_stage_reference"
+path = "crates/antecedent-estimate/tests/frontdoor_two_stage_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "estimate-sampling-weights-reference"
+crate = "antecedent-estimate"
+cargo_target = "sampling_weights_reference"
+path = "crates/antecedent-estimate/tests/sampling_weights_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "stats-longitudinal-regime-reference"
+crate = "antecedent-stats"
+cargo_target = "longitudinal_regime_reference"
+path = "crates/antecedent-stats/tests/longitudinal_regime_reference.rs"
+gates = ["inventory", "named"]
