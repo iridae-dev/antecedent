@@ -73,7 +73,29 @@
             1,
             2
           ]
-        ]
+        ],
+        "evidence": {
+          "free_variables": 3,
+          "block_count": 1,
+          "cyclic_block_count": 1,
+          "largest_block": 3,
+          "jacobian_nnz": 7,
+          "contraction_iterations": 0,
+          "newton_steps": 0,
+          "factorizations": 2,
+          "peak_factor_fill": 7,
+          "budget_checks": 4,
+          "admitted_bytes": 6768,
+          "estimated_bytes": 6768,
+          "row_sum_bound": 0.5043212890625005,
+          "spectral_bound": 0.5043212890625005,
+          "spectral_iterations": 0,
+          "contraction_bound": 0.5043212890625005,
+          "jacobian_diagonal_dominance_margin": 0.49567871093749993,
+          "jacobian_nonsingular_basis": "contraction",
+          "unique_root_basis": "contraction",
+          "ill_conditioned": false
+        }
       }
     ],
     [
@@ -94,7 +116,29 @@
           [
             0
           ]
-        ]
+        ],
+        "evidence": {
+          "free_variables": 1,
+          "block_count": 1,
+          "cyclic_block_count": 0,
+          "largest_block": 1,
+          "jacobian_nnz": 1,
+          "contraction_iterations": 1,
+          "newton_steps": 0,
+          "factorizations": 2,
+          "peak_factor_fill": 1,
+          "budget_checks": 5,
+          "admitted_bytes": 2320,
+          "estimated_bytes": 2320,
+          "row_sum_bound": 0.0,
+          "spectral_bound": 0.0,
+          "spectral_iterations": 0,
+          "contraction_bound": 0.0,
+          "jacobian_diagonal_dominance_margin": 1.0,
+          "jacobian_nonsingular_basis": "contraction",
+          "unique_root_basis": "contraction",
+          "ill_conditioned": false
+        }
       }
     ]
   ],
@@ -118,7 +162,29 @@
           1,
           2
         ]
-      ]
+      ],
+      "evidence": {
+        "free_variables": 3,
+        "block_count": 1,
+        "cyclic_block_count": 1,
+        "largest_block": 3,
+        "jacobian_nnz": 7,
+        "contraction_iterations": 0,
+        "newton_steps": 0,
+        "factorizations": 2,
+        "peak_factor_fill": 7,
+        "budget_checks": 4,
+        "admitted_bytes": 6768,
+        "estimated_bytes": 6768,
+        "row_sum_bound": 0.5043212890625005,
+        "spectral_bound": 0.5043212890625005,
+        "spectral_iterations": 0,
+        "contraction_bound": 0.5043212890625005,
+        "jacobian_diagonal_dominance_margin": 0.4981760313530239,
+        "jacobian_nonsingular_basis": "contraction",
+        "unique_root_basis": "contraction",
+        "ill_conditioned": false
+      }
     },
     {
       "values": [
@@ -137,7 +203,29 @@
         [
           0
         ]
-      ]
+      ],
+      "evidence": {
+        "free_variables": 1,
+        "block_count": 1,
+        "cyclic_block_count": 0,
+        "largest_block": 1,
+        "jacobian_nnz": 1,
+        "contraction_iterations": 1,
+        "newton_steps": 0,
+        "factorizations": 2,
+        "peak_factor_fill": 1,
+        "budget_checks": 5,
+        "admitted_bytes": 2320,
+        "estimated_bytes": 2320,
+        "row_sum_bound": 0.0,
+        "spectral_bound": 0.0,
+        "spectral_iterations": 0,
+        "contraction_bound": 0.0,
+        "jacobian_diagonal_dominance_margin": 1.0,
+        "jacobian_nonsingular_basis": "contraction",
+        "unique_root_basis": "contraction",
+        "ill_conditioned": false
+      }
     }
   ],
   "claim": "specified_or_fitted_model_conditional",
