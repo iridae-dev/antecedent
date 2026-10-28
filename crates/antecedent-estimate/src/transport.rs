@@ -1606,6 +1606,42 @@ mod tests {
         );
     }
 
+    /// Non-constant selection and treatment probabilities, so the inverse-odds weight
+    /// `(1 - s) / s`, the arm probability and the augmentation all differ by row (the frozen
+    /// four-row case has `s = e = 0.5` throughout, where odds, inverse probability and the
+    /// unweighted contrast coincide). Seven rows (four trial, three target); the expected values
+    /// are exact rationals evaluated from the cited estimating equations in `fractions.Fraction`
+    /// with the equations of `conformance/response/trial_transport/reference.py`:
+    /// IPW = 97/27, AIPW = 25/27, Kish ESS of the odds weights = 1369/457 and of the arm
+    /// weights = 200/51.
+    #[test]
+    fn matches_exact_rational_equations_with_row_varying_probabilities() {
+        let outcome = [2.0, 5.0, 1.0, 4.0, 0.0, 0.0, 0.0];
+        let treatment = [false, true, false, true, false, false, false];
+        let trial = [true, true, true, true, false, false, false];
+        let selection = [0.25, 0.4, 0.6, 0.5, 0.3, 0.5, 0.7];
+        let propensity = [0.4, 0.5, 0.25, 0.6, 0.5, 0.5, 0.5];
+        let mu0 = [1.0, 2.0, 1.5, 2.5, 1.0, 2.0, 3.0];
+        let mu1 = [3.0, 4.0, 2.0, 5.0, 2.0, 4.0, 6.0];
+        let result = trial_to_target_effect(
+            &certified_identification(),
+            &outcome,
+            &treatment,
+            &trial,
+            &selection,
+            &propensity,
+            Some((&mu0, &mu1)),
+        )
+        .unwrap();
+        let close = |got: f64, want: f64, label: &str| {
+            assert!((got - want).abs() < 1e-12, "{label}: {got} vs {want}");
+        };
+        close(result.ipw, 97.0 / 27.0, "ipw");
+        close(result.aipw.unwrap(), 25.0 / 27.0, "aipw");
+        close(result.overlap.selection.effective_sample_size, 1369.0 / 457.0, "selection ess");
+        close(result.overlap.treatment.effective_sample_size, 200.0 / 51.0, "treatment ess");
+    }
+
     #[test]
     fn selection_and_treatment_positivity_are_checked_separately() {
         let err = trial_to_target_effect(

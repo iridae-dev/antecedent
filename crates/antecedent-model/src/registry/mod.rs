@@ -1107,10 +1107,17 @@ mod tests {
         let (store, assigns) =
             reg.assign_and_fit(&compiled, &data, SelectionPolicy::BestScore).unwrap();
         assert_eq!(assigns.len(), 2);
-        assert!(matches!(
-            store.get(DenseNodeId::from_raw(1)),
-            MechanismSlot::LinearGaussian { .. }
-        ));
+        // The data is exactly y = 1 + 2x, so the selected mechanism must be the linear-Gaussian
+        // one carrying the generating intercept and slope (ordinary least squares on a noiseless
+        // line), not merely a slot of that family.
+        let MechanismSlot::LinearGaussian { intercept, coeffs, .. } =
+            store.get(DenseNodeId::from_raw(1))
+        else {
+            panic!("a linear chain must be assigned the linear-Gaussian family");
+        };
+        assert!((intercept - 1.0).abs() < 1e-6, "intercept {intercept}");
+        assert_eq!(coeffs.len(), 1);
+        assert!((coeffs[0] - 2.0).abs() < 1e-6, "slope {}", coeffs[0]);
     }
 
     #[test]

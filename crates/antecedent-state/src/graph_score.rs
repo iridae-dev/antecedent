@@ -972,6 +972,34 @@ mod tests {
         assert!((new_total - (s0 + delta)).abs() < 1e-10);
         // Adding the true parent of x1 should improve the score.
         assert!(delta > 0.0, "delta={delta}");
+
+        // Both totals and the delta against the closed-form BIC of each family, written from the
+        // definition without the product's Gram or cache path (not against the product's own
+        // full recompute alone).
+        let col = |j: usize| -> Vec<f64> { data.col(j).to_vec() };
+        let (x0, x1, x2) = (col(0), col(1), col(2));
+        let empty_total = reference_bic_no_parent(&x0)
+            + reference_bic_no_parent(&x1)
+            + reference_bic_no_parent(&x2);
+        assert!((s0 - empty_total).abs() < 1e-8, "empty graph: {s0} vs closed form {empty_total}");
+        let edge_total = reference_bic_no_parent(&x0)
+            + reference_bic_one_parent(&x0, &x1)
+            + reference_bic_no_parent(&x2);
+        assert!(
+            (new_total - edge_total).abs() < 1e-8,
+            "x0->x1: {new_total} vs closed form {edge_total}"
+        );
+        let edge_delta = reference_bic_one_parent(&x0, &x1) - reference_bic_no_parent(&x1);
+        assert!((delta - edge_delta).abs() < 1e-8, "delta {delta} vs closed form {edge_delta}");
+    }
+
+    /// Independent reference for the intercept-only Gaussian BIC (`k = 1`): the population variance
+    /// of the column and the definition `l_max - (k/2) ln n`.
+    fn reference_bic_no_parent(y: &[f64]) -> f64 {
+        let n_f = y.len() as f64;
+        let ybar = y.iter().sum::<f64>() / n_f;
+        let sigma2 = y.iter().map(|yi| (yi - ybar) * (yi - ybar)).sum::<f64>() / n_f;
+        -0.5 * n_f * (1.0 + (2.0 * std::f64::consts::PI).ln() + sigma2.ln()) - 0.5 * n_f.ln()
     }
 
     /// Independent reference for the Gaussian BIC of a simple linear regression.

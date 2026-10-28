@@ -1,10 +1,79 @@
 {
   "schema_version": 1,
-  "oracle": {"kind": "enumeration", "method": "exhaustive endpoint enumeration with MAG validity filter", "generator": "temporary clean-room harness (deleted after artifact import)"},
+  "oracle": {
+    "kind": "enumeration",
+    "method": "exhaustive endpoint enumeration with the ancestral-graph validity filter (complete graphs only)",
+    "generator": "conformance/graph/pag_mag_completion/reference.py",
+    "command": "uv run --frozen --script conformance/graph/pag_mag_completion/reference.py --check",
+    "environment_lock": "conformance/graph/pag_mag_completion/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "valid_completion_count",
+      "outputs (completion set)",
+      "is_mag"
+    ],
+    "reference_review": {
+      "scope": "Three cases on at most three nodes: one circle-circle edge (three completions), a fully directed edge (one completion) and an almost directed cycle (not a MAG).",
+      "independence_basis": "The retained generator assigns tail or arrowhead to every circle endpoint in all ways and keeps the assignments that are ancestral graphs by the Richardson-Spirtes definition (no directed cycle, no almost directed cycle, no arrowhead into an undirected-edge endpoint) and carry no tail-tail edge. It parses the fixture's edge strings itself, imports no Antecedent code, and refuses any case that is not a complete graph, where maximality holds vacuously. The executing assertion now builds each case from the fixture's input strings, samples completions with the product and compares the completion count, the completion set and the MAG flag for all three cases.",
+      "historical_exposure": "Original harness deleted (preserved in historical_oracle). The retained generator was written during this review from the fixture's declared inputs and the textbook definition; the product's completion module was opened only to read its scope note (tail-tail edges are outside the sampler's scope); the validity algorithm was not consulted. It reproduces every frozen value, so the frozen values were not products of a faulty product run. Who first derived the earlier values is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Complete graphs on at most three nodes, so maximality is never exercised; larger PAGs, selection (tail-tail) edges and the circle-endpoint limit are not covered by this fixture. Whether tail-tail completions are excluded is a scope convention of the sampler shared by fixture and reference. Exhaustive enumeration is exponential in the number of circles.",
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/graph/pag_mag_completion/reference.py",
+          "sha256": "1c167dfc4af1c122d982ce907ada527edd4726c86807a510151a8b13c63e563b"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/graph/pag_mag_completion/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-graph/tests/oracle_closure.rs",
+          "sha256": "ebf538d85c36d5c3cc4a53627c1fefcf1e28b7b69d891e24b1e4aea92c0e75ea"
+        }
+      ],
+      "sources": [],
+      "fixture_payload_sha256": "5591e660f050bcc265fbfecea0d113b3c1fa6a6e2f7c7e2dedb772d57aebd9bd"
+    }
+  },
   "cases": [
-    {"id": "single_circle_circle", "input": ["0o-o1"], "valid_completion_count": 3, "outputs": ["0->1", "1->0", "0<->1"]},
-    {"id": "directed_no_circles", "input": ["0->1"], "valid_completion_count": 1},
-    {"id": "almost_directed_cycle", "input": ["0->1", "1->2", "0<->2"], "is_mag": false}
+    {
+      "id": "single_circle_circle",
+      "input": [
+        "0o-o1"
+      ],
+      "valid_completion_count": 3,
+      "outputs": [
+        "0->1",
+        "1->0",
+        "0<->1"
+      ]
+    },
+    {
+      "id": "directed_no_circles",
+      "input": [
+        "0->1"
+      ],
+      "valid_completion_count": 1
+    },
+    {
+      "id": "almost_directed_cycle",
+      "input": [
+        "0->1",
+        "1->2",
+        "0<->2"
+      ],
+      "is_mag": false
+    }
   ],
-  "limits": {"maximum_circle_endpoints": 63}
+  "limits": {
+    "maximum_circle_endpoints": 63
+  },
+  "historical_oracle": {
+    "generator": "temporary clean-room harness (deleted after artifact import)",
+    "method": "exhaustive endpoint enumeration with MAG validity filter"
+  }
 }

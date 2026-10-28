@@ -307,11 +307,31 @@ fn exact_engine_reproduces_an_independent_bic_enumeration_and_samplers_agree_wit
         [("chain", chain(200), true), ("collider", collider(400), false)]
     {
         let reference = reference_edge_marginals(&columns_of(&data, &names));
+        // The in-test enumeration must itself agree with the fixture's marginals, which the
+        // retained exact-rational generator (reference.py) writes from the SplitMix64 stream.
+        let frozen: Vec<f64> = fx["exact_marginals"][label]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_f64().unwrap())
+            .collect();
+        assert_eq!(frozen.len(), reference.len(), "{label}");
+        for (cell, (a, b)) in reference.iter().zip(&frozen).enumerate() {
+            assert!((a - b).abs() < 1e-9, "{label}: in-test enumeration cell {cell}: {a} vs {b}");
+        }
         for (engine, post) in static_engines(&data, &vars, &engines, gate) {
             // The exact engine is the enumeration itself; the samplers estimate it from
             // finite chains, so they get a Monte Carlo budget.
             // Observed seeded deviations are at most 0.04 (finite chains, a few thousand draws).
             let budget = if engine == "ExactDagPosterior" { 1e-6 } else { 0.06 };
+            if engine == "ExactDagPosterior" {
+                for (cell, want) in frozen.iter().enumerate() {
+                    assert!(
+                        (post.edge_marginals()[cell] - want).abs() < 1e-6,
+                        "{label}: exact engine cell {cell} vs frozen enumeration {want}"
+                    );
+                }
+            }
             for cell in 0..9 {
                 let got = post.edge_marginals()[cell];
                 if engine == "CiScreenedPosterior" {

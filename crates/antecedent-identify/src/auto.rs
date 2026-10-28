@@ -886,6 +886,22 @@ mod tests {
         assert!(!res.estimands.is_empty());
         assert!(res.derivation.steps.iter().any(|s| s.rule.as_ref() == "auto.method"));
         assert!(res.diagnostics.iter().any(|d| d.code.as_ref() == "auto.rd.missing_config"));
+        // The back-door criterion decides the adjustment set by definition: in 0->1, 0->2, 1->2
+        // the back-door path 1 <- 0 -> 2 is open unless 0 is conditioned on, and 0 is not a
+        // descendant of 1, so {0} is the unique valid adjustment set for (1, 2); the empty set
+        // leaves that path open and 2 is the outcome. Every reported estimand must adjust for
+        // exactly {0} (the general-ID estimand carries no adjustment set and is not a back-door
+        // estimand).
+        let backdoor: Vec<_> =
+            res.estimands.iter().filter(|e| e.method.starts_with("backdoor")).collect();
+        assert!(!backdoor.is_empty(), "the back-door family must be reported");
+        for estimand in backdoor {
+            assert_eq!(
+                estimand.adjustment_set.as_ref(),
+                &[VariableId::from_raw(0)],
+                "the only valid back-door set is the confounder"
+            );
+        }
     }
 
     #[test]

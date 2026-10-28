@@ -6,7 +6,7 @@
     "baseline_pin": "parity/baselines/dowhy.toml",
     "env": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py"
   },
-  "reference": {
+  "historical_reference": {
     "project": "dowhy",
     "available": true,
     "version": "0.14",
@@ -24,7 +24,7 @@
   "oracle": {
     "kind": "closed_form",
     "method": "binary-treatment linear SCM: the treated interventional mean is 2",
-    "note": "the expected mean follows from the stated linear SCM; the `reference` block records a pinned DoWhy 0.14 run (generator deleted after import) that crates/antecedent/tests/gcm.rs does not compare against, so it is context, not the truth source",
+    "note": "the expected mean follows from the stated linear SCM; the `historical_reference` block records a pinned DoWhy 0.14 run (generator deleted after import) that crates/antecedent/tests/gcm.rs does not compare against, so it is context, not the truth source",
     "generator": "conformance/gcm/do_sampling_weighting/reference.py",
     "command": "uv run --frozen --script conformance/gcm/do_sampling_weighting/reference.py --check",
     "environment_lock": "conformance/gcm/do_sampling_weighting/reference.py.lock",
@@ -34,7 +34,7 @@
     ],
     "context_only_outputs": [
       "tolerance_class label",
-      "DoWhy reference block (not compared)",
+      "DoWhy historical_reference block (not compared)",
       "notes text"
     ],
     "independence_basis": "The generator evaluates the stated structural equation at the set value; it imports no Antecedent code and no statistics package. The shared object is the stated equation.",
@@ -60,10 +60,10 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/gcm.rs",
-          "sha256": "ca5808122c37db58c177e9b9af16c36564d745f510d52f75335adbbfcdaacac7"
+          "sha256": "5b1c91a20d6d65c423932634df2911707f820f8c2d0d0d0beafc698aba488817"
         }
       ],
-      "fixture_payload_sha256": "934c3a9d5869e18adf66168c6dc3e0ab37a1cecaab81558d3c53b065834b7706"
+      "fixture_payload_sha256": "e9d5c74bad98cc37ebae0d1afe67734bc6c3635ee4e8b5c09a19568d290599f4"
     }
   }
 }

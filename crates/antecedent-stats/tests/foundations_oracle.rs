@@ -409,6 +409,35 @@ fn rng_stream_and_gaussian_sampler_match_frozen_scipy_battery() {
         .collect();
     assert_eq!(bins.as_slice(), oracle_bins);
 
+    // The screening p-values below are read from the fixture, so the statistics they come from
+    // are recomputed here from the product stream: bin and pair chi-squares and the uniform
+    // Kolmogorov-Smirnov distance must equal the fixture statistics.
+    let count = n as f64;
+    let bin_chi: f64 =
+        bins.iter().map(|&c| (c as f64 - count / 20.0).powi(2) / (count / 20.0)).sum();
+    assert!(close(bin_chi, expected["uniform"]["bin20_chi_square"].as_f64().unwrap(), 1e-9, 1e-9));
+    let mut cells = [[0usize; 10]; 10];
+    for pair in uniforms.chunks_exact(2) {
+        cells[((pair[0] * 10.0) as usize).min(9)][((pair[1] * 10.0) as usize).min(9)] += 1;
+    }
+    let expected_cell = (n / 2) as f64 / 100.0;
+    let pair_chi: f64 =
+        cells.iter().flatten().map(|&c| (c as f64 - expected_cell).powi(2) / expected_cell).sum();
+    assert!(close(
+        pair_chi,
+        expected["uniform"]["pair_10x10_chi_square"].as_f64().unwrap(),
+        1e-9,
+        1e-9
+    ));
+    let mut sorted = uniforms.clone();
+    sorted.sort_by(f64::total_cmp);
+    let distance = sorted
+        .iter()
+        .enumerate()
+        .map(|(i, &u)| ((i + 1) as f64 / count - u).max(u - i as f64 / count))
+        .fold(0.0, f64::max);
+    assert!(close(distance, expected["uniform"]["ks_statistic"].as_f64().unwrap(), 1e-12, 1e-12));
+
     let (normal_mean, normal_variance) = mean_var(&normals);
     assert!(close(normal_mean, expected["normal"]["mean"].as_f64().unwrap(), 1e-12, 1e-12));
     assert!(close(

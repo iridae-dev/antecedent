@@ -759,6 +759,8 @@ mod tests {
                 .parent_child(),
             Some((DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)))
         );
+        // The pair (0, 2) is independent given the empty set, so the skeleton has no such edge.
+        assert!(g.edge_between(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).is_none());
     }
 
     #[test]

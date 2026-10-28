@@ -6,7 +6,7 @@
   "evidence_kind": "internal_cross_check",
   "evidence_source": "crates/antecedent/tests/bayesian_functional_routes.rs::static_effect_and_response_prior_transfer",
   "evidence_proposition": "A joint intervention-response prior built over both intervention coordinates of the exact noiseless table recovers the joint effect 3 within 0.1, and a response-curve prior supplied without a response-specific mapping is refused.",
-  "limitations": "The test only includes this file; its grid, true_level and atol fields are not read by any executing assertion, and the 3.0 and 0.1 used are literals in the test. No posterior calibration, numerical posterior reference or response-curve accuracy is established.",
+  "limitations": "The test only includes this file; its grid, true_level and atol fields are not read by any executing assertion; the 3.0 and 0.1 used are literals in the test and the atol field now states the same 0.1. No posterior calibration, numerical posterior reference or response-curve accuracy is established.",
   "oracle": {
     "kind": "regression_pin",
     "project": "repository software contract",
@@ -19,7 +19,7 @@
   "seed": 18,
   "grid": [0.0, 1.0],
   "true_level": 3.0,
-  "atol": 0.35,
+  "atol": 0.1,
   "compatibility_filter": "PriorCatalog.filter_compatible",
   "source_cell": "ResponseCurve × Dag × explicit × Bayesian × none",
   "target_cells": {

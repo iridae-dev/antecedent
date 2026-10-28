@@ -86,7 +86,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_prior_transfer.rs",
-          "sha256": "e28715fafbf73b3736db4cf43bc166e64ddac06671c32b3c5a56c3213eaf72cd"
+          "sha256": "472823aeb716775d1c136d226b303d7b64906a928f54f73ebb52285d0d54ee23"
         }
       ],
       "fixture_payload_sha256": "0a652dd82dae6887312c4c29d8587628eb6aa387c746dae6cc89ef96f97390cb"

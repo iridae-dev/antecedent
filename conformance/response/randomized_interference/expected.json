@@ -1,15 +1,47 @@
 {
   "fixture_id": "antecedent.randomized_interference.exact_two_unit_design",
-  "design": {"kind": "bernoulli", "probability": 0.5},
-  "assignment": [true, false],
-  "outcomes": [1.0, 4.0],
-  "directed_edges": [[0, 1, 1.0], [1, 0, 1.0]],
+  "design": {
+    "kind": "bernoulli",
+    "probability": 0.5
+  },
+  "assignment": [
+    true,
+    false
+  ],
+  "outcomes": [
+    1.0,
+    4.0
+  ],
+  "directed_edges": [
+    [
+      0,
+      1,
+      1.0
+    ],
+    [
+      1,
+      0,
+      1.0
+    ]
+  ],
   "mapping": "neighbor_count",
-  "from": {"own": 0.0, "neighbors": 1.0},
-  "to": {"own": 1.0, "neighbors": 0.0},
+  "from": {
+    "own": 0.0,
+    "neighbors": 1.0
+  },
+  "to": {
+    "own": 1.0,
+    "neighbors": 0.0
+  },
   "expected": {
-    "exposure_probabilities_from": [0.25, 0.25],
-    "exposure_probabilities_to": [0.25, 0.25],
+    "exposure_probabilities_from": [
+      0.25,
+      0.25
+    ],
+    "exposure_probabilities_to": [
+      0.25,
+      0.25
+    ],
     "horvitz_thompson_contrast": -6.0,
     "hajek_contrast": -3.0,
     "conservative_variance": 204.0,
@@ -17,9 +49,51 @@
     "probability_method": "exact"
   },
   "contract": "Full enumeration of the four Bernoulli assignments, followed by the cited exposure-mapping HT/Hajek equations and Antecedent's documented covariance-free Young variance bound.",
-  "tolerance": {"atol": 1e-12},
+  "tolerance": {
+    "atol": 1e-12
+  },
   "oracle": {
     "kind": "enumeration",
-    "method": "full enumeration of the four Bernoulli assignments, then the cited exposure-mapping HT/Hajek equations (see `contract`); the Young variance bound is a repository contract"
+    "method": "full enumeration of the four Bernoulli assignments, then the cited exposure-mapping HT/Hajek equations (see `contract`); the Young variance bound is a repository contract",
+    "generator": "conformance/response/randomized_interference/reference.py",
+    "command": "uv run --frozen --script conformance/response/randomized_interference/reference.py --check",
+    "environment_lock": "conformance/response/randomized_interference/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "horvitz_thompson_contrast",
+      "hajek_contrast",
+      "minimum_exposure_probability",
+      "conservative_variance (compared, not derived)"
+    ],
+    "context_only_outputs": [
+      "exposure_probabilities_from",
+      "exposure_probabilities_to (checked by the generator; the assertion reads only their minimum)"
+    ],
+    "reference_review": {
+      "scope": "The two-unit Bernoulli(0.5) design: exposure probabilities of both units at both exposure levels, the Horvitz-Thompson and Hajek exposure contrasts and the minimum exposure probability.",
+      "independence_basis": "The retained generator enumerates the four assignments with their exact probabilities, derives each unit's exposure probability at each level by counting, and evaluates the Horvitz-Thompson and Hajek contrasts from the observed assignment and outcomes in rational arithmetic. It imports no Antecedent code. The conservative variance (204) is the repository's documented Young bound; the generator does not derive it and the executing assertion compares the product with the stored value only.",
+      "historical_exposure": "Original harness deleted (preserved in historical_oracle). The retained generator was written during this review from the fixture's declared inputs and the textbook definition; the product's assertion source was read to establish which fields are compared; no product estimator source was consulted. It reproduces every frozen value, so the frozen values were not products of a faulty product run. Who first derived the earlier values is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Two units, two directed edges, one assignment draw. The conservative variance is a repository contract, not an independently derived or externally cited value, and it is conservative by construction, not an exact variance. The edges are restated in the assertion rather than parsed from the fixture. No coverage or calibration.",
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/response/randomized_interference/reference.py",
+          "sha256": "bf8e9496e732e86d08f1ac580f849d6d60f2c94eda199b63da43b9f89e12614f"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/response/randomized_interference/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-estimate/src/interference.rs",
+          "sha256": "830bfadc1899a020788b60c993fa6f813ce8f65d69a242885caddf3b61c761a4"
+        }
+      ],
+      "sources": [],
+      "fixture_payload_sha256": "dc42740e43c6cd91e63f335ff29bb428d355186fe83f4c13fa3b4cdada957bb3"
+    }
   }
 }

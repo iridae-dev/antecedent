@@ -1,11 +1,53 @@
 {
   "schema_version": 1,
   "oracle": {
-    "kind": "enumeration",
-    "project": "exact target plus fixed-budget Monte Carlo calibration",
+    "kind": "closed_form",
+    "project": "ordering and argmax of the exact expected information gains of the sibling dit-based fixture",
     "pin": "fixture-algorithm-v1",
     "source": "../expected_information_gain/expected.json",
-    "generation_location": "temporary external harness; deleted after artifact import"
+    "generation_location": "temporary external harness; deleted after artifact import",
+    "generator": "conformance/design/candidate_ranking/reference.py",
+    "command": "uv run --frozen --script conformance/design/candidate_ranking/reference.py --check",
+    "environment_lock": "conformance/design/candidate_ranking/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "expected_native_order",
+      "acceptance.adaptive_top_candidate"
+    ],
+    "context_only_outputs": [
+      "acceptance seeds, batch sizes and rank threshold (configuration, not derived)"
+    ],
+    "reference_review": {
+      "scope": "The native ranking of six candidate designs, the adaptive top candidate and the margin that makes both stable under the declared score tolerance.",
+      "independence_basis": "The exact information gains come from conformance/design/expected_information_gain, whose retained generator recomputes them with the dit package; this fixture's generator only reads them, sorts, and checks that the declared order and top candidate follow and that neighbouring gains differ by more than twice the score tolerance. It imports no Antecedent code. The executing assertions rank with the product at 100000 fixed-budget samples and on three seeds with the adaptive route, comparing each score with its exact gain at score_atol and the order and top candidate with the fixture.",
+      "historical_exposure": "Original harness deleted (preserved in historical_oracle). The retained generator was written during this review from the fixture's declared inputs and the textbook definition; the product's assertion source was read; the ranking and sampling code was not consulted. It reproduces every frozen value, so the frozen values were not products of a faulty product run. Who first derived the earlier values is unrecorded. The native-order values rest on the sibling fixture's own review.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Six candidates on one three-graph posterior; the Monte Carlo budget, seeds and thresholds are configuration, not derived. The sibling fixture's gains are the only numerical truth; this generator does not recompute them. Sequential-stopping error rates and calibration are not claimed. The assertion source is also edited by other work in progress, so its digest may need rebinding.",
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/design/candidate_ranking/reference.py",
+          "sha256": "7fc8761a66e9e0b5151e89f975681f68b7492738181d683204d40a73cfdb8698"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/design/candidate_ranking/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "input_fixture",
+          "path": "conformance/design/expected_information_gain/expected.json",
+          "sha256": "f6ee6192288abb3767941dd79d7999bca4b05236e6836a1ba92802dd997ce73d"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-design/tests/design_oracle.rs",
+          "sha256": "e272a61ef60c5195b89585b0714b23075a35080af92e7b956ef0c37d758fafd7"
+        }
+      ],
+      "sources": [],
+      "fixture_payload_sha256": "4cab245862e895ce5b5b68f9b06568458e1bb4746649e1693767208791002497"
+    }
   },
   "claim_scope": {
     "shared_random_numbers": "the graph-posterior draw is shared across candidates; observation draws are consumed sequentially and are not shared",
@@ -24,11 +66,22 @@
   "acceptance": {
     "fixed_budget_samples": 100000,
     "score_atol": 0.006,
-    "seeds": [1701, 1702, 1703],
+    "seeds": [
+      1701,
+      1702,
+      1703
+    ],
     "adaptive_top_candidate": "measure_two",
     "adaptive_min_batches": 8,
     "adaptive_max_batches": 256,
     "adaptive_batch_size": 32,
     "adaptive_rank_threshold": 0.025
+  },
+  "historical_oracle": {
+    "kind": "enumeration",
+    "project": "exact target plus fixed-budget Monte Carlo calibration",
+    "pin": "fixture-algorithm-v1",
+    "source": "../expected_information_gain/expected.json",
+    "generation_location": "temporary external harness; deleted after artifact import"
   }
 }

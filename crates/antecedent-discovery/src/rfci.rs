@@ -593,27 +593,75 @@ mod tests {
     use super::*;
     use crate::test_tables::tabular_n;
 
-    #[test]
-    fn oracle_chain_recovers_skeleton() {
+    /// One retained fixture case run through the product: the variables, the adjacencies that
+    /// the oracle CI test reports as dependent, and the non-adjacencies come from the fixture.
+    struct FixtureRun {
+        variables: Vec<String>,
+        adjacencies: Vec<(usize, usize)>,
+        non_adjacencies: Vec<(usize, usize)>,
+        graph: antecedent_graph::Pag,
+    }
+
+    fn run_fixture_case(index: usize, seed: u64) -> (serde_json::Value, FixtureRun) {
         let fixture: serde_json::Value =
             serde_json::from_str(include_str!("../../../conformance/discovery/rfci/expected.json"))
                 .unwrap();
-        assert_eq!(fixture["cases"][0]["adjacencies"].as_array().unwrap().len(), 2);
-        let data = tabular_n(3, 50);
-        let vars = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
-        let oracle = OracleCi::new([(0usize, 1usize), (1usize, 2usize)]);
-        let rfci = Rfci::new().with_fdr(false).with_ci(Arc::new(oracle));
+        let case = fixture["cases"][index].clone();
+        let variables: Vec<String> = case["variables"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap().to_string())
+            .collect();
+        let position = |name: &serde_json::Value| {
+            variables.iter().position(|v| v == name.as_str().unwrap()).unwrap()
+        };
+        let pairs = |key: &str| -> Vec<(usize, usize)> {
+            case[key]
+                .as_array()
+                .map(|rows| rows.iter().map(|r| (position(&r[0]), position(&r[1]))).collect())
+                .unwrap_or_default()
+        };
+        let adjacencies = pairs("adjacencies");
+        let non_adjacencies = pairs("non_adjacencies");
+        let data = tabular_n(variables.len(), 50);
+        let vars: Vec<VariableId> = (0..variables.len())
+            .map(|i| VariableId::from_raw(u32::try_from(i).unwrap()))
+            .collect();
+        let rfci = Rfci::new()
+            .with_fdr(false)
+            .with_ci(Arc::new(OracleCi::new(adjacencies.clone())));
         let mut ws = DiscoveryWorkspace::default();
-        let ctx = ExecutionContext::for_tests(1);
-        let result = rfci.run(&data, &vars, &mut ws, &ctx).unwrap();
-        let g = &result.evidence.graph;
-        assert!(g.has_edge(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)));
-        assert!(g.has_edge(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)));
-        assert!(!g.has_edge(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)));
+        let result =
+            rfci.run(&data, &vars, &mut ws, &ExecutionContext::for_tests(seed)).unwrap();
         assert_eq!(result.algorithm.id.as_ref(), "rfci");
         // No Possible-D-Sep iteration label.
         assert!(result.iterations.iter().all(|i| !i.label.contains("possible_d_sep")));
         assert!(result.iterations.iter().any(|i| i.label.contains("lemma31")));
+        let graph = result.evidence.graph.clone();
+        (case, FixtureRun { variables, adjacencies, non_adjacencies, graph })
+    }
+
+    fn node(index: usize) -> DenseNodeId {
+        DenseNodeId::from_raw(u32::try_from(index).unwrap())
+    }
+
+    #[test]
+    fn oracle_chain_recovers_skeleton() {
+        let (_, run) = run_fixture_case(0, 1);
+        assert_eq!(run.adjacencies.len(), 2);
+        for &(a, b) in &run.adjacencies {
+            assert!(run.graph.has_edge(node(a), node(b)), "{a}-{b} must be adjacent");
+        }
+        for &(a, b) in &run.non_adjacencies {
+            assert!(!run.graph.has_edge(node(a), node(b)), "{a}-{b} must be non-adjacent");
+        }
+        let count = run.variables.len();
+        let edge_count = (0..count)
+            .flat_map(|a| ((a + 1)..count).map(move |b| (a, b)))
+            .filter(|&(a, b)| run.graph.has_edge(node(a), node(b)))
+            .count();
+        assert_eq!(edge_count, run.adjacencies.len(), "no adjacency beyond the fixture's");
     }
 
     #[test]
@@ -633,23 +681,25 @@ mod tests {
 
     #[test]
     fn oracle_collider_orients_into_middle() {
-        let fixture: serde_json::Value =
-            serde_json::from_str(include_str!("../../../conformance/discovery/rfci/expected.json"))
-                .unwrap();
-        assert_eq!(fixture["cases"][1]["arrowheads_at"].as_array().unwrap().len(), 2);
-        let data = tabular_n(3, 40);
-        let vars = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
-        let oracle = OracleCi::new([(0usize, 1usize), (1usize, 2usize)]);
-        let rfci = Rfci::new().with_fdr(false).with_ci(Arc::new(oracle));
-        let mut ws = DiscoveryWorkspace::default();
-        let ctx = ExecutionContext::for_tests(2);
-        let result = rfci.run(&data, &vars, &mut ws, &ctx).unwrap();
-        let g = &result.evidence.graph;
-        let e01 = g.edge_between(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-        let e21 = g.edge_between(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
-        let at_1_from_0 = if e01.a.raw() == 1 { e01.at_a } else { e01.at_b };
-        let at_1_from_2 = if e21.a.raw() == 1 { e21.at_a } else { e21.at_b };
-        assert!(matches!(at_1_from_0, Endpoint::Arrow));
-        assert!(matches!(at_1_from_2, Endpoint::Arrow));
+        let (case, run) = run_fixture_case(1, 2);
+        // Every endpoint of every adjacent pair that carries an arrowhead, by variable name.
+        let mut arrowheads: Vec<String> = Vec::new();
+        for &(a, b) in &run.adjacencies {
+            let edge = run.graph.edge_between(node(a), node(b)).unwrap();
+            for (end, mark) in [(edge.a.raw(), edge.at_a), (edge.b.raw(), edge.at_b)] {
+                if matches!(mark, Endpoint::Arrow) {
+                    arrowheads.push(run.variables[usize::try_from(end).unwrap()].clone());
+                }
+            }
+        }
+        arrowheads.sort();
+        let mut expected: Vec<String> = case["arrowheads_at"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap().to_string())
+            .collect();
+        expected.sort();
+        assert_eq!(arrowheads, expected);
     }
 }

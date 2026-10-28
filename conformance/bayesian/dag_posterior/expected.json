@@ -49,12 +49,53 @@
   "reference": {
     "project": "causal-library",
     "command": "cargo test -p antecedent-discovery --test dag_posterior_conformance",
-    "notes": "Internal known truth: every engine runs on a known SEM defined in the consuming test and must meet these mass thresholds; no external oracle package"
+    "notes": "Exact BIC edge marginals on the chain and collider tables come from the retained stdlib enumeration conformance/bayesian/dag_posterior/reference.py (exact_marginals); the minimum masses are thresholds below them; no external oracle package."
   },
   "oracle": {
-    "kind": "regression_pin",
-    "origin": "Current review of retained local contract inputs and their exact executing consumer; this record asserts no external generator or independent numerical origin.",
-    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+    "kind": "enumeration",
+    "historical_exposure": "Written during this review from the fixture README's description of the 25-DAG BIC enumeration and the consuming test's SEM definitions; the in-test Rust enumeration was read to state the score convention. It reproduces the README's collider arrow mass 0.876.",
+    "project": "stdlib exact-rational Gaussian-BIC enumeration of all three-node DAGs",
+    "method": "exhaustive DAG enumeration with exact least-squares residuals; edge marginals under a uniform graph prior",
+    "independence_basis": "The generator regenerates the chain (seed 7, n = 200) and collider (seed 11, n = 400) tables from the published SplitMix64 definition, enumerates all 25 three-node DAGs, scores each node by -(n/2) ln(RSS/n) - (|parents|/2) ln n with RSS from exact-Fraction normal equations on the stored doubles, and forms the edge marginals under a uniform DAG prior. It imports no Antecedent code and calls no posterior engine. The structural equations, sample sizes, seeds and the stream's seed offset and 53-bit mapping are the consuming test's statements, shared with the product input; the Gaussian-BIC score is a restated convention.",
+    "generation_location": "conformance/bayesian/dag_posterior/reference.py (retained)",
+    "asserted_outputs": [
+      "exact directed-edge marginals for the chain and collider tables (exact_marginals)",
+      "minimum-mass thresholds (consistency with the exact masses)"
+    ],
+    "context_only_outputs": [
+      "DBN lag-1 mass threshold",
+      "engine list, score family and exact_max_nodes (restated contract fields)"
+    ],
+    "generator": "conformance/bayesian/dag_posterior/reference.py",
+    "command": "uv run --frozen --script conformance/bayesian/dag_posterior/reference.py --check",
+    "environment_lock": "conformance/bayesian/dag_posterior/reference.py.lock",
+    "generator_retained": true,
+    "reference_review": {
+      "scope": "Chain and collider tables, 25 DAGs each; exact edge marginals compared with the exact engine at 1e-6 and with the test's own Rust enumeration at 1e-9.",
+      "independence_basis": "The generator regenerates the chain (seed 7, n = 200) and collider (seed 11, n = 400) tables from the published SplitMix64 definition, enumerates all 25 three-node DAGs, scores each node by -(n/2) ln(RSS/n) - (|parents|/2) ln n with RSS from exact-Fraction normal equations on the stored doubles, and forms the edge marginals under a uniform DAG prior. It imports no Antecedent code and calls no posterior engine. The structural equations, sample sizes, seeds and the stream's seed offset and 53-bit mapping are the consuming test's statements, shared with the product input; the Gaussian-BIC score is a restated convention.",
+      "historical_exposure": "Written during this review from the fixture README's description of the 25-DAG BIC enumeration and the consuming test's SEM definitions; the in-test Rust enumeration was read to state the score convention. It reproduces the README's collider arrow mass 0.876.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Exact marginals exist only for the two static three-node tables; the sampling engines are checked against them within a Monte Carlo budget (0.06) by the test, and the CI-screened engine only on edges the full posterior keeps. The declared minimum masses (0.999, 0.8, 0.999) are thresholds set below the exact masses, and the DBN lag-1 mass has no exact reference here. The marginals describe the BIC posterior, not a calibrated posterior over true structures. Calibration unmeasured.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/bayesian/dag_posterior/reference.py",
+          "sha256": "0e5334ec6fa44ea5e2f3064c674ac3fc08b75ce830f218b6839026be0ecc9bc7"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/bayesian/dag_posterior/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-discovery/tests/dag_posterior_conformance.rs",
+          "sha256": "9c8c95a5a844c66335ae187423184b5c4f1a24c5acfdb7ab462fd485bc50fd16"
+        }
+      ],
+      "fixture_payload_sha256": "d82cd880e84610f9776d13a6aadc748d65403c55c4de85ea6fc61c4226445420"
+    }
   },
   "evidence_kind": "implementation_exists",
   "evidence_roles": [
@@ -62,5 +103,29 @@
   ],
   "evidence_source": "crates/antecedent-discovery/tests/dag_posterior_conformance.rs::dag_posterior_engines_put_fixture_mass_on_the_true_structure",
   "evidence_proposition": "On known chain, collider and lag-1 series, every graph-posterior engine puts at least the declared minimum posterior mass on the generating skeleton, orientation or lag edge.",
-  "limitations": "The minimum masses are set just below the exact Gaussian-BIC posterior mass that the consuming test computes by its own 25-DAG enumeration, so they are thresholds tied to the implementation family rather than an independently derived posterior; only the generating structure is known by construction. No posterior calibration and no upstream-package comparison."
+  "limitations": "Exact marginals exist only for the two static three-node tables; the sampling engines are checked against them within a Monte Carlo budget (0.06) by the test, and the CI-screened engine only on edges the full posterior keeps. The declared minimum masses (0.999, 0.8, 0.999) are thresholds set below the exact masses, and the DBN lag-1 mass has no exact reference here. The marginals describe the BIC posterior, not a calibrated posterior over true structures. Calibration unmeasured.",
+  "exact_marginals": {
+    "chain": [
+      0.0,
+      0.35411187381197556,
+      0.06233562143606869,
+      0.6458881261880247,
+      0.0,
+      0.6458881261879583,
+      0.06233562143606396,
+      0.35411187381204196,
+      0.0
+    ],
+    "collider": [
+      0.0,
+      0.12361658478312525,
+      0.8763834152168746,
+      0.12361658478313461,
+      0.0,
+      0.8763834152168746,
+      0.12361658478312525,
+      0.12361658478312525,
+      0.0
+    ]
+  }
 }

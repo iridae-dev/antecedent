@@ -2045,3 +2045,102 @@ fn rebind_estimate(
     *prepared = branch;
     Ok(result)
 }
+
+/// Every case of the generalized-adjustment fixture is run through the identifier, not only the
+/// two the other tests happen to read: the stored edge strings build the PAG, treatment is `T`
+/// and outcome `Y`, and the envelope status, adjustment set and mass accounting must match.
+#[test]
+fn generalized_adjustment_fixture_cases_all_match_the_pag_envelope() {
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/identify/generalized_adjustment/expected.json"
+    ))
+    .unwrap();
+    let cases = expected["cases"].as_array().unwrap();
+    assert_eq!(cases.len(), 4);
+    for case in cases {
+        let id = case["id"].as_str().unwrap();
+        let edges: Vec<(String, bool, String)> = case["pag"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| {
+                let (from, to) = e.as_str().unwrap().split_once("->").unwrap();
+                match from.strip_suffix('o') {
+                    Some(tail) => (tail.to_owned(), true, to.to_owned()),
+                    None => (from.to_owned(), false, to.to_owned()),
+                }
+            })
+            .collect();
+        // T and Y first so the query ids are fixed; the rest in order of appearance.
+        let mut names: Vec<String> = vec!["T".into(), "Y".into()];
+        for (from, _, to) in &edges {
+            for name in [from, to] {
+                if !names.contains(name) {
+                    names.push(name.clone());
+                }
+            }
+        }
+        let node = |name: &String| {
+            DenseNodeId::from_raw(
+                u32::try_from(names.iter().position(|n| n == name).unwrap()).unwrap(),
+            )
+        };
+        let mut pag = Pag::with_variables(u32::try_from(names.len()).unwrap());
+        for (from, circle, to) in &edges {
+            if *circle {
+                pag.insert_circle_arrow(node(from), node(to)).unwrap();
+            } else {
+                pag.insert_directed(node(from), node(to)).unwrap();
+            }
+        }
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let env = antecedent_identify::GeneralizedAdjustmentIdentifier::new()
+            .identify_pag_envelope(&pag, &query)
+            .unwrap();
+        match case["status"].as_str() {
+            Some("not_identified_by_adjustment") => {
+                assert_eq!(
+                    env.status,
+                    antecedent_core::IdentificationStatus::NotIdentified,
+                    "{id}"
+                );
+                assert_eq!(env.identified_weight.0, 0.0, "{id}");
+                assert!(case["adjustment_set"].is_null(), "{id}");
+            }
+            Some("identified") => {
+                assert_eq!(
+                    env.status,
+                    antecedent_core::IdentificationStatus::NonparametricallyIdentified,
+                    "{id}"
+                );
+                let found: Vec<&str> = env
+                    .invariant
+                    .as_ref()
+                    .unwrap()
+                    .adjustment_set
+                    .iter()
+                    .map(|v| names[v.raw() as usize].as_str())
+                    .collect();
+                let declared: Vec<&str> = case["adjustment_set"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|v| v.as_str().unwrap())
+                    .collect();
+                assert_eq!(found, declared, "{id}");
+            }
+            None => {
+                assert_eq!(
+                    case["invariant"].as_str(),
+                    Some("identified_weight+unidentified_weight=completion_count"),
+                    "{id}"
+                );
+                let total = env.identified_weight.0 + env.unidentified_weight.0;
+                assert!(total > 0.0, "{id}");
+                assert!((total - env.cases.len() as f64).abs() < 1e-9, "{id}");
+            }
+            Some(other) => panic!("{id}: unknown status {other}"),
+        }
+    }
+}

@@ -45,6 +45,35 @@ fn expand_contingency(pin: &serde_json::Value) -> TabularData {
     TabularData::from_f64_columns(pairs).unwrap()
 }
 
+/// The modifier-stratified contrast `sum_z P(z) [P(y=1 | t=1, z) - P(y=1 | t=0, z)]` read straight
+/// off the contingency table by definition. With the modifier `z` conditioned on, every completion
+/// of the equivalence class adjusts for `z`, so this is the conditional effect whatever the
+/// orientation of the undirected `z - t` edge; it does not run any product code.
+fn stratified_contrast_from_table(pin: &serde_json::Value) -> f64 {
+    let cells = pin["contingency_table"].as_array().unwrap();
+    let count = |z: f64, t: f64, y: Option<f64>| -> f64 {
+        cells
+            .iter()
+            .filter(|c| {
+                c["z"].as_f64().unwrap() == z
+                    && c["t"].as_f64().unwrap() == t
+                    && y.is_none_or(|y| c["y"].as_f64().unwrap() == y)
+            })
+            .map(|c| c["count"].as_f64().unwrap())
+            .sum()
+    };
+    let total: f64 = cells.iter().map(|c| c["count"].as_f64().unwrap()).sum();
+    [0.0, 1.0]
+        .into_iter()
+        .map(|z| {
+            let weight = (count(z, 0.0, None) + count(z, 1.0, None)) / total;
+            let p1 = count(z, 1.0, Some(1.0)) / count(z, 1.0, None);
+            let p0 = count(z, 0.0, Some(1.0)) / count(z, 0.0, None);
+            weight * (p1 - p0)
+        })
+        .sum()
+}
+
 fn node(columns: &[&str], name: &str) -> DenseNodeId {
     DenseNodeId::from_raw(u32::try_from(columns.iter().position(|c| *c == name).unwrap()).unwrap())
 }
@@ -206,6 +235,11 @@ fn class_aware_conditional_pins_z_conditional_effect() {
     let bayes_ate = bayes["expected_ate"].as_f64().unwrap();
     let bayes_tol = bayes["absolute_tolerance"].as_f64().unwrap();
     let seed = bayes["seed"].as_u64().unwrap();
+    let table_truth = stratified_contrast_from_table(&pin);
+    assert!(
+        (freq_ate - table_truth).abs() < 1e-12 && (bayes_ate - table_truth).abs() < 1e-12,
+        "pinned conditional effects {freq_ate} / {bayes_ate} vs table definition {table_truth}"
+    );
     let graphs = [
         ("cpdag", ClassGraph::Cpdag(cpdag_from_pin(&pin))),
         ("pag", ClassGraph::Pag(pag_from_class_pin(&class))),
