@@ -29,11 +29,11 @@ pub const NO_LATENT_TO_OUTCOME: &str = "tiered.no_latent_to_outcome";
 
 /// A specific `CoDetermined` pair has no joint generalized-adjustment set on the
 /// known closure ADMG (open back-door, or a drawn treatment↔outcome edge).
-pub const TIERED_JOINT_ADJUSTMENT_REFUSE: &str = "no joint generalized back-door set on the CoDetermined closure ADMG; open back-door or a drawn treatment↔outcome edge";
+pub const TIERED_JOINT_ADJUSTMENT_REFUSE: &str = "no joint generalized back-door set on the CoDetermined closure ADMG; open back-door or a drawn treatment↔outcome edge, or a treatment that causes a closure variable; general ID on the closure ADMG was not attempted, so this refuses the closure route and is not a certificate of non-identification";
 
 /// The single-treatment tier closure fails the generalized back-door check on the
 /// supplied ADMG (open back-door, or a drawn treatment↔outcome edge).
-pub(crate) const TIERED_ADJUSTMENT_REFUSE: &str = "tier closure is not a generalized back-door set on the CoDetermined ADMG; open back-door or a drawn treatment↔outcome edge";
+pub(crate) const TIERED_ADJUSTMENT_REFUSE: &str = "tier closure is not a generalized back-door set on the CoDetermined ADMG; open back-door or a drawn treatment↔outcome edge; general ID on the supplied ADMG was not attempted, so this refuses the closure route and is not a certificate of non-identification";
 
 /// Unknown-tier joint cells have no single ADMG and no cell-AIPW score table.
 pub(crate) const TIERED_JOINT_UNKNOWN_REFUSE: &str = "Unknown-tier joint InterventionResponse has no single ADMG; two canonical scenarios are not a cell-AIPW license";
@@ -56,6 +56,7 @@ pub fn identify_tiered(
     background: &TieredBackground,
     query: &AverageEffectQuery,
 ) -> Result<IdentificationResult, IdentificationError> {
+    validate_query(query)?;
     match background.within_tier {
         WithinTier::CoDetermined => identify_closure(background, None, query),
         WithinTier::Unknown => identify_tiered_unknown(background, query),
@@ -78,10 +79,63 @@ pub fn identify_tiered_on(
     admg: &Admg,
     query: &AverageEffectQuery,
 ) -> Result<IdentificationResult, IdentificationError> {
+    validate_query(query)?;
     match background.within_tier {
         WithinTier::CoDetermined => identify_closure(background, Some(admg), query),
         WithinTier::Unknown => identify_tiered_unknown(background, query),
     }
+}
+
+/// The query is well formed (distinct treatment and outcome, matching intervention targets,
+/// modifiers that are neither).
+fn validate_query(query: &AverageEffectQuery) -> Result<(), IdentificationError> {
+    query.validate().map_err(|_| IdentificationError::unsupported("invalid average-effect query"))
+}
+
+/// Why a declared effect modifier cannot be conditioned on, if one cannot.
+///
+/// The closure adjusts for tiers up to the treatment's, so a conditional effect given `W`
+/// is identified only when `W` is known to be pretreatment: a modifier in a later tier is a
+/// descendant of the treatment on every ordering the background allows, and conditioning on
+/// it can block a mediated path or open a collider. With unknown within-tier order a modifier
+/// in the treatment's own tier may also follow the treatment, so it is refused too.
+fn post_treatment_modifier(
+    background: &TieredBackground,
+    query: &AverageEffectQuery,
+    own_tier_counts: bool,
+) -> Result<Option<&'static str>, IdentificationError> {
+    let Some(treatment_tier) = background.tier_of(query.treatment) else {
+        return Ok(None);
+    };
+    for &modifier in query.effect_modifiers.iter() {
+        let tier = background
+            .tier_of(modifier)
+            .ok_or(IdentificationError::unsupported("effect modifier is not in a declared tier"))?;
+        if tier > treatment_tier {
+            return Ok(Some(
+                "an effect modifier in a later tier than the treatment is post-treatment; the tier closure does not identify an effect conditional on it",
+            ));
+        }
+        if own_tier_counts && tier == treatment_tier {
+            return Ok(Some(
+                "an effect modifier in the treatment's tier may follow the treatment when within-tier order is unknown; the tier closure does not identify an effect conditional on it",
+            ));
+        }
+    }
+    Ok(None)
+}
+
+fn modifier_refusal(query: &AverageEffectQuery, reason: &'static str) -> IdentificationResult {
+    let mut result = not_identified(CausalQuery::AverageEffect(query.clone()), reason);
+    result.required_assumptions = named_no_latent_assumption();
+    result.diagnostics.push(no_latent_diagnostic());
+    result.diagnostics.push(Diagnostic::new(
+        "identify.tiered.modifier",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Warning,
+        reason,
+    ));
+    result
 }
 
 fn identify_tiered_unknown(
@@ -89,6 +143,9 @@ fn identify_tiered_unknown(
     query: &AverageEffectQuery,
 ) -> Result<IdentificationResult, IdentificationError> {
     let [pre, closure] = background.unknown_canonical_sets(query.treatment, query.outcome)?;
+    if let Some(reason) = post_treatment_modifier(background, query, true)? {
+        return Ok(modifier_refusal(query, reason));
+    }
     let (estimands, arena) = estimands_for_sets(
         query,
         &[
@@ -225,6 +282,9 @@ fn identify_closure(
     query: &AverageEffectQuery,
 ) -> Result<IdentificationResult, IdentificationError> {
     let set = background.tier_closure(query.treatment, query.outcome)?;
+    if let Some(reason) = post_treatment_modifier(background, query, false)? {
+        return Ok(modifier_refusal(query, reason));
+    }
     let holds = match admg {
         None => true,
         Some(admg) => {

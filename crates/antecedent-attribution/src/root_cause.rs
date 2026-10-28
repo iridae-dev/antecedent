@@ -78,8 +78,17 @@ pub fn root_cause_rank(
         ));
     }
 
-    if let (Some(gs), Some(draws)) = (graph_samples, contribution_draws) {
-        return rank_with_graph_uncertainty(attribution, gs, draws);
+    match (graph_samples, contribution_draws) {
+        (Some(gs), Some(draws)) => return rank_with_graph_uncertainty(attribution, gs, draws),
+        (None, None) => {}
+        // One half of the ensemble is a declaration the plain ranking cannot honour: falling
+        // through would report unweighted point scores with no graph uncertainty as though
+        // the ensemble had been used.
+        _ => {
+            return Err(AttributionError::invalid_input(
+                "graph_samples and contribution_draws must be given together",
+            ));
+        }
     }
 
     if attribution.contributions.iter().any(|c| !c.contribution.is_finite()) {

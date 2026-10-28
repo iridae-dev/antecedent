@@ -25,4 +25,26 @@ upstream_implementations_observed = [
 test_sources = [
  "conformance/attribution/anomaly_root_cause",
  "crates/antecedent-attribution/src/root_cause.rs (in-module unit tests)",
+ "weighted graph-ensemble ranking checked against a hand-computed weighted mean and population spread, and a half-supplied ensemble refused (crates/antecedent-attribution/tests/root_cause_ranking.rs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "root_cause_rank in crates/antecedent-attribution/src/root_cause.rs: absolute-contribution ranking of externally supplied component contributions, the weighted mean and population spread over a graph ensemble's contribution draws, the shape and weight validation, and the pairing of the two optional ensemble arguments. Not a review of how the contributions are produced (Shapley and noise randomization live in other records), of the Bayesian or posterior block aggregation helpers that only unit tests reach, or of the ranking's meaning when contributions have different signs across graphs."
+assumptions = ["The input contributions are the quantity being ranked; this routine adds no attribution theory.", "Graph weights are nonnegative finite masses, normalized by their maximum; the reported spread is the weighted population standard deviation of the contribution across the ensemble.", "A component is ranked by the absolute value of its weighted mean contribution, so opposite-signed contributions across graphs cancel before the absolute value."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI and are not redistributed."
+limitations = "The cited paper's Shapley outlier attribution is not implemented by this routine and was not re-read (no downloads were made and no copy was read from this environment); the review therefore covers only the ranking arithmetic and argument handling the record's deviation states. Draw columns are paired with contributions by position, not by component id, which the caller must respect; the identification flags of the graph samples are not consulted, so a non-identified graph keeps its weight. Calibration remains deferred."
+sources = ["https://doi.org/10.48550/arXiv.1912.02724"]
+findings_resolved = ["Defect fixed: supplying only one of graph_samples and contribution_draws silently fell through to the plain unweighted ranking, so a caller who passed a graph ensemble got point scores with no graph uncertainty and no error. The pair is now required together.", "The weighted ranking equals the hand computation (weights 1:3 on contributions -2 and -6 give score 5 and spread sqrt(3)); the existing tests cover weight-scale invariance, negative or zero weights and misaligned draw counts."]
+record_sha256 = "5ef456b822a2150c255e2eebebd0430e220d0e59026413127a2fdc25d027bfff"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-attribution/src/root_cause.rs"
+sha256 = "119952ebca0880abf2e329fbb07fc34cc798bce1ac2f76bbeacd58073de0555a"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-attribution/tests/root_cause_ranking.rs"
+sha256 = "6d4d6bcbfb5631ca94238003a89afe8ef846d3f8c75e75311bed765373888698"

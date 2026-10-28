@@ -18121,3 +18121,45 @@ crate = "antecedent-stats"
 cargo_target = "longitudinal_regime_reference"
 path = "crates/antecedent-stats/tests/longitudinal_regime_reference.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "identify-idc-rule2-enumeration"
+crate = "antecedent-identify"
+cargo_target = "idc_rule2_enumeration"
+path = "crates/antecedent-identify/tests/idc_rule2_enumeration.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "identify-tiered-closure-enumeration"
+crate = "antecedent-identify"
+cargo_target = "tiered_closure_enumeration"
+path = "crates/antecedent-identify/tests/tiered_closure_enumeration.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "attribution-root-cause-ranking"
+crate = "antecedent-attribution"
+cargo_target = "root_cause_ranking"
+path = "crates/antecedent-attribution/tests/root_cause_ranking.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "attribution-feature-relevance-reference"
+crate = "antecedent-attribution"
+cargo_target = "feature_relevance_reference"
+path = "crates/antecedent-attribution/tests/feature_relevance_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "counterfactual-abduction-action-prediction-reference"
+crate = "antecedent-counterfactual"
+cargo_target = "abduction_action_prediction_reference"
+path = "crates/antecedent-counterfactual/tests/abduction_action_prediction_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "identify-path-specific-enumeration"
+crate = "antecedent-identify"
+cargo_target = "path_specific_enumeration"
+path = "crates/antecedent-identify/tests/path_specific_enumeration.rs"
+gates = ["inventory", "named"]

@@ -73,6 +73,18 @@ name = "temporal_iv"
 path = "tests/temporal_iv.rs"
 
 [[test]]
+name = "idc_rule2_enumeration"
+path = "tests/idc_rule2_enumeration.rs"
+
+[[test]]
+name = "tiered_closure_enumeration"
+path = "tests/tiered_closure_enumeration.rs"
+
+[[test]]
+name = "path_specific_enumeration"
+path = "tests/path_specific_enumeration.rs"
+
+[[test]]
 name = "hedge_definition_enumeration"
 path = "tests/hedge_definition_enumeration.rs"
 

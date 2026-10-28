@@ -23,4 +23,36 @@ test_sources = [
  "crates/antecedent-identify/src/tiered.rs",
  "crates/antecedent/tests/tiered_known_truth.rs",
  "crates/antecedent/tests/numeric_pins.rs (codetermined_same_tier_joint_cell_aipw_matches_closure_admg)",
+ "tier closure restated from the back-door definition and swept over every tier layout of two to five variables, every treatment set and every outcome in a later tier, with every single effect modifier (crates/antecedent-identify/tests/tiered_closure_enumeration.rs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "identify_tiered, identify_tiered_on and identify_tiered_joint in crates/antecedent-identify/src/tiered.rs and TieredBackground::tier_closure_set / to_admg in crates/antecedent-graph/src/tiered.rs for a co-determined background (an arrow from every earlier-tier variable to every later-tier variable and a bidirected clique inside each tier): the claim that the closure of all non-treatment variables in tiers up to the latest treatment tier is a valid single-treatment back-door set, the acceptance or refusal of the joint closure against the definition of a joint back-door set, the handling of a declared effect modifier, and the query validation. Not a review of the unknown-order envelope beyond its modifier guard, of the downstream estimators, or of any tier background that is not the saturated one the module materializes."
+assumptions = ["Tiers are a total causal order on blocks: earlier tiers may cause later ones, same-tier variables are not causes of each other, and nothing outside the declared tier graph confounds the outcome (the named no-latent premise).", "A joint back-door set for treatments T and outcome Y is a set Z with no member that is a treatment, the outcome or a descendant of a treatment, and each treatment separated from Y given Z and the other treatments once its outgoing arrows are removed.", "A conditional effect given W is identified by this route only when W is known to be pretreatment: a variable in a later tier is a descendant of the treatment on every ordering the tiers allow."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI and are not redistributed."
+limitations = "The record lists no primary paper, so no source was re-read and the review checks the module against the back-door definition and Perkovic-style joint adjustment as stated in the cited references; a mistake in how those are stated would not be detected here. Layouts of up to five variables are enumerated, larger layouts use the same code. Every refused joint query was found identifiable by general ID on the same ADMG, so the refusal is a limit of the closure route and not a non-identification result; the product now says so in its message but still reports the NotIdentified status for it, as it does for a search that could not finish. The unknown-order envelope is covered only for the modifier guard and the existing facade tests. Calibration remains deferred."
+sources = ["https://doi.org/10.48550/arXiv.1507.01524", "https://doi.org/10.1017/CBO9780511803161"]
+findings_resolved = ["For every layout of two to five variables, every treatment set and every outcome in a later tier, the single-treatment closure is a valid back-door set by an independent simple-path reference (5064 single-treatment queries), so identify_tiered's unchecked certification holds, and the reported set equals the closure.", "identify_tiered_joint agrees with the joint back-door definition on every layout (4706 accepted, 2328 refused). All 2328 refused queries are identified by general ID on the closure ADMG: the refusals arise exactly when a treatment causes a closure variable, and a refusal is a limit of the closure route rather than a certificate of non-identification.", "Defect fixed: identify_tiered ignored the query's effect modifiers and never validated the query, so a conditional effect given a variable in a later tier (post-treatment, possibly a mediator) was certified with a set that cannot identify it. Such modifiers are now refused, as are same-tier modifiers when within-tier order is unknown, and a modifier equal to the treatment or outcome is an error. The refusal messages of the closure route no longer read as non-identification certificates."]
+record_sha256 = "ad2a8eafa7507b0e62cd868e233706915cf63669fe18fadcdcbec2b1f29472b1"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/tiered.rs"
+sha256 = "10a6fc7251879d6e72b468a29d2d7da5b26a3b71d9919374753f4bead20d8f06"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-graph/src/tiered.rs"
+sha256 = "7a7fd684a7c1ad9aed447c06644e21d49ea17559e149964efdef2a9db0f6173b"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/joint_response.rs"
+sha256 = "7bfb1884cfeae63d2a052278394f7f5b713780ee6d7971c8b9c2482d43f15ebb"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-identify/tests/tiered_closure_enumeration.rs"
+sha256 = "04971f662feadf09bd2308925afd9765224baf529480f6b67a164b71ed47d888"

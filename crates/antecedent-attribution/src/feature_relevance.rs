@@ -50,6 +50,20 @@ pub fn feature_relevance(
             max: max_features,
         });
     }
+    // A repeated feature would be two Shapley players that always move together, so each would
+    // be credited half of the effect; the outcome cannot be intervened on to explain itself.
+    for (i, feature) in features.iter().enumerate() {
+        if *feature == outcome {
+            return Err(AttributionError::invalid_input(
+                "feature relevance cannot attribute the outcome to itself",
+            ));
+        }
+        if features[..i].contains(feature) {
+            return Err(AttributionError::invalid_input(
+                "feature relevance features must be distinct",
+            ));
+        }
+    }
     let outcome_dense =
         model.dense_of(outcome).ok_or_else(|| AttributionError::missing_var("outcome", outcome))?;
 

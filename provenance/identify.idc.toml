@@ -24,4 +24,31 @@ test_sources = [
  "frozen IDC fixture metadata; the executable test consumes only the unconditional reduction case (conformance/identify/idc)",
  "unconditional reduction unit test (crates/antecedent-identify/src/idc.rs)",
  "exact enumeration of latent binary SCMs on all three-node ADMGs against P_x(y,z)/P_x(z), including post-treatment conditioning variables (crates/antecedent-identify/tests/id_completeness.rs)",
+ "exhaustive rule-2 closure reference for IDC: every three-node ADMG and every four-node ADMG (4096 graphs) with every assignment of nodes to outcome, intervention, conditioning or unused, comparing the product with a closure taken in every order over independent simple-path m-separation (crates/antecedent-identify/tests/idc_rule2_enumeration.rs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "IdcIdentifier::identify_conditional in crates/antecedent-identify/src/idc.rs for hard-set interventions on a static ADMG: the line-1 move of conditioning variables into the intervention set under rule 2 (Y independent of z given X and the rest of Z in the graph without arrows into X and out of z), the choice among moves, and the hand-off to ID of the unconditional law over Y and the unmoved Z (line 2) with its identified or refused status. Not a review of ID itself (covered by its hedge enumeration), of the emitted functional's numerical value beyond the existing three-node finite-SCM sweep, of baked-level evaluation, or of soft or non-Set interventions, which are refused."
+assumptions = ["Causal sufficiency is not assumed: latent confounding is represented by bidirected edges of the ADMG and the graph is acyclic.", "m-separation in an ADMG is decided by simple paths with the collider rule: a collider needs the node or a descendant in the conditioning set, a non-collider must be outside it; mutilation by G_{X-bar z-underline} removes every arrowhead at X and every arrow leaving z.", "The status of the unconditional law over Y and Z'' after the moves is that of ID, which is checked separately against the hedge definition; a reduced query with no intervention is the observational law and is identified."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI and are not redistributed."
+limitations = "The primary source was not re-read in this review (no downloads were made and no copy was read from this environment); the rule-2 statement and the reduction of the conditional query to ID on Y union Z are the standard ones and a mistake in how they are stated would not be detected here. The final unconditional question is put to the product's own ID, so a defect shared by the IDC front end and ID's refusal logic is outside the check; ID's refusals are compared with an independent hedge enumeration in a separate test. The functional's numerical value is exercised only by the existing three-node finite-SCM sweep and the baked-level tests. Graphs are ordered so that arrows run from lower to higher index, so every topological order is covered by relabeling nodes only up to that fixed ordering. Five-node and larger graphs use the same code. Calibration remains deferred."
+sources = ["https://doi.org/10.48550/arXiv.1206.6876", "https://doi.org/10.1017/CBO9780511803161"]
+findings_resolved = ["Over all 64 three-node ADMGs and all 4096 four-node ADMGs, with every assignment of the nodes to outcome, intervention, conditioning or unused (outcome and conditioning non-empty), IdcIdentifier reports the same status as the reference on 1152 three-node and 450560 four-node queries (92 and 88092 refused, 1060 and 362468 identified); in 350 and 107316 of them rule 2 moved at least one conditioning variable.", "The reference explores every order in which the rule-2 moves can be taken; every order ends in one status on every query, so the product's first-found choice cannot change the verdict. No defect was found and no product code changed."]
+record_sha256 = "7b5060d4ac2dde5dede540a22b11eb244d001c06dcf37c5454c3b5a93281da29"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/idc.rs"
+sha256 = "28f25895069861b0da13d345a5c05ba6f937ab51447f1af9ed289fcbf2661ede"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/id.rs"
+sha256 = "70930332d6cd257d7c3feff349978e965da25665c07005050400f1a9292f0ff0"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-identify/tests/idc_rule2_enumeration.rs"
+sha256 = "5eb54598d60a614215e3909271e36cedfbaf64565c95c4763e450c4d20ec3160"

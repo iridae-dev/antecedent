@@ -38,5 +38,9 @@ name = "streaming_memory_bound"
 path = "tests/streaming_memory_bound.rs"
 
 [[test]]
+name = "abduction_action_prediction_reference"
+path = "tests/abduction_action_prediction_reference.rs"
+
+[[test]]
 name = "suite_01"
 path = "tests/suite_01.rs"

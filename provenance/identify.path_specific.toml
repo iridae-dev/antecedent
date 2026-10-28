@@ -6,8 +6,8 @@ copied_comments = false
 copied_tests = false
 
 implementation_deviations = [
- "When every directed treatment-outcome path is selected, the effect is the total effect and is identified by deleting unselected treatment out-edges and running ordinary total-effect ID. When a complementary path exists, it emits the edge g-formula (Shpitser 2013) over the outcome's ancestors: P(v | pa(v)) factors with the treatment at the active level on edges that start a selected path and the control level elsewhere, minus the all-control g-formula. The district-level formula for latent confounding is not implemented: a bidirected edge on an outcome ancestor with a complementary path is refused as unsupported.",
- "The recanting-witness criterion is decided exactly on the directed graph: a witness (a node reached from the treatment along a prefix with one continuation to the outcome selected and another not) exists iff some child of the treatment starts both a selected and an unselected directed path, which is what the check tests. The recanting-district extension for bidirected edges is not implemented (see the edge g-formula refusal above).",
+ "When every directed treatment-outcome path is selected, the effect is the total effect and is identified by deleting unselected treatment out-edges and running ordinary total-effect ID. When a complementary path exists and the outcome's ancestors carry no bidirected edge, it emits the edge g-formula (Shpitser 2013): P(v | pa(v)) factors with the treatment at the active level on edges that start a selected path and the control level elsewhere, minus the all-control g-formula. With a bidirected edge among the outcome's ancestors it emits the district formula instead: each district of the ancestors contributes its kernel Q[D] identified by general ID, read at the treatment level of the edges entering it.",
+ "The recanting-witness criterion is decided exactly on the directed graph: a witness (a node reached from the treatment along a prefix with one continuation to the outcome selected and another not) exists iff some child of the treatment starts both a selected and an unselected directed path, which is what the check tests. With latent confounding the analogue is a recanting district, a district entered by a selected and an unselected treatment edge, which is refused; a district whose kernel has a hedge is refused as the total effect would be.",
  "Directed-path enumeration is bounded by query max_paths and max_len; truncation fails closed rather than deciding the paper's criterion.",
 ]
 
@@ -23,4 +23,26 @@ test_sources = [
  "status and method-label fixture (conformance/identify/path_specific_natural)",
  "inline unit tests (crates/antecedent-identify/src/path_specific.rs)",
  "two-path and shared-descendant known-truth laws with independent structural references (conformance/estimate/path_specific_edge_gformula)",
+ "exhaustive path-selection and recanting-witness reference: every DAG on three, four and five nodes, every treatment/outcome pair, unrestricted, node-restricted, direct, indirect and total mediation queries over every mediator subset, with explicit path enumeration and the Avin-Shpitser-Pearl witness definition (crates/antecedent-identify/tests/path_specific_enumeration.rs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "PathSpecificIdentifier::identify in crates/antecedent-identify/src/path_specific.rs for a DAG: the classification of the treatment's out-edges into those that start a selected path and those that start a complementary one (path-node restriction, direct, indirect and total mediation contrasts), the refusal when no path is selected, and the recanting-witness refusal, against the definition by explicit path enumeration. Not a review of the numerical value of the emitted edge g-formula, of the district formula under latent confounding (exercised by the existing enumerated latent-variable model test but not re-reviewed here), of the path-count and length caps, or of PAG and temporal variants."
+assumptions = ["Causal sufficiency in the swept graphs: every graph is a DAG, so a recanting witness is the only obstruction to identifying the path-specific effect (Avin, Shpitser and Pearl 2005).", "A path-restricted query selects the directed treatment-to-outcome paths that visit every named node; a direct contrast selects the paths that visit no mediator, an indirect one the paths that visit at least one, a total one all paths.", "A recanting witness is a node W other than the treatment, reached by a prefix q, with continuations s1 and s2 to the outcome such that q followed by s1 is a selected path and q followed by s2 is not."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI and are not redistributed."
+limitations = "The primary papers were not re-read in this review (no downloads were made and no copy was read from this environment); the witness definition and the selection wording are the standard statements and a mistake in how they are stated would not be detected here. The sweep is over DAGs of up to five nodes with the treatment before the outcome in the node order; larger graphs use the same reachability code. Only the identified or refused status is compared, not the functional. Calibration remains deferred."
+sources = ["https://doi.org/10.1017/CBO9780511803161"]
+findings_resolved = ["Over every DAG on three to five nodes, every ordered treatment/outcome pair with a directed path, and every node subset as path restriction or mediator set (186,000 queries: 104,634 identified, 81,407 refused), the product's identified or refused verdict equals the enumerated definition with no disagreement, including the case where a shared first hop makes a recanting witness and the case where two different children reach a common descendant (no witness).", "Record correction: the deviations still said the district formula and recanting district were not implemented and that a bidirected edge on an outcome ancestor was refused; the module implements both and checks them against enumerated latent models. The deviation text now states what the code does. No product code changed."]
+record_sha256 = "0ea9eeec36e625be614db3b3ba54c593e4070590911efaccb8d9ee64d7c0f3b5"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/path_specific.rs"
+sha256 = "e855b312851b6f18ac1725641de65d3a4230f08453130dca6ebaacf8a15f5984"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-identify/tests/path_specific_enumeration.rs"
+sha256 = "980543d8c63432f4673a416de8099c286b95eb5193a5833e3754522542daaa25"
