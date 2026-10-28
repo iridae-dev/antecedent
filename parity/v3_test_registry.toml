@@ -18016,3 +18016,10 @@ crate = "antecedent-design"
 cargo_target = "ranking_statement_reference"
 path = "crates/antecedent-design/tests/ranking_statement_reference.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "model-ou-lyapunov-reference"
+crate = "antecedent-model"
+cargo_target = "ou_lyapunov_reference"
+path = "crates/antecedent-model/tests/ou_lyapunov_reference.rs"
+gates = ["inventory", "named"]
