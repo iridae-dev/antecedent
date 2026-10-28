@@ -15,7 +15,7 @@ use crate::cluster_dml_aipw::{ClusterDml, DeclaredUnits};
 use crate::error::EstimationError;
 use crate::learn_nuisance::{
     AipwPredictions, NuisanceDesign, aipw_scores, cached_aipw_nuisances, cross_fit_nuisance,
-    guarded_propensity, iid_se,
+    guarded_propensity, iid_se, retained_fold_ids,
 };
 use crate::overlap::{IpwTarget, OverlapPolicy, OverlapReport};
 use crate::prepare::{require_adjustment_shaped, validate_ate_query_with_targets};
@@ -383,13 +383,16 @@ impl DmlAte {
         mut assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
         let row_weights = problem.sampling_weights.as_ref().map(|s| &*s.weights);
+        // The same fold plan as the AIPW score: the recorded assignment when the problem carries
+        // one, otherwise the seeded plan stratified by treatment arm.
+        let fold_ids = retained_fold_ids(problem, self.folds, ctx)?;
         let m = cross_fit_nuisance(
             self.outcome,
             PredictionTask::Regression,
             NuisanceDesign::of(problem),
             problem.outcome.as_ref(),
             row_weights,
-            self.folds,
+            fold_ids.clone(),
             ctx,
         )?;
         let e = cross_fit_nuisance(
@@ -398,7 +401,7 @@ impl DmlAte {
             NuisanceDesign::of(problem),
             problem.treatment.as_ref(),
             row_weights,
-            self.folds,
+            fold_ids,
             ctx,
         )?;
         let n = problem.nrows;

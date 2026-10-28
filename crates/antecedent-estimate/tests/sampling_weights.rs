@@ -973,7 +973,7 @@ fn stratification_oracle(study: &Study, k: usize) -> (f64, f64) {
         (0..n).map(|i| sigmoid(beta[0] + beta[1] * study.z[i]).clamp(1e-12, 1.0 - 1e-12)).collect();
     let mut order: Vec<usize> = (0..n).collect();
     order.sort_by(|&a, &b| scores[a].total_cmp(&scores[b]).then(a.cmp(&b)));
-    let cuts: Vec<f64> = (1..k).map(|s| scores[order[((s * n) / k).min(n - 1)]]).collect();
+    let cuts: Vec<f64> = (1..k).map(|s| scores[order[((s * n).div_ceil(k) - 1).min(n - 1)]]).collect();
     let stratum: Vec<usize> = scores
         .iter()
         .map(|score| cuts.iter().position(|cut| score <= cut).unwrap_or(cuts.len()).min(k - 1))

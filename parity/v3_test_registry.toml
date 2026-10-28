@@ -17946,3 +17946,45 @@ crate = "antecedent"
 cargo_target = "temporal_scenario_boundaries"
 path = "crates/antecedent/tests/temporal_scenario_boundaries.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "estimate-ipw-weighting-reference"
+crate = "antecedent-estimate"
+cargo_target = "ipw_weighting_reference"
+path = "crates/antecedent-estimate/tests/ipw_weighting_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "estimate-stratification-reference"
+crate = "antecedent-estimate"
+cargo_target = "stratification_reference"
+path = "crates/antecedent-estimate/tests/stratification_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "estimate-propensity-matching-reference"
+crate = "antecedent-estimate"
+cargo_target = "propensity_matching_reference"
+path = "crates/antecedent-estimate/tests/propensity_matching_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "estimate-distance-matching-reference"
+crate = "antecedent-estimate"
+cargo_target = "distance_matching_reference"
+path = "crates/antecedent-estimate/tests/distance_matching_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "estimate-dml-reference"
+crate = "antecedent-estimate"
+cargo_target = "dml_reference"
+path = "crates/antecedent-estimate/tests/dml_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "estimate-aipw-reference"
+crate = "antecedent-estimate"
+cargo_target = "aipw_reference"
+path = "crates/antecedent-estimate/tests/aipw_reference.rs"
+gates = ["inventory", "named"]

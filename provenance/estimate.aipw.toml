@@ -29,6 +29,53 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
+ "crates/antecedent-estimate/tests/aipw_reference.rs (60-digit trimmed ATE with the case-mass derivative over every row, ATT and ATC efficient influence function, and the cross-fitted ATE on recorded folds)",
  "independently generated synthetic confounded SCM with known ATE (shared with propensity estimators)",
  "conformance/estimate/aipw (synthetic known-truth fixture: the point estimate is checked against true_effect within tolerance; its recorded DoWhy block ran backdoor.propensity_score_weighting, not AIPW, so no external AIPW estimate or SE is compared)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "AipwAte::fit in crates/antecedent-estimate/src/aipw.rs and src/aipw/scores.rs for the three routes without a penalised propensity: the cross-fitted untrimmed ATE on a recorded fold assignment (per-fold arm least squares and unpenalised logistic propensity, clip), the full-sample trimmed ATE with its stacked-equation influence (logistic fitted on every row, arm regressions and average on the retained rows), and the full-sample ATT and ATC with the centred efficient influence function. Not the bootstrap, penalised propensities, cluster-DML, sampling weights, custom targets, or the cluster, multiway and HAC kinds."
+assumptions = ["Unconfoundedness given the adjustment set and positivity are identification assumptions taken as given.", "Independent rows; the default standard error is the sample standard deviation of the influence values over the square root of the number of rows.", "The ATT and ATC standard errors are the efficient influence function and are valid only when both nuisance models are consistent, as the record states; they are reproduced here, not proved."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "The trimmed ATE is compared on four tables of 60 to 80 rows (a trim at 0.1 and 0.15, a trim with a clip at 0.2, an outcome offset of 1e7, strong selection), the ATT and ATC on three tables of 60 to 80 rows (a clip at 0.1 and an outcome offset of 1e7), and the cross-fitted ATE on the five untrimmed five-fold tables of the DML reference (recorded folds, clips, offsets, near-collinear covariates). Effects are asserted to 1e-8 (1e-6 for the cross-fitted route, whose logistic solver stops near 1e-8) and standard errors to 1e-6 (1e-5). The n/(n-1) divisor over all rows is the product's convention for the trimmed route and is reproduced. The ATT and ATC variance is compared with the stated efficient influence function, not with the exact case-mass derivative, which it is not under a misspecified model. Nothing here bears on coverage or on the other nuisance families. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.1111/ectj.12097", "https://doi.org/10.1093/aje/kwq439", "https://mpmath.org/"]
+findings_resolved = ["Defect repaired: for a trimmed ATE the logistic propensity is fitted on every row but its stacked-equation correction used only the retained rows (the score, the information and the influence vector), so the rows trimmed from the average were missing from the variance although they shape the propensity. The influence is now formed over every row of the problem with the propensity block from all rows and the outcome blocks from the retained rows, and equals the case-mass derivative of the whole refitted estimator; the standard error moved by 0.3 to 0.9 percent on the reference tables.", "The ATT and ATC effects and centred efficient-influence standard errors equal the multiprecision references, including a clip at 0.1 and an outcome offset of 1e7.", "The untrimmed ATE equals the cross-fitted reference on a recorded fold assignment, for effect and standard error, with clips, offsets and near-collinear covariates."]
+record_sha256 = "f8819b29dceb32866dfbe2772676626eee0ca5525d33ee40bc123512007ddb8f"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/aipw.rs"
+sha256 = "f7d14e5bc9d376075dc14d8250a05b6a0ea8a0d4b74a21c1d8871d14627c39c8"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/aipw/scores.rs"
+sha256 = "173122c77bf12ad90cc9949d6c973fb4e94fde336866133118f9eb6b4bc575fd"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/aipw_reference.rs"
+sha256 = "659b9943d1cd64cc168007b71560be1eb12b7acf0764c589bbc0afed6f6f2a04"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/aipw_reference.py"
+sha256 = "578a03569a8057ff4b5fbefdb3868882128631f5aa38f6d52c8ab81f8f19ecbe"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/aipw_reference.json"
+sha256 = "881e34d590ed3029ec429d5cd88f98f11fbfdf247d7560c14c752b024de84819"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/table_support.rs"
+sha256 = "b1ea24c5e276526e60ac330f732477945909496ff3d03ecf38f12f50f61eafbc"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/dml_reference.json"
+sha256 = "4a14949fbcdfff23168d41dcf945a02f5ceba19d7cbda03f26e66aa042b3c230"

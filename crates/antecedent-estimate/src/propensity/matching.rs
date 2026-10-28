@@ -692,27 +692,40 @@ pub(crate) fn match_diffs_with(
             };
             let index = workspace.matching_index.as_ref().expect("ensured");
             if let Some(boxed) = boxed {
-                match_with_box_tree(
-                    &boxed,
-                    query_features,
-                    n_queries,
-                    matches,
-                    caliper,
-                    &mut donor_rows,
-                    &mut distances,
-                    ctx,
-                )?;
-            } else if matches == 1 {
-                index
-                    .match_all_within(
+                if matches == 1 {
+                    scalar_ties = Some(match_nearest_tied(
+                        &|query, k, out| boxed.nearest_k(query, k, out),
                         query_features,
-                        n_queries,
+                        dim,
+                        n_donors,
                         caliper,
                         &mut donor_rows,
                         &mut distances,
                         ctx,
-                    )
-                    .map_err(crate::error::EstimationError::from)?;
+                    )?);
+                } else {
+                    match_with_box_tree(
+                        &boxed,
+                        query_features,
+                        n_queries,
+                        matches,
+                        caliper,
+                        &mut donor_rows,
+                        &mut distances,
+                        ctx,
+                    )?;
+                }
+            } else if matches == 1 {
+                scalar_ties = Some(match_nearest_tied(
+                    &|query, k, out| index.nearest_k(query, k, out),
+                    query_features,
+                    dim,
+                    n_donors,
+                    caliper,
+                    &mut donor_rows,
+                    &mut distances,
+                    ctx,
+                )?);
             } else {
                 match_nearest_k(
                     index,
@@ -976,6 +989,77 @@ fn match_scalar_sorted(
 
 /// [`match_nearest_k`] and the single-neighbour pass answered by a [`BoxTreeIndex`], with the
 /// same output contract.
+/// Single-neighbour pass over a multivariate index that keeps every donor tied at the nearest
+/// distance, as the scalar pass does: a query with several equidistant donors (duplicated
+/// covariate rows, a discrete covariate) matches the whole tied set, whose outcomes are averaged
+/// with equal weight, rather than the donor listed first. The estimate then does not depend on
+/// the order of the rows.
+///
+/// Returns the tied runs (`(start, len)` into the pool, `len == 0` for an unmatched query) and the
+/// pool. A tied set shared by several queries is stored once. `donor_rows[q]` holds the first
+/// tied donor and `distances[q]` the shared distance, `usize::MAX` and infinity when the nearest
+/// distance is non-finite or past the caliper.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the search closure, the queries, the caliper and the output buffers are independent"
+)]
+fn match_nearest_tied(
+    nearest_k: &dyn Fn(&[f64], usize, &mut Vec<(usize, f64)>) -> Result<(), StatsError>,
+    query_features: &[f64],
+    dim: usize,
+    n_donors: usize,
+    caliper: Option<f64>,
+    donor_rows: &mut [usize],
+    distances: &mut [f64],
+    ctx: &ExecutionContext,
+) -> Result<(Vec<(usize, usize)>, Vec<usize>), EstimationError> {
+    let mut found = Vec::new();
+    let mut runs = vec![(0_usize, 0_usize); donor_rows.len()];
+    let mut pool: Vec<usize> = Vec::new();
+    let mut shared = std::collections::HashMap::<Vec<usize>, usize>::new();
+    for (q, query) in query_features.chunks_exact(dim).enumerate() {
+        if q % MATCH_CANCELLATION_CHUNK == 0 && ctx.cancellation.is_cancelled() {
+            return Err(EstimationError::from(StatsError::Cancelled));
+        }
+        nearest_k(query, 2.min(n_donors), &mut found)?;
+        let nearest = found.first().map_or(f64::INFINITY, |&(_, d)| d);
+        let within = nearest.is_finite() && caliper.is_none_or(|limit| nearest <= limit);
+        if !within {
+            donor_rows[q] = usize::MAX;
+            distances[q] = f64::INFINITY;
+            continue;
+        }
+        // Widen the neighbourhood until it holds a donor farther than the nearest, or all of them.
+        let mut k = found.len();
+        while k < n_donors
+            && found.len() == k
+            && found.last().is_some_and(|&(_, d)| d.total_cmp(&nearest).is_eq())
+        {
+            k = (k * 2).min(n_donors);
+            nearest_k(query, k, &mut found)?;
+        }
+        let tied: Vec<usize> = found
+            .iter()
+            .take_while(|&&(_, d)| d.total_cmp(&nearest).is_eq())
+            .map(|&(row, _)| row)
+            .collect();
+        donor_rows[q] = tied[0];
+        distances[q] = nearest;
+        let start = if tied.len() == 1 {
+            pool.push(tied[0]);
+            pool.len() - 1
+        } else {
+            *shared.entry(tied.clone()).or_insert_with(|| {
+                let start = pool.len();
+                pool.extend_from_slice(&tied);
+                start
+            })
+        };
+        runs[q] = (start, tied.len());
+    }
+    Ok((runs, pool))
+}
+
 #[expect(clippy::too_many_arguments, reason = "mirrors the split-plane passes it replaces")]
 fn match_with_box_tree(
     index: &BoxTreeIndex,
@@ -1731,6 +1815,12 @@ fn abadie_imbens_se(effects: &[f64], donor_usage: &[f64], ate_form: bool, noise_
 }
 
 /// OLS of `y` on `[1, x]` (row-major `x` with `dim` columns). Returns `[intercept, β…]`.
+///
+/// Solved by Householder QR of the design, not by the normal equations: the squared condition
+/// number of the normal equations costs half the digits when two matching covariates are nearly
+/// collinear, and the bias term is the difference of two fitted values that nearly cancel. A
+/// design whose smallest triangular pivot is below `1e-13` of the largest is rank deficient and
+/// returns `None`, so no bias correction is made from it.
 fn fit_linear_mean(features: &[f64], y: &[f64], dim: usize) -> Option<Vec<f64>> {
     let n = y.len();
     if n < dim + 1 || dim == 0 {
@@ -1741,21 +1831,47 @@ fn fit_linear_mean(features: &[f64], y: &[f64], dim: usize) -> Option<Vec<f64>> 
         return Some(vec![y.iter().sum::<f64>() / n as f64]);
     }
     let p = dim + 1;
-    let mut xtx = vec![0.0; p * p];
-    let mut xty = vec![0.0; p];
+    let mut a = vec![0.0; n * p];
     for i in 0..n {
-        let mut row = vec![1.0; p];
-        for d in 0..dim {
-            row[d + 1] = features[i * dim + d];
+        a[i * p] = 1.0;
+        a[i * p + 1..(i + 1) * p].copy_from_slice(&features[i * dim..(i + 1) * dim]);
+    }
+    let mut b = y.to_vec();
+    let mut diagonal = vec![0.0; p];
+    for k in 0..p {
+        let norm = (k..n).map(|i| a[i * p + k] * a[i * p + k]).sum::<f64>().sqrt();
+        if !(norm > 0.0 && norm.is_finite()) {
+            return None;
         }
-        for a in 0..p {
-            xty[a] += row[a] * y[i];
-            for b in 0..p {
-                xtx[a * p + b] += row[a] * row[b];
+        let alpha = if a[k * p + k] > 0.0 { -norm } else { norm };
+        a[k * p + k] -= alpha;
+        let v_norm2: f64 = (k..n).map(|i| a[i * p + k] * a[i * p + k]).sum();
+        diagonal[k] = alpha;
+        if v_norm2 > 0.0 {
+            for c in k + 1..p {
+                let dot: f64 = (k..n).map(|i| a[i * p + k] * a[i * p + c]).sum();
+                let scale = 2.0 * dot / v_norm2;
+                for i in k..n {
+                    a[i * p + c] -= scale * a[i * p + k];
+                }
+            }
+            let dot: f64 = (k..n).map(|i| a[i * p + k] * b[i]).sum();
+            let scale = 2.0 * dot / v_norm2;
+            for i in k..n {
+                b[i] -= scale * a[i * p + k];
             }
         }
     }
-    crate::util::solve_spd(&xtx, &xty, p)
+    let largest = diagonal.iter().fold(0.0_f64, |m, d| m.max(d.abs()));
+    if diagonal.iter().any(|d| !(d.abs() > 1e-13 * largest)) {
+        return None;
+    }
+    let mut beta = vec![0.0; p];
+    for k in (0..p).rev() {
+        let tail: f64 = (k + 1..p).map(|c| a[k * p + c] * beta[c]).sum();
+        beta[k] = (b[k] - tail) / diagonal[k];
+    }
+    beta.iter().all(|v| v.is_finite()).then_some(beta)
 }
 
 fn predict_linear(beta: &[f64], features: &[f64], dim: usize, row: usize) -> f64 {

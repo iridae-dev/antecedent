@@ -18,7 +18,7 @@ use antecedent_learn::{
 
 use crate::arm::TreatmentArm;
 use crate::crossfit_plan::{
-    CrossfitPlan, FoldIdErrors, FoldRows, FoldSource, SHARED_FOLD_ID_ERRORS, derive_fold_ids,
+    CrossfitPlan, FoldIdErrors, FoldRows, FoldSource, derive_fold_ids,
 };
 use crate::error::EstimationError;
 
@@ -135,7 +135,7 @@ pub(crate) fn cross_fit_nuisance(
     design: NuisanceDesign<'_>,
     y: &[f64],
     weights: Option<&[f64]>,
-    folds: usize,
+    fold_ids: Vec<u16>,
     ctx: &ExecutionContext,
 ) -> Result<CrossFittedPrediction, EstimationError> {
     let NuisanceDesign { values: design, nrows, ncols } = design;
@@ -147,39 +147,12 @@ pub(crate) fn cross_fit_nuisance(
         require_weight_capable(factory.as_ref(), spec)?;
     }
     let view = design_for_spec(spec, design, nrows, ncols)?;
-    let rows: Vec<antecedent_data::GlobalId> = (0..nrows)
-        .map(|i| {
-            u64::try_from(i).map(antecedent_data::GlobalId::new).map_err(|_| {
-                EstimationError::data_msg(
-                    "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
-                )
-            })
-        })
-        .collect::<Result<_, _>>()?;
-    let plan = derive_fold_ids(
-        nrows,
-        folds,
-        FoldSource::Stratified {
-            strata: &vec![0; nrows],
-            units: &rows,
-            seed: ctx.rng.master_seed(),
-        },
-        &SHARED_FOLD_ID_ERRORS,
-    )?;
-    let plan: Vec<u16> = plan
-        .into_iter()
-        .map(|f| {
-            u16::try_from(f).map_err(|_| {
-                EstimationError::unsupported("cross-fitting supports at most 65536 folds")
-            })
-        })
-        .collect::<Result<_, _>>()?;
     cross_fit_with_folds_weighted(
         factory.as_ref(),
         view,
         TargetView::new(y),
         weights,
-        plan,
+        fold_ids,
         ctx,
         None,
     )
@@ -401,7 +374,7 @@ pub(crate) type AipwPredictions = (Vec<f64>, Vec<f64>, Vec<f64>, CrossFittedPred
     clippy::cast_possible_truncation,
     reason = "fold ids are below the fold count, which was checked above to be at most u16::MAX + 1"
 )]
-fn retained_fold_ids(
+pub(crate) fn retained_fold_ids(
     problem: &crate::propensity::PreparedPropensityProblem,
     folds: usize,
     ctx: &ExecutionContext,

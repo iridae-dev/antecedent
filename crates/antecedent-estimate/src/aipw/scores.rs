@@ -187,6 +187,17 @@ pub(super) fn correct_aipw_psi_for_nuisances(
     psi: &mut [f64],
     fit: &AipwNuisanceFit<'_>,
 ) -> Result<(), EstimationError> {
+    correct_aipw_psi_blocks(psi, fit, true)
+}
+
+/// [`correct_aipw_psi_for_nuisances`] with the logistic block optional: a trimmed fit takes the
+/// outcome blocks here and the propensity block from every row (see
+/// [`embed_trimmed_influence`]).
+fn correct_aipw_psi_blocks(
+    psi: &mut [f64],
+    fit: &AipwNuisanceFit<'_>,
+    include_propensity: bool,
+) -> Result<(), EstimationError> {
     let n = psi.len();
     if fit.ncols == 0 || n < 2 {
         return Ok(());
@@ -241,16 +252,103 @@ pub(super) fn correct_aipw_psi_for_nuisances(
     }
     let singular = "singular AIPW nuisance-score information; refusing an uncorrected analytic SE";
     // Each block's derivative is a function of the data only, so the terms add independently.
-    for (score, info, deriv) in [
+    for (block, (score, info, deriv)) in [
         (&e_score, &e_info, &e_deriv),
         (&b1_score, &b1_info, &b1_deriv),
         (&b0_score, &b0_info, &b0_deriv),
-    ] {
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        if block == 0 && !include_propensity {
+            continue;
+        }
         crate::se::add_nuisance_correction(
             psi, fit.design, fit.ncols, score, info, deriv, singular,
         )?;
     }
     Ok(())
+}
+
+/// Every row of a problem, for the one nuisance fitted on all of them.
+pub(super) struct AllRowsPropensity<'a> {
+    /// Column-major design of every row.
+    pub(super) design: &'a [f64],
+    pub(super) treatment: &'a [f64],
+    /// Raw fitted propensity of every row.
+    pub(super) raw: &'a [f64],
+    /// Sampling weights of every row, when declared.
+    pub(super) weights: Option<&'a [f64]>,
+}
+
+/// Influence values of a trimmed ATE over every row of the problem.
+///
+/// The logistic propensity is fitted on all `n` rows while the arm regressions and the average
+/// use only the `m` retained rows, so a trimmed row still moves the estimate through the
+/// propensity it helped fit. The estimate is `(1/m) Σ_R ψ`; with its retained membership held
+/// fixed its influence on row `i` is `(n/m)` times the retained-row term `ψ_i − est` plus the
+/// outcome-block terms (rows in `R`, information over `R`) plus the propensity term
+/// `α'x_i s_i` with `α = I⁻¹B`, `I` the mean logistic information over all rows and `B` the mean
+/// derivative of ψ over the retained rows (zero for the others). The values have mean zero and,
+/// like the retained-ratio influence of the cross-fitted fits, are embedded in the original row
+/// universe.
+///
+/// # Errors
+///
+/// A singular block information matrix.
+pub(super) fn embed_trimmed_influence(
+    psi: &[f64],
+    estimate: f64,
+    fit: &AipwNuisanceFit<'_>,
+    retained: &[usize],
+    all: &AllRowsPropensity<'_>,
+) -> Result<Vec<f64>, EstimationError> {
+    let m = psi.len();
+    let n = all.treatment.len();
+    let mut outcome_terms = vec![0.0; m];
+    correct_aipw_psi_blocks(&mut outcome_terms, fit, false)?;
+    // Retained weights are the declared ones renormalized to mean one over the retained rows.
+    let scale = all.weights.map_or(1.0, |w| {
+        m as f64 / retained.iter().map(|&i| w[i]).sum::<f64>()
+    });
+    let weight = |i: usize| all.weights.map_or(1.0, |w| scale * w[i]);
+    let mut score = vec![0.0; n];
+    let mut info = vec![0.0; n];
+    let mut derivative = vec![0.0; n];
+    for i in 0..n {
+        let e = all.raw[i];
+        score[i] = weight(i) * (all.treatment[i] - e);
+        info[i] = weight(i) * e * (1.0 - e);
+    }
+    for (k, &i) in retained.iter().enumerate() {
+        let (t, y, e, raw) = (fit.treatment[k], fit.outcome[k], fit.e_used[k], fit.e_raw[k]);
+        // Clipped rows do not depend on γ locally.
+        #[allow(
+            clippy::float_cmp,
+            reason = "e is either exactly the raw propensity or the clipped bound, so exact inequality detects a clipped row"
+        )]
+        let clipped = e != raw;
+        if !clipped {
+            let (r1, r0) = (y - fit.mu1[k], y - fit.mu0[k]);
+            derivative[i] = -weight(i) * (t * r1 * (1.0 - e) / e + (1.0 - t) * r0 * e / (1.0 - e));
+        }
+    }
+    let mut propensity_terms = vec![0.0; n];
+    crate::se::add_nuisance_correction(
+        &mut propensity_terms,
+        all.design,
+        fit.ncols,
+        &score,
+        &info,
+        &derivative,
+        "singular AIPW nuisance-score information; refusing an uncorrected analytic SE",
+    )?;
+    let ratio = n as f64 / m as f64;
+    let mut influence: Vec<f64> = propensity_terms.iter().map(|term| ratio * term).collect();
+    for (k, &i) in retained.iter().enumerate() {
+        influence[i] += ratio * (psi[k] - estimate + outcome_terms[k]);
+    }
+    Ok(influence)
 }
 
 /// Rows and fitted nuisances behind an AIPW ATE score (aligned, length = retained rows).

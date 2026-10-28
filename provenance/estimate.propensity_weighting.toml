@@ -23,6 +23,43 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
+ "crates/antecedent-estimate/tests/ipw_weighting_reference.rs (60-digit logistic refit and case-weight derivative of the Hajek ATE, ATT and ATC, with clip, trim, offsets and near-collinear covariates)",
  "independently generated synthetic confounded SCM with known ATE/ATT",
  "conformance/estimate/propensity_ipw (known-truth recovery fixture carrying an unasserted recorded DoWhy run from the pinned baseline in parity/baselines/dowhy.toml)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "PropensityWeighting::fit point and analytic standard error in crates/antecedent-estimate/src/propensity/weighting.rs: the Hajek (self-normalized) difference of arm means with inverse-probability weights for the ATE, ATT and ATC targets, the clip applied to the weight, trimming on the raw score, and the analytic standard error that carries the estimated logistic propensity (hajek_influence_values and hajek_iid_se). Not the bootstrap, the covariate-balanced calibration, the score-inverted intervals, sampling weights, clusters, or the efficiency claim for a growing series propensity."
+assumptions = ["Unconfoundedness given the adjustment set and positivity are identification assumptions taken as given; the model is an unpenalised main-effects logistic regression.", "Independent rows; the standard error is the linearization of the stacked logistic and weighted-mean estimating equations with the finite-sample factor n/(n-p) for p design columns.", "Rows whose propensity is clipped or trimmed keep their weight fixed locally, so the clipped rows carry no propensity-estimation term."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Seven finite tables of 9 to 60 rows with one or two covariates: a binding clip at 0.1, a trim at 0.1, two covariates correlated at 0.99, an outcome offset of 1e7, a covariate at offset 1e3 and scale 250, scores down to 0.019 and up to 0.990 without a clip, and a nine-row table. Effects are asserted to 1e-8 and standard errors to 1e-6 relative. The reference is a case-weight derivative of the whole refitted estimator at 60 digits and so checks the propensity-estimation term and the finite-sample factor as the product states them, not the choice of that factor. Nothing here bears on the coverage of the intervals, the bootstrap, or weights beyond these tables. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.1515/9781400829828", "https://doi.org/10.1111/1468-0262.00442", "https://mpmath.org/"]
+findings_resolved = ["No defect found. The Hajek effect for the ATE, ATT and ATC equals the refitted multiprecision estimator, with the clip applied to the weight and the trim to the raw score, including scores near 0.02 and 0.99, nearly collinear covariates and offsets in the outcome and the covariate.", "The analytic standard error equals the square root of n/(n-1) n/(n-p) times the sum of squared case-mass derivatives of the whole refitted estimator in every table, so the propensity-estimation term (including its zero for clipped rows and for the treated arm of the ATT) is the exact stacked-equation linearization rather than the fixed-weight ratio influence alone."]
+record_sha256 = "49292292a6029aa084a7a29eae0882399d23ed954a6be166dc6b7ee92d1521fa"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/propensity/weighting.rs"
+sha256 = "61dedf95a0aefc361c0807c260f9d29fcb1626f1170be810ec3540545f97899e"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/ipw_weighting_reference.rs"
+sha256 = "1b82c9019c5cc6f93ed21c7b3d97cae9542abb3b745e88777de52cff38ce6cf3"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/ipw_weighting_reference.py"
+sha256 = "75982eaa87033cefef4c834b98e5a67e293790702ab8b890c81a3ab78f60ce1c"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/ipw_weighting_reference.json"
+sha256 = "196300b571fdebbf230905a795dfc1de2acee138e0bfbe91f24ca4c5d172ac6e"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/table_support.rs"
+sha256 = "b1ea24c5e276526e60ac330f732477945909496ff3d03ecf38f12f50f61eafbc"

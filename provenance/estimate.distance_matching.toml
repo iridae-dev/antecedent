@@ -22,6 +22,48 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
+ "crates/antecedent-estimate/tests/distance_matching_reference.rs (exhaustive 60-digit Euclidean search with tied donors, caliper, unit changes of 1e-14 and 1e14, offsets and near-collinear covariates)",
  "independently generated synthetic confounded SCM with known ATT",
  "conformance/estimate/distance_matching (known-truth recovery fixture carrying an unasserted recorded DoWhy run from the pinned baseline in parity/baselines/dowhy.toml)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "DistanceMatching::fit in crates/antecedent-estimate/src/propensity/distance.rs and the shared matching helpers in crates/antecedent-estimate/src/propensity/matching.rs it calls (match_diffs_with, match_nearest_tied, matched_outcome_diffs, fit_linear_mean, abadie_imbens_se): z-scoring of the covariates, one-nearest-neighbour matching with replacement by Euclidean distance with all tied donors averaged, the caliper, the donor-arm linear bias term, the pooled effects and the homoskedastic matching variance. Not the diagnostic propensity fit beyond its use as a refusal, k-nearest matching, trimming, sampling weights or the population-variance option."
+assumptions = ["Unconfoundedness given the adjustment set and positivity are identification assumptions taken as given.", "Independent rows; the variance is the simplified donor-reuse construction the record states.", "The distance is Euclidean on the z-scored covariates, so every covariate counts equally whatever its units; a constant covariate carries no distance."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Ten finite tables of 16 to 60 rows with two or three covariates: a caliper, three covariates, seven duplicated covariate vectors that tie, an outcome offset of 1e7, a covariate offset of 1e6, covariates in units of 1e-14 and 1e14, covariates correlated at 0.9999999999995 and a sixteen-row table. Effects are asserted to 1e-8 and standard errors to 1e-6 relative, with the matched count. Equidistant donors that differ in exact arithmetic but round to equal doubles, and ties that the standardization breaks by rounding, are not exercised. Nothing here bears on coverage. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.1111/j.1468-0262.2006.00655.x", "https://doi.org/10.3982/ECTA6474", "https://mpmath.org/"]
+findings_resolved = ["Defect repaired: with two or more covariates a query with several equidistant donors (duplicated covariate rows, discrete covariates) matched only the donor listed first, so the effect and the variance depended on the order of the rows, although the scalar path and the stated contract average every tied donor. The multivariate single-neighbour pass now returns the whole tied set, shared by queries with the same set, and equals the exhaustive reference on a table with seven duplicated points.", "Defect repaired: covariates were scaled by max(sd, 1e-12), so a covariate measured in units of 1e-14 was shrunk by a factor of ten against its z-score and the matches changed with the units. A column is now constant only when its spread is below 1e-12 of its own magnitude, and the matched effect is identical for the covariate in units of 1e-14, 1 and 1e14.", "Defect repaired: the donor-arm bias line was solved from the normal equations, which squares the condition number: for covariates correlated at 0.9999999999995 the matched effect and its standard error were off by 3e-4 relative. It is solved by Householder QR now (a triangular pivot below 1e-13 of the largest still means rank deficient and no bias term is made), and the effect equals the reference to 1e-8."]
+record_sha256 = "b8efcca98666c1ca016e6372ebb8f86b8ad88a1232965f4db0882f0be0a0330b"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/propensity/distance.rs"
+sha256 = "735ad21b6993d77d75a54964d0051e72e90e88fa2edf86c5315efe8a488289f9"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/propensity/matching.rs"
+sha256 = "0c49a05d567d8277692a6135f535560e652371f628a3c28d005584b9889061be"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/distance_matching_reference.rs"
+sha256 = "43d93cb9dd8b29a28ec663965f316f237e2964a1cda173e800085b6f6352e8c7"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/distance_matching_reference.py"
+sha256 = "101173d83c355e48c4f071aa997b0ba787d0bb77b58643a6f5c21ec11730a133"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/distance_matching_reference.json"
+sha256 = "7d34f9ca337c8e08ddd0d3092cf219a2e28d593f3bcfc06a6e8e4ead0bf2f8d1"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/table_support.rs"
+sha256 = "b1ea24c5e276526e60ac330f732477945909496ff3d03ecf38f12f50f61eafbc"

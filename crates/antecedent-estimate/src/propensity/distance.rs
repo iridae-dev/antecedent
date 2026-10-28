@@ -340,9 +340,14 @@ fn standardize_rowmajor_inplace(features: &mut [f64], n: usize, dim: usize) {
             let d = features[r * dim + c] - mean;
             var += d * d;
         }
-        let sd = (var / nf).sqrt().max(1e-12);
+        let sd = (var / nf).sqrt();
+        // A column is constant when its spread is rounding noise of its own magnitude; an
+        // absolute floor would instead rescale a covariate measured in units of 1e-13.
+        let magnitude = (0..n).fold(0.0_f64, |m, r| m.max(features[r * dim + c].abs()));
+        let constant = !(sd > 1e-12 * magnitude);
         for r in 0..n {
-            features[r * dim + c] = (features[r * dim + c] - mean) / sd;
+            features[r * dim + c] =
+                if constant { 0.0 } else { (features[r * dim + c] - mean) / sd };
         }
     }
 }

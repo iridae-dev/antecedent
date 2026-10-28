@@ -505,11 +505,13 @@ pub(crate) fn assign_strata(scores: &[f64], n_strata: usize) -> Vec<usize> {
     }
     let mut order: Vec<usize> = (0..n).collect();
     order.sort_by(|&a, &b| scores[a].total_cmp(&scores[b]).then(a.cmp(&b)));
-    // Cut on score quantiles and assign by `score <= cut`, so identical scores
-    // stay in one stratum. Rank cuts split a tie across strata by row position.
+    // Cut at the empirical quantiles (type 1) and assign by `score <= cut`, so identical scores
+    // stay in one stratum. The cut at level `s/k` is the order statistic `x_(ceil(s n / k))`: with
+    // `n` divisible by `k` every class holds exactly `n/k` rows, where the next order statistic
+    // would give the first class one row too many and the last one too few.
     let mut cuts = Vec::with_capacity(k.saturating_sub(1));
     for s in 1..k {
-        let idx = (s * n) / k;
+        let idx = (s * n).div_ceil(k).max(1) - 1;
         cuts.push(scores[order[idx.min(n - 1)]]);
     }
     scores

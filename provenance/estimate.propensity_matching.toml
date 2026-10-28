@@ -24,6 +24,43 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
+ "crates/antecedent-estimate/tests/propensity_matching_reference.rs (exhaustive 60-digit nearest-neighbour search on both scales with ties, calipers, clip, offset and the stated matching variance)",
  "independently generated synthetic confounded SCM with known ATT",
  "conformance/estimate/propensity_matching (known-truth recovery fixture carrying an unasserted recorded DoWhy run from the pinned baseline in parity/baselines/dowhy.toml)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "PropensityMatching::fit in crates/antecedent-estimate/src/propensity/matching.rs and the helpers it calls (SortedScalarIndex, matched_outcome_diffs, fit_linear_mean, abadie_imbens_se): one-nearest-neighbour matching with replacement on the logit or the clipped probability of the fitted propensity, all donors tied at the nearest distance averaged, the caliper (a distance equal to it matches), the donor-arm linear bias term, the pooled ATE, ATT and ATC effects and the homoskedastic matching variance. Not the population-variance option, sampling weights, trimming, or the unsupported cluster, multiway and HAC kinds."
+assumptions = ["Unconfoundedness given the adjustment set and positivity are identification assumptions taken as given.", "The matching score is the maximum-likelihood logistic propensity, treated as known by the variance; the Abadie-Imbens estimated-score adjustment is not implemented, as the record states.", "Independent rows; the variance estimates the noise variance as the sample variance of the matched effects divided by the mean of 1 + 1/(matches), the simplified construction the record states."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Ten finite tables of 10 to 60 rows with one covariate: both matching scales, a caliper on each, clipped scores that tie, extreme unclipped scores, a covariate with five levels (heavy ties), an outcome offset of 1e7 and a ten-row table. Effects are asserted to 1e-8 and standard errors to 1e-6 relative, with the matched count. The reference is an exhaustive scan at 60 digits, and a distance within 1e-16 of a tie in exact arithmetic is not exercised. The variance formula is the product's stated simplification and is reproduced, not validated against the conditional-residual variance of the paper. Nothing here bears on coverage. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.1111/j.1468-0262.2006.00655.x", "https://doi.org/10.3982/ECTA6474", "https://mpmath.org/"]
+findings_resolved = ["No defect found in the scalar path: the nearest donors, tied sets, caliper boundary, bias term and effects equal the exhaustive reference on both scales for the ATT, ATC and ATE, and the variance equals the stated formula with the donor-usage shares of tied queries.", "The fit_linear_mean helper now solves the donor-arm line by Householder QR (see the distance-matching record); the one-dimensional line was already accurate and its result is unchanged on these tables."]
+record_sha256 = "3ebae7c4ab0991fd3f63c88a2953f7aa02612222cf5077c586cb69939fd92e13"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/propensity/matching.rs"
+sha256 = "0c49a05d567d8277692a6135f535560e652371f628a3c28d005584b9889061be"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/propensity_matching_reference.rs"
+sha256 = "9f824bbfb85f83f3a0f67048b199a3f00d1cb2ef56815905b486fe1b9b4a31bd"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/propensity_matching_reference.py"
+sha256 = "d4ca19e4f5bb8a233f67c964902be756ae5cd1b6c4ee403eb5e286fa9838b440"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/propensity_matching_reference.json"
+sha256 = "44475819e506cf0210394d71de82203c0f82d5041727152c4c22e0f89ddfce7c"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/table_support.rs"
+sha256 = "b1ea24c5e276526e60ac330f732477945909496ff3d03ecf38f12f50f61eafbc"

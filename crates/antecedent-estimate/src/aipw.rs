@@ -1013,6 +1013,17 @@ impl AipwAte {
             ncols: problem.design_ncols,
             weights: used_weights,
         };
+        if let Some(retained) = rows.retained.as_deref() {
+            // The propensity was fitted on every row; the influence is over every row too.
+            let all = AllRowsPropensity {
+                design: &problem.design_matrix,
+                treatment: &problem.treatment,
+                raw: &model.fit.scores,
+                weights: problem.sampling_weights.as_ref().map(|s| &*s.weights),
+            };
+            workspace.psi = embed_trimmed_influence(&workspace.psi, ate, &fit, retained, &all)?;
+            return Ok(());
+        }
         correct_aipw_psi_for_nuisances(&mut workspace.psi, &fit)
     }
 
@@ -1040,7 +1051,9 @@ impl AipwAte {
             declared_clusters.as_deref(),
             self.inference.multiway_ids.as_deref(),
             self.inference.panel_times.as_deref(),
-            rows.retained.as_deref(),
+            // A trimmed ATE carries influence values for every row of the problem; the ATT and
+            // ATC contrasts carry them for the retained rows only.
+            rows.retained.as_deref().filter(|retained| retained.len() == workspace.psi.len()),
         )?;
         let overlap_report = Some(crate::propensity::propensity_overlap_report(
             problem,

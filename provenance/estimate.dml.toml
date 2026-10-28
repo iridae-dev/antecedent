@@ -20,7 +20,49 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
+ "crates/antecedent-estimate/tests/dml_reference.rs (fixed-fold 60-digit AIPW and Robinson scores with least-squares and logistic nuisances, clip, trim, offsets and near-collinear covariates)",
  "crates/antecedent/tests/recalc_dr.rs",
  "python/tests/test_recalc_dr.py",
  "independently generated synthetic confounded SCM with known ATE",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "DmlAte::fit in crates/antecedent-estimate/src/dml.rs for the binary AIPW score and the Robinson partially linear score with a linear outcome learner, an unpenalised logistic treatment learner and a recorded fold assignment: the per-fold nuisance fits on training rows, the out-of-fold predictions, the clip on the propensity, trimming on the raw out-of-fold propensity, the AIPW and Robinson point estimates, and their influence-function standard errors (finish_dml, fit_plr, iid_se). Not the choice or tuning of a flexible learner, sampling weights, cluster-DML, the population interval, or the score table beyond its fold ids."
+assumptions = ["Unconfoundedness given the adjustment set and positivity are identification assumptions taken as given.", "The nuisance learners are exact least squares on fixed folds and unpenalised logistic maximum likelihood, so the cross-fitted scores are determined; the sampling-split condition on a flexible learner's error rates is not examined.", "Independent rows; the standard error treats the cross-fitted scores as an iid sample with the n/(n-1) variance divisor and holds trimming membership fixed."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Nine finite tables of 24 to 80 rows with one or two covariates, 2, 3 or 5 folds with a shuffled assignment: a trim, a clip that binds on scores from 0.006 to 0.994, both together, an outcome offset of 1e7, a covariate offset of 1e3 at scale 250 and two covariates correlated at 0.99999. Effects are asserted to 1e-6 and standard errors to 1e-5 relative because the product's logistic IRLS stops at a score norm of about 1e-8. The reference reviews the orthogonal score and its influence function for the stated nuisances, not the learner: a ridge, boosted or forest learner has no exact reference here and its fit is not examined. Fold plans other than the recorded assignment are checked only through their use of the same machinery. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.1111/ectj.12097", "https://mpmath.org/"]
+findings_resolved = ["Defect repaired: the partially linear score cross-fitted its nuisances on its own seeded plan that ignored a recorded fold assignment and was not stratified by treatment arm (the AIPW score used the recorded assignment and the arm-stratified plan, as the folds field documents), so one problem fitted with the two scores used different folds and a recorded assignment shared across a batch was honoured by one score and silently dropped by the other. It now takes the same fold ids as the AIPW score.", "The AIPW point estimate and its standard error equal the fixed-fold reference, including a trim (the ratio influence of the retained rows embedded in all rows), a clip that binds, both together, a covariate offset of 1e3 and nearly collinear covariates.", "The Robinson estimate and its standard error equal the sums sum(dt dy)/sum(dt^2) and n/(n-1) sum of the squared case-mass derivatives, with the raw (unclipped) out-of-fold propensity as the product states."]
+record_sha256 = "d548aec85fa2313d57098355bf08b82d26142ac5d8779bdad67af532dd392948"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/dml.rs"
+sha256 = "1010b2b3dd2c3fc3ec317bd1e823afdc74f5d1f2a7b34106beac752c85b26d62"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/learn_nuisance.rs"
+sha256 = "4bf86f4809716f826e35b9db7407ca20301abf478aaeddebcff3dd555291db5c"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/dml_reference.rs"
+sha256 = "7cff7719abd04caa235fb6eb081f0b6cefa3b7454f878236cdea0fe9411837ca"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/dml_reference.py"
+sha256 = "8c8163515fb4843dc9faa1b7092417d2c77521fb9954cd019be4cb7122360e16"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/dml_reference.json"
+sha256 = "4a14949fbcdfff23168d41dcf945a02f5ceba19d7cbda03f26e66aa042b3c230"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/table_support.rs"
+sha256 = "b1ea24c5e276526e60ac330f732477945909496ff3d03ecf38f12f50f61eafbc"

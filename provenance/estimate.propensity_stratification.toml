@@ -21,6 +21,43 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
+ "crates/antecedent-estimate/tests/stratification_reference.rs (60-digit logistic refit, type-1 empirical quantile strata and case-mass derivative of the pooled contrast, with clip ties, trim, offset and sampling weights)",
  "independently generated synthetic confounded SCM with known ATE",
  "conformance/estimate/propensity_stratification (known-truth recovery fixture carrying an unasserted recorded DoWhy run from the pinned baseline in parity/baselines/dowhy.toml)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "PropensityStratification::fit in crates/antecedent-estimate/src/propensity/stratification.rs without regression adjustment: the empirical-quantile strata of the clipped propensity (assign_strata), the pooled within-stratum contrast of arm means for the ATE, ATT and ATC, the dropping of strata that lack an arm, trimming on the raw score, sampling-weighted arm means and shares, and the analytic standard error that adds the variation of the pooling shares (stratified_ate). Not the regression-adjusted variant, clusters, or the bootstrap."
+assumptions = ["Unconfoundedness given the adjustment set and positivity are identification assumptions taken as given; strata boundaries are data dependent and held fixed in the variance, as the record states.", "Each retained stratum holds at least two treated and two control rows; otherwise the fit refuses with stratum_too_sparse.", "Independent rows."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Eight finite tables of 60 to 150 rows with one or two covariates and 2, 3 or 5 strata: 100 rows in five strata of exactly twenty, a remainder of two, a clip that ties sixty scores into one stratum and leaves another empty, a trim, an outcome offset of 1e8 and declared sampling weights. Effects are asserted to 1e-8 and standard errors to 1e-6 relative; the retained row count is asserted. The reference reads both pieces of the influence off case-mass derivatives and combines them with the within-arm variances the product states (the n/(n-1) divisors within a stratum and the n(n-1) divisor of the share term); those conventions are the product's, not derived here. Nothing here bears on coverage or on the choice of the number of strata. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.1515/9781400829828", "https://mpmath.org/"]
+findings_resolved = ["Defect repaired: the stratum cuts used the order statistic x_(floor(s n / k) + 1), one past the type-1 empirical quantile x_(ceil(s n / k)). When n was a multiple of k the first stratum held n/k + 1 rows and the last n/k - 1 (21, 20, 20, 20, 19 for n = 100), so a sparse last stratum could be refused or dropped that quantile strata would have kept. The cut is now the ceil order statistic; equal scores still share a stratum and the fit equals the reference in every table, including declared sampling weights, a clip that ties scores and a trim.", "The pooled effect, the retained row count and the standard error (arm-mean variances pooled by squared shares plus the share-variation term from the case-mass derivative) equal the multiprecision reference for the ATE, ATT and ATC."]
+record_sha256 = "441744184bce0d31eb0d406b4981921a74bae1fa262a41cfffcbc19c2849fa2d"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/propensity/stratification.rs"
+sha256 = "1585552de14ab7f02e5236dd6e0837c5302bbca3b32a49c6a205e950269b992e"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/stratification_reference.rs"
+sha256 = "09cfd479a45de20abf0da9bd135bca2bfb2635d64ffa2bd8436e93de48e3c9b8"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/stratification_reference.py"
+sha256 = "224ff80519b3ca6afdb8aa3da0a9f77f421a37c6c6dd28c927ced28b4aa453e4"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/stratification_reference.json"
+sha256 = "c24934da78f21e69b7d1b469bad94dbbefa0485f87e2672552969455638b7815"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/table_support.rs"
+sha256 = "b1ea24c5e276526e60ac330f732477945909496ff3d03ecf38f12f50f61eafbc"
