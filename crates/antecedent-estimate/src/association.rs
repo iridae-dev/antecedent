@@ -519,7 +519,7 @@ fn read_outcome_scale(
 #[derive(Clone, Debug)]
 enum ColumnValues {
     Numeric(Vec<f64>),
-    Levels { codes: Vec<u32>, labels: Vec<String> },
+    Levels { codes: Vec<u32>, labels: Vec<String>, reference: Option<u32> },
 }
 
 #[derive(Clone, Debug)]
@@ -587,6 +587,7 @@ struct RawColumn {
     numeric: Vec<f64>,
     codes: Vec<u32>,
     labels: Vec<String>,
+    reference: Option<u32>,
 }
 
 fn level_labels(domain: &CategoryDomain) -> Vec<String> {
@@ -614,10 +615,18 @@ fn read_raw_column(
             numeric: Vec::new(),
             codes,
             labels: level_labels(&column.domain),
+            reference: column.domain.reference.map(antecedent_data::CategoryCode::raw),
         });
     }
     let numeric = storage.float64_values(id).map_err(EstimationError::from)?;
-    Ok(RawColumn { name, categorical: false, numeric, codes: Vec::new(), labels: Vec::new() })
+    Ok(RawColumn {
+        name,
+        categorical: false,
+        numeric,
+        codes: Vec::new(),
+        labels: Vec::new(),
+        reference: None,
+    })
 }
 
 fn raw_is_valid(raw: &RawColumn, row: usize) -> bool {
@@ -629,6 +638,7 @@ fn gather_column(raw: &RawColumn, kept: &[usize]) -> PreparedColumn {
         ColumnValues::Levels {
             codes: kept.iter().map(|&row| raw.codes[row]).collect(),
             labels: raw.labels.clone(),
+            reference: raw.reference,
         }
     } else {
         ColumnValues::Numeric(kept.iter().map(|&row| raw.numeric[row]).collect())
@@ -708,11 +718,15 @@ fn numeric_levels(_name: &str, values: &[f64]) -> Result<(Vec<u32>, Vec<String>)
 fn expand_column(column: &PreparedColumn, rows: usize, into: &mut Vec<(String, Vec<f64>)>) {
     match &column.values {
         ColumnValues::Numeric(values) => into.push((column.name.clone(), values.clone())),
-        ColumnValues::Levels { codes, labels } => {
+        ColumnValues::Levels { codes, labels, reference } => {
             let mut present: Vec<u32> = codes.clone();
             present.sort_unstable();
             present.dedup();
-            for &level in present.iter().skip(1) {
+            // The level the domain declares as its reference is the omitted one when the rows
+            // hold it; otherwise the lowest level present is.
+            let omitted =
+                reference.filter(|r| present.contains(r)).or_else(|| present.first().copied());
+            for &level in present.iter().filter(|&&level| Some(level) != omitted) {
                 let label =
                     labels.get(level as usize).map_or_else(|| level.to_string(), Clone::clone);
                 let indicator =
@@ -758,7 +772,7 @@ fn build_strata(
                 let (codes, labels) = numeric_levels(&column.name, values)?;
                 per_variable.push((column.name.clone(), codes, labels));
             }
-            ColumnValues::Levels { codes, labels } => {
+            ColumnValues::Levels { codes, labels, .. } => {
                 per_variable.push((column.name.clone(), codes.clone(), labels.clone()));
             }
         }
@@ -1189,6 +1203,13 @@ impl AssociationEstimator {
                 }
             }
         }
+        // The distance correlation is invariant to a shift of either series, but the sorting
+        // identities it is evaluated with subtract sums of the size of the location; centring
+        // first keeps the digits for a series far from zero.
+        for series in [&mut xs, &mut ys] {
+            let centre = series.iter().sum::<f64>() / series.len().max(1) as f64;
+            series.iter_mut().for_each(|v| *v -= centre);
+        }
         Ok(vec![distance_correlation(&xs, &ys)])
     }
 
@@ -1292,7 +1313,12 @@ impl AssociationEstimator {
                     .filter(|&r| strata.of_row[r] == k)
                     .map(|r| prepared.weight[r])
                     .sum();
-                let count = strata.counts[k];
+                // Rows of zero weight are not part of the sample the mean describes: the
+                // regression routes drop them, so the degrees-of-freedom divisor counts only
+                // the rows that carry weight.
+                let count = (0..prepared.rows)
+                    .filter(|&r| strata.of_row[r] == k && prepared.weight[r] > 0.0)
+                    .count();
                 if count < 2 || total.is_nan() || total <= 0.0 {
                     errors.push(None);
                     continue;
