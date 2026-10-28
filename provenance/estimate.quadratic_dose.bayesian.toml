@@ -8,12 +8,49 @@ copied_tests = false
 papers = []
 
 implementation_deviations = [
-  "The published number is the local-quadratic level and derivative at the posterior mean of the slope coefficients under independent normal priors, with the weighted residual variance plugged in. No interval is produced.",
+  "The published number is the local-quadratic level and derivative at the posterior mean of the slope coefficients under independent normal priors, with the weighted residual variance plugged in: it is RSS / (W - 3) of the unpenalised Gaussian-kernel fit, W the kernel weight sum, computed before the penalty, and the intercept is unpenalised. No interval is produced.",
   "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
 ]
 
 upstream_implementations_observed = []
 
 test_sources = [
-  "crates/antecedent-estimate/tests/posterior_mean_linear.rs",
+ "crates/antecedent-estimate/tests/posterior_mean_linear.rs",
+ "crates/antecedent-estimate/tests/dose_posterior_reference.rs (40-digit Gaussian-kernel local-quadratic ridge posterior mean for four prior scales, the retained-equation replay, and the flat and tight prior limits)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "local_quadratic_posterior and consume_local_quadratic_posterior of crates/antecedent-estimate/src/posterior_mean.rs for the QuadraticDose namespace (the DoseGrid namespace runs the identical arithmetic and differs only in its refusal codes, which the tests also exercise): the Gaussian-kernel weights exp(-(D - d0)^2 / (2 h^2)), the weighted normal equations of the design (1, u, u^2), u = D - d0, the plug-in weighted residual variance RSS / (W - 3) of the unpenalised fit with W the kernel weight sum, the slope-and-curvature-only ridge solve with penalty variance / scale^2, and the published level and derivative (the first two coordinates). Not the interval (none is produced), bandwidth choice, the dose-grid frequentist row, or coverage."
+assumptions = ["Independent normal N(0, scale^2) priors on the linear and quadratic coefficients with the intercept unpenalised; the residual variance is the plug-in RSS / (W - 3) of the unpenalised weighted fit and is not integrated out.", "The published number is the posterior mean of the local-quadratic level and derivative at one dose, not a causal dose response: randomisation of the dose is the caller's premise.", "The row must carry kernel weight sum above three and a non-singular weighted design, otherwise the route refuses with the namespace's insufficient-weight code."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with a 40-digit multiprecision weighted-normal-equation and penalised-solve reference written for this review (dose_posterior_reference.py); no upstream implementation or test source was consulted or copied. The record cites no publication; the arithmetic is checked against its stated definition."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath, where used, only produces the frozen values and is not a product dependency. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Four penalty scales (0.05, 0.5, 4, 50) at doses 6.0, 2.5, 9.5 on one 34-row curved design; level and derivative agree to a relative 1e-9 and the consumer replay from the retained normal equations to 1e-8. A scale of 1e8 reproduces the unpenalised fit to 1e-6 and a scale of 1e-9 shrinks the slope to zero. Not exercised: weight sums near the floor of three, doses offset by 1e8 (the centring u = D - d0 is by construction), heavy-tailed noise, and any coverage. The plug-in variance does not include the penalty, so a tight prior does not inflate it (contrast with the Bayesian RD record); that is stated, not corrected. The record cites no publication; the local-polynomial correspondence is to the definition only."
+sources = ["https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No numerical defect was found: the kernel weights, the unpenalised residual variance divisor W - 3, the penalty added to the slope and curvature diagonals only, and the returned (level, derivative) agree with the multiprecision reference for four prior scales.", "The record deviation text now states the divisor W - 3, that the intercept is unpenalised and that the variance is computed before the penalty."]
+record_sha256 = "656c3d1af19790e02e8c140ce9263fcfe3452c33db1bc1a23a9d23386f53dc95"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/posterior_mean.rs"
+sha256 = "3e3cb91fa7725d097aa190c98cd13439c43e9be329507cf683375c94291a33fe"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/dose_posterior_reference.rs"
+sha256 = "f04d2d8f4150299e21c5240a2300fc7121d1264bfa2280cb279b16850decf4e9"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/dose_posterior_reference.py"
+sha256 = "0a8514eb5adbe539c09eb43163351f490163e65c99ed23a0863414bb6c41f86b"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/dose_posterior_reference.json"
+sha256 = "05f1a8021d5b7b79399430ae981882b23e682ad43115818663970a7b40253d08"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/posterior_mean_linear.rs"
+sha256 = "1c6bec3dc0cdc704249278e102250e48f39a0ba2af796036515539c03111498a"

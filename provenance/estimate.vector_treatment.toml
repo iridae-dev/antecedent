@@ -27,7 +27,39 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
-  "crates/antecedent-estimate/tests/vector_treatment.rs",
-  "crates/antecedent-io/tests/vector_treatment_artifact.rs",
-  "python/tests/test_vector_treatment.py",
+ "crates/antecedent-estimate/tests/vector_treatment.rs",
+ "crates/antecedent-io/tests/vector_treatment_artifact.rs",
+ "python/tests/test_vector_treatment.py",
+ "crates/antecedent-estimate/tests/vector_treatment_reference.rs (40-digit OLS, model-based/HC0/HC1/HC2/HC3 covariances, contrast standard errors, Holm and Wald references on a heteroskedastic 48-row design with adjustment columns)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "fit_vector_treatment and VectorTreatmentFit::wald_test of crates/antecedent-estimate/src/vector_treatment.rs for k >= 2 numeric treatments with a shared adjustment block: the ordinary least-squares coefficient vector, the model-based, HC0, HC1, HC2 and HC3 covariances of the treatment block, per-coefficient standard errors, z statistics and two-sided normal p-values, declared contrasts with the covariance-aware and the naive independent standard errors, the Holm adjustment across the declared contrasts, the joint Wald chi-square of the frozen null with its upper-tail probability and the Wald test of declared contrasts. Not the rank and collinearity refusal thresholds, the sealed artifact and its replay, the Python surface, the categorical route that reuses the same solve, or any calibration of the joint tests."
+assumptions = ["Rows are independent and the adjustment set is valid (the caller owns identification); the estimand is the regression coefficient vector, not a causal effect by itself.", "The standard errors, p-values and Wald tests are asymptotic (standard normal and chi-square) and are applied to finite samples with no small-sample correction beyond the HC1 to HC3 weights.", "Holm adjusts the declared contrast family only, with the same two-sided normal p-values."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with a 40-digit multiprecision least-squares, sandwich, Holm and Wald reference written for this review (vector_treatment_reference.py); no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath, where used, only produces the frozen values and is not a product dependency. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "One heteroskedastic design of 48 rows with an intercept, two adjustment columns (one continuous, one binary) and three treatments (one correlated with an adjustment column), five covariance kinds, three contrasts and two Wald tests; coefficients, covariances, contrast standard errors and Wald statistics agree to a relative 1e-9 and the normal and chi-square tail probabilities to 1e-7. Not exercised: designs near the rank tolerance, a leverage near one for HC2 and HC3 (only its refusal exists, not its boundary value), more than three treatments, clustered or serially dependent rows, offsets of 1e8 in a column. No coverage or Type I error of any interval or test is measured; the fit's calibration stays Unmeasured. The cited publications were not retrieved."
+sources = ["https://doi.org/10.2307/1912934", "https://doi.org/10.1016/0304-4076(85)90158-7", "https://doi.org/10.2307/1990256", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No numerical defect was found: the coefficient vector, the five covariances, the contrast variances w'Vw, the naive standard errors, the Holm adjustment, the joint Wald statistic of the identity restriction and the Wald statistic of two declared contrasts agree with the multiprecision reference.", "The HC1 scale n/(n-p) uses the full design width p including the intercept and the adjustment columns, and the HC2 and HC3 leverages are those of the full design; both agree with the reference."]
+record_sha256 = "571947f2088d67f8c4e7a0efdf31315ced5ba83abdf78166a9a6eb6383284547"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/vector_treatment.rs"
+sha256 = "ae588b0ce25904fa20febf84f84dbc34f324d4e591ddde2dffaa102319128b43"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/vector_treatment_reference.rs"
+sha256 = "c2b0b56583102d8384ffcc67a22464b03982968c622c9264461341bbae8e16cc"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/vector_treatment_reference.py"
+sha256 = "99ff02e4ebaa0e0c4b11b194fb297521f66ecb38c54b1777480680c70e80074c"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/vector_treatment_reference.json"
+sha256 = "f387d63245fbb1e3840801bfd901f50e7c1eb1b171aafd514397ba76ebdc3663"

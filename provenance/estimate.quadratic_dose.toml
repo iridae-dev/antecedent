@@ -7,4 +7,40 @@ copied_tests = false
 papers = []
 implementation_deviations = ["Original finite weighted least-squares polynomial reproduction argument: for exact quadratic conditional mean, the design spans that mean for every positive fixed kernel weighting, hence level/derivative/contrast conditional expectation has zero smoothing bias. No external theorem or source code is inherited.", "Randomized IID design and exact quadratic mean are explicit caller assumptions, not authenticated from rows. Generic smoothing-bias omission and historical artifacts are unchanged.", "Residual sandwich remains a diagnostic with unmeasured repeated-sampling coverage; simultaneous bands stay closed."]
 upstream_implementations_observed = []
-test_sources = ["crates/antecedent-estimate/tests/dose_grid_functional.rs", "crates/antecedent-io/tests/dose_grid_artifact.rs", "python/tests/test_dose_grid.py"]
+test_sources = [
+ "crates/antecedent-estimate/tests/dose_grid_functional.rs",
+ "crates/antecedent-io/tests/dose_grid_artifact.rs",
+ "python/tests/test_dose_grid.py",
+ "crates/antecedent-estimate/tests/quadratic_dose_reproduction.rs (noise-free exact-quadratic reproduction at three bandwidths and two offsets, label semantics, and the 40-digit unpenalised local fit)",
+]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "estimate_dose_grid_quadratic_mean of crates/antecedent-estimate/src/dose_grid_functional.rs: the Gaussian-kernel local-quadratic level, derivative and level difference of the unrestricted row (estimate_dose_grid_functional, whose weights, sandwich standard errors, Kish size and bias-aware extensions are reviewed with the dose-grid functional record), the exact-quadratic reproduction property that makes the smoothing bias zero for a quadratic conditional mean at any positive fixed bandwidth, and the smoothing_bias_included label the quadratic-mean entry sets on each interval. Not the randomisation attestation, the premise that the mean is quadratic (supplied by the caller and not testable from residuals), the residual sandwich's coverage, or simultaneous bands (closed)."
+assumptions = ["The dose is randomised, rows are independent and the conditional mean is exactly quadratic in the dose; these are caller premises, none authenticated from rows.", "For an exact quadratic mean every positive weighting reproduces it, so level, derivative and differences have zero smoothing bias conditional on the observed doses.", "The residual sandwich is a diagnostic with unmeasured coverage; the label smoothing_bias_included records the premise and changes no number."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with noise-free exact quadratic data at several bandwidths and dose offsets, and a 40-digit multiprecision weighted local-quadratic fit (dose_posterior_reference.py); no upstream implementation or test source was consulted or copied. The record cites no publication; the arithmetic is checked against its stated definition."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath, where used, only produces the frozen values and is not a product dependency. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Noise-free quadratic data on an uneven 40-row design at bandwidths 0.8, 2.5 and 40 and dose offsets 0 and 1e4, two grid doses: level and contrast agree with the truth to 1e-8 and the derivative to 1e-7; four noisy cases agree with the 40-digit unpenalised fit to a relative 1e-9. The reproduction property itself is an algebraic fact about weighted least squares and is checked, not derived, here. Not exercised: designs where the kernel weight sum is near three, a mean that is only approximately quadratic (the unrestricted bias-aware route covers that), and any coverage. The record cites no publication."
+sources = ["https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No numerical defect was found: the level, derivative and contrast reproduce an exact quadratic for every bandwidth and offset tested, and noisy fits equal the multiprecision weighted fit.", "The quadratic-mean entry changes only the smoothing_bias_included label: the level and the standard error are bitwise equal to the unrestricted row."]
+record_sha256 = "fed4d86875b7e1088eb86ec713ee0323c6606d0c3723eaef9e3d53612e17e78d"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/dose_grid_functional.rs"
+sha256 = "8a6a2286bc058c8ef44682ca0b0cc54170239c6725dea8feb60a63263d29a848"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/quadratic_dose_reproduction.rs"
+sha256 = "a9e18bb2df97bf594709ba510651745ffbfc3a8c35edbc7992184a791eba0505"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/dose_posterior_reference.py"
+sha256 = "0a8514eb5adbe539c09eb43163351f490163e65c99ed23a0863414bb6c41f86b"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/dose_posterior_reference.json"
+sha256 = "05f1a8021d5b7b79399430ae981882b23e682ad43115818663970a7b40253d08"

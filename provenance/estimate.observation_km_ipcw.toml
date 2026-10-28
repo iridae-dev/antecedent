@@ -24,4 +24,36 @@ test_sources = [
  "in-crate unit tests in crates/antecedent-stats/src/observation.rs for grouped product-limit IPCW, left limits, and delayed entry",
  "in-crate integration tests in crates/antecedent-estimate/src/observation.rs for supported observation-mechanism composition and refusal paths",
  "conformance/response/observation_primitives (clean-room closed-form product-limit/IPCW equation fixture; no external implementation parity claimed)",
+ "crates/antecedent-stats/tests/observation_ipcw_reference.rs (exact rational censoring product-limit weights for distinct, tied and delayed-entry designs, tail restriction, Satten-Datta identity)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "kaplan_meier_ipcw and censoring_tail_restriction of crates/antecedent-stats/src/observation.rs, the kernels the estimator composition calls: the censoring product-limit (risk set {entry <= t <= time}, tied censorings pooled), the left limits G(time-) and G(entry-), the observed-row weight G(entry-) / G(time-) (zero for a censored row), the floor refusal at an observed row, and the administrative-censoring tail restriction (first censoring time at which G falls below the floor). Not the estimator composition in crates/antecedent-estimate/src/observation.rs (data adaptors, downstream response estimators), the conditional Cox censoring model (a separate record), joint uncertainty, or interval censoring and truncation."
+assumptions = ["Censoring is independent of the outcome time (one marginal censoring distribution); covariate-dependent censoring is the Cox record's scope.", "Delayed entry is left truncation with G(entry-) in the numerator; times and entries are finite with entry at most time.", "Tie convention: a censoring tied with an observed time does not move that row's left limit, while a tied observed row stays in the censoring risk set at that time."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with an exact rational (fractions.Fraction) product-limit and left-limit reference written for this review from the definition with brute-force risk-set counts (observation_ipcw_reference.py), plus the Satten-Datta identity against the outcome Kaplan-Meier; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library (fractions) and is not a product dependency. It declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Four designs of 8 to 34 rows (distinct times, tied times on a half-unit grid, delayed entry with ties, an administrative-censoring tail): weights agree to 1e-13 and the tail restriction exactly. For distinct times with no entry the weighted observed mass reproduces one minus the outcome Kaplan-Meier at all 20 event times to 1e-12 (Satten and Datta). With ties the identity is not exact under the stated convention and is not asserted. Not exercised: very large samples, floors at the boundary of the open interval, and entry equal to the first time. The cited publications were not retrieved."
+sources = ["https://doi.org/10.1080/01621459.1958.10501452", "https://doi.org/10.1198/000313001317098185", "https://doi.org/10.1093/biomet/74.4.883", "https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["No numerical defect was found: weights, left limits at entry, the tail restriction and the floor refusal agree with the rational reference, and the Satten-Datta identity holds to rounding for distinct times.", "With tied times the weighted observed mass does not equal one minus the Kaplan-Meier survival exactly, because a tied observed row is in the censoring risk set; the weights are the stated product-limit under that convention. The tie convention is recorded in this review's assumptions and limitations, not in the function documentation."]
+record_sha256 = "9ea6113956c955ce04709a7e7a32164092b2d312cd7d79150d867b9df65db9b9"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/observation.rs"
+sha256 = "201a0a18f916ba476a17ec73ee8957243c2a012edfa8d5c7363497ee41c582af"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/observation_ipcw_reference.rs"
+sha256 = "ef5152f79666d49b34f5e2f86e3c62519c71eb9c36846ab6b3f6a7265d33deb5"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/observation_ipcw_reference.py"
+sha256 = "16416c25abdad04a1671f8a9c532427e297dd92d92b8c65434c9dffc1eaaa8b4"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/observation_ipcw_reference.json"
+sha256 = "21bc87a636c7058dfecaf812a76c32f8f295f933a58e9a0cfe42095dc38eaeb4"

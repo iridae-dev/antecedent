@@ -35,4 +35,26 @@ test_sources = [
  "in-crate unit tests in crates/antecedent-stats/src/observation.rs for selected-outcome IPW and AIPW pseudo-value equations",
  "in-crate integration tests in crates/antecedent-estimate/src/observation.rs for out-of-fold nuisance use, latent-mean recovery, and unsupported-fold refusal",
  "conformance/response/observation_primitives (clean-room closed-form AIPW equation fixture; no external implementation parity claimed)",
+ "crates/antecedent-stats/tests/observation_ipcw_reference.rs (exact enumeration of selection patterns: IPW and augmented pseudo-values are unbiased for the row outcomes; closed forms and refusals)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "selected_outcome_pseudo_values of crates/antecedent-stats/src/observation.rs, the pseudo-outcome kernel of the selected-outcome correction: R Y / p for inverse-probability weighting and m + R (Y - m) / p for the augmented form, with validation of the indicator, probabilities and predictions. Not the logistic observation-probability fit and its floor (stats GLM), the Gaussian outcome nuisance and the five-fold cross-fitting in crates/antecedent-estimate/src/observation.rs, the downstream response estimators that consume the pseudo-outcomes, or any uncertainty (none is published)."
+assumptions = ["Outcomes are missing at random given the covariates the probabilities condition on, with strictly positive observation probabilities.", "The pseudo-outcome is unbiased for the full-data outcome whenever the supplied probabilities are the true ones, for any outcome model m (double robustness when only m is right is not exercised here).", "Values of the outcome on unselected rows are ignored."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with exact enumeration of all 2^6 selection patterns with their probabilities, written for this review (observation_ipcw_reference.rs), and hand-derived closed forms; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The enumeration is repository-authored (MIT OR Apache-2.0) and lives in the bound test; no external reference script is used for this record."
+limitations = "Six rows with probabilities 0.2 to 0.9, with and without an outcome model: the expectation of the pseudo-value over every selection pattern equals the row outcome to 1e-12 for the inverse-probability and the augmented form, with NaN outcomes on unselected rows proving they are ignored. Closed forms and refusals (indicator not 0 or 1, probability 0, above 1 or NaN, NaN outcome on a selected row) are asserted. This is an algebraic check of the kernel: the nuisance fits, the probability floor of 0.01, the cross-fitting and the response estimators are not reviewed here. The cited publications were not retrieved."
+sources = ["https://doi.org/10.1093/biomet/63.3.581", "https://doi.org/10.1111/j.1541-0420.2005.00377.x"]
+findings_resolved = ["No defect was found: both forms are exactly unbiased under the true probabilities by enumeration, equal their closed forms, and ignore unselected outcomes.", "Unbiasedness does not depend on the outcome model, so the check cannot detect a wrong outcome model; the record's double-robustness claim beyond this algebra remains the estimator composition's, not this kernel's."]
+record_sha256 = "45dee63c84e899d883da55b820fd25136482c4bd7d181d33f7aeff28726827f0"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/observation.rs"
+sha256 = "201a0a18f916ba476a17ec73ee8957243c2a012edfa8d5c7363497ee41c582af"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/observation_ipcw_reference.rs"
+sha256 = "ef5152f79666d49b34f5e2f86e3c62519c71eb9c36846ab6b3f6a7265d33deb5"

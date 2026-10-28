@@ -18517,3 +18517,73 @@ crate = "antecedent-model"
 cargo_target = "evidence_requirement_reference"
 path = "crates/antecedent-model/tests/evidence_requirement_reference.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "vector-treatment-reference"
+crate = "antecedent-estimate"
+cargo_target = "vector_treatment_reference"
+path = "crates/antecedent-estimate/tests/vector_treatment_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "dose-posterior-reference"
+crate = "antecedent-estimate"
+cargo_target = "dose_posterior_reference"
+path = "crates/antecedent-estimate/tests/dose_posterior_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "lagged-instrument-wald-reference"
+crate = "antecedent-estimate"
+cargo_target = "lagged_instrument_wald_reference"
+path = "crates/antecedent-estimate/tests/lagged_instrument_wald_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "trial-bayesian-bootstrap-reference"
+crate = "antecedent-estimate"
+cargo_target = "trial_bayesian_bootstrap_reference"
+path = "crates/antecedent-estimate/tests/trial_bayesian_bootstrap_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-link-reference"
+crate = "antecedent-estimate"
+cargo_target = "temporal_link_reference"
+path = "crates/antecedent-estimate/tests/temporal_link_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-propensity-reference"
+crate = "antecedent-estimate"
+cargo_target = "temporal_propensity_reference"
+path = "crates/antecedent-estimate/tests/temporal_propensity_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "quadratic-dose-reproduction"
+crate = "antecedent-estimate"
+cargo_target = "quadratic_dose_reproduction"
+path = "crates/antecedent-estimate/tests/quadratic_dose_reproduction.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-linear-predictor-reference"
+crate = "antecedent-estimate"
+cargo_target = "temporal_linear_predictor_reference"
+path = "crates/antecedent-estimate/tests/temporal_linear_predictor_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "observation-ipcw-reference"
+crate = "antecedent-stats"
+cargo_target = "observation_ipcw_reference"
+path = "crates/antecedent-stats/tests/observation_ipcw_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cox-ipcw-reference"
+crate = "antecedent-stats"
+cargo_target = "cox_ipcw_reference"
+path = "crates/antecedent-stats/tests/cox_ipcw_reference.rs"
+gates = ["inventory", "named"]
