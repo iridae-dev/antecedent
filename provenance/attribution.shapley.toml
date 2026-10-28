@@ -24,4 +24,36 @@ test_sources = [
  "crates/antecedent-attribution/src/shapley.rs (in-module unit tests: efficiency, symmetry, Monte Carlo stderr convergence)",
  "conformance/attribution/arrow_strength",
  "crates/antecedent/tests/attribution.rs",
+ "crates/antecedent-attribution/tests/shapley_reference.rs (exact and sampled Shapley against rational-arithmetic games)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The exact and permutation-sampled Shapley estimators in estimate_shapley: the weight s!(n-s-1)!/n! on marginal contributions in exact mode (dense value table up to 24 players), compensated summation of the weighted marginals, the telescoping permutation estimator with per-player Welford (Bessel-corrected) standard error, and the efficiency residual. Not a review of the coalition cache, the planned-sample budget guards, the payoffs built from fitted mechanisms (each change-attribution method has its own record), sequential allocation, or the shuffle kernel beyond its observable effect on sampled values."
+assumptions = ["The payoff v(S) is a deterministic function of the coalition (or a fixed-seed draw), which is the contract of CoalitionPayoff::fork.", "Permutations are uniform; this review checks the shuffle only through the unbiasedness and variance of the sampled values, not its uniformity directly.", "The permutation standard error and the Student-t interval of into_contributions quantify permutation-sampling error given the payoff values, and exclude noise inside v(S) and fitting uncertainty, as the field documentation states."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied; the DoWhy comparison named in the record is a black-box output comparison only. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); it uses only the Python standard library."
+limitations = "Thirteen finite games (tables of binary64 values) of 1 to 12 players for exact mode, with serial and threaded contexts; eight games of 2 to 6 players for the sampled mode at 20,000 permutations. Exact-mode agreement is asserted to 64 n ulps of the largest table entry; the sampled-mode standard error is asserted to 5 percent of the exact permutation value. The games are small tables, not payoffs from fitted causal mechanisms, and nothing here bears on 25 to 63 player exact runs (lazy cache-backed walk) or on 64-player sampling beyond the existing unit tests. The two cited works were not retrieved; the Shapley axioms and the permutation formula are checked as definitions. The reference script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.1515/9781400829156-012", "https://doi.org/10.1016/j.cor.2008.04.004", "https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["Exact mode equals the rational Shapley value, computed both as an average over all player orders and as the weighted subset sum, on every game: random tables, a unanimity game, a game with a null player and interchangeable players, a single player, and a game whose values sit near 1e9 so that every marginal is a small difference of large numbers.", "Every sampled run is efficient to rounding (the values sum to v(N) - v(empty)) and each player's estimate lies within five reported standard errors of the exact value; the reported per-player standard error equals the exact standard deviation of the marginal contribution over uniformly random orders, divided by the square root of the number of permutations, within 5 percent, which confirms it measures permutation variance and is correctly Bessel-corrected.", "No product defect was found in this record."]
+record_sha256 = "0fd2c30359904dce8bd5cc7996c658598ab2f5f0b5629a20766b1836ec48fda5"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-attribution/src/shapley.rs"
+sha256 = "32d41c1df2991d21eb04ca969ac88dc8750ffde466c1b0e91d77b90b9c76433a"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-attribution/tests/shapley_reference.rs"
+sha256 = "ff7da14eb04b2418e744f452103deafc56fad8d485844ee522c6f94c21c4a898"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-attribution/tests/oracle_data/shapley_reference.py"
+sha256 = "ca4803aa223f647ff5b15f59bb6ea47cb0fda99a609fbe5c0372662d85c033b7"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-attribution/tests/oracle_data/shapley_reference.json"
+sha256 = "c296585cca43d899b2dee04b84885a2f72be2ecded447b88d956803298bf4df3"

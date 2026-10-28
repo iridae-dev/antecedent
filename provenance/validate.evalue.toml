@@ -21,4 +21,26 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent-validate/src/evalue.rs unit tests",
  "conformance/validate/refuters",
+ "crates/antecedent-validate/src/evalue_oracle_tests.rs (E-value as the inverse of the confounding bound and the conversion's overflow behaviour)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The E-value computation in EValue::refute: E = RR + sqrt(RR (RR - 1)) with the reciprocal for RR < 1; the approximate conversion RR = exp(0.91 |ATE| / sigma) with sigma the residual SD of the outcome regression for a continuous outcome; the arm-risk risk ratio from the linear model's standardized means for a 0/1 outcome; the confidence limit nearest the null, the minimum of the point and limit E-values, and the infinite and not-applicable conventions. Not a review of the effect estimate or its standard error (inputs), the library's pass threshold of 2.0 (a policy), or the construction of the complete-case sample for composed and temporal estimators."
+assumptions = ["The E-value is the smallest common strength RR_EU = RR_UD of confounder associations for which the Ding-VanderWeele bound RR_EU RR_UD / (RR_EU + RR_UD - 1) reaches the observed risk ratio.", "The conversion exp(0.91 d) is an approximation for a standardized mean difference d, intended for common outcomes; it is applied whatever the outcome prevalence.", "The confidence-limit E-value is a plug-in transform of the effect-scale limit holding sigma (or the control risk) fixed, not a confidence limit for the risk ratio."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The assertions are repository-authored (MIT OR Apache-2.0)."
+limitations = "Eleven risk ratios from 1 + 1e-12 to 1e100 and their reciprocals are checked against the defining bound; the end-to-end conversions (residual SD, arm risks, interval limit) rest on the existing hand-derived fixtures in the crate's unit tests, which were read but not re-derived by an independent program, and the quality of the exp(0.91 d) approximation is not assessed. The VanderWeele and Ding paper was not retrieved. The binary-outcome arm risks come from a linear model and ignore adjustment covariates, as the record's deviation states. "
+sources = ["https://doi.org/10.7326/M16-2607"]
+findings_resolved = ["The closed form is the exact inverse of the equal-strength bound E^2 / (2E - 1) = RR to 4e-15 relative error for risk ratios from 1 + 1e-12 to 1e100, a slightly weaker confounder fails to reach the risk ratio (so it is the smallest root), and protective and harmful effects with reciprocal ratios give the same value; E(1) = 1 and an infinite ratio gives an infinite value, not NaN.", "The standardized-difference conversion overflows to an infinite E-value rather than NaN for very large differences, as the report assumes.", "No product defect was found in this record."]
+record_sha256 = "f2b54da4ab0efd571e427854342625abeb7f762e8a4e4f8e54445d1c8c100284"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/evalue.rs"
+sha256 = "4b95a8f9ce0d08c3882af68249d3a28011f444999abce6be3f89fba7c3c16d28"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-validate/src/evalue_oracle_tests.rs"
+sha256 = "912a39859193d1f72861e6405c35e4abed20deabba965379d41a5013ea917a0f"

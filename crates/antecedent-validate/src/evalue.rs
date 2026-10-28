@@ -351,3 +351,7 @@ mod tests {
         assert!(nearest_limit(-2.0, 2.0).is_none());
     }
 }
+
+#[cfg(test)]
+#[path = "evalue_oracle_tests.rs"]
+mod oracle_tests;

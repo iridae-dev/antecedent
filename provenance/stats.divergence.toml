@@ -22,4 +22,36 @@ upstream_implementations_observed = []
 
 test_sources = [
  "crates/antecedent-stats/src/divergence.rs unit tests",
+ "crates/antecedent-stats/tests/divergence_reference.rs (KL, Welch, Mann-Whitney, likelihood ratio and MMD against multiprecision values and exact randomization)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "gaussian_kl; mean_diff_two_sample (Welch statistic, Satterthwaite degrees of freedom, Student-t tail); classifier_two_sample (Mann-Whitney U from mid-ranks, tie-corrected normal approximation); the two-segment Gaussian likelihood ratio behind residual_likelihood_ratio (statistic, chi-square(2) tail for segments of at least 30 rows, permutation calibration below that); and kernel_two_sample_with_permutations (biased RBF MMD-squared, pooled median bandwidth, permutation p-value). Not a review of the max-|CUSUM| scan, the sampled-pairs bandwidth above 20,000 pairs, the Gram-free path above 4,096 pooled rows, or the calibration of any of these tests."
+assumptions = ["Observations are independent within and across samples; the Welch and likelihood-ratio tails are asymptotic or t-based approximations and the Mann-Whitney tail is a normal approximation without continuity correction.", "Permutation p-values are add-one Monte Carlo p-values, so they equal the exact randomization p-value only in expectation, with binomial sampling error.", "The Gaussian likelihood-ratio statistic uses maximum-likelihood (divide-by-n) variances; segments that are exactly constant are refused."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency."
+limitations = "Gaussian KL: nine parameter sets; Welch: six sample pairs from 2 v 2 to 40 v 35; Mann-Whitney: five pairs including heavy ties and an all-tied pair; likelihood ratio: four large-segment pairs (the tail reaches 7e-70) and four small-segment pairs checked against exact randomization over every partition of the pooled values; MMD: five pairs of at most 12 pooled rows, also against exact randomization. Permutation p-values are compared with the exact randomization p-value within five binomial standard errors, not reproduced draw for draw. The check of the Mann-Whitney variance is of the formula and its p-value, not of the quality of the normal approximation at small samples. Wilks' asymptotic result, the kernel two-sample paper and the Mann-Whitney paper were not retrieved. Approximate agreement: KL 1e-13 relative, Welch p 1e-9 relative, Mann-Whitney p 1e-10 relative, likelihood-ratio statistic 1e-11 and tail 1e-9 relative, MMD-squared 1e-12 relative. The reference script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.48550/arXiv.0805.2368", "https://doi.org/10.1214/aoms/1177730491", "https://doi.org/10.1214/aoms/1177732360", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["Gaussian KL matches 100-digit values to 1e-13 relative error for variance ratios from 1e-600 to 1e6, for variances that differ by 3e-12 and 1e-9 relative (where a plain log1p form would lose digits), and for a mean shift whose square overflows binary64 although the divergence is finite.", "The Welch statistic and two-sided p-value (down to 8e-12) match an incomplete-beta evaluation at Satterthwaite degrees of freedom; the Mann-Whitney tie-corrected variance formula equals the exact permutation variance of U (verified by enumerating every assignment for each case), and the reported statistic and p-value match.", "The likelihood-ratio statistic and its chi-square(2) tail match 100-digit values including a p-value of 7e-70; the small-segment permutation p-values and the MMD permutation p-values are consistent with the exact randomization distributions, and the MMD statistic and its median-heuristic bandwidth (including the smallest-positive-distance fallback under ties) match the multiprecision evaluation.", "No product defect was found in this record."]
+record_sha256 = "33102e7520c9ef36d107925c94ac6816139017fd7301fc0d2ed941c277808c43"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/divergence.rs"
+sha256 = "be11ced6140340247662351d504432e6674464ed05aecbb236033ba94eb76be3"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/divergence_reference.rs"
+sha256 = "c507ec86d9b3dff9b503113a009672431d6c59019f70067b2d267d227c3975ce"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/divergence_reference.py"
+sha256 = "a832526737991aa4d7d3a13cf2c35648d50f1d2464bf03f5c5d0d85a7cd7bc9c"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/divergence_reference.json"
+sha256 = "2bbe39e3e8d26e672c2aa1e0531952f4f2789a4aa7fdbc88702ab344ba7f358d"

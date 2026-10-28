@@ -17694,3 +17694,52 @@ crate = "antecedent"
 cargo_target = "scenario_treatment_levels"
 path = "crates/antecedent/tests/scenario_treatment_levels.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "attribution-shapley-reference"
+crate = "antecedent-attribution"
+cargo_target = "shapley_reference"
+path = "crates/antecedent-attribution/tests/shapley_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "attribution-path-reference"
+crate = "antecedent-attribution"
+cargo_target = "path_reference"
+path = "crates/antecedent-attribution/tests/path_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "attribution-unit-change-reference"
+crate = "antecedent-attribution"
+cargo_target = "unit_change_reference"
+path = "crates/antecedent-attribution/tests/unit_change_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "stats-divergence-reference"
+crate = "antecedent-stats"
+cargo_target = "divergence_reference"
+path = "crates/antecedent-stats/tests/divergence_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "stats-regularized-reference"
+crate = "antecedent-stats"
+cargo_target = "regularized_reference"
+path = "crates/antecedent-stats/tests/regularized_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-prob-src-hmc-oracle-tests-rs"
+crate = "antecedent-prob"
+cargo_target = "lib"
+path = "crates/antecedent-prob/src/hmc_oracle_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-validate-src-evalue-oracle-tests-rs"
+crate = "antecedent-validate"
+cargo_target = "lib"
+path = "crates/antecedent-validate/src/evalue_oracle_tests.rs"
+gates = ["inventory", "named"]

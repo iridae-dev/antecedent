@@ -21,4 +21,26 @@ test_sources = [
  "conformance/attribution/mechanism_unit_change",
  "crates/antecedent-attribution/src/unit_change.rs (in-module unit tests)",
  "crates/antecedent/tests/attribution.rs",
+ "crates/antecedent-attribution/tests/unit_change_reference.rs (additive and interacting unit games against closed forms and order enumeration)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "unit_change: per-unit abduction of the outcome noise, the coalition payoff that evaluates the outcome mechanism on factual or parent-mean values with that noise held fixed, per-unit Shapley allocation over the outcome's parents, the mean contribution, and assembly of the pooled standard error. Not a review of abduction for non-additive noise, of the generic Shapley estimator (see attribution.shapley), of fitting the mechanisms, or of the two-player decomposition in the cited Section 4.1."
+assumptions = ["The outcome mechanism has additive noise that is abducted exactly per unit (linear and basis-expansion Gaussian mechanisms).", "The reference point of every parent is its sample mean, a repository choice recorded in the deviations.", "Units are independent games with independent permutation streams, which is what the pooled standard error assumes."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The assertions are repository-authored (MIT OR Apache-2.0)."
+limitations = "Two fixtures, both with known mechanism coefficients supplied directly: an additive linear mechanism with two parents (12 units, exact and seven-permutation modes), and a three-parent basis mechanism with two product terms (9 units, exact mode) whose reference is an enumeration of all six orders. The interaction fixture is evaluated by the test's own copy of the mean function, so it checks allocation and abduction, not the basis expansion itself. Fitted mechanisms, discrete outcomes and non-additive noise are not exercised. Budhathoki, Michailidis and Janzing was not retrieved. "
+sources = ["https://doi.org/10.48550/arXiv.2206.12986"]
+findings_resolved = ["For a linear mechanism with an intercept and a nonzero abducted noise the per-unit value of each parent equals its slope times the unit's deviation from the parent mean on every unit, in exact mode and for a seven-permutation sample (whose standard error is then zero), so the intercept and noise cancel in the allocation as they must.", "For a mechanism with two product terms the per-unit values equal the average marginal contribution over all six orders of the parents, they sum to the factual-minus-reference outcome change, and the fixture is verified to be non-additive (a parent's solo effect differs from its Shapley value).", "No product defect was found in this record."]
+record_sha256 = "c534e7a31eed31cde6cd9bcca57b27cab9671604d55d3b619152298f76a95719"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-attribution/src/unit_change.rs"
+sha256 = "2e056d63abd0533b6f3a49e858fec701f15ea9afa8cad44c7c2fd3da8da49afe"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-attribution/tests/unit_change_reference.rs"
+sha256 = "28f11b0f3a9e743f0cb0dddfd897d98777c1e8428f77fd138bc73486ad705fa0"

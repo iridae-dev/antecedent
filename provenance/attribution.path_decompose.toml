@@ -18,4 +18,36 @@ upstream_implementations_observed = []
 test_sources = [
  "conformance/attribution/path_allocation",
  "crates/antecedent-attribution/src/path.rs (in-module unit tests: chain path shares, multi-source disjoint-ancestry checks)",
+ "crates/antecedent-attribution/tests/path_reference.rs (path products and totals against exact rational enumeration and matrix inversion)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "path_decompose and its edge-strength map for linear-Gaussian mechanisms: enumeration of directed source-to-outcome paths, the product of the stored edge coefficients along each path, signed summation per source and in total, the disjoint-ancestry refusal and the truncated-enumeration refusal. Not a review of the graph's path enumeration limits, of how the mechanism registry fits coefficients (the review supplies them directly), or of standardized path coefficients and common-cause or residual-correlation paths, which are not implemented."
+assumptions = ["The model is linear in the parents with the stored coefficients, so the product along a path is the effect of a one-unit change of the source through that path and the sum over paths is the source's total effect on the outcome (the unstandardized form of Wright's rule).", "A child's coefficient vector is aligned with that child's parent gather plan, not with edge insertion order.", "Sources have disjoint ancestry, so summing across sources does not double count."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); it uses only the Python standard library."
+limitations = "Five cases: a chain, a diamond with exactly cancelling branches, a five-node collider whose edges are inserted out of node order, a random eight-node graph with 23 paths, and a source with no path (which produces no component). Coefficients are quarter-integers, so products are exact in binary64; rounding for general coefficients, and the accuracy of fitted coefficients, are not exercised. This is the unstandardized directed-path decomposition, a total-effect identity; it is not Wright's full decomposition of correlations into direct, indirect and spurious parts, as the record's deviation already states. Wright's paper was not retrieved. The reference script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.1214/aoms/1177732676", "https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["Every per-path product and the signed total agree with exact rational path enumeration, and the total agrees with the corresponding entry of the exactly inverted matrix (I - B)^-1 for each case; branches that cancel give a total of exactly zero while both path shares are retained.", "Coefficients are matched to the correct parent when a child's edges are inserted in an order different from node order.", "No product defect was found in this record."]
+record_sha256 = "c3c4bb2245d55fe453b139af8b738933b1e5a0b5810b9093af58658de478126c"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-attribution/src/path.rs"
+sha256 = "d0b347582482c0a7f9a6b46ac66533623240ac4ceec80bb92b4c41fd5bcbb444"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-attribution/tests/path_reference.rs"
+sha256 = "509a078b75ebf3056424c7eeafe986480875727d8c03be57ed0a7844f430f6f9"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-attribution/tests/oracle_data/path_reference.py"
+sha256 = "efc026b407b86b7a9f3e597ec627d75cce8f2bf5489beedd4759034efed4d8e1"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-attribution/tests/oracle_data/path_reference.json"
+sha256 = "c814a094d42e2a8670b2f6a17a80e94d5eaeea1fdabb1c72e9e438d8b7756a45"

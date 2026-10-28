@@ -22,4 +22,26 @@ upstream_implementations_observed = []
 test_sources = [
  "leapfrog reversibility unit test (crates/antecedent-prob/src/hmc.rs::tests::leapfrog_is_reversible)",
  "Gaussian-target HMC vs conjugate-Gaussian moment agreement (crates/antecedent-prob/src/hmc.rs::tests)",
+ "crates/antecedent-prob/src/hmc_oracle_tests.rs (exact linear leapfrog map and one-transition invariance on a Gaussian)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The leapfrog integrator (carried first half kick, diagonal inverse mass, final half kick), one full transition in hmc_step (fresh momentum, Hamiltonian error, Metropolis acceptance, divergence handling), the step-size jitter, and the dual-averaging update and finalization. Not a review of the windowed diagonal-metric adaptation, the GLM and Gaussian target gradients (see prob.laplace_glm and prob.conjugate_gaussian), the publication gates, or the chain diagnostics (see prob.mcmc_diagnostics)."
+assumptions = ["Momentum is drawn from N(0, M) with M the inverse of the diagonal inverse mass, and the leapfrog is volume preserving and reversible, so a Metropolis correction with probability min(1, exp(-dH)) leaves the target invariant.", "The step jitter is drawn independently of the state, so each transition is a valid reversible kernel at its own step size.", "Treating a Hamiltonian error above 1000 or a non-finite one as a rejection departs from exact detailed balance only on events of probability about exp(-1000)."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The assertions are repository-authored (MIT OR Apache-2.0)."
+limitations = "One-dimensional unit Gaussian targets only. The linear leapfrog map is checked at five combinations of step, step count and inverse mass (including 200 steps and inverse mass 2.5). Invariance is checked at three configurations (acceptance between roughly 10 and 96 percent) with 200,000 transitions from exact stationary draws each, by the first, second and fourth moments and the distribution function at -1, 0 and 1 at six standard errors: a statistical test with power against gross errors such as a missing or wrong Metropolis correction, not against small biases, and not in higher dimensions, with correlated or non-Gaussian targets, or with the jitter. The jitter's validity and the divergence threshold are argued above, not tested. The dual-averaging constants (t0 = 10, gamma = 0.05, kappa = 0.75, mu = ln(10 eps0), acceptance min(1, exp(-dH))) were compared with Algorithm 5 as the record cites it, which was not retrieved; the existing unit tests, not new references, exercise them. "
+sources = ["https://doi.org/10.1016/0370-2693(87)91197-X", "https://doi.org/10.1201/b10905-6", "https://doi.org/10.48550/arXiv.1111.4246"]
+findings_resolved = ["The implemented leapfrog (with the gradient carried from the previous transition and a non-unit inverse mass) reproduces, to 1e-12, the matrix power of the explicit one-step linear map on a Gaussian, for position, momentum and the final-state log density.", "One transition from exact N(0,1) draws returns N(0,1): the mean, variance, fourth moment and distribution function match at six standard errors with acceptance far from 1, so the Metropolis correction and the momentum distribution are right, including with an inverse mass different from 1.", "No discrepancy was found between the dual-averaging update and Algorithm 5 as read for this review. No product defect was found in this record."]
+record_sha256 = "2749bc0a042b90de62a6297da72b97bb44dd0fa88a727ec2288ef6aaa7cad983"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-prob/src/hmc.rs"
+sha256 = "e8dc3b1396bd2d4be607f413deec6743b52e6126d18d686355b9ed212d20b532"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-prob/src/hmc_oracle_tests.rs"
+sha256 = "a0422f9d95ddf70ecfca48f36431cf402294e8bdd08843ecd56431745ecd47a3"
