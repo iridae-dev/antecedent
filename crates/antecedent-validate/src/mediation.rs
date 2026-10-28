@@ -55,6 +55,33 @@ impl QueryRefutationPlan {
         }
     }
 
+    /// [`Self::refute_temporal_atom`] on a series that may have missing time points when
+    /// `gaps` is set (see [`refute_temporal_mediation_with_gaps`]).
+    ///
+    /// # Errors
+    ///
+    /// Invalid refit data, regression failure, or cancellation.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the atom's estimate inputs plus the gap declaration"
+    )]
+    pub fn refute_temporal_atom_with_gaps(
+        self,
+        data: &TimeSeriesData,
+        estimand: &IdentifiedEstimand,
+        query: &MediationQuery,
+        original: &TemporalMediationEstimate,
+        adjustment: &[LaggedColumn],
+        gaps: bool,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<RefutationReport>, ValidationError> {
+        match self {
+            Self::TemporalMediation { full } => refute_temporal_mediation_with_gaps(
+                data, estimand, query, original, full, adjustment, gaps, ctx,
+            ),
+        }
+    }
+
     /// Mix per-atom reports of the same refuter by graph weight.
     ///
     /// The mixed check passes only if every positive-weight contributing atom
@@ -92,7 +119,30 @@ impl QueryRefutationPlan {
     }
 }
 
+/// Whether any column the mediation fit reads (treatment, outcome, mediators, adjustment
+/// covariates) has a missing time point.
+fn reads_a_gap(data: &TimeSeriesData, query: &MediationQuery, adjustment: &[LaggedColumn]) -> bool {
+    let read = |id| {
+        data.storage().columns().iter().any(|column| match column {
+            antecedent_data::OwnedColumn::Float64(c) => c.id == id && !c.validity.is_all_valid(),
+            _ => false,
+        })
+    };
+    read(query.treatment)
+        || read(query.outcome)
+        || query.mediators.iter().any(|m| read(*m))
+        || adjustment.iter().any(|a| read(a.variable))
+}
+
 /// Run the native suite with the same graph-derived adjustment as the estimate.
+///
+/// The series must be intact: this entry point declares no gaps, so a series with a missing
+/// time point in a column the fit reads is refused (`NotApplicable`) rather than refitted as
+/// if it were complete. Use [`refute_temporal_mediation_with_gaps`] to refute a gapped series.
+///
+/// # Errors
+///
+/// A gapped series, or as [`refute_temporal_mediation_with_gaps`].
 pub fn refute_temporal_mediation_adjusted(
     data: &TimeSeriesData,
     estimand: &IdentifiedEstimand,
@@ -102,6 +152,12 @@ pub fn refute_temporal_mediation_adjusted(
     adjustment: &[LaggedColumn],
     ctx: &ExecutionContext,
 ) -> Result<Vec<RefutationReport>, ValidationError> {
+    if reads_a_gap(data, query, adjustment) {
+        return Err(ValidationError::NotApplicable {
+            message: "the series has missing time points but this mediation validation declares \
+                      none; refute it with refute_temporal_mediation_with_gaps",
+        });
+    }
     refute_temporal_mediation_with_gaps(
         data, estimand, query, original, full, adjustment, false, ctx,
     )

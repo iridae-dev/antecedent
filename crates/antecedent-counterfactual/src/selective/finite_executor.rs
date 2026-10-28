@@ -351,6 +351,15 @@ impl FiniteScmExecutor {
                  so request exact enumeration",
             ));
         }
+        if matches!(request.reading, RequestedReading::Spread | RequestedReading::Envelope) {
+            return Err(refuse(
+                antecedent_core::reason_code!("cell_not_licensed"),
+                "cross_world_execution.reading_not_licensed",
+                Some(format!("{:?}", request.reading).to_lowercase()),
+                "this row returns an exact point value only and computes no spread or \
+                 envelope; request the point reading",
+            ));
+        }
         if let Some(target) = &request.target_population {
             if target != &request.scm.population {
                 let refused = MatrixRequest {

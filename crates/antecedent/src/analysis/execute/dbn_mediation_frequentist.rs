@@ -317,7 +317,15 @@ impl super::Study {
         let mut per_atom = Vec::with_capacity(refute_atoms.len());
         for ((_, weight, estimand, lagged), design) in refute_atoms.iter().zip(designs) {
             let reports = plan
-                .refute_temporal_atom(data, estimand, query, design.estimate(), lagged, ctx)
+                .refute_temporal_atom_with_gaps(
+                    data,
+                    estimand,
+                    query,
+                    design.estimate(),
+                    lagged,
+                    self.declares_complete_case(),
+                    ctx,
+                )
                 .map_err(CausalError::from)?;
             per_atom.push((*weight, reports));
         }

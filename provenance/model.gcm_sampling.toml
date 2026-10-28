@@ -46,12 +46,12 @@ record_sha256 = "120e4541a3239604c08601fb29d7b1731649a5a9b0a39506f4647bf14d83716
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/do_sampler.rs"
-sha256 = "9d9d0f2df61636daef75df5361c511f305d44b396c3f1387f27e9c09af7108db"
+sha256 = "1c42d936a3d7a581f7e1da13967b918fb282cb295fbc787ba75a70052f7b9352"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/gcm_sampling_reference.rs"
-sha256 = "81b16d8733d975995fd122c2dfcb209c41c430e77d5bc0252aa4e9a64470380a"
+sha256 = "ce46d6cfcab875b27d6f9c89e1ed9e377cd10a8702c7bf8a76c939a43e7b18ac"
 
 [[method_review.artifacts]]
 role = "reference"

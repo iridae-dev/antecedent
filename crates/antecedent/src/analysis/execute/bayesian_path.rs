@@ -3807,7 +3807,7 @@ impl super::Study {
             let (reports, notes) = mix_dbn_mediation_refuters(
                 data,
                 refute_atoms,
-                self.settings.refute == RefuteSuite::Full,
+                (self.settings.refute == RefuteSuite::Full, self.declares_complete_case()),
                 ctx,
             )?;
             refutations.extend(reports);
@@ -4275,7 +4275,7 @@ fn dbn_mediation_atom_estimate(
 fn mix_dbn_mediation_refuters(
     data: &TimeSeriesData,
     atoms: &[DbnMediationAtom],
-    full: bool,
+    (full, gaps): (bool, bool),
     ctx: &ExecutionContext,
 ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
     let mut per_atom = Vec::new();
@@ -4284,13 +4284,14 @@ fn mix_dbn_mediation_refuters(
             continue;
         }
         let original = dbn_mediation_atom_estimate(atom)?;
-        let reports = antecedent_validate::mediation::refute_temporal_mediation_adjusted(
+        let reports = antecedent_validate::mediation::refute_temporal_mediation_with_gaps(
             data,
             &atom.estimand,
             &atom.query,
             &original,
             full,
             &atom.adjustment,
+            gaps,
             ctx,
         )
         .map_err(CausalError::from)?;

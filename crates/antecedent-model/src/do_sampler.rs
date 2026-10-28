@@ -95,14 +95,18 @@ impl WeightingDoSampler {
     ///
     /// # Errors
     ///
-    /// Missing columns or unfitted treatment mechanism.
+    /// Missing columns or unfitted treatment mechanism; cancellation; the context's memory
+    /// limit exceeded by the working buffers.
     pub fn estimate(
         &self,
         model: &CompiledCausalModel,
         data: &TabularData,
         treatment_value: f64,
-        _ctx: &ExecutionContext,
+        ctx: &ExecutionContext,
     ) -> Result<DoSampleResult, ModelError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(ModelError::Cancelled);
+        }
         let t_dense = model
             .dense_of(self.treatment)
             .ok_or_else(|| ModelError::Shape { message: "treatment not in model".into() })?;
@@ -113,6 +117,9 @@ impl WeightingDoSampler {
             .gather_for(t_dense)
             .ok_or_else(|| ModelError::Shape { message: "missing gather for treatment".into() })?;
 
+        // Working buffers: weights, values and the fitted log-density (three columns) plus the
+        // parent matrix of the confounded branch, charged before they are allocated.
+        let _admitted = crate::sample::admit_cells(Some(ctx), n, 3 + gather.n_parents())?;
         let mut weights = vec![0.0; n];
         let mut values = Vec::with_capacity(n);
         let mut notes = Vec::new();

@@ -897,6 +897,7 @@ fn refute_temporal_class_mediation_posterior(
     }
     let mix_scalar = matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean);
     let plan = QueryRefutationPlan::temporal_mediation(study.settings.refute == RefuteSuite::Full);
+    let gaps = study.declares_complete_case();
     let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
     drive_posterior_refuters(
         evals,
@@ -915,7 +916,15 @@ fn refute_temporal_class_mediation_posterior(
             let mut horizon_query = query.clone();
             horizon_query.horizons = Arc::from([single_mediation_horizon(query)?]);
             let reports = plan
-                .refute_temporal_atom(data, estimand, &horizon_query, estimate, adjustment, ctx)
+                .refute_temporal_atom_with_gaps(
+                    data,
+                    estimand,
+                    &horizon_query,
+                    estimate,
+                    adjustment,
+                    gaps,
+                    ctx,
+                )
                 .map_err(CausalError::from)?;
             Ok(vec![AtomRefuterBatch { weight, reports, notes: Vec::new() }])
         },

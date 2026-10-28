@@ -237,7 +237,7 @@ impl super::Study {
             &mut horizon_state.refute_fits,
             input,
             estimate,
-            self.settings.refute == RefuteSuite::Full,
+            (self.settings.refute == RefuteSuite::Full, self.declares_complete_case()),
             inputs.ctx,
         )?;
         for report in &mut reports {
@@ -7889,7 +7889,7 @@ fn refute_class_mediation(
     fits: &mut CompletionFitMemo<Vec<antecedent_validate::RefutationReport>, MediationFitKey>,
     input: ClassMediationInput<'_>,
     estimate: &antecedent_estimate::TemporalMediationEstimate,
-    full: bool,
+    (full, gaps): (bool, bool),
     ctx: &ExecutionContext,
 ) -> Result<Vec<antecedent_validate::RefutationReport>, CausalError> {
     let ClassMediationInput { data, estimand, query, adjustment, status } = input;
@@ -7897,8 +7897,8 @@ fn refute_class_mediation(
     if let Some(hit) = fits.get(&key) {
         return Ok(hit.clone());
     }
-    let reports = antecedent_validate::mediation::refute_temporal_mediation_adjusted(
-        data, estimand, query, estimate, full, adjustment, ctx,
+    let reports = antecedent_validate::mediation::refute_temporal_mediation_with_gaps(
+        data, estimand, query, estimate, full, adjustment, gaps, ctx,
     )
     .map_err(CausalError::from)?;
     fits.insert(key, reports.clone());

@@ -1022,6 +1022,62 @@ fn mediation_refuters_on_a_series_with_gaps_refit_the_intact_windows() {
     assert_eq!(refused.reason_code(), Some("missing_policy_not_applicable"), "{refused}");
 }
 
+/// The mediation graph of [`mediation_graph`] as a CPDAG with every edge directed, which routes
+/// the run through the graph-class mediation executor.
+fn mediation_cpdag() -> TemporalCpdag {
+    let mut graph = TemporalCpdag::empty();
+    let lagged = |graph: &mut TemporalCpdag, v: u32, lag: u32| {
+        graph.add_lagged(VariableId::from_raw(v), Lag::from_raw(lag)).unwrap()
+    };
+    let t0 = lagged(&mut graph, 0, 0);
+    let t1 = lagged(&mut graph, 0, 1);
+    let m0 = lagged(&mut graph, 1, 0);
+    let y0 = lagged(&mut graph, 2, 0);
+    let z0 = lagged(&mut graph, 3, 0);
+    let z1 = lagged(&mut graph, 3, 1);
+    for (from, to) in [(z0, t0), (z1, y0), (z1, m0), (t1, y0), (t1, m0), (m0, y0)] {
+        graph.insert_directed(from, to).unwrap();
+    }
+    graph
+}
+
+#[test]
+fn graph_class_mediation_refuters_on_a_series_with_gaps_refit_the_intact_windows() {
+    let gaps = [60, 61, 150];
+    let query = MediationQuery::binary(
+        VariableId::from_raw(0),
+        VariableId::from_raw(2),
+        [VariableId::from_raw(1)],
+        MediationContrast::Mediated,
+    )
+    .with_horizons(vec![1])
+    .unwrap();
+    let run = |declared: bool| {
+        let mut builder = Study::series(mediation_series(&gaps))
+            .graph(mediation_cpdag())
+            .query(CausalQuery::Mediation(query.clone()))
+            .refute(RefuteSuite::Full)
+            .bootstrap_replicates(0);
+        if declared {
+            builder = builder.missing(declare(MissingPolicy::CompleteCase));
+        }
+        builder.build()?.run(&ctx())
+    };
+    assert!(run(false).is_err(), "undeclared, the gap refuses");
+    let result = run(true).unwrap();
+    let ids: Vec<&str> = result.refutations.iter().map(|r| r.refuter.as_ref()).collect();
+    for kind in ["mediation.placebo_mediator", "mediation.random_common_cause"] {
+        let report = result
+            .refutations
+            .iter()
+            .find(|r| r.refuter.ends_with(kind))
+            .unwrap_or_else(|| panic!("no {kind} in {ids:?}"));
+        // Each refit read the same intact windows as the published estimate.
+        assert_eq!(report.replicates, 20, "{kind}");
+        assert!(report.refuted_ate.is_finite() && report.comparison.is_finite(), "{kind}");
+    }
+}
+
 // ---------------------------------------------------------------- mixtures over graph classes
 
 /// Slope of `y` on `t` in the regression of `y` on an intercept, `t` and (when given) `z`,

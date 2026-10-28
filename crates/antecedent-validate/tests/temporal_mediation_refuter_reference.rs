@@ -25,7 +25,9 @@ use antecedent_estimate::TemporalMediationEstimator;
 use antecedent_expr::{CausalExprArena, IdentifiedEstimand};
 use antecedent_kernels::fill_standard_normal;
 use antecedent_validate::RefutationReport;
-use antecedent_validate::mediation::refute_temporal_mediation_with_gaps;
+use antecedent_validate::mediation::{
+    QueryRefutationPlan, refute_temporal_mediation_adjusted, refute_temporal_mediation_with_gaps,
+};
 use serde_json::{Value, json};
 
 // Historical streams of the suite: placebo mediator `PLACEBO + r` (shared with the random common
@@ -327,4 +329,88 @@ fn temporal_mediation_refuter_suite_equals_the_exact_reference() {
         }
     }
     assert!(verdicts.iter().any(|&p| p) && verdicts.iter().any(|&p| !p));
+}
+
+/// The entry points that carry no gap declaration must not refit a gapped series as if it were
+/// intact: they refuse it explicitly, while the same series is refuted when the gaps are
+/// declared to `refute_temporal_mediation_with_gaps`.
+#[test]
+fn the_non_gapped_entry_points_refuse_a_series_with_missing_time_points() {
+    let ctx = || ExecutionContext::for_tests(SEED);
+    let mut refused = 0;
+    for entry in reference().as_array().unwrap() {
+        let case = &entry["case"];
+        if !case["gaps"].as_bool().unwrap() {
+            continue;
+        }
+        let name = case["name"].as_str().unwrap();
+        let (_, q) = case_shape(case);
+        let h = u32::try_from(case["h"].as_u64().unwrap()).unwrap();
+        let data = build(case);
+        let mediators: Vec<VariableId> = (1..=q).map(var).collect();
+        let (treatment, outcome, covariate) = (var(0), var(q + 1), var(q + 2));
+        let adjustment: Vec<LaggedColumn> = case["adj"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|l| LaggedColumn {
+                variable: covariate,
+                lag: Lag::from_raw(u32::try_from(l.as_u64().unwrap()).unwrap()),
+            })
+            .collect();
+        let mut query = MediationQuery::binary(
+            treatment,
+            outcome,
+            mediators.clone(),
+            MediationContrast::Mediated,
+        )
+        .with_horizons([h])
+        .unwrap();
+        query.active =
+            Intervention::set(treatment, CoreValue::f64(case["delta"].as_f64().unwrap()));
+        let mut arena = CausalExprArena::new();
+        let functional = arena.temporal_mediation_ate(
+            query.treatment,
+            query.outcome,
+            &query.mediators,
+            CoreValue::f64(case["delta"].as_f64().unwrap()),
+            CoreValue::f64(0.0),
+        );
+        let estimand = IdentifiedEstimand::temporal_mediation(
+            "temporal_mediation.mediated",
+            Arc::clone(&query.mediators),
+            functional,
+        );
+        let original = TemporalMediationEstimator::new()
+            .with_allow_natural_controlled_alias(true)
+            .with_allow_gaps(true)
+            .estimate_with_adjustment(&data, &estimand, &query, &adjustment, &[], &ctx())
+            .unwrap();
+        let direct = refute_temporal_mediation_adjusted(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            false,
+            &adjustment,
+            &ctx(),
+        );
+        let planned = QueryRefutationPlan::TemporalMediation { full: false }.refute_temporal_atom(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            &adjustment,
+            &ctx(),
+        );
+        for (route, got) in [("adjusted", direct), ("plan", planned)] {
+            let err = got.expect_err(&format!("{name} {route}: a gapped series is refused"));
+            assert!(
+                matches!(err, antecedent_validate::ValidationError::NotApplicable { .. }),
+                "{name} {route}: {err:?}"
+            );
+        }
+        refused += 1;
+    }
+    assert!(refused >= 4);
 }

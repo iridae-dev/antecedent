@@ -126,6 +126,38 @@ fn confounded_weights_ess_and_mean_match_the_definition() {
 }
 
 #[test]
+fn the_weighting_sampler_honours_cancellation_and_the_memory_limit() {
+    use antecedent_model::ModelError;
+    let (z, t, y) = ([0.0, 1.0, 2.0, 3.0], [0.1, 0.9, 2.2, 2.8], [1.0, 2.0, 3.0, 4.0]);
+    let m = model(
+        &[(0, 1), (0, 2), (1, 2)],
+        3,
+        vec![linear(0.0, &[], 1.0), linear(0.0, &[1.0], 1.0), linear(0.0, &[0.0, 0.0], 1.0)],
+    );
+    let data = table(&[("z", &z), ("t", &t), ("y", &y)]);
+    let sampler = WeightingDoSampler::new(VariableId::from_raw(1), VariableId::from_raw(2));
+    assert!(sampler.estimate(&m, &data, 1.0, &ExecutionContext::for_tests(1)).is_ok());
+
+    let cancelled = ExecutionContext::for_tests(1);
+    cancelled.cancellation.cancel();
+    let err = sampler.estimate(&m, &data, 1.0, &cancelled).unwrap_err();
+    assert!(matches!(err, ModelError::Cancelled), "{err:?}");
+
+    let tight = ExecutionContext::for_tests(1).with_memory_limit(Some(8));
+    let err = sampler.estimate(&m, &data, 1.0, &tight).unwrap_err();
+    assert!(matches!(err, ModelError::ResourceLimit { .. }), "{err:?}");
+
+    // The root branch is bound by the same account.
+    let root = model(&[(0, 1)], 2, vec![linear(0.0, &[], 1.0), linear(0.0, &[0.0], 1.0)]);
+    let rdata = table(&[("t", &t), ("y", &y)]);
+    let rs = WeightingDoSampler::new(VariableId::from_raw(0), VariableId::from_raw(1));
+    let err = rs.estimate(&root, &rdata, 0.1, &cancelled).unwrap_err();
+    assert!(matches!(err, ModelError::Cancelled), "{err:?}");
+    let err = rs.estimate(&root, &rdata, 0.1, &tight).unwrap_err();
+    assert!(matches!(err, ModelError::ResourceLimit { .. }), "{err:?}");
+}
+
+#[test]
 fn the_root_matching_window_selects_exactly_the_units_the_definition_selects() {
     let ctx = ExecutionContext::for_tests(1);
     for case in reference()["root"].as_array().unwrap() {

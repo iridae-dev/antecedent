@@ -185,11 +185,11 @@ fn the_point_reading_of_the_exact_row_is_the_enumerated_value_with_no_draws() {
     }
 }
 
-/// The Spread and Envelope readings are not closed by the executor's own checks; what the row
-/// then returns must still be exactly the labelled point value (never a fabricated spread).
+/// The point-only executor computes no spread and no envelope: asking for either is a typed
+/// refusal that did no work, never the point value under another name.
 #[test]
-fn other_readings_never_return_anything_but_the_labelled_point_value() {
-    for (name, quantity, expected) in quantities() {
+fn spread_and_envelope_readings_are_refused_before_any_work() {
+    for (name, quantity, _) in quantities() {
         for reading in [RequestedReading::Spread, RequestedReading::Envelope] {
             let mut exec = FiniteScmExecutor::new();
             let r = request(
@@ -198,14 +198,21 @@ fn other_readings_never_return_anything_but_the_labelled_point_value() {
                 ExogenousInference::ExactEnumeration,
                 reading,
             );
-            match exec.execute(&r, &ctx()) {
-                Ok(out) => {
-                    eprintln!("{name} {reading:?}: answered {} label {}", out.value, out.label);
-                    assert_eq!(out.label, "point_only");
-                    assert!((out.value - expected).abs() < 1e-14);
-                }
-                Err(e) => eprintln!("{name} {reading:?}: refused {:?}", detail(&e)),
-            }
+            let err = exec.execute(&r, &ctx()).expect_err(name);
+            assert_eq!(
+                detail(&err),
+                (
+                    "cell_not_licensed".to_owned(),
+                    "cross_world_execution.reading_not_licensed".to_owned()
+                ),
+                "{name} {reading:?}"
+            );
+            let c = exec.counters();
+            assert_eq!(
+                (c.abductions, c.shared_draws, c.world_predictions, c.mechanism_fits),
+                (0, 0, 0, 0)
+            );
+            assert_eq!(exec.retained_len(), 0);
         }
     }
 }
