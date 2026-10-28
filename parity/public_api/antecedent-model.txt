@@ -5005,6 +5005,7 @@ pub fn <antecedent_model::external_mechanism::ExternalFeedbackSystem>::fn valida
 pub fn <antecedent_model::external_mechanism::ExternalFeedbackSystem>::fn with_parameters(&self, targets: &[antecedent_model::external_mechanism::ExternalFitParameter], values: &[f64]) -> core::result::Result<Self, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn <antecedent_model::external_mechanism::ExternalFitParameter>::const fn equation(self) -> usize
 pub fn <antecedent_model::external_mechanism::ExternalMechanismRefusal>::const fn code(&self) -> &'static str
+pub fn <antecedent_model::external_mechanism::ExternalMechanismRefusal>::const fn detail_id(&self) -> &'static str
 pub fn <antecedent_model::external_mechanism::ExternalMechanismSpec>::fn for_content(implementation_id: &str, version: &str, content: &[u8], reads: alloc::vec::Vec<usize>, parameter_names: alloc::vec::Vec<alloc::string::String>, derivative: antecedent_model::external_mechanism::DerivativeDeclaration) -> Self
 pub fn <antecedent_model::external_mechanism::ExternalMechanismSpec>::fn identity(&self) -> alloc::string::String
 pub fn <antecedent_model::external_mechanism::ExternalMechanismSpec>::fn validate(&self) -> core::result::Result<(), antecedent_model::external_mechanism::ExternalMechanismRefusal>

@@ -166,10 +166,20 @@ fn model_error(error: CompositionError) -> MechanismCompositionRefusal {
 }
 
 fn fit_error(error: &TypedFitError) -> MechanismCompositionRefusal {
+    let (code, detail) = match error {
+        TypedFitError::NotConverged(_) | TypedFitError::Singular(_) => (
+            antecedent_core::reason_code!("mechanism_fit_not_converged"),
+            "typed_mechanism_transport.fit_not_converged",
+        ),
+        _ => (
+            antecedent_core::reason_code!("mechanism_composition_incoherent"),
+            "typed_mechanism_transport.fit_refused",
+        ),
+    };
     refusal(
-        error.reason_code(),
+        code,
         "compose",
-        "typed_mechanism_transport.fit_refused",
+        detail,
         error.to_string(),
         "check the specification, the data's support and the design; coarsen or drop parents that separate the response",
     )

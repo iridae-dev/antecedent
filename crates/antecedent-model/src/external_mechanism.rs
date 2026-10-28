@@ -100,6 +100,17 @@ impl ExternalMechanismRefusal {
             }
         }
     }
+    /// Stable detail identifier of the refusal, as recorded in the promotion record.
+    #[must_use]
+    pub const fn detail_id(&self) -> &'static str {
+        match self.kind {
+            ExternalRefusalKind::DeclarationInvalid => "external_mechanism.declaration_invalid",
+            ExternalRefusalKind::ResolverMissing => "external_mechanism.resolver_missing",
+            ExternalRefusalKind::Unavailable => "external_mechanism.implementation_unavailable",
+            ExternalRefusalKind::Changed => "external_mechanism.implementation_changed",
+            ExternalRefusalKind::ResolverFailed => "external_mechanism.resolver_failed",
+        }
+    }
     fn declaration(detail: impl Into<String>) -> Self {
         Self { kind: ExternalRefusalKind::DeclarationInvalid, detail: detail.into() }
     }

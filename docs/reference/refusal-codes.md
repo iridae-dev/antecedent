@@ -462,7 +462,8 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `mechanism_transport.selection_arrow_into_latent` | `quantity_semantics_mismatch` | Refit the mechanism in the target population. |
 | `mechanism_transport.duplicate_mechanism` | `quantity_semantics_mismatch` | Give each variable exactly one mechanism per role. |
 | `typed_mechanism_transport.shifted_without_target_evidence` | `transport_missing_evidence` | A selection node points into this variable, so its mechanism differs in the target; fit it on target data, it is never carried. |
-| `typed_mechanism_transport.fit_refused` | `mechanism_composition_incoherent`, `mechanism_fit_not_converged` | Check the specification, the data's support and the design; coarsen or drop parents that separate the response. |
+| `typed_mechanism_transport.fit_refused` | `mechanism_composition_incoherent` | Check the specification and the data's support. |
+| `typed_mechanism_transport.fit_not_converged` | `mechanism_fit_not_converged` | Coarsen or drop parents that separate the response, or fix the singular design. |
 | `typed_mechanism_transport.invariance_contradicted` | `quantity_semantics_mismatch` | Target data reject the declared invariance of this mechanism; declare a selection node into it and refit it in the target. |
 | `typed_mechanism_transport.target_specification_differs` | `quantity_semantics_mismatch` | Refit the target mechanism with the source mechanism's family, mean and parents. |
 | `typed_mechanism_transport.design_not_shared` | `quantity_semantics_mismatch` | Refit the target mechanism on the source mechanism's design with `refit_in_target`. |

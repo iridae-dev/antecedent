@@ -9655,6 +9655,42 @@ evidence_assertion = "a_result_resumes_with_a_compatible_provider_and_is_unavail
 notes = "Rust route; point values or draws of an external provider, no interval, posterior guarantee or native trust. The Python surface is a later step."
 
 [[routes]]
+route = "antecedent.external_mechanism.export_artifact"
+stage = "prepare"
+status = "licensed"
+graph = "not_applicable_specified_feedback_graph"
+evidence = "external_cyclic_equilibrium_recorded_mechanism_identities"
+functional = "cyclic.external_mechanisms"
+guarantee = "mechanism_identity_recorded_never_code"
+evidence_test = "crates/antecedent-io/src/external_cyclic_artifact.rs"
+evidence_assertion = "artifact_bytes_contain_no_executable_code"
+notes = "Registered external mechanisms are recorded by identity and content digest, never code; verified_external, never native; model-conditional, no interval."
+
+[[routes]]
+route = "antecedent.external_mechanism.consume_artifact"
+stage = "consume"
+status = "licensed"
+graph = "not_applicable_specified_feedback_graph"
+evidence = "external_cyclic_equilibrium_recorded_mechanism_identities"
+functional = "cyclic.external_mechanisms"
+guarantee = "replay_only_with_trusted_resolver_verified_against_record"
+evidence_test = "crates/antecedent-io/src/external_cyclic_artifact.rs"
+evidence_assertion = "replay_without_a_resolver_or_with_a_changed_implementation_is_refused"
+notes = "Registered external mechanisms are recorded by identity and content digest, never code; verified_external, never native; model-conditional, no interval."
+
+[[routes]]
+route = "antecedent.python.external_mechanisms.consume_artifact"
+stage = "consume"
+status = "licensed"
+graph = "not_applicable_specified_feedback_graph"
+evidence = "external_cyclic_equilibrium_recorded_mechanism_identities"
+functional = "cyclic.external_mechanisms"
+guarantee = "replay_only_with_trusted_resolver_verified_against_record"
+evidence_test = "python/tests/test_external_cyclic_mechanisms.py"
+evidence_assertion = "test_replay_without_a_resolver_an_implementation_or_with_a_changed_one_is_refused"
+notes = "Registered external mechanisms are recorded by identity and content digest, never code; verified_external, never native; model-conditional, no interval."
+
+[[routes]]
 route = "antecedent.provider_callback.interval"
 stage = "uncertainty"
 status = "closed"
