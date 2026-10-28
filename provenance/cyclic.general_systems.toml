@@ -13,9 +13,17 @@ papers = [
  {title = "NODAGS-Flow: Nonlinear Cyclic Causal Structure Learning", url = "https://proceedings.mlr.press/v206/sethuraman23a.html", sections = ["PMLR 206, 2023; additive-noise equilibrium change-of-variables likelihood; no neural source port"]},
  {title = "Bicycle: Intervention-Based Causal Discovery with Cycles", url = "https://proceedings.mlr.press/v236/rohbeck24a.html", sections = ["PMLR 236, 2024; Equations 1-4, Section 4.1 and Appendix A.1; Gaussian stationary synthetic protocol, shared drift/forcing/diffusion likelihood; no count-likelihood variational estimator"]},
  {title = "Causal Reasoning with Bipartite Graphical Causal Models", url = "https://arxiv.org/abs/2608.19831v1", sections = ["PMLR 337 / arXiv:2608.19831v1, 2026; Definitions 3/5/13/33, Lemma 42: matching/SCC causal ordering, determinism-aware B-separation and domain-selector invariance"]},
+ {title = "Continuous Markov processes and stochastic equations", url = "https://doi.org/10.1007/BF02846028", doi = "10.1007/BF02846028", sections = ["Maruyama 1955; the Euler-Maruyama step, independently implemented with a fixed declared step"]},
+ {title = "Approximate integration of stochastic differential equations", url = "https://doi.org/10.1137/1119062", doi = "10.1137/1119062", sections = ["Milstein 1975; the diagonal Milstein correction g g' (dW^2 - dt)/2, used only when each diffusion depends on no other state"]},
+ {title = "Numerical Solution of Stochastic Differential Equations", url = "https://doi.org/10.1007/978-3-662-12616-5", doi = "10.1007/978-3-662-12616-5", sections = ["Kloeden and Platen 1992; strong and weak convergence orders of the Euler and Milstein schemes and the commutativity condition for diagonal noise, used to define the step-halving evidence"]},
+ {title = "Approximate discrete-time schemes for statistics of diffusion processes", url = "https://doi.org/10.1080/02331888908802205", doi = "10.1080/02331888908802205", sections = ["Florens-Zmirou 1989; consistency of the Euler contrast estimator as the observation interval shrinks"]},
+ {title = "Estimation of an ergodic diffusion from discrete observations", url = "https://doi.org/10.1111/1467-9469.00059", doi = "10.1111/1467-9469.00059", sections = ["Kessler 1997; Gaussian (Euler-type) quasi-likelihood estimation of drift and diffusion parameters from discrete observations"]},
+ {title = "Fast splittable pseudorandom number generators", url = "https://doi.org/10.1145/2660193.2660195", doi = "10.1145/2660193.2660195", sections = ["Steele, Lea and Flood 2014; the SplitMix64 mixing function used to address a counter-based Gaussian stream"]},
+ {title = "A note on the generation of random normal deviates", url = "https://doi.org/10.1214/aoms/1177706645", doi = "10.1214/aoms/1177706645", sections = ["Box and Muller 1958; the cosine branch transform of two uniforms"]},
 ]
 implementation_deviations = [
- "Dense capped built-in mechanism families; arbitrary callbacks are not serialized.",
+ "Built-in mechanism families store dense per-equation weight rows, so the dense disturbance covariance admits at most 4096 variables (solver_model_order_budget). The Jacobian, its factorization and the contraction bounds are sparse and admitted by nonzeros, block order, estimated memory, factor fill, iteration count and wall clock; arbitrary callbacks are not serialized.",
+ "Sparse blocks are solved by sparse LU with a minimum-degree order and partial pivoting (ties broken by sparsity). The condition number is a Hager-Higham estimate (exact for blocks up to 32), a lower bound on the true value. The Collatz-Wielandt spectral bound is rigorous for any positive weight vector; diagonal dominance of the root Jacobian proves nonsingularity only at the returned numerical state.",
  "Global contraction is a sufficient row-norm certificate. Damped Newton roots alone remain uncertified; affine bijection uses a separate outward-rounded inverse-residual proof.",
  "Polynomial systems use independently implemented outward-rounded interval/Krawczyk isolation; domain completeness is withheld on unresolved boxes.",
  "Coordinate likelihood fitting is local with specified covariance. Bayesian draws are conditional on specified structure and covariance. No nominal calibration claims.",
@@ -25,10 +33,25 @@ implementation_deviations = [
  "Named clamps, mechanism changes/replacements and shocks retain distinct identities; numerical/certificate response failures preserve original draw positions.",
  "BGCM graphical reasoning is theorem-scoped; finite polynomial candidate fitting is not a general latent BGCM estimator.",
  "Generalized ID is observation-only with explicit ioSCM/product-density premises; procedure failure is not non-identifiability.",
+ "Nonlinear SDEs are diagonal-noise, bounded-dimension (16 states) models written in the portable mechanism language; a square root is a diffusion wrapper rather than an expression operator. Regularity is certified by interval derivative arithmetic over the declared state box and input envelopes with a 1e-9 outward margin (not directed rounding); a square-root diffusion that reaches zero is certified only as Holder-1/2 and the certificate says strong rates are then not guaranteed.",
+ "Reflecting or clamping state bounds change the simulated process at the boundary and are part of the specified model; the Euler quasi-likelihood ignores the reflection and reports the fraction of transitions within three standard deviations of a bound.",
+ "Euler-Maruyama and diagonal Milstein run on a declared fixed step with a counter-based generator (SplitMix64 mixing of seed, path, fine step and component, cosine Box-Muller); the half-step refinement reuses the same Brownian path. The reported step-halving difference estimates discretization bias of the declared step and is not a bound; the Richardson mean assumes weak order one. Inputs are read at the left end of each step; actions must lie on the step grid.",
+ "The Euler Gaussian transition quasi-likelihood is a pseudo-likelihood: its maximizer is consistent as the observation interval shrinks, and the interval-times-rate product is the only discretization evidence (flagged above 0.1, refused above 0.5 by default); its bias is not estimated and no latent-path or particle-filter likelihood is provided. Partial or noisy observation uses an extended Kalman innovation likelihood of the Euler-discretized model, a linearization that is always labelled model-conditional; standard errors are the inverse observed information of the pseudo-likelihood.",
+ "Parameter uncertainty of simulated responses is propagated by asymptotic-normal draws of the fitted parameters through common-random-number ensembles; it excludes Monte Carlo, discretization and model-specification error and is reported apart from them.",
  "Finite and Gaussian functional numerical evaluation lives in antecedent-estimate; IO rechecks graph-source identity and exact theorem-derived executable IR before delegation. Numerical component metadata alone grants no causal authority.",
 ]
 upstream_implementations_observed = []
-test_sources = ["inline crate unit tests registered in parity/v3_test_registry.toml, including exhaustive small incidence graphs against independent closed-form Gaussian truths", "python/tests/test_cyclic.py"]
+test_sources = ["crates/antecedent-model/src/nonlinear_sde/tests.rs", "crates/antecedent-estimate/src/nonlinear_sde_fit/tests.rs", "python/tests/test_nonlinear_sde.py", "inline crate unit tests registered in parity/v3_test_registry.toml, including exhaustive small incidence graphs against independent closed-form Gaussian truths", "python/tests/test_cyclic.py", "crates/antecedent-model/tests/sparse_equilibrium_scale.rs", "python/tests/test_cyclic_sparse_scale.py"]
+
+[[reference_fixture]]
+id = "sparse-feedback-equilibrium-scale"
+source = "conformance/gcm/sparse_feedback_equilibrium/reference.py"
+truth = "Rings of 300 to 320 variables solved densely with NumPy/LAPACK: affine equilibrium values, exact infinity-norm condition number from the dense inverse, exact spectral radius of the absolute weight matrix and clamped-system solutions; the sparse solver is compared with these and with SciPy sparse solves, plus an independent fixed-point reference for tanh and compositional rings, and budget refusals, non-unique bistable pairs and near-singular rings are asserted."
+
+[[reference_fixture]]
+id = "nonlinear-sde-ensemble"
+source = "conformance/gcm/nonlinear_sde_ensemble/reference.py"
+truth = "NumPy replay of the counter-based generator and of Euler-Maruyama ensembles of the documented SIR system with a seasonal input, square-root state-dependent noise, reflecting bounds, a replaced-input world and a held-component world, with half-step weak differences and paired contrasts; exact moment ODEs (RK4 and closed form) of a square-root diffusion with a piecewise-constant input against Monte Carlo ensembles within standard-error tolerances; the dense Euler quasi log likelihood of trajectories drawn with numpy.random.default_rng, and parameters recovered from them with separate fitting, identification and discretization evidence."
 
 [[reference_fixture]]
 id = "overlapping-nonlinear-loops"
@@ -79,6 +102,16 @@ truth = "Every verified observation/action/exchange rewrite on all 512 three-nod
 id = "ou-shared-equation-score"
 source = "crates/antecedent-estimate/src/ou_mechanisms.rs"
 truth = "Independent central differences for shared drift, forcing and diffusion scores with equation replacements; stationary laws additionally compared against SciPy continuous Lyapunov solutions in paper protocols."
+
+[[reference_fixture]]
+id = "ou-trajectory-joint-gaussian-likelihood"
+source = "conformance/gcm/ou_trajectory_likelihood/reference.py"
+truth = "Brute-force joint Gaussian density of all observation times of stationary OU trajectories (SciPy expm and continuous Lyapunov solutions) for fully observed irregular, partially observed noisy and oscillatory combined-observation cases; the production Kalman likelihood on the retained data equals it."
+
+[[reference_fixture]]
+id = "ou-trajectory-exact-transition-fit"
+source = "crates/antecedent-estimate/src/ou_trajectory.rs"
+truth = "The exact Gaussian transition (matrix exponential and van Loan covariance) against the scalar closed form, Brownian motion with drift and a rotation; the Kalman likelihood against the product of closed-form scalar transition densities and, in Python, against the brute-force joint Gaussian density of all observation times with SciPy matrix exponentials and Lyapunov solutions; parameters recovered within four standard errors from independently simulated irregular-interval trajectories, fully and partially observed; held-out intervention trajectories compared with independent Monte Carlo including propagated sampling uncertainty; unidentified designs refused with dynamics_not_identified."
 
 [[reference_fixture]]
 id = "paper-synthetic-protocols"

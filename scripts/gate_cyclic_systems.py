@@ -55,6 +55,8 @@ RUST_CHECKS = [
     ("antecedent-estimate", "polynomial_scm"),
     ("antecedent-estimate", "constraint_likelihood"),
     ("antecedent-estimate", "ou_mechanisms"),
+    ("antecedent-estimate", "ou_trajectory"),
+    ("antecedent-estimate", "nonlinear_sde_fit"),
     ("antecedent-prob", "metropolis"),
     ("antecedent-io", "cyclic"),
     ("antecedent", "cyclic"),
@@ -68,7 +70,7 @@ def run(command: list[str], **kwargs) -> None:
 
 def inventory() -> None:
     record = tomllib.loads((ROOT / "parity/cyclic/acceptance.toml").read_text(encoding="utf-8"))
-    expected = {"Y18.1", "Y18.2"} | {f"Y19.{i}" for i in range(1, 9)} | {"integrated_families"}
+    expected = {"Y18.1", "Y18.2"} | {f"Y19.{i}" for i in range(1, 9)} | {"integrated_families", "nonlinear_sde"}
     if {row["id"] for row in record["capability"]} != expected:
         raise ValueError("cyclic acceptance children differ from promoted scope")
     for row in record["capability"]:

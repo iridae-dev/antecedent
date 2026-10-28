@@ -450,7 +450,7 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 
 ### Mechanism transport, synthesis and bridge premise
 
-`mechanism_transport.*`, `transported_synthesis.*`, `scientific_bridge.*`. See [the guide](../guides/mechanism-and-synthesis-transport.md).
+`mechanism_transport.*`, `typed_mechanism_transport.*`, `transported_synthesis.*`, `scientific_bridge.*`. See [the guide](../guides/mechanism-and-synthesis-transport.md).
 
 | Detail | Code | What would license the request |
 | --- | --- | --- |
@@ -461,6 +461,23 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `mechanism_transport.target_mechanism_not_native` | `quantity_semantics_mismatch` | Supply as a target mechanism only one fitted in the target; carry the others as source mechanisms. |
 | `mechanism_transport.selection_arrow_into_latent` | `quantity_semantics_mismatch` | Refit the mechanism in the target population. |
 | `mechanism_transport.duplicate_mechanism` | `quantity_semantics_mismatch` | Give each variable exactly one mechanism per role. |
+| `typed_mechanism_transport.shifted_without_target_evidence` | `transport_missing_evidence` | A selection node points into this variable, so its mechanism differs in the target; fit it on target data, it is never carried. |
+| `typed_mechanism_transport.fit_refused` | `mechanism_composition_incoherent`, `mechanism_fit_not_converged` | Check the specification, the data's support and the design; coarsen or drop parents that separate the response. |
+| `typed_mechanism_transport.invariance_contradicted` | `quantity_semantics_mismatch` | Target data reject the declared invariance of this mechanism; declare a selection node into it and refit it in the target. |
+| `typed_mechanism_transport.target_specification_differs` | `quantity_semantics_mismatch` | Refit the target mechanism with the source mechanism's family, mean and parents. |
+| `typed_mechanism_transport.design_not_shared` | `quantity_semantics_mismatch` | Refit the target mechanism on the source mechanism's design with `refit_in_target`. |
+| `typed_mechanism_transport.parents_changed` | `quantity_semantics_mismatch` | A shifted mechanism's target fit keeps the declared parent set. |
+| `typed_mechanism_transport.regime_not_declared_invariant` | `quantity_semantics_mismatch` | Declare the invariance of this mechanism across the two regimes explicitly. |
+| `typed_mechanism_transport.selection_target_unknown_variable` | `quantity_semantics_mismatch` | A selection node points into a variable no supplied mechanism produces. |
+| `typed_mechanism_transport.parent_without_mechanism` | `mechanism_composition_incoherent` | Supply a source or target mechanism for every parent. |
+| `typed_mechanism_transport.cycle` | `mechanism_composition_incoherent` | A typed transported composition is acyclic. |
+| `typed_mechanism_transport.invariance_level_invalid` | `mechanism_composition_incoherent` | Test declared invariances at a level strictly between 0 and 0.5. |
+| `typed_mechanism_transport.unknown_variable` | `mechanism_composition_incoherent` | Name only variables of the transported model in a contrast. |
+| `typed_mechanism_transport.dependence_invalid` | `uncertainty_representation_insufficient` | Declare a justified independence, an aligned positive semidefinite joint covariance, or well-shaped cross-covariance blocks. |
+| `typed_mechanism_transport.parameter_dependence_unknown` | `uncertainty_representation_insufficient` | Declare independence by design, a joint covariance or cross-covariance blocks. |
+| `typed_mechanism_transport.parameter_dependence_incomplete` | `uncertainty_representation_insufficient` | Declare a cross-covariance block for every pair of involved mechanisms, or a joint covariance listing them all. |
+| `typed_mechanism_transport.transport_identity_mismatch` | `quantity_semantics_mismatch` | Re-derive the transport from the retained fits and declaration. |
+| `typed_mechanism_transport.interval_route_closed` | `cell_not_licensed` | None: the variance is parameter-only and scoped; no interval is licensed. |
 | `transported_synthesis.transport_variance_undeclared` | `transport_missing_evidence` | Declare the transport variance; an undeclared transport is not a zero-variance one. |
 | `transported_synthesis.transport_variance_on_native_source` | `invalid_argument` | Drop it, or declare the transport identity in the ledger. |
 | `transported_synthesis.source_listed_twice` | `invalid_argument` | Contribute each source once. |

@@ -35,7 +35,7 @@ family = "static"
 default = "complete_case"
 supported = ["error", "complete_case", "multiple_imputation"]
 next_attempt = "multiple_imputation"
-imputation_estimators = ["linear.adjustment.ate", "glm.adjustment", "aipw", "propensity.weighting"]
+imputation_estimators = ["linear.adjustment.ate", "glm.adjustment", "aipw", "propensity.weighting", "propensity.matching", "propensity.stratification", "distance.matching"]
 
 [[route]]
 query = "AverageEffect"

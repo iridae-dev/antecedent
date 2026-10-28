@@ -87,6 +87,11 @@ markers below and compares it. Prose outside those markers is not read.
 | sensitivity.marginal_structural_model | max_strata | 1048576 | `crates/antecedent-validate/src/msm_sensitivity.rs` |
 | sensitivity.marginal_structural_model | max_empirical_strata | 4096 | `python/antecedent/msm_sensitivity.py` |
 | sensitivity.marginal_structural_model | max_grid_points | 8192 | `crates/antecedent-validate/src/msm_sensitivity.rs` |
+| sensitivity.missing_outcome_departure | max_rows | 67108864 | `crates/antecedent-validate/src/mnar_sensitivity.rs` |
+| sensitivity.missing_outcome_departure | max_covariates | 64 | `crates/antecedent-validate/src/mnar_sensitivity.rs` |
+| sensitivity.missing_outcome_departure | max_grid_points | 4096 | `crates/antecedent-validate/src/mnar_sensitivity.rs` |
+| sensitivity.missing_outcome_departure | max_decisions | 64 | `crates/antecedent-validate/src/mnar_sensitivity.rs` |
+| sensitivity.missing_outcome_departure | max_bootstrap_replicates | 5000 | `crates/antecedent-validate/src/mnar_sensitivity.rs` |
 | recalculation.frozen_scores_artifact | max_bytes | 134217728 | `crates/antecedent-io-core/src/frozen_scores_artifact.rs` |
 | recalculation.frozen_scores_artifact | max_rows | 2097152 | `crates/antecedent-io-core/src/frozen_scores_artifact.rs` |
 | recalculation.operation_inventory | max_external_branches | 8 | `crates/antecedent-core/src/recalc.rs` |

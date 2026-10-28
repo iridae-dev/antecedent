@@ -152,6 +152,27 @@ path = "scripts/check_v3_test_registry.py"
 gates = ["inventory"]
 
 [[test]]
+id = "cyclic-sparse-equilibrium"
+crate = "antecedent-model"
+cargo_target = "lib"
+path = "crates/antecedent-model/src/sparse_equilibrium.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-sparse-equilibrium-scale"
+crate = "antecedent-model"
+cargo_target = "sparse_equilibrium_scale"
+path = "crates/antecedent-model/tests/sparse_equilibrium_scale.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-sparse-equilibrium-scale-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_cyclic_sparse_scale.py"
+gates = ["inventory"]
+
+[[test]]
 id = "cyclic-nonlinear-equilibrium"
 crate = "antecedent-model"
 cargo_target = "lib"
@@ -333,6 +354,41 @@ crate = "antecedent-estimate"
 cargo_target = "lib"
 path = "crates/antecedent-estimate/src/ou_mechanisms.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-ou-trajectory-exact-transition-fit"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/ou_trajectory/tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-ou-trajectory-python-references"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_ou_trajectory.py"
+gates = ["inventory"]
+
+[[test]]
+id = "cyclic-nonlinear-sde-ensembles"
+crate = "antecedent-model"
+cargo_target = "lib"
+path = "crates/antecedent-model/src/nonlinear_sde/tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-nonlinear-sde-quasi-likelihood"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/nonlinear_sde_fit/tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-nonlinear-sde-python-references"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_nonlinear_sde.py"
+gates = ["inventory"]
 
 [[test]]
 id = "cyclic-cyclic-calculus"
@@ -752,6 +808,13 @@ id = "multiple-imputation-routes-facade"
 crate = "antecedent"
 cargo_target = "missing_imputation_routes"
 path = "crates/antecedent/tests/missing_imputation_routes.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "multiple-imputation-estimator-families-facade"
+crate = "antecedent"
+cargo_target = "missing_imputation_estimator_families"
+path = "crates/antecedent/tests/missing_imputation_estimator_families.rs"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -1554,7 +1617,7 @@ crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/mediation_mixed_graph.rs"
 gates = ["inventory", "named"]
-suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy"
+suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade"
 
 [[test]]
 id = "class-attribution-route"
@@ -1562,7 +1625,7 @@ crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/class_attribution_route.rs"
 gates = ["inventory", "named"]
-suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy"
+suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade"
 
 [[test]]
 id = "latent-block-witness-and-block-games"
@@ -5321,7 +5384,7 @@ id = "counterfactual-class-route"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/counterfactual_class_route.rs"
-suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy"
+suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6268,7 +6331,7 @@ crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/predictive_score_interval_facade.rs"
 calibration_acceptance_assertions = ["an_expected_score_interval_inside_a_measured_design_is_bound_to_its_record", "the_serial_log_score_and_difference_are_measured_but_the_serial_crps_mean_is_a_boundary"]
-suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy"
+suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6524,7 +6587,7 @@ id = "released-surface"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/released_surface.rs"
-suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy"
+suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6540,7 +6603,7 @@ id = "resampling-accuracy"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/resampling_accuracy.rs"
-suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy"
+suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6577,7 +6640,7 @@ id = "route-diagnostics"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/route_diagnostics.rs"
-suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy"
+suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6654,7 +6717,7 @@ id = "sampling-design-declaration"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/sampling_design_declaration.rs"
-suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy"
+suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -7298,7 +7361,7 @@ id = "z-transport-repair"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/z_transport_repair.rs"
-suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy"
+suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -7306,7 +7369,7 @@ id = "z-transport-surrogate-calibration"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/z_transport_surrogate_calibration.rs"
-suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy"
+suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade"
 gates = ["inventory"]
 
 [[test]]
@@ -10241,6 +10304,28 @@ crate = "python"
 cargo_target = "script"
 path = "python/tests/test_typed_graph_latency.py"
 gates = ["inventory"]
+
+[[test]]
+id = "typed-mechanism-transport"
+crate = "antecedent-model"
+cargo_target = "typed_mechanism_transport"
+path = "crates/antecedent-model/tests/typed_mechanism_transport.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "typed-mechanism-transport-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_typed_mechanism_transport.py"
+gates = ["inventory"]
+
+[[test]]
+id = "typed-transported-mechanism-facade"
+crate = "antecedent"
+cargo_target = "suite_09"
+path = "crates/antecedent/tests/typed_transported_mechanism_facade.rs"
+suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade"
+gates = ["inventory", "named"]
 
 [[test]]
 id = "unlicensed-design-routes-python"
@@ -17313,4 +17398,39 @@ id = "local-quadratic-reference"
 crate = "antecedent-stats"
 cargo_target = "local_quadratic_reference"
 path = "crates/antecedent-stats/tests/local_quadratic_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "external-cyclic-mechanism-resolution"
+crate = "antecedent-model"
+cargo_target = "lib"
+path = "crates/antecedent-model/src/external_mechanism.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "external-cyclic-mechanism-fit"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/external_cyclic_fit.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "external-cyclic-mechanism-artifact"
+crate = "antecedent-io"
+cargo_target = "lib"
+path = "crates/antecedent-io/src/external_cyclic_artifact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "external-cyclic-mechanism-python-workflow"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_external_cyclic_mechanisms.py"
+gates = ["inventory"]
+
+[[test]]
+id = "external-prior-quadrature"
+crate = "antecedent-prob"
+cargo_target = "external_prior_quadrature"
+path = "crates/antecedent-prob/tests/external_prior_quadrature.rs"
 gates = ["inventory", "named"]

@@ -101,6 +101,10 @@ pub struct SyntheticControlSection {
     pub unadjusted_effect: Option<f64>,
     pub outcome_model_correction: Option<f64>,
     pub augmentation_ridge: Option<f64>,
+    /// `(pre periods, post periods, donors used, (excluded unit, missed periods), unread rows)`
+    /// of an unbalanced panel read over the treated unit's observed window.
+    #[allow(clippy::type_complexity)]
+    pub observed_window: Option<(Vec<i64>, Vec<i64>, usize, Vec<(String, usize)>, usize)>,
 }
 
 impl From<&antecedent::SyntheticControlEstimate> for SyntheticControlSection {
@@ -129,6 +133,19 @@ impl From<&antecedent::SyntheticControlEstimate> for SyntheticControlSection {
             unadjusted_effect: value.unadjusted_effect,
             outcome_model_correction: value.outcome_model_correction,
             augmentation_ridge: value.augmentation_ridge,
+            observed_window: value.observed_window.as_ref().map(|window| {
+                (
+                    window.pre_periods.to_vec(),
+                    window.post_periods.to_vec(),
+                    window.donors_used,
+                    window
+                        .donors_dropped
+                        .iter()
+                        .map(|(unit, missing)| (unit.to_string(), *missing))
+                        .collect(),
+                    window.unread_rows,
+                )
+            }),
         }
     }
 }

@@ -319,10 +319,23 @@ class StaggeredRollout:
     """Heterogeneity-robust staggered rollout that never uses already-treated controls.
 
     ``cohort`` holds each row's first treated period (0 for never treated); the panel may
-    be unbalanced for ``callaway_santanna`` and ``imputation``. ``estimator`` is
+    be unbalanced for every estimator and is read as observed, with no observation invented
+    and no unrelated period joined. ``estimator`` is
     ``callaway_santanna`` (group-time 2x2 comparisons), ``sun_abraham`` (interaction-weighted
-    cohort-by-event-time contrasts) or ``imputation`` (untreated outcomes imputed from unit and
-    period effects fitted on untreated rows). ``comparison`` is ``never_treated`` or
+    cohort-by-event-time contrasts; on an unbalanced panel the saturated cohort-by-period
+    regression over the observed unit-periods, which uses a period only where a comparison
+    unit is observed and linked to the cohort's base period) or ``imputation`` (untreated
+    outcomes imputed from unit and period effects fitted on untreated rows).
+    ``observation`` declares the process that decides which unit-periods are observed:
+    ``ignorable_given_cohort`` (the default; being observed is unrelated to the untreated
+    outcome trend within cohort, an untestable assumption recorded with the result) or
+    ``informative``, which is refused unless ``attrition_shift_bound`` declares the largest
+    amount (in outcome units) by which the treated units a cohort fails to observe may differ
+    in change from those it observes; the result then reports an assumption-dependent range
+    (``assumption_range_lower``/``assumption_range_upper`` diagnostics, with the slope and the
+    tipping shift), which is not a confidence interval. Per-cohort
+    support (units, rows, units observed at the base period, estimated and dropped cells) and
+    the dropped unit-periods are reported as ``cohort_<g>_*`` and ``dropped_*`` diagnostics. ``comparison`` is ``never_treated`` or
     ``not_yet_treated``; ``nuisance`` says how the baseline ``covariates`` (read at each unit's
     first observed row) adjust a comparison; ``base_period`` is ``varying`` or ``universal``;
     ``aggregation`` (``simple``, ``dynamic``, ``group`` or ``calendar``) defines the scalar
@@ -352,6 +365,8 @@ class StaggeredRollout:
     covariates: Sequence[str] = ()
     resampling: Literal["cluster_bootstrap", "cluster_multiplier"] | None = None
     replicates: int = 999
+    observation: Literal["ignorable_given_cohort", "informative"] = "ignorable_given_cohort"
+    attrition_shift_bound: float | None = None
 
     def __post_init__(self) -> None:
         fields = (self.outcome, self.subject, self.period, self.cohort)
@@ -372,6 +387,18 @@ class StaggeredRollout:
         _check_choice(self.nuisance, "nuisance", _DID_NUISANCE)
         _check_choice(self.base_period, "base_period", _DID_BASE_PERIODS)
         _check_choice(self.aggregation, "aggregation", _DID_AGGREGATIONS)
+        _check_choice(self.observation, "observation", _OBSERVATION_PROCESSES)
+        if self.attrition_shift_bound is not None and (
+            self.observation != "informative"
+            or isinstance(self.attrition_shift_bound, (bool, np.bool_))
+            or not isinstance(self.attrition_shift_bound, (int, float, np.integer, np.floating))
+            or not np.isfinite(self.attrition_shift_bound)
+            or self.attrition_shift_bound < 0
+        ):
+            raise CausalValueError(
+                "attrition_shift_bound is a finite non-negative bound on an informative "
+                "observation process"
+            )
         if (
             isinstance(self.anticipation, (bool, np.bool_))
             or not isinstance(self.anticipation, (int, np.integer))
@@ -492,7 +519,20 @@ class QuasiRolloutEstimate:
 
 @dataclass(frozen=True, slots=True)
 class SyntheticControl:
-    """Balanced-panel synthetic control with one treated unit and donor pool."""
+    """Synthetic control with one treated unit and donor pool.
+
+    The panel is balanced by default. ``observed_window_support=True`` reads an unbalanced
+    panel over the treated unit's observed window: the weights are fitted on the treated
+    unit's observed pre-intervention periods, the effect averages its observed
+    post-intervention periods, and the donors are the units observed in every one of those
+    periods (the others are excluded and listed in the result's diagnostics). Nothing is
+    imputed and no period the treated unit lacks is read. A treated unit with fewer than two
+    observed pre-periods or no observed post-period, or fewer than three donors observed
+    through the window, is refused. It applies to the simplex and ridge-augmented point fit; the
+    randomization test, conformal or staggered intervals and the Bayesian posterior read a
+    balanced panel and are refused with it. That being observed is unrelated to the untreated
+    outcome is an untestable assumption recorded with the result.
+    """
 
     outcome: str
     unit: str
@@ -509,8 +549,11 @@ class SyntheticControl:
     #: including ``(treated_unit, intervention_period)``; placebo-variance intervals.
     adoptions: Sequence[tuple[str, int]] | None = None
     placebo_replicates: int = 0
+    observed_window_support: bool = False
 
     def __post_init__(self) -> None:
+        if not isinstance(self.observed_window_support, bool):
+            raise CausalValueError("observed_window_support must be boolean")
         if not isinstance(self.conformal, bool):
             raise CausalValueError("conformal must be boolean")
         if self.conformal and self.adoptions is not None:
@@ -551,6 +594,23 @@ class SyntheticControl:
 
 
 @dataclass(frozen=True, slots=True)
+class ObservedWindowSupport:
+    """What a synthetic control read of an unbalanced panel.
+
+    The weights were fitted on ``pre_periods`` (the treated unit's observed pre-intervention
+    periods) and the effect averages ``post_periods``. ``donors_dropped`` lists each excluded
+    unit with the number of window periods it misses; ``unread_rows`` counts observed
+    unit-periods no estimate read. Nothing was imputed.
+    """
+
+    pre_periods: tuple[int, ...]
+    post_periods: tuple[int, ...]
+    donors_used: int
+    donors_dropped: tuple[tuple[str, int], ...]
+    unread_rows: int
+
+
+@dataclass(frozen=True, slots=True)
 class SyntheticControlEstimate:
     estimate: float
     pre_treatment_rmse: float
@@ -567,6 +627,7 @@ class SyntheticControlEstimate:
     unadjusted_effect: float | None = None
     outcome_model_correction: float | None = None
     augmentation_ridge: float | None = None
+    observed_window: ObservedWindowSupport | None = None
     uncertainty: str = "point_only_with_unlicensed_placebo_rank"
     support_status: str = "unlicensed_point_utility"
     diagnostics: tuple[str, ...] = (
@@ -1128,6 +1189,7 @@ _DID_NUISANCE = ("outcome_regression", "inverse_probability_weighting", "doubly_
 _DID_BASE_PERIODS = ("varying", "universal")
 _DID_AGGREGATIONS = ("simple", "dynamic", "group", "calendar")
 _DID_RESAMPLING = ("cluster_bootstrap", "cluster_multiplier")
+_OBSERVATION_PROCESSES = ("ignorable_given_cohort", "informative")
 _LOCAL_BANDWIDTH_RULES = ("declared", "mse_optimal")
 
 
@@ -1232,6 +1294,7 @@ __all__ = [
     "StaggeredEventStudyEstimate",
     "StaggeredEventTimeEffect",
     "SyntheticControl",
+    "ObservedWindowSupport",
     "SyntheticControlEstimate",
     "SyntheticDifferenceInDifferences",
     "SyntheticDifferenceInDifferencesEstimate",

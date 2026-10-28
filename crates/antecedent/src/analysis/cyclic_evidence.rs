@@ -99,6 +99,28 @@ pub enum CyclicEvidenceSelector {
         /// Second coordinate for a covariance; None selects the mean.
         other: Option<usize>,
     },
+    /// The predicted hidden state of a held-out intervention trajectory of a trajectory OU
+    /// fit: its mean, or its process covariance. Sampling uncertainty of the fitted
+    /// parameters is retained as a separate diagnostic.
+    OuTrajectoryState {
+        /// Prediction design index.
+        design: usize,
+        /// Prediction-time index.
+        time: usize,
+        /// Dense endogenous coordinate.
+        variable: usize,
+        /// Second coordinate for a process covariance; None selects the mean.
+        other: Option<usize>,
+    },
+    /// The stationary law of a sustained-intervention world of a trajectory OU fit.
+    OuTrajectoryStationary {
+        /// Stationary design index.
+        world: usize,
+        /// Dense endogenous coordinate.
+        variable: usize,
+        /// Second coordinate for a covariance; None selects the mean.
+        other: Option<usize>,
+    },
     /// Certified enclosure of one root; this selector supplies no equilibrium probabilities.
     Root {
         /// Certified root enclosure index, with no probability implied.
@@ -864,6 +886,23 @@ fn fit_convergence(answer: &A) -> Option<serde_json::Value> {
     let (family, iterations, score_norm, line_search_exhausted) = match answer {
         A::OdeFit(fit) if !fit.converged => ("ode_fit", fit.iterations, Some(fit.score_norm), None),
         A::OuFit(fit) if !fit.converged => ("ou_fit", fit.sweeps, None, None),
+        A::OuTrajectory(report) if !report.fit.fitting.converged => (
+            "ou_trajectory",
+            report.fit.fitting.iterations,
+            Some(report.fit.fitting.score_norm),
+            Some(report.fit.fitting.line_search_exhausted),
+        ),
+        A::SdeAnalysis(report)
+            if report.fit.as_ref().is_some_and(|fit| !fit.fitting.converged) =>
+        {
+            let fitting = report.fit.as_ref().map(|fit| &fit.fitting);
+            (
+                "sde_analysis",
+                fitting.map_or(0, |f| f.iterations),
+                fitting.map(|f| f.score_norm),
+                fitting.map(|f| f.line_search_exhausted),
+            )
+        }
         A::OuMechanisms { fit: Some(fit), .. } if !fit.converged => {
             ("ou_mechanisms", fit.iterations, Some(fit.score_norm), Some(fit.line_search_exhausted))
         }
@@ -1463,6 +1502,117 @@ fn bootstrap<'a>(
 }
 
 /// Stationary laws of the shared-mechanism family in the requested equation worlds.
+/// Trajectory OU fit: its likelihood, held-out trajectory predictions and stationary worlds.
+fn ou_trajectory<'a>(
+    report: &'a antecedent_estimate::ou_trajectory::OuTrajectoryReport,
+    selector: &CyclicEvidenceSelector,
+) -> Result<Projection<'a>, CyclicArtifactError> {
+    let uncertainty_note = "process variability is the value's covariance; sampling uncertainty of the fitted parameters is the parameter variance, a distinct meaning that is never added to it";
+    match selector {
+        CyclicEvidenceSelector::Likelihood { candidate: None } => {
+            let mut projection =
+                log_likelihood(report.fit.log_likelihood, Time::Trajectory, selector)?;
+            // Fitting, identification and numerical stability stay three separate
+            // records; none implies another.
+            projection.diagnostics = detail(serde_json::json!({
+                "fitting": report.fit.fitting,
+                "identification": report.fit.identification,
+                "numerics": report.fit.numerics,
+            }));
+            Ok(projection)
+        }
+        CyclicEvidenceSelector::OuTrajectoryState { design, time, variable, other } => {
+            let prediction = report.predictions.get(*design).ok_or_else(selector_mismatch)?;
+            let at = *prediction.times.get(*time).ok_or_else(selector_mismatch)?;
+            let mean = prediction.state_mean.get(*time).ok_or_else(selector_mismatch)?;
+            let n = mean.len();
+            if *variable >= n || other.is_some_and(|j| j >= n) {
+                return Err(selector_mismatch());
+            }
+            let covariance_mode = other.is_some();
+            let j = other.unwrap_or(*variable);
+            let value = if covariance_mode {
+                prediction.state_covariance[*time][*variable * n + j]
+            } else {
+                mean[*variable]
+            };
+            let sampling = if covariance_mode {
+                prediction
+                    .state_covariance_parameter_variance
+                    .as_ref()
+                    .map(|v| v[*time][*variable * n + j])
+            } else {
+                prediction
+                    .state_mean_parameter_covariance
+                    .as_ref()
+                    .map(|v| v[*time][*variable * n + j])
+            };
+            let mut p = point(
+                Some(value),
+                *variable,
+                World::Declared(prediction.id.clone()),
+                Time::At(at),
+                if covariance_mode { Functional::PredictiveCovariance } else { Functional::Mean },
+                if covariance_mode { EvidencePort::Likelihood } else { EvidencePort::Mean },
+            );
+            p.other = *other;
+            p.diagnostics = detail(serde_json::json!({
+                "parameter_variance": sampling,
+                "meaning": uncertainty_note,
+            }));
+            Ok(p)
+        }
+        CyclicEvidenceSelector::OuTrajectoryStationary { world, variable, other } => {
+            let law = report.stationary.get(*world).ok_or_else(selector_mismatch)?;
+            let functional =
+                if other.is_some() { Functional::PredictiveCovariance } else { Functional::Mean };
+            let port = if other.is_some() { EvidencePort::Likelihood } else { EvidencePort::Mean };
+            let n = law.mean.len();
+            if law.failure.is_some() {
+                let mut p = point(
+                    None,
+                    *variable,
+                    World::Declared(law.id.clone()),
+                    Time::Stationary,
+                    functional,
+                    port,
+                );
+                p.diagnostics = detail(serde_json::json!({ "failure": law.failure }));
+                return Ok(p);
+            }
+            if *variable >= n || other.is_some_and(|j| j >= n) {
+                return Err(selector_mismatch());
+            }
+            let j = other.unwrap_or(*variable);
+            let (value, sampling) = if other.is_some() {
+                (
+                    law.covariance[*variable * n + j],
+                    law.covariance_parameter_variance.as_ref().map(|v| v[*variable * n + j]),
+                )
+            } else {
+                (
+                    law.mean[*variable],
+                    law.mean_parameter_covariance.as_ref().map(|v| v[*variable * n + j]),
+                )
+            };
+            let mut p = point(
+                Some(value),
+                *variable,
+                World::Declared(law.id.clone()),
+                Time::Stationary,
+                functional,
+                port,
+            );
+            p.other = *other;
+            p.diagnostics = detail(serde_json::json!({
+                "parameter_variance": sampling,
+                "meaning": uncertainty_note,
+            }));
+            Ok(p)
+        }
+        _ => Err(selector_mismatch()),
+    }
+}
 fn ou_mechanisms<'a>(
     laws: &'a [antecedent_estimate::ou_mechanisms::OuMechanismOutcome],
     fit_log_likelihood: Option<f64>,
@@ -1597,6 +1747,74 @@ fn ou_transient<'a>(
                 Functional::PredictiveCovariance,
                 EvidencePort::Likelihood,
             ))
+        }
+        _ => Err(selector_mismatch()),
+    }
+}
+
+/// Nonlinear SDE ensembles and the quasi-likelihood fit behind them.
+///
+/// The world mean carries its Monte Carlo standard error, the step-halving evidence and the
+/// parameter-draw spread as diagnostics, three separate quantities that are never summed;
+/// none of them is a confidence or credible interval of the mean.
+fn sde_analysis<'a>(
+    report: &antecedent_estimate::nonlinear_sde_fit::SdeReport,
+    selector: &CyclicEvidenceSelector,
+) -> Result<Projection<'a>, CyclicArtifactError> {
+    match selector {
+        CyclicEvidenceSelector::Likelihood { candidate: None } => {
+            let fit = report.fit.as_ref().ok_or_else(selector_mismatch)?;
+            let mut projection =
+                log_likelihood(fit.log_quasi_likelihood, Time::Trajectory, selector)?;
+            projection.diagnostics = detail(serde_json::json!({
+                "meaning": "Euler quasi log likelihood, a pseudo-likelihood and not the exact transition likelihood",
+                "fitting": fit.fitting,
+                "identification": fit.identification,
+                "discretization": fit.discretization,
+            }));
+            Ok(projection)
+        }
+        CyclicEvidenceSelector::World { world, variable, time } => {
+            let simulation = &report.simulation;
+            let ensemble =
+                simulation.worlds.get(*world as usize).ok_or_else(selector_mismatch)?;
+            let index = time.unwrap_or(simulation.times.len().saturating_sub(1));
+            let row = |grid: &Vec<Vec<f64>>| grid.get(index).and_then(|r| r.get(*variable)).copied();
+            let value = row(&ensemble.mean).ok_or_else(selector_mismatch)?;
+            let at = *simulation.times.get(index).ok_or_else(selector_mismatch)?;
+            let numerical = ensemble.numerical.as_ref().map(|n| {
+                serde_json::json!({
+                    "refined_step": n.refined_step,
+                    "weak_difference": n.weak_difference.get(index).and_then(|r| r.get(*variable)),
+                    "weak_difference_standard_error": n.weak_difference_standard_error.get(index).and_then(|r| r.get(*variable)),
+                    "step_converged": n.step_converged,
+                })
+            });
+            let spread = report.parameter_uncertainty.as_ref().and_then(|u| {
+                u.worlds.iter().find(|w| w.id == ensemble.id).and_then(|w| {
+                    w.mean_between_draw_variance.get(index).and_then(|r| r.get(*variable)).copied()
+                })
+            });
+            let mut p = point(
+                Some(value),
+                *variable,
+                World::Indexed(u64::from(*world)),
+                Time::At(at),
+                Functional::Mean,
+                EvidencePort::Mean,
+            );
+            p.diagnostics = detail(serde_json::json!({
+                "world": ensemble.id,
+                "monte_carlo_standard_error": row(&ensemble.monte_carlo_standard_error),
+                "variance": row(&ensemble.variance),
+                "numerical_approximation": numerical,
+                "parameter_between_draw_variance": spread,
+                "scheme": simulation.scheme,
+                "step": simulation.step,
+                "seed": simulation.seed,
+                "paths": simulation.paths,
+            }));
+            Ok(p)
         }
         _ => Err(selector_mismatch()),
     }
@@ -1777,6 +1995,8 @@ impl EvidenceSource for A {
             A::GradientFit(fit) => log_likelihood(fit.log_likelihood, Time::Static, selector),
             A::OdeFit(fit) => log_likelihood(fit.log_likelihood, Time::Trajectory, selector),
             A::OuFit(fit) => log_likelihood(fit.log_likelihood, Time::Stationary, selector),
+            A::OuTrajectory(report) => ou_trajectory(report, selector),
+            A::SdeAnalysis(report) => sde_analysis(report, selector),
             A::StructureFit { fit, .. } => {
                 log_likelihood(fit.fit.log_likelihood, Time::Equilibrium, selector)
             }
@@ -1951,7 +2171,8 @@ fn source_order(request: &R) -> usize {
         | R::PartialCounterfactual { model, .. }
         | R::StructureFit { model, .. } => model.order(),
         R::Ode { model, .. } | R::OdeFit { model, .. } => model.equations.len(),
-        R::OuMechanisms { model, .. } => model.equations.len(),
+        R::OuMechanisms { model, .. } | R::OuTrajectoryFit { model, .. } => model.equations.len(),
+        R::SdeAnalysis { model, .. } => model.variables.len(),
         R::OuStationary { model, .. } | R::OuTransient { model, .. } | R::OuFit { model, .. } => {
             model.center.len()
         }
@@ -2052,7 +2273,7 @@ impl CyclicEvidence {
             || schema.population.len() > 256
             || schema.population.trim().is_empty()
             || schema.variables.is_empty()
-            || schema.variables.len() > 128
+            || schema.variables.len() > antecedent_model::nonlinear_equilibrium::MAX_ORDER
             || schema.variables.len() != source_order(request)
             || schema.variables.iter().enumerate().any(|(i, (id, units))| {
                 id.trim().is_empty()
@@ -2249,12 +2470,16 @@ impl CyclicEvidence {
                         },
                         training: if matches!(
                             request,
+                            R::SdeAnalysis { trajectories, .. } if !trajectories.is_empty()
+                        ) || matches!(
+                            request,
                             R::AdamFit { .. }
                                 | R::GaussianFunctional {law:antecedent_io::cyclic_gaussian_functional::GaussianCyclicLaw::Fit{..},..}
                                 | R::OuMechanisms { .. }
                                 | R::GradientFit { .. }
                                 | R::OdeFit { .. }
                                 | R::OuFit { .. }
+                                | R::OuTrajectoryFit { .. }
                                 | R::PolynomialFit { .. }
                                 | R::StructureFit { .. }
                                 | R::ParameterPosterior { .. }

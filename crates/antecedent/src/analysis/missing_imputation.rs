@@ -44,6 +44,22 @@ pub(crate) fn declared_imputation(study: &Study) -> Option<(&MissingDeclaration,
     declaration.policy.imputation().map(|spec| (declaration, spec))
 }
 
+/// A graph-posterior atom kind whose per-table answer is not the effect posterior the pooled
+/// mixture stacks (classes, partial ancestral graphs, graphs with latent confounding).
+fn graph_posterior_atoms_refusal(estimator: &str) -> CausalError {
+    CausalError::Estimate(EstimationError::refused_detail(
+        antecedent_core::reason_code!("missing_policy_not_applicable"),
+        "multiple_imputation.graph_posterior_atoms",
+        format!(
+            "a graph-posterior mixture is pooled over completed tables only for posteriors of \
+             directed acyclic graphs, whose per-table answer is one equal-weight effect \
+             mixture; this posterior ran `{estimator}`, which reports a class- or \
+             confounding-aware envelope with no single posterior to stack; next attempt: \
+             declare `complete_case`"
+        ),
+    ))
+}
+
 pub(super) fn refused(message: impl Into<String>) -> CausalError {
     CausalError::Estimate(EstimationError::refused_detail(
         antecedent_core::reason_code!("missing_policy_not_applicable"),
@@ -189,7 +205,17 @@ fn fit_of(result: &StudyResult, bayesian: bool) -> Result<ImputationFit, CausalE
         .as_effect()
         .ok_or_else(|| refused("the route's answer is not a scalar effect"))?;
     let analytic = &effect.uncertainty.analytic;
-    let se = if analytic.se.is_finite() {
+    // A stratified estimate's analytic variance holds the fitted propensity and the stratum
+    // cut points fixed; its declared bootstrap resamples rows and re-runs both, so within an
+    // imputation it is the variance of the whole procedure. Nearest-neighbour matching has no
+    // valid bootstrap (the Abadie–Imbens analytic variance is its within-imputation variance).
+    let whole_procedure = (result.logical_plan.estimator.as_deref()
+        == Some("propensity.stratification"))
+    .then(|| effect.uncertainty.bootstrap.se.filter(|se| se.is_finite()))
+    .flatten();
+    let se = if let Some(se) = whole_procedure {
+        se
+    } else if analytic.se.is_finite() {
         analytic.se
     } else {
         effect.uncertainty.bootstrap.se.filter(|se| se.is_finite()).ok_or_else(|| {
@@ -288,6 +314,9 @@ where
         let completed = complete_float_columns(data, &replacements)?;
         let result = click(&completed, ctx)?;
         let estimator = result.logical_plan.estimator.as_deref().unwrap_or("");
+        if study.graph_posterior.is_some() && !row.imputes_with(estimator) {
+            return Err(graph_posterior_atoms_refusal(estimator));
+        }
         if !row.imputes_with(estimator) {
             return Err(refused(format!(
                 "multiple imputation pools the estimators {:?} on this route cell; the route ran \
@@ -352,6 +381,7 @@ where
         }
         PooledEstimate::Stacked(stacked) => {
             result.posterior = Some(stacked_posterior(&posteriors)?);
+            let graph_mixture = study.graph_posterior.is_some();
             if let Some(effect) = result.estimate.as_effect_mut() {
                 effect.ate = stacked.mean;
                 effect.uncertainty.analytic.se = stacked.variance.sqrt();
@@ -364,7 +394,11 @@ where
                 units: run.units,
                 imputed_cells: run.imputed_cells.clone().into(),
                 estimator,
-                pooling: Arc::from("stacked_posterior"),
+                pooling: Arc::from(if graph_mixture {
+                    "stacked_graph_posterior"
+                } else {
+                    "stacked_posterior"
+                }),
                 points,
                 within: stacked.within,
                 between: stacked.between,
@@ -457,10 +491,14 @@ pub(crate) fn imputes_series(study: &Study) -> bool {
         && matches!(MissingRoute::of(&study.query, &study.data), Some(MissingRoute::Temporal))
 }
 
-/// The policy name the claim evidence carries for an imputation report.
+/// The evidence entries a claim carries for an imputation report, one per kind of uncertainty
+/// and assumption so none is read as another: the declared missingness mechanism (an
+/// assumption the data cannot test), the sampling variance of the analysis within a completed
+/// table, the between-imputation variance (the uncertainty the missing cells add), and the
+/// pooling rule that combines them.
 #[must_use]
-pub(crate) fn evidence_entries(report: &ImputationReport) -> [String; 3] {
-    [
+pub(crate) fn evidence_entries(report: &ImputationReport) -> Vec<String> {
+    let mut entries = vec![
         format!(
             "missing_imputation:{}:m={}:iterations={}:seed={}:{}",
             report.spec.model.name(),
@@ -470,9 +508,65 @@ pub(crate) fn evidence_entries(report: &ImputationReport) -> [String; 3] {
             report.spec.assumption.name()
         ),
         format!(
-            "missing_imputation_pool:{}:within={:e}:between={:e}",
-            report.pooling, report.within, report.between
+            "missing_imputation_mechanism:{}:declared:untestable",
+            report.spec.assumption.name()
         ),
+        format!("missing_imputation_sampling_variance:{:e}", report.within),
+        format!("missing_imputation_between_variance:{:e}", report.between),
+        format!("missing_imputation_pool:{}:total={:e}", report.pooling, report.total),
         format!("missing_imputation_assumptions:{}", report.assumptions_digest),
-    ]
+    ];
+    if report.pooling.as_ref() == "stacked_graph_posterior" {
+        entries.push(
+            "missing_imputation_structure:graph_posterior_held_fixed:weights_preserved".to_owned(),
+        );
+    }
+    entries
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn report(pooling: &str) -> ImputationReport {
+        ImputationReport {
+            spec: ImputationSpec::new(),
+            unit: Arc::from("row"),
+            units: 10,
+            imputed_cells: Arc::from(Vec::new()),
+            estimator: Arc::from("propensity.matching"),
+            pooling: Arc::from(pooling),
+            points: Arc::from(vec![1.0, 1.2]),
+            within: 0.25,
+            between: 0.5,
+            total: 0.925,
+            df: None,
+            df_complete: None,
+            fraction_missing_information: None,
+            relative_increase: None,
+            assumptions_digest: Arc::from("abc"),
+            lags: 0,
+            vector: None,
+        }
+    }
+
+    /// The assumption, the sampling variance and the between-imputation variance are three
+    /// separate entries, and a graph-mixture pooling adds the held-fixed structure entry.
+    #[test]
+    fn evidence_keeps_assumption_sampling_and_between_variance_apart() {
+        let entries = evidence_entries(&report("rubin"));
+        let has = |prefix: &str| entries.iter().filter(|e| e.starts_with(prefix)).count();
+        assert_eq!(has("missing_imputation_mechanism:missing_at_random:declared:untestable"), 1);
+        assert_eq!(has("missing_imputation_sampling_variance:"), 1);
+        assert_eq!(has("missing_imputation_between_variance:"), 1);
+        assert_eq!(has("missing_imputation_pool:rubin:"), 1);
+        assert_eq!(has("missing_imputation_structure:"), 0);
+        let sampling = entries.iter().find(|e| e.contains("sampling_variance")).unwrap();
+        let between = entries.iter().find(|e| e.contains("between_variance")).unwrap();
+        assert_eq!(sampling, &format!("missing_imputation_sampling_variance:{:e}", 0.25_f64));
+        assert_eq!(between, &format!("missing_imputation_between_variance:{:e}", 0.5_f64));
+        let graph = evidence_entries(&report("stacked_graph_posterior"));
+        let structure = graph.iter().filter(|e| e.starts_with("missing_imputation_structure:"));
+        assert_eq!(structure.count(), 1);
+    }
 }

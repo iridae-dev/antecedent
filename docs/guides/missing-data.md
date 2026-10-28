@@ -57,7 +57,7 @@ Multiple imputation pools, per route cell:
 
 | Route | Frequentist | Bayesian |
 | --- | --- | --- |
-| Average effect | `linear.adjustment.ate`, `glm.adjustment`, `aipw`, `propensity.weighting` | `bayesian.gcomp` |
+| Average effect | `linear.adjustment.ate`, `glm.adjustment`, `aipw`, `propensity.weighting`, `propensity.matching`, `propensity.stratification`, `distance.matching` | `bayesian.gcomp` |
 | Conditional effect | `conditional.linear.adjustment`, `aipw` | `conditional.bayesian` |
 | Response | `response.intervention_gcomp`, `response.kennedy_dr`, `response.gam_derivative`, `response.riesz_ade` | `response.bayesian` |
 | Distribution | `functional.distribution` | `functional.distribution` |
@@ -68,6 +68,43 @@ Multiple imputation pools, per route cell:
 
 Another estimator chosen with it is refused at build (next attempt: one of those, or
 `complete_case`).
+
+**Matching and stratification.** `propensity.matching`, `distance.matching` and
+`propensity.stratification` run whole inside every completed table: the propensity model is
+refit, the donors are searched and the strata are cut again on that table, so the imputation
+reaches the estimate through the same procedure a complete table would. The within-imputation
+variance is the estimator's own published one. For nearest-neighbour matching it is the
+Abadie–Imbens donor-reuse variance, because the nonparametric bootstrap is invalid for a fixed
+number of matches and is never substituted. For stratification it is the analytic variance, or,
+when `bootstrap` replicates are requested, the bootstrap variance, which resamples rows and
+refits the propensity and the strata (the variance of the whole procedure). Rubin's rules then
+add the between-imputation variance; no complete-data degrees of freedom is declared for these
+estimators, so the reference distribution uses the Rubin degrees of freedom
+`(m - 1) / lambda^2`, the Barnard–Rubin value for an unbounded complete-data degrees of freedom.
+
+**Graph-posterior mixtures.** A Bayesian effect study over a posterior of directed acyclic
+graphs (`graph_posterior=`) is pooled by stacking, not by Rubin's rules: the whole mixture runs
+on every completed table (graph identification, the per-graph fits and the weighted mixture),
+and the equal-weight stack of the tables' effect draws is the pooled posterior, so every table's
+draws carry the declared graph weights and the pooling rule is reported as
+`stacked_graph_posterior`. The declared graph posterior is held fixed: it is not re-learned on
+each completed table, so it is the posterior of the structure you supplied, and a posterior that
+was itself learned from the incomplete rows is a separate declaration. The claim says so
+(`missing_imputation_structure:graph_posterior_held_fixed:weights_preserved`). Constructions with
+no justified pooling rule are refused with their own detail: a frequentist study
+(`multiple_imputation.graph_posterior_frequentist`), a series posterior
+(`multiple_imputation.graph_posterior_series`), a query answered atom by atom, such as a response,
+mediation, counterfactual, transport or attribution (`multiple_imputation.graph_posterior_query`),
+and a class, partial-ancestral or latent-confounded atom kind whose per-table answer is not one
+effect posterior (`multiple_imputation.graph_posterior_atoms`).
+
+**What a pooled claim says, kept apart.** The claim names the missingness mechanism as a declared
+assumption the data cannot test (`missing_imputation_mechanism:missing_at_random:declared:untestable`),
+the sampling variance of the analysis within a completed table
+(`missing_imputation_sampling_variance`), the between-imputation variance that the missing cells
+add (`missing_imputation_between_variance`), and the pooling rule with the total
+(`missing_imputation_pool`). None of the three is read as another: a small between-imputation
+variance does not test the missing-at-random assumption.
 
 ## Row accounting
 
@@ -203,7 +240,10 @@ and contiguous blocks for a dependent time series, which the temporal routes imp
 lagged model described below. The assumption is missing at random given the variables of the imputation
 model, and a correctly specified imputation model. Declaring `missing_not_at_random` is
 refused with a sensitivity analysis (delta-adjusted or selection-model imputation over a grid
-of departures) named as the next attempt; that analysis is not shipped.
+of departures) named as the next attempt; that analysis is
+[`mnar_sensitivity.mnar_ate_sensitivity`](../sensitivity-and-robustness.md#missing-outcomes-not-at-random-mnar_ate_sensitivity),
+which re-runs an arm-mean contrast over a declared bounded grid and reports assumption ranges,
+tipping points and decision changes.
 
 **Routes with several coordinates, `multiple_imputation`.** A conditional effect's cells, a
 response curve, an interventional distribution, a mediation decomposition, a randomized
@@ -310,6 +350,14 @@ accounting above. `require_balance` refuses, for designs that need a balanced pa
 (two-period panels, synthetic control, a balanced event study, an augmented panel), naming the
 units that break balance and the next attempt; `require_lag` refuses a lag that would read
 across a gap. No difference-in-differences estimator is run by this layer.
+
+Two designs also read an unbalanced panel directly, without this layer relabelling anything.
+A staggered rollout with `sun_abraham` fits the saturated cohort-by-period regression on the
+observed unit-periods, reporting per-cohort support and the unit-periods it dropped; its
+`observation` declaration (`ignorable_given_cohort`, recorded as an untestable assumption, or
+`informative`, which is refused) states the observation process. A `SyntheticControl` with
+`observed_window_support=True` fits over the treated unit's observed window with the donors
+observed throughout it. See [Panel designs](designs/panel-designs.md).
 
 ## Intervals
 

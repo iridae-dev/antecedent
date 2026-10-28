@@ -5,6 +5,8 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod adaptive_policy;
+pub mod adaptive_policy_search;
 pub mod candidate;
 pub mod candidate_generation;
 pub mod cohort_decision_input;

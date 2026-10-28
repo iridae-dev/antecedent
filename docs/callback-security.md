@@ -4,6 +4,8 @@ Scope: callback execution (`antecedent::analysis::provider_callbacks`), the
 callback protocol (`antecedent_contract::callback_protocol`) and the
 `callback_result_v1` artifact (`antecedent_io_core::callback_result_artifact`).
 See [provider-callbacks.md](provider-callbacks.md) for the behaviour.
+Registered external cyclic mechanisms follow the same untrusted-input rule; see
+[external-cyclic-mechanisms.md](external-cyclic-mechanisms.md).
 
 ## Threat model
 

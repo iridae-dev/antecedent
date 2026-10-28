@@ -107,3 +107,45 @@ def test_unsupported_declarations_are_refused_with_the_next_attempt():
         _analyze(data, "balanced_panel")
     assert getattr(panel.value, "reason_code", None) == "missing_policy_not_applicable"
     assert "next attempt: declare `multiple_imputation`" in str(panel.value)
+
+
+def _analyze_with(data, missing, estimator):
+    return require_success(
+        ant.analyze(
+            data,
+            query=ant.AverageEffect("t", "y"),
+            graph=GRAPH,
+            refute="none",
+            estimator=estimator,
+            inference=ant.Frequentist(bootstrap=0),
+            missing=missing,
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "estimator", ["propensity.matching", "propensity.stratification", "distance.matching"]
+)
+def test_matching_and_stratification_estimators_are_pooled_by_rubins_rules(estimator):
+    data = _data(900, 3)
+    policy = MissingPolicy.multiple_imputation(imputations=6, iterations=4, seed=2)
+    result = _analyze_with(data, policy, estimator)
+    pooled = result.missing_data.imputation
+    assert pooled is not None and pooled.pooling == "rubin"
+    assert pooled.imputations == 6 and len(pooled.points) == 6
+    # Each completed table refits the whole estimator, so the tables' estimates differ.
+    assert pooled.between > 0.0
+    assert result.estimate.ate == pytest.approx(np.mean(pooled.points))
+    assert pooled.within > 0.0
+    assert pooled.total == pytest.approx(pooled.within + (1.0 + 1.0 / 6.0) * pooled.between)
+    lam = (1.0 + 1.0 / 6.0) * pooled.between / pooled.total
+    assert pooled.df == pytest.approx(5.0 / lam**2, rel=1e-6)
+    assert result.estimate.ate == pytest.approx(TRUE_EFFECT, abs=0.5)
+
+
+def test_an_estimator_without_a_pooled_variance_is_refused_with_the_next_attempt():
+    data = _data(300, 5)
+    with pytest.raises(CausalError) as refused:
+        _analyze_with(data, MissingPolicy.multiple_imputation(seed=1), "dml")
+    assert getattr(refused.value, "reason_code", None) == "missing_policy_not_applicable"
+    assert "next attempt: declare `complete_case`" in str(refused.value)

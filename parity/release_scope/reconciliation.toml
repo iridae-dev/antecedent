@@ -1959,8 +1959,8 @@ id = "Y19.6"
 source = "scope_amendment_2026_10_20"
 list = "mandatory"
 status = "reconciled"
-owner = ["crates/antecedent-model/src/continuous_cyclic.rs", "crates/antecedent-estimate/src/ou_mechanisms.rs"]
-fixtures = ["crates/antecedent-model/src/continuous_cyclic.rs", "crates/antecedent-estimate/src/ou_mechanisms.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs", "python/tests/test_cyclic.py"]
+owner = ["crates/antecedent-model/src/continuous_cyclic.rs", "crates/antecedent-estimate/src/ou_mechanisms.rs", "crates/antecedent-estimate/src/ou_trajectory.rs"]
+fixtures = ["crates/antecedent-model/src/continuous_cyclic.rs", "crates/antecedent-estimate/src/ou_mechanisms.rs", "crates/antecedent-estimate/src/ou_trajectory.rs", "python/tests/test_ou_trajectory.py", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs", "python/tests/test_cyclic.py"]
 consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs"]
 
 [[row]]

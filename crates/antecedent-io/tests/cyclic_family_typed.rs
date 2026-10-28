@@ -605,3 +605,204 @@ fn dynamic_inference_shares_its_fit_across_methods_and_replays() {
     };
     assert_eq!(draws.quantity_draws.len(), 100);
 }
+
+/// A trajectory-fit request as its wire form: irregular times, one observed component.
+fn trajectory_request(observations: usize) -> CyclicFamilyRequest {
+    let times = [0.4, 0.9, 1.5, 1.8, 2.6, 3.0, 3.7, 4.1, 4.9, 5.2, 6.0, 6.5];
+    let values = [0.62, 0.41, 0.55, 0.38, 0.49, 0.66, 0.52, 0.35, 0.47, 0.58, 0.44, 0.53];
+    let points: Vec<serde_json::Value> = times
+        .iter()
+        .zip(values)
+        .take(observations)
+        .map(|(time, value)| serde_json::json!({ "time": time, "values": [value] }))
+        .collect();
+    serde_json::from_value(serde_json::json!({
+        "family": "ou_trajectory_fit",
+        "model": {
+            "equations": ["x"], "drift": [-1.0], "forcing": [0.5], "diffusion_factor": [0.3]
+        },
+        "observation": { "matrix": [1.0], "noise_standard_deviation": [0.0] },
+        "parameters": [
+            { "kind": "drift", "equation": 0, "parent": 0 },
+            { "kind": "forcing", "equation": 0 },
+            { "kind": "diffusion", "equation": 0, "source": 0 }
+        ],
+        "trajectories": [{
+            "id": "unit",
+            "schedule": [{ "start": 0.0, "replacements": [] }],
+            "initial": { "kind": "stationary" },
+            "observations": points
+        }],
+        "policy": { "learning_rate": 0.1, "score_tolerance": 1e-3, "max_iterations": 200 },
+        "predictions": [{
+            "id": "held-out",
+            "schedule": [
+                { "start": 0.0, "replacements": [] },
+                { "start": 0.5, "replacements": [{
+                    "equation": "x", "drift": [-2.0], "forcing": 1.0, "diffusion_factor": [0.2]
+                }] }
+            ],
+            "initial": { "kind": "gaussian", "mean": [0.5], "covariance": [0.0] },
+            "times": [0.25, 0.5, 1.5]
+        }],
+        "stationary_worlds": [{ "id": "baseline", "replacements": [] }]
+    }))
+    .unwrap()
+}
+
+#[test]
+fn a_trajectory_fit_keeps_three_evidence_records_and_predicts_held_out_schedules() {
+    let request = trajectory_request(12);
+    assert_eq!(request.family_name(), "ou_trajectory_fit");
+    let report = request.execute(&ctx()).unwrap();
+    let CyclicFamilyAnswer::OuTrajectory(answer) = &report.answer else {
+        panic!("trajectory answer");
+    };
+    let fit = &answer.fit;
+    assert_eq!(fit.observation_count, 12);
+    assert_eq!(fit.identification.state_dimension, 1);
+    assert_eq!(fit.identification.observability_rank, 1);
+    assert!(fit.numerics.expm_reliable);
+    assert_eq!(answer.predictions.len(), 1);
+    assert_eq!(answer.predictions[0].state_mean.len(), 3);
+    assert_eq!(answer.stationary.len(), 1);
+    // From t = 0.5 the replaced equation relaxes to 1.0 / 2.0 = 0.5 at rate 2: closed form
+    // from the predicted state at the switch, whatever the fitted baseline was.
+    let state = &answer.predictions[0].state_mean;
+    close(state[2][0], 0.5 + (state[1][0] - 0.5) * (-2.0_f64).exp(), 1e-9);
+    // Replay: the same request is the same identity, and the answer round-trips.
+    let again = request.execute(&ctx()).unwrap();
+    assert_eq!(again.identity, report.identity);
+    assert_eq!(again.answer, report.answer);
+}
+
+#[test]
+fn a_trajectory_fit_without_any_transition_is_a_registered_scientific_refusal() {
+    let error = trajectory_request(1).execute(&ctx()).unwrap_err();
+    assert!(matches!(
+        error,
+        CyclicArtifactError::ScientificRefusal {
+            code: "dynamics_not_identified",
+            detail: "ou_trajectory.no_transition_information",
+            ..
+        }
+    ));
+    assert!(refusal_text(error).contains("dynamics_not_identified"));
+}
+
+/// A nonlinear SDE request as its wire form: `dX = theta (level(t) - X) dt + sigma dW`, whose
+/// paired worlds differ by a deterministic recursion because the noise is additive.
+fn sde_request(extra: serde_json::Value) -> CyclicFamilyRequest {
+    let mut request = serde_json::json!({
+        "family": "sde_analysis",
+        "model": {
+            "variables": ["x"],
+            "inputs": [{ "name": "level", "times": [0.0], "values": [1.0], "envelope": [1.0, 2.0] }],
+            "parameters": [{ "name": "theta", "value": 0.8 }, { "name": "sigma", "value": 0.4 }],
+            "drift": [{ "op": "multiply", "factors": [
+                { "op": "parameter", "parameter": 0 },
+                { "op": "add", "terms": [
+                    { "op": "variable", "variable": 1 },
+                    { "op": "multiply", "factors": [
+                        { "op": "constant", "value": -1.0 },
+                        { "op": "variable", "variable": 0 }
+                    ] }
+                ] }
+            ] }],
+            "diffusion": [{ "expression": { "op": "parameter", "parameter": 1 } }]
+        },
+        "initial": [3.0],
+        "simulation": {
+            "start": 0.0, "step": 0.05, "steps": 80, "output_every": 40,
+            "scheme": "euler_maruyama", "paths": 3000, "seed": 9
+        },
+        "interventions": [{ "id": "raised", "inputs": [
+            { "name": "level", "times": [0.0], "values": [2.0], "envelope": [1.0, 2.0] }
+        ] }],
+        "contrasts": [{ "id": "effect", "treated": "raised", "control": "baseline" }]
+    });
+    request.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+    serde_json::from_value(request).unwrap()
+}
+
+#[test]
+fn an_sde_analysis_pairs_worlds_exactly_reports_error_apart_and_replays() {
+    let request = sde_request(serde_json::json!({}));
+    assert_eq!(request.family_name(), "sde_analysis");
+    let report = request.execute(&ctx()).unwrap();
+    let CyclicFamilyAnswer::SdeAnalysis(answer) = &report.answer else {
+        panic!("sde answer");
+    };
+    assert!(answer.fit.is_none() && answer.parameter_uncertainty.is_none());
+    let simulation = &answer.simulation;
+    assert_eq!(simulation.worlds.len(), 2);
+    assert_eq!(simulation.times, vec![0.0, 2.0, 4.0]);
+    let factor: f64 = 1.0 - 0.8 * 0.05;
+    let baseline = &simulation.worlds[0];
+    let contrast = &simulation.contrasts[0];
+    for (t, steps) in [0usize, 40, 80].into_iter().enumerate() {
+        // The scheme's own mean within Monte Carlo error, the exact ODE within the step bias.
+        let scheme = 1.0 + 2.0 * factor.powi(i32::try_from(steps).unwrap());
+        let se = baseline.monte_carlo_standard_error[t][0];
+        close(baseline.mean[t][0], scheme, 4.5 * se + 1e-12);
+        close(baseline.mean[t][0], 1.0 + 2.0 * (-0.8 * 0.05 * steps as f64).exp(), 4.5 * se + 0.02);
+        // Shared increments cancel additive noise: the contrast is deterministic.
+        close(contrast.mean_difference[t][0], 1.0 - factor.powi(i32::try_from(steps).unwrap()), 1e-9);
+        assert!(contrast.monte_carlo_standard_error[t][0] < 1e-9);
+    }
+    assert!(baseline.numerical.is_some());
+    let again = request.execute(&ctx()).unwrap();
+    assert_eq!(again.identity, report.identity);
+    assert_eq!(again.answer, report.answer);
+    // Additive noise has no Milstein correction, so the two schemes agree bit for bit.
+    let milstein = sde_request(serde_json::json!({
+        "simulation": {
+            "start": 0.0, "step": 0.05, "steps": 80, "output_every": 40,
+            "scheme": "milstein", "paths": 3000, "seed": 9
+        }
+    }))
+    .execute(&ctx())
+    .unwrap();
+    let CyclicFamilyAnswer::SdeAnalysis(other) = &milstein.answer else {
+        panic!("sde answer");
+    };
+    assert_eq!(other.simulation.worlds[0].mean, baseline.mean);
+}
+
+#[test]
+fn sde_refusals_are_registered_and_name_their_detail() {
+    let unbounded = sde_request(serde_json::json!({
+        "model": {
+            "variables": ["x"],
+            "parameters": [{ "name": "s", "value": 0.1 }],
+            "drift": [{ "op": "multiply", "factors": [
+                { "op": "variable", "variable": 0 }, { "op": "variable", "variable": 0 }
+            ] }],
+            "diffusion": [{ "expression": { "op": "parameter", "parameter": 0 } }]
+        },
+        "interventions": [],
+        "contrasts": []
+    }));
+    let error = unbounded.execute(&ctx()).unwrap_err();
+    assert!(matches!(
+        error,
+        CyclicArtifactError::ScientificRefusal {
+            code: "route_not_supported",
+            detail: "sde.unbounded_growth",
+            ..
+        }
+    ));
+    assert!(refusal_text(error).contains("sde.unbounded_growth"));
+    let snapshots = sde_request(serde_json::json!({
+        "parameters": [0],
+        "trajectories": [{ "id": "u", "observations": [{ "time": 0.0, "values": [3.0] }] }]
+    }));
+    assert!(matches!(
+        snapshots.execute(&ctx()).unwrap_err(),
+        CyclicArtifactError::ScientificRefusal {
+            code: "dynamics_not_identified",
+            detail: "sde_fit.no_transition_information",
+            ..
+        }
+    ));
+}

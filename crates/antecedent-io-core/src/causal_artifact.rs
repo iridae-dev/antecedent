@@ -892,6 +892,7 @@ pub(crate) fn validate_query_ids(
                 .as_ref()
                 .map(crate::rollout_query_wire::synthetic_rollout_from_wire)
                 .transpose()?;
+            query.observed_window_support = wire.observed_window_support;
             query.validate().map_err(|error| IoError::Convert(error.to_string()))
         }
         Q::LocalPolynomialRatio(wire) => {

@@ -575,6 +575,7 @@ impl CyclicExecutionOwner {
                 A::JointCounterfactual { worlds, .. } | A::PartialCounterfactual { worlds, .. },
             ) => worlds.len(),
             Some(A::OuMechanisms { laws, .. }) => laws.len(),
+            Some(A::SdeAnalysis(report)) => report.simulation.worlds.len(),
             Some(A::Ode(_) | A::OuStationary(_) | A::OuTransient(_)) => 1,
             _ => 0,
         }
@@ -694,6 +695,19 @@ impl CyclicExecutionOwner {
             }
             A::ExperimentalRecovery(report) => {
                 recovered_values(&report.worlds[position].answer, draw, row, field)
+            }
+            A::SdeAnalysis(report) if draw == 0 => {
+                let world = report.simulation.worlds.get(position).ok_or_else(invalid)?;
+                match field {
+                    "mean" => Ok(Some(world.mean.get(row).ok_or_else(invalid)?)),
+                    "variance" => Ok(Some(world.variance.get(row).ok_or_else(invalid)?)),
+                    "covariance" => Ok(Some(world.covariance.get(row).ok_or_else(invalid)?)),
+                    "monte_carlo_standard_error" => {
+                        Ok(Some(world.monte_carlo_standard_error.get(row).ok_or_else(invalid)?))
+                    }
+                    "times" if row == 0 => Ok(Some(&report.simulation.times)),
+                    _ => Err(invalid()),
+                }
             }
             A::Ode(trajectory) if draw == 0 => match field {
                 "values" => Ok(Some(trajectory.states.get(row).ok_or_else(invalid)?)),
@@ -1207,6 +1221,23 @@ impl CyclicExecutionOwner {
             A::EquilibriumActions(worlds) => Ok(
                 serde_json::json!({"world":world,"family":self.family_name(),"row_count":worlds[position].rows.len(),"counterfactual":worlds[position].counterfactual.is_some()}),
             ),
+            A::SdeAnalysis(report) => {
+                let ensemble = &report.simulation.worlds[position];
+                Ok(serde_json::json!({
+                    "world": world,
+                    "family": "sde_analysis",
+                    "status": "ensemble_moments",
+                    "world_id": ensemble.id,
+                    "row_count": report.simulation.times.len(),
+                    "dimension": ensemble.mean.first().map(Vec::len),
+                    "paths": report.simulation.paths,
+                    "scheme": report.simulation.scheme,
+                    "step": report.simulation.step,
+                    "seed": report.simulation.seed,
+                    "step_converged": ensemble.numerical.as_ref().map(|n| n.step_converged),
+                    "law_meaning": "monte_carlo_ensemble_of_a_specified_sde",
+                }))
+            }
             A::Ode(trajectory) => Ok(
                 serde_json::json!({"world":world,"family":"ode","status":"trajectory","row_count":trajectory.states.len(),"accepted_steps":trajectory.accepted_steps,"rejected_steps":trajectory.rejected_steps}),
             ),
@@ -2099,6 +2130,12 @@ impl CyclicExecutionOwner {
             A::ExperimentalRecovery(report) if row == 0 => {
                 recovered_slot_metadata(&report.worlds[position].answer, draw)
             }
+            A::SdeAnalysis(report) if draw == 0 => report
+                .simulation
+                .times
+                .get(row)
+                .map(|time| serde_json::json!({"status":"ensemble_moments","time":time}))
+                .ok_or_else(invalid),
             A::Ode(trajectory) if draw == 0 => trajectory
                 .times
                 .get(row)
@@ -2129,7 +2166,7 @@ impl CyclicExecutionOwner {
 fn solution_metadata(
     value: &antecedent_model::nonlinear_equilibrium::EquilibriumResult,
 ) -> serde_json::Value {
-    serde_json::json!({"status":"solved","dimension":value.values.len(),"residual":value.residual,"iterations":value.iterations,"globally_unique":value.globally_unique,"existence_certified":value.existence_certified,"numerical_converged":value.numerical_converged,"dynamic_stability":value.dynamic_stability,"jacobian_condition_estimate":value.jacobian_condition_estimate,"blocks":value.blocks})
+    serde_json::json!({"status":"solved","dimension":value.values.len(),"residual":value.residual,"iterations":value.iterations,"globally_unique":value.globally_unique,"existence_certified":value.existence_certified,"numerical_converged":value.numerical_converged,"dynamic_stability":value.dynamic_stability,"jacobian_condition_estimate":value.jacobian_condition_estimate,"blocks":value.blocks,"evidence":value.evidence})
 }
 
 fn equilibrium_metadata(

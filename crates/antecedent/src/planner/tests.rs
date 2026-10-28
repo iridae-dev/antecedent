@@ -109,7 +109,11 @@ fn memory_limit_hands_a_streamable_plan_to_the_streamed_reduction() {
     let plan = tabular_plan(10_000);
     let mut ctx = ExecutionContext::for_tests(1);
     ctx.set_memory_limit(Some(64));
-    assert!(plan.compile_physical(&ctx).is_ok());
+    let physical = plan.compile_physical(&ctx).expect("a streamable plan is admitted");
+    // The starting record is quoted from one batch of one column, not from the resident
+    // 10 000 x 2 design, and fits inside the limit.
+    assert_eq!(physical.record.estimated_copy_bytes, Some(8));
+    assert!(physical.record.estimated_peak_memory_bytes.is_some_and(|peak| peak <= 64));
 }
 
 #[test]

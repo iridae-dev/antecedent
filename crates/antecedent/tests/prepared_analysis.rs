@@ -1485,8 +1485,77 @@ fn prepared_admg_ate_reuses_general_id_result() {
     );
 }
 
+/// Prepared-and-estimated results of the frozen path-specific and distribution fixtures for one
+/// graph provenance and validation suite.
+fn functional_validation_results(
+    accepted: bool,
+    suite: RefuteSuite,
+    ctx: &ExecutionContext,
+) -> (antecedent::StudyResult, antecedent::StudyResult) {
+    let (data, dag, query) = path_specific_fixture();
+    let builder = Study::tabular(data.clone());
+    let builder = if accepted { builder.graph(AcceptedGraph::dag(dag)) } else { builder.graph(dag) };
+    let path = builder
+        .query(CausalQuery::PathSpecific(query))
+        .refute(suite)
+        .build()
+        .unwrap()
+        .prepare(ctx)
+        .unwrap()
+        .estimate(&data, ctx)
+        .unwrap();
+    let (data, dag, query) = distribution_fixture();
+    let builder = Study::tabular(data.clone());
+    let builder = if accepted { builder.graph(AcceptedGraph::dag(dag)) } else { builder.graph(dag) };
+    let distribution = builder
+        .query(CausalQuery::Distribution(query))
+        .refute(suite)
+        .build()
+        .unwrap()
+        .prepare(ctx)
+        .unwrap()
+        .estimate(&data, ctx)
+        .unwrap();
+    (path, distribution)
+}
+
+/// Numeric pins only: the staged path effect and intervention mean equal the closed-form table
+/// values to the fixture tolerance whatever the graph provenance or validation suite (validation
+/// never moves the answer). Report counts are a separate contract below.
 #[test]
 fn functional_validation_staged_known_truth() {
+    let pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/estimate/functional_validation/expected.json"
+    ))
+    .unwrap();
+    let (path_truth, mean_truth, tolerance) = (
+        pin["path_effect"].as_f64().unwrap(),
+        pin["distribution_mean"].as_f64().unwrap(),
+        pin["tolerance"].as_f64().unwrap(),
+    );
+    let ctx = ExecutionContext::for_tests(1);
+    for accepted in [false, true] {
+        for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
+            let (path, distribution) = functional_validation_results(accepted, suite, &ctx);
+            let ate = path.estimate().as_effect().unwrap().ate;
+            assert!(
+                (ate - path_truth).abs() < tolerance,
+                "path-specific ate={ate} expected={path_truth} suite={suite:?} accepted={accepted}"
+            );
+            let mean = distribution.distribution().unwrap().mean;
+            assert!(
+                (mean - mean_truth).abs() < tolerance,
+                "distribution mean={mean} expected={mean_truth} suite={suite:?} accepted={accepted}"
+            );
+        }
+    }
+}
+
+/// Report-count contract: how many validation reports each suite publishes for the two staged
+/// functional queries, that each carries its own family prefix, and that all pass on the frozen
+/// tables. These counts are design choices of the suites, not numerical truth.
+#[test]
+fn functional_validation_report_count_contract() {
     let pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/estimate/functional_validation/expected.json"
     ))
@@ -1494,58 +1563,27 @@ fn functional_validation_staged_known_truth() {
     let ctx = ExecutionContext::for_tests(1);
     for accepted in [false, true] {
         for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
-            let (data, dag, query) = path_specific_fixture();
-            let builder = Study::tabular(data.clone());
-            let builder =
-                if accepted { builder.graph(AcceptedGraph::dag(dag)) } else { builder.graph(dag) };
-            let prepared = builder
-                .query(CausalQuery::PathSpecific(query))
-                .refute(suite)
-                .build()
-                .unwrap()
-                .prepare(&ctx)
-                .unwrap();
-            let result = prepared.estimate(&data, &ctx).unwrap();
-            assert!(
-                (result.estimate().as_effect().unwrap().ate - pin["path_effect"].as_f64().unwrap())
-                    .abs()
-                    < pin["tolerance"].as_f64().unwrap(),
-                "path-specific ate={} expected={} suite={suite:?} accepted={accepted}",
-                result.estimate().as_effect().unwrap().ate,
-                pin["path_effect"].as_f64().unwrap()
-            );
-            let count = match suite {
-                RefuteSuite::None => 0,
-                RefuteSuite::Cheap => pin["cheap_path_reports"].as_u64().unwrap(),
-                _ => pin["full_path_reports"].as_u64().unwrap(),
+            let (path, distribution) = functional_validation_results(accepted, suite, &ctx);
+            let (path_count, distribution_count) = match suite {
+                RefuteSuite::None => (0, 0),
+                RefuteSuite::Cheap => (
+                    pin["cheap_path_reports"].as_u64().unwrap(),
+                    pin["cheap_distribution_reports"].as_u64().unwrap(),
+                ),
+                _ => (
+                    pin["full_path_reports"].as_u64().unwrap(),
+                    pin["full_distribution_reports"].as_u64().unwrap(),
+                ),
             };
-            assert_eq!(result.refutations.len() as u64, count);
-            assert!(result.refutations.iter().all(|r| r.refuter.starts_with("path.") && r.passed));
-            let (data, dag, query) = distribution_fixture();
-            let builder = Study::tabular(data.clone());
-            let builder =
-                if accepted { builder.graph(AcceptedGraph::dag(dag)) } else { builder.graph(dag) };
-            let prepared = builder
-                .query(CausalQuery::Distribution(query))
-                .refute(suite)
-                .build()
-                .unwrap()
-                .prepare(&ctx)
-                .unwrap();
-            let result = prepared.estimate(&data, &ctx).unwrap();
-            assert!(
-                (result.distribution().unwrap().mean - pin["distribution_mean"].as_f64().unwrap())
-                    .abs()
-                    < pin["tolerance"].as_f64().unwrap()
+            assert_eq!(path.refutations.len() as u64, path_count, "{suite:?} accepted={accepted}");
+            assert!(path.refutations.iter().all(|r| r.refuter.starts_with("path.") && r.passed));
+            assert_eq!(
+                distribution.refutations.len() as u64,
+                distribution_count,
+                "{suite:?} accepted={accepted}"
             );
-            let count = match suite {
-                RefuteSuite::None => 0,
-                RefuteSuite::Cheap => pin["cheap_distribution_reports"].as_u64().unwrap(),
-                _ => pin["full_distribution_reports"].as_u64().unwrap(),
-            };
-            assert_eq!(result.refutations.len() as u64, count);
             assert!(
-                result
+                distribution
                     .refutations
                     .iter()
                     .all(|r| r.refuter.starts_with("distribution.") && r.passed)

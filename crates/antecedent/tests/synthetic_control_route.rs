@@ -12,7 +12,7 @@ use std::sync::Arc;
 use antecedent::prelude::ExecutionContext;
 use antecedent::{Study, SyntheticControlQuery};
 use antecedent_core::{IntervalMethod, VariableId};
-use antecedent_data::TabularData;
+use antecedent_data::{TableView, TabularData};
 
 #[path = "common/retained_graphless.rs"]
 mod retained_graphless;
@@ -374,4 +374,99 @@ fn augmented_synthetic_control_recovers_outside_hull_truth_and_seals_artifact() 
     );
     assert!(query.clone().with_uniform_unit_randomization().validate().is_ok());
     assert!(query.difference_in_differences().validate().is_err());
+}
+
+/// The exact-weights panel plus an unrelated donor `d`, without the listed unit-periods.
+fn unbalanced_fixture(gone: &[(&str, i64)]) -> (TabularData, SyntheticControlQuery) {
+    let (_, query) = fixture();
+    let extra = [4.0, 1.0, 3.0, 2.0, 0.0, 5.0];
+    let mut units: Vec<Arc<str>> = query.units.to_vec();
+    let mut periods: Vec<i64> = query.periods.to_vec();
+    let (data, _) = fixture();
+    let antecedent_data::ColumnView::Float64(column) =
+        data.column(VariableId::from_raw(0)).unwrap()
+    else {
+        panic!("continuous outcome");
+    };
+    let mut y: Vec<f64> = column.values.as_slice().to_vec();
+    for (index, value) in extra.into_iter().enumerate() {
+        units.push(Arc::<str>::from("d"));
+        periods.push(index as i64 + 1);
+        y.push(value);
+    }
+    let keep: Vec<usize> = (0..y.len())
+        .filter(|row| {
+            !gone.iter().any(|(unit, period)| *units[*row] == **unit && periods[*row] == *period)
+        })
+        .collect();
+    let y: Vec<f64> = keep.iter().map(|row| y[*row]).collect();
+    let units: Vec<Arc<str>> = keep.iter().map(|row| Arc::clone(&units[*row])).collect();
+    let periods: Vec<i64> = keep.iter().map(|row| periods[*row]).collect();
+    let data = TabularData::from_f64_columns([("outcome", y.as_slice())]).unwrap();
+    let query = SyntheticControlQuery::new(
+        VariableId::from_raw(0),
+        units,
+        periods,
+        Arc::<str>::from("treated"),
+        5,
+    );
+    (data, query)
+}
+
+#[test]
+fn observed_window_support_reads_an_unbalanced_panel_and_refuses_without_support() {
+    let ctx = ExecutionContext::for_tests(11);
+    // The treated unit misses period 2 and donor d misses period 3, so d is excluded.
+    let (data, query) = unbalanced_fixture(&[("treated", 2), ("d", 3), ("a", 2)]);
+    let balanced = Study::tabular(data.clone()).query(query.clone()).build().unwrap().run(&ctx);
+    assert!(balanced.is_err(), "an unbalanced panel needs the observed-window declaration");
+    let declared = query.clone().with_observed_window_support();
+    let result =
+        Study::tabular(data.clone()).query(declared.clone()).build().unwrap().run(&ctx).unwrap();
+    let fit = result.synthetic_control().unwrap();
+    assert!((fit.effect - 5.0).abs() < 1e-5, "{}", fit.effect);
+    assert_eq!((fit.n_pre_periods, fit.n_post_periods), (3, 2));
+    let mut donors: Vec<&str> = fit.donor_weights.iter().map(|(unit, _)| unit.as_ref()).collect();
+    donors.sort_unstable();
+    assert_eq!(donors, ["a", "b", "c"]);
+    assert!(result.diagnostics.iter().any(|diagnostic| diagnostic.code.as_ref()
+        == "estimate.quasi.synthetic_control.observed_window_support"));
+    // The support read is a typed part of the payload and of the sealed artifact.
+    let window = fit.observed_window.as_ref().unwrap();
+    assert_eq!(window.pre_periods.as_ref(), [1, 3, 4]);
+    assert_eq!(window.post_periods.as_ref(), [5, 6]);
+    assert_eq!(window.donors_used, 3);
+    assert_eq!(window.donors_dropped.as_ref(), [(Arc::<str>::from("d"), 1)]);
+    let prepared = Study::tabular(data.clone())
+        .query(declared.clone())
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let retained = prepared.estimate(&data, &ctx).unwrap();
+    let bytes = prepared.encode_contracted_result(&retained, "synthetic-control", &ctx).unwrap();
+    let (_, _, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    let wire = body.synthetic_control.as_ref().unwrap().observed_window.as_ref().unwrap();
+    assert_eq!((wire.pre_periods.as_slice(), wire.donors_used), ([1, 3, 4].as_slice(), 3));
+    assert_eq!(wire.donors_dropped, [("d".to_string(), 1)]);
+    assert!(result.identification.required_assumptions.entries.iter().any(|record| {
+        record.status == antecedent_core::AssumptionStatus::Untestable
+            && format!("{:?}", record.assumption)
+                .contains("attrition_unrelated_to_untreated_outcomes")
+    }));
+    let refusal = |data: TabularData, query: SyntheticControlQuery| -> String {
+        Study::tabular(data)
+            .query(query)
+            .build()
+            .map_err(|error| error.to_string())
+            .and_then(|study| study.run(&ctx).map(|_| ()).map_err(|error| error.to_string()))
+            .unwrap_err()
+    };
+    // Too few donors observed through the window.
+    let (few, few_query) = unbalanced_fixture(&[("a", 4), ("d", 6)]);
+    let error = refusal(few, few_query.with_observed_window_support());
+    assert!(error.contains("only 2 donors") && error.contains("Next attempt"), "{error}");
+    // The randomization test reads a balanced panel.
+    let error = refusal(data, declared.with_uniform_unit_randomization());
+    assert!(error.to_lowercase().contains("next attempt"), "{error}");
 }

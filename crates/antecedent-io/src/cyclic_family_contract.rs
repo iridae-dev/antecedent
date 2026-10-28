@@ -180,6 +180,12 @@ fn data_digest(request: &R) -> Result<[u8; 32], CyclicArtifactError> {
         R::OdeFit { observations, .. } => json_digest(TAG, &("observations", observations)),
         R::PolynomialFit { measurements, .. } => json_digest(TAG, &("measurements", measurements)),
         R::OuMechanisms { regimes, .. } => json_digest(TAG, &("regimes", regimes)),
+        R::OuTrajectoryFit { trajectories, .. } => {
+            json_digest(TAG, &("trajectories", trajectories))
+        }
+        R::SdeAnalysis { trajectories, .. } if !trajectories.is_empty() => {
+            json_digest(TAG, &("trajectories", trajectories))
+        }
         R::Functional { law, .. } => json_digest(TAG, &("finite_law", law)),
         R::GaussianFunctional { law, .. } => json_digest(TAG, &("gaussian_law", law)),
         R::ExperimentalRecovery { samples, dropped, .. } => {
@@ -200,16 +206,29 @@ fn data_digest(request: &R) -> Result<[u8; 32], CyclicArtifactError> {
         | R::Polynomial { .. }
         | R::LinearWorlds { .. }
         | R::EquilibriumWorlds { .. }
+        | R::SdeAnalysis { .. }
         | R::OdeWorlds { .. } => json_digest(TAG, &("specified",)),
     }
 }
 
 /// Fields that hold the specified model.
-const MODEL_FIELDS: &[&str] =
-    &["model", "parameters", "variables", "component", "nodes", "candidates", "program"];
+const MODEL_FIELDS: &[&str] = &[
+    "model",
+    "observation",
+    "filter_prior",
+    "parameters",
+    "variables",
+    "component",
+    "nodes",
+    "candidates",
+    "program",
+];
 
 /// Fields that hold the uncertainty method and its numerical settings.
 const INFERENCE_FIELDS: &[&str] = &[
+    "fit_policy",
+    "parameter_draws",
+    "parameter_seed",
     "sampling",
     "prior_sd",
     "replicates",
@@ -228,6 +247,9 @@ const INFERENCE_FIELDS: &[&str] = &[
 
 /// Fields that hold the solve, certificate and selection policy.
 const SOLUTION_FIELDS: &[&str] = &[
+    "simulation",
+    "interventions",
+    "contrasts",
     "certificate",
     "policy",
     "solve_policy",
@@ -238,6 +260,8 @@ const SOLUTION_FIELDS: &[&str] = &[
     "schedule",
     "integration",
     "domain",
+    "predictions",
+    "stationary_worlds",
 ];
 
 const fn unit_of_design(design: SamplingDesignWire) -> &'static str {
@@ -330,6 +354,18 @@ pub fn cyclic_realization(request: &R) -> CyclicRealization {
         | R::OdeFit { .. }
         | R::OuFit { .. } => POINT_FIT,
         R::OuMechanisms { parameters, .. } if !parameters.is_empty() => POINT_FIT,
+        R::OuTrajectoryFit { .. } => {
+            realization("sampling_law", "observed_information", CyclicUncertainty::Sampling)
+        }
+        R::SdeAnalysis { trajectories, parameter_draws, .. }
+            if !trajectories.is_empty() && *parameter_draws > 0 =>
+        {
+            CyclicRealization {
+                draws: count(*parameter_draws),
+                ..realization("sampling_law", "asymptotic_normal", CyclicUncertainty::Sampling)
+            }
+        }
+        R::SdeAnalysis { trajectories, .. } if !trajectories.is_empty() => POINT_FIT,
         R::System { request } if request.fit.is_some() => POINT_FIT,
         R::GaussianFunctional { .. } | R::Functional { .. } => {
             realization("exact_functional", "none", CyclicUncertainty::None)
@@ -397,6 +433,7 @@ pub fn cyclic_realization(request: &R) -> CyclicRealization {
         | R::Polynomial { .. }
         | R::LinearWorlds { .. }
         | R::EquilibriumWorlds { .. }
+        | R::SdeAnalysis { .. }
         | R::OdeWorlds { .. } => SPECIFIED,
     }
 }
@@ -763,7 +800,11 @@ fn modality(request: &R) -> &'static str {
         R::ExperimentalRecovery { .. } => "clamp_experiments",
         R::RecoveredLinear { .. } => "supplied_draws",
         R::Functional { .. } | R::GaussianFunctional { .. } => "finite_law",
-        R::OdeFit { .. } | R::OuFit { .. } | R::DynamicInference { .. } => "trajectories",
+        R::OdeFit { .. }
+        | R::OuFit { .. }
+        | R::OuTrajectoryFit { .. }
+        | R::DynamicInference { .. } => "trajectories",
+        R::SdeAnalysis { trajectories, .. } if !trajectories.is_empty() => "trajectories",
         R::OuMechanisms { regimes, .. } if !regimes.is_empty() => "stationary_regimes",
         R::System { request } if request.fit.is_some() => "equilibrium_rows",
         R::AdamFit { .. }
@@ -801,6 +842,7 @@ fn solution_kind(request: &R) -> &'static str {
         R::RecoveredLinear { .. } | R::ExperimentalRecovery { .. } => "hard_clamp_worlds",
         R::Ode { .. } | R::OdeWorlds { .. } | R::OdeFit { .. } => "initial_value",
         R::OuStationary { .. } | R::OuFit { .. } | R::OuMechanisms { .. } => "stationary_law",
+        R::OuTrajectoryFit { .. } | R::SdeAnalysis { .. } => "stochastic_transient",
         R::OuTransient { .. } => "stochastic_transient",
         R::EquilibriumRoots { .. }
         | R::Polynomial { .. }

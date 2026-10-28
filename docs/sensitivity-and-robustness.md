@@ -6,11 +6,12 @@ the causal graph is the right one. The routes on this page carry such an
 assumption into the decision as a declared range, report where the best action
 switches, and keep the range apart from sampling uncertainty.
 
-Four modules:
+Five modules:
 
 | Module | Question | Claim |
 | --- | --- | --- |
 | `antecedent.msm_sensitivity` | How far can a stratified ATE move if unmeasured confounding shifts the odds of treatment by at most a factor Lambda? | assumption range; calibration unmeasured |
+| `antecedent.mnar_sensitivity` | How does an arm-mean effect, and the decision resting on it, move if the missing outcomes depart from missing at random by a bounded, declared amount? | assumption range per declared departure; untestable assumption; calibration unmeasured |
 | `antecedent.sensitivity_decision` | Over a declared assumption grid, does the best action change, and where? | point-only; grid points only |
 | `antecedent.decision_robust` | Is the choice robust across causal structures, support-robust, graph-dependent or under-claimed? | point-only verdicts over supplied structures |
 | `antecedent.mechanism_discrepancy` | Does the mechanism of one node differ between a source and a target population? | asymptotic Wald diagnostic; calibration unmeasured |
@@ -33,6 +34,81 @@ Every route here keeps these apart, and refuses to add them together:
   one with the range is refused with `cell_not_licensed`
   (`msm_sensitivity.composition_not_licensed`, or
   `sensitivity_decision_composition.composition_not_licensed` at decide time).
+
+## Missing outcomes not at random: `mnar_ate_sensitivity`
+
+Complete-case analysis and multiple imputation both assume the missing outcomes follow the
+observed ones given what the model conditions on. Nothing in the data tests that, so
+`antecedent.mnar_sensitivity` relaxes it by one explicit, bounded parameter and re-runs the
+declared estimand, the difference of the arms' full-population mean outcomes, across a declared
+grid:
+
+```python
+from antecedent import mnar_sensitivity as mnar
+
+result = mnar.mnar_ate_sensitivity(
+    treatment, outcome,                    # outcome entries None / NaN are missing
+    model="delta_pattern_mixture",         # or "exponential_tilting_selection"
+    loading="treated_only",                # which arm departs
+    lower=-5.0, upper=5.0,                 # a bounded range that contains 0 (MAR)
+    decisions={"treat": 1.0},              # act when the effect exceeds the threshold
+)
+result.mar.effect                          # parameter 0: the missing-at-random estimate
+result.grid                                # the effect as a function of the parameter
+result.tipping_point("sign").negative      # where the sign of the effect changes
+result.decisions[0].changes_within_range   # does the declared decision change?
+```
+
+- **Delta-adjusted pattern mixture.** The missing outcomes of an arm are the observed outcomes
+  shifted by `loading * delta`. The arm mean is `ybar + loading * delta * missing_fraction`, so
+  the effect moves by exactly `delta` times the missing fraction; `delta = 0` reproduces the
+  missing-at-random estimate.
+- **Bounded selection model.** The odds of observing an outcome are `exp(alpha - loading * theta * y)`,
+  which tilts the missing-pattern law to `f_obs(y) exp(loading * theta * y)`. The tilt acts on
+  the observed outcome values, so the imputed mean stays inside their range for every finite
+  `theta`; `theta = 0` is missing at random.
+- **Tipping points.** For the sign of the effect, whether the conditional sampling interval
+  excludes the null, and every declared decision (act when the effect exceeds a threshold), the
+  smallest departure on each side of MAR at which the conclusion changes, refined by bisection
+  inside the grid cell with its certified bracket.
+
+**Estimators.** `difference_in_means` (the default, no covariates) and the adjusted
+`regression_adjusted`, `ipw` and `aipw`, which read `covariates=`. At every grid point an adjusted
+estimator is re-run on the table the departure completes: a missing outcome is imputed from its
+arm's outcome regression plus the shift, or, for the selection model, plus the mean regression
+residual under the tilted weights `exp(loading * theta * y)` of the observed outcomes; the arm
+regressions are refitted on the completed table and averaged over every unit, or the Hajek
+weighted and augmented weighted contrasts use a logistic propensity model. Parameter zero
+imputes the fitted values, which is the missing-at-random estimate. The per-point sampling
+interval of an adjusted estimator is a seeded bootstrap (`bootstrap_replicates`, `seed`) that
+resamples units within arm and repeats the imputation fit, so imputation uncertainty is in it.
+The route from a study is `result.mnar_sensitivity(data=..., model=..., lower=..., upper=...)`
+(Python) and `mnar_sensitivity_for_study` (Rust), which take the treatment, outcome and checked
+adjustment set from the study's own average-effect query.
+
+What is reported, and what is kept apart:
+
+| Item | Meaning |
+| --- | --- |
+| `assumption_range` | The envelope of the point effects over the declared range. An assumption range: `is_confidence_interval` and `empirically_established` are always `False`. |
+| `assumptions` | The departure assumption, status `untestable`, and the treatment-ignorability assumption held fixed. |
+| `point.sampling` | A delta-method sampling interval conditional on that parameter value, at the stated `level`. Reported beside the range; composing the two refuses (`cell_not_licensed` / `mnar_sensitivity.composition_not_licensed`). |
+| `observed_case_effect` | The estimate from the observed outcomes alone, which equals the missing-at-random estimate here. |
+
+Refusals use `MnarSensitivityRefusal` with detail `mnar_sensitivity.<slot>`:
+`mechanism_not_declared` (`required_option_missing`: the departure cannot be inferred from the
+data, so declare it), `unsupported_mechanism`, `unsupported_estimator` (an estimator with no
+completed-table form, such as a causal forest, is refused rather than silently replaced),
+`covariates_required`, `covariates_not_used`, `design_singular` (a singular covariate design or a
+propensity outside (0, 1)), `invalid_bootstrap`, `unsupported_query`, `unbounded_range` (a non-finite or oversized bound), `range_excludes_mar`,
+`composition_not_licensed`, `invalid_data`, `invalid_loading`, `invalid_level`,
+`invalid_decision`, `invalid_tolerance`, `insufficient_observed` and `bounds_exceeded`. A
+multiple-imputation declaration of `missing_not_at_random` is refused with this analysis named as
+the next attempt (see [missing data](guides/missing-data.md)). Each tipping point is found by scanning every grid cell at eight interior points and
+bisecting the continuous effect function (the conditional sampling interval for the
+excludes-null conclusion) inside the first cell where the conclusion differs from its
+missing-at-random value, separately on each side of MAR; the interval conclusion of an adjusted
+estimator is scanned on the declared grid only, because each evaluation is a bootstrap.
 
 ## Marginal sensitivity model: `msm_ate_sensitivity`
 
@@ -273,6 +349,7 @@ parent set, unit or protocol id, or a blank declaration; `route_not_supported`),
 
 | Item | Carried forward | Not measured or not claimed |
 | --- | --- | --- |
+| MNAR range | the effect at every grid point, the tipping points and decision changes, the untestable assumption record | coverage of any interval; that the departure holds; the conditional sampling intervals are not combined with the range |
 | MSM range | into a `SensitivityArtifact`, a decision, a bundle node | coverage of any interval; a sampling interval (withheld) |
 | Tipping Lambda | bracket with a certified bisection tolerance | a probability that the threshold is crossed |
 | Assumption-dependent switch | exact tie, or a labelled interpolation | anything between grid points |

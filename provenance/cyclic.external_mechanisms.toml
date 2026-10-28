@@ -1,0 +1,36 @@
+# Algorithm provenance for cyclic.external_mechanisms (see docs/external-cyclic-mechanisms.md).
+
+feature_id = "cyclic.external_mechanisms"
+implementation_crate = "antecedent-model"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# No primary paper. The identity binding is a content-addressed record checked by equality of
+# declared fields. The equilibrium likelihood, change of variables and contraction bound are the
+# ones already recorded for cyclic.general_systems; the ODE integrator is the same Dormand-Prince
+# implementation recorded there.
+papers = [
+]
+
+implementation_deviations = [
+  "The content digest binds replay to the exact bytes the caller registered. It does not establish that the implementation is pure, deterministic, correct or safe, and the library does not sandbox it; supplying a resolver is the caller's act of trust.",
+  "Declared Lipschitz bounds, the analytic gradients and the declared finite-difference policy are caller declarations. Replay verifies that they equal the record, not that they are true; a contraction certificate and a normalized density are therefore declaration-conditional (`lipschitz_basis` is `declared`).",
+  "The score of the log-determinant term is a central difference in the fitted parameters; only the Gaussian data term can be analytic, because a foreign callback is differentiated once.",
+  "Equilibria use the local damped-Newton SCC solver with dense per-block solves, not the sparse solver used for built-in mechanisms.",
+  "A system containing an external mechanism is `verified_external`; it is never presented as native.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "closed-form least-squares gain, bisection fixed points and an explicit 2x2 Jacobian determinant from conformance/gcm/external_mechanism_feedback/reference.py",
+  "inline crate unit tests for resolution, refusal, finite-difference versus analytic agreement and the linear ODE closed form",
+  "python/tests/test_external_cyclic_mechanisms.py, including fresh-process replay with a fresh registry",
+]
+
+[[reference_fixture]]
+id = "external-mechanism-feedback"
+source = "conformance/gcm/external_mechanism_feedback/reference.py"
+truth = "Standard-library least-squares gain, bisection fixed points of the fitted two-equation saturating feedback system and the explicit 2x2 determinant of the equilibrium change of variables; the fit, the solves and the likelihood are compared with these."

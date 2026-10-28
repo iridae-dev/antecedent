@@ -169,7 +169,7 @@ fn dynamic_aggregation_publishes_simultaneous_bands_and_is_thread_invariant() {
 }
 
 #[test]
-fn an_unbalanced_panel_runs_where_allowed_and_sun_abraham_names_the_next_attempt() {
+fn an_unbalanced_panel_runs_for_every_estimator_and_an_informative_process_is_refused() {
     let (data, units, periods, cohorts) = staggered(3, 150, 0.15);
     let ctx = ExecutionContext::for_tests(5);
     let query = rollout_query(
@@ -184,6 +184,65 @@ fn an_unbalanced_panel_runs_where_allowed_and_sun_abraham_names_the_next_attempt
     assert_eq!(rollout.diagnostic("balanced_panel"), Some(0.0));
     let mut spec = robust(RolloutDidEstimator::SunAbraham, DidAggregation::Simple);
     spec.comparison = DidComparisonGroup::NeverTreated;
+    let result = Study::tabular(data.clone())
+        .query(rollout_query(&units, &periods, &cohorts, spec.clone()))
+        .build()
+        .unwrap()
+        .run(&ctx)
+        .unwrap();
+    let rollout = result.quasi_rollout().unwrap();
+    assert!((rollout.overall().unwrap().estimate - 3.5).abs() < 0.4);
+    assert_eq!(rollout.diagnostic("balanced_panel"), Some(0.0));
+    // Per-cohort support and the dropped rows are reported with the fit.
+    assert_eq!(rollout.diagnostic("cohort_2_units"), Some(150.0));
+    assert_eq!(rollout.diagnostic("cohort_4_units"), Some(150.0));
+    assert!(rollout.diagnostic("cohort_2_rows").unwrap() < 750.0);
+    assert!(rollout.diagnostic("dropped_rows").is_some());
+    // The observation process is recorded as an untestable assumption of the result.
+    let assumption = result
+        .identification
+        .required_assumptions
+        .entries
+        .iter()
+        .find(|record| {
+            matches!(
+                &record.assumption,
+                antecedent_core::Assumption::Custom { id, .. }
+                    if id.as_ref() == "attrition_ignorable_given_cohort"
+            )
+        })
+        .expect("the observation process assumption is recorded");
+    assert_eq!(assumption.status, antecedent_core::AssumptionStatus::Untestable);
+    // A declared bound on an informative process gives an assumption-dependent range.
+    spec.observation = antecedent_core::PanelObservationProcess::InformativeBounded(
+        antecedent_core::AttritionShiftBound::new(1.0).unwrap(),
+    );
+    let bounded = Study::tabular(data.clone())
+        .query(rollout_query(&units, &periods, &cohorts, spec.clone()))
+        .build()
+        .unwrap()
+        .run(&ctx)
+        .unwrap();
+    let section = bounded.quasi_rollout().unwrap();
+    let (estimate, slope) =
+        (section.overall().unwrap().estimate, section.diagnostic("attrition_slope").unwrap());
+    assert!(slope > 0.0 && slope < 1.0, "{slope}");
+    let (lower, upper) = (
+        section.diagnostic("assumption_range_lower").unwrap(),
+        section.diagnostic("assumption_range_upper").unwrap(),
+    );
+    assert!(
+        (lower - (estimate - slope)).abs() < 1e-12 && (upper - (estimate + slope)).abs() < 1e-12
+    );
+    assert_eq!(section.diagnostic("attrition_shift_bound"), Some(1.0));
+    assert!(
+        bounded
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "sensitivity.quasi.rollout.attrition_assumption_range")
+    );
+    // Without a declared bound there is nothing to bound the departure and it is refused.
+    spec.observation = antecedent_core::PanelObservationProcess::Informative;
     let error = Study::tabular(data)
         .query(rollout_query(&units, &periods, &cohorts, spec))
         .build()
@@ -191,7 +250,10 @@ fn an_unbalanced_panel_runs_where_allowed_and_sun_abraham_names_the_next_attempt
         .run(&ctx)
         .unwrap_err()
         .to_string();
-    assert!(error.contains("next attempt"), "{error}");
+    assert!(
+        error.contains("informative") && error.to_lowercase().contains("next attempt"),
+        "{error}"
+    );
 }
 
 #[test]

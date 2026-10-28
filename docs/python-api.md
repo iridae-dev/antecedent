@@ -47,7 +47,7 @@ The Python surface is documented by task in these guides:
 - [Evaluate actions with a decision contract](decisions.md): decide with `Contract.evaluate(result)` or on a bound external claim.
 - [Population, time and uncertainty](population-time-uncertainty.md): exact measured adapter scopes and `inference.MeasuredInference.load` with retained source identity; every scalar needs its own current record.
 - [Design ranking](design-ranking.md): the shared `design.rank_designs` entry point for identification, structural sufficiency, information objectives and decision value; `DesignDecision.from_contract`, `design.adapt_prior_to_signal` and `design.consume`.
-- [Sensitivity and robustness](sensitivity-and-robustness.md): `msm_sensitivity.msm_ate_sensitivity`, `sensitivity_decision`, `decision_robust` and `mechanism_discrepancy.diagnose_mechanism_discrepancy`.
+- [Sensitivity and robustness](sensitivity-and-robustness.md): `mnar_sensitivity.mnar_ate_sensitivity`, `msm_sensitivity.msm_ate_sensitivity`, `sensitivity_decision`, `decision_robust` and `mechanism_discrepancy.diagnose_mechanism_discrepancy`.
 - [Transport and counterfactuals](transport-counterfactuals.md): the affine-additive transported path-specific effect, `MechanismSelection`, the scenario invariance report and the source-bound learned joint measured adapter.
 - [Prepared recalculation](recalculation-capabilities.md): checked family sessions, selective recalculation, bounded external mean callbacks, frozen scores and portable resume.
 - [Transported decisions and measurement](guides/transported-decisions-and-measurement.md) and [inverse queries and decisions](guides/inverse-outcome.md#inverse-queries-on-composed-cohort-and-transported-sources): `transported_response` (`TransportedResponse`, `TransportDeclaration`, `evaluate_transported`) and `inverse_sources` (`composed_forward_source`, `cohort_forward_source`, `transported_forward_source`, `observational_scenarios`).
@@ -103,6 +103,7 @@ Each module below is importable as `antecedent.<name>` without a separate import
 | `experiment` | First-class randomized experiment designs and intention-to-treat queries | [guides/designs/randomized-experiments.md](guides/designs/randomized-experiments.md) |
 | `extensibility` | Typing Protocols for slow-path Python callbacks | [guides/build/scientific-interfaces.md](guides/build/scientific-interfaces.md) |
 | `external` | Bind a foreign scientific result to an identified causal contract | [guides/build/scientific-interfaces.md](guides/build/scientific-interfaces.md) |
+| `external_mechanisms` | Registered external cyclic mechanisms: portable fit, artifact and trusted-resolver replay | [external-cyclic-mechanisms.md](external-cyclic-mechanisms.md) |
 | `factorial` | Native-backed utilities for two-factor randomized 2×2 experiments | [guides/designs/randomized-experiments.md](guides/designs/randomized-experiments.md) |
 | `fallback` | The opt-in descriptive fallback: what can be said, and what evidence would help, when the | [guides/fallback.md](guides/fallback.md) |
 | `finite_discrete` | The adjustment contrast of a finite-discrete frequency table with its posterior draws | [guides/build/scientific-interfaces.md](guides/build/scientific-interfaces.md) |
@@ -137,6 +138,7 @@ Each module below is importable as `antecedent.<name>` without a separate import
 | `missing` | Declared handling of missing values | [guides/missing-data.md](guides/missing-data.md) |
 | `mixed_decision` | One decision from a cluster trial, a temporal period effect, a cost model and an uncertain bridge | [guides/mixed-decisions.md](guides/mixed-decisions.md) |
 | `model` | Interventional sampling helpers, plus one associational convenience predictor | [observation-queries.md](observation-queries.md) |
+| `mnar_sensitivity` | Missing-not-at-random departure grid: effect as a function of a bounded parameter, tipping points, decision changes | [sensitivity-and-robustness.md](sensitivity-and-robustness.md) |
 | `msm_sensitivity` | Marginal sensitivity model (MSM) bounds, tipping point and sensitivity artifact | [sensitivity-and-robustness.md](sensitivity-and-robustness.md) |
 | `multi_level_treatment` | Observational contrasts between levels of a multi-level treatment | [guides/treatment-levels.md](guides/treatment-levels.md) |
 | `nonlinear_mediation` | Nonlinear continuous-mediator mediation: natural direct, indirect and total effects | [guides/mediation-and-latent-classes.md](guides/mediation-and-latent-classes.md) |

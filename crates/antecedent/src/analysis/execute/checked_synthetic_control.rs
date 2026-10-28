@@ -16,6 +16,7 @@ use antecedent_estimate::synthetic_control::exact_synthetic_unit_randomization_t
 use antecedent_estimate::synthetic_control::fit_augmented_synthetic_control;
 use antecedent_estimate::synthetic_control::fit_synthetic_control;
 use antecedent_estimate::synthetic_control::fit_synthetic_did;
+use antecedent_estimate::synthetic_control::restrict_to_observed_window;
 use antecedent_estimate::synthetic_control::{
     AugmentedSyntheticControlFit, SyntheticConstantEffectMethod, SyntheticControlFit,
     SyntheticUnitRandomizationTest, exact_synthetic_constant_effect_test,
@@ -95,6 +96,9 @@ impl CheckedSyntheticControlOperation {
             });
         };
         query.validate()?;
+        if query.observed_window_support {
+            refuse_observed_window_options(query, &study.settings.inference)?;
+        }
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
             || study.settings.refute != RefuteSuite::None
@@ -166,14 +170,34 @@ impl CheckedSyntheticControlOperation {
         if self.query.method == SyntheticPanelMethod::DifferenceInDifferences {
             return self.execute_did(data, ctx, y, &units);
         }
+        // An unbalanced panel is read over the treated unit's observed window: the donor pool
+        // is the units observed in every window period, and no observation is invented.
+        let window = if self.query.observed_window_support {
+            Some(
+                restrict_to_observed_window(
+                    y,
+                    &units,
+                    &self.query.periods,
+                    &self.query.treated_unit,
+                    self.query.intervention_period,
+                )
+                .map_err(|message| crate::compile_reason!("positivity_violated", "{}", message))?,
+            )
+        } else {
+            None
+        };
+        let (fit_y, fit_units, fit_periods) = match &window {
+            Some((ry, ru, rp, _)) => (ry.as_slice(), ru.as_slice(), rp.as_slice()),
+            None => (y, units.as_slice(), &self.query.periods[..]),
+        };
         let augmentation = self
             .query
             .augmentation_ridge
             .map(|ridge| {
                 fit_augmented_synthetic_control(
-                    y,
-                    &units,
-                    &self.query.periods,
+                    fit_y,
+                    fit_units,
+                    fit_periods,
                     &self.query.treated_unit,
                     self.query.intervention_period,
                     ridge,
@@ -185,9 +209,9 @@ impl CheckedSyntheticControlOperation {
             augmented.control.clone()
         } else {
             fit_synthetic_control(
-                y,
-                &units,
-                &self.query.periods,
+                fit_y,
+                fit_units,
+                fit_periods,
                 &self.query.treated_unit,
                 self.query.intervention_period,
             )
@@ -222,7 +246,10 @@ impl CheckedSyntheticControlOperation {
                         randomization.as_ref().map(|test| test.p_value),
                         self.query.sharp_null_effect.unwrap_or(0.0)
                     ),
-                )]),
+                )]
+                .into_iter()
+                .chain(window.as_ref().map(|(_, _, _, support)| observed_window_note(support)))
+                .collect()),
         );
         result.payload = crate::result::ResultPayload::SyntheticControl(self.control_payload(
             fit,
@@ -230,6 +257,7 @@ impl CheckedSyntheticControlOperation {
             randomization,
             effect,
             effective_donors,
+            window.as_ref().map(|(_, _, _, support)| support),
         ));
         result.treatment = None;
         Ok(result)
@@ -291,6 +319,7 @@ impl CheckedSyntheticControlOperation {
         randomization: Option<SyntheticUnitRandomizationTest>,
         effect: f64,
         effective_donors: f64,
+        window: Option<&antecedent_estimate::synthetic_control::ObservedWindowSupport>,
     ) -> crate::SyntheticControlEstimate {
         crate::SyntheticControlEstimate {
             effect,
@@ -333,6 +362,17 @@ impl CheckedSyntheticControlOperation {
             unadjusted_effect: augmentation.map(|_| fit.effect),
             outcome_model_correction: augmentation.map(|fit| fit.outcome_model_correction),
             augmentation_ridge: augmentation.map(|fit| fit.ridge_penalty),
+            observed_window: window.map(|support| crate::ObservedWindowReport {
+                pre_periods: support.pre_periods.as_slice().into(),
+                post_periods: support.post_periods.as_slice().into(),
+                donors_used: support.donors_used,
+                donors_dropped: support
+                    .donors_dropped
+                    .iter()
+                    .map(|(unit, missing)| (Arc::<str>::from(unit.as_str()), *missing))
+                    .collect(),
+                unread_rows: support.unread_rows,
+            }),
         }
     }
 
@@ -449,6 +489,57 @@ impl Study {
     }
 }
 
+/// The options an observed-window synthetic control cannot combine with: the synthetic
+/// difference in differences and the randomization tests read a balanced panel, the staggered
+/// and conformal rollouts refit every adopting unit on the full grid, and the Bayesian
+/// posterior reads the balanced fit.
+fn refuse_observed_window_options(
+    query: &antecedent_core::SyntheticControlQuery,
+    inference: &InferenceMode,
+) -> Result<(), CausalError> {
+    let option = if query.method == SyntheticPanelMethod::DifferenceInDifferences {
+        "synthetic difference in differences"
+    } else if query.uniform_unit_randomization {
+        "unit randomization inference"
+    } else if query.rollout.is_some() {
+        "conformal or placebo-variance intervals"
+    } else if matches!(inference, InferenceMode::Bayesian(_)) {
+        "the Bayesian posterior"
+    } else {
+        return Ok(());
+    };
+    Err(crate::compile_reason!(
+        "option_not_applicable",
+        "reading an unbalanced panel over the treated unit's observed window supports the \
+         simplex and augmented synthetic control point fit; {option} reads a balanced panel. Next \
+         attempt: drop the observed-window option and supply a balanced panel, or drop {option}"
+    ))
+}
+
+/// The support an observed-window fit read, as a diagnostic of the result.
+fn observed_window_note(
+    support: &antecedent_estimate::synthetic_control::ObservedWindowSupport,
+) -> Diagnostic {
+    Diagnostic::new(
+        "estimate.quasi.synthetic_control.observed_window_support",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        format!(
+            "unbalanced panel read over the treated unit's observed window: weights fitted on \
+             pre-periods {:?}, effect averaged over post-periods {:?}; {} donors observed \
+             throughout the window were used and {} units missing part of it (unit, missing \
+             window periods: {:?}) were excluded; {} observed unit-periods were not read; \
+             nothing was imputed",
+            support.pre_periods,
+            support.post_periods,
+            support.donors_used,
+            support.donors_dropped.len(),
+            support.donors_dropped,
+            support.unread_rows
+        ),
+    )
+}
+
 /// Declared panel-design assumptions, before the method-specific counterfactual assumption is appended.
 fn declared_panel_assumptions(
     query: &antecedent_core::SyntheticControlQuery,
@@ -465,7 +556,14 @@ fn declared_panel_assumptions(
             "no_concurrent_treated_unit_specific_shock",
             "no other treated-unit-specific shock starts at intervention",
         ),
-        ("balanced_panel", "all donor and treated units are observed at the same periods"),
+        if query.observed_window_support {
+            (
+                "donors_observed_throughout_treated_window",
+                "the donors are the units observed in every period the treated unit is observed; no period of any unit is imputed",
+            )
+        } else {
+            ("balanced_panel", "all donor and treated units are observed at the same periods")
+        },
     ] {
         assumptions.push(antecedent_core::AssumptionRecord {
             assumption: antecedent_core::Assumption::Custom {
@@ -475,6 +573,19 @@ fn declared_panel_assumptions(
             source: antecedent_core::AssumptionSource::UserDeclared,
             scope: antecedent_core::AssumptionScope::Identification,
             status: antecedent_core::AssumptionStatus::Declared,
+        });
+    }
+    if query.observed_window_support {
+        assumptions.push(antecedent_core::AssumptionRecord {
+            assumption: antecedent_core::Assumption::Custom {
+                id: Arc::from("attrition_unrelated_to_untreated_outcomes"),
+                description: Arc::from(
+                    "whether the treated unit and each donor is observed in a period is unrelated to its untreated outcome, so the donors observed throughout the window represent the counterfactual; not testable from the observed rows",
+                ),
+            },
+            source: antecedent_core::AssumptionSource::UserDeclared,
+            scope: antecedent_core::AssumptionScope::Identification,
+            status: antecedent_core::AssumptionStatus::Untestable,
         });
     }
     if query.uniform_unit_randomization {

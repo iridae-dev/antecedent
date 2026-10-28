@@ -1,0 +1,39 @@
+feature_id = "sensitivity.missing_outcome_departure"
+implementation_crate = "antecedent-validate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Sensitivity of a two-arm mean contrast to a declared, bounded departure of the outcome
+# missingness mechanism from missing at random: a delta-adjusted pattern mixture (Little 1993;
+# National Research Council 2010; Cro et al. 2020 for delta-based tipping-point analysis in
+# trials) and an exponential-tilting selection model (Kim and Yu 2011; Rotnitzky, Robins and
+# Scharfstein 1998 for the selection-model sensitivity parameter). The closed forms used here
+# (effect(delta) = MAR + delta (l1 f1 - l0 f0); missing-pattern mean sum w y / sum w with
+# w = exp(t y); the delta-method variance with the observed-fraction term) are derived in the
+# module documentation and verified against hand-derived anchors and a standard-library
+# reference, not copied from any of them.
+papers = [
+  { title = "Pattern-mixture models for multivariate incomplete data", sections = ["Pattern-mixture factorization of the full-data law into the observed and missing patterns, with the missing-pattern law identified only through an untestable restriction"] },
+  { title = "Semiparametric regression for repeated outcomes with nonignorable nonresponse", sections = ["Selection-model sensitivity parameter indexing the departure of the response mechanism from missing at random"] },
+  { title = "Semiparametric fractional imputation / exponential tilting", sections = ["Exponential tilting of the observed outcome law to represent the missing-pattern law under a logistic response model"] },
+  { title = "Sensitivity analysis for clinical trials with missing continuous outcome data using controlled multiple imputation: a practical guide", sections = ["Delta-adjustment and tipping-point reporting for the conclusion and decisions of a trial"] },
+]
+
+implementation_deviations = [
+  "The estimand is the contrast of the arms' full-population mean outcomes under a randomized or ignorable assignment held fixed. The difference in means is closed form; regression adjustment, inverse-propensity weighting and augmented weighting are re-run at every grid point on a table completed by the departure (imputation from the arm outcome regression plus the shift, or plus the tilted-weight mean residual). An estimator with no completed-table form is refused (mnar_sensitivity.unsupported_estimator).",
+  "The selection model is evaluated on the empirical observed outcome law of each arm, so the tilt is bounded by the observed outcome range for every finite parameter; it is not a parametric outcome model. The conditional sampling variance of the difference in means is the delta-method variance with the observed-fraction term; an adjusted estimator's is a seeded bootstrap that resamples units within arm and repeats the imputation fit. Both are conditional on the parameter value and exclude uncertainty in the choice of departure model.",
+  "Claim policy: the licensed claim is an assumption range over the declared departure, never a confidence interval and never empirically established; the departure is recorded as an untestable assumption. The per-point sampling interval is kept distinct and a requested composition with the range refuses (cell_not_licensed / mnar_sensitivity.composition_not_licensed). Calibration of the sampling interval is unmeasured.",
+  "Tipping points are found by scanning each grid cell at eight interior points and bisecting the continuous effect function inside the first cell where a conclusion differs from its missing-at-random value, separately on each side of MAR; the interval conclusion of an adjusted estimator is scanned on the declared grid only. The bracket is certified against the floating-point evaluation.",
+  "Scope is a binary 0/1 treatment with no missing entry and an outcome with missing entries, at most 67108864 rows, 64 covariates, 4096 grid points, 5000 bootstrap replicates and 64 declared decisions; the parameter range must be finite, contain zero and stay within 1e12 (shift) or 1e3 (tilt).",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "hand-derived shift example (MAR effect 1.5, missing fractions 0.4 and 0.5; sign tipping 15 and -3.75; decision tipping -1.25) and binary-tilt example (missing-pattern mean expit(theta); decision tipping ln(5/3))",
+  "conformance/validate/mnar_sensitivity/reference.py",
+  "crates/antecedent-validate/tests/mnar_sensitivity.rs",
+  "python/tests/test_mnar_sensitivity.py",
+]

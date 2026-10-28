@@ -28,7 +28,7 @@ from _repo import REPO_ROOT as ROOT
 
 REGISTRY = ROOT / "parity/missing_policy_support.toml"
 POLICY_SOURCE = ROOT / "crates/antecedent-data/src/sample_policy.rs"
-QUERY_SOURCE = ROOT / "crates/antecedent-core/src/query/mod.rs"
+QUERY_SOURCE = ROOT / "crates/antecedent-core/src/query/variants.rs"
 GUIDE = ROOT / "docs/guides/missing-data.md"
 MODALITIES = {"tabular", "series", "event", "multi_env", "panel"}
 INFERENCES = ("frequentist", "bayesian")
@@ -42,8 +42,8 @@ def policy_names(source: str) -> set[str]:
 
 
 def query_kinds(source: str) -> set[str]:
-    match = re.search(r"pub enum CausalQueryKind \{(.*?)\n\}", source, re.S)
-    return set(re.findall(r"^\s+([A-Z][A-Za-z]+),", match.group(1), re.M)) if match else set()
+    """Variant names of the `causal_queries!` table: `Name(Payload) = tag, constructor, ...`."""
+    return set(re.findall(r"^\s+([A-Z][A-Za-z]+)\([A-Za-z]+\) = \d+,", source, re.M))
 
 
 def doc_line(row: dict, inference: str) -> str:

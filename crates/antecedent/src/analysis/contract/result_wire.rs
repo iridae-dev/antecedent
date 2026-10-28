@@ -311,8 +311,21 @@ impl From<&SyntheticControlEstimate> for SyntheticControlWire {
             unadjusted_effect: fit.unadjusted_effect,
             outcome_model_correction: fit.outcome_model_correction,
             augmentation_ridge: fit.augmentation_ridge,
+            observed_window: fit.observed_window.as_ref().map(|window| {
+                antecedent_io::analysis_result_artifact::ObservedWindowWire {
+                    pre_periods: window.pre_periods.to_vec(),
+                    post_periods: window.post_periods.to_vec(),
+                    donors_used: window.donors_used,
+                    donors_dropped: unit_counts(&window.donors_dropped),
+                    unread_rows: window.unread_rows,
+                }
+            }),
         }
     }
+}
+
+fn unit_counts(values: &[(std::sync::Arc<str>, usize)]) -> Vec<(String, usize)> {
+    values.iter().map(|(unit, count)| (unit.to_string(), *count)).collect()
 }
 
 impl From<&SyntheticDidEstimate> for SyntheticDidWire {

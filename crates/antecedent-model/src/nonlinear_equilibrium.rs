@@ -7,18 +7,25 @@
 //! Newton result has no such interpretation. Likelihood uses the free-system
 //! Jacobian; hard clamps retain the marginal, not conditional, disturbance law.
 
+use crate::sparse_equilibrium::{
+    CsrMatrix, FactorError, SolveEvidence, SolverBudgetCode, SparseLu, infinity_condition_estimate,
+    nonnegative_spectral_upper_bound,
+};
 use antecedent_core::ExecutionContext;
 use antecedent_graph::{CyclicDigraph, DenseNodeId};
-use antecedent_kernels::gauss_jordan_solve;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::time::Instant;
 use thiserror::Error;
 
 /// Bytes admitted for each dense `n x n` matrix the implementation materialises (noise
 /// covariance, Cholesky factor, Jacobian).
 pub const MAX_DENSE_MATRIX_BYTES: usize = 128 << 20;
 
-/// Maximum order admitted by this dense implementation: the largest `n` whose `n x n` `f64`
-/// matrix fits in [`MAX_DENSE_MATRIX_BYTES`] (4096).
+/// Maximum order admitted by the dense disturbance covariance: the largest `n` whose `n x n`
+/// `f64` matrix fits in [`MAX_DENSE_MATRIX_BYTES`] (4096). The Jacobian, its factorization and
+/// the contraction bounds are sparse; this admission is for the covariance alone, and exceeding
+/// it is the `solver_model_order_budget` refusal.
 pub const MAX_ORDER: usize = 4096;
 
 const _: () = assert!(MAX_ORDER * MAX_ORDER * std::mem::size_of::<f64>() <= MAX_DENSE_MATRIX_BYTES);
@@ -181,6 +188,10 @@ pub struct Clamp {
 }
 
 /// Explicit numerical policy retained alongside an execution.
+///
+/// The budget fields are admission bounds, not numerical tolerances: a system that would
+/// exceed one is refused before or during the solve with a distinct
+/// [`SolverBudgetCode`], and is never silently truncated.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SolvePolicy {
@@ -190,10 +201,129 @@ pub struct SolvePolicy {
     pub max_iterations: usize,
     /// Require global block contraction; otherwise use damped Newton.
     pub require_contraction: bool,
+    /// Maximum structural nonzeros of the free Jacobian.
+    #[serde(default = "default_max_nnz", skip_serializing_if = "is_default_max_nnz")]
+    pub max_nnz: usize,
+    /// Maximum order of one strongly connected block.
+    #[serde(default = "default_max_block_size", skip_serializing_if = "is_default_max_block_size")]
+    pub max_block_size: usize,
+    /// Maximum estimated solver memory in bytes.
+    #[serde(default = "default_max_bytes", skip_serializing_if = "is_default_max_bytes")]
+    pub max_bytes: u64,
+    /// Maximum sparse-LU entries (fill-in included) of one factorization.
+    #[serde(
+        default = "default_max_factor_fill",
+        skip_serializing_if = "is_default_max_factor_fill"
+    )]
+    pub max_factor_fill: usize,
+    /// Maximum iterations summed over all blocks.
+    #[serde(
+        default = "default_max_total_iterations",
+        skip_serializing_if = "is_default_max_total_iterations"
+    )]
+    pub max_total_iterations: usize,
+    /// Wall-clock deadline in milliseconds; `None` is unbounded. `Some(0)` is already expired.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_wall_clock_ms: Option<u64>,
+    /// Condition estimate above which the result is flagged ill conditioned.
+    #[serde(
+        default = "default_condition_warning",
+        skip_serializing_if = "is_default_condition_warning"
+    )]
+    pub condition_warning: f64,
+    /// Power iterations for the spectral-radius bound of each block.
+    #[serde(
+        default = "default_spectral_iterations",
+        skip_serializing_if = "is_default_spectral_iterations"
+    )]
+    pub spectral_iterations: usize,
+}
+#[allow(clippy::trivially_copy_pass_by_ref, clippy::float_cmp, reason = "serde skip predicate")]
+fn is_default_max_nnz(value: &usize) -> bool {
+    *value == default_max_nnz()
+}
+#[allow(clippy::trivially_copy_pass_by_ref, clippy::float_cmp, reason = "serde skip predicate")]
+fn is_default_max_block_size(value: &usize) -> bool {
+    *value == default_max_block_size()
+}
+#[allow(clippy::trivially_copy_pass_by_ref, clippy::float_cmp, reason = "serde skip predicate")]
+fn is_default_max_bytes(value: &u64) -> bool {
+    *value == default_max_bytes()
+}
+#[allow(clippy::trivially_copy_pass_by_ref, clippy::float_cmp, reason = "serde skip predicate")]
+fn is_default_max_factor_fill(value: &usize) -> bool {
+    *value == default_max_factor_fill()
+}
+#[allow(clippy::trivially_copy_pass_by_ref, clippy::float_cmp, reason = "serde skip predicate")]
+fn is_default_max_total_iterations(value: &usize) -> bool {
+    *value == default_max_total_iterations()
+}
+#[allow(clippy::trivially_copy_pass_by_ref, clippy::float_cmp, reason = "serde skip predicate")]
+fn is_default_condition_warning(value: &f64) -> bool {
+    *value == default_condition_warning()
+}
+#[allow(clippy::trivially_copy_pass_by_ref, clippy::float_cmp, reason = "serde skip predicate")]
+fn is_default_spectral_iterations(value: &usize) -> bool {
+    *value == default_spectral_iterations()
+}
+fn default_max_nnz() -> usize {
+    8_000_000
+}
+fn default_max_block_size() -> usize {
+    MAX_ORDER
+}
+fn default_max_bytes() -> u64 {
+    1 << 30
+}
+fn default_max_factor_fill() -> usize {
+    16_000_000
+}
+fn default_max_total_iterations() -> usize {
+    10_000_000
+}
+fn default_condition_warning() -> f64 {
+    1e8
+}
+fn default_spectral_iterations() -> usize {
+    200
 }
 impl Default for SolvePolicy {
     fn default() -> Self {
-        Self { tolerance: 1e-10, max_iterations: 1000, require_contraction: true }
+        Self {
+            tolerance: 1e-10,
+            max_iterations: 1000,
+            require_contraction: true,
+            max_nnz: default_max_nnz(),
+            max_block_size: default_max_block_size(),
+            max_bytes: default_max_bytes(),
+            max_factor_fill: default_max_factor_fill(),
+            max_total_iterations: default_max_total_iterations(),
+            max_wall_clock_ms: None,
+            condition_warning: default_condition_warning(),
+            spectral_iterations: default_spectral_iterations(),
+        }
+    }
+}
+impl SolvePolicy {
+    /// Reject a malformed policy before any work.
+    pub fn validate(&self) -> Result<(), EquilibriumError> {
+        if !self.tolerance.is_finite()
+            || self.tolerance <= 0.0
+            || self.max_iterations == 0
+            || self.max_iterations > 1_000_000
+            || self.max_nnz == 0
+            || self.max_block_size == 0
+            || self.max_bytes == 0
+            || self.max_factor_fill == 0
+            || self.max_total_iterations == 0
+            || !self.condition_warning.is_finite()
+            || self.condition_warning <= 1.0
+            || self.spectral_iterations == 0
+            || self.spectral_iterations > 100_000
+        {
+            return Err(invalid("solve policy"));
+        }
+        Ok(())
     }
 }
 
@@ -220,6 +350,11 @@ pub struct EquilibriumResult {
     pub jacobian_condition_estimate: Option<f64>,
     /// SCCs of the intervened execution in source-before-sink order.
     pub blocks: Vec<Vec<usize>>,
+    /// Sparse-solver evidence: block structure, resource accounting, existence/uniqueness and
+    /// nonsingularity diagnostics. Unrecorded (default) for solvers that do not produce it, and
+    /// then omitted from the serialized result.
+    #[serde(default, skip_serializing_if = "SolveEvidence::is_unrecorded")]
+    pub evidence: SolveEvidence,
 }
 
 /// A sampled equilibrium row and its known intervention regime.
@@ -275,6 +410,46 @@ fn invalid(message: &str) -> EquilibriumError {
 fn finite(values: &[f64]) -> bool {
     values.iter().all(|v| v.is_finite())
 }
+/// Cancellation and wall-clock admission, counted for resource accounting.
+struct Budget<'a> {
+    ctx: &'a ExecutionContext,
+    started: Instant,
+    wall_ms: Option<u64>,
+    checks: usize,
+}
+impl Budget<'_> {
+    fn tick(&mut self) -> Result<(), EquilibriumError> {
+        self.checks += 1;
+        check_cancel(self.ctx)?;
+        if let Some(limit) = self.wall_ms {
+            let elapsed = u64::try_from(self.started.elapsed().as_millis()).unwrap_or(u64::MAX);
+            if elapsed >= limit {
+                return Err(SolverBudgetCode::WallClock.refusal(elapsed, limit));
+            }
+        }
+        Ok(())
+    }
+}
+/// Contraction bounds of one SCC block.
+pub(crate) struct BlockCertificate {
+    pub(crate) row_sum: f64,
+    pub(crate) spectral: f64,
+    pub(crate) spectral_iterations: usize,
+    pub(crate) bound: f64,
+}
+pub(crate) fn local_positions(rows: &[usize]) -> HashMap<usize, usize> {
+    rows.iter().copied().enumerate().map(|(a, i)| (i, a)).collect()
+}
+fn factor_failure(error: FactorError, residual: f64, max_fill: usize) -> EquilibriumError {
+    match error {
+        FactorError::Singular => EquilibriumError::Singular,
+        FactorError::NonFinite => EquilibriumError::Nonconvergence { residual },
+        FactorError::FillBudget(required) => {
+            SolverBudgetCode::FactorFill.refusal(required as u64, max_fill as u64)
+        }
+        FactorError::Interrupted(error) => error,
+    }
+}
 pub(crate) fn check_cancel(ctx: &ExecutionContext) -> Result<(), EquilibriumError> {
     if ctx.cancellation.is_cancelled() {
         Err(EquilibriumError::Resource("cancelled".into()))
@@ -287,7 +462,10 @@ impl EquilibriumModel {
     /// Validate structural shape, unique mechanism ids and positive-definite joint noise.
     pub fn validate(&self) -> Result<(), EquilibriumError> {
         let n = self.equations.len();
-        if n == 0 || n > MAX_ORDER || self.noise_covariance.len() != n * n {
+        if n > MAX_ORDER {
+            return Err(SolverBudgetCode::ModelOrder.refusal(n as u64, MAX_ORDER as u64));
+        }
+        if n == 0 || self.noise_covariance.len() != n * n {
             return Err(invalid("model order/covariance shape"));
         }
         let mut ids = std::collections::BTreeSet::new();
@@ -333,16 +511,36 @@ impl EquilibriumModel {
         Ok((0..n).filter(|&i| !seen[i]).collect())
     }
 
+    /// Mechanism read sets, computed once for every equation.
+    pub(crate) fn read_sets(&self) -> Result<Vec<Vec<usize>>, EquilibriumError> {
+        self.equations.iter().map(Equation::reads).collect()
+    }
+
     /// Compile the free-variable graph into SCC solve blocks.
     pub fn blocks(&self, clamps: &[Clamp]) -> Result<Vec<Vec<usize>>, EquilibriumError> {
         self.validate()?;
         let free = self.free_indices(clamps)?;
+        let reads = self.read_sets()?;
+        self.blocks_from_reads(&free, &reads)
+    }
+
+    /// SCC blocks of the free-variable graph from precomputed read sets, in
+    /// source-before-sink order. Cost is linear in the structural nonzeros.
+    pub(crate) fn blocks_from_reads(
+        &self,
+        free: &[usize],
+        reads: &[Vec<usize>],
+    ) -> Result<Vec<Vec<usize>>, EquilibriumError> {
         let count = u32::try_from(free.len()).map_err(|_| invalid("graph order"))?;
+        let mut position = vec![usize::MAX; self.order()];
+        for (at, &i) in free.iter().enumerate() {
+            position[i] = at;
+        }
         let mut graph = CyclicDigraph::with_variables(count);
         for (to, &i) in free.iter().enumerate() {
-            let reads = self.equations[i].reads()?;
-            for (from, &j) in free.iter().enumerate() {
-                if i != j && reads.contains(&j) {
+            for &j in &reads[i] {
+                let from = position[j];
+                if i != j && from != usize::MAX {
                     graph
                         .insert_directed(
                             DenseNodeId::from_raw(
@@ -366,6 +564,12 @@ impl EquilibriumModel {
 
     /// Solve a specified noise realization. Initialization is numerical, not a selection law.
     /// Uncertified Newton roots are reported only as numerical solutions.
+    ///
+    /// The free Jacobian is sparse. Blocks are strongly connected components solved in
+    /// topological order; a contractive block is iterated, any other block takes damped Newton
+    /// steps whose linear systems are solved by sparse LU. Structural nonzeros, block order,
+    /// estimated memory, factor fill, iteration count and wall-clock time are admitted against
+    /// the [`SolvePolicy`], each with its own [`SolverBudgetCode`].
     #[allow(
         clippy::too_many_lines,
         reason = "one bounded SCC solve preserves contraction and numerical failure distinctions"
@@ -381,15 +585,29 @@ impl EquilibriumModel {
         self.validate()?;
         self.check_vector(noise)?;
         self.check_vector(initial)?;
-        if !policy.tolerance.is_finite()
-            || policy.tolerance <= 0.0
-            || policy.max_iterations == 0
-            || policy.max_iterations > 1_000_000
-        {
-            return Err(invalid("solve policy"));
-        }
+        policy.validate()?;
         let n = self.order();
-        // Dense Newton matrix plus vectors, graph, covariance validation, and returned state.
+        let free = self.free_indices(clamps)?;
+        let reads = self.read_sets()?;
+        let mut is_free = vec![false; n];
+        for &i in &free {
+            is_free[i] = true;
+        }
+        let jacobian_nnz: usize = free
+            .iter()
+            .map(|&i| reads[i].iter().filter(|&&j| j != i && is_free[j]).count() + 1)
+            .sum();
+        if jacobian_nnz > policy.max_nnz {
+            return Err(
+                SolverBudgetCode::JacobianNnz.refusal(jacobian_nnz as u64, policy.max_nnz as u64)
+            );
+        }
+        let blocks = self.blocks_from_reads(&free, &reads)?;
+        let largest_block = blocks.iter().map(Vec::len).max().unwrap_or(0);
+        if largest_block > policy.max_block_size {
+            return Err(SolverBudgetCode::BlockSize
+                .refusal(largest_block as u64, policy.max_block_size as u64));
+        }
         let tape_nodes = self
             .equations
             .iter()
@@ -402,30 +620,56 @@ impl EquilibriumModel {
             .into_iter()
             .max()
             .unwrap_or(0);
-        let bytes = u64::try_from(16 * n * n + 128 * n + tape_nodes * (2 * n + 8) * 8)
-            .map_err(|_| invalid("resource size"))?;
+        let bytes =
+            self.solve_bytes(n, free.len(), jacobian_nnz, largest_block, tape_nodes, policy)?;
+        if bytes > policy.max_bytes {
+            return Err(SolverBudgetCode::Memory.refusal(bytes, policy.max_bytes));
+        }
         let _lease = ctx
             .acquire_admission(1, bytes)
             .map_err(|e| EquilibriumError::Resource(e.to_string()))?;
-        let plan = crate::compile::compile_equilibrium(self, clamps)?;
-        let blocks: Vec<Vec<usize>> =
-            plan.blocks.iter().map(|block| block.variables().to_vec()).collect();
+        let mut budget =
+            Budget { ctx, started: Instant::now(), wall_ms: policy.max_wall_clock_ms, checks: 0 };
+        let mut evidence = SolveEvidence {
+            free_variables: free.len(),
+            block_count: blocks.len(),
+            largest_block,
+            jacobian_nnz,
+            estimated_bytes: bytes,
+            admitted_bytes: bytes,
+            ..SolveEvidence::default()
+        };
         let mut values = initial.to_vec();
         for c in clamps {
             values[c.variable] = c.value;
         }
         let mut total = 0;
         let mut globally_unique = true;
+        let mut all_contractive = true;
         for block in &blocks {
-            let bound = self.block_bound(block);
+            budget.tick()?;
+            let certificate = self.block_certificate(block, &reads, policy.spectral_iterations);
+            // Evidence is serialized, so an unbounded certificate is retained as the largest
+            // finite value rather than as a non-finite number.
+            let retained = |x: f64| if x.is_finite() { x } else { f64::MAX };
+            evidence.row_sum_bound = evidence.row_sum_bound.max(retained(certificate.row_sum));
+            evidence.spectral_bound = evidence.spectral_bound.max(retained(certificate.spectral));
+            evidence.spectral_iterations += certificate.spectral_iterations;
+            evidence.contraction_bound =
+                evidence.contraction_bound.max(retained(certificate.bound));
+            if block.len() > 1 || reads[block[0]].contains(&block[0]) {
+                evidence.cyclic_block_count += 1;
+            }
+            let bound = certificate.bound;
             let contraction = bound < 1.0;
+            all_contractive &= contraction;
             globally_unique &= contraction || self.affine_certificate(block);
             if policy.require_contraction && !contraction {
                 return Err(EquilibriumError::Uncertified { bound });
             }
             let mut converged = false;
             for _ in 0..policy.max_iterations {
-                check_cancel(ctx)?;
+                budget.tick()?;
                 let residual = self.residual(&values, noise, block);
                 let norm = max_abs(&residual);
                 if !norm.is_finite() {
@@ -436,15 +680,26 @@ impl EquilibriumModel {
                     break;
                 }
                 total += 1;
+                if total > policy.max_total_iterations {
+                    return Err(SolverBudgetCode::IterationBudget
+                        .refusal(total as u64, policy.max_total_iterations as u64));
+                }
                 if contraction {
+                    evidence.contraction_iterations += 1;
                     for (&i, &r) in block.iter().zip(&residual) {
                         values[i] -= r;
                     }
                 } else {
-                    let mut jac = self.residual_jacobian(&values, block);
-                    let mut step = residual;
-                    if !gauss_jordan_solve(&mut jac, &mut step, block.len(), 1) {
-                        return Err(EquilibriumError::Singular);
+                    evidence.newton_steps += 1;
+                    let local = local_positions(block);
+                    let jac = self.sparse_jacobian(&values, block, &reads, &local)?;
+                    let lu = SparseLu::factor(&jac, policy.max_factor_fill, &mut || budget.tick())
+                        .map_err(|e| factor_failure(e, norm, policy.max_factor_fill))?;
+                    evidence.factorizations += 1;
+                    evidence.peak_factor_fill = evidence.peak_factor_fill.max(lu.fill());
+                    let step = lu.solve(&residual);
+                    if !finite(&step) {
+                        return Err(EquilibriumError::Nonconvergence { residual: norm });
                     }
                     let old = values.clone();
                     let mut accepted = false;
@@ -470,12 +725,34 @@ impl EquilibriumModel {
                 return Err(EquilibriumError::Nonconvergence { residual });
             }
         }
-        let free = self.free_indices(clamps)?;
         let residual = max_abs(&self.residual(&values, noise, &free));
         if !finite(&values) || !residual.is_finite() || residual > policy.tolerance {
             return Err(EquilibriumError::Nonconvergence { residual });
         }
-        let jacobian_condition_estimate = self.condition_estimate(&values, &free);
+        let (jacobian_condition_estimate, factored) =
+            self.condition_at(&values, &free, &reads, policy, &mut budget, &mut evidence)?;
+        evidence.jacobian_nonsingular_basis = if free.is_empty() {
+            "not_applicable".into()
+        } else if factored != "factorized" {
+            factored.into()
+        } else if all_contractive {
+            "contraction".into()
+        } else if evidence.jacobian_diagonal_dominance_margin.is_some_and(|m| m > 0.0) {
+            "strict_diagonal_dominance".into()
+        } else {
+            "factorization".into()
+        };
+        let unique_basis = if !globally_unique {
+            "none"
+        } else if all_contractive {
+            "contraction"
+        } else {
+            "affine_bijection"
+        };
+        evidence.unique_root_basis = unique_basis.into();
+        evidence.ill_conditioned =
+            jacobian_condition_estimate.is_some_and(|k| k > policy.condition_warning);
+        evidence.budget_checks = budget.checks;
         Ok(EquilibriumResult {
             values,
             residual,
@@ -486,31 +763,148 @@ impl EquilibriumModel {
             dynamic_stability: None,
             jacobian_condition_estimate,
             blocks,
+            evidence,
         })
     }
 
-    fn condition_estimate(&self, values: &[f64], free: &[usize]) -> Option<f64> {
-        let n = free.len();
-        if n == 0 {
-            return None;
+    /// Estimated peak solver memory in bytes: the dense disturbance covariance and its
+    /// Cholesky factor, per-variable vectors, the largest expression tape, two sparse copies
+    /// of the free Jacobian and an estimate of sparse-LU fill (never above the policy bound).
+    fn solve_bytes(
+        &self,
+        n: usize,
+        free: usize,
+        nnz: usize,
+        largest_block: usize,
+        tape_nodes: usize,
+        policy: SolvePolicy,
+    ) -> Result<u64, EquilibriumError> {
+        let fill =
+            policy.max_factor_fill.min(nnz.saturating_mul(8).saturating_add(64 * largest_block));
+        let total = 16usize
+            .saturating_mul(n)
+            .saturating_mul(n)
+            .saturating_add(128 * n)
+            .saturating_add(tape_nodes.saturating_mul(2 * n + 8).saturating_mul(8))
+            .saturating_add(nnz.saturating_mul(32))
+            .saturating_add((free + 1).saturating_mul(16))
+            .saturating_add(fill.saturating_mul(24));
+        u64::try_from(total).map_err(|_| invalid("resource size"))
+    }
+
+    /// Free-Jacobian conditioning and diagonal-dominance evidence at the returned state.
+    /// Returns the infinity-norm condition estimate and the factorization status.
+    fn condition_at(
+        &self,
+        values: &[f64],
+        free: &[usize],
+        reads: &[Vec<usize>],
+        policy: SolvePolicy,
+        budget: &mut Budget<'_>,
+        evidence: &mut SolveEvidence,
+    ) -> Result<(Option<f64>, &'static str), EquilibriumError> {
+        if free.is_empty() {
+            return Ok((None, "not_applicable"));
         }
-        let mut matrix = self.residual_jacobian(values, free);
-        let norm = matrix
-            .chunks_exact(n)
-            .map(|row| row.iter().map(|v| v.abs()).sum::<f64>())
-            .fold(0.0_f64, f64::max);
-        let mut inverse = vec![0.0; n * n];
-        for i in 0..n {
-            inverse[i * n + i] = 1.0;
+        let local = local_positions(free);
+        let jacobian = self.sparse_jacobian(values, free, reads, &local)?;
+        evidence.jacobian_diagonal_dominance_margin =
+            jacobian.diagonal_dominance_margin().filter(|m| m.is_finite());
+        let factors = match SparseLu::factor(&jacobian, policy.max_factor_fill, &mut || {
+            budget.tick()
+        }) {
+            Ok(lu) => SparseLu::factor(&jacobian.transpose(), policy.max_factor_fill, &mut || {
+                budget.tick()
+            })
+            .map(|lut| (lu, lut)),
+            Err(error) => Err(error),
+        };
+        match factors {
+            Ok((lu, lut)) => {
+                evidence.factorizations += 2;
+                evidence.peak_factor_fill =
+                    evidence.peak_factor_fill.max(lu.fill()).max(lut.fill());
+                Ok((infinity_condition_estimate(&jacobian, &lu, &lut), "factorized"))
+            }
+            Err(FactorError::Singular) => Ok((None, "singular")),
+            Err(FactorError::NonFinite) => Ok((None, "nonfinite")),
+            Err(FactorError::FillBudget(_)) => Ok((None, "factor_fill_budget")),
+            Err(FactorError::Interrupted(error)) => Err(error),
         }
-        if !gauss_jordan_solve(&mut matrix, &mut inverse, n, n) {
-            return None;
+    }
+
+    /// `I - df/dx` over `rows_of`, local to that set. Entries come from the mechanism read sets.
+    pub(crate) fn sparse_jacobian(
+        &self,
+        state: &[f64],
+        rows_of: &[usize],
+        reads: &[Vec<usize>],
+        local: &HashMap<usize, usize>,
+    ) -> Result<CsrMatrix, EquilibriumError> {
+        let mut rows = Vec::with_capacity(rows_of.len());
+        for (a, &i) in rows_of.iter().enumerate() {
+            let derivatives = self.equations[i]
+                .input_derivatives(state)
+                .unwrap_or_else(|_| vec![f64::NAN; state.len()]);
+            let mut row = Vec::with_capacity(reads[i].len() + 1);
+            row.push((a, 1.0));
+            for &j in &reads[i] {
+                if let Some(&b) = local.get(&j) {
+                    row.push((b, -derivatives[j]));
+                }
+            }
+            rows.push(row);
         }
-        let inverse_norm = (0..n)
-            .map(|i| (0..n).map(|j| inverse[j * n + i].abs()).sum::<f64>())
-            .fold(0.0_f64, f64::max);
-        let estimate = norm * inverse_norm;
-        estimate.is_finite().then_some(estimate)
+        CsrMatrix::from_rows(rows_of.len(), rows)
+    }
+
+    /// Derivative-bound matrix of a block: entry `(a, b)` bounds `|d f_a / d x_b|` globally.
+    fn block_bound_matrix(
+        &self,
+        block: &[usize],
+        reads: &[Vec<usize>],
+    ) -> Result<CsrMatrix, EquilibriumError> {
+        let local = local_positions(block);
+        let rows = block
+            .iter()
+            .map(|&i| match self.equations[i].derivative_bounds() {
+                Ok(bounds) => reads[i]
+                    .iter()
+                    .filter_map(|&j| local.get(&j).map(|&b| (b, bounds[j])))
+                    .collect(),
+                Err(_) => (0..block.len()).map(|b| (b, f64::INFINITY)).collect(),
+            })
+            .collect();
+        CsrMatrix::from_rows(block.len(), rows)
+    }
+
+    /// Contraction bounds of one block: the Gershgorin row-sum bound and, when that is not
+    /// already below one, a rigorous Collatz-Wielandt spectral-radius bound. Either below one
+    /// proves a contraction of the block map on R^k in a (weighted) max norm.
+    pub(crate) fn block_certificate(
+        &self,
+        block: &[usize],
+        reads: &[Vec<usize>],
+        spectral_iterations: usize,
+    ) -> BlockCertificate {
+        // Positive summation error is bounded conservatively before comparing to one.
+        let inflation = 1.0 + (block.len() + 1) as f64 * f64::EPSILON;
+        let Ok(matrix) = self.block_bound_matrix(block, reads) else {
+            return BlockCertificate {
+                row_sum: f64::INFINITY,
+                spectral: f64::INFINITY,
+                spectral_iterations: 0,
+                bound: f64::INFINITY,
+            };
+        };
+        let row_sum = matrix.infinity_norm() * inflation;
+        let (spectral, spectral_iterations) = if row_sum < 1.0 || block.len() == 1 {
+            (row_sum, 0)
+        } else {
+            let found = nonnegative_spectral_upper_bound(&matrix, spectral_iterations);
+            (found.upper.min(row_sum), found.iterations)
+        };
+        BlockCertificate { row_sum, spectral, spectral_iterations, bound: row_sum.min(spectral) }
     }
 
     pub(crate) fn affine_certificate(&self, block: &[usize]) -> bool {
@@ -520,24 +914,20 @@ impl EquilibriumModel {
         }) {
             return false;
         }
-        let weights: Vec<_> = block
-            .iter()
-            .flat_map(|&i| block.iter().map(move |&j| self.equations[i].weights[j]))
-            .collect();
-        crate::affine_certificate::certifies_affine_bijection(&weights, block.len())
-    }
-    fn block_bound(&self, block: &[usize]) -> f64 {
-        // Positive summation error is bounded conservatively before comparing to one.
-        let inflation = 1.0 + (block.len() + 1) as f64 * f64::EPSILON;
-        block
+        let rows: Vec<Vec<(usize, f64)>> = block
             .iter()
             .map(|&i| {
-                let bounds = self.equations[i]
-                    .derivative_bounds()
-                    .unwrap_or_else(|_| vec![f64::INFINITY; self.order()]);
-                block.iter().map(|&j| bounds[j]).sum::<f64>() * inflation
+                block
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(b, &j)| {
+                        let w = self.equations[i].weights[j];
+                        (w != 0.0).then_some((b, w))
+                    })
+                    .collect()
             })
-            .fold(0.0, f64::max)
+            .collect();
+        crate::affine_certificate::certifies_sparse_affine_bijection(&rows, block.len())
     }
 
     pub(crate) fn residual(&self, state: &[f64], noise: &[f64], free: &[usize]) -> Vec<f64> {
@@ -595,6 +985,7 @@ impl EquilibriumModel {
     ) -> Result<f64, EquilibriumError> {
         self.validate()?;
         let n = self.order();
+        let reads = self.read_sets()?;
         let tape_nodes = self
             .equations
             .iter()
@@ -624,9 +1015,10 @@ impl EquilibriumModel {
                     return Err(invalid("observed value differs from known clamp"));
                 }
             }
-            for block in self.blocks(&row.clamps)? {
-                let bound = self.block_bound(&block);
-                if bound >= 1.0 && !self.affine_certificate(&block) {
+            let blocks = self.blocks_from_reads(&free, &reads)?;
+            for block in &blocks {
+                let bound = self.block_certificate(block, &reads, 200).bound;
+                if bound >= 1.0 && !self.affine_certificate(block) {
                     return Err(EquilibriumError::Uncertified { bound });
                 }
             }
@@ -647,8 +1039,16 @@ impl EquilibriumModel {
                 z[i] /= l[i * k + i];
             }
             let noise_logdet = 2.0 * (0..k).map(|i| l[i * k + i].ln()).sum::<f64>();
-            let jac = self.residual_jacobian(&row.values, &free);
-            let logdet = log_abs_determinant(jac, k)?;
+            // The free Jacobian is block triangular in SCC order, so its determinant is the
+            // product of the diagonal blocks' determinants; each block is factored sparsely.
+            let mut logdet = 0.0;
+            for block in &blocks {
+                let local = local_positions(block);
+                let jac = self.sparse_jacobian(&row.values, block, &reads, &local)?;
+                let lu = SparseLu::factor(&jac, usize::MAX, &mut || check_cancel(ctx))
+                    .map_err(|e| factor_failure(e, f64::NAN, usize::MAX))?;
+                logdet += lu.log_abs_determinant();
+            }
             sum += logdet
                 - 0.5 * (dot(&z, &z) + noise_logdet + k as f64 * (2.0 * std::f64::consts::PI).ln());
         }
@@ -683,6 +1083,7 @@ impl EquilibriumModel {
     ) -> Result<(f64, Vec<MechanismLikelihoodScore>), EquilibriumError> {
         let likelihood = self.log_likelihood(rows, ctx)?;
         let n = self.order();
+        let reads = self.read_sets()?;
         let mut scores: Vec<_> = self
             .equations
             .iter()
@@ -734,14 +1135,19 @@ impl EquilibriumModel {
                 }
                 noise_score[i] /= lower[i * k + i];
             }
-            // Matrix is row-major; right-hand sides and the inverse are column-major.
-            let mut matrix = self.residual_jacobian(&row.values, &free);
+            // Sparse LU of the free Jacobian; the dense row-major inverse is the adjoint
+            // output (one dense row per equation), formed by sparse column solves.
+            let local = local_positions(&free);
+            let jacobian = self.sparse_jacobian(&row.values, &free, &reads, &local)?;
+            let lu = SparseLu::factor(&jacobian, usize::MAX, &mut || check_cancel(ctx))
+                .map_err(|e| factor_failure(e, f64::NAN, usize::MAX))?;
             let mut inverse = vec![0.0; k * k];
-            for i in 0..k {
-                inverse[i * k + i] = 1.0;
-            }
-            if !gauss_jordan_solve(&mut matrix, &mut inverse, k, k) {
-                return Err(EquilibriumError::Singular);
+            for c in 0..k {
+                let mut unit = vec![0.0; k];
+                unit[c] = 1.0;
+                for (r, v) in lu.solve(&unit).into_iter().enumerate() {
+                    inverse[r * k + c] = v;
+                }
             }
             for (local_i, &i) in free.iter().enumerate() {
                 let equation = &self.equations[i];
@@ -749,7 +1155,7 @@ impl EquilibriumModel {
                 score.intercept += noise_score[local_i];
                 let mut gradient_adjoint = vec![0.0; n];
                 for (local_j, &j) in free.iter().enumerate() {
-                    gradient_adjoint[j] = -inverse[local_i * k + local_j];
+                    gradient_adjoint[j] = -inverse[local_j * k + local_i];
                 }
                 if let Some(expression) = &equation.expression {
                     let tape = expression.compile(n, equation.parameters.len())?;
@@ -798,14 +1204,21 @@ pub(crate) fn cholesky(a: &[f64], n: usize) -> Result<Vec<f64>, EquilibriumError
         return Err(invalid("covariance shape or nonfinite"));
     }
     let mut l = vec![0.0; n * n];
+    // First column holding a nonzero in each lower-triangular row. The Cholesky factor has the
+    // same envelope, so banded and diagonal covariances cost O(n * bandwidth^2), not O(n^3).
+    let first: Vec<usize> = (0..n)
+        .map(|i| (0..=i).find(|&j| a[i * n + j] != 0.0 || a[j * n + i] != 0.0).unwrap_or(i))
+        .collect();
     for i in 0..n {
-        for j in 0..=i {
+        for j in first[i]..=i {
             if (a[i * n + j] - a[j * n + i]).abs()
                 > 1e-12 * (1.0 + a[i * n + j].abs().max(a[j * n + i].abs()))
             {
                 return Err(invalid("asymmetric covariance"));
             }
-            let residual = a[i * n + j] - (0..j).map(|k| l[i * n + k] * l[j * n + k]).sum::<f64>();
+            let start = first[i].max(first[j]);
+            let residual =
+                a[i * n + j] - (start..j).map(|k| l[i * n + k] * l[j * n + k]).sum::<f64>();
             if i == j {
                 if residual <= 0.0 {
                     return Err(EquilibriumError::Singular);
@@ -817,30 +1230,6 @@ pub(crate) fn cholesky(a: &[f64], n: usize) -> Result<Vec<f64>, EquilibriumError
         }
     }
     Ok(l)
-}
-
-pub(crate) fn log_abs_determinant(mut a: Vec<f64>, n: usize) -> Result<f64, EquilibriumError> {
-    let mut value = 0.0;
-    for j in 0..n {
-        let best = (j..n)
-            .max_by(|&i, &k| a[i * n + j].abs().total_cmp(&a[k * n + j].abs()))
-            .ok_or(EquilibriumError::Singular)?;
-        if a[best * n + j].abs() <= 1e-14 {
-            return Err(EquilibriumError::Singular);
-        }
-        for k in 0..n {
-            a.swap(j * n + k, best * n + k);
-        }
-        let pivot = a[j * n + j];
-        value += pivot.abs().ln();
-        for i in j + 1..n {
-            let scale = a[i * n + j] / pivot;
-            for k in j + 1..n {
-                a[i * n + k] -= scale * a[j * n + k];
-            }
-        }
-    }
-    Ok(value)
 }
 
 #[cfg(test)]

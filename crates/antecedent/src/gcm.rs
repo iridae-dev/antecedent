@@ -42,6 +42,9 @@ use crate::error::CausalError;
 mod counterfactual_contrasts;
 pub use counterfactual_contrasts::{ContrastedOutcome, CounterfactualContrasts};
 
+mod adaptive_policy_source;
+pub use adaptive_policy_source::{ModelPolicySource, ModelRolloutDesign, StageUtility};
+
 pub use antecedent_attribution::{
     AnomalyScores, ArrowStrength, AttributionError, ChangeAttribution, ChangeAttributionResult,
     ComponentStatus, ComponentUncertainty, DifferenceMeasure, DistributionChangeOptions,

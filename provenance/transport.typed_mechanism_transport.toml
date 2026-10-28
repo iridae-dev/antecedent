@@ -1,0 +1,31 @@
+feature_id = "transport.typed_mechanism_transport"
+implementation_crate = "antecedent-model"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Admission of fitted nonlinear and non-Gaussian mechanisms from a source population into a
+# target-population composed model, with target-specific refits. The admission rule is the
+# selection-diagram rule per variable (a mechanism with no selection node into it is shared; one
+# with a selection node into it differs and needs target evidence). The fits are Fisher scoring on
+# the exponential-family likelihoods and a Levenberg-damped Gauss-Newton for expression means; the
+# declared-invariance test is a Wald comparison of the source and target parameter vectors.
+papers = [
+  { title = "External Validity: From Do-Calculus to Transportability Across Populations", citation_note = "Previously recorded title and bibliographic detail: External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"] },
+]
+implementation_deviations = [
+  "Bounded executed route, not a published algorithm: typed mechanisms are polynomial or expression conditional means under Gaussian, heteroscedastic Gaussian, log-normal, Bernoulli, Poisson or gamma response; finite tables are decided by the finite counterfactual transport derivation.",
+  "A shifted mechanism (a selection node points into it) is used only from a target fit and is refused without one; a mechanism is never treated as invariant because target evidence is missing.",
+  "A declared-invariant mechanism with a supplied target fit is tested by a Wald comparison of the full parameter vectors with the summed fit covariances (independent samples assumed); a rejection refuses the transport and a non-rejection is not evidence of invariance. Without target data the invariance is an untested premise recorded in the receipt.",
+  "Interventional means are Monte Carlo over the structural model with paired per-node, per-unit random streams and an exact conditional mean for the outcome; the Monte Carlo standard error is numerical-approximation uncertainty reported apart from parameter uncertainty.",
+  "Parameter uncertainty of a contrast is first order, g' Sigma g, with a score-function gradient over every involved mechanism's parameters; the covariance is the source fit's for a carried mechanism and the target fit's for a refit one, joined by an explicitly declared dependence. The selection-diagram assumption adds no variance and the result says so; no interval is issued.",
+  "The log-dispersion covariance of the Gaussian, log-normal and gamma families uses the asymptotic 1/(2 dof) and the moment form respectively; they enter a contrast only through the families whose mean depends on the scale (log-normal).",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-model/tests/typed_mechanism_transport.rs",
+  "crates/antecedent/tests/typed_transported_mechanism_facade.rs",
+  "python/tests/test_typed_mechanism_transport.py",
+  "conformance/transport/typed_mechanism_shift/reference.py",
+]

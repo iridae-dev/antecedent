@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal
 if TYPE_CHECKING:
     from .._artifact_protocol import ExportedArtifact
     from .._workflow import LoadedResult
+    from ..mnar_sensitivity import MnarResult
     from ..msm_sensitivity import MsmResult
     from ..prediction import FittedEffectModel
     from ..prepared import PreparedAnalysis
@@ -808,6 +809,19 @@ class ResultAPI:
         from ..msm_sensitivity import from_analysis
 
         return from_analysis(self, data=data, lambda_max=lambda_max, **options)
+
+    def mnar_sensitivity(
+        self, *, data: Any, model: str | None, lower: float, upper: float, **options: Any
+    ) -> MnarResult:
+        """Re-run this average effect across a bounded grid of an MNAR departure.
+
+        The result's query and checked adjustment set choose the estimand and the covariates;
+        ``data`` holds the outcome column with its missing values. The range is an assumption
+        range, never a confidence interval.
+        """
+        from ..mnar_sensitivity import from_analysis
+
+        return from_analysis(self, data=data, model=model, lower=lower, upper=upper, **options)
 
     def as_response(self) -> CausalResponseView:
         """This result when it is function-valued; refuse a scalar analysis."""

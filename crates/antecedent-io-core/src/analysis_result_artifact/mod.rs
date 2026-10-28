@@ -626,6 +626,25 @@ pub struct SyntheticControlWire {
     /// Positive donor outcome-model ridge penalty.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub augmentation_ridge: Option<f64>,
+    /// Support read from an unbalanced panel; present exactly when the query declared it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub observed_window: Option<ObservedWindowWire>,
+}
+
+/// The treated unit's observed window and the donors it admitted.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ObservedWindowWire {
+    /// Observed pre-intervention periods of the treated unit, ascending.
+    pub pre_periods: Vec<i64>,
+    /// Observed post-intervention periods of the treated unit, ascending.
+    pub post_periods: Vec<i64>,
+    /// Donors observed in every window period.
+    pub donors_used: usize,
+    /// Excluded units with the number of window periods each misses, in unit order.
+    pub donors_dropped: Vec<(String, usize)>,
+    /// Observed unit-periods no estimate read.
+    pub unread_rows: usize,
 }
 
 /// Point-only synthetic `DiD` result with unit and time simplex weights.

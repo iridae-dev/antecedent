@@ -385,6 +385,66 @@ pub enum CyclicFamilyRequest {
         /// Local pattern-search policy (no L1 penalty).
         policy: antecedent_estimate::cyclic_likelihood::CyclicFitOptions,
     },
+    /// Fit a continuous-time OU model from continuous trajectories by the exact Gaussian
+    /// transition likelihood (Kalman filter under a declared linear Gaussian observation
+    /// model), then predict held-out intervention trajectories and sustained worlds.
+    OuTrajectoryFit {
+        /// Baseline drift, forcing and diffusion factor; fitted coordinates start here.
+        model: antecedent_estimate::ou_mechanisms::OuMechanisms,
+        /// Explicit linear Gaussian observation model, so partial observation is declared.
+        observation: antecedent_estimate::ou_trajectory::OuObservationModel,
+        /// Shared baseline coordinates to estimate.
+        parameters: Vec<antecedent_estimate::ou_mechanisms::OuMechanismParameter>,
+        /// Independent trajectories with known piecewise-constant intervention schedules.
+        trajectories: Vec<antecedent_estimate::ou_trajectory::OuTrajectory>,
+        /// Bounded optimizer policy.
+        policy: antecedent_estimate::cyclic_gradient::CyclicGradientPolicy,
+        /// Held-out intervention trajectories to predict.
+        #[serde(default)]
+        predictions: Vec<antecedent_estimate::ou_trajectory::OuPredictionDesign>,
+        /// Sustained-intervention worlds whose stationary law is predicted.
+        #[serde(default)]
+        stationary_worlds: Vec<antecedent_estimate::ou_trajectory::OuStationaryDesign>,
+    },
+    /// Simulate a bounded nonlinear stochastic differential equation with diagonal noise
+    /// under named interventions and paired contrasts, and, when trajectories are supplied,
+    /// fit declared parameters by the Euler quasi likelihood (or the extended-Kalman
+    /// likelihood under a declared observation model) before simulating at the fit.
+    SdeAnalysis {
+        /// Drift and diagonal diffusion expressions, schedules, bounds and parameters.
+        model: antecedent_model::nonlinear_sde::SdeSystem,
+        /// Initial state of every simulated path.
+        initial: Vec<f64>,
+        /// Declared step, horizon, scheme, ensemble size, seed and numerical-error check.
+        simulation: antecedent_model::nonlinear_sde::SdeSimulationPolicy,
+        /// Named intervention worlds besides the implicit baseline.
+        #[serde(default)]
+        interventions: Vec<antecedent_model::nonlinear_sde::SdeWorld>,
+        /// Paired contrasts of two worlds under shared random numbers.
+        #[serde(default)]
+        contrasts: Vec<antecedent_model::nonlinear_sde::SdeContrast>,
+        /// Parameter coordinates (indices) to estimate; ignored without trajectories.
+        #[serde(default)]
+        parameters: Vec<usize>,
+        /// Linear Gaussian observation model; absent means every state is observed directly.
+        #[serde(default)]
+        observation: Option<antecedent_estimate::nonlinear_sde_fit::SdeObservationModel>,
+        /// Gaussian prior of the hidden state at each trajectory's first observation.
+        #[serde(default)]
+        filter_prior: Option<antecedent_estimate::nonlinear_sde_fit::SdeFilterPrior>,
+        /// Independent trajectories with known intervention regimes.
+        #[serde(default)]
+        trajectories: Vec<antecedent_estimate::nonlinear_sde_fit::SdeTrajectory>,
+        /// Optimizer and observation-interval admission policy of the fit.
+        #[serde(default)]
+        fit_policy: Option<antecedent_estimate::nonlinear_sde_fit::SdeFitPolicy>,
+        /// Asymptotic-normal parameter draws propagated through the simulation (0 or 2..=512).
+        #[serde(default)]
+        parameter_draws: usize,
+        /// Seed of those draws.
+        #[serde(default)]
+        parameter_seed: u64,
+    },
     /// Bounded polynomial equation/constraint solution set.
     Polynomial {
         /// Named variables and residual equations, including any explicit replacements.
@@ -683,6 +743,13 @@ pub enum CyclicFamilyAnswer {
     OdeFit(antecedent_estimate::cyclic_dynamics::OdeFit),
     /// Stationary OU parameter fit, conditional on declared diffusion/structure.
     OuFit(antecedent_estimate::cyclic_dynamics::OuFit),
+    /// Trajectory OU fit with separate fitting, identification and numerical evidence,
+    /// and held-out predictions carrying propagated sampling uncertainty.
+    OuTrajectory(antecedent_estimate::ou_trajectory::OuTrajectoryReport),
+    /// Nonlinear SDE ensembles with Monte Carlo and numerical-approximation error, the
+    /// quasi-likelihood fit with separate fitting, identification and discretization
+    /// evidence, and parameter-draw spread kept as its own field.
+    SdeAnalysis(antecedent_estimate::nonlinear_sde_fit::SdeReport),
     /// Certified roots and unresolved regions; no implicit selection law.
     Polynomial(IsolatedSolutions),
     /// Interventions evaluated from a retained recovered linear law.
@@ -871,6 +938,89 @@ fn invalid(e: impl std::fmt::Display) -> CyclicArtifactError {
     CyclicArtifactError::Invalid(e.to_string())
 }
 
+/// Typed trajectory-fit failure as the family's refusal, argument or resource error.
+/// An unidentified design is a registered scientific refusal, never a numerical failure.
+fn ou_trajectory_error(
+    error: antecedent_estimate::ou_trajectory::OuTrajectoryError,
+) -> CyclicArtifactError {
+    use antecedent_estimate::ou_trajectory::{
+        OuIdentificationFailure as Failure, OuTrajectoryError as E,
+    };
+    match error {
+        E::Unidentified { failure, detail } => CyclicArtifactError::ScientificRefusal {
+            code: antecedent_core::reason_code!("dynamics_not_identified"),
+            detail: failure.code(),
+            message: detail,
+            next_attempt: match failure {
+                Failure::NoTransitionInformation => {
+                    "observe each unit at two or more times, or fit the stationary law of independent snapshots with the stationary OU family"
+                }
+                Failure::SingularInformation => {
+                    "observe the state components the requested coordinates act on, fix or remove the coordinates the observations cannot determine, or use a diffusion parameterization with a unique factor"
+                }
+            }
+            .into(),
+        },
+        E::Resource(reason) => {
+            CyclicArtifactError::Execution(antecedent_model::nonlinear_equilibrium::EquilibriumError::Resource(reason))
+        }
+        other => invalid(other),
+    }
+}
+
+/// Typed SDE fit failure as the family's refusal, argument or resource error.
+/// Unsupported designs and unidentified parameters are registered scientific refusals.
+fn sde_error(error: antecedent_estimate::nonlinear_sde_fit::SdeFitError) -> CyclicArtifactError {
+    use antecedent_estimate::nonlinear_sde_fit::{SdeFitError as E, SdeIdentificationFailure as F};
+    match error {
+        E::Unidentified { failure, detail } => CyclicArtifactError::ScientificRefusal {
+            code: antecedent_core::reason_code!("dynamics_not_identified"),
+            detail: failure.code(),
+            message: detail,
+            next_attempt: match failure {
+                F::NoTransitionInformation => {
+                    "observe each unit at two or more times"
+                }
+                F::SingularInformation => {
+                    "fix or remove the parameters the observations cannot determine, or observe the states they act on"
+                }
+            }
+            .into(),
+        },
+        E::Unsupported { code, detail } => CyclicArtifactError::ScientificRefusal {
+            code: antecedent_core::reason_code!("route_not_supported"),
+            detail: code,
+            message: format!("{code}: {detail}"),
+            next_attempt: match code {
+                "sde.unbounded_growth" => {
+                    "declare finite lower and upper bounds on the states the nonlinearity multiplies"
+                }
+                "sde.milstein_noncommutative" => {
+                    "use Euler-Maruyama, or make each diffusion depend only on its own state"
+                }
+                "sde.action_time_off_grid" => {
+                    "place action times on the declared step grid"
+                }
+                "sde.input_outside_certified_envelope" => {
+                    "widen the declared input envelope so the regularity certificate covers the schedule"
+                }
+                "sde_fit.observation_interval_too_coarse" => {
+                    "observe more densely, or fit a model whose transition law is exact"
+                }
+                "sde_fit.degenerate_transition" => {
+                    "fit with a declared observation model (extended Kalman likelihood) or hold the coordinate"
+                }
+                _ => "supply a fit, or choose a supported combination",
+            }
+            .into(),
+        },
+        E::Resource(reason) => CyclicArtifactError::Execution(
+            antecedent_model::nonlinear_equilibrium::EquilibriumError::Resource(reason),
+        ),
+        other => invalid(other),
+    }
+}
+
 struct BoundedJsonSize {
     bytes: usize,
 }
@@ -930,6 +1080,8 @@ impl CyclicFamilyRequest {
             Self::StructureFit { .. } => "structure_fit",
             Self::OdeFit { .. } => "ode_fit",
             Self::OuFit { .. } => "ou_fit",
+            Self::OuTrajectoryFit { .. } => "ou_trajectory_fit",
+            Self::SdeAnalysis { .. } => "sde_analysis",
             Self::Polynomial { .. } => "polynomial",
             Self::RecoveredLinear { .. } => "recovered_linear",
             Self::ExperimentalRecovery { .. } | Self::RetainedExperimentalRecovery { .. } => {
@@ -1420,6 +1572,90 @@ impl CyclicFamilyRequest {
                     )?
                 },
             ),
+            Self::OuTrajectoryFit {
+                model,
+                observation,
+                parameters,
+                trajectories,
+                policy,
+                predictions,
+                stationary_worlds,
+            } => {
+                if predictions.len() > 128 || stationary_worlds.len() > 128 {
+                    return Err(invalid("OU trajectory prediction design count"));
+                }
+                let fit = if let Some(FrozenFamilyFitValue::OuTrajectory(retained)) = frozen {
+                    retained.clone()
+                } else {
+                    antecedent_estimate::ou_trajectory::fit_ou_trajectories(
+                        model,
+                        observation,
+                        parameters,
+                        trajectories,
+                        *policy,
+                        ctx,
+                    )
+                    .map_err(ou_trajectory_error)?
+                };
+                CyclicFamilyAnswer::OuTrajectory(
+                    antecedent_estimate::ou_trajectory::ou_trajectory_report(
+                        fit,
+                        observation,
+                        predictions,
+                        stationary_worlds,
+                        ctx,
+                    )
+                    .map_err(ou_trajectory_error)?,
+                )
+            }
+            Self::SdeAnalysis {
+                model,
+                initial,
+                simulation,
+                interventions,
+                contrasts,
+                parameters,
+                observation,
+                filter_prior,
+                trajectories,
+                fit_policy,
+                parameter_draws,
+                parameter_seed,
+            } => {
+                let compiled = model.compile().map_err(|e| sde_error(e.into()))?;
+                let fit = if let Some(FrozenFamilyFitValue::Sde(retained)) = frozen {
+                    Some(retained.clone())
+                } else if trajectories.is_empty() {
+                    None
+                } else {
+                    Some(
+                        antecedent_estimate::nonlinear_sde_fit::fit_sde_quasi_likelihood(
+                            &compiled,
+                            parameters,
+                            observation.as_ref(),
+                            filter_prior.as_ref(),
+                            trajectories,
+                            fit_policy.unwrap_or_default(),
+                            ctx,
+                        )
+                        .map_err(sde_error)?,
+                    )
+                };
+                CyclicFamilyAnswer::SdeAnalysis(
+                    antecedent_estimate::nonlinear_sde_fit::sde_report(
+                        &compiled,
+                        fit,
+                        initial,
+                        simulation,
+                        interventions,
+                        contrasts,
+                        *parameter_draws,
+                        *parameter_seed,
+                        ctx,
+                    )
+                    .map_err(sde_error)?,
+                )
+            }
             Self::Polynomial { model, policy } => {
                 CyclicFamilyAnswer::Polynomial(model.isolate(*policy, ctx)?)
             }

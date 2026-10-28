@@ -19,6 +19,8 @@ mod resampling_accuracy;
 mod route_diagnostics;
 #[path = "sampling_design_declaration.rs"]
 mod sampling_design_declaration;
+#[path = "typed_transported_mechanism_facade.rs"]
+mod typed_transported_mechanism_facade;
 #[path = "z_transport_repair.rs"]
 mod z_transport_repair;
 #[path = "z_transport_surrogate_calibration.rs"]

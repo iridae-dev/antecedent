@@ -197,9 +197,10 @@ pub use query::{
     CrossWorldQuery, EdgeRoute, ExogenousCoupling, WorldId, WorldObservation, WorldSpec,
 };
 pub use query::{
-    DidAggregation, DidBasePeriod, DidComparisonGroup, DidNuisanceMethod, DidResampling,
-    DidResamplingScheme, HeterogeneityRobustDid, LocalBandwidthRule, LocalRatioOptions,
-    RolloutDidEstimator, SyntheticInterval, SyntheticRollout,
+    AttritionShiftBound, DidAggregation, DidBasePeriod, DidComparisonGroup, DidNuisanceMethod,
+    DidResampling, DidResamplingScheme, HeterogeneityRobustDid, LocalBandwidthRule,
+    LocalRatioOptions, PanelObservationProcess, RolloutDidEstimator, SyntheticInterval,
+    SyntheticRollout,
 };
 pub use query::{
     OutcomeMisclassification, TemporalAssignment, TemporalDesignFunctional, TemporalDesignQuery,

@@ -135,7 +135,7 @@ fn the_dynamic_profile_recovers_the_exposure_path() {
 }
 
 #[test]
-fn an_unbalanced_panel_is_read_by_the_two_by_two_and_refused_by_sun_abraham() {
+fn an_unbalanced_panel_is_read_as_observed_by_every_robust_estimator() {
     let sim = staggered(13, 150, 0.15);
     let ctx = ExecutionContext::for_tests(3);
     let fit = estimate_rollout_did(
@@ -155,7 +155,180 @@ fn an_unbalanced_panel_is_read_by_the_two_by_two_and_refused_by_sun_abraham() {
     )
     .unwrap();
     assert!((imputed.overall.estimate - 3.5).abs() < 0.4, "{}", imputed.overall.estimate);
-    let refused = estimate_rollout_did(
+    let interacted = estimate_rollout_did(
+        &sim.panel(),
+        &spec(RolloutDidEstimator::SunAbraham, DidComparisonGroup::NeverTreated),
+        None,
+        &ctx,
+    )
+    .unwrap();
+    assert!(!interacted.balanced);
+    assert!((interacted.overall.estimate - 3.5).abs() < 0.4, "{}", interacted.overall.estimate);
+}
+
+#[test]
+fn the_attrition_slope_is_zero_when_nothing_is_missing_and_the_missing_share_otherwise() {
+    let ctx = ExecutionContext::for_tests(3);
+    let balanced = staggered(18, 100, 0.0);
+    let sun_abraham = spec(RolloutDidEstimator::SunAbraham, DidComparisonGroup::NeverTreated);
+    let fit = estimate_rollout_did(&balanced.panel(), &sun_abraham, None, &ctx).unwrap();
+    assert!(fit.attrition_slope.abs() < 1e-12, "{}", fit.attrition_slope);
+    // Each unit-period is observed with probability 0.8, so about a fifth of the cohort is
+    // unobserved at a cell and the slope is near that share.
+    let thinned = staggered(18, 400, 0.2);
+    for estimator in [
+        RolloutDidEstimator::CallawaySantAnna,
+        RolloutDidEstimator::SunAbraham,
+        RolloutDidEstimator::Imputation,
+    ] {
+        let declared = spec(estimator, DidComparisonGroup::NeverTreated);
+        let fit = estimate_rollout_did(&thinned.panel(), &declared, None, &ctx).unwrap();
+        assert!(
+            fit.attrition_slope > 0.1 && fit.attrition_slope < 0.45,
+            "{estimator:?} {}",
+            fit.attrition_slope
+        );
+    }
+}
+
+#[test]
+fn sun_abraham_on_an_unbalanced_panel_keeps_the_cohort_specific_effects_and_reports_support() {
+    let sim = staggered(14, 200, 0.2);
+    let ctx = ExecutionContext::for_tests(3);
+    let fit = estimate_rollout_did(
+        &sim.panel(),
+        &spec(RolloutDidEstimator::SunAbraham, DidComparisonGroup::NeverTreated),
+        None,
+        &ctx,
+    )
+    .unwrap();
+    assert!(!fit.balanced);
+    // Each cohort's own exposure path 3·e is recovered, not only the pooled average.
+    assert!(!fit.group_time.is_empty());
+    for effect in &fit.group_time {
+        let event = effect.event_time.unwrap();
+        assert!((effect.estimate - 3.0 * event as f64).abs() < 0.8, "{effect:?}");
+        assert!(effect.treated > 0 && effect.comparison > 0);
+    }
+    assert!(fit.leads.iter().all(|lead| lead.estimate.abs() < 0.6));
+    assert_eq!(fit.cohort_support.len(), 2);
+    for support in &fit.cohort_support {
+        assert_eq!(support.units, 200);
+        assert!(support.rows < 5 * support.units, "{support:?}");
+        assert!(support.units_at_base < support.units, "{support:?}");
+        assert!(support.post_cells > 0);
+    }
+    // Every observed row is either used or counted as dropped.
+    let observed: usize = sim.kept.iter().filter(|kept| **kept).count();
+    assert_eq!(fit.rows, observed);
+}
+
+/// The frozen unbalanced panel and the full-dummy numpy regression computed on it.
+fn interacted_reference() -> (Simulated, serde_json::Value) {
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../conformance/estimate/interacted_did_unbalanced_panel/expected.json"
+    ))
+    .unwrap();
+    let column = |name: &str| fixture["rows"][name].as_array().unwrap().clone();
+    let labels: Vec<Arc<str>> =
+        column("unit").iter().map(|value| Arc::from(value.as_str().unwrap())).collect();
+    let sim = Simulated {
+        outcome: column("outcome").iter().map(|value| value.as_f64().unwrap()).collect(),
+        kept: vec![true; labels.len()],
+        clusters: labels.clone(),
+        units: labels,
+        periods: column("period").iter().map(|value| value.as_i64().unwrap()).collect(),
+        cohorts: column("cohort").iter().map(|value| value.as_i64().unwrap()).collect(),
+        covariates: Vec::new(),
+    };
+    (sim, fixture["reference"].clone())
+}
+
+#[test]
+fn sun_abraham_on_an_unbalanced_panel_matches_the_full_dummy_regression_reference() {
+    let (sim, reference) = interacted_reference();
+    let ctx = ExecutionContext::for_tests(3);
+    let fit = estimate_rollout_did(
+        &sim.panel(),
+        &spec(RolloutDidEstimator::SunAbraham, DidComparisonGroup::NeverTreated),
+        None,
+        &ctx,
+    )
+    .unwrap();
+    assert!(!fit.balanced);
+    for cell in reference["cells"].as_array().unwrap() {
+        let (group, period) = (cell["cohort"].as_i64().unwrap(), cell["period"].as_i64().unwrap());
+        let expected = cell["estimate"].as_f64().unwrap();
+        if period >= group {
+            let effect = fit
+                .group_time
+                .iter()
+                .find(|effect| effect.group == Some(group) && effect.period == Some(period))
+                .unwrap_or_else(|| panic!("cell ({group}, {period}) missing"));
+            assert!((effect.estimate - expected).abs() < 1e-8, "{group} {period}: {effect:?}");
+            assert_eq!(effect.treated as u64, cell["treated_units"].as_u64().unwrap());
+            assert_eq!(effect.comparison as u64, cell["comparison_units"].as_u64().unwrap());
+        }
+    }
+    // The cells at the period without any comparison unit are not estimated.
+    let unsupported = reference["periods_without_comparison"].as_array().unwrap();
+    for period in unsupported.iter().map(|value| value.as_i64().unwrap()) {
+        assert!(fit.group_time.iter().all(|effect| effect.period != Some(period)));
+    }
+    for lead in &fit.leads {
+        let expected =
+            reference["leads_by_event"][lead.event_time.unwrap().to_string()].as_f64().unwrap();
+        assert!((lead.estimate - expected).abs() < 1e-8, "{lead:?}");
+    }
+    assert!((fit.overall.estimate - reference["simple"].as_f64().unwrap()).abs() < 1e-8);
+    // The cohort-specific effects are the declared truth up to sampling noise.
+    assert!((fit.overall.estimate - reference["simple_truth"].as_f64().unwrap()).abs() < 0.1);
+    let dropped: u64 = reference["dropped_rows_by_cohort"]
+        .as_object()
+        .unwrap()
+        .values()
+        .map(|n| n.as_u64().unwrap())
+        .sum();
+    assert_eq!(fit.dropped_rows as u64, dropped);
+    assert_eq!(fit.dropped_units, 0);
+}
+
+#[test]
+fn removing_one_comparison_row_moves_the_interacted_fit_only_within_sampling_noise() {
+    // A balanced panel is read through its 2×2 contrasts; removing one observed row sends the
+    // same panel through the regression, which must stay within sampling noise of the 2×2 fit.
+    let mut sim = staggered(15, 120, 0.0);
+    let ctx = ExecutionContext::for_tests(3);
+    let balanced = estimate_rollout_did(
+        &sim.panel(),
+        &spec(RolloutDidEstimator::SunAbraham, DidComparisonGroup::NeverTreated),
+        None,
+        &ctx,
+    )
+    .unwrap();
+    sim.kept[0] = false;
+    let nearly = estimate_rollout_did(
+        &sim.panel(),
+        &spec(RolloutDidEstimator::SunAbraham, DidComparisonGroup::NeverTreated),
+        None,
+        &ctx,
+    )
+    .unwrap();
+    assert!(balanced.balanced && !nearly.balanced);
+    assert!((balanced.overall.estimate - nearly.overall.estimate).abs() < 0.05);
+}
+
+#[test]
+fn sun_abraham_refuses_when_no_comparison_unit_is_observed_in_two_periods() {
+    let mut sim = staggered(16, 60, 0.0);
+    // Every never-treated unit keeps one row only, so none can identify a period effect.
+    for row in 0..sim.kept.len() {
+        if sim.cohorts[row] == 0 && sim.periods[row] != 3 {
+            sim.kept[row] = false;
+        }
+    }
+    let ctx = ExecutionContext::for_tests(3);
+    let error = estimate_rollout_did(
         &sim.panel(),
         &spec(RolloutDidEstimator::SunAbraham, DidComparisonGroup::NeverTreated),
         None,
@@ -163,7 +336,50 @@ fn an_unbalanced_panel_is_read_by_the_two_by_two_and_refused_by_sun_abraham() {
     )
     .unwrap_err()
     .to_string();
-    assert!(refused.contains("balanced panel") && refused.contains("next attempt"), "{refused}");
+    assert!(error.contains("comparison unit") && error.contains("next attempt"), "{error}");
+}
+
+#[test]
+fn a_cohort_with_no_observed_base_period_is_dropped_and_reported_not_reweighted() {
+    let mut sim = staggered(17, 80, 0.0);
+    // Cohort 4's base period is 3; no unit of the cohort is observed there.
+    for row in 0..sim.kept.len() {
+        if sim.cohorts[row] == 4 && sim.periods[row] == 3 {
+            sim.kept[row] = false;
+        }
+    }
+    let ctx = ExecutionContext::for_tests(3);
+    let fit = estimate_rollout_did(
+        &sim.panel(),
+        &spec(RolloutDidEstimator::SunAbraham, DidComparisonGroup::NeverTreated),
+        None,
+        &ctx,
+    )
+    .unwrap();
+    assert_eq!(fit.dropped_cohorts, vec![4]);
+    let late = fit.cohort_support.iter().find(|support| support.cohort == 4).unwrap();
+    assert_eq!((late.units_at_base, late.post_cells), (0, 0));
+    assert_eq!(late.dropped_rows, late.rows);
+    let early = fit.cohort_support.iter().find(|support| support.cohort == 2).unwrap();
+    assert_eq!(early.dropped_rows, 0);
+    assert!(fit.group_time.iter().all(|effect| effect.group == Some(2)));
+    // The surviving cohort keeps its own estimand: effects 0, 3, 6, 9.
+    assert!((fit.overall.estimate - 4.5).abs() < 0.5, "{}", fit.overall.estimate);
+    // With the only treated cohort lacking its base period there is nothing to estimate.
+    for row in 0..sim.kept.len() {
+        if sim.cohorts[row] == 2 && sim.periods[row] == 1 {
+            sim.kept[row] = false;
+        }
+    }
+    let error = estimate_rollout_did(
+        &sim.panel(),
+        &spec(RolloutDidEstimator::SunAbraham, DidComparisonGroup::NeverTreated),
+        None,
+        &ctx,
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(error.contains("next attempt"), "{error}");
 }
 
 /// Two periods; treatment probability rises with `x` and the untreated trend is `x`, so the

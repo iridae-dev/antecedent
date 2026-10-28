@@ -161,6 +161,11 @@ _OPERATIONAL_CODES = frozenset(
         "callback_output_invalid",
         "callback_provider_unavailable",
         "callback_limit_exceeded",
+        "mechanism_declaration_invalid",
+        "mechanism_resolver_missing",
+        "mechanism_resolver_failed",
+        "mechanism_implementation_unavailable",
+        "mechanism_implementation_changed",
         "policy_callback_failed",
         "policy_callback_output_invalid",
         "policy_callback_not_portable",
@@ -236,6 +241,9 @@ def is_scientific_refusal(error: BaseException) -> bool:
             "policy_output_type_invalid",
             "policy_history_unavailable",
             "policy_route_not_licensed",
+            "adaptive_policy_unobserved_feature",
+            "adaptive_policy_identification_unsupported",
+            "adaptive_policy_heldout_unsupported",
         }
     )
 

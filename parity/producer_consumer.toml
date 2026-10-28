@@ -1740,6 +1740,11 @@ object = "an executed callback result (a provider's mean, draws, distribution or
 built_from = "`provider_callbacks.CallbackSession.execute(...)` (`CallbackExecution`), its `export` and `consume_callback_result`"
 
 [[producer]]
+key = "external_mechanism_system"
+object = "a fitted feedback system with registered external mechanisms (a model-conditional equilibrium whose external mechanisms are recorded by implementation id, version, content digest and declarations, never code; verified_external, never native; no interval)"
+built_from = "`external_mechanisms.ExternalFeedbackModel.export(...)` (`ExternalArtifact`), its `external_cyclic_equilibrium` artifact and `external_mechanisms.consume_artifact(data, identity, resolver=)`, which refuses without a trusted resolver"
+
+[[producer]]
 key = "transported_response"
 object = "a transported response (a point or law about a target population with its receipt of route, source populations, selection-diagram identities, assumptions and an extrapolative support label; never native target data)"
 built_from = "`transported_response.TransportedResponse` (`declared_point`, `declared_law`, `from_shifted_cohort`)"
@@ -1897,6 +1902,54 @@ producer = "callback_result"
 consumer = "recalc_plan"
 status = "ADAPTER"
 detail = "`stage_identity(Stage.EVIDENCE, artifact identity)` declared by the caller; it is evidence the provider supplied, not a native stage"
+
+[[cell]]
+producer = "external_mechanism_system"
+consumer = "decision"
+status = "REFUSED"
+detail = "a fitted external-mechanism system is a model-conditional equilibrium, not a decision source: `Contract.evaluate` and `evaluate_with_support` raise `CausalTypeError`; it reaches a decision only through a caller-declared source bound to a checked contract"
+
+[[cell]]
+producer = "external_mechanism_system"
+consumer = "inverse_query"
+status = "REFUSED"
+detail = "`CausalTypeError` from `InverseQuery.evaluate`; an external-mechanism system is not a `MeanClaim`"
+
+[[cell]]
+producer = "external_mechanism_system"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "`CausalTypeError` from `rank_designs(prior=)`; a fitted system is not a prior"
+
+[[cell]]
+producer = "external_mechanism_system"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError` from `sensitivity_decision.decide`; not a sensitivity artifact"
+
+[[cell]]
+producer = "external_mechanism_system"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError` from `decide_from_scenarios` and `ScenarioDecisionRefusal` from `decide_from_cpdag_completions`; not an identified set"
+
+[[cell]]
+producer = "external_mechanism_system"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError` from `repair.obligations` and `repair.repair`; not a failed identification contract"
+
+[[cell]]
+producer = "external_mechanism_system"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "`add_artifact` refuses the `external_cyclic_equilibrium` bytes and the result object: the bundle protocol has no external-mechanism node kind (`detect_kind` is `None`)"
+
+[[cell]]
+producer = "external_mechanism_system"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.EVIDENCE, artifact identity)` declared by the caller; the identity covers the recorded mechanism identities, so a changed implementation digest recomputes the stage"
 
 [[cell]]
 producer = "transported_response"

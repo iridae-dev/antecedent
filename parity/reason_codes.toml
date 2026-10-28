@@ -147,6 +147,32 @@ id = "mechanism_fit_not_converged"
 applies_to = ["runtime_refusal"]
 meaning = "A parent-conditional categorical mechanism did not converge even on standardized parent columns; the remaining causes are near-separation or collinear parents, which the caller resolves by dropping or coarsening them."
 
+# Registered external cyclic mechanisms (provenance record: cyclic.external_mechanisms).
+[[code]]
+id = "mechanism_declaration_invalid"
+applies_to = ["runtime_refusal"]
+meaning = "A registered external mechanism's declaration is malformed or incomplete: a blank implementation id or version, a content digest that is not 64 lowercase hex characters, a duplicate dependency, input or parameter, a finite-difference step outside (0, 1], Lipschitz bounds that do not match the inputs, parameter values that do not match the declared schema, an analytic-derivative declaration whose implementation supplies no gradient, or an implementation whose content does not hash to its declared digest. The refusal names the declaration that would make the mechanism well formed."
+
+[[code]]
+id = "mechanism_resolver_missing"
+applies_to = ["runtime_refusal"]
+meaning = "A portable record names an external mechanism but the caller supplied no trusted resolver, so independent replay is refused and nothing is run. The record carries identities and digests only, never code; the remedy is to supply a resolver that maps the recorded implementation id, version and content digest to the implementation."
+
+[[code]]
+id = "mechanism_resolver_failed"
+applies_to = ["runtime_refusal"]
+meaning = "The caller's trusted resolver itself failed while resolving a recorded external mechanism: it raised, or returned an object that is not an implementation. This is a resolver fault, distinct from an absent implementation (mechanism_implementation_unavailable); replay is refused and nothing is run. The remedy is to repair the resolver; the refusal carries its failure text."
+
+[[code]]
+id = "mechanism_implementation_unavailable"
+applies_to = ["runtime_refusal"]
+meaning = "The caller's trusted resolver has no implementation for a recorded external mechanism (its implementation id, version and content digest), so independent replay is refused. The remedy is to register exactly the recorded implementation; a nearby version is a different mechanism."
+
+[[code]]
+id = "mechanism_implementation_changed"
+applies_to = ["runtime_refusal"]
+meaning = "The implementation a resolver returned differs from the recorded identity in its implementation id, version, content digest, declared dependencies, or declared signature, parameter schema, derivative declaration or Lipschitz bounds. Independent replay is refused and the implementation is not run; a changed implementation is a different mechanism and its results are not the recorded ones."
+
 [[code]]
 id = "attested_not_reverifiable"
 applies_to = ["runtime_refusal", "claim"]
@@ -202,6 +228,11 @@ meaning = "The support-matrix cell does not denote for this query, structure, in
 id = "route_not_supported"
 applies_to = ["runtime_refusal"]
 meaning = "No execution route implements this combination of query, structure, data and options."
+
+[[code]]
+id = "dynamics_not_identified"
+applies_to = ["runtime_refusal"]
+meaning = "The trajectory design does not identify the requested continuous-time dynamics: no unit is observed at two or more times, or the observed information of the requested coordinates is singular at the converged optimum (a coordinate the observations cannot determine, such as the dynamics of an unobserved state, or an unidentified diffusion factor). The refusal names the evidence and the observation or coordinate change that would identify the dynamics."
 
 [[code]]
 id = "quantity_semantics_mismatch"
@@ -595,6 +626,21 @@ applies_to = ["runtime_refusal"]
 meaning = "An analysis that presumes a design fixed in advance (fixed sample size, fixed assignment, no stopping rule) is requested for data collected under an adaptive assignment policy, interim monitoring or a stopping rule. The refusal names the adaptive-design routes that account for the design."
 
 [[code]]
+id = "adaptive_policy_unobserved_feature"
+applies_to = ["runtime_refusal"]
+meaning = "A history-dependent intervention policy reads a variable that is not observed when the policy acts (for example a quantity realised after the action). The refusal names the variable; a rule may read only information available at decision time."
+
+[[code]]
+id = "adaptive_policy_identification_unsupported"
+applies_to = ["runtime_refusal"]
+meaning = "An identified policy effect was requested for an optimised history-dependent policy but the response model's identification does not support a causal policy-effect reading. The result can be requested as a fitted-model optimisation, which is conditional on the fitted model and its assumptions."
+
+[[code]]
+id = "adaptive_policy_heldout_unsupported"
+applies_to = ["runtime_refusal"]
+meaning = "A held-out evaluation of the selected policy was required but the study design supplies neither independent simulated draws nor held-out units, so the selected policy's in-sample value would be optimistic and unevaluated."
+
+[[code]]
 id = "adaptive_assumption_violated"
 applies_to = ["runtime_refusal"]
 meaning = "An assumption an adaptive-experiment route rests on fails in the retained history: units received an arm other than the one assigned, outcome availability depends on the outcome, or an estimand arm had assignment probability below the declared floor. Nothing is clipped, dropped or imputed; the refusal names the declaration or model that would license the request."
@@ -824,3 +870,38 @@ meaning = "The handle executes no lowered study program (a transport stage or a 
 id = "public_builder_reentry"
 applies_to = ["runtime_refusal"]
 meaning = "Compile, prepare or one-shot run was called with a context that is already inside the dispatch of a lowered program. A dispatched route executes its retained program and does not build and run another public study."
+
+[[code]]
+id = "solver_model_order_budget"
+applies_to = ["runtime_refusal"]
+meaning = "The model order (variables) exceeds the admitted bound of the dense disturbance covariance (4096), of an exact affine-moment score (1024), or of a compositional expression's gradient storage; nothing is truncated. Not an impossibility claim."
+
+[[code]]
+id = "solver_jacobian_nnz_budget"
+applies_to = ["runtime_refusal"]
+meaning = "The free Jacobian of an equilibrium solve has more structural nonzeros than the policy admits (max_nnz); refused before any iteration."
+
+[[code]]
+id = "solver_block_size_budget"
+applies_to = ["runtime_refusal"]
+meaning = "A strongly connected feedback block is larger than the policy admits (max_block_size); refused before any iteration."
+
+[[code]]
+id = "solver_memory_budget"
+applies_to = ["runtime_refusal"]
+meaning = "The estimated solver memory (covariance, sparse Jacobian copies, factor fill, expression tapes) exceeds the policy admission (max_bytes)."
+
+[[code]]
+id = "solver_factor_fill_budget"
+applies_to = ["runtime_refusal"]
+meaning = "Sparse LU fill-in of a Newton step exceeded the policy bound (max_factor_fill); the block is neither solved nor declared singular."
+
+[[code]]
+id = "solver_iteration_budget"
+applies_to = ["runtime_refusal"]
+meaning = "The iterations summed over all blocks exceeded the policy bound (max_total_iterations). Per-block non-convergence is a retained outcome, not this refusal."
+
+[[code]]
+id = "solver_wall_clock_budget"
+applies_to = ["runtime_refusal"]
+meaning = "The wall-clock deadline of the solve policy elapsed (max_wall_clock_ms); the partial solve is discarded, not reported."

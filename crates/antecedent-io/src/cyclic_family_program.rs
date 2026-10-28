@@ -33,6 +33,8 @@ pub(super) enum FrozenFamilyFitValue {
     Polynomial(antecedent_estimate::constraint_likelihood::PolynomialFit),
     Ode(antecedent_estimate::cyclic_dynamics::OdeFit),
     OuFit(antecedent_estimate::cyclic_dynamics::OuFit),
+    OuTrajectory(antecedent_estimate::ou_trajectory::OuTrajectoryFit),
+    Sde(antecedent_estimate::nonlinear_sde_fit::SdeFit),
     Recovered(Arc<super::RecoveredLawProduct>),
     Dynamic(super::DynamicFitAnswer),
     SystemOwner(crate::cyclic_system_artifact::PreparedCyclicExecution),
@@ -109,6 +111,13 @@ impl FrozenFit {
             A::PolynomialFit(fit) => retain(fit, ctx, 0, FrozenFamilyFitValue::Polynomial)?,
             A::OdeFit(fit) => retain(fit, ctx, 0, FrozenFamilyFitValue::Ode)?,
             A::OuFit(fit) => retain(fit, ctx, 0, FrozenFamilyFitValue::OuFit)?,
+            A::OuTrajectory(report) => {
+                retain(&report.fit, ctx, 0, FrozenFamilyFitValue::OuTrajectory)?
+            }
+            A::SdeAnalysis(report) => match &report.fit {
+                Some(fit) => retain(fit, ctx, 0, FrozenFamilyFitValue::Sde)?,
+                None => return Ok(None),
+            },
             A::ExperimentalRecovery(report) => {
                 // Share the original law; this reservation follows that allocation
                 // when the original output owner is released. No draw is cloned.
@@ -472,6 +481,65 @@ pub(super) fn output_bytes(request: &R) -> Result<u64, CyclicArtifactError> {
             worlds.len(),
             width(&[(square(model.equations.len())?, 16), (model.equations.len(), 16)], 512)?,
         ])?,
+        R::OuTrajectoryFit {
+            model,
+            observation,
+            parameters,
+            trajectories,
+            predictions,
+            stationary_worlds,
+            ..
+        } => {
+            let n = model.equations.len();
+            let m = observation.noise_standard_deviation.len();
+            let steps = predictions.iter().try_fold(0usize, |total, design| {
+                total.checked_add(design.times.len()).ok_or_else(overflow)
+            })?;
+            let prediction = product(&[
+                one_more(steps)?,
+                width(&[(square(n)?, 48), (n, 48), (m, 48)], 512)?,
+            ])?;
+            let fit = product(&[
+                one_more(trajectories.len())?,
+                width(&[(square(n)?, 24), (n, 48), (square(parameters.len())?, 16)], 512)?,
+            ])?;
+            let worlds = product(&[
+                one_more(stationary_worlds.len())?,
+                width(&[(square(n)?, 48), (n, 16)], 512)?,
+            ])?;
+            prediction
+                .checked_add(fit)
+                .and_then(|sum| sum.checked_add(worlds))
+                .ok_or_else(overflow)?
+        }
+        R::SdeAnalysis { model, simulation, interventions, parameters, parameter_draws, .. } => {
+            let d = model.variables.len();
+            let rows = (simulation.steps / simulation.output_every.max(1))
+                .checked_add(1)
+                .ok_or_else(overflow)?;
+            let worlds = one_more(interventions.len())?;
+            let moments = product(&[worlds, rows, width(&[(square(d)?, 16), (d, 64)], 256)?])?;
+            let samples = if simulation.retain_final_samples {
+                product(&[worlds, simulation.paths, width(&[(d, 16)], 64)?])?
+            } else {
+                0
+            };
+            let spread = product(&[
+                one_more(*parameter_draws)?,
+                worlds,
+                rows,
+                width(&[(d, 16)], 64)?,
+            ])?;
+            let fit = product(&[
+                one_more(parameters.len())?,
+                width(&[(parameters.len(), 16)], 512)?,
+            ])?;
+            moments
+                .checked_add(samples)
+                .and_then(|sum| sum.checked_add(spread))
+                .and_then(|sum| sum.checked_add(fit))
+                .ok_or_else(overflow)?
+        }
         R::OuTransient { initial_mean, times, .. } => product(&[
             times.len(),
             width(&[(square(initial_mean.len())?, 16), (initial_mean.len(), 16)], 128)?,
@@ -628,8 +696,12 @@ fn compile_plans(request: &R) -> Result<Vec<CompiledSystemPlan>, CyclicArtifactE
             .iter()
             .map(|candidate| compile_constraints(&candidate.model))
             .collect::<Result<Vec<_>, _>>()?,
-        R::OuMechanisms { model, .. } => {
+        R::OuMechanisms { model, .. } | R::OuTrajectoryFit { model, .. } => {
             model.validate()?;
+            vec![]
+        }
+        R::SdeAnalysis { model, .. } => {
+            model.compile().map_err(|e| super::sde_error(e.into()))?;
             vec![]
         }
         R::Functional { .. } | R::GaussianFunctional { .. } | R::Graph { .. } => vec![],
@@ -764,6 +836,21 @@ enum FitDependencies<'a> {
         parameters: &'a [antecedent_estimate::ou_mechanisms::OuMechanismParameter],
         policy: &'a antecedent_estimate::cyclic_gradient::CyclicGradientPolicy,
     },
+    OuTrajectoryFit {
+        model: &'a antecedent_estimate::ou_mechanisms::OuMechanisms,
+        observation: &'a antecedent_estimate::ou_trajectory::OuObservationModel,
+        parameters: &'a [antecedent_estimate::ou_mechanisms::OuMechanismParameter],
+        trajectories: &'a [antecedent_estimate::ou_trajectory::OuTrajectory],
+        policy: &'a antecedent_estimate::cyclic_gradient::CyclicGradientPolicy,
+    },
+    SdeAnalysis {
+        model: &'a antecedent_model::nonlinear_sde::SdeSystem,
+        parameters: &'a [usize],
+        observation: &'a Option<antecedent_estimate::nonlinear_sde_fit::SdeObservationModel>,
+        filter_prior: &'a Option<antecedent_estimate::nonlinear_sde_fit::SdeFilterPrior>,
+        trajectories: &'a [antecedent_estimate::nonlinear_sde_fit::SdeTrajectory],
+        fit_policy: &'a Option<antecedent_estimate::nonlinear_sde_fit::SdeFitPolicy>,
+    },
     GaussianFunctional {
         source: &'a crate::cyclic_graph::CyclicGraphRequest,
         source_identity: &'a str,
@@ -852,6 +939,25 @@ impl<'a> FitDependencies<'a> {
             R::OuMechanisms { model, regimes, parameters, policy, .. } => {
                 Self::OuMechanisms { model, regimes, parameters, policy }
             }
+            R::OuTrajectoryFit { model, observation, parameters, trajectories, policy, .. } => {
+                Self::OuTrajectoryFit { model, observation, parameters, trajectories, policy }
+            }
+            R::SdeAnalysis {
+                model,
+                parameters,
+                observation,
+                filter_prior,
+                trajectories,
+                fit_policy,
+                ..
+            } => Self::SdeAnalysis {
+                model,
+                parameters,
+                observation,
+                filter_prior,
+                trajectories,
+                fit_policy,
+            },
             R::GaussianFunctional { source, source_identity, program, law, .. } => {
                 Self::GaussianFunctional { source, source_identity, program, law }
             }

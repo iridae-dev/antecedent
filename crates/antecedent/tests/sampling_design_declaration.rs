@@ -14,6 +14,32 @@ use common::fixtures::confounded_scm;
 
 const ROWS: usize = 240;
 
+/// The point estimate and bootstrap accounting of a study result.
+fn point_and_bootstrap(
+    result: &antecedent::StudyResult,
+) -> (f64, Option<f64>, Option<u32>) {
+    let effect = result.estimate().as_effect().expect("an average effect");
+    let bootstrap = &effect.uncertainty.bootstrap;
+    (effect.ate, bootstrap.se, bootstrap.replicates_ok)
+}
+
+/// The undeclared, non-resampling run of the confounded fixture: the reference point estimate
+/// a declared design must leave unchanged (a design only governs resampling).
+fn undeclared_point_estimate() -> f64 {
+    let ctx = ExecutionContext::for_tests(11);
+    let (data, dag, query) = confounded_scm(ROWS, 11);
+    let result = Study::tabular(data)
+        .graph(dag)
+        .query(query)
+        .estimator(EstimatorId::LinearAdjustmentAte)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .and_then(|study| study.run(&ctx))
+        .unwrap();
+    point_and_bootstrap(&result).0
+}
+
 fn is_design_refusal(error: &CausalError) -> bool {
     matches!(
         error,
@@ -57,7 +83,12 @@ fn a_request_without_resampling_is_accepted_under_the_declared_design() {
         .sampling_design(DeclaredSamplingDesign::IndependentSubjectTrajectories)
         .build()
         .and_then(|study| study.run(&ctx));
-    assert!(result.is_ok(), "{:?}", result.err());
+    let result = result.unwrap_or_else(|e| panic!("{e:?}"));
+    let (ate, se, replicates) = point_and_bootstrap(&result);
+    assert!((ate - undeclared_point_estimate()).abs() < 1e-12, "the design moved the estimate");
+    // Nothing was resampled, so there is no bootstrap error to publish.
+    assert_eq!(se, None);
+    assert!(replicates.is_none_or(|ok| ok == 0), "{replicates:?}");
 }
 
 #[test]
@@ -75,7 +106,12 @@ fn a_whole_cluster_bootstrap_is_accepted_under_a_clustered_panel() {
         .sampling_design(DeclaredSamplingDesign::ClusteredPanel)
         .build()
         .and_then(|study| study.run(&ctx));
-    assert!(result.is_ok(), "{:?}", result.err());
+    let result = result.unwrap_or_else(|e| panic!("{e:?}"));
+    let (ate, se, replicates) = point_and_bootstrap(&result);
+    assert!((ate - undeclared_point_estimate()).abs() < 1e-12, "the design moved the estimate");
+    // The accepted whole-cluster draw actually ran: a positive, finite spread from replicates.
+    assert!(se.is_some_and(|se| se.is_finite() && se > 0.0), "{se:?}");
+    assert!(replicates.is_some_and(|ok| ok > 0), "{replicates:?}");
 }
 
 #[test]
@@ -101,7 +137,7 @@ fn an_estimator_that_declares_another_design_conflicts_with_the_study() {
 fn run_with_labels(
     design: DeclaredSamplingDesign,
     labels: Option<Vec<u32>>,
-) -> Result<(), CausalError> {
+) -> Result<antecedent::StudyResult, CausalError> {
     let ctx = ExecutionContext::for_tests(11);
     let (data, dag, query) = confounded_scm(ROWS, 11);
     let mut estimator = LinearAdjustmentAte::new().with_bootstrap_replicates(20);
@@ -116,7 +152,6 @@ fn run_with_labels(
         .sampling_design(design)
         .build()
         .and_then(|study| study.run(&ctx))
-        .map(|_| ())
 }
 
 fn labels_of(size: usize) -> Vec<u32> {
@@ -126,8 +161,12 @@ fn labels_of(size: usize) -> Vec<u32> {
 #[test]
 fn subject_labels_let_a_trajectory_design_resample_whole_subjects() {
     let result =
-        run_with_labels(DeclaredSamplingDesign::IndependentSubjectTrajectories, Some(labels_of(6)));
-    assert!(result.is_ok(), "{:?}", result.err());
+        run_with_labels(DeclaredSamplingDesign::IndependentSubjectTrajectories, Some(labels_of(6)))
+            .unwrap_or_else(|e| panic!("{e:?}"));
+    let (ate, se, replicates) = point_and_bootstrap(&result);
+    assert!((ate - undeclared_point_estimate()).abs() < 1e-12, "the design moved the estimate");
+    assert!(se.is_some_and(|se| se.is_finite() && se > 0.0), "{se:?}");
+    assert!(replicates.is_some_and(|ok| ok > 0), "{replicates:?}");
 }
 
 #[test]
@@ -163,6 +202,9 @@ fn the_same_design_on_the_estimator_and_the_study_is_not_a_conflict() {
         .estimator(estimator)
         .refute(RefuteSuite::None)
         .sampling_design(DeclaredSamplingDesign::ClusteredPanel)
-        .build();
-    assert!(built.is_ok(), "{:?}", built.err());
+        .build()
+        .unwrap_or_else(|e| panic!("agreeing declarations must build: {e:?}"));
+    // The agreed study is also runnable and leaves the point estimate where it is undeclared.
+    let result = built.run(&ExecutionContext::for_tests(11)).unwrap();
+    assert!((point_and_bootstrap(&result).0 - undeclared_point_estimate()).abs() < 1e-12);
 }

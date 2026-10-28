@@ -211,7 +211,8 @@ impl PyPreparedAnalysis {
     #[pyo3(signature = (names, columns, outcome, subjects, clusters, periods, cohorts,
         *, estimator="callaway_santanna", comparison="never_treated", nuisance="doubly_robust",
         base_period="varying", aggregation="simple", anticipation=0, covariates=Vec::new(),
-        resampling=None, replicates=999, accepted=false, seed=1, threads=None, options=None))]
+        resampling=None, replicates=999, observation="ignorable_given_cohort",
+        attrition_shift_bound=None, accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_rollout_did(
         py: Python<'_>,
@@ -231,11 +232,14 @@ impl PyPreparedAnalysis {
         covariates: Vec<String>,
         resampling: Option<String>,
         replicates: u32,
+        observation: &str,
+        attrition_shift_bound: Option<f64>,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
+        let observation = observation_process(observation, attrition_shift_bound)?;
         let estimator = rollout_estimator(estimator)?;
         let comparison = did_comparison_group(comparison)?;
         let nuisance = did_nuisance_method(nuisance)?;
@@ -263,6 +267,7 @@ impl PyPreparedAnalysis {
                 aggregation,
                 anticipation,
                 covariates: Arc::from(covariate_ids),
+                observation,
             };
             let query = antecedent_core::PanelDidQuery::heterogeneity_robust(
                 outcome_id,
@@ -346,7 +351,7 @@ impl PyPreparedAnalysis {
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome, units, periods, treated_unit,
         intervention_period, *, difference_in_differences=false, uniform_unit_randomization=false, sharp_null_effect=None, augmentation_ridge=None,
-        conformal=false, adoptions=None, placebo_replicates=0,
+        conformal=false, adoptions=None, placebo_replicates=0, observed_window_support=false,
         accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_synthetic_control(
@@ -365,6 +370,7 @@ impl PyPreparedAnalysis {
         conformal: bool,
         adoptions: Option<Vec<(String, i64)>>,
         placebo_replicates: u32,
+        observed_window_support: bool,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
@@ -407,6 +413,8 @@ impl PyPreparedAnalysis {
             } else {
                 query
             };
+            let query =
+                if observed_window_support { query.with_observed_window_support() } else { query };
             let query = if conformal { query.with_conformal_intervals() } else { query };
             let query = if let Some(adoptions) = adoptions {
                 let adoptions: Vec<(Arc<str>, i64)> = adoptions
@@ -946,6 +954,29 @@ fn rollout_estimator(name: &str) -> PyResult<antecedent_core::RolloutDidEstimato
             other,
             "callaway_santanna, sun_abraham, imputation",
         )),
+    }
+}
+
+fn observation_process(
+    name: &str,
+    shift_bound: Option<f64>,
+) -> PyResult<antecedent_core::PanelObservationProcess> {
+    use antecedent_core::PanelObservationProcess as Process;
+    match (name, shift_bound) {
+        ("ignorable_given_cohort", None) => Ok(Process::IgnorableGivenCohort),
+        ("informative", None) => Ok(Process::Informative),
+        ("informative", Some(bound)) => antecedent_core::AttritionShiftBound::new(bound)
+            .map(Process::InformativeBounded)
+            .ok_or_else(|| {
+                crate::value_err("attrition_shift_bound must be finite and non-negative")
+            }),
+        ("ignorable_given_cohort", Some(_)) => Err(crate::value_err(
+            "attrition_shift_bound bounds an informative observation process; declare \
+             observation=\"informative\" with it",
+        )),
+        (other, _) => {
+            Err(unknown_name("observation process", other, "ignorable_given_cohort, informative"))
+        }
     }
 }
 

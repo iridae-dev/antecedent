@@ -11081,10 +11081,20 @@ assertion_scopes = ["test_cluster_multiplier_refit_reports_intervals_and_simulta
 dimensions = ["success", "controls"]
 assertion_contract = "199 cluster-multiplier replicates yield an overall interval around the estimate and event-time effects with intervals nested in simultaneous bands near 3 times event time."
 [[capability.evidence]]
-test = "python/tests/test_quasi_rollout.py::test_sun_abraham_refuses_an_unbalanced_panel_naming_the_next_attempt"
-assertion_scopes = ["test_sun_abraham_refuses_an_unbalanced_panel_naming_the_next_attempt"]
+test = "python/tests/test_quasi_rollout.py::test_sun_abraham_reads_an_unbalanced_panel_and_matches_the_dummy_regression_reference"
+assertion_scopes = ["test_sun_abraham_reads_an_unbalanced_panel_and_matches_the_dummy_regression_reference"]
+dimensions = ["success", "inspection"]
+assertion_contract = "The Sun-Abraham estimator on an unbalanced panel reproduces the full-dummy numpy saturated regression for the summary and every group-time effect to 1e-8, and reports per-cohort support diagnostics."
+[[capability.evidence]]
+test = "python/tests/test_quasi_rollout.py::test_a_declared_attrition_bound_reports_an_assumption_dependent_range"
+assertion_scopes = ["test_a_declared_attrition_bound_reports_an_assumption_dependent_range"]
+dimensions = ["success", "inspection"]
+assertion_contract = "A declared attrition shift bound on an informative observation process reports the estimate plus and minus the bound times the slope as an assumption-dependent range, and rejects a bound without the informative declaration or a negative bound."
+[[capability.evidence]]
+test = "python/tests/test_quasi_rollout.py::test_sun_abraham_refuses_a_declared_informative_observation_process_naming_the_next_attempt"
+assertion_scopes = ["test_sun_abraham_refuses_a_declared_informative_observation_process_naming_the_next_attempt"]
 dimensions = ["refusal"]
-assertion_contract = "An unbalanced panel under the Sun-Abraham estimator refuses naming the next attempt."
+assertion_contract = "An observation process declared informative refuses naming the next attempt, and an unknown observation name is rejected."
 [[capability.evidence]]
 test = "python/tests/test_quasi_rollout.py::test_rollout_export_load_round_trip_reproduces_the_live_result"
 assertion_scopes = ["test_rollout_export_load_round_trip_reproduces_the_live_result"]
@@ -16590,3 +16600,38 @@ row = "analysis.decision_contract_facade.evaluate_transported"
 rust_types = ["antecedent::analysis::BoundTransportedDecision", "antecedent::analysis::BoundTransportedDecision#eb6497eb0974", "antecedent::analysis::TransportedDecisionInspection"]
 rust = ["<antecedent::analysis::BoundTransportedDecision>::decision", "<antecedent::analysis::BoundTransportedDecision>::receipt", "<antecedent::analysis::BoundTransportedDecision>::bound_identity", "<antecedent::analysis::BoundTransportedDecision>::causal_target", "<antecedent::analysis::BoundTransportedDecision>::causal_identification", "<antecedent::analysis::BoundTransportedDecision>::identity", "<antecedent::analysis::BoundTransportedDecision>::inspect"]
 reason = "evaluate_transported returns the BoundTransportedDecision whose decision, receipt, bound identity, causal target and identification identities, canonical identity and TransportedDecisionInspection (point_only claim, not native target data) the binding reads and the row's first test asserts, including the identity moving with the response while the bound identities stay stable."
+
+[[capability]]
+id = "design.adaptive_policy_search.search"
+rust = []
+rust_types = []
+status = "covered"
+owner = "Python API integration: antecedent_design::adaptive_policy_search"
+behavior = "adaptive_policy.search optimises bounded history-dependent policy families (schedule, threshold, piecewise, linear feedback, tree) against a response source on shared draws, with path constraints, a fitted-model-optimisation standing label, held-out evaluation, paired contrasts and a replayable record."
+python = "antecedent.adaptive_policy.search"
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_adaptive_policy.py::test_state_dependent_threshold_beats_the_best_fixed_schedule_at_the_closed_form"
+assertion_scopes = ["test_state_dependent_threshold_beats_the_best_fixed_schedule_at_the_closed_form"]
+dimensions = ["success", "controls", "inspection"]
+assertion_contract = "On an independently simulated stationary Gaussian state the threshold rule's held-out value equals the closed-form treat-above-k optimum within four standard errors, the best fixed schedule earns about zero, the paired held-out contrast exceeds 0.8 of the optimum, and the standing is fitted_model_optimization."
+[[capability.evidence]]
+test = "python/tests/test_adaptive_policy.py::test_identified_policy_effect_is_refused_without_an_identification_basis"
+assertion_scopes = ["test_identified_policy_effect_is_refused_without_an_identification_basis"]
+dimensions = ["refusal"]
+assertion_contract = "Requesting an identified policy effect from a source with no identification basis refuses with reason code adaptive_policy_identification_unsupported, and the same request on an identified source is labelled identified."
+
+[[capability]]
+id = "design.adaptive_policy_search.search_model"
+rust = []
+rust_types = []
+status = "covered"
+owner = "Python API integration: antecedent::gcm::ModelPolicySource"
+behavior = "adaptive_policy.search_model rolls a fitted graphical causal model out under each candidate policy lowered to an assigned value program, with common random numbers across policies, an explicit hold-last-action rule between decision steps, and the same constraints, standing and held-out reporting."
+python = "antecedent.adaptive_policy.search_model"
+required_dimensions = ["success"]
+[[capability.evidence]]
+test = "python/tests/test_adaptive_policy.py::test_a_fitted_model_is_a_response_source_with_hold_between_decisions"
+assertion_scopes = ["test_a_fitted_model_is_a_response_source_with_hold_between_decisions"]
+dimensions = ["success", "controls"]
+assertion_contract = "A model fitted to price and demand data is optimised under a quadratic tracking loss with decisions every second step; the result is a fitted_model_optimization whose held-out tracking utility is negative and bounded by the closed-form noise floor."

@@ -27,6 +27,8 @@ mod mapped_posterior_transfer;
 mod measurement_model_facade;
 #[path = "mechanism_composition_facade.rs"]
 mod mechanism_composition_facade;
+#[path = "mnar_sensitivity_facade.rs"]
+mod mnar_sensitivity_facade;
 #[path = "msm_sensitivity_decision.rs"]
 mod msm_sensitivity_decision;
 #[path = "multi_source_acceptance.rs"]

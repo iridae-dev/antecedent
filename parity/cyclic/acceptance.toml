@@ -53,9 +53,9 @@ independent_truth = "Analytic trajectories, tolerance refinement, sensitivity di
 
 [[capability]]
 id = "Y19.6"
-workflow = "OrnsteinUhlenbeck stationary/transient/intervened and OuMechanisms.prepare -> joint regime fit, failed worlds and artifact"
-rust = ["crates/antecedent-model/src/continuous_cyclic.rs", "crates/antecedent-estimate/src/ou_mechanisms.rs"]
-independent_truth = "Analytic scalar/multivariate Lyapunov and transient laws; SciPy stationary covariance checks; shared mechanism gradients against finite differences"
+workflow = "OrnsteinUhlenbeck stationary/transient/intervened, OuMechanisms.prepare and OuMechanisms.fit_trajectories -> joint regime fit, exact-transition trajectory fit with irregular intervals, intervention schedules and partial observation, held-out intervention prediction, failed worlds and artifact"
+rust = ["crates/antecedent-model/src/continuous_cyclic.rs", "crates/antecedent-estimate/src/ou_mechanisms.rs", "crates/antecedent-estimate/src/ou_trajectory.rs"]
+independent_truth = "Analytic scalar/multivariate Lyapunov and transient laws; SciPy stationary covariance checks; shared mechanism gradients against finite differences; scalar closed-form Gaussian transitions and the brute-force joint Gaussian density of all observation times; parameters recovered from independently simulated trajectories (fine-grid Euler-Maruyama and exact NumPy/SciPy discretization) and held-out intervention trajectories compared with independent Monte Carlo"
 
 [[capability]]
 id = "Y19.7"
@@ -68,6 +68,14 @@ id = "Y19.8"
 workflow = "Study::prepare_cyclic[_family] -> retained execution -> source-bound evidence/decision -> independent CPU consumer"
 rust = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_system_artifact.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs"]
 independent_truth = "Fresh processes, immutable preparation, zero-refit retargets, source/schema/world/policy/seed invalidation, resource/cancellation and malformed artifact refusal"
+
+[[capability]]
+id = "nonlinear_sde"
+workflow = "StochasticDifferentialEquation.simulate / fit -> validated drift and diagonal diffusion in the portable expression language with scheduled inputs, bounds and interval Lipschitz certificate -> Euler-Maruyama / diagonal Milstein ensembles under named interventions with paired contrasts, Monte Carlo and step-halving error -> Euler quasi-likelihood or extended-Kalman fit with separate fitting, identification and discretization evidence -> parameter-draw spread -> evidence/artifact"
+rust = ["crates/antecedent-model/src/nonlinear_sde.rs", "crates/antecedent-estimate/src/nonlinear_sde_fit.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs"]
+fixtures = ["conformance/gcm/nonlinear_sde_ensemble/expected.json"]
+tests = ["crates/antecedent-model/src/nonlinear_sde/tests.rs", "crates/antecedent-estimate/src/nonlinear_sde_fit/tests.rs", "python/tests/test_nonlinear_sde.py"]
+independent_truth = "NumPy re-implementation of the counter-based generator and the Euler-Maruyama ensembles of the documented SIR system (seasonal input, square-root state-dependent noise, reflecting bounds, a replaced-input world and a held-component world) replayed to 1e-8; exact moment ODEs of a square-root diffusion with a piecewise-constant input against Monte Carlo ensembles within standard-error tolerances; Euler recursions of the scheme's own mean and variance with the observed effect of step halving; strong error of Milstein against the exact geometric-Brownian solution under shared increments; the dense Euler quasi log likelihood of trajectories drawn with numpy.random.default_rng; typed refusals for unbounded growth, non-commutative Milstein, off-grid actions, out-of-envelope inputs, coarse observation intervals, vanishing transition variance, absent transitions and unread parameters"
 
 [[capability]]
 id = "integrated_families"

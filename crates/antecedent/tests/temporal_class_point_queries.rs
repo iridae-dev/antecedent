@@ -307,7 +307,12 @@ fn temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point() {
                         if !bayesian {
                             assert!(result.posterior.is_none());
                         }
-                        assert!(result.interval().is_some());
+                        let ate = result.estimate().as_effect().unwrap().ate;
+                        let (lo, hi) = result.interval().expect("the point carries an interval");
+                        assert!(
+                            lo.is_finite() && hi.is_finite() && lo < ate && ate < hi,
+                            "interval ({lo}, {hi}) must be a proper finite bracket of {ate}"
+                        );
                         assert_eq!(
                             result.logical_plan.estimator.as_deref(),
                             Some("temporal.linear.adjustment")
@@ -527,7 +532,13 @@ fn temporal_class_nested_contract_encodes() {
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate_retained(&ctx).unwrap();
     let encoded = prepared.encode_contracted_result(&result, "nested-class", &ctx);
-    assert!(encoded.is_ok(), "{encoded:?}");
+    let bytes = encoded.unwrap_or_else(|e| panic!("{e:?}"));
+    // The sealed artifact is consumable and its verified contract names the nested query.
+    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    let contract = consumed.contract.as_ref().expect("verified contract");
+    let labels: std::collections::HashMap<_, _> =
+        antecedent_io::executed_functional_labels(&contract.target.query).into_iter().collect();
+    assert_eq!(labels["query_kind"], "nested_counterfactual", "{labels:?}");
 }
 
 #[test]

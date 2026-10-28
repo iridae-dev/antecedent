@@ -80,6 +80,9 @@ impl CanonicalEncode for SyntheticRollout {
 /// it keeps its canonical bytes.
 const ROLLOUT_FIELD: u64 = 0x5359_4e52_4f4c_4c00;
 
+/// Marks a declared observed-window donor support in the canonical encoding.
+const OBSERVED_WINDOW_FIELD: u64 = 0x5359_4e4f_5753_5550;
+
 /// A balanced unit-by-period panel with one treated unit and donor units.
 ///
 /// The causal interpretation requires a valid donor counterfactual or
@@ -109,6 +112,10 @@ pub struct SyntheticControlQuery {
     pub augmentation_ridge: Option<f64>,
     /// Adopting units and interval construction of a synthetic panel with intervals.
     pub rollout: Option<SyntheticRollout>,
+    /// Read an unbalanced panel over the treated unit's observed window: donors are the units
+    /// observed in every period the treated unit is observed, and only those periods fit and
+    /// evaluate the weights. Nothing is imputed.
+    pub observed_window_support: bool,
 }
 
 /// Every field is written; `units` and `periods` are row-aligned and keep
@@ -127,6 +134,11 @@ impl CanonicalEncode for SyntheticControlQuery {
         if let Some(rollout) = &self.rollout {
             writer.word(ROLLOUT_FIELD);
             rollout.encode(writer);
+        }
+        // Absent for the balanced-panel default, so queries that never declared it keep
+        // their identity.
+        if self.observed_window_support {
+            writer.word(OBSERVED_WINDOW_FIELD);
         }
     }
 }
@@ -152,7 +164,16 @@ impl SyntheticControlQuery {
             sharp_null_effect: None,
             augmentation_ridge: None,
             rollout: None,
+            observed_window_support: false,
         }
+    }
+
+    /// Read an unbalanced panel over the treated unit's observed window (see
+    /// [`Self::observed_window_support`]).
+    #[must_use]
+    pub fn with_observed_window_support(mut self) -> Self {
+        self.observed_window_support = true;
+        self
     }
 
     /// Use the same frozen panel for a synthetic difference-in-differences contrast.

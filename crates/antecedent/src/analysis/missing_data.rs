@@ -265,13 +265,7 @@ pub(crate) fn validate_declaration(
             }
         }
         if context.graph_posterior {
-            return Err(CausalError::Estimate(policy_not_applicable_next(
-                declaration.policy,
-                label,
-                "a graph-posterior mixture is not pooled over completed tables",
-                &row.supported,
-                MissingPolicy::CompleteCase,
-            )));
+            graph_posterior_pooling(context, query, label)?;
         }
         match MissingRoute::of(query, context.data) {
             // A single series is imputed by a lagged model whose parameter draw resamples
@@ -288,6 +282,61 @@ pub(crate) fn validate_declaration(
                     .map_err(|error| CausalError::Estimate(error.into()))?;
             }
         }
+    }
+    Ok(())
+}
+
+/// Whether a graph-posterior mixture can be pooled over completed tables, and the typed
+/// refusal naming why not when it cannot.
+///
+/// A mixture over structures is not a point and a variance, so Rubin's rules do not apply: the
+/// completed tables' effect posteriors are stacked with equal weight, each keeping its own
+/// graph weights, which is the posterior of the effect given the declared structure
+/// distribution and the imputation model. That is defined for a Bayesian study of a static
+/// effect on tabular rows whose per-table answer is one effect posterior. Every other
+/// construction has no justified pooling rule and is refused with a detail naming the reason.
+///
+/// # Errors
+///
+/// `missing_policy_not_applicable` with detail `multiple_imputation.graph_posterior_*`.
+fn graph_posterior_pooling(
+    context: &DeclarationContext<'_>,
+    query: &CausalQuery,
+    label: &str,
+) -> Result<(), CausalError> {
+    let refuse = |detail: &str, why: &str| {
+        Err(CausalError::Estimate(antecedent_estimate::EstimationError::refused_detail(
+            antecedent_core::reason_code!("missing_policy_not_applicable"),
+            detail,
+            format!(
+                "{label} cannot pool a graph-posterior mixture over completed tables: {why}; \
+                 next attempt: declare `complete_case`"
+            ),
+        )))
+    };
+    if !matches!(context.data, DataInput::Tabular(_)) {
+        return refuse(
+            "multiple_imputation.graph_posterior_series",
+            "a series graph posterior is answered by dynamic-network and class executors whose \
+             per-table answers are per-horizon and per-atom structures with no single effect \
+             posterior to stack, and the dependent series has no exchangeable units for a \
+             Rubin-style variance",
+        );
+    }
+    if !context.inference.is_bayesian() {
+        return refuse(
+            "multiple_imputation.graph_posterior_frequentist",
+            "a mixture over structures has no frequentist point and variance; only effect \
+             posteriors can be mixed",
+        );
+    }
+    if !matches!(query, CausalQuery::AverageEffect(_) | CausalQuery::ConditionalEffect(_)) {
+        return refuse(
+            "multiple_imputation.graph_posterior_query",
+            "this query is answered atom by atom (responses, mediation, counterfactuals, \
+             transport, attribution), and its per-table answer is not one equal-weight \
+             mixture of effect draws",
+        );
     }
     Ok(())
 }

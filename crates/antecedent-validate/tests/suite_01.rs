@@ -5,6 +5,8 @@
 
 #[path = "joint_mechanism_sensitivity.rs"]
 mod joint_mechanism_sensitivity;
+#[path = "mnar_sensitivity.rs"]
+mod mnar_sensitivity;
 #[path = "msm_sensitivity.rs"]
 mod msm_sensitivity;
 #[path = "predictive_assessment.rs"]

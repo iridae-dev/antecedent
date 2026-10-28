@@ -5,7 +5,12 @@ import math
 import antecedent
 import pytest
 from antecedent import analyze
-from antecedent.errors import CausalCompileError, CausalUnsupportedError, CausalValueError
+from antecedent.errors import (
+    CausalCompileError,
+    CausalError,
+    CausalUnsupportedError,
+    CausalValueError,
+)
 from antecedent.outcomes import require_success
 from antecedent.quasi import SyntheticControl
 
@@ -74,6 +79,82 @@ def test_synthetic_control_refuses_unbalanced_panel_and_no_pre_support():
         analyze(short, query=SyntheticControl("y", "unit", "period", "treated", 5))
     with pytest.raises(CausalCompileError, match="at least two pre-periods"):
         analyze(rows, query=SyntheticControl("y", "unit", "period", "treated", 1))
+
+
+def _unbalanced_truth(gone: set[tuple[str, int]]) -> dict[str, list[object]]:
+    """The exact-weights panel plus an unrelated donor ``d``, without the listed unit-periods."""
+    rows = _synthetic_truth()
+    extra = {"d": [4.0, 1.0, 3.0, 2.0, 0.0, 5.0]}
+    for unit, trajectory in extra.items():
+        for period, value in enumerate(trajectory, start=1):
+            rows["y"].append(value)
+            rows["unit"].append(unit)
+            rows["period"].append(period)
+    keep = [
+        index
+        for index in range(len(rows["y"]))
+        if (rows["unit"][index], rows["period"][index]) not in gone
+    ]
+    return {key: [values[index] for index in keep] for key, values in rows.items()}
+
+
+def test_observed_window_support_recovers_the_effect_from_an_unbalanced_panel():
+    # The treated unit misses period 2 and donor d misses period 3 (inside the window), so
+    # d is excluded; donor a misses period 2, which the treated unit does not have.
+    rows = _unbalanced_truth({("treated", 2), ("d", 3), ("a", 2)})
+    query = SyntheticControl("y", "unit", "period", "treated", 5, observed_window_support=True)
+    result = _analyzed(rows, query).synthetic_control
+    assert result.estimate == pytest.approx(5.0, abs=1e-5)
+    assert result.n_pre_periods == 3 and result.n_post_periods == 2
+    weights = dict(result.donor_weights)
+    assert set(weights) == {"a", "b", "c"}
+    assert weights == pytest.approx({"a": 0.2, "b": 0.3, "c": 0.5}, abs=1e-4)
+    window = result.observed_window
+    assert window is not None
+    assert window.pre_periods == (1, 3, 4) and window.post_periods == (5, 6)
+    assert window.donors_used == 3 and window.donors_dropped == (("d", 1),)
+    balanced = _analyzed(
+        _synthetic_truth(), SyntheticControl("y", "unit", "period", "treated", 5)
+    ).synthetic_control
+    assert balanced.observed_window is None
+    augmented = _analyzed(
+        rows,
+        SyntheticControl(
+            "y",
+            "unit",
+            "period",
+            "treated",
+            5,
+            augmentation_ridge=1e-8,
+            observed_window_support=True,
+        ),
+    ).synthetic_control
+    assert augmented.estimate == pytest.approx(5.0, abs=1e-4)
+    # Without the declaration the same panel is still refused as unbalanced.
+    with pytest.raises(CausalCompileError, match="balanced panel"):
+        analyze(rows, query=SyntheticControl("y", "unit", "period", "treated", 5))
+
+
+def _refused(rows, **options):
+    query = SyntheticControl("y", "unit", "period", "treated", 5, **options)
+    return require_success(analyze(rows, query=query))
+
+
+def test_observed_window_support_refuses_designs_without_enough_support():
+    thin = _unbalanced_truth({("treated", 1), ("treated", 2), ("treated", 3)})
+    with pytest.raises(CausalError, match="(?i)at least two observed pre-intervention"):
+        _refused(thin, observed_window_support=True)
+    few = _unbalanced_truth({("a", 4), ("d", 6)})
+    with pytest.raises(CausalError, match="(?i)only 2 donors"):
+        _refused(few, observed_window_support=True)
+    with pytest.raises(CausalError, match="(?i)next attempt"):
+        _refused(
+            _unbalanced_truth(set()),
+            observed_window_support=True,
+            uniform_unit_randomization=True,
+        )
+    with pytest.raises(CausalValueError):
+        SyntheticControl("y", "unit", "period", "treated", 5, observed_window_support="yes")
 
 
 def test_retained_analyze_and_prepare_match_direct_point_result():

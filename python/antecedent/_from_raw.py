@@ -39,6 +39,7 @@ from .quasi import (
     IvBoundsInterval,
     IvBoundsPosterior,
     LocalPolynomialRatioEstimate,
+    ObservedWindowSupport,
     PanelDifferenceInDifferences,
     PanelDifferenceInDifferencesEstimate,
     PeriodHistoryMatchEstimate,
@@ -653,6 +654,19 @@ def _panel_did_from_raw(
     )
 
 
+def _observed_window_from_raw(raw: Any) -> ObservedWindowSupport | None:
+    if raw is None:
+        return None
+    pre, post, used, dropped, unread = raw
+    return ObservedWindowSupport(
+        pre_periods=tuple(int(period) for period in pre),
+        post_periods=tuple(int(period) for period in post),
+        donors_used=int(used),
+        donors_dropped=tuple((str(unit), int(missed)) for unit, missed in dropped),
+        unread_rows=int(unread),
+    )
+
+
 def _synthetic_control_from_raw(raw: Any) -> SyntheticControlEstimate | None:
     section = getattr(raw, "synthetic_control", None)
     if section is None:
@@ -675,6 +689,7 @@ def _synthetic_control_from_raw(raw: Any) -> SyntheticControlEstimate | None:
         unadjusted_effect=section.unadjusted_effect,
         outcome_model_correction=section.outcome_model_correction,
         augmentation_ridge=section.augmentation_ridge,
+        observed_window=_observed_window_from_raw(section.observed_window),
         uncertainty=section.uncertainty,
         assumptions=(
             "no_anticipation",

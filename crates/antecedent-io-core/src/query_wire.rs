@@ -1707,6 +1707,9 @@ pub struct SyntheticControlQueryWire {
     /// Adopting units and interval construction; absent for a point-only panel.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rollout: Option<crate::rollout_query_wire::SyntheticRolloutWire>,
+    /// Whether an unbalanced panel is read over the treated unit's observed window.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub observed_window_support: bool,
 }
 
 /// Fixed-cutoff local ratio design, including whether the contrast is a kink.

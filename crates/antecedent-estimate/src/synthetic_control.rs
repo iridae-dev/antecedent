@@ -233,6 +233,138 @@ fn placebo_ratio(gap: f64, pre_rmse: f64) -> f64 {
     }
 }
 
+/// What a synthetic control reads of an unbalanced panel.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ObservedWindowSupport {
+    /// Pre-intervention periods the treated unit is observed in; the donor weights are fitted
+    /// on these periods only.
+    pub pre_periods: Vec<i64>,
+    /// Post-intervention periods the treated unit is observed in; the effect averages these.
+    pub post_periods: Vec<i64>,
+    /// Donors observed in every period of the window.
+    pub donors_used: usize,
+    /// Units other than the treated unit missing at least one period of the window, each with
+    /// the number of window periods it lacks. They are not donors.
+    pub donors_dropped: Vec<(String, usize)>,
+    /// Observed unit-periods no estimate reads: periods outside the window and the rows of
+    /// dropped donors.
+    pub unread_rows: usize,
+}
+
+/// Restrict an unbalanced panel to the treated unit's observed window.
+///
+/// The window is the set of periods in which the treated unit is observed: its observed
+/// pre-intervention periods fit the donor weights and its observed post-intervention periods
+/// define the effect. A donor is eligible only if it is observed in every period of the window,
+/// so the restricted panel is balanced by construction and nothing is imputed: a donor's
+/// missing period is never filled, periods the treated unit lacks are never read, and no
+/// unrelated period of one unit is joined to another's. The returned vectors are the rows of
+/// the treated unit and eligible donors inside the window, in input order.
+///
+/// # Errors
+///
+/// Misaligned or non-finite inputs, a repeated unit-period, an unobserved treated unit, fewer
+/// than two observed pre-intervention periods or no observed post-intervention period of the
+/// treated unit, or fewer than three donors observed through the whole window. Each support
+/// message names the next attempt.
+#[allow(
+    clippy::type_complexity,
+    reason = "the restricted rows and the support report are returned together"
+)]
+pub fn restrict_to_observed_window(
+    outcome: &[f64],
+    units: &[String],
+    periods: &[i64],
+    treated_unit: &str,
+    intervention_period: i64,
+) -> Result<(Vec<f64>, Vec<String>, Vec<i64>, ObservedWindowSupport), String> {
+    let n = outcome.len();
+    if n == 0 || units.len() != n || periods.len() != n {
+        return Err("outcome, unit, and period vectors must have equal non-zero length".into());
+    }
+    if outcome.iter().any(|value| !value.is_finite()) {
+        return Err("outcomes must be finite".into());
+    }
+    if treated_unit.is_empty() || intervention_period <= 0 {
+        return Err("treated unit and intervention period are required".into());
+    }
+    let mut panel: BTreeMap<&str, BTreeMap<i64, f64>> = BTreeMap::new();
+    for i in 0..n {
+        if units[i].is_empty() || periods[i] <= 0 {
+            return Err("unit IDs must be non-empty and periods positive".into());
+        }
+        if panel.entry(units[i].as_str()).or_default().insert(periods[i], outcome[i]).is_some() {
+            return Err("each unit must have at most one outcome per period".into());
+        }
+    }
+    let treated = panel.get(treated_unit).ok_or_else(|| {
+        "the treated unit is not observed in any period; next attempt: name a unit of the panel"
+            .to_string()
+    })?;
+    let pre: Vec<i64> =
+        treated.keys().copied().filter(|period| *period < intervention_period).collect();
+    let post: Vec<i64> =
+        treated.keys().copied().filter(|period| *period >= intervention_period).collect();
+    if pre.len() < 2 || post.is_empty() {
+        return Err(format!(
+            "the treated unit is observed in {} pre-intervention and {} post-intervention \
+             periods; the weights need at least two observed pre-intervention periods and the \
+             effect at least one observed post-intervention period. Next attempt: observe the \
+             treated unit in more periods around the intervention",
+            pre.len(),
+            post.len()
+        ));
+    }
+    let window: Vec<i64> = pre.iter().chain(&post).copied().collect();
+    let mut kept: BTreeSet<&str> = BTreeSet::new();
+    kept.insert(treated_unit);
+    let mut dropped = Vec::new();
+    for (unit, observed) in &panel {
+        if *unit == treated_unit {
+            continue;
+        }
+        let missing = window.iter().filter(|period| !observed.contains_key(*period)).count();
+        if missing == 0 {
+            kept.insert(unit);
+        } else {
+            dropped.push(((*unit).to_string(), missing));
+        }
+    }
+    let donors_used = kept.len() - 1;
+    if donors_used < 3 {
+        return Err(format!(
+            "only {donors_used} donors are observed in every one of the treated unit's {} \
+             observed periods (at least three are required); {} units miss part of the window. \
+             Next attempt: add donors observed throughout the window, or drop the periods only \
+             the treated unit has",
+            window.len(),
+            dropped.len()
+        ));
+    }
+    let in_window: BTreeSet<i64> = window.iter().copied().collect();
+    let (mut y, mut u, mut p) = (Vec::new(), Vec::new(), Vec::new());
+    for i in 0..n {
+        if kept.contains(units[i].as_str()) && in_window.contains(&periods[i]) {
+            y.push(outcome[i]);
+            u.push(units[i].clone());
+            p.push(periods[i]);
+        }
+    }
+    let unread_rows = n - y.len();
+    Ok((
+        y,
+        u,
+        p,
+        ObservedWindowSupport {
+            pre_periods: pre,
+            post_periods: post,
+            donors_used,
+            donors_dropped: dropped,
+            unread_rows,
+        },
+    ))
+}
+
 /// Fit a balanced-panel synthetic control and leave-one-donor-out placebos.
 /// No p-value or interval calibration is attached to the returned placebo rank.
 // length reflects the estimator's fixed statistical contract; refactor would change behavior
@@ -608,6 +740,110 @@ mod tests {
         assert_eq!(fit.placebo_effects.len(), 3);
         let too_few = fit_synthetic_control(&y[..18], &units[..18], &periods[..18], "a", 5);
         assert!(too_few.unwrap_err().contains("at least three donor"));
+    }
+
+    /// Donors a, b, c are exact convex pieces of the treated unit (weights 0.2, 0.3, 0.5) over
+    /// periods 1..=6 with a post effect of 5 at periods 5 and 6; donor d is unrelated.
+    fn exact_panel() -> (Vec<f64>, Vec<String>, Vec<i64>) {
+        let donors = [
+            ("a", [0.0, 0.0, 1.0, 0.0, 1.0, 0.0]),
+            ("b", [0.0, 1.0, 0.0, 1.0, 2.0, 2.0]),
+            ("c", [1.0, 0.0, 0.0, 1.0, 0.0, 2.0]),
+            ("d", [4.0, 1.0, 3.0, 2.0, 0.0, 5.0]),
+        ];
+        let (mut y, mut units, mut periods) = (Vec::new(), Vec::new(), Vec::new());
+        for (unit, values) in donors {
+            for (i, value) in values.into_iter().enumerate() {
+                units.push(unit.to_string());
+                periods.push(i as i64 + 1);
+                y.push(value);
+            }
+        }
+        for i in 0..6 {
+            units.push("treated".into());
+            periods.push(i as i64 + 1);
+            let value = 0.2 * donors[0].1[i] + 0.3 * donors[1].1[i] + 0.5 * donors[2].1[i];
+            y.push(value + if i >= 4 { 5.0 } else { 0.0 });
+        }
+        (y, units, periods)
+    }
+
+    #[test]
+    fn observed_window_support_fits_only_donors_observed_through_the_treated_window() {
+        let (y, units, periods) = exact_panel();
+        // The treated unit misses period 2, donor d misses period 3 and donor a misses
+        // period 2 (a period the treated unit does not have, so it is never read).
+        let gone = |unit: &str, period: i64| (unit.to_string(), period);
+        let removed = [gone("treated", 2), gone("d", 3), gone("a", 2)];
+        let keep: Vec<usize> =
+            (0..y.len()).filter(|i| !removed.contains(&(units[*i].clone(), periods[*i]))).collect();
+        let (y, units, periods): (Vec<f64>, Vec<String>, Vec<i64>) = (
+            keep.iter().map(|i| y[*i]).collect(),
+            keep.iter().map(|i| units[*i].clone()).collect(),
+            keep.iter().map(|i| periods[*i]).collect(),
+        );
+        let (ry, ru, rp, support) =
+            restrict_to_observed_window(&y, &units, &periods, "treated", 5).unwrap();
+        assert_eq!(support.pre_periods, vec![1, 3, 4]);
+        assert_eq!(support.post_periods, vec![5, 6]);
+        assert_eq!(support.donors_used, 3);
+        assert_eq!(support.donors_dropped, vec![("d".to_string(), 1)]);
+        // Donor d's rows and every row at period 2 are unread; nothing was invented.
+        assert_eq!(support.unread_rows, y.len() - ry.len());
+        assert!(rp.iter().all(|period| *period != 2) && ru.iter().all(|unit| unit != "d"));
+        let fit = fit_synthetic_control(&ry, &ru, &rp, "treated", 5).unwrap();
+        assert!((fit.effect - 5.0).abs() < 1e-5, "{}", fit.effect);
+        assert_eq!((fit.n_pre_periods, fit.n_post_periods), (3, 2));
+        let weight =
+            |name: &str| fit.donor_weights.iter().find(|(u, _)| u.as_str() == name).unwrap().1;
+        assert!((weight("a") - 0.2).abs() < 1e-4);
+        assert!((weight("b") - 0.3).abs() < 1e-4);
+        assert!((weight("c") - 0.5).abs() < 1e-4);
+        let augmented = fit_augmented_synthetic_control(&ry, &ru, &rp, "treated", 5, 1e-8).unwrap();
+        assert!((augmented.effect - 5.0).abs() < 1e-4, "{}", augmented.effect);
+        // The balanced entry point still refuses the same unbalanced panel.
+        assert!(
+            fit_synthetic_control(&y, &units, &periods, "treated", 5)
+                .unwrap_err()
+                .contains("balanced panel")
+        );
+    }
+
+    #[test]
+    fn observed_window_support_refuses_designs_without_enough_support() {
+        let (y, units, periods) = exact_panel();
+        let without = |units_gone: &[(&str, i64)]| {
+            let keep: Vec<usize> = (0..y.len())
+                .filter(|i| !units_gone.iter().any(|(u, p)| units[*i] == *u && periods[*i] == *p))
+                .collect();
+            (
+                keep.iter().map(|i| y[*i]).collect::<Vec<f64>>(),
+                keep.iter().map(|i| units[*i].clone()).collect::<Vec<String>>(),
+                keep.iter().map(|i| periods[*i]).collect::<Vec<i64>>(),
+            )
+        };
+        // One observed pre-intervention period of the treated unit.
+        let (a, b, c) = without(&[("treated", 1), ("treated", 2), ("treated", 3)]);
+        let error = restrict_to_observed_window(&a, &b, &c, "treated", 5).unwrap_err();
+        assert!(error.contains("at least two observed pre-intervention"), "{error}");
+        // No observed post-intervention period of the treated unit.
+        let (a, b, c) = without(&[("treated", 5), ("treated", 6)]);
+        let error = restrict_to_observed_window(&a, &b, &c, "treated", 5).unwrap_err();
+        assert!(error.contains("post-intervention"), "{error}");
+        // Two of the four donors miss part of the window, leaving two donors.
+        let (a, b, c) = without(&[("a", 4), ("d", 6)]);
+        let error = restrict_to_observed_window(&a, &b, &c, "treated", 5).unwrap_err();
+        assert!(error.contains("only 2 donors") && error.contains("Next attempt"), "{error}");
+        // A repeated unit-period is malformed, not unbalanced.
+        let mut repeated = (y.clone(), units.clone(), periods.clone());
+        repeated.0.push(0.0);
+        repeated.1.push("a".into());
+        repeated.2.push(1);
+        assert!(
+            restrict_to_observed_window(&repeated.0, &repeated.1, &repeated.2, "treated", 5)
+                .unwrap_err()
+                .contains("at most one outcome")
+        );
     }
 
     #[test]

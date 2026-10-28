@@ -144,6 +144,7 @@ PRODUCERS: tuple[str, ...] = (
     "selective_discovery_result",
     "cross_world_execution_result",
     "callback_result",
+    "external_mechanism_system",
     "transported_response",
     "discretized_composition",
     "whole_path_account",
@@ -1047,6 +1048,7 @@ def _object(producer: str, o: Objs) -> object:
         "selective_discovery_result": _discovered().outcome,
         "cross_world_execution_result": _crossed(),
         "callback_result": _callbacked().execution,
+        "external_mechanism_system": _externalized().artifact,
         "transported_response": _carried(),
         "discretized_composition": _discretized(),
         "whole_path_account": _whole_path(),
@@ -1131,6 +1133,8 @@ def _bundle_payload(producer: str, o: Objs) -> object:
         return _crossed().to_bytes()
     if producer == "callback_result":
         return _callbacked().exported.data
+    if producer == "external_mechanism_system":
+        return _externalized().artifact.data
     return _object(producer, o)
 
 
@@ -1813,6 +1817,7 @@ def _recalc_stage(producer: str, o: Objs) -> tuple[Stage, str]:
             _crossed().identity["receipt_digest"],
         ),
         "callback_result": (Stage.EVIDENCE, _callbacked().exported.expectation.identity),
+        "external_mechanism_system": (Stage.EVIDENCE, _externalized().artifact.identity),
         "transported_response": (Stage.EVIDENCE, _carried().identity),
         "discretized_composition": (Stage.EVIDENCE, _discretized().identity),
         "whole_path_account": (Stage.EVIDENCE, _whole_path().identity),
@@ -2682,6 +2687,43 @@ def _callbacked() -> Any:
 
 
 @lru_cache(maxsize=1)
+def _externalized() -> Any:
+    """One fitted external-mechanism feedback system and its portable artifact.
+
+    The artifact records the mechanism identity, never code, and replays only with a trusted
+    resolver; it is a model-conditional equilibrium with no response, units or decision source
+    for any consumer, and its identity is only evidence a caller may declare into a plan.
+    """
+    import math
+    from types import SimpleNamespace
+
+    from antecedent import external_mechanisms as em
+    from antecedent.cyclic import Equation
+
+    registry = em.MechanismRegistry()
+    gain = em.register_mechanism(
+        "matrix/gain",
+        "1",
+        lambda x, p: p[0] * math.tanh(x[0]),
+        reads=[1],
+        parameters=["gain"],
+        content="matrix gain * tanh(x1)",
+        input_gradient=lambda x, p: [p[0] * (1.0 - math.tanh(x[0]) ** 2)],
+        input_lipschitz=[0.9],
+        registry=registry,
+    )
+    model = em.ExternalFeedbackModel(
+        equations=(
+            em.ExternalEquation("response", gain, parameters=(0.5,)),
+            Equation("feedback", 0.0, (0.2, 0.0), "tanh"),
+        ),
+        noise_covariance=((1.0, 0.0), (0.0, 1.0)),
+    )
+    artifact = model.export("matrix-external", [[]], [[0.1, 0.2]], resolver=registry)
+    return SimpleNamespace(artifact=artifact, registry=registry)
+
+
+@lru_cache(maxsize=1)
 def _discovered() -> Any:
     """One selective discovery of a small collider table: the structure, its export and adapter.
 
@@ -3372,6 +3414,7 @@ REFUSED_EXTRAS: dict[tuple[str, str], Check] = {
         "dependence_envelope",
         "cross_world_execution_result",
         "callback_result",
+        "external_mechanism_system",
     )
 }
 REFUSED_EXTRAS[("dependence_envelope", "decision")] = _check_envelope_is_not_a_source
@@ -3400,10 +3443,10 @@ def test_producer_consumer_matrix_declares_every_cell_once_and_counts_them() -> 
     assert set(STATUS) == set(PRODUCERS)
     assert all(len(row) == len(CONSUMERS) for row in STATUS.values())
     cells = [status for row in STATUS.values() for status in row]
-    assert len(cells) == len(PRODUCERS) * len(CONSUMERS) == 264
+    assert len(cells) == len(PRODUCERS) * len(CONSUMERS) == 272
     assert cells.count("DIRECT") == 21
-    assert cells.count("ADAPTER") == 60
-    assert cells.count("REFUSED") == 183
+    assert cells.count("ADAPTER") == 61
+    assert cells.count("REFUSED") == 190
     assert set(cells) == {"DIRECT", "ADAPTER", "REFUSED"}
     # Every non-refused cell has a check; the only shared one is the recalc adapter.
     for producer in PRODUCERS:
@@ -3577,6 +3620,11 @@ def test_producer_consumer_matrix_cross_world_execution_result_row(
 @pytest.mark.parametrize("consumer", CONSUMERS)
 def test_producer_consumer_matrix_callback_result_row(consumer: str, objs: Objs) -> None:
     _run_cell("callback_result", consumer, objs)
+
+
+@pytest.mark.parametrize("consumer", CONSUMERS)
+def test_producer_consumer_matrix_external_mechanism_system_row(consumer: str, objs: Objs) -> None:
+    _run_cell("external_mechanism_system", consumer, objs)
 
 
 def test_producer_consumer_matrix_a_classification_is_not_a_decision_source() -> None:

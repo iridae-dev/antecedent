@@ -3,6 +3,8 @@
 #![allow(clippy::all, reason = "each included file carries its own lint scope")]
 // consolidated-suite
 
+#[path = "adaptive_policy_search.rs"]
+mod adaptive_policy_search;
 #[path = "decision_reliability_resources.rs"]
 mod decision_reliability_resources;
 

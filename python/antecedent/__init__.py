@@ -79,7 +79,9 @@ Transport and counterfactual:
 
 Sensitivity and robustness:
 
-* ``msm_sensitivity`` gives marginal-sensitivity-model bounds, the tipping point and a durable
+* ``mnar_sensitivity`` re-runs an arm-mean contrast across a bounded grid of a missing-not-at-random
+  departure and reports the tipping points and decision changes as assumption ranges;
+  ``msm_sensitivity`` gives marginal-sensitivity-model bounds, the tipping point and a durable
   sensitivity artifact; ``descriptive`` compares raw with adjusted contrasts on a declared
   reporting scale; ``dose_grid`` reads a named functional off a randomized-dose response curve;
   ``temporal`` tests effect constancy across a time or region partition.
@@ -98,7 +100,9 @@ plans and cost counts.
 Measurement, composition and evidence accounting: ``measurement_models`` corrects a functional of
 a latent construct measured with error under a declared model (point and uncalibrated standard
 error, never an interval); ``mechanism_composition`` composes independently fitted mechanisms into
-one executable joint model with declared dependence; ``evidence_ledger`` accounts the overlap of
+one executable joint model with declared dependence; ``typed_mechanism_transport`` carries fitted nonlinear
+and non-Gaussian mechanisms to a target population under a selection diagram, refitting the shifted ones on
+target data; ``evidence_ledger`` accounts the overlap of
 evidence sources before any pooling, borrowing or reuse and reclassifies stale results.
 ``interface_contract`` declares what a component produces and consumes and decides, before any
 number is computed, whether two components may be connected (cycles are refused with their path).
@@ -398,6 +402,7 @@ except ImportError:  # pragma: no cover - extension not built
 # adds a name to ``__all__``. ``identify`` is absent on purpose: the root name is the function.
 _LAZY_MODULES: tuple[str, ...] = (
     "adaptive_inference",
+    "adaptive_policy",
     "categorical_treatment",
     "cohort_decision",
     "compact_export",
@@ -417,6 +422,7 @@ _LAZY_MODULES: tuple[str, ...] = (
     "effect_constancy_review",
     "evidence_ledger",
     "execution_attempt",
+    "external_mechanisms",
     "fallback",
     "functional_source",
     "graph_falsification",
@@ -435,6 +441,7 @@ _LAZY_MODULES: tuple[str, ...] = (
     "mechanism_composition",
     "mechanism_discrepancy",
     "missing",
+    "mnar_sensitivity",
     "msm_sensitivity",
     "multi_level_treatment",
     "nonlinear_mediation",
@@ -479,11 +486,13 @@ _LAZY_MODULES: tuple[str, ...] = (
     "transported_constructors",
     "transported_counterfactual",
     "transported_response",
+    "typed_mechanism_transport",
     "vector_treatment",
 )
 
 if _TYPE_CHECKING:
     from . import adaptive_inference as adaptive_inference
+    from . import adaptive_policy as adaptive_policy
     from . import categorical_treatment as categorical_treatment
     from . import cohort_decision as cohort_decision
     from . import compact_export as compact_export
@@ -503,6 +512,7 @@ if _TYPE_CHECKING:
     from . import effect_constancy_review as effect_constancy_review
     from . import evidence_ledger as evidence_ledger
     from . import execution_attempt as execution_attempt
+    from . import external_mechanisms as external_mechanisms
     from . import fallback as fallback
     from . import functional_source as functional_source
     from . import graph_falsification as graph_falsification
@@ -521,6 +531,7 @@ if _TYPE_CHECKING:
     from . import mechanism_composition as mechanism_composition
     from . import mechanism_discrepancy as mechanism_discrepancy
     from . import missing as missing
+    from . import mnar_sensitivity as mnar_sensitivity
     from . import msm_sensitivity as msm_sensitivity
     from . import multi_level_treatment as multi_level_treatment
     from . import nonlinear_mediation as nonlinear_mediation
@@ -565,6 +576,7 @@ if _TYPE_CHECKING:
     from . import transported_constructors as transported_constructors
     from . import transported_counterfactual as transported_counterfactual
     from . import transported_response as transported_response
+    from . import typed_mechanism_transport as typed_mechanism_transport
     from . import vector_treatment as vector_treatment
 
 _RETIRED_MODULES = {"prior_bank": "priors"}

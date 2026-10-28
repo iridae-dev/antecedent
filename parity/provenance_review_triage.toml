@@ -938,6 +938,16 @@ shares_primary_source_with = 4
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
+id = "design.adaptive_policy_search"
+class = "substantive_method"
+priority = 2
+admitted_specs = 14
+licensed_specs = 0
+papers = 1
+shares_primary_source_with = 0
+basis = "lists primary papers; implementation correspondence not yet read"
+
+[[record]]
 id = "design.compiled_program_search"
 class = "substantive_method"
 priority = 2

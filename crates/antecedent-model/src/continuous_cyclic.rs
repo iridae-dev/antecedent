@@ -79,7 +79,12 @@ impl OdeSystem {
     pub fn validate(&self) -> Result<(), EquilibriumError> {
         let n = self.equations.len();
         let mut ids = std::collections::BTreeSet::new();
-        if n == 0 || n > 128 || self.decay.len() != n || self.decay.iter().any(|x| !x.is_finite()) {
+        if n > crate::nonlinear_equilibrium::MAX_ORDER {
+            // The shared, typed model-order budget of every dense mechanism system.
+            return Err(crate::sparse_equilibrium::SolverBudgetCode::ModelOrder
+                .refusal(n as u64, crate::nonlinear_equilibrium::MAX_ORDER as u64));
+        }
+        if n == 0 || self.decay.len() != n || self.decay.iter().any(|x| !x.is_finite()) {
             return Err(invalid("ODE shape/decay"));
         }
         for e in &self.equations {
@@ -147,7 +152,7 @@ fn validate_policy(policy: OdePolicy) -> Result<(), EquilibriumError> {
     clippy::too_many_lines,
     reason = "adaptive stepping, error control and exact action boundaries form one integration procedure"
 )]
-fn integrate<F>(
+pub(crate) fn integrate<F>(
     initial: &[f64],
     times: &[f64],
     schedule: &[TimedClamp],
@@ -161,7 +166,6 @@ where
     validate_policy(policy)?;
     let n = initial.len();
     if n == 0
-        || n > 1024
         || initial.iter().any(|v| !v.is_finite())
         || times.is_empty()
         || times.len() > 100_000
@@ -324,6 +328,17 @@ where
     Ok((next, error))
 }
 
+/// Admission bytes of one Schur-based Lyapunov solve: about a dozen complex or real `n x n`
+/// work matrices. A size too large for the budget is a typed resource refusal, never a
+/// fixed-dimension cap.
+fn lyapunov_bytes(n: usize) -> Result<u64, EquilibriumError> {
+    n.checked_mul(n)
+        .and_then(|square| square.checked_mul(256))
+        .and_then(|bytes| bytes.checked_add(4096))
+        .and_then(|bytes| u64::try_from(bytes).ok())
+        .ok_or_else(|| EquilibriumError::Resource("OU dimension overflows the memory model".into()))
+}
+
 /// Linear SDE `dX = M(X - center)dt + L dW`, with supplied `diffusion = LL^T`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -352,9 +367,9 @@ impl OrnsteinUhlenbeck {
     pub(crate) fn validate(&self) -> Result<usize, EquilibriumError> {
         let n = self.center.len();
         if n == 0
-            || n > 16
-            || self.drift.len() != n * n
-            || self.diffusion.len() != n * n
+            || self.drift.len() != n.saturating_mul(n)
+            || n.checked_mul(n).is_none()
+            || self.diffusion.len() != n.saturating_mul(n)
             || self.drift.iter().chain(&self.center).any(|v| !v.is_finite())
         {
             return Err(invalid("OU dimensions"));
@@ -363,21 +378,11 @@ impl OrnsteinUhlenbeck {
         Ok(n)
     }
 
+    /// Bartels–Stewart solve of `M X + X M^T = -Q`: memory `O(n^2)` and time `O(n^3)`, so size
+    /// is limited by the caller's admission rather than a dense Kronecker operator.
     fn lyapunov(&self, q: &[f64], n: usize) -> Result<Vec<f64>, EquilibriumError> {
-        let k = n * n;
-        let mut operator = vec![0.0; k * k];
-        for i in 0..n {
-            for j in 0..n {
-                for a in 0..n {
-                    operator[(i * n + j) * k + a * n + j] += self.drift[i * n + a];
-                    operator[(i * n + j) * k + i * n + a] += self.drift[j * n + a];
-                }
-            }
-        }
-        let mut rhs: Vec<_> = q.iter().map(|x| -x).collect();
-        if !gauss_jordan_solve(&mut operator, &mut rhs, k, 1) {
-            return Err(EquilibriumError::Singular);
-        }
+        let mut rhs = crate::complex_schur::solve_lyapunov(&self.drift, q, n)
+            .ok_or(EquilibriumError::Singular)?;
         for i in 0..n {
             for j in 0..i {
                 let mean = 0.5 * (rhs[i * n + j] + rhs[j * n + i]);
@@ -413,9 +418,8 @@ impl OrnsteinUhlenbeck {
     ) -> Result<Vec<f64>, EquilibriumError> {
         let plan = crate::compile::compile_ou(self)?;
         let n = plan.blocks[0].variables().len();
-        let bytes = 32 * n * n * n * n + 128 * n * n;
         let _lease = ctx
-            .acquire_admission(1, bytes as u64)
+            .acquire_admission(1, lyapunov_bytes(n)?)
             .map_err(|e| EquilibriumError::Resource(e.to_string()))?;
         check_cancel(ctx)?;
         let mut identity = vec![0.0; n * n];
@@ -451,7 +455,7 @@ impl OrnsteinUhlenbeck {
             return Err(invalid("Lyapunov direction shape/symmetry"));
         }
         let _lease = ctx
-            .acquire_admission(1, (32 * n * n * n * n + 128 * n * n) as u64)
+            .acquire_admission(1, lyapunov_bytes(n)?)
             .map_err(|e| EquilibriumError::Resource(e.to_string()))?;
         check_cancel(ctx)?;
         self.lyapunov(direction, n)
@@ -966,5 +970,33 @@ mod compositional_drift_tests {
             assert!((result.trajectory.states[i][0] - expected).abs() < 1e-7);
             assert!((result.sensitivities[i][0] - time * expected).abs() < 1e-7);
         }
+    }
+}
+
+#[cfg(test)]
+mod large_system_tests {
+    use super::*;
+
+    #[test]
+    fn stationary_covariance_beyond_the_former_dimension_caps_is_bounded_by_the_budget() {
+        // 48 independent coordinates with decay 2: covariance q / 4 on the diagonal.
+        let n = 48;
+        let mut drift = vec![0.0; n * n];
+        let mut diffusion = vec![0.0; n * n];
+        for i in 0..n {
+            drift[i * n + i] = -2.0;
+            diffusion[i * n + i] = 1.0;
+        }
+        let ou = OrnsteinUhlenbeck { drift, center: vec![0.0; n], diffusion };
+        let ctx = ExecutionContext::for_tests(5);
+        let covariance = ou.stationary_covariance(&ctx).unwrap();
+        for i in 0..n {
+            assert!((covariance[i * n + i] - 0.25).abs() < 1e-12);
+        }
+        assert!(covariance[1].abs() < 1e-12);
+        // A budget too small for the work arrays is a typed resource refusal.
+        let bytes = lyapunov_bytes(n).unwrap();
+        assert!(bytes > 0);
+        assert!(matches!(lyapunov_bytes(usize::MAX), Err(EquilibriumError::Resource(_))));
     }
 }

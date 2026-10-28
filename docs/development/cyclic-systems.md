@@ -28,10 +28,30 @@ actual post-clamp SCC schedules and typed equilibrium execution plans. Schedulin
 is independent of mathematical existence, uniqueness and identification.
 
 - **Nonlinear equilibrium:** named identity/tanh/sine/ReLU additive-noise mechanisms,
-  arbitrary directed topology up to 128 variables, and specified SPD joint
-  Gaussian disturbances. A global row-norm contraction on all of R^n supplies an
-  invariant complete domain and existence/uniqueness certificate. Other systems
-  require an explicit damped Newton attempt. Affine systems can separately earn a
+  arbitrary directed topology, and specified SPD joint Gaussian disturbances.
+  The Jacobian is sparse: strongly connected blocks are solved in topological
+  order, a contractive block by fixed-point iteration and any other block by damped
+  Newton steps whose linear systems use a sparse LU (minimum-degree order,
+  partial pivoting (ties broken by sparsity)). A direct factorization is used because it is
+  deterministic, detects a numerically singular Jacobian by a pivot floor and its
+  factors of `A` and `A^T` give the condition estimate. There is no fixed variable
+  cap. `SolvePolicy` admits the free Jacobian's nonzeros, the largest block,
+  estimated memory, sparse-LU fill, total iterations and a wall-clock deadline;
+  each excess is a refusal with its own code (`solver_jacobian_nnz_budget`,
+  `solver_block_size_budget`, `solver_memory_budget`, `solver_factor_fill_budget`,
+  `solver_iteration_budget`, `solver_wall_clock_budget`), and the dense disturbance
+  covariance admits at most 4096 variables (`solver_model_order_budget`).
+  Non-convergence and singular Jacobians inside the budgets remain retained world
+  outcomes. A global row-norm contraction on all of R^n, or a rigorous
+  Collatz-Wielandt bound on the spectral radius of the derivative-bound matrix
+  (a weighted max-norm contraction), supplies an invariant complete domain and
+  existence/uniqueness certificate. Other systems require an explicit damped
+  Newton attempt. Each solve returns `evidence`: block structure, resource
+  accounting (nonzeros, factorizations, peak fill, estimated and admitted bytes,
+  budget checks), the row-sum and spectral bounds, the diagonal-dominance margin of
+  the root Jacobian, the basis for its nonsingularity and for a unique root, and an
+  `ill_conditioned` flag against `condition_warning`. The condition number is a
+  Hager-Higham estimate (exact up to 32 variables per block). Affine systems can separately earn a
   verified inverse-residual bijection certificate, including noncontractive cases.
   Residual convergence, certified
   existence, certified uniqueness, numerical conditioning and applicability of
@@ -107,6 +127,24 @@ is independent of mathematical existence, uniqueness and identification.
   drift/forcing/diffusion mechanisms support named equation replacements and
   joint fitting by exact Gaussian/Lyapunov-adjoint likelihood scores and bounded
   L-BFGS. Unstable requested worlds retain their failed slots.
+- **Nonlinear SDE:** bounded (16 states) diagonal-noise `dX = f dt + g dW` with drift
+  and diffusion in the portable mechanism language, scheduled external inputs,
+  reflecting or clamping state bounds and sqrt-type diffusion. Interval derivative
+  arithmetic over the declared box certifies Lipschitz constants; unbounded
+  nonlinear growth is refused and a square-root diffusion reaching zero is certified
+  only as Holder-1/2. Euler–Maruyama and diagonal Milstein (admitted only without
+  cross-state diffusion dependence) run on a declared fixed step with a counter-based
+  generator, so runs replay exactly and worlds share Brownian increments for paired
+  contrasts under `do` holds and replaced inputs. Monte Carlo standard error and
+  half-step (weak/strong, Richardson) numerical error are separate from parameter
+  uncertainty, which is propagated by common-random-number draws of the fit's
+  asymptotic-normal law. Fitting is the Euler Gaussian transition quasi-likelihood
+  for dense, fully observed trajectories (a pseudo-likelihood; intervals whose
+  `dt * rate` exceeds the flag are model-conditional and those above the refusal
+  threshold are refused) or, under a declared observation model, an extended Kalman
+  innovation likelihood that is always model-conditional. Fitting, identification
+  and discretization evidence are separate records; there is no latent-path or
+  particle-filter likelihood.
 - **Equations/BGCM:** named polynomial residual equations and variables over finite
   domains, equation-specific replacement, outward-rounded interval/Krawczyk root
   isolation with unresolved boxes, and explicit complete-root selection weights.
@@ -180,6 +218,7 @@ retained `expected-identity.json` and a manifest:
 | `recovered-asymptotic-normal`, `recovered-bootstrap` | linear laws recovered from seeded simulated clamp experiments, with their draw origins |
 | `recovered-unresolved-direction` | a clamp design that never clamps B: the row into A stays unresolved in every draw and its mass is withheld |
 | `dynamic-inference-ou` | a stationary OU fit with a seeded bootstrap sampling law of its stationary mean |
+| `ou-trajectory-fit` | a continuous-time OU fit from irregular, partially observed trajectories under known intervention schedules, with fitting, identification and numerical evidence kept apart and delta-method predictions of held-out interventions |
 | `previous-record-format` | the version-one record, which keeps replaying and carries no contract |
 
 `cargo test -p antecedent --test cyclic_family_fixtures -- --ignored write_` writes

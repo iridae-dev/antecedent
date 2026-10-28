@@ -2866,6 +2866,7 @@ provenance = [
   "decision_reliability.ranking_statement",
   "decision_reliability.sampled_decision",
   "decision_reliability.selection_aware_evaluation",
+  "design.adaptive_policy_search",
   "design.compiled_program_search",
   "design.decision",
   "design.effect_width_reduction",
@@ -2942,6 +2943,7 @@ provenance = [
   "decision_reliability.ranking_statement",
   "decision_reliability.sampled_decision",
   "decision_reliability.selection_aware_evaluation",
+  "design.adaptive_policy_search",
   "design.compiled_program_search",
   "design.decision",
   "design.effect_width_reduction",
@@ -2976,7 +2978,7 @@ identifying_result = "local_polynomial_ratio"
 assumptions = "The result is unlicensed and its calibration is unmeasured; the existing fixed-bandwidth licence row covers only the declared-bandwidth independent-row route."
 sampling_units = "regression discontinuity or kink in calendar time"
 estimator = "within-side block Bayesian bootstrap of the robust bias-corrected ratio, running variable is calendar time: The local ratio with its design layer: an MSE-optimal plug-in bandwidth paired with the robust bias-corrected interval, a calendar-time running variable with a within-side block bootstrap, and the density and covariate-balance diagnostics."
-diagnostics = "refusals and diagnostics asserted by conformal_synthetic_control_reports_period_intervals_and_refuses_a_bayesian_request, test_sun_abraham_refuses_an_unbalanced_panel_naming_the_next_attempt, test_bayesian_rollout_refuses_a_frequentist_resample_naming_the_next_attempt"
+diagnostics = "refusals and diagnostics asserted by conformal_synthetic_control_reports_period_intervals_and_refuses_a_bayesian_request, test_sun_abraham_refuses_a_declared_informative_observation_process_naming_the_next_attempt, test_bayesian_rollout_refuses_a_frequentist_resample_naming_the_next_attempt"
 failure_policy = "Execution refuses with a typed error naming the unmet premise."
 references = [
   "Static and temporal parity",
@@ -3067,6 +3069,7 @@ provenance = [
   "decision_reliability.ranking_statement",
   "decision_reliability.sampled_decision",
   "decision_reliability.selection_aware_evaluation",
+  "design.adaptive_policy_search",
   "design.compiled_program_search",
   "design.decision",
   "design.effect_width_reduction",
@@ -3101,7 +3104,7 @@ identifying_result = "Local_polynomial_ratio"
 assumptions = "The result is unlicensed and its calibration is unmeasured; the existing fixed-bandwidth licence row covers only the declared-bandwidth independent-row route."
 sampling_units = "regression discontinuity or kink in calendar time (running variable is time), sharp or fuzzy"
 estimator = "within-side moving-block bootstrap of the robust bias-corrected fuzzy-jump or kink ratio, running variable is calendar time: The local ratio with its design layer: an MSE-optimal plug-in bandwidth paired with the robust bias-corrected interval, a calendar-time running variable with a within-side block bootstrap, and the density and covariate-balance diagnostics."
-diagnostics = "refusals and diagnostics asserted by conformal_synthetic_control_reports_period_intervals_and_refuses_a_bayesian_request, test_sun_abraham_refuses_an_unbalanced_panel_naming_the_next_attempt, test_bayesian_rollout_refuses_a_frequentist_resample_naming_the_next_attempt"
+diagnostics = "refusals and diagnostics asserted by conformal_synthetic_control_reports_period_intervals_and_refuses_a_bayesian_request, test_sun_abraham_refuses_a_declared_informative_observation_process_naming_the_next_attempt, test_bayesian_rollout_refuses_a_frequentist_resample_naming_the_next_attempt"
 failure_policy = "Execution refuses with a typed error naming the unmet premise."
 references = [
   "Static and temporal parity",
@@ -3143,6 +3146,7 @@ provenance = [
   "decision_reliability.ranking_statement",
   "decision_reliability.sampled_decision",
   "decision_reliability.selection_aware_evaluation",
+  "design.adaptive_policy_search",
   "design.compiled_program_search",
   "design.decision",
   "design.effect_width_reduction",
@@ -3177,7 +3181,7 @@ identifying_result = "Local_polynomial_ratio"
 assumptions = "The result is unlicensed and its calibration is unmeasured; the existing fixed-bandwidth licence row covers only the declared-bandwidth independent-row route."
 sampling_units = "regression discontinuity or kink in calendar time"
 estimator = "within-side block Bayesian bootstrap of the robust bias-corrected ratio, running variable is calendar time: The local ratio with its design layer: an MSE-optimal plug-in bandwidth paired with the robust bias-corrected interval, a calendar-time running variable with a within-side block bootstrap, and the density and covariate-balance diagnostics."
-diagnostics = "refusals and diagnostics asserted by conformal_synthetic_control_reports_period_intervals_and_refuses_a_bayesian_request, test_sun_abraham_refuses_an_unbalanced_panel_naming_the_next_attempt, test_bayesian_rollout_refuses_a_frequentist_resample_naming_the_next_attempt"
+diagnostics = "refusals and diagnostics asserted by conformal_synthetic_control_reports_period_intervals_and_refuses_a_bayesian_request, test_sun_abraham_refuses_a_declared_informative_observation_process_naming_the_next_attempt, test_bayesian_rollout_refuses_a_frequentist_resample_naming_the_next_attempt"
 failure_policy = "Execution refuses with a typed error naming the unmet premise."
 references = [
   "Static and temporal parity",
@@ -5094,6 +5098,7 @@ review_status = "admitted"
 admission = "executing_unlicensed"
 decision_basis = "executing_unlicensed per the counterpart inventory; execution crates/antecedent-design/src/program_search.rs::finite_program_search_uses_joint_law_for_risk_and_variance_and_preserves_exclusions; consumer crates/antecedent/src/analysis/joint_panel/search.rs; uncertainty none (declared_and_corroborated)"
 provenance = [
+  "design.adaptive_policy_search",
   "design.compiled_program_search",
 ]
 api_review = "parity/public_api/antecedent-design.txt: 18 of 18 public items reviewed"
@@ -5121,6 +5126,7 @@ review_status = "admitted"
 admission = "executing_unlicensed"
 decision_basis = "executing_unlicensed per the counterpart inventory; execution crates/antecedent/src/analysis/joint_panel/tests.rs::continuous_three_channel_search_reuses_fit_and_improves_a_budget_feasible_nonbinary_program; consumer crates/antecedent/src/analysis/joint_panel/search.rs; uncertainty none (declared_and_corroborated)"
 provenance = [
+  "design.adaptive_policy_search",
   "design.compiled_program_search",
 ]
 api_review = "parity/public_api/antecedent-design.txt: 11 of 11 public items reviewed"
@@ -5148,6 +5154,7 @@ review_status = "admitted"
 admission = "executing_unlicensed"
 decision_basis = "executing_unlicensed per the counterpart inventory; execution crates/antecedent-design/src/program_search.rs::finite_program_search_uses_joint_law_for_risk_and_variance_and_preserves_exclusions; consumer crates/antecedent/src/analysis/joint_panel/search.rs; uncertainty none (declared_and_corroborated)"
 provenance = [
+  "design.adaptive_policy_search",
   "design.compiled_program_search",
 ]
 api_review = "parity/public_api/antecedent-design.txt: 18 of 18 public items reviewed"
@@ -5175,6 +5182,7 @@ review_status = "admitted"
 admission = "executing_unlicensed"
 decision_basis = "executing_unlicensed per the counterpart inventory; execution crates/antecedent/src/analysis/joint_panel/tests.rs::continuous_three_channel_search_reuses_fit_and_improves_a_budget_feasible_nonbinary_program; consumer crates/antecedent/src/analysis/joint_panel/search.rs; uncertainty none (declared_and_corroborated)"
 provenance = [
+  "design.adaptive_policy_search",
   "design.compiled_program_search",
 ]
 api_review = "parity/public_api/antecedent-design.txt: 11 of 11 public items reviewed"
@@ -5202,6 +5210,7 @@ review_status = "admitted"
 admission = "executing_unlicensed"
 decision_basis = "executing_unlicensed per the counterpart inventory; execution crates/antecedent-design/src/program_search.rs::finite_program_search_uses_joint_law_for_risk_and_variance_and_preserves_exclusions; consumer crates/antecedent/src/analysis/joint_panel/search.rs; uncertainty none (declared_and_corroborated)"
 provenance = [
+  "design.adaptive_policy_search",
   "design.compiled_program_search",
 ]
 api_review = "parity/public_api/antecedent-design.txt: 18 of 18 public items reviewed"
@@ -5229,6 +5238,7 @@ review_status = "admitted"
 admission = "executing_unlicensed"
 decision_basis = "executing_unlicensed per the counterpart inventory; execution crates/antecedent/src/analysis/joint_panel/tests.rs::continuous_three_channel_search_reuses_fit_and_improves_a_budget_feasible_nonbinary_program; consumer crates/antecedent/src/analysis/joint_panel/search.rs; uncertainty none (declared_and_corroborated)"
 provenance = [
+  "design.adaptive_policy_search",
   "design.compiled_program_search",
 ]
 api_review = "parity/public_api/antecedent-design.txt: 11 of 11 public items reviewed"
@@ -5256,6 +5266,7 @@ review_status = "admitted"
 admission = "executing_unlicensed"
 decision_basis = "executing_unlicensed per the counterpart inventory; execution crates/antecedent-design/src/program_search.rs::finite_program_search_uses_joint_law_for_risk_and_variance_and_preserves_exclusions; consumer crates/antecedent/src/analysis/joint_panel/search.rs; uncertainty none (declared_and_corroborated)"
 provenance = [
+  "design.adaptive_policy_search",
   "design.compiled_program_search",
 ]
 api_review = "parity/public_api/antecedent-design.txt: 18 of 18 public items reviewed"
@@ -5283,6 +5294,7 @@ review_status = "admitted"
 admission = "executing_unlicensed"
 decision_basis = "executing_unlicensed per the counterpart inventory; execution crates/antecedent/src/analysis/joint_panel/tests.rs::continuous_three_channel_search_reuses_fit_and_improves_a_budget_feasible_nonbinary_program; consumer crates/antecedent/src/analysis/joint_panel/search.rs; uncertainty none (declared_and_corroborated)"
 provenance = [
+  "design.adaptive_policy_search",
   "design.compiled_program_search",
 ]
 api_review = "parity/public_api/antecedent-design.txt: 11 of 11 public items reviewed"
@@ -5469,6 +5481,7 @@ admission = "executing_unlicensed"
 decision_basis = "executing_unlicensed per the counterpart inventory; execution conformance/response/joint_panel; consumer crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit; uncertainty design_aware_resampling (declared_and_corroborated)"
 provenance = [
   "composition.panel_experiment_update",
+  "design.adaptive_policy_search",
   "design.compiled_program_search",
   "estimate.joint_design",
   "response.joint_panel",
@@ -5500,6 +5513,7 @@ admission = "executing_unlicensed"
 decision_basis = "executing_unlicensed per the counterpart inventory; execution conformance/response/joint_panel; consumer crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit; uncertainty posterior (declared_and_corroborated)"
 provenance = [
   "composition.panel_experiment_update",
+  "design.adaptive_policy_search",
   "design.compiled_program_search",
   "estimate.joint_design",
   "response.joint_panel",

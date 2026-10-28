@@ -538,6 +538,7 @@ class SyntheticControlSection:
     unadjusted_effect: float | None
     outcome_model_correction: float | None
     augmentation_ridge: float | None
+    observed_window: tuple[list[int], list[int], int, list[tuple[str, int]], int] | None
 
 class SyntheticDidSection:
     effect: float
@@ -2004,6 +2005,7 @@ class PreparedAnalysis:
         conformal: bool = False,
         adoptions: list[tuple[str, int]] | None = None,
         placebo_replicates: int = 0,
+        observed_window_support: bool = False,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,
@@ -2028,6 +2030,8 @@ class PreparedAnalysis:
         covariates: list[str] = [],
         resampling: str | None = None,
         replicates: int = 999,
+        observation: str = "ignorable_given_cohort",
+        attrition_shift_bound: float | None = None,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,
@@ -2866,6 +2870,9 @@ class ModelEvaluation:
     notes: list[str]
 
 class FittedGcm:
+    def optimize_adaptive_policy(
+        self, config_json: str, cancel: CancellationToken | None = None
+    ) -> str: ...
     names: list[str]
     n_assignments: int
     @property
@@ -6232,6 +6239,11 @@ def transform_raw_arms(
     tuple[int, float, float],
     tuple[list[float], list[tuple[float, float]], list[float] | None],
 ]: ...
+def adaptive_policy_search(
+    config_json: str,
+    source: object,
+    cancel: CancellationToken | None = None,
+) -> str: ...
 def candidate_screen_from_units(
     screen_id: str,
     procedure: str,
@@ -6282,6 +6294,24 @@ def msm_sensitivity_run(
     grid_points: int,
     decision_threshold: float | None,
     tolerance: float,
+    sampling_composition: str | None = None,
+) -> tuple[str | None, str | None]: ...
+def mnar_sensitivity_run(
+    treatment: list[float],
+    outcome: list[float | None],
+    model: str | None,
+    loading_treated: float,
+    loading_control: float,
+    estimator: str,
+    lower: float,
+    upper: float,
+    grid_points: int,
+    level: float,
+    decisions: list[tuple[str, float]],
+    tolerance: float,
+    covariates: list[list[float]] = ...,
+    bootstrap_replicates: int = 200,
+    seed: int = 0,
     sampling_composition: str | None = None,
 ) -> tuple[str | None, str | None]: ...
 def msm_sensitivity_artifact_run(
@@ -8845,6 +8875,65 @@ def mechanism_composition_consume(
 def mechanism_composition_fitted_source(
     model: FittedGcm, variable: str
 ) -> tuple[str | None, str | None]: ...
+class TypedMechanismFitHandle:
+    def variable(self) -> str: ...
+    def summary_json(self) -> str: ...
+    def conditional_mean(self, parents: list[float]) -> float: ...
+
+class TypedTransportedHandle:
+    def identity(self) -> str: ...
+    def receipt_json(self) -> str: ...
+    def mean_contrast(
+        self,
+        contrast_json: str,
+        draws: int,
+        seed: int,
+        *,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[str | None, str | None]: ...
+    def mean_contrast_uncertainty(
+        self,
+        contrast_json: str,
+        draws: int,
+        seed: int,
+        *,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[str | None, str | None]: ...
+    def interval(self) -> str: ...
+
+def typed_mechanism_fit(
+    spec_json: str,
+    columns: dict[str, list[float]],
+    context_json: str,
+    design_from: TypedMechanismFitHandle | None = None,
+    *,
+    cancel: CancellationToken | None = None,
+) -> tuple[TypedMechanismFitHandle | None, str | None]: ...
+def typed_mechanism_refit(
+    source: TypedMechanismFitHandle,
+    columns: dict[str, list[float]],
+    context_json: str,
+    *,
+    cancel: CancellationToken | None = None,
+) -> tuple[TypedMechanismFitHandle | None, str | None]: ...
+def typed_mechanism_invariance_check(
+    source: TypedMechanismFitHandle, target: TypedMechanismFitHandle, level: float
+) -> tuple[str | None, str | None]: ...
+def typed_mechanism_transport(
+    transport_json: str,
+    source_fits: list[TypedMechanismFitHandle],
+    target_fits: list[TypedMechanismFitHandle],
+    *,
+    cancel: CancellationToken | None = None,
+) -> tuple[tuple[TypedTransportedHandle, str] | None, str | None]: ...
+def typed_mechanism_verify_transport(
+    transport_json: str,
+    source_fits: list[TypedMechanismFitHandle],
+    target_fits: list[TypedMechanismFitHandle],
+    expected_identity: str,
+    *,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
 def observation_query_observe(
     handle: PreparedCompositionHandle,
     request_json: str,
@@ -10669,6 +10758,47 @@ def prepare_cyclic_experimental_recovery(
 ) -> _PreparedCyclicFamily: ...
 def execute_local_cyclic(
     request_json: str, callbacks: list[Any], *, max_bytes: int | None = None, cancel: Any = None
+) -> str: ...
+def external_content_digest(content: bytes) -> str: ...
+def external_spec_identity(spec_json: str) -> str: ...
+def external_request_identity(request_json: str) -> str: ...
+def external_execute(
+    request_json: str,
+    resolver: Any = None,
+    *,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def external_export(
+    request_json: str,
+    artifact_id: str,
+    resolver: Any = None,
+    *,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str, bytes]: ...
+def external_consume(
+    artifact: bytes,
+    expected_identity: str,
+    resolver: Any = None,
+    *,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def external_inspect(artifact: bytes) -> str: ...
+def external_fit(
+    request_json: str,
+    resolver: Any = None,
+    *,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def external_ode(
+    request_json: str,
+    resolver: Any = None,
+    *,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> str: ...
 
 class _CyclicEvidence:

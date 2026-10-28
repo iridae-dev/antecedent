@@ -171,6 +171,7 @@ pub mod cyclic_functional;
 pub mod cyclic_gaussian_functional;
 pub mod cyclic_graph;
 pub mod cyclic_system_artifact;
+pub mod external_cyclic_artifact;
 mod distribution_factor_laws;
 pub use distribution_factor_laws::distribution_factor_laws_to_wire;
 pub mod joint_bayesian_transport_artifact;

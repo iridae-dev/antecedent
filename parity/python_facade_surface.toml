@@ -1672,6 +1672,36 @@ status = "bound"
 python = "native:python/src/mechanism_composition_api.rs"
 
 [[entry]]
+rust = "antecedent::analysis::typed_transported_mechanism::check_typed_invariance"
+kind = "fn"
+status = "bound"
+python = "antecedent.typed_mechanism_transport.check_invariance"
+
+[[entry]]
+rust = "antecedent::analysis::typed_transported_mechanism::fit_typed_mechanism"
+kind = "fn"
+status = "bound"
+python = "antecedent.typed_mechanism_transport.fit_typed_mechanism"
+
+[[entry]]
+rust = "antecedent::analysis::typed_transported_mechanism::refit_typed_mechanism_in_target"
+kind = "fn"
+status = "bound"
+python = "native:python/src/typed_mechanism_transport_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::typed_transported_mechanism::transport_typed_mechanisms"
+kind = "fn"
+status = "bound"
+python = "antecedent.typed_mechanism_transport.transport_typed_mechanisms"
+
+[[entry]]
+rust = "antecedent::analysis::typed_transported_mechanism::verify_typed_transport"
+kind = "fn"
+status = "bound"
+python = "antecedent.typed_mechanism_transport.verify_typed_transport"
+
+[[entry]]
 rust = "antecedent::analysis::validate_temporal_dependent_interval"
 kind = "fn"
 status = "bound"
@@ -2822,3 +2852,21 @@ rust = "antecedent::report::render_fallback_input"
 kind = "fn"
 status = "bound"
 python = "antecedent.fallback.AnalysisWithFallback.report"
+
+[[entry]]
+rust = "antecedent::analysis::mnar_sensitivity::mnar_sensitivity"
+kind = "fn"
+status = "bound"
+python = "native:python/src/mnar_sensitivity_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::mnar_sensitivity::mnar_sensitivity_for_table"
+kind = "fn"
+status = "internal"
+reason = "reached through antecedent.mnar_sensitivity.mnar_ate_sensitivity, which reads the columns in Python and calls the native analysis"
+
+[[entry]]
+rust = "antecedent::analysis::mnar_sensitivity::mnar_sensitivity_for_study"
+kind = "fn"
+status = "internal"
+reason = "reached through antecedent.mnar_sensitivity.from_analysis and ResultAPI.mnar_sensitivity, which take the query and adjustment set from the analysis result"

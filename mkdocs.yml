@@ -120,6 +120,7 @@ nav:
     - Decide from mixed evidence: guides/mixed-decisions.md
     - Which actions reach a target: guides/inverse-outcome.md
     - Rank further studies: design-ranking.md
+    - Optimise history-dependent policies: adaptive-policies.md
     - Reliability of a selected decision: decision-reliability.md
   - Evidence and composition:
     - External evidence and study synthesis: evidence-ledger.md
@@ -142,6 +143,7 @@ nav:
     - Scientific interfaces: guides/build/scientific-interfaces.md
     - Interface contracts: interface-contracts.md
     - Provider callbacks: provider-callbacks.md
+    - External cyclic mechanisms: external-cyclic-mechanisms.md
     - Interoperability: guides/build/interoperability.md
     - Coming from DoWhy: interop_dowhy.md
 - Concepts:

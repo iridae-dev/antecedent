@@ -440,6 +440,7 @@ _CONSUMERS: dict[str, tuple[str, str]] = {
     "policy_program_v1": ("intervention_programs", "consume_policy_program"),
     "cyclic_equilibrium": ("cyclic", "consume_artifact"),
     "cyclic_family": ("cyclic", "consume_family_artifact"),
+    "external_cyclic_equilibrium": ("external_mechanisms", "load_artifact"),
     "cyclic_evidence": ("cyclic", "consume_evidence"),
     "scientific_refusal_v1": ("outcomes", "_consume_refusal"),
     "conditional_study_ranking_v1": ("recalc_composite", "ConditionalStudyRanking.consume"),

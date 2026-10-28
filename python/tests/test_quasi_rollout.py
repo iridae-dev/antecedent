@@ -84,13 +84,115 @@ def test_cluster_multiplier_refit_reports_intervals_and_simultaneous_bands():
         assert effect.estimate == pytest.approx(3.0 * effect.event_time, abs=0.6)
 
 
-def test_sun_abraham_refuses_an_unbalanced_panel_naming_the_next_attempt():
-    data = _staggered_panel()
-    keep = [index for index in range(len(data["y"])) if index not in (7, 31, 402)]
-    unbalanced = {name: [values[index] for index in keep] for name, values in data.items()}
+def _unbalanced(data: dict[str, list[object]], seed: int = 8, keep: float = 0.85):
+    """Drop unit-periods at random, keeping at least three rows of every unit."""
+    rng = np.random.default_rng(seed)
+    rows = len(data["y"])
+    wanted = rng.uniform(size=rows) < keep
+    seen: dict[object, list[int]] = {}
+    for index, unit in enumerate(data["unit"]):
+        seen.setdefault(unit, []).append(index)
+    for indices in seen.values():
+        short = 3 - int(sum(wanted[i] for i in indices))
+        for index in [i for i in indices if not wanted[i]][: max(short, 0)]:
+            wanted[index] = True
+    keep_rows = [index for index in range(rows) if wanted[index]]
+    return {name: [values[index] for index in keep_rows] for name, values in data.items()}
+
+
+def _interacted_reference(
+    data: dict[str, list[object]],
+) -> tuple[float, dict[tuple[int, int], float]]:
+    """Full-dummy saturated regression by numpy lstsq: a dummy per unit, period and
+    cohort-period cell other than the cohort's base period, on the observed rows."""
+    units = sorted(set(data["unit"]))
+    periods = sorted(set(data["period"]))
+    cohorts = sorted(set(data["cohort"]) - {0})
+    unit_of = np.array([units.index(u) for u in data["unit"]])
+    period = np.array(data["period"])
+    cohort = np.array(data["cohort"])
+    y = np.array(data["y"], dtype=float)
+    columns = [(unit_of == i).astype(float) for i in range(len(units))]
+    columns += [(period == t).astype(float) for t in periods[1:]]
+    cells = [(g, t) for g in cohorts for t in periods if t != g - 1]
+    columns += [((cohort == g) & (period == t)).astype(float) for g, t in cells]
+    design = np.column_stack(columns)
+    assert np.linalg.matrix_rank(design) == design.shape[1]
+    beta = np.linalg.lstsq(design, y, rcond=None)[0]
+    delta = dict(zip(cells, beta[len(units) + len(periods) - 1 :], strict=True))
+    sizes = {
+        g: len({u for u, c in zip(data["unit"], data["cohort"], strict=True) if c == g})
+        for g in cohorts
+    }
+    post = [(g, t) for g, t in cells if t >= g]
+    simple = sum(sizes[g] * delta[(g, t)] for g, t in post) / sum(sizes[g] for g, _ in post)
+    return simple, {key: float(delta[key]) for key in post}
+
+
+def test_sun_abraham_reads_an_unbalanced_panel_and_matches_the_dummy_regression_reference():
+    data = _unbalanced(_staggered_panel(seed=5, per_cohort=100))
+    assert len(data["y"]) < 300 * 5
     query = StaggeredRollout("y", "unit", "period", "cohort", estimator="sun_abraham")
+    result = _rollout(data, query)
+    assert result.diagnostic("balanced_panel") == 0.0
+    simple, cells = _interacted_reference(data)
+    overall = result.overall
+    assert isinstance(overall, DesignEffect)
+    assert overall.estimate == pytest.approx(simple, abs=1e-8)
+    assert overall.estimate == pytest.approx(3.5, abs=0.4)
+    group_time = {
+        (effect.group, effect.period): effect.estimate for effect in result.effects_of("group_time")
+    }
+    assert set(group_time) == set(cells)
+    for key, value in cells.items():
+        assert group_time[key] == pytest.approx(value, abs=1e-8)
+        # Each cohort keeps its own exposure path, not the pooled one.
+        assert value == pytest.approx(3.0 * (key[1] - key[0]), abs=0.9)
+    assert result.diagnostic("cohort_2_units") == 100.0
+    assert result.diagnostic("cohort_4_units") == 100.0
+    assert 0.0 < result.diagnostic("cohort_2_rows") < 500.0
+    assert result.diagnostic("dropped_rows") == 0.0
+
+
+def test_a_declared_attrition_bound_reports_an_assumption_dependent_range():
+    data = _unbalanced(_staggered_panel(seed=6, per_cohort=100))
+    query = StaggeredRollout(
+        "y",
+        "unit",
+        "period",
+        "cohort",
+        estimator="sun_abraham",
+        observation="informative",
+        attrition_shift_bound=0.5,
+    )
+    result = _rollout(data, query)
+    overall = result.overall
+    assert isinstance(overall, DesignEffect)
+    slope = result.diagnostic("attrition_slope")
+    assert slope is not None and 0.0 < slope < 1.0
+    assert result.diagnostic("assumption_range_lower") == pytest.approx(
+        overall.estimate - 0.5 * slope
+    )
+    assert result.diagnostic("assumption_range_upper") == pytest.approx(
+        overall.estimate + 0.5 * slope
+    )
+    with pytest.raises(CausalValueError):
+        StaggeredRollout("y", "unit", "period", "cohort", attrition_shift_bound=0.5)
+    with pytest.raises(CausalValueError):
+        StaggeredRollout(
+            "y", "unit", "period", "cohort", observation="informative", attrition_shift_bound=-1.0
+        )
+
+
+def test_sun_abraham_refuses_a_declared_informative_observation_process_naming_the_next_attempt():
+    data = _unbalanced(_staggered_panel())
+    query = StaggeredRollout(
+        "y", "unit", "period", "cohort", estimator="sun_abraham", observation="informative"
+    )
     with pytest.raises(CausalError, match="(?i)next attempt"):
-        require_success(antecedent.analyze(unbalanced, query=query))
+        require_success(antecedent.analyze(data, query=query))
+    with pytest.raises(CausalValueError):
+        StaggeredRollout("y", "unit", "period", "cohort", observation="missing_at_random")
 
 
 def test_doubly_robust_covariate_adjusted_did_recovers_the_effect():

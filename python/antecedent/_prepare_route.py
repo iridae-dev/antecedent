@@ -1692,6 +1692,8 @@ class _PrepareRoute:
             conformal=query.conformal if isinstance(query, SyntheticControl) else False,
             adoptions=None if query.adoptions is None else list(query.adoptions),
             placebo_replicates=query.placebo_replicates,
+            observed_window_support=isinstance(query, SyntheticControl)
+            and query.observed_window_support,
             accepted=False,
             **self._common(),
         )
@@ -1875,6 +1877,8 @@ class _PrepareRoute:
                 covariates=list(query.covariates),
                 resampling=query.resampling,
                 replicates=query.replicates,
+                observation=query.observation,
+                attrition_shift_bound=query.attrition_shift_bound,
                 accepted=False,
                 **self._common(),
             )

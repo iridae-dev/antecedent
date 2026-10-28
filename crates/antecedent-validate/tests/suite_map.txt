@@ -1,1 +1,1 @@
-suite_01: joint_mechanism_sensitivity, msm_sensitivity, predictive_assessment, refuters
+suite_01: joint_mechanism_sensitivity, mnar_sensitivity, msm_sensitivity, predictive_assessment, refuters

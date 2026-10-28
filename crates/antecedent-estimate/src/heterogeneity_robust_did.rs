@@ -24,7 +24,14 @@
 //!   cohort (or the last-treated cohort before its adoption when no unit is never treated)
 //!   relative to the period before adoption, aggregated with cohort shares. On a balanced
 //!   panel the saturated interacted two-way regression gives exactly these 2×2 contrasts,
-//!   which is how they are computed; an unbalanced panel is refused.
+//!   which is how they are computed. On an unbalanced panel the same saturated regression
+//!   (unit effects, period effects and one coefficient per cohort and period other than the
+//!   base period) is fitted on the observed unit-periods only, by weighted least squares
+//!   after the unit effects are swept out; no observation is invented and no unrelated
+//!   period is joined. A cohort-period coefficient is reported only where a comparison
+//!   unit is observed at that period and is linked to the base period through the comparison
+//!   units' own observed periods and through the cohort's own units; rows without such
+//!   support are dropped and counted.
 //! - Borusyak–Jaravel–Spiess imputation: unit and period effects are fitted by weighted
 //!   alternating projections on untreated observations only (never-treated units and periods
 //!   before adoption minus anticipation), the untreated outcome of every treated observation
@@ -36,7 +43,10 @@
 //! diagnostics for every estimator; they are never part of an aggregation.
 //!
 //! **Unbalanced panels** are read as they are: each 2×2 uses the units observed at both of its
-//! periods and the imputation uses every observed untreated row.
+//! periods, the imputation uses every observed untreated row, and the Sun–Abraham regression
+//! uses every observed supported row. That the units' chance of being observed does not depend
+//! on their untreated outcome trends within cohort is an untestable assumption the caller
+//! declares; per-cohort support and the dropped rows and units are reported with the fit.
 //!
 //! **Uncertainty** is a whole-procedure resample ([`crate::rollout_resampling`]): whole
 //! clusters are redrawn (or reweighted by exponential multipliers), every cell, nuisance fit
@@ -157,8 +167,39 @@ pub struct RolloutDidFit {
     pub unimputed_treated_observations: usize,
     /// Cohorts with no estimable post-adoption cell (adopted before any base period).
     pub dropped_cohorts: Vec<i64>,
+    /// Observed support of each treated cohort, in cohort order.
+    pub cohort_support: Vec<CohortSupport>,
+    /// Change of the overall summary per unit of shift in the change of the treated units a
+    /// cell does not observe: the summary's weights times the share of each cohort without a
+    /// usable observation at the cell. Zero on a panel where every cell sees its whole cohort.
+    pub attrition_slope: f64,
+    /// Observed unit-periods the estimator could not use for lack of a supported comparison
+    /// (Sun–Abraham regression only; zero for the other estimators, which use each 2×2's
+    /// own units).
+    pub dropped_rows: usize,
+    /// Units that contribute nothing to the regression (fewer than two supported rows).
+    pub dropped_units: usize,
     /// Resample record, when one was run.
     pub resampling: Option<RolloutResampleRecord>,
+}
+
+/// What the panel observes of one treated cohort and what the fit could estimate from it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CohortSupport {
+    /// First treated period of the cohort.
+    pub cohort: i64,
+    /// Units of the cohort.
+    pub units: usize,
+    /// Observed unit-periods of the cohort.
+    pub rows: usize,
+    /// Units observed at the base period (the period before adoption minus anticipation).
+    pub units_at_base: usize,
+    /// Post-adoption (and anticipation-window) group-time cells estimated.
+    pub post_cells: usize,
+    /// Pre-adoption contrasts estimated.
+    pub pre_cells: usize,
+    /// Observed unit-periods of the cohort the estimator could not use.
+    pub dropped_rows: usize,
 }
 
 /// Counts and critical value of the resample behind a fit.
@@ -221,6 +262,14 @@ struct Evaluation {
     cells: BTreeMap<(i64, i64), Cell>,
     leads: BTreeMap<i64, f64>,
     unimputed: usize,
+    loss: SupportLoss,
+}
+
+/// Observed rows and units a regression could not use, by cohort.
+#[derive(Clone, Debug, Default)]
+struct SupportLoss {
+    rows: BTreeMap<i64, usize>,
+    units: usize,
 }
 
 fn refused(message: impl Into<String>) -> EstimationError {
@@ -237,7 +286,7 @@ fn invalid(message: impl Into<String>) -> EstimationError {
 ///
 /// Misaligned columns, a unit whose cohort or cluster changes, a repeated unit-period, a
 /// negative cohort or non-positive period, a covariate missing at a unit's first kept row, no
-/// treated cohort, or (for Sun–Abraham) an unbalanced panel.
+/// treated cohort.
 #[allow(
     clippy::too_many_lines,
     reason = "one linear pass that validates the panel and gathers its units, each check refusing with its own message"
@@ -342,14 +391,6 @@ pub fn prepare(
         return Err(invalid("a rollout needs at least two periods"));
     }
     let balanced = units.iter().all(|unit| unit.outcomes.len() == periods.len());
-    if spec.estimator == RolloutDidEstimator::SunAbraham && !balanced {
-        return Err(refused(
-            "the Sun–Abraham interaction-weighted estimator reads the saturated interacted \
-             two-way regression, which equals its 2×2 contrasts only on a balanced panel; next \
-             attempt: declare missing=balanced_panel to keep complete units, or the \
-             callaway_santanna or imputation estimator, which read unbalanced panels",
-        ));
-    }
     if spec.estimator == RolloutDidEstimator::SunAbraham
         && spec.comparison == DidComparisonGroup::NotYetTreated
     {
@@ -739,6 +780,10 @@ fn assemble(
         balanced: prepared.balanced,
         unimputed_treated_observations: point.unimputed,
         dropped_cohorts,
+        cohort_support: cohort_support(prepared, spec.anticipation, point),
+        attrition_slope: attrition_slope(prepared, spec, point),
+        dropped_rows: point.loss.rows.values().sum(),
+        dropped_units: point.loss.units,
         resampling: None,
     }
 }
@@ -752,8 +797,22 @@ fn evaluate(
 ) -> Result<Evaluation, &'static str> {
     let weights: Vec<f64> =
         prepared.units.iter().map(|unit| cluster_weights[unit.cluster]).collect();
+    let (cells, unimputed, loss) = group_time_cells(prepared, spec, comparison, &weights)?;
+    let values: BTreeMap<(i64, i64), f64> =
+        cells.iter().map(|(key, cell)| (*key, cell.att)).collect();
+    let (overall, aggregate, leads) = summarize(prepared, spec, &weights, &values);
+    Ok(Evaluation { overall, aggregate, cells, leads, unimputed, loss })
+}
+
+/// The scalar summary, aggregation components and pre-adoption leads of group-time values
+/// `values` under unit weights `weights`. Linear in `values`.
+fn summarize(
+    prepared: &PreparedRollout,
+    spec: &RolloutDidSpec,
+    weights: &[f64],
+    values: &BTreeMap<(i64, i64), f64>,
+) -> (f64, BTreeMap<i64, f64>, BTreeMap<i64, f64>) {
     let delta = spec.anticipation;
-    let (cells, unimputed) = group_time_cells(prepared, spec, comparison, &weights)?;
     let cohort_size: BTreeMap<i64, f64> = prepared
         .cohorts
         .iter()
@@ -761,7 +820,7 @@ fn evaluate(
             let size = prepared
                 .units
                 .iter()
-                .zip(&weights)
+                .zip(weights)
                 .filter(|(unit, _)| unit.cohort == *group)
                 .map(|(_, weight)| *weight)
                 .sum::<f64>();
@@ -776,19 +835,19 @@ fn evaluate(
             f64::NAN
         }
     };
-    let post_cells: Vec<((i64, i64), f64)> = cells
+    let post_cells: Vec<((i64, i64), f64)> = values
         .iter()
         .filter(|((group, period), _)| period >= group)
-        .map(|(key, cell)| (*key, cell.att))
+        .map(|(key, value)| (*key, *value))
         .collect();
     let mut by_event: BTreeMap<i64, Vec<(i64, f64)>> = BTreeMap::new();
     let mut leads_by_event: BTreeMap<i64, Vec<(i64, f64)>> = BTreeMap::new();
-    for ((group, period), cell) in &cells {
+    for ((group, period), value) in values {
         let event_time = period - group;
         if event_time >= -delta {
-            by_event.entry(event_time).or_default().push((*group, cell.att));
+            by_event.entry(event_time).or_default().push((*group, *value));
         } else {
-            leads_by_event.entry(event_time).or_default().push((*group, cell.att));
+            leads_by_event.entry(event_time).or_default().push((*group, *value));
         }
     }
     let leads: BTreeMap<i64, f64> =
@@ -827,7 +886,7 @@ fn evaluate(
             (mean(&values), profile)
         }
     };
-    Ok(Evaluation { overall, aggregate, cells, leads, unimputed })
+    (overall, aggregate, leads)
 }
 
 /// Whether `unit` belongs to the comparison set of cohort `group` between `period` and `base`.
@@ -1016,7 +1075,11 @@ fn group_time_cells(
     spec: &RolloutDidSpec,
     comparison: Comparison,
     weights: &[f64],
-) -> Result<(BTreeMap<(i64, i64), Cell>, usize), &'static str> {
+) -> Result<(BTreeMap<(i64, i64), Cell>, usize, SupportLoss), &'static str> {
+    if spec.estimator == RolloutDidEstimator::SunAbraham && !prepared.balanced {
+        let (cells, loss) = saturated_cells(prepared, comparison, spec.anticipation, weights)?;
+        return Ok((cells, 0, loss));
+    }
     let delta = spec.anticipation;
     let mut cells: BTreeMap<(i64, i64), Cell> = BTreeMap::new();
     let mut unimputed = 0usize;
@@ -1060,7 +1123,263 @@ fn group_time_cells(
         unimputed = missing;
         cells.extend(imputed);
     }
-    Ok((cells, unimputed))
+    Ok((cells, unimputed, SupportLoss::default()))
+}
+
+/// Observed support and estimated cells of every treated cohort.
+fn cohort_support(
+    prepared: &PreparedRollout,
+    delta: i64,
+    point: &Evaluation,
+) -> Vec<CohortSupport> {
+    prepared
+        .cohorts
+        .iter()
+        .map(|&cohort| {
+            let members = || prepared.units.iter().filter(|unit| unit.cohort == cohort);
+            let base = cohort - 1 - delta;
+            let cells = |post: bool| {
+                point
+                    .cells
+                    .keys()
+                    .filter(|(group, period)| {
+                        *group == cohort && (period - group >= -delta) == post
+                    })
+                    .count()
+            };
+            CohortSupport {
+                cohort,
+                units: members().count(),
+                rows: members().map(|unit| unit.outcomes.len()).sum(),
+                units_at_base: members().filter(|unit| unit.outcomes.contains_key(&base)).count(),
+                post_cells: cells(true),
+                pre_cells: cells(false),
+                dropped_rows: point.loss.rows.get(&cohort).copied().unwrap_or(0),
+            }
+        })
+        .collect()
+}
+
+/// The derivative of the overall summary with respect to a common shift of the change of the
+/// treated units each cell does not observe, which enter the summary with the share of their
+/// cohort that is unobserved at the cell. The summary is linear in the cell values, so the
+/// summary of the shares is the slope.
+fn attrition_slope(prepared: &PreparedRollout, spec: &RolloutDidSpec, point: &Evaluation) -> f64 {
+    let ones = vec![1.0; prepared.units.len()];
+    let size = |group: i64| prepared.units.iter().filter(|unit| unit.cohort == group).count();
+    let shares: BTreeMap<(i64, i64), f64> = point
+        .cells
+        .iter()
+        .map(|(&(group, period), cell)| {
+            let seen = cell.treated.min(size(group)) as f64;
+            ((group, period), 1.0 - seen / size(group).max(1) as f64)
+        })
+        .collect();
+    summarize(prepared, spec, &ones, &shares).0
+}
+
+/// Root of `x` in a union-find forest, halving the path.
+fn root(parent: &mut [usize], mut x: usize) -> usize {
+    while parent[x] != x {
+        parent[x] = parent[parent[x]];
+        x = parent[x];
+    }
+    x
+}
+
+/// One kept regression row: period index, outcome and the cohort-period cell it carries a
+/// coefficient for (none at the base period and for comparison units).
+type SaturatedRow = (usize, f64, Option<(i64, usize)>);
+
+/// The group-time effects of the saturated interacted two-way regression
+/// `y_it = α_i + λ_t + Σ_{g, t ≠ base(g)} δ_{g,t} 1[cohort_i = g, period = t] + ε_it`,
+/// fitted by weighted least squares on the observed unit-periods only.
+///
+/// The comparison units (never treated, or the last-treated cohort before its adoption) carry
+/// no cohort coefficients, so they alone identify the period effects. A treated unit-period
+/// is used only where a comparison unit is observed at its period, that period is linked to
+/// the cohort's base period through the comparison units' own observed periods, and it is
+/// linked to the base period through the cohort's own units; every other unit-period is
+/// dropped and counted, never joined to an unrelated period. Units with fewer than two usable
+/// rows carry no within-unit information and are dropped. The unit effects are swept out by
+/// the within-unit transformation, so the normal equations have one row per period effect
+/// and per supported cohort-period cell.
+#[allow(
+    clippy::too_many_lines,
+    reason = "support screening, design assembly and the solve of one regression read in order"
+)]
+fn saturated_cells(
+    prepared: &PreparedRollout,
+    comparison: Comparison,
+    delta: i64,
+    weights: &[f64],
+) -> Result<(BTreeMap<(i64, i64), Cell>, SupportLoss), &'static str> {
+    let periods = prepared.periods.len();
+    let index: BTreeMap<i64, usize> =
+        prepared.periods.iter().enumerate().map(|(i, period)| (*period, i)).collect();
+    let last = match comparison {
+        Comparison::LastCohort(last) => Some(last),
+        _ => None,
+    };
+    let is_control_unit = |unit: &PanelUnit| unit.cohort == 0 || last == Some(unit.cohort);
+    let control_row = |unit: &PanelUnit, period: i64| match last {
+        Some(last) => unit.cohort == last && period < last - delta,
+        None => unit.cohort == 0,
+    };
+    let mut kept: Vec<Vec<SaturatedRow>> = vec![Vec::new(); prepared.units.len()];
+    let mut parent: Vec<usize> = (0..periods).collect();
+    let mut has_control = vec![false; periods];
+    let mut control_at = vec![0usize; periods];
+    for (u, (unit, weight)) in prepared.units.iter().zip(weights).enumerate() {
+        if *weight <= 0.0 || !is_control_unit(unit) {
+            continue;
+        }
+        let rows: Vec<SaturatedRow> = unit
+            .outcomes
+            .iter()
+            .filter(|(period, _)| control_row(unit, **period))
+            .map(|(period, value)| (index[period], *value, None))
+            .collect();
+        if rows.len() < 2 {
+            continue;
+        }
+        for &(t, _, _) in &rows {
+            has_control[t] = true;
+            control_at[t] += 1;
+            let (a, b) = (root(&mut parent, rows[0].0), root(&mut parent, t));
+            parent[a] = b;
+        }
+        kept[u] = rows;
+    }
+    if !has_control.iter().any(|seen| *seen) {
+        return Err(
+            "no comparison unit is observed in at least two periods, so no period effect is \
+             identified; next attempt: observe never-treated units (or a last-treated cohort) in \
+             several periods",
+        );
+    }
+    let control_root: Vec<usize> = (0..periods).map(|t| root(&mut parent, t)).collect();
+    let mut lam_col: Vec<Option<usize>> = vec![None; periods];
+    let mut references = BTreeSet::new();
+    let mut lambda_count = 0usize;
+    for t in 0..periods {
+        if has_control[t] && !references.insert(control_root[t]) {
+            lam_col[t] = Some(lambda_count);
+            lambda_count += 1;
+        }
+    }
+    let mut by_cohort: BTreeMap<i64, Vec<usize>> = BTreeMap::new();
+    for (u, (unit, weight)) in prepared.units.iter().zip(weights).enumerate() {
+        if *weight > 0.0 && unit.cohort > 0 && last != Some(unit.cohort) {
+            by_cohort.entry(unit.cohort).or_default().push(u);
+        }
+    }
+    let mut cell_cols: BTreeMap<(i64, usize), usize> = BTreeMap::new();
+    let mut treated_at: BTreeMap<(i64, usize), usize> = BTreeMap::new();
+    for (&group, members) in &by_cohort {
+        let Some(&base) = index.get(&(group - 1 - delta)) else { continue };
+        if !has_control[base] {
+            continue;
+        }
+        let reachable = |t: usize| has_control[t] && control_root[t] == control_root[base];
+        let mut cohort_parent: Vec<usize> = (0..periods).collect();
+        let mut candidates: Vec<(usize, Vec<SaturatedRow>)> = Vec::new();
+        for &u in members {
+            let rows: Vec<SaturatedRow> = prepared.units[u]
+                .outcomes
+                .iter()
+                .filter_map(|(period, value)| {
+                    let t = index[period];
+                    reachable(t).then_some((t, *value, (t != base).then_some((group, t))))
+                })
+                .collect();
+            if rows.len() < 2 {
+                continue;
+            }
+            for &(t, _, _) in &rows {
+                let (a, b) = (root(&mut cohort_parent, rows[0].0), root(&mut cohort_parent, t));
+                cohort_parent[a] = b;
+            }
+            candidates.push((u, rows));
+        }
+        let base_root = root(&mut cohort_parent, base);
+        for (u, rows) in candidates {
+            if root(&mut cohort_parent, rows[0].0) != base_root {
+                continue;
+            }
+            for &(_, _, cell) in &rows {
+                if let Some(key) = cell {
+                    let next = lambda_count + cell_cols.len();
+                    cell_cols.entry(key).or_insert(next);
+                    *treated_at.entry(key).or_insert(0) += 1;
+                }
+            }
+            kept[u] = rows;
+        }
+    }
+    let mut loss = SupportLoss::default();
+    for (u, (unit, weight)) in prepared.units.iter().zip(weights).enumerate() {
+        if *weight <= 0.0 {
+            continue;
+        }
+        let dropped = unit.outcomes.len() - kept[u].len();
+        if dropped > 0 {
+            *loss.rows.entry(unit.cohort).or_insert(0) += dropped;
+        }
+        if kept[u].len() < 2 {
+            loss.units += 1;
+        }
+    }
+    let k = lambda_count + cell_cols.len();
+    if cell_cols.is_empty() {
+        return Ok((BTreeMap::new(), loss));
+    }
+    let mut gram = vec![0.0; k * k];
+    let mut rhs = vec![0.0; k];
+    for (rows, weight) in kept.iter().zip(weights) {
+        if rows.is_empty() {
+            continue;
+        }
+        let m = rows.len() as f64;
+        let mean_y = rows.iter().map(|row| row.1).sum::<f64>() / m;
+        let mut active: Vec<usize> = Vec::with_capacity(2 * rows.len());
+        for &(t, y, cell) in rows {
+            let columns: Vec<usize> =
+                lam_col[t].into_iter().chain(cell.map(|key| cell_cols[&key])).collect();
+            for &a in &columns {
+                rhs[a] += weight * y;
+                for &b in &columns {
+                    gram[a * k + b] += weight;
+                }
+            }
+            active.extend(columns);
+        }
+        for &a in &active {
+            rhs[a] -= weight * mean_y;
+            for &b in &active {
+                gram[a * k + b] -= weight / m;
+            }
+        }
+    }
+    let beta = crate::util::solve_spd(&gram, &rhs, k)
+        .filter(|beta| beta.iter().all(|value| value.is_finite()))
+        .ok_or(
+            "the saturated cohort-by-period regression is singular on the observed unit-periods; \
+             next attempt: a panel in which each cohort and the comparison units are observed in \
+             overlapping periods, or the callaway_santanna estimator",
+        )?;
+    let cells = cell_cols
+        .iter()
+        .map(|(&(group, t), &col)| {
+            let cell = Cell {
+                att: beta[col],
+                treated: treated_at[&(group, t)],
+                comparison: control_at[t],
+            };
+            ((group, prepared.periods[t]), cell)
+        })
+        .collect();
+    Ok((cells, loss))
 }
 
 /// Unit and period effects fitted on the untreated observations by weighted alternating

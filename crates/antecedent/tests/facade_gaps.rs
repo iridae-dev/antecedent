@@ -242,7 +242,10 @@ fn counterfactual_and_anomaly_via_causal_analysis() {
         .unwrap()
         .run(&ExecutionContext::for_tests(1))
         .unwrap();
-    assert!(result.counterfactual().is_some());
+    // y = 1 + 2 t + 0.01 i (noise free): do(t = 1) moves each unit from its observed t (0 or 1)
+    // along slope 2, so the mean unit effect is 2 (1 - mean t) = 1 over the alternating arms.
+    let mean_ite = result.counterfactual().expect("counterfactual result").mean_ite;
+    assert!((mean_ite - 1.0).abs() < 0.05, "mean counterfactual effect {mean_ite}");
 
     let an = AnomalyAttributionQuery::new([VariableId::from_raw(1)], 100);
     let analysis = Study::tabular(data)
@@ -252,7 +255,11 @@ fn counterfactual_and_anomaly_via_causal_analysis() {
         .build()
         .unwrap();
     let result = analysis.run(&ExecutionContext::for_tests(1)).unwrap();
-    assert!(result.anomaly().is_some());
+    // One attribution block for the one queried outcome, one score per row; each score is finite.
+    let blocks = result.anomaly().expect("anomaly result");
+    assert_eq!(blocks.len(), 1);
+    assert_eq!(blocks[0].scores.len(), blocks[0].rows.len());
+    assert!(!blocks[0].scores.is_empty() && blocks[0].scores.iter().all(|s| s.is_finite()));
 }
 
 #[test]

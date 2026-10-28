@@ -454,6 +454,7 @@ _LAZY_REFUSALS: dict[str, str] = {
     "GraphOrSnapshotMismatchRefusal": "composition_bundle",
     "IncompatibleVersionRefusal": "composition_bundle",
     "MechanismDiscrepancyRefusal": "mechanism_discrepancy",
+    "MnarSensitivityRefusal": "mnar_sensitivity",
     "MsmSensitivityRefusal": "msm_sensitivity",
     "NodeNotFoundRefusal": "composition_bundle",
     "OversizedRefusal": "composition_bundle",
@@ -497,6 +498,7 @@ if TYPE_CHECKING:
     from .decision import DecisionRefusal
     from .external import ExternalRefusal
     from .mechanism_discrepancy import MechanismDiscrepancyRefusal
+    from .mnar_sensitivity import MnarSensitivityRefusal
     from .msm_sensitivity import MsmSensitivityRefusal
     from .recalc import (
         RecalcNoLiveState,
@@ -539,6 +541,7 @@ __all__ = [
     "GraphOrSnapshotMismatchRefusal",
     "IncompatibleVersionRefusal",
     "MechanismDiscrepancyRefusal",
+    "MnarSensitivityRefusal",
     "MsmSensitivityRefusal",
     "NodeNotFoundRefusal",
     "OversizedRefusal",

@@ -7,6 +7,9 @@ use crate::nonlinear_equilibrium::EquilibriumError;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
+/// Bytes admitted for the per-node input-gradient storage of one expression evaluation.
+pub const MAX_TAPE_GRADIENT_BYTES: usize = 64 << 20;
+
 /// Portable scalar structural mechanism. Parameters are local to a stable equation id.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
@@ -170,12 +173,23 @@ impl MechanismExpression {
         variables: usize,
         parameters: usize,
     ) -> Result<MechanismTape, EquilibriumError> {
-        if variables == 0 || variables > 128 || parameters > 4096 {
+        if variables == 0 || parameters > 4096 {
             return Err(invalid("mechanism expression dimensions"));
+        }
+        if variables > crate::nonlinear_equilibrium::MAX_ORDER {
+            return Err(crate::sparse_equilibrium::SolverBudgetCode::ModelOrder
+                .refusal(variables as u64, crate::nonlinear_equilibrium::MAX_ORDER as u64));
         }
         let mut nodes = Vec::new();
         let mut reads = BTreeSet::new();
         compile(self, variables, parameters, 0, &mut nodes, &mut reads)?;
+        // Forward evaluation keeps one input-gradient row per node; admit that storage by
+        // bytes rather than by a fixed variable count.
+        let gradient_bytes = nodes.len().saturating_mul(variables).saturating_mul(8);
+        if gradient_bytes > MAX_TAPE_GRADIENT_BYTES {
+            return Err(crate::sparse_equilibrium::SolverBudgetCode::Memory
+                .refusal(gradient_bytes as u64, MAX_TAPE_GRADIENT_BYTES as u64));
+        }
         Ok(MechanismTape { nodes, reads: reads.into_iter().collect(), variables, parameters })
     }
 }

@@ -5,8 +5,10 @@
 //! complete unit-period (each 2×2 then uses the units observed at both of its periods), a
 //! declared `balanced_panel` policy keeps the units complete in every period through the
 //! shared unbalanced-panel preparation, and a structurally unbalanced panel (absent rows) is
-//! read as it is by the estimators that allow it. The Sun–Abraham estimator refuses an
-//! unbalanced panel and names the next attempt.
+//! read as it is by every estimator: the Sun–Abraham saturated regression uses only the
+//! observed unit-periods that have a supported comparison and reports what it dropped. The
+//! declared observation process is recorded as an untestable assumption, and a process
+//! declared informative is refused because no route here corrects for it.
 //!
 //! Uncertainty is a whole-procedure resample of the inference clusters (whole subjects under a
 //! declared independent-subject design; a dependent single series is refused), and every
@@ -26,7 +28,7 @@ use super::{
 use crate::analysis::missing_data::MissingRoute;
 use antecedent_core::{
     DeclaredSamplingDesign, DidAggregation, DidResamplingScheme, DidSamplingDesign,
-    RolloutDidEstimator,
+    PanelObservationProcess, RolloutDidEstimator,
 };
 use antecedent_data::{MissingPolicy, PanelLayout, PreparationMode};
 use antecedent_estimate::EstimationError;
@@ -81,6 +83,19 @@ impl super::CheckedPanelDidOperation {
                 message: "a rollout requires its heterogeneity-robust specification".into(),
             });
         };
+        if robust.observation == PanelObservationProcess::Informative {
+            return Err(crate::compile_reason!(
+                "option_not_applicable",
+                "the observation process is declared informative (attrition or late entry depends \
+                 on outcomes or untreated trends within cohort) with no bound on how far, and \
+                 nothing identifies the effect under unbounded departures from the observed \
+                 unit-periods. Next attempt: declare attrition_shift_bound, the largest amount (in \
+                 outcome units) by which the treated units a cohort fails to observe may differ in \
+                 change from those it observes, for an assumption-dependent range; or declare \
+                 observation=ignorable_given_cohort if the chance of being observed is unrelated to \
+                 the untreated outcome trend within cohort"
+            ));
+        }
         let n = y.len();
         let mut complete = observed.to_vec();
         let mut covariates = Vec::with_capacity(robust.covariates.len());
@@ -304,12 +319,42 @@ impl super::CheckedPanelDidOperation {
         if let Some(twfe) = fit.twfe_static {
             diagnostics.push(("twfe_static_coefficient".to_string(), twfe));
         }
+        if let PanelObservationProcess::InformativeBounded(bound) = robust.observation {
+            // Assumption-dependent range, not a confidence interval: the sampling intervals
+            // below are conditional on the shift and do not cover it.
+            let (shift, slope) = (bound.get(), fit.attrition_slope);
+            let estimate = fit.overall.estimate;
+            diagnostics.push(("attrition_shift_bound".to_string(), shift));
+            diagnostics.push(("attrition_slope".to_string(), slope));
+            diagnostics.push(("assumption_range_lower".to_string(), estimate - shift * slope));
+            diagnostics.push(("assumption_range_upper".to_string(), estimate + shift * slope));
+            if slope > 0.0 {
+                diagnostics.push(("attrition_tipping_shift".to_string(), estimate.abs() / slope));
+            }
+        }
         if let Some(statistic) = fit.pretrend_max_abs_t {
             diagnostics.push(("pretrend_max_abs_t".to_string(), statistic));
         }
         if let Some(covers) = fit.pretrend_band_covers_zero {
             diagnostics
                 .push(("pretrend_band_covers_zero".to_string(), if covers { 1.0 } else { 0.0 }));
+        }
+        if !fit.balanced {
+            diagnostics.push(("dropped_rows".to_string(), fit.dropped_rows as f64));
+            diagnostics.push(("dropped_units".to_string(), fit.dropped_units as f64));
+        }
+        for support in &fit.cohort_support {
+            let cohort = support.cohort;
+            for (field, value) in [
+                ("units", support.units),
+                ("rows", support.rows),
+                ("units_at_base", support.units_at_base),
+                ("post_cells", support.post_cells),
+                ("pre_cells", support.pre_cells),
+                ("dropped_rows", support.dropped_rows),
+            ] {
+                diagnostics.push((format!("cohort_{cohort}_{field}"), value as f64));
+            }
         }
         if fit.unimputed_treated_observations > 0 {
             diagnostics.push((
@@ -351,6 +396,45 @@ impl super::CheckedPanelDidOperation {
                      cohorts or with exposure, where the two-way coefficient weights cells \
                      improperly",
                     fit.overall.estimate
+                ),
+            ));
+        }
+        if !fit.balanced {
+            notes.push(Diagnostic::new(
+                "diagnostic.quasi.rollout.unbalanced_panel_support",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "the panel is unbalanced and was read as observed ({} unit-periods of {} \
+                     units); the untestable assumption that a unit's chance of being observed is \
+                     unrelated to its untreated outcome trend within cohort is declared, not \
+                     checked. {} unit-periods and {} units carried no supported comparison and \
+                     were dropped; per-cohort support is in the cohort_* diagnostics",
+                    fit.rows, fit.units, fit.dropped_rows, fit.dropped_units
+                ),
+            ));
+        }
+        if let PanelObservationProcess::InformativeBounded(bound) = robust.observation {
+            notes.push(Diagnostic::new(
+                "sensitivity.quasi.rollout.attrition_assumption_range",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Warning,
+                format!(
+                    "the observation process is declared informative: the treated units a cohort \
+                     does not observe may change by at most {} (outcome units) more or less than \
+                     those it observes, and comparison units are taken as missing at random. The \
+                     overall effect then lies in [{:.6}, {:.6}], an assumption-dependent range \
+                     (slope {:.6} per unit of shift) that is not a confidence interval and is \
+                     distinct from the sampling uncertainty; the sign changes at a shift of {}",
+                    bound.get(),
+                    fit.overall.estimate - bound.get() * fit.attrition_slope,
+                    fit.overall.estimate + bound.get() * fit.attrition_slope,
+                    fit.attrition_slope,
+                    if fit.attrition_slope > 0.0 {
+                        format!("{:.6}", fit.overall.estimate.abs() / fit.attrition_slope)
+                    } else {
+                        "none (no cohort is missing a cell)".to_string()
+                    }
                 ),
             ));
         }

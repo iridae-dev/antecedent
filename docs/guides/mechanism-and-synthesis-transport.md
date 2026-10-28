@@ -5,6 +5,7 @@ You can carry a fitted mechanism from a source population into a target populati
 | Route | Rust entry point | Result |
 | --- | --- | --- |
 | Fitted linear-Gaussian mechanisms into a target composed model | `antecedent_model::mechanism_transport::transport_linear_gaussian` | `TransportedLinearGaussian` with a per-component disposition |
+| Fitted nonlinear and non-Gaussian mechanisms (polynomial or expression mean; Gaussian, heteroscedastic, log-normal, Bernoulli, Poisson or gamma response) into a target composed model, with target-specific refits | `antecedent_model::typed_mechanism_transport::transport_typed` | `TransportedTypedModel` with a per-component disposition and consistency test |
 | Native plus transported summaries pooled, borrowed or used as a prior | `antecedent_design::transported_synthesis::synthesize_transported` | `TransportedSynthesis`: point and model variance |
 | Surrogate bridge carried to another population | `antecedent_design::transported_bridge::TransportedSurrogateBridge` | A bridge contract checked against a selection diagram |
 
@@ -42,6 +43,53 @@ latent cause, and pin the mapping between their reason codes
 (`quantity_semantics_mismatch` for the composition checks,
 `transport_proven_non_transportable` for the finite witness).
 
+## Nonlinear and non-Gaussian mechanism transport
+
+`antecedent_model::typed_mechanism_transport` (Python:
+`antecedent.typed_mechanism_transport`) carries typed families under the same
+selection-diagram rule. A mechanism has a conditional mean that is a polynomial
+(optionally with pairwise products) of the standardized parents or a compiled
+mechanism expression, and a response family: Gaussian, heteroscedastic Gaussian
+(log variance linear in the parents), log-normal, Bernoulli (logit), Poisson
+(log link) or gamma (log link, estimated dispersion). A fit returns the
+parameter covariance.
+
+The diagram decides each variable separately. A mechanism no selection node
+points into is declared invariant and carried from the source fit. A mechanism a
+selection node points into is shifted and used only from a target fit,
+refitted on the source mechanism's design so the two parameter vectors are
+comparable. A shifted mechanism with no target fit is refused with
+`typed_mechanism_transport.shifted_without_target_evidence`
+(`transport_missing_evidence`): missing evidence never makes a mechanism
+invariant.
+
+Where target data exist for a mechanism declared invariant, the route tests the
+declaration: a Wald statistic on the full parameter vectors with the summed fit
+covariances, against a chi-square law, at the request's level. A rejection
+refuses the transport (`typed_mechanism_transport.invariance_contradicted`). A
+non-rejection is not evidence of invariance, and an invariance with no target
+data is an untested premise that the receipt records.
+
+Interventional means are Monte Carlo over the structural model with paired
+draws across the arms of a contrast; the outcome enters through its exact
+conditional mean. The Monte Carlo standard error is numerical-approximation
+uncertainty. The parameter variance of a contrast is first order, `g' Sigma g`,
+with the score-function gradient `g` over every involved mechanism's parameters
+and `Sigma` the source covariance for a carried mechanism and the target
+covariance for a refit one, joined by the declared dependence: independence by
+design, an aligned joint covariance, or cross-covariance blocks. Unknown
+dependence between more than one involved mechanism is refused. The transport
+assumption adds no variance, support is `extrapolative`, inference is
+`point_only` and the interval route is closed (`cell_not_licensed`).
+
+The conformance fixture `conformance/transport/typed_mechanism_shift` holds a
+source and a target sample in which income and price are invariant and six
+outcome mechanisms (one per family) shift to a quadratic price effect. Its
+reference script fits the target sample with numpy and scipy and evaluates the
+target response by quadrature; the tests compare the transported response and
+its delta-method standard error with that reference, and the response with the
+closed-form truth.
+
 ## Transported synthesis
 
 A transported summary is `y = theta + b_t + e`, with a transport error `b_t` of
@@ -77,6 +125,10 @@ point-only.
 | Selection node into a mechanism or its latent cause | `mechanism_composition.population_selection_arrow_into_mechanism`, `mechanism_transport.selection_arrow_into_latent` | Refit the mechanism in the target |
 | Diagram not between the stated source and target | `mechanism_transport.diagram_source_mismatch` / `diagram_target_mismatch` | Declare the diagram for these two populations |
 | Declared or externally bound mechanism, or a non-Gaussian family (including a native non-Gaussian target mechanism) | `mechanism_transport.origin_not_fitted`, `family_unsupported` | Fit the mechanism, or use the finite transport route for tables |
+| Shifted mechanism (selection node into it) with no target fit | `typed_mechanism_transport.shifted_without_target_evidence` | Fit the mechanism on target data |
+| Target data reject a declared invariance | `typed_mechanism_transport.invariance_contradicted` | Declare a selection node into the mechanism and refit it in the target |
+| Fits on different designs, or a refit that changes family, mean or parents | `typed_mechanism_transport.design_not_shared`, `target_specification_differs`, `parents_changed` | Refit with `refit_in_target` |
+| Contrast variance over several mechanisms with undeclared dependence | `typed_mechanism_transport.parameter_dependence_unknown`, `parameter_dependence_incomplete` | Declare independence by design, a joint covariance or cross-covariance blocks |
 | Contributions carried to different targets, or a native estimate for another population | `transported_synthesis.target_population_mismatch`, `native_population_blank` | Carry every contribution to the one target |
 | Transported source with no population, blank assumptions or itself as target | `transported_synthesis.transport_identity_incomplete` | Complete the transport identity |
 | Transport declared with no uncertainty | `transported_synthesis.transport_variance_undeclared` | Declare `tau_t^2` for the transport |

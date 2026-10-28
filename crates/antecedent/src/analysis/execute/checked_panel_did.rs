@@ -28,8 +28,14 @@ fn design_refusal(
     use antecedent_core::DidSamplingDesign;
     match (policy, design) {
         (MissingPolicy::ErrorOnMissing, _) => None,
+        // One row per subject: a subject missing an outcome or a supplied prediction is dropped
+        // whole, and the row-aligned nuisance columns are restricted with it.
+        (
+            MissingPolicy::AvailableCase | MissingPolicy::BalancedPanel,
+            DidSamplingDesign::AugmentedPanel,
+        ) => None,
         (_, DidSamplingDesign::AugmentedPanel) => Some(
-            "the augmented panel's supplied nuisance predictions are row-aligned columns and cannot be restricted",
+            "the augmented panel reads complete subject rows (available_case or balanced_panel); it has no estimator for this policy",
         ),
         (MissingPolicy::BalancedPanel, DidSamplingDesign::RepeatedCrossSection) => {
             Some("a repeated cross-section has no panel to balance; each row is its own subject")
@@ -272,6 +278,15 @@ impl CheckedPanelDidOperation {
         let observed: Vec<bool> = (0..y.len()).map(|i| column.validity.is_valid(i)).collect();
         if self.query.robust.is_some() {
             return self.execute_rollout(data, y, &observed, ctx);
+        }
+        if self.query.design == antecedent_core::DidSamplingDesign::AugmentedPanel {
+            // The augmented panel restricts its own row-aligned columns to complete subjects.
+            let mut result = self.execute_rows(data, y, ctx)?;
+            if result.extras.missing_data.is_none() {
+                let keep = vec![true; y.len()];
+                result.extras.missing_data = Some(self.missing_report(data, &observed, &keep)?);
+            }
+            return Ok(result);
         }
         if observed.iter().all(|seen| *seen) {
             let mut result = self.execute_rows(data, y, ctx)?;
@@ -722,23 +737,74 @@ impl CheckedPanelDidOperation {
                 message: "augmented panel DiD requires the augmented nuisance block".into(),
             });
         };
-        let numeric_column = |variable| -> Result<Vec<f64>, CausalError> {
+        let numeric_column = |variable| -> Result<(Vec<f64>, Vec<bool>), CausalError> {
             match data.column(variable).map_err(CausalError::from)? {
-                antecedent_data::ColumnView::Float64(column) => {
-                    Ok(column.values.as_slice().to_vec())
-                }
+                antecedent_data::ColumnView::Float64(column) => Ok((
+                    column.values.as_slice().to_vec(),
+                    (0..column.values.as_slice().len())
+                        .map(|i| column.validity.is_valid(i))
+                        .collect(),
+                )),
                 _ => Err(CausalError::Unsupported {
                     message: "augmented panel DiD requires continuous outcome and nuisance columns",
                 }),
             }
         };
-        let pre = numeric_column(nuisance.outcome_pre)?;
-        let propensity = numeric_column(nuisance.propensity)?;
-        let prediction = numeric_column(nuisance.untreated_change_prediction)?;
+        let (pre, pre_ok) = numeric_column(nuisance.outcome_pre)?;
+        let (propensity, propensity_ok) = numeric_column(nuisance.propensity)?;
+        let (prediction, prediction_ok) = numeric_column(nuisance.untreated_change_prediction)?;
+        let (_, post_ok) = numeric_column(self.query.outcome)?;
+        let keep: Vec<bool> = (0..post.len())
+            .map(|i| post_ok[i] && pre_ok[i] && propensity_ok[i] && prediction_ok[i])
+            .collect();
+        // A subject missing an outcome or a supplied prediction is dropped whole under a
+        // declared policy; the row-aligned columns are restricted with it, nothing is imputed.
+        let incomplete = keep.iter().any(|kept| !*kept);
+        if incomplete {
+            let declared = self.extra.declaration.as_ref().is_some_and(|declaration| {
+                matches!(
+                    declaration.policy,
+                    MissingPolicy::AvailableCase | MissingPolicy::BalancedPanel
+                )
+            });
+            if !declared {
+                let supported = MissingRoute::Panel.supported();
+                let cell = antecedent_data::first_missing_cell(
+                    data,
+                    &[
+                        self.query.outcome,
+                        nuisance.outcome_pre,
+                        nuisance.propensity,
+                        nuisance.untreated_change_prediction,
+                    ],
+                )?
+                .ok_or(CausalError::Unsupported {
+                    message: "augmented panel validity changed during execution",
+                })?;
+                return Err(CausalError::Estimate(
+                    antecedent_estimate::missing_policy::policy_required(
+                        &cell,
+                        MissingRoute::Panel.label(),
+                        &supported[1..],
+                    ),
+                ));
+            }
+        }
+        fn pick<T: Clone>(values: &[T], keep: &[bool]) -> Vec<T> {
+            values.iter().zip(keep).filter(|(_, kept)| **kept).map(|(v, _)| v.clone()).collect()
+        }
+        let (pre, post, propensity, prediction, treated) = (
+            pick(&pre, &keep),
+            pick(post, &keep),
+            pick(&propensity, &keep),
+            pick(&prediction, &keep),
+            pick(&self.query.treated, &keep),
+        );
+        let post = post.as_slice();
         let fit = antecedent_estimate::augmented_panel_did::estimate(
             &pre,
             post,
-            &self.query.treated,
+            &treated,
             &propensity,
             &prediction,
         )
@@ -754,10 +820,11 @@ impl CheckedPanelDidOperation {
                     &self.query.subjects,
                     &self.query.clusters,
                 )?;
+                let clusters = pick(&clusters, &keep);
                 antecedent_estimate::augmented_panel_did::resample_augmented_panel(
                     &pre,
                     post,
-                    &self.query.treated,
+                    &treated,
                     &propensity,
                     &prediction,
                     &clusters,
@@ -804,7 +871,7 @@ impl CheckedPanelDidOperation {
             interval_95: resampled_quantity.and_then(|quantity| quantity.interval),
             treated_subjects: fit.treated_subjects,
             comparison_subjects: fit.control_subjects,
-            clusters: self.query.clusters.iter().collect::<BTreeSet<_>>().len(),
+            clusters: pick(&self.query.clusters, &keep).iter().collect::<BTreeSet<_>>().len(),
             uncertainty: Arc::from(if resampled_quantity.is_some() {
                 "whole_cluster_resample_supplied_nuisance_held_fixed_calibration_unmeasured"
             } else {
@@ -820,6 +887,9 @@ impl CheckedPanelDidOperation {
             )),
         });
         result.treatment = None;
+        if incomplete {
+            result.extras.missing_data = Some(self.missing_report(data, &post_ok, &keep)?);
+        }
         Ok(result)
     }
 
@@ -1205,6 +1275,19 @@ fn push_augmented_did_assumptions(assumptions: &mut antecedent_core::AssumptionS
             status: antecedent_core::AssumptionStatus::Declared,
         });
     }
+    // Subjects missing an outcome or a supplied prediction are dropped under a declared
+    // policy; that dropping is ignorable is not testable from the retained rows.
+    assumptions.push(antecedent_core::AssumptionRecord {
+        assumption: antecedent_core::Assumption::Custom {
+            id: Arc::from("attrition_ignorable_given_treatment_group_and_predictors"),
+            description: Arc::from(
+                "whether a subject has both outcomes and the supplied predictions is unrelated to its untreated outcome change within treatment group given the supplied predictors; not testable from the retained rows",
+            ),
+        },
+        source: antecedent_core::AssumptionSource::UserDeclared,
+        scope: antecedent_core::AssumptionScope::Identification,
+        status: antecedent_core::AssumptionStatus::Untestable,
+    });
 }
 
 /// Assumptions a heterogeneity-robust or covariate-adjusted rollout adds for its comparison
@@ -1233,7 +1316,7 @@ fn push_rollout_assumptions(
         RolloutDidEstimator::CallawaySantAnna => {}
         RolloutDidEstimator::SunAbraham => declared.push((
             "single_control_cohort_valid",
-            "the never-treated cohort (or the last-treated cohort before its adoption) is a valid control for every cohort, and the panel is balanced",
+            "the never-treated cohort (or the last-treated cohort before its adoption) is a valid control for every cohort; on an unbalanced panel the comparison units used at a period are those actually observed at it",
         )),
         RolloutDidEstimator::Imputation => declared.push((
             "additive_unit_and_period_untreated_outcomes",
@@ -1265,6 +1348,35 @@ fn push_rollout_assumptions(
             source: antecedent_core::AssumptionSource::UserDeclared,
             scope: antecedent_core::AssumptionScope::Identification,
             status: antecedent_core::AssumptionStatus::Declared,
+        });
+    }
+    if let antecedent_core::PanelObservationProcess::InformativeBounded(bound) = robust.observation
+    {
+        assumptions.push(antecedent_core::AssumptionRecord {
+            assumption: antecedent_core::Assumption::Custom {
+                id: Arc::from("attrition_shift_within_declared_bound"),
+                description: Arc::from(format!(
+                    "the treated units a cohort does not observe change by at most {} outcome units more or less than those it observes, and comparison units are missing at random; the result is an assumption-dependent range over that bound, not testable from the observed rows",
+                    bound.get()
+                )),
+            },
+            source: antecedent_core::AssumptionSource::UserDeclared,
+            scope: antecedent_core::AssumptionScope::Identification,
+            status: antecedent_core::AssumptionStatus::Untestable,
+        });
+    }
+    // Which unit-periods are observed cannot be tested from the observed rows themselves.
+    if robust.observation == antecedent_core::PanelObservationProcess::IgnorableGivenCohort {
+        assumptions.push(antecedent_core::AssumptionRecord {
+            assumption: antecedent_core::Assumption::Custom {
+                id: Arc::from("attrition_ignorable_given_cohort"),
+                description: Arc::from(
+                    "whether a unit is observed in a period is unrelated to its untreated outcome trend within its adoption cohort, so the observed unit-periods represent each cohort; not testable from the observed rows",
+                ),
+            },
+            source: antecedent_core::AssumptionSource::UserDeclared,
+            scope: antecedent_core::AssumptionScope::Identification,
+            status: antecedent_core::AssumptionStatus::Untestable,
         });
     }
 }

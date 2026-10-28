@@ -439,6 +439,9 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
             if let Some(ridge) = query.augmentation_ridge {
                 dimensions.push(("augmentation_ridge".into(), ridge.to_string()));
             }
+            if query.observed_window_support {
+                dimensions.push(("observed_window_support".into(), "true".into()));
+            }
             if let Some(rollout) = &query.rollout {
                 dimensions.push((
                     "synthetic_interval".into(),

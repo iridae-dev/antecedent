@@ -186,6 +186,24 @@ pub struct SyntheticControlEstimate {
     pub outcome_model_correction: Option<f64>,
     /// Positive ridge penalty used for the donor outcome model.
     pub augmentation_ridge: Option<f64>,
+    /// What an unbalanced panel supplied, when it was read over the treated unit's observed
+    /// window.
+    pub observed_window: Option<ObservedWindowReport>,
+}
+
+/// The support an observed-window synthetic control read of an unbalanced panel.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ObservedWindowReport {
+    /// Pre-intervention periods the treated unit is observed in; the weights are fitted here.
+    pub pre_periods: Arc<[i64]>,
+    /// Post-intervention periods the treated unit is observed in; the effect averages these.
+    pub post_periods: Arc<[i64]>,
+    /// Donors observed in every window period.
+    pub donors_used: usize,
+    /// Units excluded for missing part of the window, with the number of window periods missed.
+    pub donors_dropped: Arc<[(Arc<str>, usize)]>,
+    /// Observed unit-periods no estimate read.
+    pub unread_rows: usize,
 }
 
 /// Conditional response grid and optional fixed kernel-smoothed dose-policy value.
@@ -701,7 +719,8 @@ pub struct ImputationReport {
     pub imputed_cells: std::sync::Arc<[(std::sync::Arc<str>, usize)]>,
     /// Estimator fitted on every completed table.
     pub estimator: std::sync::Arc<str>,
-    /// `rubin` (frequentist) or `stacked_posterior` (Bayesian).
+    /// `rubin` (frequentist), `stacked_posterior` (Bayesian) or `stacked_graph_posterior` (Bayesian
+    /// mixture over declared graphs, whose weights stay inside every table's draws).
     pub pooling: std::sync::Arc<str>,
     /// Each completed table's point estimate, in imputation order.
     pub points: std::sync::Arc<[f64]>,

@@ -23,7 +23,7 @@ use super::{
     RefutationReportView, RefuteSuite, RpcmciDiscoverySummary, ScoreInferenceSection,
     ScoreTableSection, ValidationFailureSection, ValidationSection, adaptive_inference_api,
     adaptive_participant_api, adaptive_procedure_api, artifact_api, association_api, ate_api,
-    attribution_api, bayesian, bounds_api, candidate_screen_api, categorical_treatment_api,
+    adaptive_policy_api, attribution_api, bayesian, bounds_api, candidate_screen_api, categorical_treatment_api,
     closed_pilot_api, cohort_decision_api, compact_export_api, composition_api,
     composition_bundle_api, composition_verification_api, counterfactual_id_api,
     cpdag_scenario_api, cross_world_api, cross_world_execution_api, decision_api,
@@ -39,8 +39,8 @@ use super::{
     learned_trial_api, load_float64_arrow_c_columns, load_float64_columns,
     load_float64_panel_columns, matched_case_control_api, measured_inference_api,
     measurement_model_api, mechanism_composition_api, mechanism_discrepancy_api,
-    msm_sensitivity_api, multi_level_treatment_api, nested_bayesian_api, nested_fisher_api,
-    nonlinear_mediation_api, observation_api, observation_query_api,
+    mnar_sensitivity_api, msm_sensitivity_api, multi_level_treatment_api, nested_bayesian_api,
+    nested_fisher_api, nonlinear_mediation_api, observation_api, observation_query_api,
     observational_interference_api, observational_policy_api, observational_survival_api,
     policy_api, posterior_boundary_api, posterior_row_api, predictive_assessment_api,
     preflight_api, prepared_api, prior_bank, prior_signal_api, program_claims_api,
@@ -58,7 +58,8 @@ use super::{
     transport_grid_api, transport_interference_api, transport_joint_sensitivity_api,
     transport_mixed_api, transport_mz_api, transport_revalidation_api, transport_scenario_api,
     transport_statistical_api, transport_z_api, transported_constructors_api,
-    transported_counterfactual_api, transported_response_api, value_err, vector_treatment_api,
+    transported_counterfactual_api, transported_response_api, typed_mechanism_transport_api,
+    value_err, vector_treatment_api,
 };
 
 pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -109,6 +110,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     cross_world_execution_api::register(m)?;
     joint_transport_api::register(m)?;
     msm_sensitivity_api::register(m)?;
+    mnar_sensitivity_api::register(m)?;
     mechanism_discrepancy_api::register(m)?;
     inverse_outcome_api::register(m)?;
     inverse_query_api::register(m)?;
@@ -134,6 +136,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     derived_treatment_api::register(m)?;
     matched_case_control_api::register(m)?;
     descriptive_api::register(m)?;
+    adaptive_policy_api::register(m)?;
     candidate_screen_api::register(m)?;
     preflight_api::register(m)?;
     observation_api::register(m)?;
@@ -175,6 +178,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     cohort_decision_api::register(m)?;
     nonlinear_mediation_api::register(m)?;
     crate::cyclic_system_api::register(m)?;
+    crate::external_mechanism_api::register(m)?;
     crate::joint_panel_api::register(m)?;
     latent_class_api::register(m)?;
     temporal_counterfactual_api::register(m)?;
@@ -185,6 +189,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     composition_bundle_api::register(m)?;
     measurement_model_api::register(m)?;
     mechanism_composition_api::register(m)?;
+    typed_mechanism_transport_api::register(m)?;
     observation_query_api::register(m)?;
     evidence_ledger_api::register(m)?;
     sequential_evaluation_api::register(m)?;

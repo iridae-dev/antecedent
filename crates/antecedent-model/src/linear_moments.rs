@@ -3,9 +3,10 @@
 //! Aggregation retains each joint intervention regime and all cross moments;
 //! it never substitutes local equilibrium regressions for the joint likelihood.
 use crate::nonlinear_equilibrium::{
-    Activation, Clamp, EquilibriumError, EquilibriumModel, MechanismLikelihoodScore, RegimeRow,
-    cholesky, log_abs_determinant,
+    Activation, Clamp, EquilibriumError, EquilibriumModel, MAX_ORDER, MechanismLikelihoodScore,
+    RegimeRow, cholesky, local_positions,
 };
+use crate::sparse_equilibrium::{SolverBudgetCode, SparseLu};
 use antecedent_core::ExecutionContext;
 use antecedent_kernels::gauss_jordan_solve;
 use std::collections::BTreeMap;
@@ -16,6 +17,13 @@ struct Group {
     scatter: Vec<f64>,
     clamps: Vec<Clamp>,
 }
+/// Largest order admitted for exact affine sufficient-statistic scores. The per-regime
+/// scatter and the score are dense `n x n` outputs and the disturbance-precision inverse is
+/// `O(k^3)` for `k` free variables, so 1024 (about 8 MiB per regime, 1e9 flops per regime)
+/// is the admitted bound; the Jacobian log-determinant, its inverse and the `A S` products
+/// are sparse. Beyond it the refusal is `solver_model_order_budget`.
+pub const MAX_AFFINE_MOMENT_ORDER: usize = 1024;
+
 /// Checked aggregate of independent equilibrium rows with fixed known regimes.
 #[derive(Clone, Debug)]
 pub struct LinearRegimeMoments {
@@ -43,7 +51,11 @@ impl LinearRegimeMoments {
         order: usize,
         ctx: &ExecutionContext,
     ) -> Result<Self, EquilibriumError> {
-        if rows.is_empty() || rows.len() > 10_000_000 || order == 0 || order > 128 {
+        if order > MAX_AFFINE_MOMENT_ORDER.min(MAX_ORDER) {
+            return Err(SolverBudgetCode::ModelOrder
+                .refusal(order as u64, MAX_AFFINE_MOMENT_ORDER.min(MAX_ORDER) as u64));
+        }
+        if rows.is_empty() || rows.len() > 10_000_000 || order == 0 {
             return Err(invalid("affine moment input limits"));
         }
         let mut groups: BTreeMap<Vec<usize>, Group> = BTreeMap::new();
@@ -164,30 +176,47 @@ impl LinearRegimeMoments {
             let lower = cholesky(&covariance, k)?;
             let noise_logdet = 2.0 * (0..k).map(|i| lower[i * k + i].ln()).sum::<f64>();
             let precision = inverse(covariance, k)?;
-            let jacobian = model.residual_jacobian(&group.mean, &free);
-            let logdet = log_abs_determinant(jacobian.clone(), k)?;
-            let jacobian_inverse = inverse(jacobian, k)?;
+            let reads = model.read_sets()?;
+            let local = local_positions(&free);
+            let jacobian = model.sparse_jacobian(&group.mean, &free, &reads, &local)?;
+            let lu = SparseLu::factor(&jacobian, usize::MAX, &mut || Ok(()))
+                .map_err(|_| EquilibriumError::Singular)?;
+            let logdet = lu.log_abs_determinant();
+            let mut jacobian_inverse = vec![0.0; k * k];
+            for c in 0..k {
+                let mut unit = vec![0.0; k];
+                unit[c] = 1.0;
+                for (r, v) in lu.solve(&unit).into_iter().enumerate() {
+                    jacobian_inverse[r * k + c] = v;
+                }
+            }
             let residual_mean = model.residual(&group.mean, &vec![0.0; n], &free);
-            let a: Vec<_> = free
+            // Sparse rows of A = I - W over the free equations.
+            let a_rows: Vec<Vec<(usize, f64)>> = free
                 .iter()
-                .flat_map(|&i| {
-                    (0..n).map(move |j| {
-                        (if i == j { 1.0 } else { 0.0 }) - model.equations[i].weights[j]
-                    })
+                .map(|&i| {
+                    (0..n)
+                        .filter_map(|j| {
+                            let v =
+                                (if i == j { 1.0 } else { 0.0 }) - model.equations[i].weights[j];
+                            (v != 0.0).then_some((j, v))
+                        })
+                        .collect()
                 })
                 .collect();
             let mut a_scatter = vec![0.0; k * n];
-            for i in 0..k {
-                for j in 0..n {
-                    for r in 0..n {
-                        a_scatter[i * n + j] += a[i * n + r] * group.scatter[r * n + j];
+            for (i, row) in a_rows.iter().enumerate() {
+                for &(r, v) in row {
+                    for j in 0..n {
+                        a_scatter[i * n + j] += v * group.scatter[r * n + j];
                     }
                 }
             }
             let mut quadratic = 0.0;
             for i in 0..k {
                 for r in 0..k {
-                    let centered: f64 = (0..n).map(|j| a_scatter[i * n + j] * a[r * n + j]).sum();
+                    let centered: f64 =
+                        a_rows[r].iter().map(|&(j, v)| a_scatter[i * n + j] * v).sum();
                     quadratic += precision[i * k + r]
                         * (centered + count * residual_mean[i] * residual_mean[r]);
                 }

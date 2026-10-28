@@ -69,9 +69,9 @@ pub use cross_world::{
     CrossWorldQuery, EdgeRoute, ExogenousCoupling, WorldId, WorldObservation, WorldSpec,
 };
 pub use did::{
-    DidAggregation, DidBasePeriod, DidComparisonGroup, DidNuisanceMethod, DidResampling,
-    DidResamplingScheme, DidSamplingDesign, HeterogeneityRobustDid, PanelDidQuery,
-    RolloutDidEstimator,
+    AttritionShiftBound, DidAggregation, DidBasePeriod, DidComparisonGroup, DidNuisanceMethod,
+    DidResampling, DidResamplingScheme, DidSamplingDesign, HeterogeneityRobustDid, PanelDidQuery,
+    PanelObservationProcess, RolloutDidEstimator,
 };
 pub use discover::{
     DiscoverQuery, DiscoveredClass, DiscoveryInference, DiscoveryMethod, ScreenWeight,

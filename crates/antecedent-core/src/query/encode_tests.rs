@@ -333,6 +333,7 @@ fn synthetic_control() -> SyntheticControlQuery {
         sharp_null_effect: None,
         augmentation_ridge: None,
         rollout: None,
+        observed_window_support: false,
     }
 }
 
@@ -1133,6 +1134,12 @@ fn every_design_query_field_reaches_the_encoding() {
             &|q| {
                 q.robust = Some(HeterogeneityRobustDid {
                     covariates: Arc::from([v(7)]),
+                    ..HeterogeneityRobustDid::default()
+                });
+            },
+            &|q| {
+                q.robust = Some(HeterogeneityRobustDid {
+                    observation: crate::PanelObservationProcess::Informative,
                     ..HeterogeneityRobustDid::default()
                 });
             },

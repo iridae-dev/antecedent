@@ -196,15 +196,15 @@ fn unsupported_policies_are_refused_at_build_with_the_next_attempt() {
     let too_few = built(imputation(ImputationSpec::new().with_imputations(1))).unwrap_err();
     assert_eq!(too_few.reason_code(), Some("invalid_argument"), "{too_few}");
 
-    let matching = Study::tabular(data.clone())
+    let cross_fitted = Study::tabular(data.clone())
         .query(query())
         .graph(graph())
-        .estimator(EstimatorId::PropensityMatching)
+        .estimator(EstimatorId::Dml)
         .missing(imputation(ImputationSpec::new()))
         .build()
         .unwrap_err();
-    let text = refusal_text(&matching);
-    assert!(text.contains("propensity.matching"), "{text}");
+    let text = refusal_text(&cross_fitted);
+    assert!(text.contains("dml"), "{text}");
     assert!(text.contains("next attempt: declare `complete_case`"), "{text}");
 
     let clustered = Study::tabular(data.clone())

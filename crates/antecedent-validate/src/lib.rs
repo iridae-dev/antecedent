@@ -24,6 +24,8 @@ pub mod joint_mechanism_sensitivity;
 pub mod mechanism_sensitivity;
 pub mod mediation;
 pub mod mediation_sensitivity;
+mod mnar_adjusted;
+pub mod mnar_sensitivity;
 pub mod msm_sensitivity;
 pub mod omitted_variable_bias;
 pub mod overlap;

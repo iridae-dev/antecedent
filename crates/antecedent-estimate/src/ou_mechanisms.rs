@@ -123,7 +123,6 @@ impl OuMechanisms {
         let n = self.equations.len();
         let mut ids = std::collections::BTreeSet::new();
         if n == 0
-            || n > 16
             || self.drift.len() != n * n
             || self.forcing.len() != n
             || self.diffusion_factor.len() != n * n
@@ -142,7 +141,7 @@ impl OuMechanisms {
         }
         Ok(n)
     }
-    fn replaced(
+    pub(crate) fn replaced(
         &self,
         replacements: &[OuEquationReplacement],
     ) -> Result<(Self, Vec<bool>), EquilibriumError> {

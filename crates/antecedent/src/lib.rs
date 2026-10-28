@@ -138,7 +138,7 @@ pub use result::{
     PanelDidEstimate, PolicyValueEstimate, PosteriorRowEstimate, PrimaryEstimate,
     PublishedScalarUncertainty, RandomizedEffectEstimate, ResultPayload, RowWeightsBinding,
     SequentialContrastEstimate, StructuralAggregationPolicy, StructuralWeightBasis, StudyResult,
-    SurvivalEstimate, SyntheticControlEstimate, SyntheticDidEstimate,
+    ObservedWindowReport, SurvivalEstimate, SyntheticControlEstimate, SyntheticDidEstimate,
 };
 pub use support::{
     CellStatus, IntoGraphInput, StructureSource, SupportCell, SupportGraphClass, SupportInference,

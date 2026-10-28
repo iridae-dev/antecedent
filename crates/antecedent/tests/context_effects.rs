@@ -427,6 +427,11 @@ fn prediction_smoke_pin() {
     )
     .unwrap();
     let yhat = pred.predict_conditional(&data, VariableId::from_raw(0), 1.0, &policy).unwrap();
-    let mean: f64 = yhat.iter().sum::<f64>() / yhat.len() as f64;
-    assert!((mean - target).abs() < tol);
+    // The data are noise free, so the least-squares lag-1 line is Y = 0.01 + 2 X exactly and
+    // every conditional prediction at X = 1 equals the closed-form 2.01 up to round-off.
+    assert!(!yhat.is_empty());
+    assert!((target - (0.01 + 2.0 * 1.0)).abs() < 1e-12, "fixture target is the closed form");
+    for (row, value) in yhat.iter().enumerate() {
+        assert!((value - target).abs() < tol, "row {row}: {value} vs {target}");
+    }
 }

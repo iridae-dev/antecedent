@@ -388,8 +388,17 @@ impl CyclicGraphRequest {
                 outcomes,
                 conditioning,
             } => {
-                if *variables >= 128
-                    || outcomes.is_empty()
+                // Admission by size, not a fixed variable count: the acyclification is
+                // polynomial in the incidence, quadratic only inside one cluster.
+                let incidences: usize = equations.iter().map(Vec::len).sum();
+                if *variables >= DOMAIN_INVARIANCE_MAX_VARIABLES
+                    || incidences > DOMAIN_INVARIANCE_MAX_INCIDENCES
+                {
+                    return Err(invalid(
+                        "domain invariance size exceeds the admitted variables or incidences",
+                    ));
+                }
+                if outcomes.is_empty()
                     || outcomes.iter().chain(conditioning).any(|&v| v >= *variables)
                     || changed_equations.iter().any(|&e| e >= equations.len())
                 {
@@ -586,3 +595,8 @@ impl CyclicGraphRequest {
         }
     }
 }
+
+/// Admitted variables of a domain-invariance graph.
+const DOMAIN_INVARIANCE_MAX_VARIABLES: usize = 16_384;
+/// Admitted equation-variable incidences of a domain-invariance graph.
+const DOMAIN_INVARIANCE_MAX_INCIDENCES: usize = 4_000_000;

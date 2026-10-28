@@ -426,6 +426,7 @@ fn synthetic_control_to_wire(q: &antecedent_core::SyntheticControlQuery) -> Caus
         sharp_null_effect: q.sharp_null_effect,
         augmentation_ridge: q.augmentation_ridge,
         rollout: q.rollout.as_ref().map(crate::rollout_query_wire::synthetic_rollout_to_wire),
+        observed_window_support: q.observed_window_support,
     })
 }
 

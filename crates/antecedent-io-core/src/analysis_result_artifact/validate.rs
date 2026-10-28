@@ -298,24 +298,7 @@ pub(super) fn validate_result(
                 "synthetic-control result is attached to a synthetic DiD query".into(),
             ));
         }
-        let donors: std::collections::BTreeSet<&str> = query
-            .units
-            .iter()
-            .map(String::as_str)
-            .filter(|unit| *unit != query.treated_unit.as_str())
-            .collect();
-        let pre: std::collections::BTreeSet<i64> = query
-            .periods
-            .iter()
-            .copied()
-            .filter(|period| *period < query.intervention_period)
-            .collect();
-        let post: std::collections::BTreeSet<i64> = query
-            .periods
-            .iter()
-            .copied()
-            .filter(|period| *period >= query.intervention_period)
-            .collect();
+        let (donors, pre, post, window_matches) = synthetic_support(query, fit);
         let weight_names: Vec<&str> =
             fit.donor_weights.iter().map(|(unit, _)| unit.as_str()).collect();
         let squared_mass: f64 = fit.donor_weights.iter().map(|(_, weight)| weight * weight).sum();
@@ -344,6 +327,7 @@ pub(super) fn validate_result(
             || fit.placebo_effects.iter().any(|effect| !effect.is_finite())
             || fit.n_pre_periods != pre.len()
             || fit.n_post_periods != post.len()
+            || !window_matches
             || (!query.uniform_unit_randomization
                 && ((query.augmentation_ridge.is_none()
                     && fit.uncertainty != "point_only_with_unlicensed_placebo_rank")
@@ -995,4 +979,64 @@ fn validate_family_inference(result: &AnalysisResultWire) -> Result<(), IoError>
         }
     }
     Ok(())
+}
+
+/// The donors and pre/post periods a synthetic-control fit must have read, and whether the
+/// fit's observed-window report agrees with them.
+///
+/// A balanced query reads every other unit and every period, and carries no report. An
+/// observed-window query reads the treated unit's own observed periods and the units observed
+/// in every one of them; the report must state exactly that, recomputed here from the frozen
+/// unit and period labels.
+fn synthetic_support<'a>(
+    query: &'a crate::query_wire::SyntheticControlQueryWire,
+    fit: &super::SyntheticControlWire,
+) -> (
+    std::collections::BTreeSet<&'a str>,
+    std::collections::BTreeSet<i64>,
+    std::collections::BTreeSet<i64>,
+    bool,
+) {
+    use std::collections::{BTreeMap, BTreeSet};
+    let treated = query.treated_unit.as_str();
+    if !query.observed_window_support {
+        let donors =
+            query.units.iter().map(String::as_str).filter(|unit| *unit != treated).collect();
+        let pre =
+            query.periods.iter().copied().filter(|p| *p < query.intervention_period).collect();
+        let post =
+            query.periods.iter().copied().filter(|p| *p >= query.intervention_period).collect();
+        return (donors, pre, post, fit.observed_window.is_none());
+    }
+    let mut observed: BTreeMap<&str, BTreeSet<i64>> = BTreeMap::new();
+    for (unit, period) in query.units.iter().zip(&query.periods) {
+        observed.entry(unit.as_str()).or_default().insert(*period);
+    }
+    let own = observed.get(treated).cloned().unwrap_or_default();
+    let pre: BTreeSet<i64> =
+        own.iter().copied().filter(|p| *p < query.intervention_period).collect();
+    let post: BTreeSet<i64> =
+        own.iter().copied().filter(|p| *p >= query.intervention_period).collect();
+    let mut donors = BTreeSet::new();
+    let mut dropped = Vec::new();
+    for (unit, periods) in &observed {
+        if *unit == treated {
+            continue;
+        }
+        let missed = own.iter().filter(|period| !periods.contains(period)).count();
+        if missed == 0 {
+            donors.insert(*unit);
+        } else {
+            dropped.push(((*unit).to_string(), missed));
+        }
+    }
+    let read_rows = (donors.len() + 1) * own.len();
+    let matches = fit.observed_window.as_ref().is_some_and(|window| {
+        window.pre_periods == pre.iter().copied().collect::<Vec<_>>()
+            && window.post_periods == post.iter().copied().collect::<Vec<_>>()
+            && window.donors_used == donors.len()
+            && window.donors_dropped == dropped
+            && window.unread_rows == query.units.len().saturating_sub(read_rows)
+    });
+    (donors, pre, post, matches)
 }

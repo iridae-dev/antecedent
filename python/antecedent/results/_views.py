@@ -804,7 +804,9 @@ class ImputationView(ResultModel):
     the pooled variance components. ``pooling`` is ``"rubin"`` (Rubin's rules, Student-t
     reference with ``df`` degrees of freedom, Barnard-Rubin when ``df_complete`` is known) or
     ``"stacked_posterior"`` (equal-weight mixture of the completed tables' posteriors; the
-    between-imputation variance is its own axis).
+    between-imputation variance is its own axis) or ``"stacked_graph_posterior"`` (the same
+    stack when each table's posterior is already a weighted mixture over declared graphs: the
+    graph weights are kept inside every table's draws and the graph posterior is held fixed).
 
     ``assumptions_digest`` is the identity of the model and design assumptions the pooled
     estimate rests on (the model, tables, sweeps, seed, missingness assumption, resampling

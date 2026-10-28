@@ -1239,6 +1239,12 @@ fn rubin_vector_report(
 }
 
 /// Pool the collected fits into the first table's result and build the report.
+/// The pooling rule a stacked posterior reports: a mixture over declared structures keeps its
+/// graph weights inside every completed table's draws, so it names that.
+fn stacked_pooling_name(study: &Study) -> &'static str {
+    if study.graph_posterior.is_some() { "stacked_graph_posterior" } else { "stacked_posterior" }
+}
+
 fn pool_into_result(
     study: &Study,
     run: &MultipleImputationVectorRun,
@@ -1318,7 +1324,7 @@ fn pool_into_result(
                 units: meta.units,
                 imputed_cells: Arc::clone(&meta.imputed_cells),
                 estimator: Arc::clone(&meta.estimator),
-                pooling: Arc::from("stacked_posterior"),
+                pooling: Arc::from(stacked_pooling_name(study)),
                 points: primary_points,
                 within: lead.within,
                 between: lead.between,

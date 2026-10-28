@@ -13,14 +13,15 @@ use std::sync::Arc;
 use antecedent_core::{
     DidAggregation, DidBasePeriod, DidComparisonGroup, DidNuisanceMethod, DidResampling,
     DidResamplingScheme, DidSamplingDesign, HeterogeneityRobustDid, LocalBandwidthRule,
-    LocalRatioOptions, RolloutDidEstimator, SyntheticInterval, SyntheticRollout, VariableId,
+    LocalRatioOptions, PanelObservationProcess, RolloutDidEstimator, SyntheticInterval,
+    SyntheticRollout, VariableId,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::error::IoError;
 
 /// Heterogeneity-robust rollout specification.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct RolloutDidWire {
     /// `staggered_heterogeneity_robust` or `covariate_adjusted_two_period`.
@@ -40,6 +41,12 @@ pub struct RolloutDidWire {
     /// Baseline covariate column ids.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub covariates: Vec<u32>,
+    /// `ignorable_given_cohort` (absent), `informative` or `informative_bounded`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub observation: Option<String>,
+    /// Declared bound of the attrition shift; present exactly for `informative_bounded`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub observation_shift_bound: Option<f64>,
 }
 
 /// Whole-procedure resample of a rollout or augmented panel.
@@ -109,6 +116,12 @@ pub fn rollout_to_wire(
         aggregation: robust.aggregation.as_str().into(),
         anticipation: robust.anticipation,
         covariates: robust.covariates.iter().map(|id| id.raw()).collect(),
+        observation: (robust.observation != PanelObservationProcess::default())
+            .then(|| robust.observation.as_str().into()),
+        observation_shift_bound: match robust.observation {
+            PanelObservationProcess::InformativeBounded(bound) => Some(bound.get()),
+            _ => None,
+        },
     }
 }
 
@@ -154,6 +167,21 @@ pub fn rollout_from_wire(
         "calendar" => DidAggregation::Calendar,
         other => return Err(unknown("aggregation", other)),
     };
+    let observation = match wire.observation.as_deref() {
+        None | Some("ignorable_given_cohort") => PanelObservationProcess::IgnorableGivenCohort,
+        Some("informative") => PanelObservationProcess::Informative,
+        Some("informative_bounded") => PanelObservationProcess::InformativeBounded(
+            wire.observation_shift_bound
+                .and_then(antecedent_core::AttritionShiftBound::new)
+                .ok_or_else(|| {
+                    IoError::Convert(
+                        "informative_bounded needs a finite non-negative observation_shift_bound"
+                            .into(),
+                    )
+                })?,
+        ),
+        Some(other) => return Err(unknown("observation process", other)),
+    };
     Ok((
         design,
         HeterogeneityRobustDid {
@@ -164,6 +192,7 @@ pub fn rollout_from_wire(
             aggregation,
             anticipation: wire.anticipation,
             covariates: ids(&wire.covariates),
+            observation,
         },
     ))
 }
@@ -283,6 +312,9 @@ mod tests {
             aggregation: DidAggregation::Calendar,
             anticipation: 2,
             covariates: Arc::from([VariableId::from_raw(4)]),
+            observation: PanelObservationProcess::InformativeBounded(
+                antecedent_core::AttritionShiftBound::new(1.5).unwrap(),
+            ),
         };
         let wire = rollout_to_wire(DidSamplingDesign::StaggeredHeterogeneityRobust, &robust);
         assert_eq!(

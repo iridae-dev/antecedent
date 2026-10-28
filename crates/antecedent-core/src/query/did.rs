@@ -185,6 +185,59 @@ impl DidAggregation {
     }
 }
 
+/// The declared process that decides which unit-periods of a panel are observed.
+///
+/// Neither value is testable from the observed rows alone: whether a unit's absence from a
+/// period is related to its untreated outcome trend is a statement about the missing data.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
+pub enum PanelObservationProcess {
+    /// Whether a unit is observed in a period is unrelated to its untreated outcome trend
+    /// within its adoption cohort (attrition ignorable given cohort), so the observed
+    /// unit-periods represent the cohort's trend.
+    #[default]
+    IgnorableGivenCohort,
+    /// Attrition or late entry depends on outcomes or trends within cohort, with no declared
+    /// bound on how far. Nothing identifies the effect under it, so the rollout is refused.
+    Informative,
+    /// Attrition or late entry depends on outcomes or trends within cohort, but the units a
+    /// treated cohort fails to observe are declared to change by at most the bound (in outcome
+    /// units) more or less than the units it does observe. The effect is reported as an
+    /// assumption-dependent range over that bound, never as a confidence interval.
+    InformativeBounded(AttritionShiftBound),
+}
+
+/// Declared largest departure, in outcome units, of the unobserved treated units' change from
+/// the observed treated units' change. A finite non-negative number, kept as its bits so the
+/// declaration compares and hashes exactly.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct AttritionShiftBound(u64);
+
+impl AttritionShiftBound {
+    /// The bound, or `None` unless it is finite and non-negative.
+    #[must_use]
+    pub fn new(bound: f64) -> Option<Self> {
+        (bound.is_finite() && bound >= 0.0).then(|| Self(bound.to_bits()))
+    }
+
+    /// The bound in outcome units.
+    #[must_use]
+    pub fn get(self) -> f64 {
+        f64::from_bits(self.0)
+    }
+}
+
+impl PanelObservationProcess {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::IgnorableGivenCohort => "ignorable_given_cohort",
+            Self::Informative => "informative",
+            Self::InformativeBounded(_) => "informative_bounded",
+        }
+    }
+}
+
 /// Heterogeneity-robust specification of a staggered or covariate-adjusted rollout.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct HeterogeneityRobustDid {
@@ -202,6 +255,8 @@ pub struct HeterogeneityRobustDid {
     pub anticipation: u32,
     /// Baseline covariate columns, read at each unit's first observed row.
     pub covariates: Arc<[VariableId]>,
+    /// Declared process that decides which unit-periods are observed.
+    pub observation: PanelObservationProcess,
 }
 
 /// Every field is written; covariates keep their declared order.
@@ -239,6 +294,17 @@ impl CanonicalEncode for HeterogeneityRobustDid {
             .word(aggregation)
             .word(u64::from(self.anticipation));
         encode_variables(writer, &self.covariates);
+        // The default declaration adds nothing, so queries that never declared one keep
+        // their identity.
+        match self.observation {
+            PanelObservationProcess::IgnorableGivenCohort => {}
+            PanelObservationProcess::Informative => {
+                writer.word(2);
+            }
+            PanelObservationProcess::InformativeBounded(bound) => {
+                writer.word(3).real(bound.get());
+            }
+        }
     }
 }
 

@@ -1,0 +1,23 @@
+feature_id = "design.adaptive_policy_search"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = [{ title = "The Cross-Entropy Method for Combinatorial and Continuous Optimization", url = "https://doi.org/10.1023/A:1010091220143", sections = ["Section 4: continuous multi-extremal optimization by elite refitting of a Gaussian sampling law"] }]
+implementation_deviations = [
+  "Derivative-free elite-refit evolution strategy with a seeded uniform first generation, smoothed Gaussian refits, a coordinate pattern polish and a fixed evaluation budget. No derivative is estimated and no global-optimality certificate is claimed; an exhausted budget is reported as an incomplete result.",
+  "Policies are bounded families (open-loop schedule, threshold, piecewise-constant, clipped linear feedback and small complete trees) over a closed parameter box. Each is lowered to a value program that the temporal rollout executes, and the lowered program and the direct rule agree exactly.",
+  "Cumulative cost, cumulative exposure and realised per-step action constraints are checked on rollout paths as hard feasibility conditions with chance-constraint style reporting. The Wilson upper bound on the violation probability is an approximation; a finite sample never certifies a zero violation probability. No objective penalty stands in for feasibility.",
+  "Every proposal is evaluated on the same shared draws (common random numbers across policies and parameter draws), so policy values and paired contrasts share draws. The optimisation and held-out splits use independent noise.",
+  "The result is labelled a fitted-model optimisation unless an identified policy effect is requested and the response source states an identification basis; otherwise the request is refused. The selected policy's in-sample value is optimistic; a held-out value on independent draws or held-out units is reported, and a design with none is refused or flagged.",
+  "Independent evidence: a stationary-state treatment threshold with a closed-form optimum and a linear-quadratic feedback problem with a Riccati optimum and a closed-form best open-loop schedule, each simulated by a separate generator and recomputed by a standalone script.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-design/src/adaptive_policy.rs",
+  "crates/antecedent-design/tests/adaptive_policy_search.rs",
+  "crates/antecedent/tests/adaptive_policy_model_source.rs",
+  "python/tests/test_adaptive_policy.py",
+  "conformance/design/adaptive_policy_search/reference.py",
+]

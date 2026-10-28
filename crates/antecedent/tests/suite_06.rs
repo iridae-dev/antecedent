@@ -3,6 +3,8 @@
 #![allow(clippy::all, reason = "each included file carries its own lint scope")]
 // consolidated-suite
 
+#[path = "adaptive_policy_model_source.rs"]
+mod adaptive_policy_model_source;
 #[path = "per_population_discovery_facade.rs"]
 mod per_population_discovery_facade;
 #[path = "policy_python_parity.rs"]

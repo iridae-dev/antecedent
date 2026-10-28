@@ -398,6 +398,7 @@ fn synthetic_control_from_wire(w: &SyntheticControlQueryWire) -> Result<CausalQu
         .as_ref()
         .map(crate::rollout_query_wire::synthetic_rollout_from_wire)
         .transpose()?;
+    q.observed_window_support = w.observed_window_support;
     q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
     Ok(CausalQuery::SyntheticControl(q))
 }

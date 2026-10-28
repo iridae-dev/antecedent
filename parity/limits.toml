@@ -1784,3 +1784,48 @@ guard = { path = "crates/antecedent/src/analysis/discovered_transport_estimate.r
 refusal = { path = "crates/antecedent/src/analysis/discovered_transport_estimate.rs", pattern = "if\\ joint_cells\\ >\\ MAX_JOINT_CELLS\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
 scope_fixture = { path = "crates/antecedent/tests/discovered_transport_facade.rs", pattern = "\\ba_variable_with_more_levels_than_supported_is_refused\\b" }
 
+
+[[bound]]
+record = "sensitivity.missing_outcome_departure"
+key = "max_rows"
+implementation = [{ path = "crates/antecedent-validate/src/mnar_sensitivity.rs", constant = "MNAR_MAX_ROWS" }]
+documentation = [{ path = "crates/antecedent-validate/src/mnar_sensitivity.rs", constant = "MNAR_MAX_ROWS" }]
+guard = { path = "crates/antecedent-validate/src/mnar_sensitivity.rs", pattern = 'if\s+rows\s*==\s*0\s*\|\|\s*rows\s*>\s*MNAR_MAX_ROWS\s*\{' }
+refusal = { path = "crates/antecedent-validate/src/mnar_sensitivity.rs", pattern = 'if\s+rows\s*==\s*0\s*\|\|\s*rows\s*>\s*MNAR_MAX_ROWS\s*\{[\s\S]{0,1800}?(?:\bErr\s*\(|\.map_err\s*\(|\.ok_or\s*\()' }
+scope_fixture = { path = "crates/antecedent-validate/tests/mnar_sensitivity.rs", pattern = '\bmnar_refuses_malformed_data_and_options\b' }
+
+[[bound]]
+record = "sensitivity.missing_outcome_departure"
+key = "max_covariates"
+implementation = [{ path = "crates/antecedent-validate/src/mnar_sensitivity.rs", constant = "MNAR_MAX_COVARIATES" }]
+documentation = [{ path = "crates/antecedent-validate/src/mnar_sensitivity.rs", constant = "MNAR_MAX_COVARIATES" }]
+guard = { path = "crates/antecedent-validate/src/mnar_sensitivity.rs", pattern = 'if\s+covariates\.len\(\)\s*>\s*MNAR_MAX_COVARIATES\s*\{' }
+refusal = { path = "crates/antecedent-validate/src/mnar_sensitivity.rs", pattern = 'if\s+covariates\.len\(\)\s*>\s*MNAR_MAX_COVARIATES\s*\{[\s\S]{0,1800}?(?:\bErr\s*\(|\.map_err\s*\(|\.ok_or\s*\()' }
+scope_fixture = { path = "crates/antecedent-validate/tests/mnar_sensitivity.rs", pattern = '\bmnar_refuses_malformed_data_and_options\b' }
+
+[[bound]]
+record = "sensitivity.missing_outcome_departure"
+key = "max_grid_points"
+implementation = [{ path = "crates/antecedent-validate/src/mnar_sensitivity.rs", constant = "MNAR_MAX_GRID_POINTS" }]
+documentation = [{ path = "crates/antecedent-validate/src/mnar_sensitivity.rs", constant = "MNAR_MAX_GRID_POINTS" }]
+guard = { path = "crates/antecedent-validate/src/mnar_sensitivity.rs", pattern = 'if\s+!\(2\.\.=MNAR_MAX_GRID_POINTS\)\.contains\(&spec\.grid_points\)\s*\{' }
+refusal = { path = "crates/antecedent-validate/src/mnar_sensitivity.rs", pattern = 'if\s+!\(2\.\.=MNAR_MAX_GRID_POINTS\)\.contains\(&spec\.grid_points\)\s*\{[\s\S]{0,1800}?(?:\bErr\s*\(|\.map_err\s*\(|\.ok_or\s*\()' }
+scope_fixture = { path = "crates/antecedent-validate/tests/mnar_sensitivity.rs", pattern = '\bmnar_refuses_malformed_data_and_options\b' }
+
+[[bound]]
+record = "sensitivity.missing_outcome_departure"
+key = "max_decisions"
+implementation = [{ path = "crates/antecedent-validate/src/mnar_sensitivity.rs", constant = "MNAR_MAX_DECISIONS" }]
+documentation = [{ path = "crates/antecedent-validate/src/mnar_sensitivity.rs", constant = "MNAR_MAX_DECISIONS" }]
+guard = { path = "crates/antecedent-validate/src/mnar_sensitivity.rs", pattern = 'if\s+spec\.decisions\.len\(\)\s*>\s*MNAR_MAX_DECISIONS\s*\{' }
+refusal = { path = "crates/antecedent-validate/src/mnar_sensitivity.rs", pattern = 'if\s+spec\.decisions\.len\(\)\s*>\s*MNAR_MAX_DECISIONS\s*\{[\s\S]{0,1800}?(?:\bErr\s*\(|\.map_err\s*\(|\.ok_or\s*\()' }
+scope_fixture = { path = "crates/antecedent-validate/tests/mnar_sensitivity.rs", pattern = '\bmnar_refuses_malformed_data_and_options\b' }
+
+[[bound]]
+record = "sensitivity.missing_outcome_departure"
+key = "max_bootstrap_replicates"
+implementation = [{ path = "crates/antecedent-validate/src/mnar_sensitivity.rs", constant = "MNAR_MAX_BOOTSTRAP" }]
+documentation = [{ path = "crates/antecedent-validate/src/mnar_sensitivity.rs", constant = "MNAR_MAX_BOOTSTRAP" }]
+guard = { path = "crates/antecedent-validate/src/mnar_sensitivity.rs", pattern = '&&\s*!\(MNAR_MIN_BOOTSTRAP\.\.=MNAR_MAX_BOOTSTRAP\)\.contains\(&spec\.bootstrap_replicates\)\s*\{' }
+refusal = { path = "crates/antecedent-validate/src/mnar_sensitivity.rs", pattern = '&&\s*!\(MNAR_MIN_BOOTSTRAP\.\.=MNAR_MAX_BOOTSTRAP\)\.contains\(&spec\.bootstrap_replicates\)\s*\{[\s\S]{0,1800}?(?:\bErr\s*\(|\.map_err\s*\(|\.ok_or\s*\()' }
+scope_fixture = { path = "crates/antecedent-validate/tests/mnar_sensitivity.rs", pattern = '\bmnar_refuses_malformed_data_and_options\b' }

@@ -274,6 +274,7 @@ impl LocalCyclicModel {
             dynamic_stability: None,
             jacobian_condition_estimate: None,
             blocks: inspection.blocks,
+            evidence: crate::sparse_equilibrium::SolveEvidence::default(),
         })
     }
     /// Exact additive abduction under the specified callbacks, without learning them.

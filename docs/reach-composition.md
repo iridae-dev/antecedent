@@ -123,6 +123,11 @@ latent. The contrast variance of a carried composition is the first-order
 source-fit variance only, labelled
 `fitted_parameters_only_transport_assumption_not_propagated`; transport adds
 no variance and no interval exists.
+`antecedent_model::typed_mechanism_transport::transport_typed` extends the same
+rule to nonlinear and non-Gaussian mechanisms: an invariant mechanism is carried,
+a shifted one is used only from a target fit and refused without one, and a
+declared invariance that target data reject is refused. See the
+[transport guide](guides/mechanism-and-synthesis-transport.md#nonlinear-and-non-gaussian-mechanism-transport).
 
 Connected consumers: `export` and `consume` of `mechanism_composition_v1`
 replay the premises and one query to identical result bits.

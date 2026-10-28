@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import threading
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
@@ -177,11 +178,35 @@ class Equation:
 
 @dataclass(frozen=True)
 class SolvePolicy:
-    """Numerical policy; initialization never supplies a selection law."""
+    """Numerical policy and solver admission; initialization never supplies a selection law.
+
+    The budget fields bound a sparse solve instead of a fixed variable count. Exceeding one
+    is a refusal that names its own code (``solver_jacobian_nnz_budget``,
+    ``solver_block_size_budget``, ``solver_memory_budget``, ``solver_factor_fill_budget``,
+    ``solver_iteration_budget``, ``solver_wall_clock_budget`` or, beyond the dense
+    disturbance-covariance admission, ``solver_model_order_budget``). A numerical failure
+    inside the budgets (non-convergence, singular Jacobian) stays a retained world outcome.
+
+    ``max_nnz`` bounds the structural nonzeros of the free Jacobian, ``max_block_size`` the
+    order of one strongly connected block, ``max_bytes`` the estimated solver memory,
+    ``max_factor_fill`` the sparse-LU entries of one factorization, ``max_total_iterations``
+    the iterations summed over blocks and ``max_wall_clock_ms`` a deadline (``0`` is already
+    expired). ``condition_warning`` flags ``ill_conditioned`` in the solve evidence when the
+    Jacobian condition estimate exceeds it; ``spectral_iterations`` bounds the power iteration
+    that bounds each block's spectral radius.
+    """
 
     tolerance: float = 1e-10
     max_iterations: int = 1000
     require_contraction: bool = True
+    max_nnz: int = 8_000_000
+    max_block_size: int = 4096
+    max_bytes: int = 1 << 30
+    max_factor_fill: int = 16_000_000
+    max_total_iterations: int = 10_000_000
+    max_wall_clock_ms: int | None = None
+    condition_warning: float = 1e8
+    spectral_iterations: int = 200
 
 
 @dataclass(frozen=True)
@@ -2703,6 +2728,671 @@ class OuMechanisms:
             execution=execution,
         )
 
+    @_with_execution
+    def fit_trajectories(
+        self,
+        trajectories: Sequence[OuTrajectory],
+        parameters: list[dict[str, Any]],
+        *,
+        observation: OuObservationModel | None = None,
+        predictions: Sequence[OuPredictionDesign] = (),
+        stationary_worlds: Sequence[OuStationaryDesign] = (),
+        learning_rate: float = 0.1,
+        score_tolerance: float = 1e-6,
+        max_iterations: int = 1000,
+        execution: Execution | None = None,
+    ) -> PreparedCyclicFamily:
+        """Fit shared mechanisms from continuous trajectories by the exact likelihood.
+
+        Between observations the Gaussian transition is exact (matrix exponential and the
+        van Loan covariance), so irregular intervals and known piecewise-constant
+        intervention schedules carry no discretization error. A Kalman filter evaluates the
+        likelihood under the declared ``observation`` model (default: every component
+        observed without noise), which covers partial observation; unobserved components
+        are reported with their filtered uncertainty.
+
+        The result keeps three records separate: ``fitting`` (optimizer convergence),
+        ``identification`` (``identified``, ``not_identified`` or ``model_conditional``,
+        with observability and sampling-interval aliasing checks) and ``numerics``
+        (matrix-exponential accuracy, conditioning, stability of the drift). A design that
+        cannot identify a requested coordinate is refused with
+        ``dynamics_not_identified``. ``predictions`` are held-out intervention trajectories
+        and ``stationary_worlds`` sustained interventions; each carries process variability
+        and the fitted parameters' sampling uncertainty (delta method on the observed
+        information) as separate fields. Coordinates are ``drift``, ``forcing`` or
+        ``diffusion`` as for :meth:`prepare`; use a lower-triangular or diagonal diffusion
+        parameterization, since only ``L L^T`` is identified.
+        """
+        assert execution is not None
+        observed = observation or OuObservationModel.direct(len(self.equations))
+        return PreparedCyclicFamily(
+            json.dumps(
+                {
+                    "family": "ou_trajectory_fit",
+                    "model": asdict(self),
+                    "observation": asdict(observed),
+                    "parameters": parameters,
+                    "trajectories": [item._wire() for item in trajectories],
+                    "policy": {
+                        "learning_rate": learning_rate,
+                        "score_tolerance": score_tolerance,
+                        "max_iterations": max_iterations,
+                    },
+                    "predictions": [item._wire() for item in predictions],
+                    "stationary_worlds": [item._wire() for item in stationary_worlds],
+                },
+                allow_nan=False,
+            ),
+            execution=execution,
+        )
+
+
+@dataclass(frozen=True)
+class OuObservationModel:
+    """Linear Gaussian observation model ``y = H x + offset + noise`` of a hidden OU state.
+
+    ``matrix`` is the row-major ``m x n`` matrix ``H``; ``noise_standard_deviation`` holds
+    the known noise level of each observed row. A state component with a zero column of
+    ``H`` is unobserved: it is reported with its filtered uncertainty, never imputed.
+    """
+
+    matrix: tuple[float, ...]
+    noise_standard_deviation: tuple[float, ...]
+    offset: tuple[float, ...] = ()
+
+    @classmethod
+    def direct(cls, dimension: int, noise_standard_deviation: float = 0.0) -> OuObservationModel:
+        """Observe every one of ``dimension`` state components directly."""
+        matrix = [0.0] * (dimension * dimension)
+        for i in range(dimension):
+            matrix[i * dimension + i] = 1.0
+        return cls(tuple(matrix), (float(noise_standard_deviation),) * dimension)
+
+
+@dataclass(frozen=True)
+class OuScheduleSegment:
+    """From ``start`` until the next segment, these equation replacements are in force.
+
+    A replacement is ``{"equation", "drift", "forcing", "diffusion_factor"}`` exactly as
+    for :meth:`OuMechanisms.prepare`; no replacements denotes the baseline mechanism.
+    """
+
+    start: float
+    replacements: tuple[dict[str, Any], ...] = ()
+
+
+def _schedule_wire(schedule: Sequence[OuScheduleSegment]) -> list[dict[str, Any]]:
+    return [{"start": item.start, "replacements": list(item.replacements)} for item in schedule]
+
+
+_BASELINE_SCHEDULE = (OuScheduleSegment(0.0),)
+_STATIONARY_START: dict[str, Any] = {"kind": "stationary"}
+
+
+@dataclass(frozen=True)
+class OuTrajectory:
+    """One unit observed at strictly increasing, possibly irregular ``times``.
+
+    ``values[k]`` is the observed vector at ``times[k]``. ``schedule`` is the known
+    piecewise-constant intervention schedule (starts strictly increasing, the first at or
+    before ``times[0]``). ``initial`` is ``{"kind": "stationary"}`` for the stationary law
+    of the first segment, or ``{"kind": "gaussian", "mean", "covariance"}``.
+    """
+
+    id: str
+    times: tuple[float, ...]
+    values: tuple[tuple[float, ...], ...]
+    schedule: tuple[OuScheduleSegment, ...] = _BASELINE_SCHEDULE
+    initial: dict[str, Any] = field(default_factory=lambda: dict(_STATIONARY_START))
+
+    def _wire(self) -> dict[str, Any]:
+        if len(self.times) != len(self.values):
+            raise CausalValueError("an OU trajectory needs one observed vector per time")
+        return {
+            "id": self.id,
+            "schedule": _schedule_wire(self.schedule),
+            "initial": dict(self.initial),
+            "observations": [
+                {"time": t, "values": list(v)} for t, v in zip(self.times, self.values, strict=True)
+            ],
+        }
+
+
+@dataclass(frozen=True)
+class OuPredictionDesign:
+    """A held-out intervention trajectory whose state law is predicted at ``times``."""
+
+    id: str
+    times: tuple[float, ...]
+    schedule: tuple[OuScheduleSegment, ...] = _BASELINE_SCHEDULE
+    initial: dict[str, Any] = field(default_factory=lambda: dict(_STATIONARY_START))
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "schedule": _schedule_wire(self.schedule),
+            "initial": dict(self.initial),
+            "times": list(self.times),
+        }
+
+
+@dataclass(frozen=True)
+class OuStationaryDesign:
+    """A sustained intervention world whose stationary law is predicted."""
+
+    id: str
+    replacements: tuple[dict[str, Any], ...] = ()
+
+    def _wire(self) -> dict[str, Any]:
+        return {"id": self.id, "replacements": list(self.replacements)}
+
+
+# ---------------------------------------------------------------------------
+# Nonlinear stochastic differential equations with diagonal noise
+# ---------------------------------------------------------------------------
+
+
+class SdeExpression:
+    """Portable expressions for SDE drift and diffusion, written with names.
+
+    ``state(name)`` reads a state, ``input(name)`` an external input ``u(t)`` and
+    ``parameter(name)`` a named parameter; the system resolves names to coordinates.
+    Supported operations are exactly the portable mechanism language: ``add``,
+    ``multiply``, ``tanh``, ``sin`` and ``softplus`` (no division or square root:
+    divide by a known constant by multiplying with its reciprocal, and take a square
+    root with ``SdeDiffusion(..., square_root=True)``).
+    """
+
+    @staticmethod
+    def constant(value: float) -> dict[str, Any]:
+        """A finite constant."""
+        return {"op": "constant", "value": float(value)}
+
+    @staticmethod
+    def state(name: str) -> dict[str, Any]:
+        """The state named ``name``."""
+        return {"op": "state", "name": name}
+
+    @staticmethod
+    def input(name: str) -> dict[str, Any]:
+        """The external input named ``name`` evaluated at the current time."""
+        return {"op": "input", "name": name}
+
+    @staticmethod
+    def parameter(name: str) -> dict[str, Any]:
+        """The parameter named ``name``."""
+        return {"op": "parameter_ref", "name": name}
+
+    @staticmethod
+    def add(*terms: dict[str, Any]) -> dict[str, Any]:
+        """The sum of one or more terms."""
+        return {"op": "add", "terms": list(terms)}
+
+    @staticmethod
+    def multiply(*factors: dict[str, Any]) -> dict[str, Any]:
+        """The product of one or more factors."""
+        return {"op": "multiply", "factors": list(factors)}
+
+    @staticmethod
+    def negate(term: dict[str, Any]) -> dict[str, Any]:
+        """Minus ``term``."""
+        return SdeExpression.multiply(SdeExpression.constant(-1.0), term)
+
+    @staticmethod
+    def tanh(argument: dict[str, Any]) -> dict[str, Any]:
+        """Smooth bounded saturation."""
+        return {"op": "tanh", "argument": argument}
+
+    @staticmethod
+    def sin(argument: dict[str, Any]) -> dict[str, Any]:
+        """Smooth non-monotone response."""
+        return {"op": "sin", "argument": argument}
+
+    @staticmethod
+    def softplus(argument: dict[str, Any]) -> dict[str, Any]:
+        """Stable smooth rectifier."""
+        return {"op": "softplus", "argument": argument}
+
+
+def _resolve_expression(
+    expression: dict[str, Any],
+    states: dict[str, int],
+    inputs: dict[str, int],
+    parameters: dict[str, int],
+) -> dict[str, Any]:
+    op = expression.get("op")
+    if op == "state":
+        return {"op": "variable", "variable": _named(states, expression["name"], "state")}
+    if op == "input":
+        return {
+            "op": "variable",
+            "variable": len(states) + _named(inputs, expression["name"], "input"),
+        }
+    if op == "parameter_ref":
+        return {
+            "op": "parameter",
+            "parameter": _named(parameters, expression["name"], "parameter"),
+        }
+    if op in ("add", "multiply"):
+        key = "terms" if op == "add" else "factors"
+        return {
+            "op": op,
+            key: [
+                _resolve_expression(item, states, inputs, parameters) for item in expression[key]
+            ],
+        }
+    if op in ("tanh", "sin", "softplus"):
+        return {
+            "op": op,
+            "argument": _resolve_expression(expression["argument"], states, inputs, parameters),
+        }
+    if op in ("constant", "variable", "parameter"):
+        return dict(expression)
+    raise CausalValueError(f"unknown SDE expression operation {op!r}")
+
+
+def _named(table: dict[str, int], name: str, kind: str) -> int:
+    if name not in table:
+        raise CausalValueError(f"unknown SDE {kind} {name!r}; declared: {sorted(table)}")
+    return table[name]
+
+
+@dataclass(frozen=True)
+class SdeInput:
+    """A time-dependent external input ``u(t)``, a declared schedule and not a state.
+
+    ``interpolation`` is ``"piecewise_constant"`` (the value at the latest knot not after
+    ``t``) or ``"linear"``; both are constant outside the knots. ``envelope`` is the closed
+    range the regularity certificate assumes for this input in every world; it defaults to
+    the range of ``values``. A world may replace the schedule only inside the envelope.
+    """
+
+    name: str
+    times: tuple[float, ...]
+    values: tuple[float, ...]
+    interpolation: Literal["piecewise_constant", "linear"] = "piecewise_constant"
+    envelope: tuple[float, float] | None = None
+
+    def _wire(self) -> dict[str, Any]:
+        wire: dict[str, Any] = {
+            "name": self.name,
+            "interpolation": self.interpolation,
+            "times": list(self.times),
+            "values": list(self.values),
+        }
+        if self.envelope is not None:
+            wire["envelope"] = list(self.envelope)
+        return wire
+
+
+@dataclass(frozen=True)
+class SdeBound:
+    """An interval for one state; ``"reflect"`` mirrors excursions, ``"clamp"`` projects them."""
+
+    lower: float | None = None
+    upper: float | None = None
+    rule: Literal["reflect", "clamp"] = "reflect"
+
+    def _wire(self) -> dict[str, Any]:
+        return {"lower": self.lower, "upper": self.upper, "rule": self.rule}
+
+
+@dataclass(frozen=True)
+class SdeDiffusion:
+    """Diagonal diffusion of one state: the expression, or ``sqrt(max(expression, 0))``."""
+
+    expression: dict[str, Any]
+    square_root: bool = False
+
+
+@dataclass(frozen=True)
+class SdeAction:
+    """Hold state ``variable`` at ``values[j]`` from ``times[j]`` until the next time.
+
+    Action times must lie on the declared simulation step grid (an off-grid action is
+    refused rather than silently shifted).
+    """
+
+    variable: str | int
+    times: tuple[float, ...]
+    values: tuple[float, ...]
+
+
+@dataclass(frozen=True)
+class SdeWorld:
+    """A named intervention regime: component holds and replaced input schedules."""
+
+    id: str
+    actions: tuple[SdeAction, ...] = ()
+    inputs: tuple[SdeInput, ...] = ()
+
+    def _wire(self, states: dict[str, int]) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "actions": [
+                {
+                    "variable": a.variable
+                    if isinstance(a.variable, int)
+                    else _named(states, a.variable, "state"),
+                    "times": list(a.times),
+                    "values": list(a.values),
+                }
+                for a in self.actions
+            ],
+            "inputs": [item._wire() for item in self.inputs],
+        }
+
+
+@dataclass(frozen=True)
+class SdeContrast:
+    """Treated minus control, simulated with shared random numbers."""
+
+    id: str
+    treated: str
+    control: str
+
+
+@dataclass(frozen=True)
+class SdeSimulation:
+    """Declared step, horizon, scheme, ensemble size and seed (all semantic, replayable).
+
+    The horizon is ``start + steps * step``; moments are recorded every ``output_every``
+    steps. ``check_step`` also runs the half-step refinement on the same Brownian paths and
+    reports the numerical-approximation error; ``weak_tolerance`` is the relative tolerance
+    of its convergence flag. ``retain_final_samples`` keeps each path's final state.
+    """
+
+    step: float
+    steps: int
+    paths: int
+    seed: int
+    start: float = 0.0
+    scheme: Literal["euler_maruyama", "milstein"] = "euler_maruyama"
+    output_every: int = 1
+    weak_tolerance: float = 0.02
+    check_step: bool = True
+    retain_final_samples: bool = False
+
+    def _wire(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class SdeObservationModel:
+    """Linear Gaussian observation ``y = H x + offset + noise`` of a hidden SDE state.
+
+    Declaring one switches the fit to the extended-Kalman innovation likelihood, which
+    covers noise and partial observation and is always a model-conditional approximation.
+    """
+
+    matrix: tuple[float, ...]
+    noise_standard_deviation: tuple[float, ...]
+    offset: tuple[float, ...] = ()
+
+    @classmethod
+    def direct(cls, dimension: int, noise_standard_deviation: float) -> SdeObservationModel:
+        """Observe every state component with the same noise level."""
+        matrix = [0.0] * (dimension * dimension)
+        for i in range(dimension):
+            matrix[i * dimension + i] = 1.0
+        return cls(tuple(matrix), (float(noise_standard_deviation),) * dimension)
+
+
+@dataclass(frozen=True)
+class SdeTrajectory:
+    """One unit observed at strictly increasing ``times`` under a known intervention."""
+
+    id: str
+    times: tuple[float, ...]
+    values: tuple[tuple[float, ...], ...]
+    intervention: SdeWorld | None = None
+
+    def _wire(self, states: dict[str, int]) -> dict[str, Any]:
+        if len(self.times) != len(self.values):
+            raise CausalValueError("an SDE trajectory needs one observed vector per time")
+        wire: dict[str, Any] = {
+            "id": self.id,
+            "observations": [
+                {"time": t, "values": list(v)} for t, v in zip(self.times, self.values, strict=True)
+            ],
+        }
+        if self.intervention is not None:
+            wire["intervention"] = self.intervention._wire(states)
+        return wire
+
+
+@dataclass(frozen=True)
+class StochasticDifferentialEquation:
+    """``dX = f(X, u(t), theta) dt + g(X, u(t), theta) dW`` with diagonal, state-dependent noise.
+
+    ``drift`` and ``diffusion`` hold one expression per state (:class:`SdeExpression`);
+    ``parameters`` maps parameter names to their declared values; ``bounds`` maps state
+    names to :class:`SdeBound` (reflecting or clamping, e.g. nonnegative counts).
+
+    Native validation certifies finite Lipschitz constants of both coefficients over the
+    declared state box by interval derivative arithmetic. A nonlinearity that multiplies
+    unbounded states is refused (``sde.unbounded_growth``): declare bounds. A square-root
+    diffusion that reaches zero is admitted but certified only as Holder-1/2, which the
+    certificate records. :meth:`simulate` and :meth:`fit` are bounded, replayable, and keep
+    Monte Carlo error, step-halving error and parameter uncertainty in separate fields.
+    """
+
+    variables: tuple[str, ...]
+    drift: tuple[dict[str, Any], ...]
+    diffusion: tuple[SdeDiffusion, ...]
+    parameters: dict[str, float]
+    inputs: tuple[SdeInput, ...] = ()
+    bounds: dict[str, SdeBound] = field(default_factory=dict)
+
+    @classmethod
+    def epidemic(
+        cls,
+        population: float = 1000.0,
+        *,
+        season: SdeInput | None = None,
+        beta: float = 0.6,
+        amplitude: float = 0.3,
+        gamma: float = 0.25,
+    ) -> StochasticDifferentialEquation:
+        """The documented SIR system with a seasonal input and state-dependent noise.
+
+        ``flux = beta (1 + amplitude u(t)) S I / N`` is the nonlinear transmission rate;
+        ``dS = -flux dt``, ``dI = (flux - gamma I) dt``, ``dR = gamma I dt``. Each state
+        carries independent square-root noise with variance equal to the rates of the events
+        that change it (``flux``, ``flux + gamma I`` and ``gamma I``): a diagonal
+        chemical-Langevin approximation that ignores the correlation the shared infection
+        event induces between ``S`` and ``I``. States are reflected into ``[0, N]``.
+        """
+        e = SdeExpression
+        season = season or SdeInput(
+            "season",
+            (0.0, 5.0, 10.0, 15.0, 20.0),
+            (-1.0, 0.0, 1.0, 0.0, -1.0),
+            "linear",
+            (-1.0, 1.0),
+        )
+        flux = e.multiply(
+            e.parameter("beta"),
+            e.add(e.constant(1.0), e.multiply(e.parameter("amplitude"), e.input(season.name))),
+            e.state("S"),
+            e.state("I"),
+            e.constant(1.0 / population),
+        )
+        recovery = e.multiply(e.parameter("gamma"), e.state("I"))
+        return cls(
+            variables=("S", "I", "R"),
+            drift=(e.negate(flux), e.add(flux, e.negate(recovery)), recovery),
+            diffusion=(
+                SdeDiffusion(flux, square_root=True),
+                SdeDiffusion(e.add(flux, recovery), square_root=True),
+                SdeDiffusion(recovery, square_root=True),
+            ),
+            parameters={"beta": beta, "amplitude": amplitude, "gamma": gamma},
+            inputs=(season,),
+            bounds={name: SdeBound(0.0, population) for name in ("S", "I", "R")},
+        )
+
+    def _tables(self) -> tuple[dict[str, int], dict[str, int], dict[str, int]]:
+        return (
+            {name: i for i, name in enumerate(self.variables)},
+            {item.name: i for i, item in enumerate(self.inputs)},
+            {name: i for i, name in enumerate(self.parameters)},
+        )
+
+    def _model_wire(self) -> dict[str, Any]:
+        states, inputs, parameters = self._tables()
+        if not (len(self.drift) == len(self.diffusion) == len(self.variables)):
+            raise CausalValueError("an SDE needs one drift and one diffusion per state")
+        unknown = set(self.bounds) - set(states)
+        if unknown:
+            raise CausalValueError(f"bounds for unknown states {sorted(unknown)}")
+        return {
+            "variables": list(self.variables),
+            "inputs": [item._wire() for item in self.inputs],
+            "parameters": [{"name": n, "value": float(v)} for n, v in self.parameters.items()],
+            "drift": [_resolve_expression(d, states, inputs, parameters) for d in self.drift],
+            "diffusion": [
+                {
+                    "expression": _resolve_expression(d.expression, states, inputs, parameters),
+                    "square_root": d.square_root,
+                }
+                for d in self.diffusion
+            ],
+            "boundaries": [
+                self.bounds[name]._wire() if name in self.bounds else SdeBound()._wire()
+                for name in self.variables
+            ],
+        }
+
+    def _initial(self, initial: Sequence[float] | dict[str, float]) -> list[float]:
+        if isinstance(initial, dict):
+            states = self._tables()[0]
+            if set(initial) != set(states):
+                raise CausalValueError("initial must name every state exactly once")
+            return [float(initial[name]) for name in self.variables]
+        return [float(v) for v in initial]
+
+    def _request(
+        self,
+        initial: Sequence[float] | dict[str, float],
+        simulation: SdeSimulation,
+        interventions: Sequence[SdeWorld],
+        contrasts: Sequence[SdeContrast],
+        extra: dict[str, Any],
+    ) -> str:
+        states = self._tables()[0]
+        return json.dumps(
+            {
+                "family": "sde_analysis",
+                "model": self._model_wire(),
+                "initial": self._initial(initial),
+                "simulation": simulation._wire(),
+                "interventions": [w._wire(states) for w in interventions],
+                "contrasts": [asdict(c) for c in contrasts],
+                **extra,
+            },
+            allow_nan=False,
+        )
+
+    @_with_execution
+    def simulate(
+        self,
+        initial: Sequence[float] | dict[str, float],
+        simulation: SdeSimulation,
+        *,
+        interventions: Sequence[SdeWorld] = (),
+        contrasts: Sequence[SdeContrast] = (),
+        execution: Execution | None = None,
+    ) -> PreparedCyclicFamily:
+        """Simulate the declared system at its declared parameters.
+
+        The implicit ``"baseline"`` world is always first, then ``interventions`` in order.
+        Every world uses the same Brownian increments path by path, so ``contrasts`` are
+        paired differences with their own Monte Carlo standard error. Each world reports
+        mean, variance, joint covariance across states, Monte Carlo standard error and, with
+        ``check_step``, the effect of halving the step. Specified-model results: nothing here
+        is estimated.
+        """
+        assert execution is not None
+        return PreparedCyclicFamily(
+            self._request(initial, simulation, interventions, contrasts, {}), execution=execution
+        )
+
+    @_with_execution
+    def fit(
+        self,
+        trajectories: Sequence[SdeTrajectory],
+        parameters: Sequence[str | int],
+        initial: Sequence[float] | dict[str, float],
+        simulation: SdeSimulation,
+        *,
+        observation: SdeObservationModel | None = None,
+        filter_prior: tuple[Sequence[float], Sequence[float]] | None = None,
+        interventions: Sequence[SdeWorld] = (),
+        contrasts: Sequence[SdeContrast] = (),
+        learning_rate: float = 0.1,
+        score_tolerance: float = 1e-6,
+        max_iterations: int = 1000,
+        coarse_flag: float = 0.1,
+        coarse_refusal: float = 0.5,
+        variance_floor: float = 1e-12,
+        filter_step: float = 0.0,
+        parameter_draws: int = 0,
+        parameter_seed: int = 0,
+        execution: Execution | None = None,
+    ) -> PreparedCyclicFamily:
+        """Fit named parameters from trajectories, then simulate at the fit.
+
+        Without ``observation`` every state is observed directly and the likelihood is the
+        Euler Gaussian transition quasi-likelihood. Its accuracy depends on the observation
+        interval times the local relaxation rate: above ``coarse_flag`` the fit is reported
+        as a model-conditional approximation, above ``coarse_refusal`` it is refused
+        (``sde_fit.observation_interval_too_coarse``). With ``observation`` (and the hidden
+        state's Gaussian ``filter_prior`` ``(mean, covariance)`` at each first observation)
+        the likelihood is the extended-Kalman innovation likelihood of the Euler-discretized
+        model, substepped by ``filter_step``; it is always flagged as a linearization.
+
+        The result keeps ``fitting`` (optimizer), ``identification`` (observed information)
+        and ``discretization`` (interval-rate evidence) apart. Unidentified parameters are
+        refused as ``dynamics_not_identified``. ``parameter_draws`` (0 or 2..512) propagates
+        the fit's sampling covariance through the simulation by common-random-number
+        ensembles; that spread is reported separately from Monte Carlo and step error.
+        """
+        assert execution is not None
+        states, _, parameter_table = self._tables()
+        coordinates = [
+            p if isinstance(p, int) else _named(parameter_table, p, "parameter") for p in parameters
+        ]
+        extra: dict[str, Any] = {
+            "parameters": coordinates,
+            "trajectories": [item._wire(states) for item in trajectories],
+            "fit_policy": {
+                "optimizer": {
+                    "learning_rate": learning_rate,
+                    "score_tolerance": score_tolerance,
+                    "max_iterations": max_iterations,
+                    "l1_penalty": 0.0,
+                },
+                "coarse_flag": coarse_flag,
+                "coarse_refusal": coarse_refusal,
+                "variance_floor": variance_floor,
+                "filter_step": filter_step,
+            },
+            "parameter_draws": parameter_draws,
+            "parameter_seed": parameter_seed,
+        }
+        if observation is not None:
+            extra["observation"] = asdict(observation)
+        if filter_prior is not None:
+            extra["filter_prior"] = {
+                "mean": list(filter_prior[0]),
+                "covariance": list(filter_prior[1]),
+            }
+        return PreparedCyclicFamily(
+            self._request(initial, simulation, interventions, contrasts, extra),
+            execution=execution,
+        )
+
 
 @dataclass(frozen=True)
 class AdamPolicy:
@@ -2757,8 +3447,13 @@ __all__ = [
     "OuMechanismCovariance",
     "OuMechanismMean",
     "OuMechanisms",
+    "OuObservationModel",
+    "OuPredictionDesign",
+    "OuScheduleSegment",
     "OuStationaryCovariance",
+    "OuStationaryDesign",
     "OuStationaryMean",
+    "OuTrajectory",
     "PolynomialCausalCandidate",
     "PolynomialCausalModel",
     "PolynomialExogenousAtom",
@@ -2777,6 +3472,17 @@ __all__ = [
     "SamplingDesign",
     "SamplingPolicy",
     "Set",
+    "SdeAction",
+    "SdeBound",
+    "SdeContrast",
+    "SdeDiffusion",
+    "SdeExpression",
+    "SdeInput",
+    "SdeObservationModel",
+    "SdeSimulation",
+    "SdeTrajectory",
+    "SdeWorld",
+    "StochasticDifferentialEquation",
     "Shift",
     "Soft",
     "SolvePolicy",
