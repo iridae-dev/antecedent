@@ -99,3 +99,7 @@ path = "tests/efficient_backdoor_optimality.rs"
 [[test]]
 name = "cpdag_adjustment_envelope_exhaustive"
 path = "tests/cpdag_adjustment_envelope_exhaustive.rs"
+
+[[test]]
+name = "clamp_experiment_constraints"
+path = "tests/clamp_experiment_constraints.rs"

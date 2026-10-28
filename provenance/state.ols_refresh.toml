@@ -19,4 +19,31 @@ upstream_implementations_observed = []
 
 test_sources = [
   "crates/antecedent-state/tests/ols_refresh_contract.rs",
+ "exact rational replay of append, window, evict, count and mask operations on offset and twelve-decade data sets (crates/antecedent-state/tests/ols_refresh_reference.rs, frozen from crates/antecedent-state/tests/oracle_data/ols_refresh_reference.py)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "OlsRefresh in crates/antecedent-state/src/ols_refresh.rs for a least-squares summary of retained rows: the sample size, coefficients and residual variance of the cached snapshot after each of append_row, append_window, evict_row, set_count and set_mask, against the result recomputed from the live rows (unmasked, positive count, counted by their integer weight). Not a review of summary-only retention, spill and decode, source identity and digest bookkeeping, the refusals, or the ledger counts beyond the sample size; those keep their existing tests. The in-place numerics are those of LinearOlsSuffStats (reviewed in state.incremental_ols)."
+assumptions = ["The model is ordinary least squares on the live rows, each row counted by its integer count weight; masked and zero-count rows are retained but contribute nothing.", "The coefficients solve X'X b = X'y and the residual variance is SSE / (n - p) with n the weighted count, defined for n > p.", "An evicted row, a changed count or a changed mask drops the summary and rebuilds it from the retained rows; appends and windows update it in place."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI and are not redistributed."
+limitations = "The primary source (Plackett 1950) was not re-read in this review (no downloads were made and no copy was read from this environment); the least-squares definitions are standard. Three data sets of 14 rows are used with eight operations each. Measured limits of the one-pass centered scatter, recorded in the test tolerances and not defects of the refresh logic: with a year regressor near 1e6 and a response near 1e9 the coefficients are exact to 1e-6 relative, and cached and fresh residual variances can differ by 3e-8 relative, more than the merge tolerance, so check_against_fresh would report a stale cache although both agree with the exact value; with the response near 1e12 (ulp as large as the noise) the slope keeps about four digits and the residual variance 1e-4 relative; with R squared of 1 - 1e-13 the residual variance from summary statistics keeps about two digits (6e-3 relative), the cancellation inherent in forming SSE from sums of squares. The implementation of those accumulations is shared with state.incremental_ols, whose record states the same offset limitation."
+sources = ["https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["After every operation the cached sample size, coefficients and residual variance equal the exact rational result on the live rows: to 1e-8 relative on a year regressor near 2020 with a response near 1e8 (variance 1.2e-8) and to 3e-14 on four columns scaled over twelve decades; check_against_fresh agrees on both.", "No defect was found in the refresh logic and no product code changed; the accuracy limits of the underlying accumulation at extreme offsets and near-perfect fits are measured and recorded rather than removed."]
+record_sha256 = "ce1c750245e4d48fea978a9deeac00ee2d1029e43dfac3a34734986858621627"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-state/src/ols_refresh.rs"
+sha256 = "7d05e40ff59c3bd8c74e41847fe0a5d05eb2cc8d36be8071b106cfc32fc75d52"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-state/tests/ols_refresh_reference.rs"
+sha256 = "2d529329bbe69a75c4c889798301c11ed4717dd9255f6e2752b290d76da015dc"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-state/tests/oracle_data/ols_refresh_reference.py"
+sha256 = "97df990047c50b83b0ba24f99a81a424574650c6d9d0c39813700aac29884640"

@@ -18405,3 +18405,45 @@ crate = "antecedent-estimate"
 cargo_target = "propensity_posterior_reference"
 path = "crates/antecedent-estimate/tests/propensity_posterior_reference.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "discovery-fci-pag-class-exhaustive"
+crate = "antecedent-discovery"
+cargo_target = "fci_pag_class_exhaustive"
+path = "crates/antecedent-discovery/tests/fci_pag_class_exhaustive.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "state-conjugate-offset-reference"
+crate = "antecedent-state"
+cargo_target = "conjugate_offset_reference"
+path = "crates/antecedent-state/tests/conjugate_offset_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "state-ols-refresh-reference"
+crate = "antecedent-state"
+cargo_target = "ols_refresh_reference"
+path = "crates/antecedent-state/tests/ols_refresh_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "model-lgssm-joint-gaussian-reference"
+crate = "antecedent-model"
+cargo_target = "lgssm_joint_gaussian_reference"
+path = "crates/antecedent-model/tests/lgssm_joint_gaussian_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "estimate-effect-constancy-reference"
+crate = "antecedent-estimate"
+cargo_target = "effect_constancy_reference"
+path = "crates/antecedent-estimate/tests/effect_constancy_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "identify-clamp-experiment-constraints"
+crate = "antecedent-identify"
+cargo_target = "clamp_experiment_constraints"
+path = "crates/antecedent-identify/tests/clamp_experiment_constraints.rs"
+gates = ["inventory", "named"]

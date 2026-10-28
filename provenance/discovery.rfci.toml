@@ -11,7 +11,7 @@ papers = [
 
 implementation_deviations = [
  "The initial adjacency search is bounded by max_cond_size, which defaults to 3, rather than searching every conditioning depth required by oracle RFCI.",
- "Static RFCI reuses LPCMCI-primed R9 and R10 implementations: R9 imposes an additional weakly-minimal-sepset condition and R10 requires globally node-disjoint paths; Zhang R5-R7 are omitted.",
+ "Static RFCI applies Zhang's unprimed R9 and R10 (shared with static FCI); Zhang R5-R7 are omitted.",
  "Discriminating-path search is limited to 64 paths of length at most 8 and fails closed when that budget is exceeded.",
 ]
 
@@ -20,4 +20,31 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent-discovery/src/rfci.rs unit tests",
  "conformance/discovery/rfci (clean-room motif expectations; no upstream RFCI oracle, and the temporary generator was not retained)",
+ "independent maximal-ancestral-graph Markov-class reference: RFCI under an exact m-separation oracle returns the class-invariant PAG for every class on three and four nodes (crates/antecedent-discovery/tests/fci_pag_class_exhaustive.rs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "Rfci::run in crates/antecedent-discovery/src/rfci.rs under a perfect m-separation oracle with the conditioning size left unbounded, on graphs of three and four nodes: the adjacencies and endpoint marks of the returned PAG (the Lemma 3.1 unshielded-triple phase, the orientation rules R1-R3 and R8-R10 and the discriminating-path phase) against the invariant marks of the Markov class of maximal ancestral graphs. Not a review of the default conditioning bound, of five or more nodes, where RFCI may keep extra adjacencies that FCI removes, of the Lemma 3.2 check beyond the exercised graphs, of the discriminating-path budget, or of finite-sample CI errors."
+assumptions = ["The data-generating mixed graph is a maximal ancestral graph without selection edges and the CI oracle answers exactly its m-separation statements.", "Two MAGs are in one Markov class when every pair has the same m-separation verdict against every conditioning set; the PAG of a class carries an endpoint mark exactly where all members agree and a circle elsewhere.", "On three and four nodes RFCI and FCI coincide under the oracle, so the class-invariant PAG is the expected output; this is checked here, not assumed from the papers."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI and are not redistributed."
+limitations = "The primary source was not re-read in this review (no downloads were made and no copy was read from this environment). Only three- and four-node graphs (11 and 248 classes) are swept; RFCI is designed to differ from FCI on larger graphs, and that difference (adjacencies kept because a Lemma 3.1 or 3.2 test is not run) is not exercised. The default conditioning bound of three is a documented deviation and is lifted in this test. Calibration remains deferred."
+sources = ["https://doi.org/10.1214/11-AOS940"]
+findings_resolved = ["Under the oracle, RFCI returns the class-invariant PAG for every class on three and four nodes: no extra or missing adjacency, no unsound mark and no missed orientation.", "Defect found and fixed: RFCI applied the stricter primed R9 and R10 of the time-series algorithm (the same defect as static FCI, documented in discovery.orientation_rules) and left circles at tails every member of a four-node class shares. It now uses Zhang's R9 and R10."]
+record_sha256 = "a4f1f23aef5d2846c2babc09891d0729ec06269dc4fe31527bea020dcf395f65"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/rfci.rs"
+sha256 = "81c2a662f16517af1c976de98412f49c31175718d94b6d337c0bb4b3a22b94ec"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/rule_scheduling.rs"
+sha256 = "18be632f5f304e307e7fbbb2d0e03308a21577a0b7568bd82224ba1cde7bfc66"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/tests/fci_pag_class_exhaustive.rs"
+sha256 = "03412043a49f6c194b0d2abfbeb13574d3b2c69c74160e9c14d365f6c492574f"

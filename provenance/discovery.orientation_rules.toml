@@ -12,7 +12,7 @@ papers = [
 
 implementation_deviations = [
  "The static FCI rule set omits Zhang R5-R7, so it is not the complete orientation rule set when selection-bias tail-tail structures are possible.",
- "Static FCI and RFCI reuse LPCMCI-primed R9 and R10: R9 adds a weakly-minimal-sepset requirement and R10 requires globally node-disjoint uncovered paths, both stricter than Zhang's unprimed static rules.",
+ "Static FCI applies Zhang's unprimed R9 and R10 (ZhangR9, ZhangR10); LPCMCI reuses the primed R9 and R10: R9 adds a weakly-minimal-sepset requirement and R10 requires globally node-disjoint uncovered paths, both stricter than Zhang's unprimed rules.",
  "R4 discriminating paths are capped at 64 paths and length 8; R9 and R10 uncovered-path searches are capped at 8 paths and length 8, with fail-closed budget errors.",
  "Contradictory orientations are represented by implementation-specific conflict endpoints rather than a paper-defined PAG mark.",
 ]
@@ -24,4 +24,31 @@ test_sources = [
  "crates/antecedent-discovery/src/discriminating_paths.rs unit tests",
  "conformance/discovery/rfci (clean-room motif expectations)",
  "conformance/discovery/lpcmci_matrix (Tigramite temporal skeleton only; PAG endpoints and middle marks are not compared)",
+ "independent maximal-ancestral-graph Markov-class reference: FCI under an exact m-separation oracle returns the class-invariant PAG for every class on three and four nodes, and on five nodes in an ignored run (crates/antecedent-discovery/tests/fci_pag_class_exhaustive.rs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The static FCI orientation phase (default_fci_rules in crates/antecedent-discovery/src/rule_scheduling.rs run to a fixed point on the skeleton and sepsets of Fci::run) under a perfect m-separation oracle with no selection variables: the adjacencies and endpoint marks of the returned PAG against the invariant marks of the Markov equivalence class of maximal ancestral graphs. Not a review of the LPCMCI rule list (which keeps the primed R9 and R10); RFCI shares the same R9 and R10 and is reviewed in its own record, of the discriminating-path and uncovered-path budgets beyond the exercised sizes, of finite-sample CI errors, or of selection variables (R5-R7), which are not implemented."
+assumptions = ["The data-generating mixed graph is a maximal ancestral graph without selection edges (no directed or almost-directed cycle; every non-adjacent pair m-separated by some set); the CI oracle answers exactly its m-separation statements.", "Two MAGs are in one Markov class when every pair has the same m-separation verdict against every conditioning set; the PAG of a class carries an endpoint mark exactly where all members agree and a circle elsewhere.", "With the oracle and no selection variables the Zhang rules R1-R4 and R8-R10 are complete, so the PAG FCI returns equals the invariant PAG."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI and are not redistributed."
+limitations = "The primary sources were not re-read in this review (no downloads were made and no copy was read from this environment); the rule statements used for R9 and R10 are the standard ones from memory of the definitions and a mistake in how they are stated would not be detected here, though the class-invariant reference does not depend on them. The sweep is exhaustive on three and four nodes (11 and 248 classes) in the ordinary run and on five nodes in an ignored test that takes about three minutes unoptimized (19 seconds in release). Six or more nodes, finite-sample CI behaviour and the discriminating-path and uncovered-path budgets are not exercised. LPCMCI orientation keeps the primed rules and is not covered by this review. Calibration remains deferred."
+sources = ["https://doi.org/10.1016/j.artint.2008.08.001", "https://doi.org/10.48550/arXiv.2007.01884"]
+findings_resolved = ["Every maximal ancestral graph on three and four nodes (and, in the ignored run, five nodes) was grouped by m-separation signature from an independent simple-path oracle; for each class FCI under that oracle returns the class's adjacencies and exactly the class-invariant endpoint marks (no missed tail, no missed arrowhead, no unsound mark).", "Defect found and fixed: static FCI applied the stricter primed R9 and R10 of the time-series algorithm, which start the uncovered path at a neighbour of the edge's source and need a separating-set condition, instead of Zhang's R9 and R10. On a four-node graph (1 -> 0 <- 2 with 1 o-o 3 o-o 2) the primed R9 left the tails at 1 and 2 as circles that every member of the class shares. Static FCI now uses Zhang's R9 and R10 (new ZhangR9 and ZhangR10, scanning every node because a change anywhere along a path can complete it); the primed rules stay in LPCMCI, and RFCI now uses the same unprimed rules."]
+record_sha256 = "ebb17a57ab64bedd5cf692a08047a61d45b8c6d4b145fcb37af3d569a48eda61"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/rule_scheduling.rs"
+sha256 = "18be632f5f304e307e7fbbb2d0e03308a21577a0b7568bd82224ba1cde7bfc66"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/uncovered_paths.rs"
+sha256 = "26fd1db120c8784000d9cb2008c0f4fb8bce671be9067daa5327b27ed9578c2b"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/tests/fci_pag_class_exhaustive.rs"
+sha256 = "03412043a49f6c194b0d2abfbeb13574d3b2c69c74160e9c14d365f6c492574f"

@@ -386,6 +386,21 @@ impl LinearOlsSuffStats {
         Some(sse / (self.n as f64 - self.ncols as f64))
     }
 
+    /// Sum of squared residuals `Σ (yᵢ − xᵢᵀβ)²` of the summarized rows at `beta`, from the
+    /// translation-stable joint scatter (so a large common offset in the response does not
+    /// cancel against the fitted values). Unlike [`Self::residual_variance`] it is defined for
+    /// any `n`, including `n <= p`.
+    ///
+    /// Returns `None` for an invalidated summary, a `beta` of the wrong length, published
+    /// moments that disagree with the scatter, or a non-representable sum.
+    #[must_use]
+    pub fn residual_sum_of_squares(&self, beta: &[f64]) -> Option<f64> {
+        if self.invalidated || beta.len() != self.ncols || !self.published_matches_scatter() {
+            return None;
+        }
+        centered_residual_sse(&self.joint.m2, &self.joint.mean, self.ncols, beta, self.n as f64)
+    }
+
     /// Merge `other` into this summary.
     ///
     /// Gram terms add. The centered scatter combines with Chan's formula, taking the

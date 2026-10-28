@@ -21,4 +21,31 @@ upstream_implementations_observed = []
 
 test_sources = [
   "crates/antecedent-state/tests/conjugate_refresh_oracle.rs",
+ "60-digit mpmath evaluation of the batch conjugate formulas for a response offset of 1e8 with sequential, pooled and chained blocks (crates/antecedent-state/tests/conjugate_offset_reference.rs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "ConjugateOlsPosterior::new, update, summary, to_prior and reprior in crates/antecedent-state/src/conjugate_refresh.rs for a Gaussian linear model with a normal-inverse-gamma prior: the posterior mean, precision, shape and rate after any sequence of blocks (sequential equals batch), including a response with a large common offset, and the refusal of a repeated block label or a different prior. Not a review of the choice of prior, of weighted or masked rows (a weighted block is refused upstream), of the downstream facade routes that consume the summary, or of the block summary type itself beyond the residual sum of squares it supplies."
+assumptions = ["The model is y | beta, sigma^2 ~ N(X beta, sigma^2 I) with beta | sigma^2 ~ N(m0, sigma^2 L0^-1) and sigma^2 ~ InverseGamma(a0, b0); L0 is symmetric positive definite.", "The posterior is L = L0 + X'X, m = L^-1 (L0 m0 + X'y), a = a0 + n/2, b = b0 + (|y - Xm|^2 + (m - m0)' L0 (m - m0)) / 2, the standard conjugate result for this model.", "Blocks are independent observations and each is used once; a block label that was used is refused."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI and are not redistributed."
+limitations = "The primary source was not re-read in this review (no downloads were made and no copy was read from this environment); the posterior formulas are the standard ones and a mistake in how they are stated would not be detected here, though the reference evaluates them directly in 60-digit arithmetic. The mean still comes from the raw Gram matrix and cross-products, so a design column with a large common offset (a conditioning problem in X itself, not in the response) is not made stable by this review; only the response offset is. Cases are two to eight rows with two columns; higher dimensions, singular posterior precision and very long block sequences are not exercised beyond the existing tests. Calibration remains deferred."
+sources = ["https://doi.org/10.1201/b16018"]
+findings_resolved = ["Defect found and fixed: the rate was computed as the prior rate plus half the difference between the raw sum of squares (the prior's m0' L0 m0 plus y'y) and the explained part eta' m, which cancels completely for a response with a large common offset. With a prior centred at 1e8 and eight rows whose residual scale is about one, the old rate was exactly the prior rate 2.0 against the true 2.6265240095872; the data's contribution to the scale was lost. The posterior now keeps the merged translation-stable scatter of its blocks and takes the residual sum of squares at the posterior mean from it, plus the prior-shift quadratic form directly.", "Sequential updating equals batch pooling, a chain through to_prior equals a single prior carrying both blocks, and an empty posterior returns the prior rate, each against a 60-digit evaluation of the batch formulas (means to 1e-12 relative on the intercept, rate to 1e-6 relative)."]
+record_sha256 = "03fcbf5ee12c18c62029a8e27f789e61ccf2950dfb084384f9461e5383489be4"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-state/src/conjugate_refresh.rs"
+sha256 = "06be2001a5c309853b45f5caa73022151991f552de34e28e67d7fa3c48ef9386"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-state/src/suff_stats.rs"
+sha256 = "ca3b5b5c8d73c0212d599cf65171ad2e4ac4855bae8377bc30b8d7316f45854f"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-state/tests/conjugate_offset_reference.rs"
+sha256 = "1f30cd18b1f4c8083fc5771ca91dd788f00cfac948aea646141bcc6ba3ca8c27"

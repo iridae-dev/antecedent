@@ -184,7 +184,9 @@ pub struct ConjugateOlsPosterior {
     prior_digest: String,
     precision: Vec<f64>,
     eta: Vec<f64>,
-    sum_squares: f64,
+    /// Merge of every block added, kept with its translation-stable scatter so the residual
+    /// sum of squares at the posterior mean does not cancel two large raw sums.
+    pooled: Option<LinearOlsSuffStats>,
     shape: f64,
     n: u64,
     used: BTreeMap<Arc<str>, String>,
@@ -232,13 +234,12 @@ impl ConjugateOlsPosterior {
     pub fn new(prior: &ConjugateOlsPrior) -> Self {
         let p = prior.ncols();
         let eta = multiply(&prior.precision, p, &prior.mean);
-        let sum_squares = quadratic(&prior.precision, p, &prior.mean);
         Self {
             prior: prior.clone(),
             prior_digest: prior.digest(),
             precision: prior.precision.clone(),
             eta,
-            sum_squares,
+            pooled: None,
             shape: prior.shape,
             n: 0,
             used: prior.used.clone(),
@@ -308,9 +309,17 @@ impl ConjugateOlsPosterior {
         for (slot, add) in eta.iter_mut().zip(block.xty()) {
             *slot += add;
         }
+        let pooled = match &self.pooled {
+            Some(existing) => {
+                let mut merged = existing.clone();
+                merged.merge(block)?;
+                merged
+            }
+            None => block.clone(),
+        };
+        self.pooled = Some(pooled);
         self.precision = precision;
         self.eta = eta;
-        self.sum_squares += block.yty();
         self.shape += block.n() as f64 / 2.0;
         self.n = self.n.saturating_add(block.n());
         self.used.insert(Arc::from(label), digest);
@@ -327,8 +336,14 @@ impl ConjugateOlsPosterior {
         let scale = invert_square(&self.precision, p)
             .ok_or_else(|| StateError::Numerical("singular posterior precision".into()))?;
         let mean = multiply(&scale, p, &self.eta);
-        let explained: f64 = mean.iter().zip(&self.eta).map(|(m, e)| m * e).sum();
-        let rate = self.prior.rate + 0.5 * (self.sum_squares - explained);
+        let residual = match &self.pooled {
+            Some(pooled) => pooled.residual_sum_of_squares(&mean).ok_or_else(|| {
+                StateError::Numerical("residual sum of squares is not representable".into())
+            })?,
+            None => 0.0,
+        };
+        let shift: Vec<f64> = mean.iter().zip(&self.prior.mean).map(|(m, m0)| m - m0).collect();
+        let rate = self.prior.rate + 0.5 * (residual + quadratic(&self.prior.precision, p, &shift));
         if !positive(rate) {
             return Err(StateError::Numerical("posterior rate is not positive".into()));
         }

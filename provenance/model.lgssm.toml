@@ -24,4 +24,31 @@ test_sources = [
  "crates/antecedent-model/src/registry/mod.rs (conditional state-space fit, parent effects, unit scaling, and EM likelihood regressions)",
  "crates/antecedent-io-core/src/mechanism_wire.rs (conditional_lgssm_roundtrip_retains_regression_and_state_parameters)",
  "crates/antecedent-model/tests/scm_oracle.rs (kalman_filter_and_rts_smoother_match_clean_room_recursion)",
+ "joint-Gaussian conditioning reference in 80-digit arithmetic for the filter, smoother and predictive density over six regimes (crates/antecedent-model/tests/lgssm_joint_gaussian_reference.rs, frozen from crates/antecedent-model/tests/oracle_data/lgssm_joint_gaussian_reference.py)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "kalman_filter and rts_smooth in crates/antecedent-model/src/lgssm.rs and the LinearGaussianStateSpace branch of log_prob_column (with the scaling of scaled_lgssm) in crates/antecedent-model/src/mechanism.rs for the scalar model x_0 ~ N(m0, q^2), x_t = a x_{t-1} + q eps_t, y_t = x_t + r eta_t: filtered, predicted and smoothed means and variances, the lag-one smoothed covariance and the per-row predictive log density. Not a review of parameter fitting (EM), family selection, the conditional (parent-mean) variant beyond its reduction to the same residual density, abduction, sampling, or vector states, which are not implemented."
+assumptions = ["The state is scalar and time-invariant with unit observation loading; the initial state has mean initial_mean and variance process_std squared (the first predicted variance equals the process variance, as the sampler also draws it).", "Observations are complete (no missing values) and the noise scales are positive and finite; a coefficient of any sign and magnitude is allowed, including a unit root or explosive dynamics.", "Joint Gaussianity: every filtered, predicted and smoothed moment and every predictive density is the Gaussian conditional of the states or of one observation given the preceding or all observations."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI and are not redistributed."
+limitations = "The primary sources were not re-read in this review (no downloads were made and no copy was read from this environment); the model is the standard one and a mistake in how it is stated would not be detected here, though the reference does not use the recursions. Six cases of 8 to 12 rows are compared, so long-series error growth (thousands of rows) and degenerate parameters (a variance that underflows to zero, an infinite coefficient) are not exercised beyond the existing unit-scale tests. The smoother is checked against the exact conditional moments, not against the EM objective or the fitted parameters. Calibration remains deferred."
+sources = ["https://doi.org/10.1115/1.3662552", "https://doi.org/10.2514/3.3166"]
+findings_resolved = ["Against the joint Gaussian law built from the closed-form state covariance and conditioned in 80-digit arithmetic (no recursion), the filter, smoother and per-row log density agree to 1e-9 relative on every value in all six cases: a stable, a unit-root with observation noise 10^7 times the process noise, an explosive (a = 1.5), a negative coefficient with observation noise 10^-7 times the process noise, a near-unit root at scale 1e-8 and a scale of 1e8.", "No defect was found and no product code changed; the cancellation-free filtered variance and the scale-before-squaring density behave as documented across these ratios and scales."]
+record_sha256 = "b0fa451f2ffcaa97ca03169c18cd9bbf9399c1d1fff2829bcd86542982b85250"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/lgssm.rs"
+sha256 = "564f1f0732b187f5417c997d3d22d9490582049df62610f3871c85e42f2ab615"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/lgssm_joint_gaussian_reference.rs"
+sha256 = "ca2e9ad83bbbcdf90747bf6e7c85b83b672ef110a750613365a85faf3f15b49d"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-model/tests/oracle_data/lgssm_joint_gaussian_reference.py"
+sha256 = "c031fed465d743fa071ae5b375f09a6749c1358697dcb3918c6180f7966a56f4"

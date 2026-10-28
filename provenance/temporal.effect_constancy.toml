@@ -31,4 +31,31 @@ test_sources = [
   "crates/antecedent-estimate/tests/effect_constancy_calibration.rs",
   "crates/antecedent-io/tests/effect_constancy_artifact.rs",
   "python/tests/test_effect_constancy.py",
+ "60-digit mpmath evaluation of Cochran's Q, the Wald statistic, chi-square tails, normal contrast p-values and Holm values over eight regimes (crates/antecedent-estimate/tests/effect_constancy_reference.rs, frozen from crates/antecedent-estimate/tests/oracle_data/effect_constancy_reference.py)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "test_effect_constancy and holm_adjust in crates/antecedent-estimate/src/effect_constancy.rs: Cochran's Q with the inverse-variance pooled effect for independent partitions, the Wald chi-square of the contrasts against the first partition in label order for a supplied covariance (supplied in input order, permuted to label order), the chi-square tail with k - 1 degrees of freedom, the two-sided normal p-value and Holm adjustment of the all-pairs and against-reference families, and invariance to input order. Not a review of the null's Type I error or power (unmeasured), of non-normal or small-sample behaviour, of the estimand-identity and support refusals beyond their existing tests, or of how the input estimates are produced."
+assumptions = ["The partition estimates are jointly normal with the supplied standard errors (independent case) or the supplied covariance, treated as known; under constancy the statistic is chi-square with k - 1 degrees of freedom.", "Cochran's Q is the weighted sum of squared deviations from the inverse-variance pooled effect; the Wald statistic is d' V^-1 d with d the contrasts against the first label-ordered partition and V their covariance.", "Contrast p-values are two-sided normal; Holm adjusts the declared family by sorting, multiplying by the number of remaining hypotheses, taking the running maximum and capping at one."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI and are not redistributed."
+limitations = "The primary sources were not re-read in this review (no downloads were made and no copy was read from this environment); the statistic definitions are the standard ones and a mistake in how they are stated would not be detected here, though the reference evaluates them directly. Eight cases (two to eight partitions) are compared, one with a supplied covariance; higher dimensions, indefinite or nearly singular covariances (refused by existing tests) and ties between raw p-values in Holm are not exercised here. The reference uses a regularized incomplete gamma function and erfc from mpmath, which this review did not itself verify. The test's error rates remain unmeasured, so a pass is arithmetic correctness, not calibration."
+sources = ["Cochran (1954), The Combination of Estimates from Different Experiments, Biometrics 10(1); Wald (1943), Transactions of the American Mathematical Society 54(3); Holm (1979), Scandinavian Journal of Statistics 6(2) (titles as listed in papers; no identifier is recorded and the texts were not read)", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["Against 60-digit evaluation the global statistic, its chi-square tail (down to about 1e-276 at k = 5), the pooled effect, every contrast's difference, standard error, z, normal p-value and Holm-adjusted value agree to 1e-9 relative in all eight cases: precisions over six decades, effects of 1e150, a near-null, a far tail at z about 28, correlated partitions supplied out of label order, and both contrast families.", "No defect was found and no product code changed."]
+record_sha256 = "9d8da51376bf53a12fd60c6a2b9bad623465d83e7a0cde95e6329dab5b225385"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/effect_constancy.rs"
+sha256 = "d63c18279dca5d868e230eb58ec7358c5ec7f43a2de995d471c90b46f5ff92e3"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/effect_constancy_reference.rs"
+sha256 = "f5f478a877fe96d055ac9db071e70409371825b7f84206e2bfe87e043f876503"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/effect_constancy_reference.py"
+sha256 = "717a50c6cbce48c3ba562b1bf7b50f8fe65a2ad1fe1afda9b3df0ed96772c3bf"

@@ -32,6 +32,14 @@ name = "state_append"
 harness = false
 
 [[test]]
+name = "conjugate_offset_reference"
+path = "tests/conjugate_offset_reference.rs"
+
+[[test]]
+name = "ols_refresh_reference"
+path = "tests/ols_refresh_reference.rs"
+
+[[test]]
 name = "incremental_ols_reference"
 path = "tests/incremental_ols_reference.rs"
 

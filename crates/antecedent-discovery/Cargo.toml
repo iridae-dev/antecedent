@@ -68,3 +68,7 @@ path = "tests/notears_reference.rs"
 [[test]]
 name = "exact_marginals_reference"
 path = "tests/exact_marginals_reference.rs"
+
+[[test]]
+name = "fci_pag_class_exhaustive"
+path = "tests/fci_pag_class_exhaustive.rs"

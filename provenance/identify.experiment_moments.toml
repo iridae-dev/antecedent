@@ -25,4 +25,31 @@ upstream_implementations_observed = []
 
 test_sources = [
  "inline unit tests (crates/antecedent-identify/src/experiment_moments.rs)",
+ "exact rational and known-direct-effect reference for the stacked clamp constraints over cyclic systems with offsets, twelve-decade scales and nearly collinear clamps (crates/antecedent-identify/tests/clamp_experiment_constraints.rs, frozen from crates/antecedent-identify/tests/oracle_data/clamp_experiment_reference.py)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "assemble_experiment_constraints in crates/antecedent-identify/src/experiment_moments.rs for an accepted set of clamp regimes with one sample per regime: the centered second moments, the experimental effect of each clamped unit on each passive unit (the multiple-regression coefficients of the passive column on the clamped columns), and the stacked constraint rows (coefficient 1 on the probe, 0 on other clamped sources, the probe's experimental effect on every other passive source, right-hand side the effect on the target), with the refusals for a singular or ill-conditioned clamp covariance. Not a review of the block solve or its rank report (not performed by this module), of regime-contract validation beyond its use here, of the byte budget arithmetic, of noisy-sample behaviour (rows then hold only up to estimation error), or of the stability conditions of the cited recipe, which are not checked."
+assumptions = ["The data follow a linear system x = B x + c + e in which the clamped columns of a regime are drawn independently of the disturbances, so that the regression coefficient of a passive column on the clamped columns estimates the experimental effect (I - B_UU)^-1 B_UJ; with no disturbance the equality is exact.", "With that effect, the direct effects of each target satisfy the stacked rows: for a probe j and passive target t, b_tj + sum over passive sources u of T_ju b_tu = T_jt, where T is the experimental-effect matrix of the regime.", "Moments use the row count as divisor and a compensated sum; the clamp solve uses the correlation matrix so that the units of measurement do not matter."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI and are not redistributed."
+limitations = "The primary source was not re-read in this review (no downloads were made and no copy was read from this environment); the row convention is the one stated in the module and the test, and a mistake in how it is stated would not be detected here, though the rows are checked against known direct effects, which does not depend on that statement. Four-unit and five-unit systems with deterministic passive columns are used, so sampling noise, disturbance covariance and weak-stability conditions are not exercised. A pair of clamped columns that is nearly collinear (condition number about 1e10) returns about six correct digits, the double-precision limit for that conditioning (error about eps times the condition number); the product refuses collinearity near or beyond 1e14, which is a documented design bound and not a defect. Calibration remains deferred."
+sources = ["Hyttinen, Eberhardt and Hoyer (2012), Learning Linear Cyclic Causal Models with Latent Variables, JMLR 13 (title as listed in papers; no identifier is recorded and the text was not read)"]
+findings_resolved = ["On four cyclic and acyclic systems (four and five units; independent and correlated pair clamps), every assembled row is satisfied by the true direct effects to 4e-16 relative (the offset case, where the data themselves are rounded to binary64, to 2e-7), and equals the exact rational computation on the binary64 data to 2e-16, including a response offset of 1e9 on every unit (exact on the data to 1.2e-15) and columns scaled over twelve decades.", "A nearly collinear pair of clamps (condition about 1e10) agrees with the exact computation on the data to 4e-7, the error expected from double-precision conditioning; collinearity at 1e-9 and exact collinearity are refused as ill-conditioned or degenerate.", "No defect was found and no product code changed."]
+record_sha256 = "a9be9cb37731f5bc6fa2ec7c29b4130d85390af58bc09a666bedb6d10147c0ff"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/experiment_moments.rs"
+sha256 = "bd549eee525b9af9b9e819099d203a2b4fddd32e5dea9fbc68a4c90fb74d8959"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-identify/tests/clamp_experiment_constraints.rs"
+sha256 = "88ea87a13f96d6e2b86fc60e2723a3797d861190de6ce1db3ce2e76e3f58936c"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-identify/tests/oracle_data/clamp_experiment_reference.py"
+sha256 = "ab2e2bd40b0fb12473a0d044753378e3bb9a0bc46f4d7e04bec51688b616967e"
