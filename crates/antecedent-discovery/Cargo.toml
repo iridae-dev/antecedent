@@ -64,3 +64,7 @@ path = "tests/suite_01.rs"
 [[test]]
 name = "notears_reference"
 path = "tests/notears_reference.rs"
+
+[[test]]
+name = "exact_marginals_reference"
+path = "tests/exact_marginals_reference.rs"

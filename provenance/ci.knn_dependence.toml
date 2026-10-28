@@ -25,3 +25,39 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent-stats/src/ci/advanced.rs (KnnDependence, MixedKnnDependence)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "KnnDependence in crates/antecedent-stats/src/ci/advanced/knn.rs: the statistic minus the mean distance from each row to its k-th nearest other row in the joint (X, Y, Z) space, the permutation of Y, the rule for counting a permuted statistic that equals the observed one (null_reaches_observed in ci/block_shuffle.rs), and the add-one p-value. Reviewed with an empty conditioning set. Not the Z-stratified null, the mixed-data rank transform, the nearest-neighbour index, or block permutation."
+assumptions = ["Rows are exchangeable under the null (the permutation argument).", "The statistic is a generic dependence proxy, not a mutual-information estimator; its power is not examined here."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), itertools and collections from the Python standard library, imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Four tie-rich series of 8 to 9 rows on a decimal grid (k = 1 and 2), with every distinct arrangement of Y enumerated (at most 1680). The Monte Carlo p-value is compared with its exact expectation at 20000 replicates within five binomial standard errors, so a bias smaller than about 0.01 would not be detected. The statistic is asserted to 1e-12. Conditioning sets and the stratified null are not enumerated. The tie slack was applied to this test because it shares the defect class found in the distance-correlation and discrete tests; none of the four series failed before the slack was added, so no wrong p-value from this test was observed. The reference script is not run in a locked, isolated environment and is not wired into any gate."
+sources = ["https://mpmath.org/"]
+findings_resolved = ["The statistic equals the 60-digit value on all four series and the p-value equals the exactly enumerated null.", "The permuted statistic is now compared with the relative slack used by the discrete tests (null_reaches_observed), because the mean of k-th neighbour distances is summed in row order and a permutation that relabels the grid reorders the sum; the strict comparison was a latent hazard, not an observed failure."]
+record_sha256 = "6791cde376f9ac03017210c681549655b23ebff5f75a13822a13b3de1fb08484"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/ci/advanced/knn.rs"
+sha256 = "0a046874c839fae9391b33621543673cce76845b20d38e2c7af5eeaaac8fcadf"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/ci/block_shuffle.rs"
+sha256 = "49abbb5e641ca4e86c4409a5c83fb00b19fd42479b9ddf4104a8c2e6b86d55f0"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/continuous_null_reference.rs"
+sha256 = "2a53bd157d0fd8adf3d26dd767bbc4a8971fb909248e8c7c0e7dcf9513f895b9"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/continuous_null_reference.py"
+sha256 = "2d711de5cfcca9600819b43e2d53c0ff7be0f26486074eb7f1313405324cfd5a"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/continuous_null_reference.json"
+sha256 = "7b8146587817b86073833fb2b7fce66285de2babd4a1efd6b423be1856d97789"

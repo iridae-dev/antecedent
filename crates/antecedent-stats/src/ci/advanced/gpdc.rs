@@ -365,11 +365,29 @@ pub(super) fn residual_dcor_permutation_result(
         &everything,
         null.block_size,
         &mut rng,
-        |permuted| Ok::<_, std::convert::Infallible>(distance_correlation(rx, permuted) >= dcor),
+        |permuted| {
+            Ok::<_, std::convert::Infallible>(dcor_reaches_observed(
+                distance_correlation(rx, permuted),
+                dcor,
+            ))
+        },
     )
     .unwrap_or_else(|never| match never {});
     let p = add_one_pvalue(null_ge, null.n_perm);
     CiResult { statistic: dcor, p_value: p, df: 0.0, ci: None }
+}
+
+/// Whether a permuted distance correlation reaches the observed one.
+///
+/// A permutation that is a symmetry of the observed series pair gives the same distance
+/// correlation as a real number, but `dCov²` is a difference of three nearly equal sums, so the
+/// two floating-point values can differ by about `1e-16` in `dCov²` (about `1e-8` in `dCor` near
+/// zero). Counted strictly, those tied permutations fall below the observed value at random and the
+/// p-value is too small. The comparison is made on the squared correlation with an absolute slack
+/// of `1e-12`, far above that rounding and far below the squared-correlation gap between
+/// genuinely different arrangements of a realistic sample.
+fn dcor_reaches_observed(null: f64, observed: f64) -> bool {
+    null * null >= observed * observed - 1e-12
 }
 
 /// Refuse a residual carrying no information about its column.

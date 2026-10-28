@@ -26,3 +26,34 @@ test_sources = [
  "crates/antecedent-discovery/tests/graph_posterior_wide.rs (five-variable exhaustive DAG enumeration; twelve-variable enumeration of the 3^12 states of a twelve-pair candidate skeleton scored by a separate Gaussian-BIC implementation)",
  "crates/antecedent-discovery/src/structure_mcmc.rs (prior-only proposal kernel against the closed-form rooted-forest law on twelve nodes)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The structure-space MCMC sampler (StructureMcmc) in crates/antecedent-discovery/src/structure_mcmc.rs, run on the Gaussian-BIC target with the uniform and Bernoulli edge priors, a parent cap, and forbidden and required edges, compared with the enumerated edge marginals. Not the diagnostics gate (disabled here), the temperature ladder design, tiers, lagged links, or graphs above five nodes."
+assumptions = ["The sampler targets the same prior-times-BIC posterior over DAGs as the exact enumeration (including the correction for the number of linear extensions in order space, which is what the comparison tests).", "A cell agrees when it is within 0.03 plus five Monte Carlo standard errors of the enumerated marginal, with four chains, 1000 warmup and 8000 retained draws."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), itertools and random from the Python standard library, imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Four four-node data sets (uniform prior; Bernoulli(0.2) prior with a parent cap of two; forbidden and required edges; a near-collinear pair of nodes) enumerated over all 543 DAGs with 60-digit scores. The tolerance of 0.03 plus five standard errors would not detect a bias of a few hundredths in a marginal. Graphs above four nodes, long mixing times, tiers and lagged links are not covered by this reference; the wide-graph tests cover five to eighteen variables. The reference script is not run in a locked, isolated environment and is not wired into any gate."
+sources = ["https://www.jmlr.org/papers/volume5/koivisto04a/koivisto04a.pdf", "https://mpmath.org/"]
+findings_resolved = ["All 48 marginals (16 cells on each of the four data sets, minus the zero diagonal) agree with the multiprecision enumeration within the band for both samplers, under the Bernoulli prior, the parent cap, and the forbidden and required edges. No defect found."]
+record_sha256 = "9f5e6009f6de2737998c27d039aaad72537ece3542417372d4bd18e878ffb018"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/structure_mcmc.rs"
+sha256 = "4c56ca4730596d945461d5ff100ecdd9d7a5dd193e270b15f9e07b8b535c44ab"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/tests/exact_marginals_reference.rs"
+sha256 = "57ac62707008bec8adc0619565f9f7f4103cdc9b2a4cbcb8dc5cfec2bd37ed81"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-discovery/tests/oracle_data/exact_marginals_reference.py"
+sha256 = "a39c3ee6bf51f5ab5c0e74bd6245a34dd7b23b687bafcaa1cc03d2262e8969f0"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-discovery/tests/oracle_data/exact_marginals_reference.json"
+sha256 = "e2b513724beafced143d88a7e15b2755b2803d06fc2802c7ed9d95a74736e3ce"

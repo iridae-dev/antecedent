@@ -2,7 +2,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::ci::block_shuffle::{add_one_pvalue, permutation_null_exceedances, query_stream_salt};
+use crate::ci::block_shuffle::{
+    add_one_pvalue, null_reaches_observed, permutation_null_exceedances, query_stream_salt,
+};
 use crate::ci::gsquared::ensure_permutation_support;
 use crate::ci::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
@@ -126,7 +128,7 @@ impl ConditionalIndependenceTest for KnnDependence {
                         ctx,
                     )?;
                     let null = -null_dists[..n].iter().sum::<f64>() / n as f64;
-                    Ok::<_, StatsError>(null >= stat)
+                    Ok::<_, StatsError>(null_reaches_observed(null, stat))
                 },
             )?;
             debug_assert_eq!(workspace.knn.index_builds, builds_before);

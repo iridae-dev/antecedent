@@ -24,3 +24,39 @@ test_sources = [
  "crates/antecedent-discovery/src/exact_marginals.rs unit tests (two nodes against the closed form; a posterior concentrated by thousands of nats against hand-computed weights)",
  "crates/antecedent-discovery/tests/graph_posterior_wide.rs (every DAG enumerated by an independent routine and scored by a separate Gaussian-BIC implementation at five, six and seven variables, agreement to 1e-9; order and structure MCMC against the exact marginals at ten and twelve variables on 2,000 rows)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "exact_dag_marginals in crates/antecedent-discovery/src/exact_marginals.rs: the per-node factors exp(local Gaussian BIC + log prior) of every parent set, the sink-removal recursion with inclusion-exclusion for the normalizing constant, its restriction to parent sets containing an edge for the edge marginals, and the log evidence, under the uniform and independent-Bernoulli graph priors with a parent cap and forbidden and required edges. The local score itself is the library's Gaussian BIC in crates/antecedent-state/src/graph_score.rs (also exercised). Not the samplers, tiers, lagged links, or other score families."
+assumptions = ["The graph prior of a Bernoulli(p) edge prior is a product over ordered pairs that are not forbidden: log p for a present edge, log(1-p) for an absent one; the uniform prior is flat over the valid DAGs.", "The Gaussian BIC local score is -n/2 (1 + ln 2 pi + ln(RSS/n)) - (|Pa|+1)/2 ln n with RSS from least squares on an intercept and the parents."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), itertools and random from the Python standard library, imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Six data sets of 40 to 400 rows on four or five nodes (uniform prior; Bernoulli(0.2) prior with a parent cap of two; Bernoulli(0.5) prior with two forbidden edges; a forbidden and a required edge; a near-collinear pair of nodes differing by noise of 0.001; local scores of order a thousand nats), each enumerated over every labelled DAG (543 on four nodes, 29,281 on five) with 60-digit scores from 3-decimal data. Larger graphs, tiers, lagged links and non-Gaussian score families are not enumerated; the existing wide-graph tests cover 5 to 12 variables against a separate double-precision implementation. The reference script is not run in a locked, isolated environment and is not wired into any gate."
+sources = ["https://www.jmlr.org/papers/volume5/koivisto04a/koivisto04a.pdf", "https://arxiv.org/abs/1205.2630", "https://doi.org/10.1214/aos/1176344136", "https://mpmath.org/"]
+findings_resolved = ["The log evidence agrees to 1e-9 relative and every one of the n^2 edge marginals to 1e-9 absolute with the brute-force sum over all DAGs on all six data sets, including the Bernoulli prior with a cap, forbidden and required edges, and the near-collinear design. No defect found.", "The earlier tests compare against a double-precision enumeration for the uniform prior and the parent cap only; this review adds the normalizing constant, the Bernoulli prior and the edge constraints, and an independent multiprecision score."]
+record_sha256 = "20c7a9506cb4ca8aa08852fad3fd93ef9c5aa98f0943289a22f96291a9352cf8"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/exact_marginals.rs"
+sha256 = "63d346f97737e4695da918c55f708a068220e6e08d54c112172ae14176fb1b23"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-state/src/graph_score.rs"
+sha256 = "ec713b89209825fb1dc8be3f956fcd36158d5b7fe8598bf35a37e2cd98c63379"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/tests/exact_marginals_reference.rs"
+sha256 = "57ac62707008bec8adc0619565f9f7f4103cdc9b2a4cbcb8dc5cfec2bd37ed81"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-discovery/tests/oracle_data/exact_marginals_reference.py"
+sha256 = "a39c3ee6bf51f5ab5c0e74bd6245a34dd7b23b687bafcaa1cc03d2262e8969f0"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-discovery/tests/oracle_data/exact_marginals_reference.json"
+sha256 = "e2b513724beafced143d88a7e15b2755b2803d06fc2802c7ed9d95a74736e3ce"

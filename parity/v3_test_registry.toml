@@ -18065,3 +18065,17 @@ crate = "antecedent-stats"
 cargo_target = "symbolic_cmi_reference"
 path = "crates/antecedent-stats/tests/symbolic_cmi_reference.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "stats-continuous-null-reference"
+crate = "antecedent-stats"
+cargo_target = "continuous_null_reference"
+path = "crates/antecedent-stats/tests/continuous_null_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "discovery-exact-marginals-reference"
+crate = "antecedent-discovery"
+cargo_target = "exact_marginals_reference"
+path = "crates/antecedent-discovery/tests/exact_marginals_reference.rs"
+gates = ["inventory", "named"]
