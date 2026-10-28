@@ -10,6 +10,49 @@
   "tolerance": 0.03,
   "oracle": {
     "kind": "closed_form",
-    "method": "linear law in `dgp`: direct 3*(0.8-0.2) = 1.8, indirect 4*2*0.6 = 4.8, total 6.6"
+    "method": "linear law in `dgp`: direct 3*(0.8-0.2) = 1.8, indirect 4*2*0.6 = 4.8, total 6.6",
+    "generator": "conformance/estimate/staged_static_kinds/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/staged_static_kinds/reference.py --check",
+    "environment_lock": "conformance/estimate/staged_static_kinds/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "control and active levels",
+      "direct, indirect and total mediation effects within tolerance",
+      "counterfactual_mean within 0.03",
+      "tolerance as a positive band narrower than the smallest effect"
+    ],
+    "context_only_outputs": [
+      "fixture_id",
+      "dgp text (the sinusoidal disturbances and the 0.1 noise term are not derived)",
+      "the naive-contrast separations the tests also assert, which depend on the sampled series"
+    ],
+    "independence_basis": "The generator substitutes the stated structural equations into the natural-effect definitions in exact rationals at several disturbance values, confirming the contrasts do not depend on the disturbance; it imports no Antecedent code and no statistics package. The shared object is the structural equations stated in the fixture dgp and the test's data construction.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Natural direct, natural indirect and total effects and the mean counterfactual contrast of a linear mediation model with a binary-free continuous exposure shift.",
+      "independence_basis": "The generator substitutes the stated structural equations into the natural-effect definitions in exact rationals at several disturbance values, confirming the contrasts do not depend on the disturbance; it imports no Antecedent code and no statistics package. The shared object is the structural equations stated in the fixture dgp and the test's data construction.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The test data use deterministic sinusoids and a 0.1 sinusoidal noise term, so the estimator recovers the structural coefficients only approximately; the assertions are 0.03 bands. Agreement does not establish unbiasedness under other disturbances, and the tests' naive-contrast separation checks are properties of the sampled series, not derived here. No uncertainty or calibration claim.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/staged_static_kinds/reference.py",
+          "sha256": "70812cb879d70acd7eb7a6fee690f94562bdf98af0d59d1697aa62b510f12043"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/staged_static_kinds/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/staged_static_kinds.rs",
+          "sha256": "15e756663fa25cc093b835ca44d3c2c73d5298497a1a3b0f7dcd8b903ee2f9e5"
+        }
+      ],
+      "fixture_payload_sha256": "ad9658a6b378d298bb0a838faf64b4a91620420aa1e42a3b458cacc868a6b7d6"
+    }
   }
 }

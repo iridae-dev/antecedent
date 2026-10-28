@@ -2,6 +2,44 @@
   "marginal_effect": 1.9,
   "oracle": {
     "kind": "closed_form",
-    "method": "Population marginal pulse effect from the stated linear structural equation Y = 1.5 X + 0.2 W + 0.8 XW. The conditional slope is 1.5 + 0.8 W; for the declared equally weighted binary modifier W ~ Bernoulli(1/2), E[slope] = 1.5 + 0.8/2 = 1.9. This is a structural population value, independent of the temporal estimator; the deterministic finite series approximates that modifier distribution."
+    "method": "Population marginal pulse effect from the stated linear structural equation Y = 1.5 X + 0.2 W + 0.8 XW. The conditional slope is 1.5 + 0.8 W; for the declared equally weighted binary modifier W ~ Bernoulli(1/2), E[slope] = 1.5 + 0.8/2 = 1.9. This is a structural population value, independent of the temporal estimator; the deterministic finite series approximates that modifier distribution.",
+    "generator": "conformance/estimate/temporal_conditional/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/temporal_conditional/reference.py --check",
+    "environment_lock": "conformance/estimate/temporal_conditional/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "marginal_effect (the executing assertion uses a hard-coded 0.05 band around it)"
+    ],
+    "context_only_outputs": [
+      "oracle method and scope text"
+    ],
+    "independence_basis": "The generator evaluates the stated slope 1.5 + 0.8 W under the stated equal-mass binary modifier, and under the modifier column the test constructs, in exact rationals; it imports no Antecedent code and no statistics package. The shared object is the structural equation and the modifier construction stated in the test.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Population and sample-weighted marginal slope of a linear moderated temporal equation.",
+      "independence_basis": "The generator evaluates the stated slope 1.5 + 0.8 W under the stated equal-mass binary modifier, and under the modifier column the test constructs, in exact rationals; it imports no Antecedent code and no statistics package. The shared object is the structural equation and the modifier construction stated in the test.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The sample-weighted value (1.9063) differs from the stated population value (1.9) by 0.0063, well inside the 0.05 band, so the band does not distinguish them; the tolerance is hard-coded in the test, not in the fixture. The treatment series is deterministic and noiseless. No uncertainty or calibration claim.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/temporal_conditional/reference.py",
+          "sha256": "55d8e3cbc257a725a2e4f5d15228c361fc8e4b6ceac005c9ecf79f32c15b798d"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/temporal_conditional/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/temporal_conditional_effect.rs",
+          "sha256": "bebaa91dfebec7a658f7255953e2c195ba9bfb56f589d966983520c3c361a255"
+        }
+      ],
+      "fixture_payload_sha256": "a46d6af621207913b2ac82c014ac0521bdfa7f5977054c7a1f3abd7e1ebf714f"
+    }
   }
 }

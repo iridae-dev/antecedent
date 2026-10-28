@@ -4,6 +4,46 @@
   "tolerance": 1e-12,
   "oracle": {
     "kind": "closed_form",
-    "method": "discrete T -> M -> Y chain: the mediated-path effect 0.3 follows from its stated conditional tables"
+    "method": "discrete T -> M -> Y chain: the mediated-path effect 0.3 follows from its stated conditional tables",
+    "generator": "conformance/context/path_specific_natural/reference.py",
+    "command": "uv run --frozen --script conformance/context/path_specific_natural/reference.py --check",
+    "environment_lock": "conformance/context/path_specific_natural/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "ate",
+      "tolerance as a round-off-scale band"
+    ],
+    "context_only_outputs": [
+      "method string 'path_specific.natural' (an estimand label, compared by the test but not derivable)",
+      "the identification status the same test asserts against the identify fixture"
+    ],
+    "independence_basis": "The generator tabulates the count table stated in the test source and takes the observed treated-minus-control contrast, which is the path effect on a chain with no other path and no confounder of the treatment; it imports no Antecedent code and no statistics package. The shared object is the count table and the chain graph in the test.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Path effect along the only path of a three-node chain on a small discrete count table.",
+      "independence_basis": "The generator tabulates the count table stated in the test source and takes the observed treated-minus-control contrast, which is the path effect on a chain with no other path and no confounder of the treatment; it imports no Antecedent code and no statistics package. The shared object is the count table and the chain graph in the test.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "A plug-in value on a frozen table; on this table the observed contrast and a mediation-formula decomposition need not coincide, so the value is the total contrast, which equals the path effect only because the chain has no other path. No sampling distribution, uncertainty or calibration claim.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/context/path_specific_natural/reference.py",
+          "sha256": "416de4899bb99c30d365c3921f731c2b6dcad506dea1e6fdbb305494895af36e"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/context/path_specific_natural/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/src/tests.rs",
+          "sha256": "3660c62320dc50a97b708f41297a371bb4f80ffcf69f12c34fe2eaf3aeec26b2"
+        }
+      ],
+      "fixture_payload_sha256": "6c8670eee2fc4f828296a6d010eedc80f47eec5df5d34e93e576fc64da17961c"
+    }
   }
 }

@@ -1,4 +1,7 @@
-#!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.12,<3.13"
+# dependencies = ["numpy==2.1.3", "scipy==1.14.1"]
+# ///
 # SPDX-License-Identifier: MIT OR Apache-2.0
 """Independent reference for the exact-transition likelihood of an observed OU process.
 
@@ -10,8 +13,8 @@ that brute-force joint density: no Kalman recursion, no van Loan transition and 
 code with the production implementation. Data are drawn by exact discretization with a
 seeded NumPy generator and stored, so the Rust consumer evaluates the very same numbers.
 
-    python3 conformance/gcm/ou_trajectory_likelihood/reference.py          # write
-    python3 conformance/gcm/ou_trajectory_likelihood/reference.py --check  # compare
+    uv run --script conformance/gcm/ou_trajectory_likelihood/reference.py          # write
+    uv run --frozen --script conformance/gcm/ou_trajectory_likelihood/reference.py --check  # compare
 """
 
 from __future__ import annotations

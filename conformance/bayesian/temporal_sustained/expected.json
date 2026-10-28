@@ -18,6 +18,49 @@
   "n_draws": 256,
   "oracle": {
     "kind": "closed_form",
-    "method": "lag-2 SCM defect_t = 0.7 pressure_{t-2} + eps_t: the effect is the coefficient 0.7 (see `derivation`)"
+    "method": "lag-2 SCM defect_t = 0.7 pressure_{t-2} + eps_t: the effect is the coefficient 0.7 (see `derivation`)",
+    "generator": "conformance/bayesian/temporal_sustained/reference.py",
+    "command": "uv run --frozen --script conformance/bayesian/temporal_sustained/reference.py --check",
+    "environment_lock": "conformance/bayesian/temporal_sustained/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "expected_ate within tolerance",
+      "tolerance",
+      "n and n_draws as the series length and posterior draw count"
+    ],
+    "context_only_outputs": [
+      "scm and derivation text (the ~0.0035 standard-error figure is re-derived here as a consistency check)",
+      "policy label and policy_note",
+      "treatment, outcome, lag, horizon and backend labels",
+      "require_* contract flags"
+    ],
+    "independence_basis": "The generator transcribes the test's fixed-seed SplitMix64 and Box-Muller noise stream and its series construction, regenerates the 400-row data, and fits the lag-2 slope by exact rational least squares on the float sample values; it imports no Antecedent code and no statistics package. The shared object is the data construction: if the test changed its seed, noise scale or lag, this transcription would no longer match and the check would not follow.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Recovery of the lag-2 coefficient from the regenerated noisy series, and the stated standard error.",
+      "independence_basis": "The generator transcribes the test's fixed-seed SplitMix64 and Box-Muller noise stream and its series construction, regenerates the 400-row data, and fits the lag-2 slope by exact rational least squares on the float sample values; it imports no Antecedent code and no statistics package. The shared object is the data construction: if the test changed its seed, noise scale or lag, this transcription would no longer match and the check would not follow.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The transcription depends on libm log and cos agreeing with the test's to within round-off, which matters only at the 1e-12 level far below the 0.05 band. The posterior mean under prior_scale 100 is not reproduced, only the least-squares slope it tracks. One fixed draw, so no repeated-sampling coverage or calibration claim.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/bayesian/temporal_sustained/reference.py",
+          "sha256": "82e44299f977af68d4995df903f58c2a27fe690d8c04f17dfbc896ecf17b52b7"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/bayesian/temporal_sustained/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/bayesian.rs",
+          "sha256": "40cada97dd3003c3914a8429d3800f80699299acbda7898600b74248ff9b7bca"
+        }
+      ],
+      "fixture_payload_sha256": "bf6c31f8ecfb10655040204ec138b00899f7a5f03dffeedaac9744ce40a9e641"
+    }
   }
 }

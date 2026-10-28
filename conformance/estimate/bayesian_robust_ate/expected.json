@@ -7,6 +7,47 @@
   "tolerance": 0.25,
   "oracle": {
     "kind": "closed_form",
-    "method": "stated outcome 1.4 x^2 + 2*treatment: the ATE is the treatment coefficient 2"
+    "method": "stated outcome 1.4 x^2 + 2*treatment: the ATE is the treatment coefficient 2",
+    "generator": "conformance/estimate/bayesian_robust_ate/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/bayesian_robust_ate/reference.py --check",
+    "environment_lock": "conformance/estimate/bayesian_robust_ate/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "truth",
+      "n as the row count of the design",
+      "tolerance as a positive band narrower than the effect"
+    ],
+    "context_only_outputs": [
+      "treatment_logit text (the treatment draws come from the product's seeded stream and are not reproduced)",
+      "expected_case text about nuisance specification"
+    ],
+    "independence_basis": "The generator evaluates the stated outcome equation under both treatment values at every covariate grid point in exact rationals; it imports no Antecedent code and no statistics package. The shared object is the outcome equation stated in the fixture and the test's covariate grid.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Unit-level and average effect of a deterministic outcome equation with a covariate nonlinearity and a constant treatment coefficient.",
+      "independence_basis": "The generator evaluates the stated outcome equation under both treatment values at every covariate grid point in exact rationals; it imports no Antecedent code and no statistics package. The shared object is the outcome equation stated in the fixture and the test's covariate grid.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The outcome is noiseless and the effect constant, so the ATE is the coefficient by construction; the treatment draws are not reproduced and the doubly-robust properties the fixture names (correct propensity, misspecified outcome nuisance) are not derived. The 0.25 tolerance is a declared band. No uncertainty or calibration claim.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/bayesian_robust_ate/reference.py",
+          "sha256": "0af1935c101304c76ccf80d62b4785a7dc7b6674d2df2f02ad7c1cdc737eeb9e"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/bayesian_robust_ate/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/bayesian_robust_ate.rs",
+          "sha256": "9c595df4148bdee53605d6351cc943158233f867cb54a04c3b73c7f510becd52"
+        }
+      ],
+      "fixture_payload_sha256": "ad760bbc8307d1b404aa97c8ee1002172fd0b8129369bef6b3f12bcb4a72db5a"
+    }
   }
 }

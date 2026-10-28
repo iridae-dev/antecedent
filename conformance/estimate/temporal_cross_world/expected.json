@@ -6,6 +6,45 @@
   "tolerance": 0.05,
   "oracle": {
     "kind": "closed_form",
-    "method": "Linear shared-noise SCM: M = 0.5 X + U_M and Y = 1.5 X + 4 M. For the 1-versus-0 treatment contrast, the nested direct effect is 1.5, the mediator path effect is 0.5*4 = 2, and the total effect is 1.5 + 2 = 3.5. The interventional outcome mean contrast is also 3.5. The exogenous terms cancel in these contrasts; values follow directly from the structural equations and do not come from the estimator."
+    "method": "Linear shared-noise SCM: M = 0.5 X + U_M and Y = 1.5 X + 4 M. For the 1-versus-0 treatment contrast, the nested direct effect is 1.5, the mediator path effect is 0.5*4 = 2, and the total effect is 1.5 + 2 = 3.5. The interventional outcome mean contrast is also 3.5. The exogenous terms cancel in these contrasts; values follow directly from the structural equations and do not come from the estimator.",
+    "generator": "conformance/estimate/temporal_cross_world/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/temporal_cross_world/reference.py --check",
+    "environment_lock": "conformance/estimate/temporal_cross_world/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "nested, path, counterfactual and distribution values within tolerance",
+      "tolerance as a positive band narrower than the smallest contrast"
+    ],
+    "context_only_outputs": [
+      "oracle method text"
+    ],
+    "independence_basis": "The generator substitutes the stated structural equations into the nested, path-specific and total contrast definitions in exact rationals at several shared disturbance values; it imports no Antecedent code and no statistics package. The shared object is the pair of structural equations stated in the test's data construction.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Nested direct, mediator-path and total contrasts of a two-equation linear mediation model with shared noise.",
+      "independence_basis": "The generator substitutes the stated structural equations into the nested, path-specific and total contrast definitions in exact rationals at several shared disturbance values; it imports no Antecedent code and no statistics package. The shared object is the pair of structural equations stated in the test's data construction.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The series is deterministic (a sinusoidal treatment and alternating shocks), so the estimators recover the coefficients only approximately and the 0.05 band is a declared tolerance. Cross-world definitions are those of the stated linear model; nothing is shown for nonlinear mechanisms. No uncertainty or calibration claim.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/temporal_cross_world/reference.py",
+          "sha256": "9d88d49be119ec08afbcdf32f16b7f4e982c630450f59420d7761853f66497c7"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/temporal_cross_world/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/temporal_cross_world_effect.rs",
+          "sha256": "4277db6a7c7fae192dd1ea19b8499bebde90d3c54c1288f588a0fc423540db42"
+        }
+      ],
+      "fixture_payload_sha256": "2acfcb33e057c0ab03e89001d89d854f871b54906f57465c316d47dd7122356d"
+    }
   }
 }

@@ -7,6 +7,47 @@
   "notes": "Y = 2T + 0.5Z; both engines share backdoor.adjustment IR",
   "oracle": {
     "kind": "closed_form",
-    "method": "linear law Y = 2T + 0.5Z: the identified backdoor functional equals the coefficient 2"
+    "method": "linear law Y = 2T + 0.5Z: the identified backdoor functional equals the coefficient 2",
+    "generator": "conformance/bayesian/shared_functional_ate/reference.py",
+    "command": "uv run --frozen --script conformance/bayesian/shared_functional_ate/reference.py --check",
+    "environment_lock": "conformance/bayesian/shared_functional_ate/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "true_ate",
+      "tolerance as a positive band"
+    ],
+    "context_only_outputs": [
+      "tolerance_class label",
+      "frequentist and bayesian engine names",
+      "notes text"
+    ],
+    "independence_basis": "The generator rebuilds the test's deterministic 80-row design from the stated law Y = 2T + 0.5Z, regresses Y on (1, T, Z) by exact rational normal equations and reads off the coefficient of T; it imports no Antecedent code and no statistics package. The shared object is the stated law: the test builds Y from the fixture's own true_ate, so this reference checks that the structural coefficient is the value a correctly adjusted regression recovers, not that the posterior is correct.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Adjusted least-squares coefficient of a noise-free linear law on the test's deterministic design.",
+      "independence_basis": "The generator rebuilds the test's deterministic 80-row design from the stated law Y = 2T + 0.5Z, regresses Y on (1, T, Z) by exact rational normal equations and reads off the coefficient of T; it imports no Antecedent code and no statistics package. The shared object is the stated law: the test builds Y from the fixture's own true_ate, so this reference checks that the structural coefficient is the value a correctly adjusted regression recovers, not that the posterior is correct.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The data are generated from the pinned value, so the check is a recovery test, not independent evidence of identification. The unadjusted contrast on this design is 1.95, within 0.05 of the truth, so the band does not separate the adjusted from the unadjusted answer. No uncertainty or calibration claim.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/bayesian/shared_functional_ate/reference.py",
+          "sha256": "b5af873bbeca6a50fe31bbcca6e0b3562df3c493043bef29218220e24074ca96"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/bayesian/shared_functional_ate/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/licensed_static_cells.rs",
+          "sha256": "7360b7f88bb5a462834945cb4c9daa271c00def2468a4469699034526eaa6e83"
+        }
+      ],
+      "fixture_payload_sha256": "5214e33e6465873c8b9e33d10b65220153558df47b5473fb1358c34677034529"
+    }
   }
 }

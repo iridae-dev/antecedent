@@ -1,1 +1,50 @@
-{"mediated":0.44,"direct":0.25,"total":0.69,"tolerance":0.04,"oracle":{"kind":"closed_form","method":"path-product rule of the linear temporal structural equations reproduced by the consuming staged tests (mediated a*b = 0.8*0.55, direct 0.25)"}}
+{
+  "mediated": 0.44,
+  "direct": 0.25,
+  "total": 0.69,
+  "tolerance": 0.04,
+  "oracle": {
+    "kind": "closed_form",
+    "method": "path-product rule of the linear temporal structural equations reproduced by the consuming staged tests (mediated a*b = 0.8*0.55, direct 0.25)",
+    "generator": "conformance/bayesian/temporal_mediation/reference.py",
+    "command": "uv run --frozen --script conformance/bayesian/temporal_mediation/reference.py --check",
+    "environment_lock": "conformance/bayesian/temporal_mediation/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "mediated as the posterior mean of the Mediated contrast, within tolerance",
+      "tolerance as a positive band"
+    ],
+    "context_only_outputs": [
+      "direct and total values (the executing assertion only checks that the posterior draws satisfy total = direct + indirect, not these numbers)",
+      "README remark on intervals and prior sensitivity"
+    ],
+    "independence_basis": "The generator evaluates the stated structural equations (mediator 0.8 on the lagged treatment, outcome 0.25 direct and 0.55 on the mediator) under do(treatment) in exact rationals and forms the path product; it imports no Antecedent code and no statistics package. The shared object is the coefficients read from the test's data construction: if the test generated different coefficients, this reference would not detect it.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Path-product mediated, direct and total effects of a noise-free-part linear temporal mediation model.",
+      "independence_basis": "The generator evaluates the stated structural equations (mediator 0.8 on the lagged treatment, outcome 0.25 direct and 0.55 on the mediator) under do(treatment) in exact rationals and forms the path product; it imports no Antecedent code and no statistics package. The shared object is the coefficients read from the test's data construction: if the test generated different coefficients, this reference would not detect it.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The data carry deterministic sinusoidal disturbances, so a fitted coefficient only approximates the structural one; the assertion is a 0.04 band on a posterior mean. Only the mediated value is compared with a number; direct and total are consistency context. No interval-coverage, prior-sensitivity or calibration claim.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/bayesian/temporal_mediation/reference.py",
+          "sha256": "272eb608fb81d598d6c9c4392cd8d0608c042e74434aa522c74cb726180d8446"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/bayesian/temporal_mediation/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/prepared_analysis.rs",
+          "sha256": "c50d58dd189482b428c70e0612b0befb8f60affd53d3e5f68b625e1261283d40"
+        }
+      ],
+      "fixture_payload_sha256": "729e63b8f0acf1976856f7fcbb2fe21abd50d80f807419638139c0d8b0be09f8"
+    }
+  }
+}

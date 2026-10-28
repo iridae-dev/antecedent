@@ -5,6 +5,46 @@
   "fixture": "antecedent::bayesian_iv_rd_staged::bayesian_iv_joint_fixed_loading_executes_staged_with_known_truth",
   "oracle": {
     "kind": "closed_form",
-    "method": "synthetic structural IV design with a treatment coefficient of 2.0 by construction (README)"
+    "method": "synthetic structural IV design with a treatment coefficient of 2.0 by construction (README)",
+    "generator": "conformance/estimate/bayesian_iv/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/bayesian_iv/reference.py --check",
+    "environment_lock": "conformance/estimate/bayesian_iv/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "true_structural_effect (the executing assertion also requires the estimate within 0.2 of it and the 95% interval to contain it)"
+    ],
+    "context_only_outputs": [
+      "model text",
+      "first_stage_f_threshold (a gate setting, not a derived value)",
+      "fixture pointer string"
+    ],
+    "independence_basis": "The generator rebuilds the stated 1200-row design in exact rationals and computes the instrumental-variable ratio and the ordinary least-squares slope from sample covariances; it imports no Antecedent code and no statistics package. The shared object is the structural equations stated in the test: the posterior of the product's joint model with a fixed disturbance loading is not reproduced.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Sample Wald ratio and least-squares slope for the test's deterministic endogenous design, as evidence that the pinned value is what an instrument recovers.",
+      "independence_basis": "The generator rebuilds the stated 1200-row design in exact rationals and computes the instrumental-variable ratio and the ordinary least-squares slope from sample covariances; it imports no Antecedent code and no statistics package. The shared object is the structural equations stated in the test: the posterior of the product's joint model with a fixed disturbance loading is not reproduced.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Deterministic design with no sampling variation: the Wald ratio stands in for the identified coefficient, and the joint Gaussian model with a known unit disturbance loading is a modelling restriction not derived here. The posterior interval, first-stage gate and repeated-sampling coverage named in the README are not covered. No calibration claim.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/bayesian_iv/reference.py",
+          "sha256": "a1bf09c038cf0e0517f31f5a3be6cd1c704a3bc495753d01f4b34f0c72bf1d04"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/bayesian_iv/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/bayesian_iv_rd_staged.rs",
+          "sha256": "a7866cea5dc24a1090cf9c57140ee132c4032b22f619079a5ea72d25a1eedd5c"
+        }
+      ],
+      "fixture_payload_sha256": "b59765d1ec38a9e9d13c9457d2e19dc4be34fc5f9c4245f6aa12251eb3add3b1"
+    }
   }
 }

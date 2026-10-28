@@ -10,6 +10,48 @@
   "notes": "MAP must converge with Hessian diagnostics",
   "oracle": {
     "kind": "closed_form",
-    "method": "noiseless linear design: the Laplace MAP under a weak prior recovers the generating coefficients"
+    "method": "noiseless linear design: the Laplace MAP under a weak prior recovers the generating coefficients",
+    "generator": "conformance/bayesian/laplace_glm/reference.py",
+    "command": "uv run --frozen --script conformance/bayesian/laplace_glm/reference.py --check",
+    "environment_lock": "conformance/bayesian/laplace_glm/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "true_coefficients (the MAP must be within tolerance of each)",
+      "tolerance as a positive band",
+      "backend label 'laplace'"
+    ],
+    "context_only_outputs": [
+      "tolerance_class label",
+      "likelihood label",
+      "notes text about Hessian diagnostics"
+    ],
+    "independence_basis": "The generator rebuilds the test's deterministic noiseless design from the stated coefficients and solves the normal equations exactly in rationals; it imports no Antecedent code and no statistics package. The shared object is the design and the generating coefficients in the test: the data are produced from the pinned values, so this is a recovery check.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Exact least-squares recovery of generating coefficients on a noiseless linear design.",
+      "independence_basis": "The generator rebuilds the test's deterministic noiseless design from the stated coefficients and solves the normal equations exactly in rationals; it imports no Antecedent code and no statistics package. The shared object is the design and the generating coefficients in the test: the data are produced from the pinned values, so this is a recovery check.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The MAP is computed under a weakly informative prior, which this reference does not reproduce; the 0.001 band is a declared tolerance on the prior's shrinkage and the optimiser. Noiseless data cannot show behaviour under noise, and the Hessian diagnostics the test also asserts are not derived. No uncertainty or calibration claim.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/bayesian/laplace_glm/reference.py",
+          "sha256": "fedf224dbc8f595a86c9e2f32c15062969ed64b33ec96e751aa252abe9123dd4"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/bayesian/laplace_glm/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/bayesian.rs",
+          "sha256": "40cada97dd3003c3914a8429d3800f80699299acbda7898600b74248ff9b7bca"
+        }
+      ],
+      "fixture_payload_sha256": "c1ce3be5fcd759295ad5726542d3b7c4713404583d0912666aead59e4b2ef15e"
+    }
   }
 }

@@ -1,1 +1,54 @@
-{"path_effect":0.3,"distribution_mean":0.7,"tolerance":1e-10,"cheap_path_reports":1,"full_path_reports":2,"cheap_distribution_reports":2,"full_distribution_reports":3,"oracle":{"kind":"closed_form","method":"frozen discrete chain and confounded binary table of the staged tests: path effect 0.3 and intervention mean 0.7 follow from their tables; report counts are the validation contract"}}
+{
+  "path_effect": 0.3,
+  "distribution_mean": 0.7,
+  "tolerance": 1e-10,
+  "cheap_path_reports": 1,
+  "full_path_reports": 2,
+  "cheap_distribution_reports": 2,
+  "full_distribution_reports": 3,
+  "oracle": {
+    "kind": "closed_form",
+    "method": "frozen discrete chain and confounded binary table of the staged tests: path effect 0.3 and intervention mean 0.7 follow from their tables; report counts are the validation contract",
+    "generator": "conformance/estimate/functional_validation/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/functional_validation/reference.py --check",
+    "environment_lock": "conformance/estimate/functional_validation/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "path_effect",
+      "distribution_mean",
+      "tolerance as a round-off-scale band"
+    ],
+    "context_only_outputs": [
+      "cheap_path_reports, full_path_reports, cheap_distribution_reports and full_distribution_reports (asserted by the report-count test but design choices of the validation suites, not derivable)",
+      "oracle method text and README remark that subset checks are descriptive"
+    ],
+    "independence_basis": "The generator tabulates the two count tables stated in the test source and applies the identification formulas by hand in exact rationals (the chain is unconfounded at T, so the path effect is the observed contrast; the intervention mean adjusts for Z); it imports no Antecedent code and no statistics package. The shared object is the two count tables and the graphs stated beside them: the generator cannot detect a table that differs from what the test builds.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Path effect and intervention mean computed from two small discrete count tables.",
+      "independence_basis": "The generator tabulates the two count tables stated in the test source and applies the identification formulas by hand in exact rationals (the chain is unconfounded at T, so the path effect is the observed contrast; the intervention mean adjusts for Z); it imports no Antecedent code and no statistics package. The shared object is the two count tables and the graphs stated beside them: the generator cannot detect a table that differs from what the test builds.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Plug-in values on frozen tables: no sampling distribution, no unmeasured confounding, positivity beyond the table's cells. The report counts are suite design choices, not numerical truth. No uncertainty or calibration claim.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/functional_validation/reference.py",
+          "sha256": "7d50b6d7db19b5e3a7d27d0e0ce7e5bc30ec6578151907e373ca4f95dbd5242d"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/functional_validation/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/prepared_analysis.rs",
+          "sha256": "c50d58dd189482b428c70e0612b0befb8f60affd53d3e5f68b625e1261283d40"
+        }
+      ],
+      "fixture_payload_sha256": "6b927d809922f4e04764e8111b4cf9b7734bebfbc13789afe93e16b61e007501"
+    }
+  }
+}

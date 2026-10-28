@@ -4,6 +4,46 @@
   "tolerance_class": "Numeric",
   "oracle": {
     "kind": "closed_form",
-    "method": "linear interaction law Y = 1 + 2T + 0.5TW with mean W about 2: the marginal ATE is about 3"
+    "method": "linear interaction law Y = 1 + 2T + 0.5TW with mean W about 2: the marginal ATE is about 3",
+    "generator": "conformance/context/conditional_effect/reference.py",
+    "command": "uv run --frozen --script conformance/context/conditional_effect/reference.py --check",
+    "environment_lock": "conformance/context/conditional_effect/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "ate_target",
+      "ate_tol as a positive band narrower than the interaction contribution"
+    ],
+    "context_only_outputs": [
+      "tolerance_class label",
+      "oracle method text (its 'about 2' wording)"
+    ],
+    "independence_basis": "The generator reads the stated interaction law Y = 1 + 2T + 0.5TW and the test's deterministic modifier column (W_i = i mod 5, 200 rows, mean exactly 2), evaluates the unit-level contrast in exact rational arithmetic and averages it; it imports no Antecedent code and no statistics package. The shared object is the stated law and the modifier column.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Modifier-averaged contrast of a noise-free linear interaction law over the test's modifier column.",
+      "independence_basis": "The generator reads the stated interaction law Y = 1 + 2T + 0.5TW and the test's deterministic modifier column (W_i = i mod 5, 200 rows, mean exactly 2), evaluates the unit-level contrast in exact rational arithmetic and averages it; it imports no Antecedent code and no statistics package. The shared object is the stated law and the modifier column.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The executing assertion compares a frequentist conditional-adjustment ATE with the target under a 0.3 band, so agreement shows the band is centred on the structural average, not that the estimator is efficient. Noiseless outcome, deterministic modifier. No uncertainty or calibration claim.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/context/conditional_effect/reference.py",
+          "sha256": "9d4eadfc3f1c7430e016a059e45c88fc6543010f7853069a37d489c08e0741ca"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/context/conditional_effect/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/licensed_static_cells.rs",
+          "sha256": "7360b7f88bb5a462834945cb4c9daa271c00def2468a4469699034526eaa6e83"
+        }
+      ],
+      "fixture_payload_sha256": "db768e2bcde3f87d941006b589f354e3fc065881ad8e2725119c56ed84a6d9aa"
+    }
   }
 }

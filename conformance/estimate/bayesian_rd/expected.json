@@ -6,6 +6,47 @@
   "fixture": "antecedent_estimate::bayesian_rd::tests::local_linear_jump_recovers_known_truth_and_reports_bandwidth_sensitivity",
   "oracle": {
     "kind": "closed_form",
-    "method": "synthetic sharp RD with a known jump of 2.5 at cutoff zero (README)"
+    "method": "synthetic sharp RD with a known jump of 2.5 at cutoff zero (README)",
+    "generator": "conformance/estimate/bayesian_rd/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/bayesian_rd/reference.py --check",
+    "environment_lock": "conformance/estimate/bayesian_rd/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "true_jump (the executing assertions require the posterior mean within 0.08 and the interval to contain it)",
+      "fixed_bandwidth and cutoff as the inputs of the fit"
+    ],
+    "context_only_outputs": [
+      "model text",
+      "fixture pointer string",
+      "the bandwidth-sensitivity and prior-sensitivity orderings the unit test also checks"
+    ],
+    "independence_basis": "The generator rebuilds the stated 400-row design in exact rationals and fits a straight line on each side of the cutoff within the declared bandwidth by exact least squares (both window conventions), then differences the intercepts; it imports no Antecedent code and no statistics package. The shared object is the outcome equation stated in the test.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Local-linear sharp-RD jump at the cutoff for the test's deterministic design.",
+      "independence_basis": "The generator rebuilds the stated 400-row design in exact rationals and fits a straight line on each side of the cutoff within the declared bandwidth by exact least squares (both window conventions), then differences the intercepts; it imports no Antecedent code and no statistics package. The shared object is the outcome equation stated in the test.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Deterministic design with a small periodic perturbation, so the exact fit stands in for the identified jump; the Bayesian model, kernel, prior and interval coverage are not reproduced. The window convention (open or closed) is not read from product code, so both are checked. No calibration claim.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/bayesian_rd/reference.py",
+          "sha256": "f4638fd96fe7493af1ba7f72063e9e9928de314a8dca24b7881067729fd2da48"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/bayesian_rd/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/bayesian_iv_rd_staged.rs",
+          "sha256": "a7866cea5dc24a1090cf9c57140ee132c4032b22f619079a5ea72d25a1eedd5c"
+        }
+      ],
+      "fixture_payload_sha256": "bbc078a0bb4323d00c9db52933f2437a5cb869c6c02c3fb721cb9f968d4247f2"
+    }
   }
 }

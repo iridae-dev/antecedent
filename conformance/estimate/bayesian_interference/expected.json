@@ -1,14 +1,87 @@
 {
-  "outcomes": [5.0, 6.0, 9.0, 10.0],
-  "assignment": [true, false, true, false],
-  "edges": [[0, 1], [0, 2], [0, 3], [2, 3]],
-  "from": { "own": 0.0, "neighbors": 1.0 },
-  "to": { "own": 1.0, "neighbors": 0.0 },
+  "outcomes": [
+    5.0,
+    6.0,
+    9.0,
+    10.0
+  ],
+  "assignment": [
+    true,
+    false,
+    true,
+    false
+  ],
+  "edges": [
+    [
+      0,
+      1
+    ],
+    [
+      0,
+      2
+    ],
+    [
+      0,
+      3
+    ],
+    [
+      2,
+      3
+    ]
+  ],
+  "from": {
+    "own": 0.0,
+    "neighbors": 1.0
+  },
+  "to": {
+    "own": 1.0,
+    "neighbors": 0.0
+  },
   "expected_contrast": -1.0,
   "tolerance": 0.08,
   "model": "y = 2 + 3 * own + 4 * treated_neighbors; Gaussian variance 1",
   "oracle": {
     "kind": "closed_form",
-    "method": "stated model y = 2 + 3*own + 4*treated_neighbors: moving from (own 0, neighbors 1) to (own 1, neighbors 0) changes the mean by 3 - 4 = -1"
+    "method": "stated model y = 2 + 3*own + 4*treated_neighbors: moving from (own 0, neighbors 1) to (own 1, neighbors 0) changes the mean by 3 - 4 = -1",
+    "generator": "conformance/estimate/bayesian_interference/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/bayesian_interference/reference.py --check",
+    "environment_lock": "conformance/estimate/bayesian_interference/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "expected_contrast within tolerance",
+      "outcomes, assignment and edges as the exact inputs of the fit"
+    ],
+    "context_only_outputs": [
+      "model text ('Gaussian variance 1' is a modelling assumption, not derivable)",
+      "the 'from' and 'to' exposure levels (inputs echoed in the query)"
+    ],
+    "independence_basis": "The generator reads the stated outcomes, assignment, edges and model equation, computes each unit's treated in-neighbour count, confirms in exact rationals that the model reproduces all four outcomes, and evaluates the exposure contrast from the coefficients; it imports no Antecedent code and no statistics package. The shared object is the model equation; the directed reading of the edge list is inferred from the exact reproduction of the outcomes, not from the product's exposure mapping.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Exposure contrast of a four-unit fixed-network additive model whose outcomes the model reproduces exactly.",
+      "independence_basis": "The generator reads the stated outcomes, assignment, edges and model equation, computes each unit's treated in-neighbour count, confirms in exact rationals that the model reproduces all four outcomes, and evaluates the exposure contrast from the coefficients; it imports no Antecedent code and no statistics package. The shared object is the model equation; the directed reading of the edge list is inferred from the exact reproduction of the outcomes, not from the product's exposure mapping.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Four observations and three coefficients, so the exact fit leaves no residual and gives no variance information; the posterior mean under a prior only approximates the contrast and the 0.08 band is a declared tolerance. The edge direction is inferred, not read from product code. No uncertainty or calibration claim.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/bayesian_interference/reference.py",
+          "sha256": "dfab5032e3f854d00543018ed9db0fc5d65e8c87ed683855e09e75f82286ba06"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/bayesian_interference/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/staged_attribution_transport_interference.rs",
+          "sha256": "dd04b254711d7306a693c84b83a437a54b8eecb576c646313a5af1fb2c1eab02"
+        }
+      ],
+      "fixture_payload_sha256": "3e8a21e3b5102caedd3f30f83a46086c0abe71a7080f22d93974afb4ff97f0d7"
+    }
   }
 }

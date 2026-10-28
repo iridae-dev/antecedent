@@ -18,6 +18,45 @@
   "oracle": {
     "kind": "closed_form",
     "method": "The test DGPs in temporal_derivative_effect.rs and temporal_class_point_queries.rs both use Y = 3 + 2 X + 0.5 B and V = 1 + X - B, with B alternating between 0 and 1, so the population mean response is E[Y|do(X=x)] = 3.25 + 2x. At x=2 the mean is 7.25: identity slope 2, log-treatment slope 4, log-outcome slope 2/7.25 = 8/29, and log-log slope 4/7.25 = 16/29. The observed average derivative is 2. The Jacobian with respect to (X,B) is [[2,0.5],[1,-1]] at every point, so at (2,1) the directional derivative along (1,2) is (3,-1). These are population structural values; the deterministic finite temporal series approximates them, and the tests compare within tolerance 0.05 rather than claiming an exact finite-sample fit.",
-    "scope": "The marginal interventional reference gives equal mass to B=0 and B=1. It is not the response conditional on B=0, and not an exact oracle for the finite series's fitted OLS coefficients. Jacobian entries use the declared linear structural equations."
+    "scope": "The marginal interventional reference gives equal mass to B=0 and B=1. It is not the response conditional on B=0, and not an exact oracle for the finite series's fitted OLS coefficients. Jacobian entries use the declared linear structural equations.",
+    "generator": "conformance/estimate/temporal_derivative/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/temporal_derivative/reference.py --check",
+    "environment_lock": "conformance/estimate/temporal_derivative/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "point, elasticity, semi_treatment, semi_outcome, average, jacobian and directional values within tolerance",
+      "tolerance as a small positive band"
+    ],
+    "context_only_outputs": [
+      "oracle method and scope text (the finite series only approximates the population values)"
+    ],
+    "independence_basis": "The generator differentiates the stated structural means in exact rationals and evaluates the log-scale and directional derivatives at the declared point; it imports no Antecedent code and no statistics package. The shared object is the pair of structural equations and the equal-mass binary B stated in the fixture and the test's series.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Population derivative targets of two linear structural equations at one point.",
+      "independence_basis": "The generator differentiates the stated structural means in exact rationals and evaluates the log-scale and directional derivatives at the declared point; it imports no Antecedent code and no statistics package. The shared object is the pair of structural equations and the equal-mass binary B stated in the fixture and the test's series.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Population values of a linear model; the finite deterministic series is only an approximation, as the fixture states, and the log scales assume a positive mean response. The mean of B is taken as 1/2 from the alternating construction. No uncertainty or calibration claim.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/temporal_derivative/reference.py",
+          "sha256": "efdeebfbc2a5b9f9566c0ead0abf28446d94a2ac729e2794083ab629083ca86b"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/temporal_derivative/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/temporal_derivative_effect.rs",
+          "sha256": "683c86ea33d66607c3350cf0c8414c525480437bf1a1ebae428fcafd460c12b5"
+        }
+      ],
+      "fixture_payload_sha256": "80b8857c182ec5f2edb8402e8743125c27f653755533418ce3a72cad694473ed"
+    }
   }
 }

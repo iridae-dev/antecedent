@@ -1,1 +1,48 @@
-{"effect":3.0,"tolerance":0.1,"oracle":{"kind":"closed_form","method":"linear interaction law Y = 1 + 2T + 0.5TW with mean W = 2: the averaged contrast is 2 + 0.5*2 = 3"}}
+{
+  "effect": 3.0,
+  "tolerance": 0.1,
+  "oracle": {
+    "kind": "closed_form",
+    "method": "linear interaction law Y = 1 + 2T + 0.5TW with mean W = 2: the averaged contrast is 2 + 0.5*2 = 3",
+    "generator": "conformance/bayesian/conditional_effect/reference.py",
+    "command": "uv run --frozen --script conformance/bayesian/conditional_effect/reference.py --check",
+    "environment_lock": "conformance/bayesian/conditional_effect/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "effect",
+      "tolerance as a positive band narrower than the interaction contribution"
+    ],
+    "context_only_outputs": [
+      "oracle method text",
+      "README remark about posterior uncertainty and prior sensitivity"
+    ],
+    "independence_basis": "The generator reads the stated interaction law Y = 1 + 2T + 0.5TW and the test's deterministic modifier column (W_i = i mod 5, 120 rows), evaluates the unit-level contrast in exact rational arithmetic and averages it; it imports no Antecedent code and no statistics package. The shared object is the stated law and the modifier column: if the test generated different coefficients or a different W, this reference would not detect it.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Modifier-averaged contrast of a noise-free linear interaction law over the test's modifier column.",
+      "independence_basis": "The generator reads the stated interaction law Y = 1 + 2T + 0.5TW and the test's deterministic modifier column (W_i = i mod 5, 120 rows), evaluates the unit-level contrast in exact rational arithmetic and averages it; it imports no Antecedent code and no statistics package. The shared object is the stated law and the modifier column: if the test generated different coefficients or a different W, this reference would not detect it.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The executing assertion compares a posterior-mean ATE with the stated effect under a tolerance, so agreement shows the band is centred on the structural average, not that the posterior is calibrated. The outcome is noiseless and the modifier column deterministic. No uncertainty, interval-coverage or prior-sensitivity claim.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/bayesian/conditional_effect/reference.py",
+          "sha256": "fce0692311d48970e9c87c971b158a807615b761ce2e3c965251244e01ea9e25"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/bayesian/conditional_effect/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/prepared_analysis.rs",
+          "sha256": "c50d58dd189482b428c70e0612b0befb8f60affd53d3e5f68b625e1261283d40"
+        }
+      ],
+      "fixture_payload_sha256": "bf4ce9ad0180572d8e9cfad6f27814505527dfb7dfe89f7a76d13139b241c7d5"
+    }
+  }
+}
