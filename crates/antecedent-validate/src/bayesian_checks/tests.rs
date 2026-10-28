@@ -762,8 +762,9 @@ mod predictive_null_calibration {
         for rep in 0..DATASETS {
             let mut rng = CausalRng::from_seed(0x9A10_0000 + rep);
             let (t, x) = covariates(n, &mut rng);
-            let beta: Vec<f64> = (0..3).map(|_| standard_normal(&mut rng)).collect();
+            // The conjugate prior the checks assume: sigma^2 first, then beta | sigma^2 ~ N(0, sigma^2 V0).
             let sigma = sample_inv_gamma(residual.shape, residual.scale, &mut rng).sqrt();
+            let beta: Vec<f64> = (0..3).map(|_| sigma * standard_normal(&mut rng)).collect();
             let y: Vec<f64> = t
                 .iter()
                 .zip(&x)

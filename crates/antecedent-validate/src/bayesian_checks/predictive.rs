@@ -537,7 +537,11 @@ impl PriorPredictiveCheck {
     /// Gaussian replicates add `N(0, σ²)` noise with `σ²` from the prior's residual
     /// model (fixed when known; one `InvGamma` draw per simulation otherwise). A
     /// residual prior without a finite mean yields a
-    /// [`PredictiveNoise::MeanOnlyImproperScale`] report.
+    /// [`PredictiveNoise::MeanOnlyImproperScale`] report. For a Gaussian outcome the coefficients
+    /// are drawn from the conjugate prior the estimator fits with, `β | σ² ~ N(m, σ² V0)` with
+    /// `V0` the coefficient prior's `variance` (see `antecedent_prob::GaussianCoefficientPrior`); the improper
+    /// case has no `σ²` to scale by and uses `V0` itself, and non-Gaussian families use the
+    /// independent Gaussian prior with that variance.
     ///
     /// # Errors
     ///
@@ -585,12 +589,7 @@ impl PriorPredictiveCheck {
         let mut y_pred = vec![0.0; n];
         let corr_chol = prior_correlation_cholesky(prior)?;
         for _ in 0..self.n_sims {
-            // Draw β ~ prior once per simulation, then μ_i = g^{-1}(x_i'β).
-            let z = prior_standard_normals(corr_chol.as_deref(), p, &mut rng);
-            for c in 0..p {
-                beta[c] = coef_prior.mean[c] + coef_prior.variance[c].sqrt() * z[c];
-            }
-            fitted_means(problem, &beta, self.family, &mut y_pred);
+            // σ first: the conjugate coefficient prior is scaled by it, β | σ² ~ N(μ, σ² V0).
             let sigma = match residual {
                 PriorResidual::Known(sigma2) => sigma2.sqrt(),
                 PriorResidual::InvGamma { shape, scale } => {
@@ -598,6 +597,19 @@ impl PriorPredictiveCheck {
                 }
                 PriorResidual::Improper | PriorResidual::None => 0.0,
             };
+            // Draw β ~ prior once per simulation, then μ_i = g^{-1}(x_i'β). A Gaussian outcome
+            // with a residual model draws the conjugate `σ² V0`; a non-Gaussian family, and a
+            // residual prior without a finite mean (no σ² to scale by), the stated variance.
+            let coefficient_scale = match residual {
+                PriorResidual::Known(_) | PriorResidual::InvGamma { .. } => sigma,
+                PriorResidual::Improper | PriorResidual::None => 1.0,
+            };
+            let z = prior_standard_normals(corr_chol.as_deref(), p, &mut rng);
+            for c in 0..p {
+                beta[c] =
+                    coef_prior.mean[c] + coefficient_scale * coef_prior.variance[c].sqrt() * z[c];
+            }
+            fitted_means(problem, &beta, self.family, &mut y_pred);
             if residual != PriorResidual::Improper {
                 add_observation_noise(self.family, sigma, &mut y_pred, &mut noise_rng);
             }
@@ -753,10 +765,10 @@ impl PosteriorPredictiveCheck {
     /// Check using a fitted [`CausalPosterior`] that includes coefficient columns.
     ///
     /// Each posterior draw `β_d` yields one replicate `y_rep ~ p(y | β_d, σ²_d)`.
-    /// For the Gaussian family `σ²_d` is drawn from its conditional reference
-    /// posterior given `β_d`, `σ²_d = SSR(β_d) / χ²_n` (the residual-variance
+    /// For the Gaussian family `σ²_d` is drawn from its conditional posterior given `β_d`
+    /// under a diffuse conjugate prior, `σ²_d = SSR(β_d) / χ²_{n+p}` (the residual-variance
     /// column is not retained on effect posteriors), so `(β_d, σ²_d)` is a joint
-    /// draw up to the prior's contribution to the residual-variance conditional.
+    /// draw up to the prior's finite contribution (`a`, `b`, `V0⁻¹`) to the conditional.
     ///
     /// # Errors
     ///
@@ -828,9 +840,7 @@ impl PosteriorPredictiveCheck {
             let sigma = if self.family == GlmFamily::GaussianIdentity {
                 let ssr: f64 =
                     problem.design.outcome.iter().zip(&y_pred).map(|(y, m)| (y - m).powi(2)).sum();
-                // χ²_n = Gamma(n/2, rate 1/2).
-                let chi2 = sample_gamma(n as f64 / 2.0, 0.5, &mut rng);
-                (ssr / chi2.max(f64::MIN_POSITIVE)).sqrt()
+                conditional_residual_sd(ssr, n, p, &mut rng)
             } else {
                 0.0
             };
@@ -894,8 +904,7 @@ impl PosteriorPredictiveCheck {
             let sigma = if self.family == GlmFamily::GaussianIdentity {
                 let ssr: f64 =
                     problem.design.outcome.iter().zip(&y_pred).map(|(y, m)| (y - m).powi(2)).sum();
-                let chi2 = sample_gamma(n as f64 / 2.0, 0.5, &mut rng);
-                (ssr / chi2.max(f64::MIN_POSITIVE)).sqrt()
+                conditional_residual_sd(ssr, n, p, &mut rng)
             } else {
                 0.0
             };
@@ -927,6 +936,22 @@ impl PosteriorPredictiveCheck {
         report.serial = Some(serial_discrepancy(problem, posterior, self.n_sims, seed)?);
         Ok(report)
     }
+}
+
+/// One residual-SD draw `σ_d` for a posterior-predictive replicate at coefficients `β_d`.
+///
+/// `ssr` is `SSR(β_d)`, `n` the rows and `p` the coefficient count.
+///
+/// Under the conjugate normal-inverse-gamma posterior, `σ² | β` is inverse-gamma with shape
+/// `a + (n + p) / 2` and rate `b + (SSR + Q) / 2`, where `Q` is the prior's quadratic form in
+/// `β`: the coefficient prior `β | σ² ~ N(m, σ² V0)` contributes the `σ^{-p}` factor and so `p / 2`
+/// to the shape. The prior terms (`a`, `b`, `Q`, `V0⁻¹`) vanish for the diffuse priors the check
+/// is meant for, leaving `σ² = SSR / χ²_{n+p}`; the check receives the posterior, not the prior,
+/// so they are not available here.
+pub(super) fn conditional_residual_sd(ssr: f64, n: usize, p: usize, rng: &mut CausalRng) -> f64 {
+    // χ²_{n+p} = Gamma((n+p)/2, rate 1/2).
+    let chi2 = sample_gamma((n + p) as f64 / 2.0, 0.5, rng);
+    (ssr / chi2.max(f64::MIN_POSITIVE)).sqrt()
 }
 
 /// Index of the `k`-th of `take` draws spread evenly over `total` stored draws

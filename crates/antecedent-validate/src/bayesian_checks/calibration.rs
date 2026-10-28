@@ -7,6 +7,9 @@ use antecedent_kernels::{PosteriorReduceOp, reduce_posterior_draws};
 
 use super::predictive::{PredictiveCheckKind, PredictiveCheckReport, PredictiveNoise};
 
+/// Relative width within which a replicate summary ties the observed one.
+const TIE_TOLERANCE: f64 = 1e-12;
+
 pub(super) fn summarize_check(
     kind: PredictiveCheckKind,
     observed: f64,
@@ -20,8 +23,15 @@ pub(super) fn summarize_check(
     // (1 + count) / (1 + n) form (Davison & Hinkley): an exact-zero Monte Carlo
     // p-value is never valid evidence with a finite sample, so both tails are
     // bounded below by 1/(n+1) and the two-sided p-value by 2/(n+1).
-    let below = summaries.iter().filter(|&&x| x <= observed).count() as f64;
-    let above = summaries.iter().filter(|&&x| x >= observed).count() as f64;
+    //
+    // A replicate summary is computed in floating point, so two replicates with the same
+    // mathematical value (the SD of a binary outcome depends only on its number of ones) can
+    // differ in the last bits; a tie must count in both tails, not drop out of one or both. Values
+    // within rounding of the observed one (relative to the largest summary) are ties.
+    let scale = summaries.iter().fold(observed.abs(), |m, x| m.max(x.abs()));
+    let tie = if scale.is_finite() { TIE_TOLERANCE * scale } else { 0.0 };
+    let below = summaries.iter().filter(|&&x| x <= observed + tie).count() as f64;
+    let above = summaries.iter().filter(|&&x| x >= observed - tie).count() as f64;
     let p_lower = (1.0 + below) / (1.0 + n);
     let p_upper = (1.0 + above) / (1.0 + n);
     let p = (2.0 * p_lower.min(p_upper)).min(1.0);
