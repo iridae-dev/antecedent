@@ -207,3 +207,118 @@ fn dag_posterior_engines_put_fixture_mass_on_the_true_structure() {
     let mass = lagged[from * 2 + to];
     assert!(mass >= min_mass, "DbnPosterior: P(x_(t-1) -> y_t) = {mass} < {min_mass}");
 }
+
+/// Residual sum of squares of `target` regressed on an intercept and `parents` (normal
+/// equations by Gaussian elimination with partial pivoting; the designs here are 1-3 columns of
+/// well-conditioned data). Independent of the crate's score code.
+fn ols_rss(columns: &[Vec<f64>], target: usize, parents: &[usize]) -> f64 {
+    let n = columns[0].len();
+    let k = parents.len() + 1;
+    let design = |row: usize, j: usize| if j == 0 { 1.0 } else { columns[parents[j - 1]][row] };
+    let mut a = vec![vec![0.0; k + 1]; k];
+    for row in 0..n {
+        for i in 0..k {
+            for j in 0..k {
+                a[i][j] += design(row, i) * design(row, j);
+            }
+            a[i][k] += design(row, i) * columns[target][row];
+        }
+    }
+    for col in 0..k {
+        let pivot = (col..k).max_by(|&x, &y| a[x][col].abs().total_cmp(&a[y][col].abs())).unwrap();
+        a.swap(col, pivot);
+        for r in 0..k {
+            if r != col {
+                let f = a[r][col] / a[col][col];
+                for c in col..=k {
+                    a[r][c] -= f * a[col][c];
+                }
+            }
+        }
+    }
+    let beta: Vec<f64> = (0..k).map(|i| a[i][k] / a[i][i]).collect();
+    (0..n)
+        .map(|row| {
+            let fit: f64 = (0..k).map(|j| beta[j] * design(row, j)).sum();
+            (columns[target][row] - fit).powi(2)
+        })
+        .sum()
+}
+
+/// Exact BIC posterior edge marginals over all DAGs on `columns.len() <= 4` nodes with a uniform
+/// prior over DAGs: weight `exp(sum_v [-(n/2) ln(RSS_v / n) - (|pa(v)| / 2) ln n])`. Terms that
+/// do not depend on the graph (2-pi, the intercept and variance parameters) cancel.
+fn reference_edge_marginals(columns: &[Vec<f64>]) -> Vec<f64> {
+    let (v, n) = (columns.len(), columns[0].len() as f64);
+    let pairs: Vec<(usize, usize)> =
+        (0..v).flat_map(|i| (0..v).filter(move |&j| j != i).map(move |j| (i, j))).collect();
+    let mut log_weights = Vec::new();
+    let mut graphs = Vec::new();
+    for bits in 0..(1_u32 << pairs.len()) {
+        let edges: Vec<(usize, usize)> =
+            pairs.iter().enumerate().filter(|(b, _)| bits >> b & 1 == 1).map(|(_, e)| *e).collect();
+        // Acyclic: repeatedly remove a node with no remaining parents.
+        let mut remaining: Vec<usize> = (0..v).collect();
+        while let Some(pos) = remaining
+            .iter()
+            .position(|&x| !edges.iter().any(|&(f, t)| t == x && remaining.contains(&f)))
+        {
+            remaining.remove(pos);
+        }
+        if !remaining.is_empty() {
+            continue;
+        }
+        let log_weight: f64 = (0..v)
+            .map(|node| {
+                let parents: Vec<usize> =
+                    edges.iter().filter(|e| e.1 == node).map(|e| e.0).collect();
+                -(n / 2.0) * (ols_rss(columns, node, &parents) / n).ln()
+                    - (parents.len() as f64 / 2.0) * n.ln()
+            })
+            .sum();
+        log_weights.push(log_weight);
+        graphs.push(edges);
+    }
+    let max = log_weights.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    let total: f64 = log_weights.iter().map(|w| (w - max).exp()).sum();
+    let mut marginals = vec![0.0; v * v];
+    for (edges, w) in graphs.iter().zip(&log_weights) {
+        for &(f, t) in edges {
+            marginals[f * v + t] += (w - max).exp() / total;
+        }
+    }
+    marginals
+}
+
+fn columns_of(data: &TabularData, names: &[&str]) -> Vec<Vec<f64>> {
+    use antecedent_data::TableView;
+    (0..names.len() as u32)
+        .map(|i| data.float64_values(VariableId::from_raw(i)).unwrap().to_vec())
+        .collect()
+}
+
+#[test]
+fn exact_engine_reproduces_an_independent_bic_enumeration_and_samplers_agree_with_it() {
+    let fx = fixture();
+    let engines: Vec<&str> =
+        fx["engines"].as_array().unwrap().iter().map(|e| e.as_str().unwrap()).collect();
+    let names = ["a", "b", "c"];
+    for (label, (data, vars), gate) in
+        [("chain", chain(200), true), ("collider", collider(400), false)]
+    {
+        let reference = reference_edge_marginals(&columns_of(&data, &names));
+        for (engine, post) in static_engines(&data, &vars, &engines, gate) {
+            // The exact engine is the enumeration itself; the samplers estimate it from
+            // finite chains, so they get a Monte Carlo budget.
+            let budget = if engine == "ExactDagPosterior" { 1e-6 } else { 0.1 };
+            for cell in 0..9 {
+                let got = post.edge_marginals()[cell];
+                assert!(
+                    (got - reference[cell]).abs() < budget,
+                    "{label} {engine}: P(edge {cell}) = {got}, enumeration {}",
+                    reference[cell]
+                );
+            }
+        }
+    }
+}

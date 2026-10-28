@@ -11,6 +11,7 @@ papers = [
 
 implementation_deviations = [
  "Normalizes exp(Gaussian-BIC/2) times a simple graph prior as a graph posterior; this is a BIC pseudo-posterior rather than an integrated Bayesian posterior.",
+ "The local Gaussian score is the maximised log-likelihood minus (k/2) ln n with k = parents + intercept; the noise-variance parameter is omitted from k because every node has one, so it adds the same constant to every graph and cancels in the normalised posterior. The log target is therefore already on the BIC/2 scale and is exponentiated without a further halving.",
  "MCMC results are finite-chain empirical frequencies subject to R-hat and ESS gates, and graph states are limited to 16 variables (240 directed-edge bits).",
 ]
 
@@ -19,5 +20,53 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent-discovery/src/graph_posterior.rs unit tests",
  "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs (shared machinery and composed samplers against small clean-room exhaustive Gaussian-BIC targets)",
+ "conformance/discovery/graph_mcmc_exact/reference_exact.py (retained standard-library exhaustive Gaussian-BIC enumeration; reproduces the fixture edge marginals to 2.5e-14)",
+ "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs::exact_enumeration_matches_the_independent_stdlib_enumeration_to_rounding",
  "conformance/discovery/graph_mcmc_exact (three-node exhaustive Gaussian-BIC evidence; no paper or external oracle covers the composed shared MCMC machinery)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The exact Gaussian-BIC graph target shared by the exact, order and structure samplers: the local score and its decomposition over parent sets, the acyclicity filter, the Bernoulli edge prior over ordered pairs, log-sum-exp normalisation and the resulting edge marginals, checked against an independent exhaustive enumeration on the two retained three-variable cases (25 DAGs each) under the uniform and Bernoulli(0.2) priors. The sampler kernels are covered only by the existing fixture-band comparisons and kernel unit tests, whose bodies were not re-derived here."
+assumptions = ["The target is a Gaussian-BIC pseudo-posterior of linear-Gaussian local models, not an integrated Bayesian marginal likelihood; it is score-equivalent within Markov classes only for Gaussian data.", "Only n = 3 is enumerated against the independent reference; larger node counts rely on the same score decomposition and are not separately enumerated here.", "MCMC marginals are finite-chain estimates compared at the fixture band of 0.08; agreement does not establish convergence on other data or tight Monte-Carlo error."]
+historical_exposure = "The original fixture generator (a NumPy clean-room enumeration run from a temporary path) was not retained and its author exposure cannot be established. The retained reference added by this review is written from the textbook Gaussian likelihood and BIC definition with a different linear solver (pivoted Gaussian elimination, standard library only); no upstream implementation or test source was consulted or copied. The primary BIC paper was not re-read for this review: the check is against the defined target, not against a reading of Schwarz."
+redistribution = "The reference script and new tests are repository-authored under MIT OR Apache-2.0 and need no third-party packages. The BIC paper is cited, not redistributed."
+limitations = "Exact-path agreement is shown on two three-variable data sets and two priors only. Order and structure MCMC kernels (proposal ratios, tempering, the topological-order count correction) are not independently re-derived; their evidence remains the 0.08-band exhaustive comparisons and the existing unit tests. Constrained priors (forbidden or required edges, parent caps) are not covered by the new reference. Calibration remains deferred."
+sources = ["https://doi.org/10.1214/aos/1176344136", "conformance/discovery/graph_mcmc_exact/reference_exact.py", "conformance/discovery/graph_mcmc_exact/expected.json"]
+findings_resolved = ["No defect found in the exact normalisation, parent-set score decomposition, Bernoulli edge prior or acyclicity filter: the independent enumeration matches product marginals to better than 1e-9 for both priors.", "The fixture's only generator was an unretained external script; a standard-library generator that reproduces its marginals to 2.5e-14 is now retained, and the exact path is asserted against the fixture at rounding level rather than only through a sampler band.", "Recorded that the noise-variance parameter is omitted from the penalty count and why this does not change the posterior."]
+record_sha256 = "8b047fb441f98562f3649a8b95f7f85c648efeab8fe6c6cb9b022f2803448046"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-state/src/graph_score.rs"
+sha256 = "c9573c39fb4944a1a4dacac81c522bd2ff3eb03b9e586e189bdf3951526c3f5e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/graph_score.rs"
+sha256 = "ec51c35b8848a327c0d09b580c2b6d1dd8f6e154efee7e86b11bc067dc59b396"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/exact_enumeration.rs"
+sha256 = "6ab7b828cd441fd76b1aa3d45143bc9940566d6d0faf2faf0f6fcb2db0a10d40"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/graph_posterior.rs"
+sha256 = "df87dced0027e69b01f44ec103bdbed1607c1b2858563a61ed9ecc8e95878631"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs"
+sha256 = "3a39a8cb90d47108c3e53bc820791565161634da3f82307fb2e74a115cc76b70"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "conformance/discovery/graph_mcmc_exact/expected.json"
+sha256 = "7fca792640a430954f3479035214c9e4a8c0b22463ffa1e4de326b48e11df9f0"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "conformance/discovery/graph_mcmc_exact/reference_exact.py"
+sha256 = "3e8bdee8581e265a69fbca6a9d5f2015f4d80acd620e1e72bf5b1c6fed97242a"

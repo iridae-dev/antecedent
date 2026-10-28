@@ -21,7 +21,34 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+ "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs::class_collapse_partitions_every_dag_by_skeleton_and_unshielded_colliders (all 25 and 543 labelled DAGs on three and four variables against an independent skeleton-plus-unshielded-collider partition)",
  "crates/antecedent-discovery/src/graph_posterior.rs unit test dags_of_one_equivalence_class_pool_their_mass (hand-built chain and collider atoms with known classes and summed mass)",
  "crates/antecedent/tests/structure_uncertainty_routes.rs (compiled class posterior equals the engine collapse bit for bit on three variables)",
  "python/tests/test_structure_uncertainty_routes.py (a chain without a collider pools three DAGs into one class)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The static (non-lagged) DAG-to-equivalence-class collapse in GraphPosterior::to_equivalence_classes: the class assigned to each DAG atom, the encoding of reversible versus compelled edges, pooling of exact DAG mass and renormalisation, over every labelled DAG on three and four variables (11 and 185 classes) with the exact Gaussian-BIC posterior as the weights. The lagged-template collapse, the wrapped samplers and per-edge Monte-Carlo diagnostics are not reviewed."
+assumptions = ["Two DAGs are Markov equivalent exactly when their skeletons and unshielded colliders agree; the independent reference uses that characterisation, not the product's Meek-rule construction.", "A compelled edge is one all class members orient identically; the essential graph is therefore the union of member edges with both bits set for reversible adjacencies.", "Class probabilities are exact functions of the wrapped DAG posterior and inherit its limits; they say nothing about causal identification or about non-Gaussian data."]
+historical_exposure = "Historical author exposure cannot be established from retained artifacts. This review used no upstream implementation or test source. The primary papers listed were not re-read in full for this review: the executed check is against the Verma-Pearl equivalence criterion implemented independently in the test, and the class counts 11 and 185 are reproduced by that criterion rather than taken from the literature."
+redistribution = "New tests are repository-authored under MIT OR Apache-2.0; no third-party code, data or papers are redistributed."
+limitations = "Verified for three and four variables only, on one random linear-Gaussian dataset per size; the pooled masses are exact for the BIC posterior but the classes of larger graphs rely on the same code path. The temporal collapse, which treats lagged parents as exogenous and may count a collider the stationary unrolling would shield as unshielded, has no independent reference and keeps its documented deviation unreviewed. MCMC-derived class posteriors inherit sampling error and are not covered."
+sources = ["https://doi.org/10.1214/aos/1176344136", "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs"]
+findings_resolved = ["No defect found: for all 25 three-variable and 543 four-variable DAGs the collapsed atoms are exactly the skeleton-plus-collider classes, each atom equals the union of its members' directed edges, and each class mass equals the sum of its members' exact posterior mass.", "Replaced hand-built chain/collider atoms as the only executing evidence for the collapse with an exhaustive partition check that does not use the product's essential-graph code."]
+record_sha256 = "14d07ecc9047df54f31a85445f2c7688173cf67bcc7bb2aa062d99c7d4090fb9"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/graph_posterior.rs"
+sha256 = "df87dced0027e69b01f44ec103bdbed1607c1b2858563a61ed9ecc8e95878631"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/ges.rs"
+sha256 = "01d34ca5386558e146f1e3d7b74b9ac8c3d540447884d5b16c5e54701fefefa1"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs"
+sha256 = "3a39a8cb90d47108c3e53bc820791565161634da3f82307fb2e74a115cc76b70"

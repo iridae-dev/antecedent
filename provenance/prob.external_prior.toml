@@ -19,9 +19,31 @@ papers = [
 upstream_implementations_observed = []
 
 test_sources = [
+ "crates/antecedent-prob/tests/external_prior_quadrature.rs (power_composition_matches_quadrature_of_the_tempered_density_product, mixture_composition_matches_quadrature_of_the_mixture_density and dense_power_composition_matches_two_dimensional_quadrature) (numerical integration of the composed target densities)",
  "discounted-Gaussian precision-add and mixture moment-matching analytic unit tests (crates/antecedent-prob/src/external_prior.rs::tests)",
  "conformance/bayesian/prior_bank_power_mixture (exercised via crates/antecedent/tests/bayesian.rs)",
  "conformance/bayesian/prior_bank_alpha_sensitivity",
  "conformance/bayesian/prior_bank_conflict_shrink",
  "conformance/bayesian/prior_bank_ess",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "Composition of Gaussian coefficient priors in compose_external_priors_with_alphas: diagonal and dense precision addition with applied alphas, diagonal and dense moment-matched mixtures with leftover baseline mass and dropped zero-alpha sources, checked against numerical quadrature of the densities they claim to summarise. Effective-sample-size metadata and the conflict path that chooses applied alphas are not reviewed."
+assumptions = ["The power path is the Gaussian closed form of baseline density times the source densities each raised to their alpha, which is a tempered product of Gaussian priors and not the historical-data power prior of the cited paper.", "The mixture path matches the first two moments of the weighted Gaussian mixture, with each source variance divided by its alpha; it intentionally discards multimodality.", "Sources and baseline are Gaussian coefficient priors on a common conjugate scale; absolute-scale priors are refused."]
+historical_exposure = "Historical author exposure cannot be established. No upstream implementation or test source was consulted. The cited power-prior paper was not re-read for this review; the check is against the target densities stated in the record's deviations, evaluated by quadrature with no use of the closed forms."
+redistribution = "New tests are repository-authored under MIT OR Apache-2.0; no third-party material is redistributed."
+limitations = "One-dimensional quadrature for the diagonal paths and a single two-dimensional correlated case for the dense path; no property sweep over dimensions above two. The cited paper's historical-data power prior is not implemented and is not reviewed, so this does not support any claim that the composition reproduces it. ESS metadata, the conflict-shrinkage alpha rule and downstream posterior effects are not reviewed."
+sources = ["https://doi.org/10.1214/ss/1009212673", "crates/antecedent-prob/tests/external_prior_quadrature.rs"]
+findings_resolved = ["No defect found: composed means and variances agree with quadrature of the tempered product and of the mixture density to 1e-8 (1e-6 for the two-dimensional dense case), including a zero-alpha source dropped from the product and folded back to the baseline in the mixture.", "Hand-computed examples were the only evidence; the new quadrature checks derive the target from the density definitions rather than from the same algebra as the implementation."]
+record_sha256 = "bff1015ed09894d06c7758f0d3706887f969ea490a65433fc380e171a61d21b0"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-prob/src/external_prior.rs"
+sha256 = "85e2f89a23ae6e4aae8ecec670566b875be74dbdc8d9e6ab1a0affdb76b09f9c"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-prob/tests/external_prior_quadrature.rs"
+sha256 = "56be8b3f98c110b133a5f45a93b4cf56a48f049039aed02aac834e7e70460d34"
