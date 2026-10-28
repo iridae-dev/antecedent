@@ -727,10 +727,13 @@ fn baseline(decision: &DecisionWire) -> Baseline {
             }
         }
         let evpi = (0..k)
-            .map(|draw| adm.iter().map(|&a| rows[a][draw]).fold(f64::NEG_INFINITY, f64::max))
+            .map(|draw| {
+                adm.iter()
+                    .map(|&a| rows[a][draw] - rows[bayes][draw])
+                    .fold(f64::NEG_INFINITY, f64::max)
+            })
             .sum::<f64>()
-            / kf
-            - prior_best;
+            / kf;
         return Baseline { bayes, prior_best, evpi, lines: Vec::new() };
     }
     let (PriorWire::Normal { mean, variance }, UtilityWire::Affine { coefficients }) =
@@ -789,9 +792,13 @@ fn probabilities(values: &[f64]) -> bool {
     values.iter().all(|p| p.is_finite() && (0.0..=1.0).contains(p))
 }
 
-/// Expected value after information, `Σ_y max_{a ∈ F} E[P(y | θ) U(a, θ)]`, with the
-/// likelihood mass checked.
-fn value_after(decision: &DecisionWire, likelihood: &[Vec<f64>]) -> Option<f64> {
+/// Expected value of the information, `Σ_y max_{a ∈ F} E[P(y | θ) (U(a, θ) − U(a*, θ))]` for the
+/// Bayes action `a*`, with the likelihood mass checked.
+///
+/// Utilities enter only as gaps to the Bayes action, so a common utility offset cannot enter the
+/// cancellation `E[max after] − max E[prior]` (the evaluator that produced the stored value uses
+/// the same form); `bayes` is the Bayes action of [`baseline`].
+fn value_after(decision: &DecisionWire, likelihood: &[Vec<f64>], bayes: usize) -> Option<f64> {
     let (rows, k) = finite_rows(decision)?;
     let kf = k as f64;
     let adm = admissible_indices(decision);
@@ -801,7 +808,15 @@ fn value_after(decision: &DecisionWire, likelihood: &[Vec<f64>]) -> Option<f64> 
         mass += prow.iter().sum::<f64>() / kf;
         total += adm
             .iter()
-            .map(|&a| rows[a].iter().zip(prow).map(|(u, p)| u * p).sum::<f64>() / kf)
+            .map(|&a| {
+                rows[a]
+                    .iter()
+                    .zip(&rows[bayes])
+                    .zip(prow)
+                    .map(|((u, best), p)| (u - best) * p)
+                    .sum::<f64>()
+                    / kf
+            })
             .fold(f64::NEG_INFINITY, f64::max);
     }
     ((mass - 1.0).abs() <= MASS_TOLERANCE).then_some(total)
@@ -903,9 +918,9 @@ fn recompute(
                 return Err("law");
             }
             let table = binomial_table(states, n_us);
-            let after = value_after(decision, &table).ok_or("law")?;
+            let gain = value_after(decision, &table, base.bayes).ok_or("law")?;
             Ok(Recomputed {
-                evsi: Some(after - base.prior_best),
+                evsi: Some(gain),
                 evpi: base.evpi,
                 replay: ReplayKind::NativeExactRecomputed,
             })
@@ -921,9 +936,9 @@ fn recompute(
             {
                 return Err("law");
             }
-            let after = value_after(decision, table).ok_or("law")?;
+            let gain = value_after(decision, table, base.bayes).ok_or("law")?;
             Ok(Recomputed {
-                evsi: Some(after - base.prior_best),
+                evsi: Some(gain),
                 evpi: base.evpi,
                 replay: ReplayKind::AttestedLawArithmetic,
             })
@@ -936,9 +951,9 @@ fn recompute(
                 return Err("law");
             }
             let table = posterior_to_likelihood(k, predictive, posterior).ok_or("law")?;
-            let after = value_after(decision, &table).ok_or("law")?;
+            let gain = value_after(decision, &table, base.bayes).ok_or("law")?;
             Ok(Recomputed {
-                evsi: Some(after - base.prior_best),
+                evsi: Some(gain),
                 evpi: base.evpi,
                 replay: ReplayKind::AttestedLawArithmetic,
             })
