@@ -25,6 +25,7 @@ import time
 from pathlib import Path
 
 import numpy as np
+from antecedent import Execution
 from antecedent.cyclic import AdamPolicy, Equation, EquilibriumModel, OuMechanisms
 from antecedent.outcomes import require_success
 from scipy.linalg import solve_continuous_lyapunov
@@ -223,8 +224,8 @@ def nodags(args, seed, output):
                     minimum_epochs=20,
                     patience=10,
                     l1_penalty=penalty,
-                    seed=seed,
                 ),
+                execution=Execution(seed=seed),
             )
             if activation == "relu"
             else template.fit_gradient(
