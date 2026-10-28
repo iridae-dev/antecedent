@@ -3,8 +3,46 @@
   "oracle": {
     "kind": "closed_form",
     "method": "closed_form_linear_sem",
-    "generator": "temporary clean-room harness (deleted after artifact import)",
-    "formula": "Each directed path contributes the signed product of its edge coefficients; total_change is the sum over paths."
+    "generator": "conformance/attribution/path_allocation/reference.py",
+    "formula": "Each directed path contributes the signed product of its edge coefficients; total_change is the sum over paths.",
+    "command": "uv run --frozen --script conformance/attribution/path_allocation/reference.py --check",
+    "environment_lock": "conformance/attribution/path_allocation/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "chain path contribution and total_change"
+    ],
+    "context_only_outputs": [
+      "parallel_canceling_paths case (not read by the executing assertion)",
+      "tolerance declaration"
+    ],
+    "independence_basis": "The generator reads only the edge coefficients of each case and recomputes the signed product along each path and their sum with math.prod; it imports no Antecedent code and no statistics package. The shared object is the fixture formula (a directed path contributes the product of its edge coefficients), which is the definition of a path effect in a linear structural model; a misreading of that definition common to formula and generator would not be detected.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Two declared linear paths: a two-edge chain and two parallel paths with cancelling contributions. The generator recomputes every path product and the total change from the declared edge coefficients.",
+      "independence_basis": "The generator reads only the edge coefficients of each case and recomputes the signed product along each path and their sum with math.prod; it imports no Antecedent code and no statistics package. The shared object is the fixture formula (a directed path contributes the product of its edge coefficients), which is the definition of a path effect in a linear structural model; a misreading of that definition common to formula and generator would not be detected.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Arithmetic on a tiny linear model. The executing assertion reads only the chain case (the parallel-path case is context, not asserted). No uncertainty, no nonlinear or interventional-distribution attribution, no calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/attribution/path_allocation/reference.py",
+          "sha256": "5f56f78590b42c0949cbe9d13017323404681cbdcaa34019e050213034b311a9"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/attribution/path_allocation/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-attribution/src/path.rs",
+          "sha256": "d0b347582482c0a7f9a6b46ac66533623240ac4ceec80bb92b4c41fd5bcbb444"
+        }
+      ],
+      "fixture_payload_sha256": "d44f9313835a2098b8e39a716942c8c42670bbb83b9e7636c8f2daccdf90d14d"
+    }
   },
   "cases": [
     {

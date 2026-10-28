@@ -134,6 +134,47 @@
   "notes": "Two constructors per family, replacing an earlier single from_moments(mean, variance, target_ess) whose variance argument never affected the output (the rescale to target_ess discarded the moment match's magnitude). from_moments(mean, variance) matches both moments exactly: Beta kappa = mean*(1-mean)/variance - 1 (total concentration), alpha = mean*kappa, beta = (1-mean)*kappa; Gamma shape = mean^2/variance, rate = mean/variance. Its ess() is a derived consequence and may be negative (a proper prior weaker than the flat/reference prior) -- not an error. from_mean_and_ess(mean, ess) has no variance parameter: Beta alpha = mean*(ess+2), beta = (1-mean)*(ess+2); Gamma shape = ess+1, rate = shape/mean. Every (mean, ess >= 0) request is satisfiable, so from_mean_and_ess has no support gate to violate the way from_moments does.",
   "oracle": {
     "kind": "closed_form",
-    "method": "Beta and Gamma moment-matching equations evaluated by hand (see `notes` for the formulas)"
+    "method": "Beta and Gamma moment-matching equations evaluated by hand (see `notes` for the formulas)",
+    "generator": "conformance/bayesian/prior_conjugate_moment_match/reference.py",
+    "command": "uv run --frozen --script conformance/bayesian/prior_conjugate_moment_match/reference.py --check",
+    "environment_lock": "conformance/bayesian/prior_conjugate_moment_match/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "Beta alpha, beta and ESS",
+      "Gamma shape, rate and ESS",
+      "accept/reject status of declared inputs"
+    ],
+    "context_only_outputs": [
+      "reason strings of rejected inputs",
+      "notes text"
+    ],
+    "independence_basis": "The generator applies the moment-matching identities and the support-bound validity conditions in plain Python; it imports no Antecedent code and no statistics package. The shared object is the fixture notes that define the ESS convention (Beta a+b-2, Gamma shape-1), which is applied as stated and not independently sourced.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Beta and Gamma moment matching and mean-plus-ESS constructors, with the declared rejected-input lists. The generator recomputes Beta a+b = m(1-m)/v - 1, a = m(a+b), Gamma shape m^2/v and rate m/v, and applies the stated validity conditions.",
+      "independence_basis": "The generator applies the moment-matching identities and the support-bound validity conditions in plain Python; it imports no Antecedent code and no statistics package. The shared object is the fixture notes that define the ESS convention (Beta a+b-2, Gamma shape-1), which is applied as stated and not independently sourced.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The ESS convention is the library convention recorded in the fixture notes; only the moment identities are textbook. Rejection reasons are product strings and are checked only as validity predicates. No calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/bayesian/prior_conjugate_moment_match/reference.py",
+          "sha256": "7b513c61774fe26be3af2f502ae7dc06ad78fc704318e1108119ce4f977b77c7"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/bayesian/prior_conjugate_moment_match/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/bayesian.rs",
+          "sha256": "40cada97dd3003c3914a8429d3800f80699299acbda7898600b74248ff9b7bca"
+        }
+      ],
+      "fixture_payload_sha256": "8be067ceaf564737e499989d61eb50c2a55db4030307aef695d116f8c237895a"
+    }
   }
 }

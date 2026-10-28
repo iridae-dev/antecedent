@@ -12,6 +12,47 @@
   "notes": "P4C power-prior precision-add: Λ = Λ0 + α Λ_old",
   "oracle": {
     "kind": "closed_form",
-    "method": "1-D Gaussian power-prior composition: precision 0.25 + 0.5*1 = 0.75, mean 4/3, variance 4/3"
+    "method": "1-D Gaussian power-prior composition: precision 0.25 + 0.5*1 = 0.75, mean 4/3, variance 4/3",
+    "generator": "conformance/bayesian/prior_bank_power_mixture/reference.py",
+    "command": "uv run --frozen --script conformance/bayesian/prior_bank_power_mixture/reference.py --check",
+    "environment_lock": "conformance/bayesian/prior_bank_power_mixture/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "composed precision",
+      "composed mean",
+      "composed variance"
+    ],
+    "context_only_outputs": [
+      "required_assumption_ids",
+      "notes text"
+    ],
+    "independence_basis": "The generator applies the Gaussian precision-add rule Lambda = Lambda0 + alpha Lambda_source and the precision-weighted mean in fractions.Fraction; it imports no Antecedent code and no statistics package. The shared object is the power-prior definition stated in the fixture notes.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "One 1-D Gaussian power-prior composition (baseline N(0,4), source N(2,1), alpha 0.5): precision, mean and variance recomputed in exact rational arithmetic.",
+      "independence_basis": "The generator applies the Gaussian precision-add rule Lambda = Lambda0 + alpha Lambda_source and the precision-weighted mean in fractions.Fraction; it imports no Antecedent code and no statistics package. The shared object is the power-prior definition stated in the fixture notes.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "One scenario; the mixture path (moment-matched) is not part of this fixture. The power-prior rule is the stated definition, not an externally cited benchmark. No uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/bayesian/prior_bank_power_mixture/reference.py",
+          "sha256": "f0f27961a2d619bcbe435b33a4eebc06a4a7482b931e29212c44e8f366bcf243"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/bayesian/prior_bank_power_mixture/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/bayesian.rs",
+          "sha256": "40cada97dd3003c3914a8429d3800f80699299acbda7898600b74248ff9b7bca"
+        }
+      ],
+      "fixture_payload_sha256": "da3bfb78330a8424f4f304bb026e5fd269df0439fb0c6faeb701febb0aadb302"
+    }
   }
 }

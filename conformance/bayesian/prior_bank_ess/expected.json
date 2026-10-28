@@ -44,6 +44,47 @@
   "notes": "Prior-strength ESS accounting: effective_ess = alpha_applied*ess per source; composed_ess sums it on the power path only when every contributing source declares ess (None otherwise, and always None on the mixture path since moment-matching folds in between-component spread); kish_ess is a Kish (1965) concentration diagnostic over the weights actually used (applied alphas on the power path, mixture weights on the mixture path).",
   "oracle": {
     "kind": "closed_form",
-    "method": "Gaussian precision arithmetic: effective_ess = alpha*ess per source and the composed and Kish ESS values follow from the stated weights (README, four analytic scenarios)"
+    "method": "Gaussian precision arithmetic: effective_ess = alpha*ess per source and the composed and Kish ESS values follow from the stated weights (README, four analytic scenarios)",
+    "generator": "conformance/bayesian/prior_bank_ess/reference.py",
+    "command": "uv run --frozen --script conformance/bayesian/prior_bank_ess/reference.py --check",
+    "environment_lock": "conformance/bayesian/prior_bank_ess/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "effective ESS per source",
+      "composed ESS (or its absence)",
+      "Kish ESS on the power path"
+    ],
+    "context_only_outputs": [
+      "mixture Kish value (not derived here)",
+      "notes text"
+    ],
+    "independence_basis": "The generator applies the stated accounting rules (effective = alpha*ess; composed is the sum only when every source declares ess; Kish 1965 concentration) in plain Python; it imports no Antecedent code and no statistics package. The shared object is the fixture notes that define the accounting.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Four ESS accounting scenarios (single power source, partial coverage, dropped source, mixture). The generator recomputes effective ESS = alpha * ess, the composed ESS rule and the Kish concentration (sum w)^2 / sum w^2 over applied alphas.",
+      "independence_basis": "The generator applies the stated accounting rules (effective = alpha*ess; composed is the sum only when every source declares ess; Kish 1965 concentration) in plain Python; it imports no Antecedent code and no statistics package. The shared object is the fixture notes that define the accounting.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Definitions are the library convention recorded in the fixture notes, not an external benchmark. The mixture scenario checks effective ESS and that composed ESS is absent as the fixture states; the mixture Kish value is not derived here (its weight set is not declared in the scenario). No calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/bayesian/prior_bank_ess/reference.py",
+          "sha256": "a1fc0a3d2b4f89945cd6100013f61cc83d0f0ea4c966c5be2896fec0dd1d2c6d"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/bayesian/prior_bank_ess/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/bayesian.rs",
+          "sha256": "40cada97dd3003c3914a8429d3800f80699299acbda7898600b74248ff9b7bca"
+        }
+      ],
+      "fixture_payload_sha256": "fcaf6e4d0de2383ce8cf5d8b030b66a7c37ad28e8da4e9d9d159ce588a8ef94e"
+    }
   }
 }

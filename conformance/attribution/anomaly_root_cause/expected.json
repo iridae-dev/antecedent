@@ -3,8 +3,48 @@
   "oracle": {
     "kind": "closed_form",
     "method": "closed_form_moments_and_ranking",
-    "generator": "temporary clean-room harness (deleted after artifact import)",
-    "formula": "score_j=abs(mean(draw_j)); graph_std_j=sqrt(E[draw_j^2]-E[draw_j]^2)."
+    "generator": "conformance/attribution/anomaly_root_cause/reference.py",
+    "formula": "score_j=abs(mean(draw_j)); graph_std_j=sqrt(E[draw_j^2]-E[draw_j]^2).",
+    "command": "uv run --frozen --script conformance/attribution/anomaly_root_cause/reference.py --check",
+    "environment_lock": "conformance/attribution/anomaly_root_cause/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "component ranking order",
+      "score per component",
+      "graph_std per component"
+    ],
+    "context_only_outputs": [
+      "tolerance declaration",
+      "n_draws layout"
+    ],
+    "independence_basis": "The generator reads only the declared draws and computes the mean, mean square, absolute mean and ranking in plain Python floats; it imports no Antecedent code and no statistics package. The shared object is the fixture formula (score is the absolute posterior mean, graph_std the population standard deviation).",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Two components with three posterior draws each. The generator recomputes the absolute posterior mean score, the population standard deviation sqrt(E[d^2] - E[d]^2) and the descending ranking from the declared column-major draws.",
+      "independence_basis": "The generator reads only the declared draws and computes the mean, mean square, absolute mean and ranking in plain Python floats; it imports no Antecedent code and no statistics package. The shared object is the fixture formula (score is the absolute posterior mean, graph_std the population standard deviation).",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Three draws and two components; the block-size loop in the executing assertion tests invariance of the same numbers, which this reference does not examine. The scoring rule itself (absolute posterior mean) is a declared convention, not an externally validated attribution method. No uncertainty beyond the draws, no calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/attribution/anomaly_root_cause/reference.py",
+          "sha256": "f99ccf74156f1ee4c244238760af13274f1c1c7b74d598f5da22f0a1053b9c28"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/attribution/anomaly_root_cause/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-attribution/src/root_cause.rs",
+          "sha256": "1e028b40e82a86d37865ecc0380068f66f4a1a983bcbd3b780e0cd996814ac0e"
+        }
+      ],
+      "fixture_payload_sha256": "3659657dda1d4813464e3ecc1764063052ca6b1cf3ff36a0087351ea6d90c5b9"
+    }
   },
   "posterior_draws_colmajor": [1.0, 2.0, 3.0, -4.0, -4.0, -4.0],
   "n_draws": 3,

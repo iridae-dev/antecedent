@@ -17463,3 +17463,10 @@ crate = "antecedent-stats"
 cargo_target = "special_function_reference"
 path = "crates/antecedent-stats/tests/special_function_reference.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "estimator-degeneracy"
+crate = "antecedent-estimate"
+cargo_target = "estimator_degeneracy"
+path = "crates/antecedent-estimate/tests/estimator_degeneracy.rs"
+gates = ["inventory", "named"]

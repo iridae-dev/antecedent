@@ -3,8 +3,16 @@
   "stable_float_tol": 1e-10,
   "min_delta": 1.0,
   "notes": "Adding true parent of x1 improves Gaussian BIC; incremental total matches full rebuild.",
+  "evidence_kind": "internal_cross_check",
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_source": "crates/antecedent/tests/design_state.rs::incremental_graph_score_match_conformance",
+  "evidence_proposition": "After adding the true parent of x1 the incremental Gaussian BIC total equals a full rebuild within the stable float tolerance and exceeds the prior total by at least min_delta.",
+  "limitations": "Compares the incremental path with a rebuild by the same product scoring code, so agreement is internal consistency, not an independent BIC value. The improvement threshold is an engineering margin on one synthetic chain, not a derived quantity. No calibration.",
   "oracle": {
-    "kind": "closed_form",
-    "method": "known 3-node linear chain: adding the true parent of x1 must improve Gaussian BIC; the incremental total is checked against a full rebuild (internal consistency)"
+    "kind": "regression_pin",
+    "origin": "Current review of retained local contract inputs and their exact executing consumer; this record asserts no external generator or independent numerical origin.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
   }
 }

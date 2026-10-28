@@ -3,9 +3,51 @@
   "oracle": {
     "kind": "closed_form",
     "method": "closed_form_linear_sem",
-    "generator": "closed form, computed by hand from the pinned parameters below",
+    "generator": "conformance/attribution/arrow_strength/reference.py",
     "formula": "Arrow strength is the variance the edge contributes: strength = beta^2 * Var(parent) (Janzing et al. 2013). Var of a linear-Gaussian root with no parents is sigma^2. A do contrast of width delta is the signed beta*delta.",
-    "note": "schema_version 1 pinned strength = abs(beta), which is not a measure of influence because it ignores how much the parent varies. The two edges below are chosen so the two definitions rank them in opposite orders: parent 0 has the smaller coefficient but much the larger variance, and genuinely dominates the child."
+    "note": "schema_version 1 pinned strength = abs(beta), which is not a measure of influence because it ignores how much the parent varies. The two edges below are chosen so the two definitions rank them in opposite orders: parent 0 has the smaller coefficient but much the larger variance, and genuinely dominates the child.",
+    "command": "uv run --frozen --script conformance/attribution/arrow_strength/reference.py --check",
+    "environment_lock": "conformance/attribution/arrow_strength/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "parent variances",
+      "edge strengths",
+      "edge coefficients",
+      "ranking direction (strength order versus absolute coefficient order)"
+    ],
+    "context_only_outputs": [
+      "do_contrast block (not read by the executing assertion)",
+      "abs_beta_ranking_is_inverted flag as a stored boolean",
+      "tolerance declaration"
+    ],
+    "independence_basis": "The generator reads only the declared sigma, coefficient and delta values and applies strength = beta^2 Var(parent) (Janzing et al. 2013, as stated in the fixture formula) and variance = sigma^2 for a root; it imports no Antecedent code and no statistics package. The shared object is the fixture formula: if the strength definition were misread in both the formula and the generator it would not be detected.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Two edges into one child with a large-variance small-coefficient parent and a small-variance large-coefficient parent. The generator recomputes parent variance (sigma squared), edge strength beta^2 Var(parent), the ranking inversion flag and the signed do contrast.",
+      "independence_basis": "The generator reads only the declared sigma, coefficient and delta values and applies strength = beta^2 Var(parent) (Janzing et al. 2013, as stated in the fixture formula) and variance = sigma^2 for a root; it imports no Antecedent code and no statistics package. The shared object is the fixture formula: if the strength definition were misread in both the formula and the generator it would not be detected.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Two root parents and one child only; variance propagation through chains is checked by a separate unit test, not by this fixture. The primary paper was not re-read in this review. The do_contrast block is derived and compared here but is not read by the executing assertion. No uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/attribution/arrow_strength/reference.py",
+          "sha256": "3326846de3d4a87685a455104ed8dff2f3bca9cad53c5cb9c90e3ae45ea76e94"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/attribution/arrow_strength/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-attribution/src/anomaly.rs",
+          "sha256": "8a6955dcd3d8210092e711dea969a695d105719a80c560c5f94538ea240a4b2b"
+        }
+      ],
+      "fixture_payload_sha256": "9b0b461134357ff0a49b153d3d853a44dabd4ac571f053e362401c87b63b44a6"
+    }
   },
   "parents": [
     {"raw": 0, "sigma": 10.0, "variance": 100.0},

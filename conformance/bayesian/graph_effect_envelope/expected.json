@@ -12,6 +12,45 @@
   "tolerance_class": "StableFloat",
   "oracle": {
     "kind": "closed_form",
-    "method": "hand-derived identified-atom mixture of the stated per-graph weights and effect means; unidentified mass is the stated weight of the unidentified atoms"
+    "method": "hand-derived identified-atom mixture of the stated per-graph weights and effect means; unidentified mass is the stated weight of the unidentified atoms",
+    "generator": "conformance/bayesian/graph_effect_envelope/reference.py",
+    "command": "uv run --frozen --script conformance/bayesian/graph_effect_envelope/reference.py --check",
+    "environment_lock": "conformance/bayesian/graph_effect_envelope/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "unidentified mass",
+      "mixture mean over identified atoms"
+    ],
+    "context_only_outputs": [
+      "tolerance_class label"
+    ],
+    "independence_basis": "The generator recomputes the identified-atom weighted mean sum(w e)/sum(w) and one minus the identified weights in fractions.Fraction; it imports no Antecedent code and no statistics package. The shared object is the fixture statement that the unidentified atom is excluded from the mixture mean and carried as unidentified mass.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "One three-atom graph-posterior envelope: weights 0.5 and 0.2 on identified graphs with effects 1 and 3 and 0.3 on an unidentified graph.",
+      "independence_basis": "The generator recomputes the identified-atom weighted mean sum(w e)/sum(w) and one minus the identified weights in fractions.Fraction; it imports no Antecedent code and no statistics package. The shared object is the fixture statement that the unidentified atom is excluded from the mixture mean and carried as unidentified mass.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Arithmetic on stated weights and constant per-graph effects; it says nothing about how the weights are obtained or about within-graph posterior spread. No calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/bayesian/graph_effect_envelope/reference.py",
+          "sha256": "2c3313eb53357688c5e78be569de446afa9be0f97d04c1ec36d2b8d5545afe67"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/bayesian/graph_effect_envelope/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/bayesian.rs",
+          "sha256": "40cada97dd3003c3914a8429d3800f80699299acbda7898600b74248ff9b7bca"
+        }
+      ],
+      "fixture_payload_sha256": "016abb164898d5a0ce39f79d6cdc14d540f44a089c762b144fd1d5f0ca0060b2"
+    }
   }
 }

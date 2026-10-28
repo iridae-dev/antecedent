@@ -953,3 +953,186 @@ fn the_observational_regime_refuses_what_it_cannot_identify_or_resample() {
         .and_then(|study| study.run(&ctx));
     assert!(refused.is_err());
 }
+
+/// A factorial panel: main effects `1.0` and `0.5` and an interaction `0.4`, the factors drawn
+/// independently with probabilities `0.5` and `0.4`.
+fn factorial_panel() -> (TabularData, TemporalDesignQuery) {
+    let mut stream = Stream(29);
+    let (mut units, mut periods, mut first, mut second, mut outcome) =
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    for i in 0..300 {
+        for t in 0..5_i64 {
+            let a = stream.next() < 0.5;
+            let b = stream.next() < 0.4;
+            let (fa, fb) = (f64::from(u8::from(a)), f64::from(u8::from(b)));
+            units.push(format!("u{i}"));
+            periods.push(t);
+            first.push(a);
+            second.push(b);
+            outcome.push(1.0 * fa + 0.5 * fb + 0.4 * fa * fb + (stream.next() - 0.5));
+        }
+    }
+    let rows = units.len();
+    let query = TemporalDesignQuery {
+        outcome: VariableId::from_raw(0),
+        units: labels(&units),
+        periods: periods.as_slice().into(),
+        lag: 0,
+        assignment: TemporalAssignment::Factorial {
+            first: first.as_slice().into(),
+            first_probability: vec![0.5; rows].into(),
+            second: second.as_slice().into(),
+            second_probability: vec![0.4; rows].into(),
+        },
+        functional: TemporalDesignFunctional::Mean,
+        min_probability: 0.05,
+        outcome_misclassification: None,
+    };
+    (table(&[("y", outcome.as_slice())]), query)
+}
+
+/// Pairs of units share an interference cluster; the own effect is `1.0` and a treated peer adds
+/// `0.6`.
+fn interference_panel() -> (TabularData, TemporalDesignQuery) {
+    let mut stream = Stream(61);
+    let (mut units, mut periods, mut clusters, mut assignment) =
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    for c in 0..300 {
+        for t in 0..4_i64 {
+            for member in 0..2 {
+                units.push(format!("u{c}_{member}"));
+                periods.push(t);
+                clusters.push(format!("c{c}"));
+                assignment.push(stream.next() < 0.5);
+            }
+        }
+    }
+    let rows = units.len();
+    let outcome: Vec<f64> = (0..rows)
+        .map(|row| {
+            let peer = if row % 2 == 0 { row + 1 } else { row - 1 };
+            f64::from(u8::from(assignment[row]))
+                + 0.6 * f64::from(u8::from(assignment[peer]))
+                + (stream.next() - 0.5)
+        })
+        .collect();
+    let query = TemporalDesignQuery {
+        outcome: VariableId::from_raw(0),
+        units: labels(&units),
+        periods: periods.as_slice().into(),
+        lag: 0,
+        assignment: TemporalAssignment::Interference {
+            assignment: assignment.as_slice().into(),
+            probability: vec![0.5; rows].into(),
+            clusters: labels(&clusters),
+        },
+        functional: TemporalDesignFunctional::Mean,
+        min_probability: 0.05,
+        outcome_misclassification: None,
+    };
+    (table(&[("y", outcome.as_slice())]), query)
+}
+
+#[test]
+fn the_bayesian_bootstrap_recovers_the_multi_arm_factorial_and_interference_effects() {
+    let ctx = ExecutionContext::for_tests(71);
+
+    let (data, query) = multi_arm(false, false);
+    let result = run(&data, query, bayesian(300), 0, &ctx);
+    assert_eq!(
+        result.logical_plan.estimator.as_deref(),
+        Some("bayesian.temporal_design.excursion")
+    );
+    assert!(result.posterior.is_some());
+    let fit = section(&result);
+    assert_eq!(&*fit.design, "multi_arm");
+    assert_eq!(fit.draws, Some(300));
+    within(fit, 0, 0.5, 4.0);
+    within(fit, 1, 1.5, 4.0);
+
+    let (data, query) = factorial_panel();
+    let result = run(&data, query, bayesian(300), 0, &ctx);
+    assert!(result.posterior.is_some());
+    let fit = section(&result);
+    assert_eq!(fit.draws, Some(300));
+    // Main effects average over the other factor's levels with its design probability.
+    within(fit, 0, 1.0 + 0.5 * 0.4, 4.0);
+    within(fit, 1, 0.5 + 0.5 * 0.4, 4.0);
+    within(fit, 2, 0.4, 4.0);
+
+    let (data, query) = interference_panel();
+    let result = run(&data, query, bayesian(300), 0, &ctx);
+    assert!(result.posterior.is_some());
+    let fit = section(&result);
+    assert_eq!(&*fit.design, "interference");
+    assert_eq!(fit.draws, Some(300));
+    within(fit, 0, 1.0, 4.0);
+    within(fit, 1, 0.6, 4.0);
+}
+
+#[test]
+fn the_dose_targets_recover_the_curve_under_the_bayesian_bootstrap_and_the_smoothed_curve() {
+    let ctx = ExecutionContext::for_tests(73);
+    let grid: Arc<[f64]> = Arc::from([0.5, 1.0, 1.5]);
+    let m = |d: f64| 1.0 + d + 0.5 * d * d;
+
+    // The target is the Gaussian-kernel smoothing of the response over the dose support (0, 2)
+    // at bandwidth 0.3, integrated here by the midpoint rule; kernel mass beyond the support is
+    // not renormalized, so the curve is pulled down near the upper edge.
+    let smoothed = |d: f64| {
+        let steps = 20_000;
+        let width = 2.0 / f64::from(steps);
+        (0..steps)
+            .map(|i| {
+                let u = (f64::from(i) + 0.5) * width;
+                let z = (d - u) / 0.3;
+                (-0.5 * z * z).exp() / (0.3 * (2.0 * std::f64::consts::PI).sqrt()) * m(u) * width
+            })
+            .sum::<f64>()
+    };
+    let (data, query) = dose_panel(TemporalDoseTarget::SmoothedCurve { grid: Arc::clone(&grid) });
+    let frequentist = run(&data, query.clone(), InferenceMode::Frequentist, 0, &ctx);
+    let fit = section(&frequentist);
+    for (index, d) in grid.iter().enumerate() {
+        let truth = smoothed(*d);
+        assert!(
+            (fit.estimate[index] - truth).abs() <= 4.0 * fit.standard_error[index] + 0.02,
+            "smoothed curve at {d}: {} (se {}) vs {truth}",
+            fit.estimate[index],
+            fit.standard_error[index]
+        );
+    }
+    assert_eq!(fit.band_coordinates.len(), 3);
+    let posterior = run(&data, query, bayesian(300), 0, &ctx);
+    assert!(posterior.posterior.is_some());
+    let draws = section(&posterior);
+    assert_eq!(draws.draws, Some(300));
+    for (index, d) in grid.iter().enumerate() {
+        assert!(
+            (draws.estimate[index] - fit.estimate[index]).abs() <= 3.0 * fit.standard_error[index],
+            "posterior vs point at {d}"
+        );
+    }
+
+    let (data, query) = dose_panel(TemporalDoseTarget::LocalQuadratic {
+        grid: Arc::clone(&grid),
+        derivative: false,
+        curvature_bound: Some(0.0),
+    });
+    let posterior = run(&data, query, bayesian(300), 0, &ctx);
+    assert!(posterior.posterior.is_some());
+    let fit = section(&posterior);
+    assert_eq!(fit.draws, Some(300));
+    for (index, d) in grid.iter().enumerate() {
+        within(fit, index, m(*d), 4.0);
+    }
+
+    // The contrast of the smoothed response cancels the shared smoothing bias.
+    let (data, query) =
+        dose_panel(TemporalDoseTarget::SmoothedContrast { active: 1.2, control: 0.8 });
+    let posterior = run(&data, query, bayesian(300), 0, &ctx);
+    assert!(posterior.posterior.is_some());
+    let fit = section(&posterior);
+    assert_eq!(fit.draws, Some(300));
+    within(fit, 0, m(1.2) - m(0.8), 4.0);
+}

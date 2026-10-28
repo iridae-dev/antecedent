@@ -7,6 +7,46 @@
   "monte_carlo_tolerance": 0.025,
   "oracle": {
     "kind": "closed_form",
-    "method": "exact Dirichlet posterior means on the fixed table: 1/11 under empirical support and 2/13 under the binary state-space provider (README)"
+    "method": "exact Dirichlet posterior means on the fixed table: 1/11 under empirical support and 2/13 under the binary state-space provider (README)",
+    "generator": "conformance/estimate/bayesian_structural_transport/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/bayesian_structural_transport/reference.py --check",
+    "environment_lock": "conformance/estimate/bayesian_structural_transport/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "posterior mean of P(Y=1 | do(X=1)) under the empirical-support provider",
+      "posterior mean under the binary state-space provider"
+    ],
+    "context_only_outputs": [
+      "draws count and Monte Carlo tolerance",
+      "README prose"
+    ],
+    "independence_basis": "The generator applies the Dirichlet component-ratio mean a_y1/(a_y0+a_y1) to the counts (empirical support) and to the counts plus one (state-space provider) with fractions.Fraction; it imports no Antecedent code and no statistics package. The shared object is the fixture README statement of which cells get which Dirichlet parameters; a misreading of that statement common to the README and the generator would not be detected.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "One fixed 2x2 count table (20, 0, 10, 1) under the identified X to Y intervention query: the Dirichlet posterior means of P(Y=1 | do(X=1)) under the empirical-support and the binary state-space providers, in exact rational arithmetic.",
+      "independence_basis": "The generator applies the Dirichlet component-ratio mean a_y1/(a_y0+a_y1) to the counts (empirical support) and to the counts plus one (state-space provider) with fractions.Fraction; it imports no Antecedent code and no statistics package. The shared object is the fixture README statement of which cells get which Dirichlet parameters; a misreading of that statement common to the README and the generator would not be detected.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Exact posterior means only; the executing assertion compares 2048 Monte Carlo draws to these values within monte_carlo_tolerance (0.025), so it cannot detect a bias smaller than that tolerance. One table; no interval, coverage or calibration, and the Dirichlet(1) state-space prior is the declared provider rather than an externally validated choice.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/bayesian_structural_transport/reference.py",
+          "sha256": "8f0fbb2b451320ea3d7d94aa15816ba06879430b50326eb20522668f5c5d26ba"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/bayesian_structural_transport/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/src/analysis/statistical.rs",
+          "sha256": "c311dab78a655d0daf96cb6682fae4c7fed6545de0eb4174a040202dc217da72"
+        }
+      ],
+      "fixture_payload_sha256": "749908d22929d7e5e05c7b660391ed5cf1bf0977b30fe4798662cf5cc7c31ce9"
+    }
   }
 }

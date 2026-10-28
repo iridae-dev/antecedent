@@ -3,8 +3,47 @@
   "oracle": {
     "kind": "closed_form",
     "method": "closed_form_linear_scm",
-    "generator": "temporary clean-room harness (deleted after artifact import)",
-    "formula": "For identical X distributions and Y=a+bX, changing only a by delta changes E[Y] by delta and assigns the exact mechanism Shapley contribution to Y."
+    "generator": "conformance/attribution/distribution_change_grid/reference.py",
+    "formula": "For identical X distributions and Y=a+bX, changing only a by delta changes E[Y] by delta and assigns the exact mechanism Shapley contribution to Y.",
+    "command": "uv run --frozen --script conformance/attribution/distribution_change_grid/reference.py --check",
+    "environment_lock": "conformance/attribution/distribution_change_grid/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "total_change",
+      "x and y component contributions (y_intercept_plus_five)"
+    ],
+    "context_only_outputs": [
+      "null_change case (not read by the executing assertion)",
+      "sampled_absolute_tolerance declaration"
+    ],
+    "independence_basis": "The generator defines the hybrid payoff E[Y] = (a_cmp if y in the coalition else a_base) + b E[X] with a common arbitrary E[X], and computes Shapley values by averaging marginal contributions over all player orders; it imports no Antecedent code and no statistics package. The shared object is the fixture statement that the payoff depends on the Y mechanism only.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "A Y-intercept shift of +5 and a null change under Y = a + bX with the X mechanism unchanged. The generator enumerates both player orders to compute the exact two-player Shapley allocation of the hybrid-payoff change.",
+      "independence_basis": "The generator defines the hybrid payoff E[Y] = (a_cmp if y in the coalition else a_base) + b E[X] with a common arbitrary E[X], and computes Shapley values by averaging marginal contributions over all player orders; it imports no Antecedent code and no statistics package. The shared object is the fixture statement that the payoff depends on the Y mechanism only.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Linear model with only an intercept change and an unchanged X distribution; no slope, variance or X-mechanism change, no sampling variability (the sampled tolerance is not exercised here). The executing assertion reads only the y_intercept_plus_five case; the null case is derived but not read. No calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/attribution/distribution_change_grid/reference.py",
+          "sha256": "725cd73e583a8a7ce2559d65f88f50fea908841f5a9d9b70df4380e9e3a22ace"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/attribution/distribution_change_grid/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-attribution/src/distribution_change.rs",
+          "sha256": "4de0d078c21d770acd8632a134b46a3aa04dbdad76ee640480d333fc66ddccfb"
+        }
+      ],
+      "fixture_payload_sha256": "10b998ea5771234ea936341a5624e7ec2c7cf265429bde382d4da63091c08ef3"
+    }
   },
   "cases": [
     {

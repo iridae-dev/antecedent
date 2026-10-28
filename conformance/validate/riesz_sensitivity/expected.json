@@ -3,8 +3,47 @@
   "oracle": {
     "kind": "closed_form",
     "method": "closed_form_binary_ate_representer",
-    "generator": "temporary NumPy clean-room harness (deleted after artifact import)",
-    "formula": "alpha=T/pi-(1-T)/(1-pi); ipw=mean(alpha*Y); worst-case bias=delta*sd(Y)*sqrt(mean(alpha^2))."
+    "generator": "conformance/validate/riesz_sensitivity/reference.py",
+    "formula": "alpha=T/pi-(1-T)/(1-pi); ipw=mean(alpha*Y); worst-case bias=delta*sd(Y)*sqrt(mean(alpha^2)).",
+    "command": "uv run --frozen --script conformance/validate/riesz_sensitivity/reference.py --check",
+    "environment_lock": "conformance/validate/riesz_sensitivity/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "alpha_l2 for the balanced case"
+    ],
+    "context_only_outputs": [
+      "alpha_treated and alpha_control (derived here, not read by the executing assertion)",
+      "delta_grid",
+      "boolean property flags"
+    ],
+    "independence_basis": "The generator recomputes alpha = T/pi - (1-T)/(1-pi) at both treatment values and sqrt(E[alpha^2]) = sqrt(1/(pi(1-pi))) by two routes; it imports no Antecedent code and no NumPy. The shared object is the representer definition in the fixture formula.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "The balanced propensity 0.5 binary-ATE Riesz representer: its values at treated and control and its L2 norm.",
+      "independence_basis": "The generator recomputes alpha = T/pi - (1-T)/(1-pi) at both treatment values and sqrt(E[alpha^2]) = sqrt(1/(pi(1-pi))) by two routes; it imports no Antecedent code and no NumPy. The shared object is the representer definition in the fixture formula.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Only alpha_l2 of the balanced case is read by the executing assertion. The delta grid and the three boolean properties (grid membership, outcome-rescaling invariance, non-binary not applicable) are context stored in the fixture and are not derived here. The worst-case bias formula is not recomputed against data. No calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/validate/riesz_sensitivity/reference.py",
+          "sha256": "799407e3076bcf77ca9bd6331ea046c4ae293e6e5a04b6584de54ffae0a249b6"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/validate/riesz_sensitivity/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-validate/src/riesz.rs",
+          "sha256": "8f749ec047e1ae7327040e4f6841a52ca7d34351f30e82d506a7941f085ea327"
+        }
+      ],
+      "fixture_payload_sha256": "c7830bd0a1bae692424b5a903e54059f6f6b9d4fe0440c91ce18827b9550fc50"
+    }
   },
   "balanced_case": {
     "propensity": 0.5,

@@ -3,8 +3,47 @@
   "oracle": {
     "kind": "closed_form",
     "method": "closed_form_linear_scm",
-    "generator": "temporary clean-room harness (deleted after artifact import)",
-    "formula": "For Y=2X and reference X-bar=1, the sole input contribution is 2(X-X-bar)."
+    "generator": "conformance/attribution/mechanism_unit_change/reference.py",
+    "formula": "For Y=2X and reference X-bar=1, the sole input contribution is 2(X-X-bar).",
+    "command": "uv run --frozen --script conformance/attribution/mechanism_unit_change/reference.py --check",
+    "environment_lock": "conformance/attribution/mechanism_unit_change/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "per-unit contributions",
+      "mean contribution"
+    ],
+    "context_only_outputs": [
+      "mechanism_detection block (not read by the executing assertion)",
+      "tolerance declaration"
+    ],
+    "independence_basis": "The generator parses the declared baseline equation for its slope and applies contribution = slope * (x - reference_mean); it imports no Antecedent code and no statistics package. The shared object is the fixture formula (contribution of the sole input equals slope times deviation from the reference), a one-parent exact Shapley value.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "The unit contribution of a single input on Y = 2X with reference mean 1 at three declared x values. The generator reads the slope from the declared baseline equation and recomputes b (x - xbar) and its mean.",
+      "independence_basis": "The generator parses the declared baseline equation for its slope and applies contribution = slope * (x - reference_mean); it imports no Antecedent code and no statistics package. The shared object is the fixture formula (contribution of the sole input equals slope times deviation from the reference), a one-parent exact Shapley value.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "One-parent linear model only; with a single input the Shapley allocation is trivially the whole change, so this does not test multi-player allocation. The mechanism_detection block (changed y, unchanged x) is context: the executing assertion does not read it, and the unchanged status of x is not derivable from the declared equations alone. No uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/attribution/mechanism_unit_change/reference.py",
+          "sha256": "2324a5c628149a3f52467d20f15bf2e05065f4ac948e84472c43f3be04ad3a52"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/attribution/mechanism_unit_change/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-attribution/src/unit_change.rs",
+          "sha256": "2e056d63abd0533b6f3a49e858fec701f15ea9afa8cad44c7c2fd3da8da49afe"
+        }
+      ],
+      "fixture_payload_sha256": "8f42c42369ffb55a2e9334d3e487aaa2f7f0feee3ac6a6bb08ad1bbf97f1a0e8"
+    }
   },
   "unit_case": {
     "x": [0.0, 1.0, 2.0],

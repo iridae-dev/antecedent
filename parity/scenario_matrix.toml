@@ -247,3 +247,507 @@ value = "held_out_intervention"
 status = "delivered"
 test = "crates/antecedent/tests/policy_value_route.rs::retained_held_out_policy_intervals_round_trip_and_reject_forgery"
 what = "held-out policy intervals round-trip and reject a forged bound"
+
+[[cell]]
+family = "P01.linear"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/sampling_weights.rs::linear_adjustment_is_the_weighted_least_squares_fit_with_a_sampling_sandwich"
+what = "the weighted coefficient equals an independent weighted least squares and its sampling-weighted HC1 sandwich"
+
+[[cell]]
+family = "P02.glm"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/sampling_weights.rs::a_logit_glm_with_integer_weights_equals_the_replicated_rows"
+what = "a logit g-computation with integer weights equals the same fit on the replicated rows"
+
+[[cell]]
+family = "P03.aipw"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/sampling_weights.rs::aipw_reads_weights_through_weighted_nuisances_and_a_weighted_score"
+what = "AIPW reads the weights through weighted nuisance fits and a weighted score"
+
+[[cell]]
+family = "P04"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/sampling_weights.rs::matching_is_the_weighted_mean_of_matched_effects_with_its_donor_variance"
+what = "weighted matching equals the weighted mean of matched effects with the weighted Abadie-Imbens variance"
+
+[[cell]]
+family = "P09.two_arm"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "delivered"
+test = "crates/antecedent/tests/sampling_weight_routes.rs::a_weighted_bernoulli_trial_is_the_hajek_contrast_with_its_linearized_variance"
+what = "a weighted Bernoulli trial is the Hajek contrast with its linearized variance"
+
+[[cell]]
+family = "P09.interference"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "unavailable"
+test = "crates/antecedent/tests/sampling_weight_routes.rs::designs_without_a_weighted_contrast_refuse_the_weights"
+reason = "cluster randomization has no weighted contrast; declared sampling weights are refused with sampling_weights.route_unsupported rather than changing the population silently"
+
+[[cell]]
+family = "P11.did"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "delivered"
+test = "crates/antecedent/tests/sampling_weight_routes.rs::a_weighted_panel_did_is_the_weighted_change_contrast_with_a_weighted_cluster_sandwich"
+what = "a weighted panel DiD is the weighted change contrast with a weighted cluster sandwich"
+
+[[cell]]
+family = "P09.two_arm"
+axis = "weights_missingness"
+value = "missing_data"
+status = "delivered"
+test = "crates/antecedent/tests/missing_data_routes.rs::complete_case_averages_responders_and_keeps_every_assignment"
+what = "complete-case averaging over responders keeps every assignment and matches the responder arm means"
+
+[[cell]]
+family = "P11.did"
+axis = "weights_missingness"
+value = "missing_data"
+status = "delivered"
+test = "crates/antecedent/tests/missing_data_routes.rs::balanced_panel_drops_whole_units_and_recovers_the_effect"
+what = "a balanced-panel policy drops whole units, accounts for each dropped row and recovers the effect"
+
+[[cell]]
+family = "P11.staggered"
+axis = "weights_missingness"
+value = "missing_data"
+status = "delivered"
+test = "crates/antecedent/tests/missing_data_routes.rs::staggered_available_case_uses_each_contrasts_observed_units_without_relabelling"
+what = "available-case staggered DiD uses each contrast's observed units without relabelling periods"
+
+[[cell]]
+family = "P15.pulse"
+axis = "weights_missingness"
+value = "missing_data"
+status = "delivered"
+test = "crates/antecedent/tests/missing_data_routes.rs::gaps_drop_only_the_windows_that_read_them_and_never_compress_time"
+what = "a series with gaps drops only the lagged windows that read a missing value and equals an independent slope"
+
+[[cell]]
+family = "P15.sustained"
+axis = "weights_missingness"
+value = "missing_data"
+status = "delivered"
+test = "crates/antecedent/tests/missing_data_routes.rs::sustained_windows_on_a_series_with_gaps_match_the_intact_window_regression"
+what = "sustained windows on a gapped series match the intact-window regression"
+
+[[cell]]
+family = "P08"
+axis = "weights_missingness"
+value = "missing_data"
+status = "delivered"
+test = "crates/antecedent/tests/missing_data_routes.rs::mediation_on_a_series_with_gaps_recovers_the_known_mediated_effect_under_both_inferences"
+what = "mediation on a gapped series recovers the known mediated effect under both inferences"
+
+[[cell]]
+family = "P01.linear"
+axis = "dependence"
+value = "clustered"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/sampling_weights.rs::linear_adjustment_cluster_se_is_the_weighted_cluster_sandwich"
+what = "the cluster standard error equals an independent weighted cluster sandwich"
+
+[[cell]]
+family = "P03.aipw"
+axis = "dependence"
+value = "clustered"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/sampling_weights.rs::aipw_cluster_se_is_the_cluster_sandwich_of_the_weighted_influence"
+what = "the AIPW cluster standard error is the cluster sandwich of the weighted influence"
+
+[[cell]]
+family = "P09.two_arm"
+axis = "dependence"
+value = "clustered"
+status = "delivered"
+test = "crates/antecedent/tests/randomized_trial_route.rs::cluster_randomized_itt_uses_cluster_totals_and_assignment_units"
+what = "a cluster-randomized ITT uses cluster totals and assignment units"
+
+[[cell]]
+family = "P11.did"
+axis = "dependence"
+value = "clustered"
+status = "delivered"
+test = "crates/antecedent/tests/panel_did_interval_calibration.rs::retained_panel_did_cluster_normal_interval_covers_parallel_trends_truth"
+what = "the cluster-normal DiD interval covers the parallel-trends truth under cluster shocks"
+
+[[cell]]
+family = "P11.staggered"
+axis = "dependence"
+value = "clustered"
+status = "delivered"
+test = "crates/antecedent/tests/panel_did_route.rs::staggered_event_known_truth_fixture_spans_thin_and_supported_clusters"
+what = "the staggered event-study known-truth fixture spans thin and supported clusters"
+
+[[cell]]
+family = "P09.interference"
+axis = "dependence"
+value = "clustered"
+status = "delivered"
+test = "crates/antecedent/tests/interference_interval_route.rs::cluster_bayesian_bootstrap_centres_on_the_design_estimate_with_a_matching_spread"
+what = "the cluster Bayesian bootstrap centres on the design estimate with a matching spread"
+
+[[cell]]
+family = "P07.curve"
+axis = "dependence"
+value = "clustered"
+status = "delivered"
+test = "crates/antecedent/tests/data_modalities.rs::panel_response_curve_uses_unit_cluster_bands"
+what = "a panel response curve uses unit-cluster bands"
+
+[[cell]]
+family = "P01.linear"
+axis = "dependence"
+value = "serial"
+status = "delivered"
+test = "crates/antecedent/tests/white_innovation_route.rs::autocorrelated_innovations_refuse_the_declaration_and_name_the_tempered_posterior"
+what = "autocorrelated innovations refuse the whiteness declaration and keep the tempered posterior"
+
+[[cell]]
+family = "P11.local_ratio"
+axis = "dependence"
+value = "serial"
+status = "delivered"
+test = "crates/antecedent/tests/quasi_rollout_routes.rs::a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_design"
+what = "a temporal fuzzy discontinuity under AR(0.7) errors uses a block bootstrap whose standard error exceeds the HC0 ratio standard error"
+
+[[cell]]
+family = "P11.rd"
+axis = "dependence"
+value = "serial"
+status = "delivered"
+test = "crates/antecedent/tests/quasi_rollout_routes.rs::a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_design"
+what = "a temporal discontinuity under AR(0.7) errors uses a block bootstrap whose standard error exceeds the HC0 ratio standard error"
+
+[[cell]]
+family = "P15.pulse"
+axis = "dependence"
+value = "serial"
+status = "delivered"
+test = "crates/antecedent/tests/bayesian_temporal.rs::posterior_dependent_pulse_moments_and_tempering_match_the_reference"
+what = "the dependent-error pulse posterior moments and tempering match the reference fixture"
+
+[[cell]]
+family = "P03.aipw"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent/tests/refusal_fields_existing_sites.rs::the_aipw_refusal_under_joint_separation_carries_the_fit_facts"
+what = "AIPW under joint separation of a wide propensity fit is refused with the fit facts"
+
+[[cell]]
+family = "P11.local_ratio"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent-estimate/src/bayesian_local_ratio/tests.rs::a_constant_treatment_is_flagged_weak_not_divided_through"
+what = "a constant treatment is flagged weak, not divided through"
+
+[[cell]]
+family = "P09.interference"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent-estimate/src/interference.rs::bayesian_interference_refuses_rank_deficient_observed_design"
+what = "a rank-deficient observed interference design is refused"
+
+[[cell]]
+family = "P09.multiarm"
+axis = "categorical_treatment"
+value = "categorical"
+status = "delivered"
+test = "crates/antecedent/tests/bayesian_randomized_routes.rs::many_arms_report_every_arm_against_the_reference"
+what = "many arms report every arm against the reference"
+
+[[cell]]
+family = "P08"
+axis = "categorical_treatment"
+value = "categorical"
+status = "delivered"
+test = "crates/antecedent/tests/checked_static_mediation_route_evidence.rs::static_mediation_preserves_declared_nonbinary_levels_and_default_validation"
+what = "static mediation preserves declared non-binary treatment levels"
+
+[[cell]]
+family = "P07.continuous_dose"
+axis = "categorical_treatment"
+value = "categorical"
+status = "unavailable"
+reason = "the treatment is a continuous dose; a categorical treatment has no dose, kernel, grid or derivative, so the estimand does not exist for it"
+
+[[cell]]
+family = "P07.dose_grid"
+axis = "categorical_treatment"
+value = "categorical"
+status = "unavailable"
+reason = "the treatment is a continuous dose; a categorical treatment has no dose, kernel, grid or derivative, so the estimand does not exist for it"
+
+[[cell]]
+family = "P07.smoothed_dose"
+axis = "categorical_treatment"
+value = "categorical"
+status = "unavailable"
+reason = "the treatment is a continuous dose; a categorical treatment has no dose, kernel, grid or derivative, so the estimand does not exist for it"
+
+[[cell]]
+family = "P07.derivative"
+axis = "categorical_treatment"
+value = "categorical"
+status = "unavailable"
+reason = "the treatment is a continuous dose; a categorical treatment has no dose, kernel, grid or derivative, so the estimand does not exist for it"
+
+[[cell]]
+family = "P11.rd"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/estimate_conformance.rs::rd_sharp_refuses_fuzzy_assignment"
+what = "a sharp RD refuses fuzzy assignment"
+
+[[cell]]
+family = "P08"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/mediation_mixed_graph.rs::a_confounded_treatment_outcome_pair_leaves_the_requested_effect_not_identified"
+what = "a confounded treatment-outcome pair with no adjustment, instrument or front door is refused as not identified"
+
+[[cell]]
+family = "P14"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/staged_attribution_transport_interference.rs::transport_outside_the_licensed_construction_is_refused"
+what = "transport outside the licensed construction is refused"
+
+[[cell]]
+family = "P09.interference"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/staged_attribution_transport_interference.rs::interference_outside_the_licensed_construction_is_refused"
+what = "interference outside the licensed construction is refused"
+
+[[cell]]
+family = "P07.continuous_dose"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/continuous_dose_route.rs::retained_grid_refuses_missing_support_and_invalid_density"
+what = "the retained dose grid refuses missing support and an invalid density"
+
+[[cell]]
+family = "P07.dose_grid"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent-estimate/src/dose_grid_posterior.rs::unlicensed_requests_are_refused"
+what = "unlicensed dose-grid posterior requests are refused"
+
+[[cell]]
+family = "P07.quantile"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent-estimate/src/quantile.rs::rejects_malformed_cdf_inputs"
+what = "malformed CDF inputs are rejected"
+
+[[cell]]
+family = "P07.smoothed_dose"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/smoothed_dose_lifecycle.rs::requests_outside_the_cell_refuse_with_their_details"
+what = "requests outside the smoothed-dose cell refuse with their details"
+
+[[cell]]
+family = "P09.adaptive"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/repeated_measures_posterior_facade.rs::a_fixed_selection_cannot_be_declared_for_an_adaptive_procedure"
+what = "a fixed selection cannot be declared for an adaptive procedure"
+
+[[cell]]
+family = "P09.categorical"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/categorical_treatment.rs::categorical_absent_level_is_refused_by_name"
+what = "an absent treatment level is refused by name"
+
+[[cell]]
+family = "P09.switchback"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/bayesian_randomized_routes.rs::unrestricted_carryover_and_an_unspecified_dependence_are_typed_refusals"
+what = "unrestricted carryover and an unspecified dependence are typed refusals"
+
+[[cell]]
+family = "P03.aipw"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/unlicensed_design_routes.rs::sequential_contrast_refusals_are_typed"
+what = "sequential cross-fit contrast refusals are typed"
+
+[[cell]]
+family = "P15.conditional"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/admg_conditional_effect.rs::a_post_treatment_modifier_is_refused_and_names_the_distribution_query"
+what = "a post-treatment modifier is refused and names the distribution query"
+
+[[cell]]
+family = "P18"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent-state/tests/ols_refresh_contract.rs::a_malformed_row_is_refused_before_anything_is_touched"
+what = "a malformed row is refused before anything changes"
+
+[[cell]]
+family = "P04"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/treatment_levels.rs::an_undeclared_multilevel_contrast_is_refused_naming_the_observed_levels"
+what = "an undeclared multilevel contrast is refused naming the observed levels"
+
+[[cell]]
+family = "P07.continuous_dose"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "unavailable"
+test = "crates/antecedent/tests/continuous_dose_route.rs::retained_grid_refuses_missing_support_and_invalid_density"
+reason = "a dose with no support in the data is refused instead of extrapolated"
+
+[[cell]]
+family = "P07.smoothed_dose"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "unavailable"
+test = "crates/antecedent/tests/smoothed_dose_lifecycle.rs::weak_overlap_and_thin_dose_support_refuse_rather_than_extrapolate"
+reason = "weak overlap and thin dose support are refused instead of extrapolated"
+
+[[cell]]
+family = "P09.categorical"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "unavailable"
+test = "crates/antecedent-estimate/tests/categorical_treatment.rs::categorical_absent_level_is_refused_by_name"
+reason = "a level absent from the data is refused by name instead of estimated"
+
+[[cell]]
+family = "P16"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "unavailable"
+reason = "the product consumes already-estimated summaries (means, covariance, declared intervals); rows, weights, missing values, clusters, serial dependence and treatment coding all enter upstream in the estimator that produced the summaries"
+
+[[cell]]
+family = "P16"
+axis = "weights_missingness"
+value = "missing_data"
+status = "unavailable"
+reason = "the product consumes already-estimated summaries (means, covariance, declared intervals); rows, weights, missing values, clusters, serial dependence and treatment coding all enter upstream in the estimator that produced the summaries"
+
+[[cell]]
+family = "P16"
+axis = "dependence"
+value = "clustered"
+status = "unavailable"
+reason = "the product consumes already-estimated summaries (means, covariance, declared intervals); rows, weights, missing values, clusters, serial dependence and treatment coding all enter upstream in the estimator that produced the summaries"
+
+[[cell]]
+family = "P16"
+axis = "dependence"
+value = "serial"
+status = "unavailable"
+reason = "the product consumes already-estimated summaries (means, covariance, declared intervals); rows, weights, missing values, clusters, serial dependence and treatment coding all enter upstream in the estimator that produced the summaries"
+
+[[cell]]
+family = "P16"
+axis = "categorical_treatment"
+value = "categorical"
+status = "unavailable"
+reason = "the product consumes already-estimated summaries (means, covariance, declared intervals); rows, weights, missing values, clusters, serial dependence and treatment coding all enter upstream in the estimator that produced the summaries"
+
+[[cell]]
+family = "P17"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "unavailable"
+reason = "the product consumes already-estimated summaries (means, covariance, declared intervals); rows, weights, missing values, clusters, serial dependence and treatment coding all enter upstream in the estimator that produced the summaries"
+
+[[cell]]
+family = "P17"
+axis = "weights_missingness"
+value = "missing_data"
+status = "unavailable"
+reason = "the product consumes already-estimated summaries (means, covariance, declared intervals); rows, weights, missing values, clusters, serial dependence and treatment coding all enter upstream in the estimator that produced the summaries"
+
+[[cell]]
+family = "P17"
+axis = "dependence"
+value = "clustered"
+status = "unavailable"
+reason = "the product consumes already-estimated summaries (means, covariance, declared intervals); rows, weights, missing values, clusters, serial dependence and treatment coding all enter upstream in the estimator that produced the summaries"
+
+[[cell]]
+family = "P17"
+axis = "dependence"
+value = "serial"
+status = "unavailable"
+reason = "the product consumes already-estimated summaries (means, covariance, declared intervals); rows, weights, missing values, clusters, serial dependence and treatment coding all enter upstream in the estimator that produced the summaries"
+
+[[cell]]
+family = "P17"
+axis = "categorical_treatment"
+value = "categorical"
+status = "unavailable"
+reason = "the product consumes already-estimated summaries (means, covariance, declared intervals); rows, weights, missing values, clusters, serial dependence and treatment coding all enter upstream in the estimator that produced the summaries"
+
+[[cell]]
+family = "P05"
+axis = "categorical_treatment"
+value = "categorical"
+status = "unavailable"
+reason = "discovery learns structure from variables and has no treatment variable, so a categorical treatment has no meaning for it"
+
+[[cell]]
+family = "P05"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "unavailable"
+reason = "discovery returns a graph or equivalence class, not an intervention estimate, so there is no held-out intervention regime"
+
+[[cell]]
+family = "P02.glm"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/estimator_degeneracy.rs::a_constant_covariate_is_refused_as_rank_deficient_not_repaired"
+what = "a constant adjustment covariate is refused as rank deficient for the Gaussian GLM adjustment, not silently dropped; a one-level treatment column is refused by the same estimator in a sibling test"
+
+[[cell]]
+family = "P04"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/estimator_degeneracy.rs::a_constant_covariate_is_refused_as_rank_deficient_not_repaired"
+what = "a constant adjustment covariate is refused as rank deficient for propensity matching, not silently dropped; a one-level treatment column is refused by the same estimator in a sibling test"
