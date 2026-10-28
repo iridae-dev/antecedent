@@ -17547,3 +17547,10 @@ crate = "antecedent"
 cargo_target = "randomized_design_boundaries"
 path = "crates/antecedent/tests/randomized_design_boundaries.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "static-route-table-weights"
+crate = "antecedent"
+cargo_target = "static_route_table_weights"
+path = "crates/antecedent/tests/static_route_table_weights.rs"
+gates = ["inventory", "named"]

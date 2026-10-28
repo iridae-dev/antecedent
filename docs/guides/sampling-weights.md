@@ -33,6 +33,17 @@ Rust: `with_sampling_weights(SamplingWeights::new(weights)?)` on `LinearAdjustme
 randomized and panel routes read the table's observation weights
 (`TabularData::with_weights`).
 
+Only the average effect reads weights declared on its estimator. The other static effect routes
+(conditional effect, natural-direct mediation, counterfactual, mean curve, average derivative,
+intervention response, continuous dose response, regression discontinuity and the temporal
+designs) have no weighted construction: a table that carries observation weights, or weights
+declared on an estimator such a route does not run, is refused with `option_not_applicable`
+(`sampling_weights.route_unsupported`) when the study is prepared or a table is rebound, never
+estimated as if the rows were unweighted. The average effect on a Dag or an ADMG with weights
+declared on `LinearAdjustmentAte` equals the same fit on rows repeated by integer weights; a
+weighted table given to it without that declaration is refused too (declare them on the
+estimator, or drop them from the table).
+
 ## What is estimated
 
 The **weighted population**: the population the declared weights represent. An average
@@ -141,6 +152,9 @@ diagnostic.
 
 ## Where weights are refused
 
+- Static effect routes other than the average effect refuse table weights and estimator
+  weights (see "Declaring weights"); so does the average effect for table weights it was not
+  told to read.
 - AIPW refuses non-mean outcome functionals. A penalized propensity (ridge, lasso, or a
   penalized fallback) reads weights: each fold's penalty is chosen by the weighted inner
   cross-validated log loss (columns standardized by weighted training moments) and every fit

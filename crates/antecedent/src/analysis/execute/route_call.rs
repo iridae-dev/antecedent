@@ -159,6 +159,64 @@ pub(super) enum RouteCall<'a> {
 }
 
 impl Study {
+    /// Refuse sampling weights that the static effect route about to run would not read.
+    ///
+    /// Only the average effect reads sampling weights, and only the ones declared on its
+    /// estimator. Observation weights carried by the table are read by the randomized and
+    /// panel designs and by a single series, never by a static effect route, and weights
+    /// declared on an estimator that the route does not run are read by nothing. Either would
+    /// publish the unweighted population's number as the weighted population's, so both are
+    /// refused with `sampling_weights.route_unsupported`.
+    ///
+    /// # Errors
+    ///
+    /// `option_not_applicable` when the table carries weights or an estimator declares them
+    /// and the route is a static effect route that cannot honour them.
+    pub(crate) fn refuse_unread_sampling_weights(
+        &self,
+        table: &TabularData,
+    ) -> Result<(), CausalError> {
+        let reads_declared = matches!(self.query, CausalQuery::AverageEffect(_));
+        let static_effect = matches!(
+            self.query,
+            CausalQuery::AverageEffect(_)
+                | CausalQuery::ConditionalEffect(_)
+                | CausalQuery::Mediation(_)
+                | CausalQuery::NestedCounterfactual(_)
+                | CausalQuery::PathSpecific(_)
+                | CausalQuery::Counterfactual(_)
+                | CausalQuery::Response(_)
+                | CausalQuery::Distribution(_)
+                | CausalQuery::Transport(_)
+                | CausalQuery::ContinuousDoseResponse(_)
+                | CausalQuery::LocalPolynomialRatio(_)
+                | CausalQuery::TemporalDesign(_)
+        );
+        if !static_effect {
+            return Ok(());
+        }
+        if table.storage().weights().is_some() {
+            return Err(CausalError::Estimate(
+                antecedent_estimate::sampling_weights::unsupported_route(
+                    "the table carries observation weights, which this static effect route does                      not read, so the estimate would describe the unweighted rows. Next attempt:                      declare the weights on the estimator of an average effect                      (with_sampling_weights), or drop them from the table",
+                ),
+            ));
+        }
+        let declared = self
+            .declared
+            .estimator_spec
+            .as_deref()
+            .is_some_and(|spec| spec.sampling_weights_calibration_label().is_some());
+        if declared && !reads_declared {
+            return Err(CausalError::Estimate(
+                antecedent_estimate::sampling_weights::unsupported_route(
+                    "sampling weights are declared on an estimator that this route does not run,                      so they would not change the estimate. Next attempt: ask the average effect                      for the weighted population, or drop the weights",
+                ),
+            ));
+        }
+        Ok(())
+    }
+
     /// Classify the study's query against `data` and open the payload its executor reads.
     ///
     /// # Errors

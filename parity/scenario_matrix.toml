@@ -1639,3 +1639,91 @@ value = "held_out_intervention"
 status = "unavailable"
 test = "crates/antecedent-estimate/src/rd.rs::rejects_empty_bandwidth_window"
 reason = "a bandwidth window with no rows on a side of the cutoff is refused"
+
+[[cell]]
+family = "P07.curve"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "unavailable"
+test = "crates/antecedent/tests/static_route_table_weights.rs::table_weights_are_never_silently_ignored_on_any_static_effect_route"
+reason = "the route has no sampling-weighted construction; observation weights on the table and weights declared on an estimator it does not run are refused with sampling_weights.route_unsupported and a next attempt, never estimated as unweighted rows"
+
+[[cell]]
+family = "P07.derivative"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "unavailable"
+test = "crates/antecedent/tests/static_route_table_weights.rs::table_weights_are_never_silently_ignored_on_any_static_effect_route"
+reason = "the route has no sampling-weighted construction; observation weights on the table and weights declared on an estimator it does not run are refused with sampling_weights.route_unsupported and a next attempt, never estimated as unweighted rows"
+
+[[cell]]
+family = "P07.continuous_dose"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "unavailable"
+test = "crates/antecedent/tests/static_route_table_weights.rs::table_weights_are_never_silently_ignored_on_any_static_effect_route"
+reason = "the route has no sampling-weighted construction; observation weights on the table and weights declared on an estimator it does not run are refused with sampling_weights.route_unsupported and a next attempt, never estimated as unweighted rows"
+
+[[cell]]
+family = "P07.dose_grid"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "unavailable"
+test = "crates/antecedent/tests/static_route_table_weights.rs::table_weights_are_never_silently_ignored_on_any_static_effect_route"
+reason = "the route has no sampling-weighted construction; observation weights on the table and weights declared on an estimator it does not run are refused with sampling_weights.route_unsupported and a next attempt, never estimated as unweighted rows"
+
+[[cell]]
+family = "P07.quantile"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "unavailable"
+test = "crates/antecedent/tests/static_route_table_weights.rs::table_weights_are_never_silently_ignored_on_any_static_effect_route"
+reason = "the route has no sampling-weighted construction; observation weights on the table and weights declared on an estimator it does not run are refused with sampling_weights.route_unsupported and a next attempt, never estimated as unweighted rows"
+
+[[cell]]
+family = "P07.smoothed_dose"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "unavailable"
+test = "crates/antecedent/tests/static_route_table_weights.rs::table_weights_are_never_silently_ignored_on_any_static_effect_route"
+reason = "the route has no sampling-weighted construction; observation weights on the table and weights declared on an estimator it does not run are refused with sampling_weights.route_unsupported and a next attempt, never estimated as unweighted rows"
+
+[[cell]]
+family = "P08"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "unavailable"
+test = "crates/antecedent/tests/static_route_table_weights.rs::table_weights_are_never_silently_ignored_on_any_static_effect_route"
+reason = "the route has no sampling-weighted construction; observation weights on the table and weights declared on an estimator it does not run are refused with sampling_weights.route_unsupported and a next attempt, never estimated as unweighted rows"
+
+[[cell]]
+family = "P12.counterfactual"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "unavailable"
+test = "crates/antecedent/tests/static_route_table_weights.rs::table_weights_are_never_silently_ignored_on_any_static_effect_route"
+reason = "the route has no sampling-weighted construction; observation weights on the table and weights declared on an estimator it does not run are refused with sampling_weights.route_unsupported and a next attempt, never estimated as unweighted rows"
+
+[[cell]]
+family = "P12.intervention"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "unavailable"
+test = "crates/antecedent/tests/static_route_table_weights.rs::table_weights_are_never_silently_ignored_on_any_static_effect_route"
+reason = "the route has no sampling-weighted construction; observation weights on the table and weights declared on an estimator it does not run are refused with sampling_weights.route_unsupported and a next attempt, never estimated as unweighted rows"
+
+[[cell]]
+family = "P15.conditional"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "unavailable"
+test = "crates/antecedent/tests/static_route_table_weights.rs::table_weights_are_never_silently_ignored_on_any_static_effect_route"
+reason = "the route has no sampling-weighted construction; observation weights on the table and weights declared on an estimator it does not run are refused with sampling_weights.route_unsupported and a next attempt, never estimated as unweighted rows"
+
+[[cell]]
+family = "P15.projection"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "delivered"
+test = "crates/antecedent/tests/static_route_table_weights.rs::estimator_declared_weights_on_the_average_effect_equal_row_replication"
+what = "the ADMG average effect with weights declared on its estimator equals the same fit on rows repeated by the integer weights, and table weights are refused"
