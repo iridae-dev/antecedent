@@ -17,7 +17,7 @@ papers = [
 
 implementation_deviations = [
   "Claim policy: the licensed claim is the POINT values (level coefficients and contrast estimates). Every standard error, Wald statistic, raw and Holm p-value and monotonicity p-value is a reported diagnostic with calibration coordinate 'unmeasured'; Type I error and power are not collected, no interval is produced and no coverage record is allocated.",
-  "The monotonicity test is the null that the effect across the declared ordered levels is non-decreasing (or non-increasing). The reported statistic is the minimum (maximum) standardised adjacent step difference and its p-value is min(1, 2 Phi(.)) of that extreme step, a conservative bound stated as such (conservative = true) rather than an exact union-intersection size; a single-step test is the exact one-sided test. The intersection-union argument is cited for the rejection rule only; the conservativeness here is the implementation's own and is not claimed to be measured.",
+  "The monotonicity test is the null that the effect across the declared ordered levels is non-decreasing (or non-increasing). The reported statistic is the minimum (maximum) standardised adjacent step difference and its p-value is min(1, m Phi(T)) for the m adjacent steps and the oriented minimum step z-score T, a Bonferroni bound stated as such (conservative = true) rather than an exact union-intersection size; a single-step test (m = 1) is the exact one-sided test. The intersection-union argument is cited for the rejection rule only; the conservativeness here is the implementation's own and is not claimed to be measured.",
   "Holm adjustment is applied across the declared family (level contrasts and declared pairs) with asymptotic normal p-values; the family-wise error is not claimed beyond the normal approximation.",
   "Absent, sparse (below the declared minimum rows) and undeclared levels refuse with the level named; nothing is dropped or merged. Unordered levels are sorted by label before any arithmetic so the result is invariant to input order; ordered levels keep the declared order as part of the estimand.",
   "Artifact replay limits: a model-based fit replays from the embedded compact design summary; a robust (HC) covariance also embeds the meat of its sandwich, so it replays bit for bit from a summary and no row is embedded; the summary is bound to its rows by a data digest. Artifacts written before summaries existed embed the rows of an HC fit and are still read, up to 4096 rows. The covariance engine is the joint vector-treatment fit.",
@@ -30,3 +30,39 @@ test_sources = [
   "crates/antecedent-io/tests/categorical_treatment_artifact.rs",
   "python/tests/test_categorical_treatment.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "categorical_treatment::fit_categorical_treatment and the vector_treatment least-squares and covariance engine it calls (fit_joint: normal equations, model-based, HC0, HC1, HC2 and HC3 covariances, contrast variances w'Vw, Wald omnibus), with the Holm adjustment over the level and pairwise family and the oriented minimum-step monotonicity statistic and its Bonferroni bound. Not the summary/replay routes beyond sharing the engine, the posterior form, the artifact encoding or any coverage or size of the tests."
+assumptions = ["Linear conditional mean given the levels and the adjustment column and independent rows are taken as given; the p-values are asymptotic normal and chi-square and their finite-sample size is not claimed.", "Identification of the level effects as causal contrasts rests on the declared adjustment set and positivity, which are not tested."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script imports mpmath (BSD-3-Clause) at run time and does not redistribute it. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Eight tables of 7 to 25 rows with four levels (three in the smallest, two rows per level there), one adjustment column, an outcome offset of 1e8 and an adjustment within 1e-4 of a level indicator; covariances model-based, HC0, HC1, HC2 and HC3; coefficients, the covariance block, contrast estimates and standard errors are asserted to 1e-10 relative (1e-6 for the near-collinear adjustment, 3e-6 for the 1e8 offset), p-values to 1e-6 relative to a 50-digit reference. The product forms (X'X)^-1 explicitly from the normal equations without centring the outcome, which costs about 4e-7 relative in the standard errors at a 1e8 offset with unit noise; that loss is not removed. The reference does not exercise a rank-deficient adjustment, weights or the replay summaries. Test size and power of the omnibus and monotonicity tests are unmeasured."
+sources = ["https://mpmath.org/"]
+findings_resolved = ["Documentation defect repaired: the record stated the monotonicity p-value as min(1, 2 Phi(.)), but the product (and its docs) use the Bonferroni factor m, the number of adjacent steps, which equals 2 only for three levels; the record now states min(1, m Phi(T)) and the reference verifies m Phi(T) with m = 3 for four levels.", "No numerical defect found: coefficients, full covariance blocks, contrasts, Holm adjustment across the declared family, the omnibus statistic and its chi-square p-value and the monotonicity statistic match the exact rational and 50-digit reference for all five covariance estimators, with an unbalanced design, a reference level inside the list, a 1e8 outcome offset and a near-collinear adjustment."]
+record_sha256 = "8bd345882f691005f1fb64e907b1166560e5e9b2e0b8ac109a9b52b24a48054f"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/categorical_treatment.rs"
+sha256 = "d8ad52a6f58742cec469f93f37f97f217accb12da4c4f4e3277c4a1c81f5e650"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/vector_treatment.rs"
+sha256 = "ae588b0ce25904fa20febf84f84dbc34f324d4e591ddde2dffaa102319128b43"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/categorical_regression_reference.rs"
+sha256 = "48605add87bc95845d78cd42787c26fae6243b98860e13cedf38050fe47265b1"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/categorical_regression_reference.py"
+sha256 = "e2b4e9da60e09c139dc331154f6ebbaf41002b4d691234d24f0ac350bed98369"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/categorical_regression_reference.json"
+sha256 = "498557fea74387772ee45c748b86f7b7aefbd2e393cb89a87299ea00d09342b2"

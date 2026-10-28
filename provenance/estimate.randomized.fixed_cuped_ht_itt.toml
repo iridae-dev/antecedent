@@ -22,3 +22,34 @@ test_sources = [
  "crates/antecedent/tests/randomized_precision_intervals.rs",
  "crates/antecedent/tests/randomized_trial_route.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "randomized_scores::independent_action_contrast with two arms, applied to outcomes from which the fixed coefficient times a pre-assignment covariate has been removed: the row score 1{A=1} Y/p - 1{A=0} Y/(1-p), the effect as its mean, the sample-score variance sum (s - mean)^2 / (n (n-1)) and the observed arm supports. The subtraction of the coefficient times the covariate in the facade (checked_randomized.rs) and the facade's own variance bound are read but not executed here; the interval gating thresholds are not exercised. Not cuped_ht_effect (the pooled same-sample slope entry used by the Python experiment function), the Bayesian form or any coverage."
+assumptions = ["The coefficient is fixed before the data and the covariate is measured before assignment, so the removed term has zero Horvitz-Thompson mean; both are declarations the route takes as given.", "Independent assignment with the known per-row probabilities, consistency and no interference."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Three two-arm designs of six rows (unadjusted, a fixed coefficient of 3 on a covariate, and outcomes offset by 1e8) and a three-arm design of four rows, every assignment enumerated (64 each, 81 for three arms); effects and variances are asserted to 1e-12 relative (1e-8 with the offset) with the observed supports, and the assignments that leave an arm unobserved are asserted to be refused. The reference script asserts exactly that the expected effect equals the average potential-outcome contrast for the unadjusted and the adjusted outcomes alike, and that the expected sample-score variance equals the exact design variance plus sum (tau_i - taubar)^2 / (n (n-1)), so the variance is conservative by the between-row effect variation. The facade's cruder bound sum y^2/p^2 / n^2 is not executed here. The adjusted outcome is an input of the Rust test, not a result of the route. No interval and no coverage are exercised."
+sources = ["https://doi.org/10.1145/2433396.2433413"]
+findings_resolved = ["No defect found in the scored contrast: the effect, the sample-score variance and the supports reproduce the exact rational value on every enumerated assignment, and the exact enumeration shows that the fixed coefficient leaves the effect unbiased for any value (3 and 0 give the same expectation) while the variance estimate is conservative by the non-negative between-row term. The record's statement that the paper's same-sample coefficient estimator is not implemented holds for the fixed-coefficient route reviewed here; the separate cuped_ht_effect function does estimate a pooled slope from the sample and is outside this review."]
+record_sha256 = "97290f05304ae914f2bdbf2c7a9f5b5c4d118fd4b20a8edcbc1d655c30265838"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/randomized_scores.rs"
+sha256 = "76e97dfc9b2f0fba13b67732f8cbf949bd5ec490e5d735e62113288f46817e3f"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/randomized_design_enumeration.rs"
+sha256 = "e7ae6cc6b0ca52dbd994ffba4a6c413a9d8c0a10c154b68d25f2057296d7f9e6"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/randomized_design_enumeration.py"
+sha256 = "d590bde8864664c18e74c0b1fcac04a83675c08dc68e9db72f7e8dfcf6298550"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/randomized_design_enumeration.json"
+sha256 = "20427c464a5c3c8311651a3ccbe30c29276088ecd1a3d87b6f5c8f4e7cd41f32"

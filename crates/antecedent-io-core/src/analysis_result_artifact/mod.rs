@@ -995,14 +995,15 @@ pub struct SequentialContrastWire {
 
 /// Retained within-period history-matched contrast, its matched pairs and standard error.
 ///
-/// The pairs are kept so a loader recomputes the contrast, the weight total and the
-/// Abadie-Imbens standard error. No interval is reported and the result is unlicensed.
+/// The pairs and the within-arm variance estimates of their units are kept so a loader recomputes
+/// the contrast, the weight total and the Abadie-Imbens standard error. No interval is reported and the result is unlicensed.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct HistoryMatchWire {
     /// Sampling-weighted mean of treated-minus-matched-control outcomes.
     pub contrast: f64,
-    /// Abadie-Imbens standard error; absent with fewer than two matched units.
+    /// Abadie-Imbens standard error; absent when a matched unit or donor has no same-arm
+    /// neighbour in its period.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub standard_error: Option<f64>,
     /// Sum of sampling weights on the matched treated units.
@@ -1015,6 +1016,14 @@ pub struct HistoryMatchWire {
     pub differences: Vec<f64>,
     /// Sampling weight of each matched treated unit.
     pub pair_weights: Vec<f64>,
+    /// Within-arm outcome variance estimate of each matched treated unit, in pair order; empty
+    /// exactly when `standard_error` is absent.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub query_variances: Vec<f64>,
+    /// Within-arm outcome variance estimate of the control each matched query used, in pair
+    /// order; empty exactly when `standard_error` is absent.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub donor_variances: Vec<f64>,
     /// Treated rows with no control inside their period and the caliper.
     pub unmatched_treated: Vec<usize>,
     /// Periods in which at least one treated unit matched.

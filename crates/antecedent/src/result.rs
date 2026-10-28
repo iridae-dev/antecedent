@@ -400,7 +400,8 @@ impl QuasiRolloutEstimate {
 pub struct HistoryMatchEstimate {
     /// Sampling-weighted mean of treated-minus-matched-control outcomes.
     pub contrast: f64,
-    /// Abadie-Imbens standard error; absent with fewer than two matched units.
+    /// Abadie-Imbens standard error; absent when a matched unit or donor has no same-arm
+    /// neighbour in its period.
     pub standard_error: Option<f64>,
     /// Sum of sampling weights on the matched treated units.
     pub weight_total: f64,
@@ -412,6 +413,12 @@ pub struct HistoryMatchEstimate {
     pub differences: Arc<[f64]>,
     /// Sampling weight of each matched treated unit.
     pub pair_weights: Arc<[f64]>,
+    /// Within-arm outcome variance estimate of each matched treated unit, in pair order; empty
+    /// exactly when `standard_error` is absent.
+    pub query_variances: Arc<[f64]>,
+    /// Within-arm outcome variance estimate of the control each matched query used, in pair
+    /// order; empty exactly when `standard_error` is absent.
+    pub donor_variances: Arc<[f64]>,
     /// Treated rows with no control inside their period and the caliper.
     pub unmatched_treated: Arc<[usize]>,
     /// Periods in which at least one treated unit matched.

@@ -2461,7 +2461,7 @@ const HISTORY_MATCH_UNCERTAINTY: &str =
 ///
 /// The result is unlicensed and reports no interval, so the check is that it claims neither and
 /// that the contrast, the weight total and the Abadie-Imbens standard error are those of the
-/// retained pairs.
+/// retained pairs and their within-arm variance estimates.
 pub(in crate::analysis_result_artifact) fn validate_history_match_graphless(
     result: &AnalysisResultWire,
 ) -> Result<(), IoError> {
@@ -2501,25 +2501,36 @@ pub(in crate::analysis_result_artifact) fn validate_history_match_graphless(
     {
         return fail("invalid history match payload or fabricated summary");
     }
-    // Abadie-Imbens variance of a weighted mean of one-match differences, with replacement.
-    let expected = if pairs < 2 || fit.pair_weights.iter().any(|w| *w <= 0.0) {
+    // Abadie-Imbens conditional variance of a weighted mean of one-match differences, with
+    // replacement: squared shares times the within-arm variance of each query plus squared donated
+    // shares times that of each used donor.
+    let variances_ok = fit.query_variances.len() == fit.donor_variances.len()
+        && fit.query_variances.iter().chain(&fit.donor_variances).all(|v| v.is_finite() && *v >= 0.0)
+        && (fit.query_variances.is_empty() || fit.query_variances.len() == pairs)
+        && (fit.query_variances.is_empty() == fit.standard_error.is_none());
+    if !variances_ok {
+        return fail("invalid history match variance estimates");
+    }
+    let expected = if fit.query_variances.is_empty() || fit.pair_weights.iter().any(|w| *w <= 0.0)
+    {
         None
     } else {
-        let shares: Vec<f64> = fit.pair_weights.iter().map(|w| w / total).collect();
-        let concentration: f64 = shares.iter().map(|s| s * s).sum();
-        let denominator = 1.0 - concentration;
-        let spread: f64 = shares
-            .iter()
-            .zip(&fit.differences)
-            .map(|(share, d)| share * (d - fit.contrast).powi(2))
-            .sum();
-        let mut donated: std::collections::BTreeMap<usize, f64> = std::collections::BTreeMap::new();
-        for (share, donor) in shares.iter().zip(&fit.matched_donors) {
-            *donated.entry(*donor).or_insert(0.0) += share;
+        let mut variance = 0.0_f64;
+        let mut donated: std::collections::BTreeMap<usize, (f64, f64)> =
+            std::collections::BTreeMap::new();
+        for k in 0..pairs {
+            let share = fit.pair_weights[k] / total;
+            variance += share * share * fit.query_variances[k];
+            let entry = donated
+                .entry(fit.matched_donors[k])
+                .or_insert((0.0, fit.donor_variances[k]));
+            if entry.1 != fit.donor_variances[k] {
+                return fail("history match donor variance differs between its pairs");
+            }
+            entry.0 += share;
         }
-        let reuse: f64 = donated.values().map(|s| s * s).sum();
-        let variance = 0.5 * spread / denominator * (concentration + reuse);
-        (denominator > 0.0 && variance.is_finite() && variance >= 0.0).then_some(variance.sqrt())
+        variance += donated.values().map(|(share, noise)| share * share * noise).sum::<f64>();
+        (variance.is_finite() && variance >= 0.0).then_some(variance.sqrt())
     };
     let consistent = match (fit.standard_error, expected) {
         (None, None) => true,

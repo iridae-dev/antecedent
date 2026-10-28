@@ -392,6 +392,8 @@ impl From<&HistoryMatchEstimate> for HistoryMatchWire {
             matched_donors: fit.matched_donors.to_vec(),
             differences: fit.differences.to_vec(),
             pair_weights: fit.pair_weights.to_vec(),
+            query_variances: fit.query_variances.to_vec(),
+            donor_variances: fit.donor_variances.to_vec(),
             unmatched_treated: fit.unmatched_treated.to_vec(),
             periods_matched: fit.periods_matched,
             caliper: fit.caliper,

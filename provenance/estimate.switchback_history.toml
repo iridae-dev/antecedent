@@ -13,3 +13,34 @@ implementation_deviations = [
 ]
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent-estimate/src/switchback.rs"]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "switchback::switchback_history_means: the joint-history Horvitz-Thompson means with inclusion probabilities summed over whole schedules (never multiplied from marginals), the observed support, the eligible-period count excluding the first L periods, and the cluster covariance S/(S-1) sum_s (T_sj - L_s m_j)(T_sk - L_s m_k) / N^2 centred by sequence length, plus the refusals for malformed, duplicate or unsupported inputs. Not the joint-design sharp-null randomization test, the Gaussian history-mean likelihood, the AR(1) form or any interval."
+assumptions = ["Consistency, no anticipation, no interference between independent sequences and no carryover beyond the declared history are design premises taken as given.", "The known whole-schedule probabilities are the true assignment law for each independent sequence."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Two designs of two to three independent sequences of three periods with 5 to 6 schedules each, unequal assignment laws and sequence-specific outcome offsets, for pair histories (four) and single-period histories (two); all 180 and 36 realizations enumerated, means and covariance entries asserted to 1e-12 relative to the largest entry and the supports and eligible counts exactly. The reference script asserts exact unbiasedness of every history mean for the potential-outcome average over the full realization set. Realizations with an unobserved history are not in the enumeration and are tested only by the existing refusal unit tests. The covariance has no calibrated interval and no expectation identity is asserted for it here."
+sources = ["https://arxiv.org/abs/2009.00148"]
+findings_resolved = ["No defect found: means, covariance, supports and the eligible-period count reproduce the exact rational value on every enumerated realization, including schedule sets that differ in size and law between sequences. The enumeration confirms that probabilities taken from whole schedules give exactly unbiased history means."]
+record_sha256 = "91a589bf1dd7685cc3ff8b9c07c71a6c187043938dd1d9ca1468853fd566c6d9"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/switchback.rs"
+sha256 = "3907c68c225c728d9c77b640580809891f2153c5e29c677124b3fb61729f86bb"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/randomized_design_enumeration.rs"
+sha256 = "e7ae6cc6b0ca52dbd994ffba4a6c413a9d8c0a10c154b68d25f2057296d7f9e6"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/randomized_design_enumeration.py"
+sha256 = "d590bde8864664c18e74c0b1fcac04a83675c08dc68e9db72f7e8dfcf6298550"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/randomized_design_enumeration.json"
+sha256 = "20427c464a5c3c8311651a3ccbe30c29276088ecd1a3d87b6f5c8f4e7cd41f32"

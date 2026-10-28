@@ -15,10 +15,43 @@ implementation_deviations = [
   "The implementing module is crates/antecedent-estimate/src/history_match.rs. It states: A slope fitted to the history, or a coefficient from a contemporaneous regression, is not the score and is not computed.",
   "The contrast is the sampling-weight mean of treated-minus-matched-control outcome differences, with no outcome regression.",
   "The lowest input index is the only donor a later query can meet, and a donor may be reused.",
+  "The period-matched standard error is the Abadie-Imbens conditional variance for one match with replacement and a known scalar score: shares squared times the within-arm outcome variance of each matched treated unit plus squared donated shares times that of each used donor, each variance estimated by half the squared difference to the nearest other unit of the same arm and period. It conditions on the scores and the treatment, it has no matching-discrepancy bias term, no population-variance term for effect heterogeneity and no interval, and its calibration is unmeasured.",
 ]
 
 upstream_implementations_observed = []
 
 test_sources = [
   "crates/antecedent/tests/unlicensed_design_routes.rs",
+  "crates/antecedent-estimate/tests/history_match_variance_reference.rs (exhaustive noise enumeration of the period-matched standard error)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "history_match::PeriodHistoryContrast::contrast and the matching helpers it shares with FrequentistHistoryContrast (match_rows, CollapsedHistoryIndex): the history-mean score, nearest-control matching inside each calendar period with the lowest input index on a tie and donor reuse, the sampling-weighted contrast, and the Abadie-Imbens conditional standard error with within-arm nearest-neighbour outcome variances. Not the Bayesian wrapper (which refuses a posterior), the cross-sectional caliper beyond sharing the matcher, the matching-discrepancy bias, the population variance, intervals or coverage."
+assumptions = ["Unconfoundedness given the history-mean score within a period, overlap of the scores within the period, a stable unit and no interference are identification assumptions taken as given; that a mean history carries the confounding is the caller's assumption.", "The standard error is conditional on the scores and the treatment and assumes the matches are fixed by the scores alone."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Three designs of 3 to 9 units over one or two periods (an equal-distance tie, equal scores in one arm, shared donors with unequal weights and a control with no same-arm neighbour); every one of the 2^n sign patterns of the outcome noise (256, 512 and 8) is enumerated, contrast and standard error are asserted per pattern to 1e-12 relative, and the expected squared standard error is asserted equal to the conditional variance of the contrast. That identity needs the means constant within an arm and period and equal noise variance within an arm, which the designs have by construction; under heterogeneous means the within-arm estimate overstates the noise variance, and no matching-discrepancy bias term exists. Repeated-sampling coverage is not measured and no interval is produced."
+sources = ["https://doi.org/10.1111/j.1468-0262.2006.00655.x"]
+findings_resolved = ["Defect repaired: the standard error took the noise variance from the dispersion of the matched pair differences, (1/2) sum_q w_q (d_q - tau)^2 / (1 - sum w_q^2), but queries that share a donor share its noise, so the differences understate the spread: on a design with all five treated units matched to one control the expected squared standard error was 0.1545 against a true conditional variance of 0.6215. The Abadie-Imbens within-arm nearest-neighbour estimate (1/2)(y_i - y_l(i))^2 per matched treated unit and used donor now replaces it, its expectation equals the conditional variance exactly in the enumeration, and a missing within-arm neighbour gives no standard error instead of a number. The facade replay tests were updated to the exactly computed values (2.0964 and 2.0651, previously 0.9314 and 2.3486)."]
+record_sha256 = "9bbddd7dc6cbea190c6fa56b9772c66dcb980933466c507a19ed0a65c7d89db5"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/history_match.rs"
+sha256 = "ea21b54aea48ec3457b99a44ba4eb1c247d94907e27709782b789a369543733a"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/history_match_variance_reference.rs"
+sha256 = "584e29ef04558960abca6ab61b914bc2cc61aae173ec22d199701038c6c458c9"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/history_match_variance_reference.py"
+sha256 = "a86e1b953fb3ef4257ed199c251c672f2e28ec4f08cfcec48ed5a96b634db2e7"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/history_match_variance_reference.json"
+sha256 = "acbde048e32c506668e326e3835341954fa37fbbd079373f54aeb5cc36cf1c3a"

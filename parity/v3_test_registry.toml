@@ -18237,3 +18237,24 @@ crate = "python"
 cargo_target = "script"
 path = "python/tests/test_mnar_sensitivity.py"
 gates = ["inventory"]
+
+[[test]]
+id = "estimate-randomized-design-enumeration"
+crate = "antecedent-estimate"
+cargo_target = "randomized_design_enumeration"
+path = "crates/antecedent-estimate/tests/randomized_design_enumeration.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "estimate-categorical-regression-reference"
+crate = "antecedent-estimate"
+cargo_target = "categorical_regression_reference"
+path = "crates/antecedent-estimate/tests/categorical_regression_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "estimate-history-match-variance-reference"
+crate = "antecedent-estimate"
+cargo_target = "history_match_variance_reference"
+path = "crates/antecedent-estimate/tests/history_match_variance_reference.rs"
+gates = ["inventory", "named"]

@@ -22,9 +22,11 @@
 //! the history-mean score. It is identified under unconfoundedness given that score within a
 //! period, overlap of the scores within the period, a stable unit and no interference. A mean
 //! history is a coarse sufficient statistic: it is the caller's assumption that it carries the
-//! confounding. Its variance is the Abadie-Imbens (2006) form for one match with replacement and
-//! a known scalar score; for a scalar score the matching discrepancy bias is of smaller order
-//! than `n^-1/2`, so no bias adjustment is applied. A time-series regression is not a substitute.
+//! confounding. Its variance is the Abadie-Imbens (2006) conditional form for one match with
+//! replacement and a known scalar score, with each unit's outcome variance estimated from its
+//! nearest same-arm neighbour in the period; for a scalar score the matching discrepancy bias is
+//! of smaller order than `n^-1/2`, so no bias adjustment is applied. A time-series regression is
+//! not a substitute.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -347,12 +349,17 @@ impl PeriodHistoryContrast {
         }
         let mut pairs = Vec::new();
         let mut periods_matched = 0_usize;
+        let mut noise: BTreeMap<usize, f64> = BTreeMap::new();
         for (treated, control) in periods.values() {
             if treated.is_empty() || control.is_empty() {
                 continue;
             }
             let (found, _) = match_rows(self.caliper, treated, control);
             periods_matched += usize::from(!found.is_empty());
+            if !found.is_empty() {
+                within_arm_noise(treated, &mut noise);
+                within_arm_noise(control, &mut noise);
+            }
             pairs.extend(found);
         }
         pairs.sort_by_key(|pair| pair.query);
@@ -367,7 +374,23 @@ impl PeriodHistoryContrast {
         }
         let contrast =
             pairs.iter().map(|pair| pair.weight * pair.difference).sum::<f64>() / weight_total;
-        let standard_error = abadie_imbens_standard_error(&pairs, contrast, weight_total);
+        let noise_of = |index: usize| noise.get(&index).copied();
+        let query_variances: Option<Vec<f64>> =
+            pairs.iter().map(|pair| noise_of(pair.query)).collect();
+        let donor_variances: Option<Vec<f64>> =
+            pairs.iter().map(|pair| noise_of(pair.donor)).collect();
+        let (standard_error, query_variances, donor_variances) =
+            match (query_variances, donor_variances) {
+                (Some(query), Some(donor)) => {
+                    let weights: Vec<f64> = pairs.iter().map(|pair| pair.weight).collect();
+                    let donors: Vec<usize> = pairs.iter().map(|pair| pair.donor).collect();
+                    match abadie_imbens_standard_error(&weights, &donors, &query, &donor) {
+                        Some(error) => (Some(error), query, donor),
+                        None => (None, Vec::new(), Vec::new()),
+                    }
+                }
+                _ => (None, Vec::new(), Vec::new()),
+            };
         let matched_queries: Vec<usize> = pairs.iter().map(|pair| pair.query).collect();
         let matched_donors: Vec<usize> = pairs.iter().map(|pair| pair.donor).collect();
         let unmatched_treated: Vec<usize> = units
@@ -379,6 +402,8 @@ impl PeriodHistoryContrast {
         Ok(PeriodHistoryEstimate {
             contrast,
             standard_error,
+            query_variances,
+            donor_variances,
             weight_total,
             matched_queries,
             matched_donors,
@@ -394,10 +419,18 @@ impl PeriodHistoryContrast {
 pub struct PeriodHistoryEstimate {
     /// Sampling-weighted mean of treated-minus-matched-control outcomes.
     pub contrast: f64,
-    /// Abadie-Imbens standard error for one match with replacement and a known scalar score.
-    /// `None` with fewer than two matched units, a non-positive matched weight, or a single
-    /// matched unit carrying all the weight. Its repeated-sampling calibration is unmeasured.
+    /// Abadie-Imbens standard error for one match with replacement and a known scalar score,
+    /// conditional on the scores and the treatment, with within-arm nearest-neighbour outcome
+    /// variances. `None` when a matched treated unit or a used donor has no other unit of its arm
+    /// in its period, or a matched weight is not positive. Its repeated-sampling calibration is
+    /// unmeasured.
     pub standard_error: Option<f64>,
+    /// Within-arm outcome variance estimate of each matched treated unit, in matched order;
+    /// empty when some matched unit or donor has no same-arm neighbour.
+    pub query_variances: Vec<f64>,
+    /// Within-arm outcome variance estimate of the control each matched query used, in matched
+    /// order; empty exactly when [`Self::query_variances`] is.
+    pub donor_variances: Vec<f64>,
     /// Sum of sampling weights on matched treated units.
     pub weight_total: f64,
     /// Input indices of matched treated units, in input order.
@@ -410,36 +443,91 @@ pub struct PeriodHistoryEstimate {
     pub periods_matched: usize,
 }
 
-/// Abadie-Imbens (2006) standard error of a weighted matched mean with one match.
+/// Abadie-Imbens (2006) standard error of a weighted matched mean with one match, conditional on
+/// the scores and the treatment.
 ///
-/// With shares `w_q = weight_q / total`, `sigma^2 = 1/2 sum_q w_q (d_q - tau)^2 / (1 - sum_q
-/// w_q^2)` and `Var = sigma^2 (sum_q w_q^2 + sum_j c_j^2)`, where `c_j` is the share of the
-/// queries that control `j` donated to. At equal weights `c_j = K_j / n` and this is
-/// `sigma^2 (n + sum K_j^2) / n^2`.
-fn abadie_imbens_standard_error(pairs: &[Pair], contrast: f64, weight_total: f64) -> Option<f64> {
-    if pairs.len() < 2
-        || pairs.iter().any(|pair| pair.weight.partial_cmp(&0.0_f64) != Some(Ordering::Greater))
+/// With shares `w_q = weight_q / total` and `c_j` the share of the queries that control `j`
+/// donated to, the variance of the contrast given the matches is
+/// `sum_q w_q^2 s_q^2 + sum_j c_j^2 s_j^2`, where `s_i^2` is the conditional outcome variance of
+/// unit `i`. Each is estimated by the Abadie-Imbens within-arm nearest-neighbour form
+/// `(1/2) (y_i - y_l(i))^2`, `l(i)` the nearest other unit of the same arm and period on the
+/// score ([`within_arm_noise`]); the pair differences are not used, because every query that
+/// shares a donor shares its noise and the differences understate the spread. `query_noise` and
+/// `donor_noise` hold those variances for the query and the donor of each pair. `None` when a
+/// matched weight is not positive.
+#[must_use]
+pub fn abadie_imbens_standard_error(
+    weights: &[f64],
+    donors: &[usize],
+    query_noise: &[f64],
+    donor_noise: &[f64],
+) -> Option<f64> {
+    let pairs = weights.len();
+    if pairs == 0
+        || donors.len() != pairs
+        || query_noise.len() != pairs
+        || donor_noise.len() != pairs
+        || weights.iter().any(|weight| weight.partial_cmp(&0.0_f64) != Some(Ordering::Greater))
     {
         return None;
     }
-    let shares: Vec<f64> = pairs.iter().map(|pair| pair.weight / weight_total).collect();
-    let concentration: f64 = shares.iter().map(|share| share * share).sum();
-    let denominator = 1.0 - concentration;
-    if !denominator.is_finite() || denominator <= 0.0 {
-        return None;
+    let total: f64 = weights.iter().sum();
+    let mut variance = 0.0_f64;
+    let mut donated: BTreeMap<usize, (f64, f64)> = BTreeMap::new();
+    for k in 0..pairs {
+        let share = weights[k] / total;
+        variance += share * share * query_noise[k];
+        donated.entry(donors[k]).or_insert((0.0, donor_noise[k])).0 += share;
     }
-    let spread: f64 = shares
-        .iter()
-        .zip(pairs)
-        .map(|(share, pair)| share * (pair.difference - contrast).powi(2))
-        .sum();
-    let mut donated: BTreeMap<usize, f64> = BTreeMap::new();
-    for (share, pair) in shares.iter().zip(pairs) {
-        *donated.entry(pair.donor).or_insert(0.0) += share;
+    for (share, noise) in donated.values() {
+        variance += share * share * noise;
     }
-    let reuse: f64 = donated.values().map(|share| share * share).sum();
-    let variance = 0.5 * spread / denominator * (concentration + reuse);
     (variance.is_finite() && variance >= 0.0).then_some(variance.sqrt())
+}
+
+/// Within-arm conditional outcome variance of each row, `(1/2) (y_i - y_l(i))^2`, where `l(i)` is
+/// the nearest other row on the score (equal scores are at distance zero; the lowest input index
+/// breaks a tie in distance). A row alone in its arm gets no entry.
+fn within_arm_noise(rows: &[Row], out: &mut BTreeMap<usize, f64>) {
+    if rows.len() < 2 {
+        return;
+    }
+    let mut sorted: Vec<&Row> = rows.iter().collect();
+    sorted.sort_by(|a, b| a.score.total_cmp(&b.score).then(a.index.cmp(&b.index)));
+    // Runs of equal score, each in ascending input index.
+    let mut runs: Vec<&[&Row]> = Vec::new();
+    let mut start = 0;
+    for k in 1..=sorted.len() {
+        if k == sorted.len() || sorted[k].score.total_cmp(&sorted[start].score).is_ne() {
+            runs.push(&sorted[start..k]);
+            start = k;
+        }
+    }
+    for (g, run) in runs.iter().enumerate() {
+        for row in *run {
+            let neighbour = if run.len() > 1 {
+                run.iter().find(|other| other.index != row.index).copied()
+            } else {
+                let left = g.checked_sub(1).map(|h| runs[h][0]);
+                let right = runs.get(g + 1).map(|r| r[0]);
+                match (left, right) {
+                    (Some(l), Some(r)) => {
+                        let (dl, dr) = ((row.score - l.score).abs(), (r.score - row.score).abs());
+                        match dl.total_cmp(&dr) {
+                            Ordering::Less => Some(l),
+                            Ordering::Greater => Some(r),
+                            Ordering::Equal => Some(if l.index < r.index { l } else { r }),
+                        }
+                    }
+                    (Some(l), None) => Some(l),
+                    (None, other) => other,
+                }
+            };
+            if let Some(other) = neighbour {
+                out.insert(row.index, 0.5 * (row.outcome - other.outcome).powi(2));
+            }
+        }
+    }
 }
 
 struct Row {
@@ -876,7 +964,8 @@ mod tests {
     #[test]
     fn period_match_stays_inside_its_period_and_matches_the_reference() {
         // Reference: brute-force nearest control inside each period (lowest index on a tie) and
-        // the Abadie-Imbens weighted variance from per-unit coefficients, in numpy.
+        // the Abadie-Imbens conditional variance with within-arm nearest-neighbour outcome
+        // variances, in exact rational arithmetic.
         let estimate = PeriodHistoryContrast::try_new(Some(2.0))
             .unwrap()
             .contrast(&periodic_sample())
@@ -887,7 +976,7 @@ mod tests {
         assert_eq!(estimate.periods_matched, 2);
         close(estimate.weight_total, 4.5);
         close(estimate.contrast, 4.333_333_333_333_333);
-        close(estimate.standard_error.unwrap(), 0.931_408_271_125_701_1);
+        close(estimate.standard_error.unwrap(), 2.096_440_251_568_134);
     }
 
     #[test]
@@ -899,7 +988,7 @@ mod tests {
         assert_eq!(estimate.unmatched_treated, vec![8]);
         close(estimate.weight_total, 5.5);
         close(estimate.contrast, 5.909_090_909_090_908);
-        close(estimate.standard_error.unwrap(), 2.348_609_256_457_778);
+        close(estimate.standard_error.unwrap(), 2.065_057_580_291_008_5);
     }
 
     #[test]

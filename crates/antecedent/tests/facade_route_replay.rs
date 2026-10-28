@@ -310,7 +310,7 @@ fn the_history_match_replays_and_matches_the_brute_force_donor_search() {
     let donors: Vec<usize> = fit.matched_donors.iter().map(|&v| v as usize).collect();
     assert_eq!(matched.iter().map(|m| m.0).collect::<Vec<_>>(), queries);
     assert_eq!(matched.iter().map(|m| m.1).collect::<Vec<_>>(), donors);
-    close(fit.standard_error.unwrap(), 0.931_408_271_125_701_1, 1e-12, "Abadie-Imbens se");
+    close(fit.standard_error.unwrap(), 2.096_440_251_568_134, 1e-12, "Abadie-Imbens se");
     let wire = consumed.body.history_match.as_ref().expect("history match section");
     assert_eq!(wire.contrast.to_bits(), fit.contrast.to_bits());
     assert_eq!(wire.standard_error, fit.standard_error);

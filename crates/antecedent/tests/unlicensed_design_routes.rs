@@ -261,7 +261,7 @@ fn period_history_match_matches_the_brute_force_reference_and_round_trips() {
     assert_eq!(&*fit.differences, &[6.0, 3.0, 5.0]);
     close(fit.weight_total, 4.5, 1.0e-12);
     close(fit.contrast, 4.333_333_333_333_333, 1.0e-12);
-    close(fit.standard_error.unwrap(), 0.931_408_271_125_701_1, 1.0e-12);
+    close(fit.standard_error.unwrap(), 2.096_440_251_568_134, 1.0e-12);
     let bytes = prepared.encode_contracted_result(&result, "history-match", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     let wire = body.history_match.as_ref().unwrap();
@@ -301,7 +301,7 @@ fn period_history_match_matches_the_brute_force_reference_and_round_trips() {
     let reuse = open.history_match().unwrap();
     assert_eq!(&*reuse.matched_donors, &[1, 2, 5, 5]);
     close(reuse.contrast, 5.909_090_909_090_908, 1.0e-12);
-    close(reuse.standard_error.unwrap(), 2.348_609_256_457_778, 1.0e-12);
+    close(reuse.standard_error.unwrap(), 2.065_057_580_291_008_5, 1.0e-12);
 }
 
 #[test]

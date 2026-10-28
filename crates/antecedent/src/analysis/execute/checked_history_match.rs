@@ -180,6 +180,8 @@ impl CheckedHistoryMatchOperation {
             matched_donors: Arc::from(estimate.matched_donors.as_slice()),
             differences: Arc::from(differences.as_slice()),
             pair_weights: Arc::from(pair_weights.as_slice()),
+            query_variances: Arc::from(estimate.query_variances.as_slice()),
+            donor_variances: Arc::from(estimate.donor_variances.as_slice()),
             unmatched_treated: Arc::from(estimate.unmatched_treated.as_slice()),
             periods_matched: estimate.periods_matched,
             caliper: self.query.caliper,

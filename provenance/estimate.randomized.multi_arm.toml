@@ -21,3 +21,34 @@ test_sources = [
   "crates/antecedent/tests/randomized_trial_route.rs",
   "python/tests/test_randomized_experiment.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "multi_arm::estimate_multi_arm: the Horvitz-Thompson mean (1/n) sum 1{A_i=a} Y_i/p_ia of every declared arm under independent unit-level draws from known per-unit arm probabilities, the observed-arm variance contribution (1/n^2) sum 1{A_i=a} (1-p_ia) Y_i^2/p_ia^2, the observed support, and the refusals for a missing arm, a non-unit probability row and overflow. The route's contrast arithmetic (twice the summed contributions) is checked only as a bound in the reference script. Not the Neyman interval of the same route, the Bayesian form or any coverage."
+assumptions = ["Independent assignment across units with the known per-unit probabilities the rows state, consistency and no interference are design premises taken as given.", "The variance contribution is a bound on the design variance of the arm mean that holds for the sampling design only; twice the sum of two arms' contributions bounds the contrast variance without their covariance."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Three designs of 2 to 3 units with 2, 3 and 4 arms and unequal per-unit probabilities, including one probability of 2^-20 and outcomes near 1e8, every assignment enumerated (8, 16 and 27 per design); means and contributions are asserted to 1e-12 relative on all of them and the realizations with an unobserved arm are asserted to be refused. Exact unbiasedness of the mean and of the variance contribution, and the domination of the exact contrast variance by twice the summed contributions, are asserted by the reference script (not by Rust) over the full realization set, including realizations the product refuses. Because a refused realization is conditioned away in use, the mean is unbiased only over the full design, not given that every arm is observed; the product states that refusal. Nothing here bears on interval coverage."
+sources = ["https://doi.org/10.1080/01621459.1952.10483446"]
+findings_resolved = ["No defect found: the estimator reproduces the exact value on every enumerated realization, with the 2^-20 probability and a 1e8 offset, and refuses exactly the realizations in which a declared arm has no observed unit. The reference script verifies exactly that the mean is unbiased for the arm's potential-outcome mean, that the observed-arm contribution is unbiased for the design variance sum (1-p)/p Y^2/n^2, and that the contrast bound 2(V_a+V_b) used by the route holds for every arm pair (it follows from (1-p_a)(1-p_b) >= p_a p_b when p_a+p_b <= 1)."]
+record_sha256 = "acbae1ac32d7baf70c1c65b34a33dea9115b908a5b2f87f1495d61420d1ce74e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/multi_arm.rs"
+sha256 = "4d50f206ecf14efce7e27b6b876f42fe635d7ee26756bc482660cd1f854dc979"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/randomized_design_enumeration.rs"
+sha256 = "e7ae6cc6b0ca52dbd994ffba4a6c413a9d8c0a10c154b68d25f2057296d7f9e6"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/randomized_design_enumeration.py"
+sha256 = "d590bde8864664c18e74c0b1fcac04a83675c08dc68e9db72f7e8dfcf6298550"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/randomized_design_enumeration.json"
+sha256 = "20427c464a5c3c8311651a3ccbe30c29276088ecd1a3d87b6f5c8f4e7cd41f32"
