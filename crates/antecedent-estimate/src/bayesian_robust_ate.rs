@@ -241,9 +241,20 @@ fn fold_u16(fold: u32) -> Result<u16, EstimationError> {
         .map_err(|_| EstimationError::data_msg("invalid Bayesian robust ATE input or options"))
 }
 
+/// The design `[1, centred covariates]`. The intercept is unpenalised in every nuisance, so
+/// subtracting a column mean only reparametrises the intercept: the fitted values are unchanged
+/// and a covariate far from zero no longer makes the weighted normal equations and the damped
+/// logistic iteration ill conditioned.
 fn make_design(input: &BayesianRobustAteInput) -> Vec<Vec<f64>> {
-    (0..input.row_ids.len())
-        .map(|i| std::iter::once(1.0).chain(input.covariates.iter().map(|c| c[i])).collect())
+    let n = input.row_ids.len();
+    let means: Vec<f64> =
+        input.covariates.iter().map(|c| c.iter().sum::<f64>() / n as f64).collect();
+    (0..n)
+        .map(|i| {
+            std::iter::once(1.0)
+                .chain(input.covariates.iter().zip(&means).map(|(c, m)| c[i] - m))
+                .collect()
+        })
         .collect()
 }
 

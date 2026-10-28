@@ -260,6 +260,12 @@ impl ConditionalLinearAdjustment {
                 "conditional quantiles require CDF-grid inversion through Study; a mean regression cannot estimate a quantile",
             ));
         }
+        if !matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean) {
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
+                "the linear interaction fit estimates a mean; an exceedance functional requires the outcome transformed to its indicator and the Mean functional",
+            ));
+        }
         if query.effect_modifiers.is_empty() {
             return Err(EstimationError::unsupported_coded(
                 antecedent_core::reason_code!("required_option_missing"),
