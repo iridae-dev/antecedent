@@ -15,9 +15,11 @@
 //! * a trial-level line takes the coefficient moments of its least-squares fit,
 //!   `Var(b) = s² / Sxx`, `Var(a) = s² (1/k + x̄² / Sxx)` and `Cov(a, b) = -s² x̄ /
 //!   Sxx`, through the same formula, where `s²` is the residual variance on `k - 2`
-//!   degrees of freedom. This is the variance of the fitted mean line, not of a new
-//!   trial's effect: the residual of a new trial is a predictive quantity and enters
-//!   only the prediction interval;
+//!   degrees of freedom. The variance of the line itself is evaluated in its centered
+//!   form `s² / k + (x - x̄)² Var(b)`, which equals `Var(a) + x² Var(b) + 2 x Cov(a, b)`
+//!   without the cancellation of order `x̄²` a large surrogate offset would cause. This is
+//!   the variance of the fitted mean line, not of a new trial's effect: the residual of a
+//!   new trial is a predictive quantity and enters only the prediction interval;
 //! * a binary-misclassification correction takes the delta method of its rates:
 //!   `(V + p² Var(Se) + (1 - p)² Var(Sp)) / J²` for the inversion and
 //!   `J² V + x² Var(Se) + (1 - x)² Var(Sp)` for the forward map, `J = Se + Sp - 1`;
@@ -149,6 +151,9 @@ struct AffineMoments {
     intercept_variance: f64,
     slope_variance: f64,
     intercept_slope_covariance: f64,
+    /// The abscissa about which `intercept_variance` and `intercept_slope_covariance` are
+    /// stated: the line is `intercept + slope (x - center)`. Zero for a declared line.
+    center: f64,
 }
 
 impl AffineMoments {
@@ -163,11 +168,12 @@ impl AffineMoments {
         if !product.is_finite() || !square.is_finite() || square > product {
             return Err(dependence_not_a_covariance(covariance.to_string()));
         }
+        let offset = source_value - self.center;
         let variance = self.intercept_variance
-            + source_value * source_value * self.slope_variance
+            + offset * offset * self.slope_variance
+            + 2.0 * offset * self.intercept_slope_covariance
             + self.slope * self.slope * source_variance
             + 2.0 * source_value * self.slope * covariance
-            + 2.0 * source_value * self.intercept_slope_covariance
             + self.slope_variance * source_variance
             + covariance * covariance;
         finite_variance(variance)?;
@@ -241,11 +247,19 @@ fn trial_moments(statistics: &TrialStatistics, slope: f64) -> Result<AffineMomen
         ));
     }
     let residual_variance = residual_sum_squares / (count - 2.0);
+    // The variance of the fitted line at `x`, `Var(a) + x² Var(b) + 2 x Cov(a, b)` with
+    // `Var(a) = s² (1/k + x̄²/Sxx)` and `Cov(a, b) = -s² x̄/Sxx`, equals
+    // `s²/k + (x - x̄)² Var(b)`: the line is stated about the surrogate mean, where its intercept
+    // is the mean outcome and uncorrelated with the slope. The uncentered terms are of order
+    // `x̄²`, and a large surrogate offset makes them cancel to a result of order `s²` and lose
+    // its digits. The terms that carry the source (`b² V`, `2 x b c`, `Var(b) V`, `c²`) are
+    // unchanged and use the uncentered source value.
     Ok(AffineMoments {
         slope,
-        intercept_variance: residual_variance * (1.0 / count + mean_x * mean_x / sxx),
+        intercept_variance: residual_variance / count,
         slope_variance: residual_variance / sxx,
-        intercept_slope_covariance: -residual_variance * mean_x / sxx,
+        intercept_slope_covariance: 0.0,
+        center: mean_x,
     })
 }
 
