@@ -1373,3 +1373,15 @@ previous = "python/tests/test_sampling_design.py::test_the_declaration_is_part_o
 replacement = "python/tests/test_sampling_design.py::test_the_declaration_is_part_of_the_study_identity"
 disposition = "inputs_made_valid_assertions_unchanged"
 reason = "A clustered-panel declaration with the bootstrap off now requires the cluster standard error that reads it; the study carries that estimator and the identity assertions are unchanged."
+
+[[case]]
+previous = "crates/antecedent/tests/treatment_score_row_semantics.rs::nonunit_storage_weights_refuse_instead_of_changing_population_silently"
+replacement = "crates/antecedent/tests/treatment_score_row_semantics.rs::nonunit_storage_weights_refuse_instead_of_changing_population_silently"
+disposition = "assertion_premise_corrected"
+reason = "The static effect route now refuses a weighted table when the study is prepared, earlier than the treatment-score posterior, so the refusal is asserted at preparation with the detail sampling_weights.route_unsupported. Non-unit storage weights still cannot change the population silently."
+
+[[case]]
+previous = "crates/antecedent-design/tests/fixtures/decision_reliability_v1.bin"
+replacement = "crates/antecedent-design/tests/fixtures/decision_reliability_v1.bin"
+disposition = "golden_regenerated_for_rounding_level_change"
+reason = "The Gaussian expected maximum of the winner's-curse bound changed by about 2.4e-17 (0.04870361026711675 to 0.048703610267116726) after the normal-cdf tail precision change. A 40-digit evaluation of the same 4000-panel Simpson integral gives 0.048703610267117055, so both values carry about 3e-16 of accumulated summation rounding and neither is more accurate. The stored report must recompute bit for bit, so the golden was rewritten with the documented writer; the draws, request, version and every other report field are unchanged and all gating assertions are untouched."

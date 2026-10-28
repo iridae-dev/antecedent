@@ -117,9 +117,15 @@ fn error_policy_and_missing_summary_predictors_are_not_silently_dropped() {
 #[test]
 fn nonunit_storage_weights_refuse_instead_of_changing_population_silently() {
     let weighted = fixture().with_weights(vec![2.0; 240].into()).unwrap();
-    let error =
-        prepare(weighted, None).treatment_score_posterior_retained(&spec(vec![0])).unwrap_err();
-    assert!(error.to_string().contains("sampling"));
+    // The static effect route refuses table weights when the study is prepared, so a
+    // weighted storage column can never silently change the population of the fit.
+    let error = builder(weighted, None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ExecutionContext::for_tests(3))
+        .unwrap_err();
+    assert!(error.to_string().contains("sampling_weights.route_unsupported"), "{error}");
 }
 
 #[test]
