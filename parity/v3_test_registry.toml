@@ -18685,3 +18685,45 @@ crate = "antecedent-learn"
 cargo_target = "bayesian_basis_reference"
 path = "crates/antecedent-learn/tests/bayesian_basis_reference.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "effect-width-reference"
+crate = "antecedent-design"
+cargo_target = "effect_width_reference"
+path = "crates/antecedent-design/tests/effect_width_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "winners-curse-reference"
+crate = "antecedent-design"
+cargo_target = "winners_curse_reference"
+path = "crates/antecedent-design/tests/winners_curse_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-mediation-population-regression"
+crate = "antecedent-identify"
+cargo_target = "temporal_mediation_population_regression"
+path = "crates/antecedent-identify/tests/temporal_mediation_population_regression.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "measurement-continuous-reference"
+crate = "antecedent-stats"
+cargo_target = "measurement_continuous_reference"
+path = "crates/antecedent-stats/tests/measurement_continuous_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "diagnostic-propensity-reference"
+crate = "antecedent-validate"
+cargo_target = "diagnostic_propensity_reference"
+path = "crates/antecedent-validate/tests/diagnostic_propensity_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "predictive-assessment-reference"
+crate = "antecedent-validate"
+cargo_target = "predictive_assessment_reference"
+path = "crates/antecedent-validate/tests/predictive_assessment_reference.rs"
+gates = ["inventory", "named"]

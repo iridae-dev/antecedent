@@ -93,6 +93,13 @@ impl TemporalMediationIdentifier {
                  natural effects alias controlled effects in linear temporal mediation",
             ));
         }
+        // One result cannot carry several horizons; answering for the first and dropping the
+        // rest would silently ignore part of the declared grid.
+        if query.horizons.len() > 1 {
+            return Err(IdentificationError::unsupported(
+                "identify answers one horizon; call identify_with_horizon once per declared horizon",
+            ));
+        }
         let horizon = query.horizons.first().copied().unwrap_or(1);
         self.identify_horizon(template, query, horizon).map(|(id, _)| id)
     }

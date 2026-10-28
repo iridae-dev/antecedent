@@ -25,3 +25,34 @@ test_sources = [
 implementation_deviations = [
  "The typed Python EffectWidth declaration preserves signed original se_before-se_after Gram arithmetic and prospective information for measurements/interventions/environments; it does not turn the SE reduction into a licensed posterior interval width.",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The ReduceEffectPosteriorWidth objective of crates/antecedent-design/src/ranker.rs, reached through DesignRanker::rank with an EffectWidthContext: the baseline treatment standard error sqrt(sigma^2 [G^-1]_tt) from a Cholesky solve, and the signed reduction se0 - se1 for each candidate kind (more samples by row scaling, an environment with its own Gram and variance or by row scaling when it has none, measured columns bordered one at a time with the last declared variance, an intervention design Gram), with the refusals of a mis-shaped column, Gram, variance or treatment column and of a singular baseline. Not a review of the other objectives, of the ranking and Monte Carlo machinery, or of the Python declaration that builds the context."
+assumptions = ["The design is ordinary least squares with a known residual variance, so the standard error of coefficient t is sqrt(sigma^2 [(X'X)^-1]_tt); a candidate's updated Gram is formed the way the candidate describes (rows of the same population scale the Gram, a pooled environment adds its Gram, a measured column borders it).", "More rows of the same population scale the Gram by (n + m)/n, so the standard error scales by sqrt(n/(n + m)); the reference scales the Gram and inverts in full rather than using that identity.", "The reduction is signed: a design that raises the standard error scores negative."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote a separate reference of its own from the stated definitions; no upstream implementation or test source was consulted or copied."
+redistribution = "The reference script, its frozen output and the test are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited primary sources are linked, not redistributed."
+limitations = "The reference is one three-column correlated Gram (condition number under 4) and one five-column Hilbert-like Gram with condition number about 6e5, with a treatment column in the interior; a Gram with condition number near 1e12 is not exercised, nor are designs with hundreds of columns. The objective is a Gram-matrix arithmetic under a linear-Gaussian model with known variance; it is not a posterior interval width, and the record says so. Two declarations are not consulted once a Gram is supplied: additional_rows of an environment plan is ignored when the environment has a Gram (the Gram carries its own sample size), and the n of an environment Gram or an intervention design is not read; a caller that declares inconsistent values is not told. A measurement plan that lists the same variable twice is refused only because the second border has the wrong length. Calibration remains deferred."
+sources = ["https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["Every candidate kind reduces the treatment standard error by the full-inverse value to 1e-12 relative on the well-conditioned Gram and to 1e-8 on the ill-conditioned one, including a negative reduction for a noisier environment, an environment pooled by Gram versus by rows, a plan that mixes matched and unmatched variables (the unmatched one contributes nothing) and a two-column border that keeps the last declared variance.", "A mis-shaped measured column, a repeated measured variable, an environment Gram of the wrong size, a non-positive variance, a treatment column outside the design and a singular baseline Gram are each refused with a typed error and never scored as zero. No defect was found and no product code changed."]
+record_sha256 = "e46037b04c050794083702df122b6e7a47bc4f9310d8c50488533aa17af250cf"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/ranker.rs"
+sha256 = "9f4bdd2b680b9f3b3a0b733b098e74a05b229684305d5da7a8d33819f909b4a9"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/effect_width_reference.rs"
+sha256 = "024b0c0b969358830ea06c091adfd11573c004f9985aeceb0677afdb8420aa45"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-design/tests/oracle_data/effect_width_reference.py"
+sha256 = "dbe25c572567585184006ae2022fd0748978cccedc09bc56864140c761c72187"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-design/tests/oracle_data/effect_width_reference.json"
+sha256 = "046d1f09018ad6264f8787d2b76f770e9a38e2f051c5895ffc09d3c727964c07"

@@ -18,3 +18,39 @@ implementation_deviations = [
 ]
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent-io/tests/predictive_assessment_artifact.rs", "crates/antecedent-validate/tests/predictive_assessment.rs", "crates/antecedent/tests/predictive_assessment_facade.rs", "crates/antecedent/tests/predictive_score_interval_facade.rs", "crates/antecedent/tests/predictive_score_interval_calibration.rs"]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "construct_expected_score_interval in crates/antecedent-validate/src/predictive_assessment/interval.rs with variance_of_mean of compare.rs, for a mean case score and a paired score difference under iid, serial and cluster dependence: the canonical case order (a shuffled time index must put the case scores in time order and a cluster label must stay with its score), the iid variance s^2/n with n - 1 degrees of freedom, the Bartlett long-run variance with the declared lag (weights 1 - k/(L + 1), autocovariances divided by n) with n/(L + 1) - 1 degrees of freedom and the bandwidth share limit, the cluster-robust variance G/(G - 1) sum of squared centred cluster sums over n^2 with G - 1 degrees of freedom and the minimum of ten clusters, and the Student-t interval. Not a review of the coverage-record resolution that licenses publication (expected_score_interval), of the score computations (separately checked), or of the Student-t quantile routine beyond its use here."
+assumptions = ["The case scores are a mean of per-case losses of a law fixed before the cases; under the declared dependence the Student-t interval of the mean uses the variance of the declared form, and the paired difference is the mean of the case differences.", "The long-run variance uses the sample mean for centring and no small-sample correction beyond the t reference with n/(L + 1) - 1 degrees of freedom (the fixed-b form).", "Publication of the interval needs a current attesting coverage record, which this review does not examine."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote a separate reference of its own from the stated definitions; no upstream implementation or test source was consulted or copied."
+redistribution = "The reference script, its frozen output and the test are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited primary sources are linked, not redistributed."
+limitations = "The primary sources were not re-read in this review (nothing downloaded, no local copy), so the statements of the PIT, the non-randomized PIT of discrete laws and the HAC construction rest on the record and the code comments. The reference is one 60-case Gaussian study (an outlier included), a 60-case Bernoulli study, a 40-case finite law and a 40-case ensemble of seven coarse draws with ties, and boundaries at decimal edges are avoided on purpose (a PIT or forecast probability exactly on a bin edge is decided by floating-point rounding in either direction and is not a defect); Student-t critical values are computed by the reference from the incomplete beta function and compared with the library's student_t_ppf at 1e-7. No claim of calibration or coverage is made: every diagnostic is labelled unmeasured and the intervals are constructed without a coverage record (the licensed route, which also needs a current attesting record, is exercised by the facade tests)."
+sources = ["https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["For a mean CRPS and a CRPS difference of two Gaussian predictors over 60 cases, at levels 0.9 and 0.5, the mean, standard error, degrees of freedom and interval ends under iid dependence, serial dependence with lag 3 (a shuffled time index) and twelve clusters (labels assigned out of case order) agree with the reference to 1e-9 on the standard error and 1e-7 on the ends. No defect was found in the interval construction and no product code changed for this record."]
+record_sha256 = "c056d76f9266bce767568de84ff84b941f998da86b8d6ea613bf2d5e225bd433"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/predictive_assessment/interval.rs"
+sha256 = "09594c5684c82a5e25748c0150843e363217fb916a457323490e8ee788551234"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/predictive_assessment/compare.rs"
+sha256 = "22159c6a0d4c236719f30fb36c9a9b3499f41f1bd75faa415c35a398f2a93469"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-validate/tests/predictive_assessment_reference.rs"
+sha256 = "6eadb4f2a23b0fec7cd5b8da5c089d54ff0cd695fa5b0bbdf4b5ef3b2fbc742f"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-validate/tests/oracle_data/predictive_assessment_reference.py"
+sha256 = "a8b924ef105f350b148cfecec6b9096a1cadff0beb8164d195e8f48bb832517a"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-validate/tests/oracle_data/predictive_assessment_reference.json"
+sha256 = "b9a05453e627809284b7031cce018e87c94946f364126e312af7a7fbb9e5f6ba"

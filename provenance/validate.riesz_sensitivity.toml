@@ -21,3 +21,34 @@ test_sources = [
  "crates/antecedent-validate/src/riesz.rs unit tests",
  "conformance/validate/riesz_sensitivity",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "RieszSensitivity::refute in crates/antecedent-validate/src/riesz.rs for a binary treatment: the diagnostic logistic propensity, its clamp to [clip, 1 - clip], the closed-form representer alpha = 1/p for treated and -1/(1 - p) for controls, ||alpha||_2 = sqrt(mean alpha^2), the sample SD of the outcome, the IPW contrast and its sign refusal against the published estimate, the worst-case bias delta * sd(Y) * ||alpha||_2 on the delta grid, the first grid delta whose bias reaches the published estimate (the tipping delta, infinity when none), the bound moved toward zero, and the pass rule (the largest probed delta that left the effect standing must reach the bar). Not a review of the propensity fitter or of any learned representer; the cited paper's automatic-debiasing estimator is not implemented."
+assumptions = ["The bound |E[alpha Delta]| <= delta sd(Y) ||alpha||_2 is a Cauchy-Schwarz bound and is taken as the repository's robustness semantics; this review checks the arithmetic of the grid, not the bound.", "The interval is centred on the published estimate, not on the diagnostic IPW contrast, which supplies only the representer norm and a sign check.", "The diagnostic propensity is the maximum-likelihood logistic regression; agreement with the library's IRLS fit is checked at 1e-6."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote a separate reference of its own from the stated definitions; no upstream implementation or test source was consulted or copied."
+redistribution = "The reference script, its frozen output and the test are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited primary sources are linked, not redistributed."
+limitations = "The primary sources were not re-read in this review (nothing downloaded, no local copy), so the statements of the trimming rule, the effective sample size and the Riesz representer rest on the record and the code comments. The reference is one study of 160 rows with two covariates and a propensity from 0.07 to 0.95, a logistic fit by exact maximum likelihood compared with the library's IRLS at its default tolerance of 1e-8 (agreement is checked at 1e-6, so a boundary within that distance would be a coin flip; the study keeps every verdict at least 3e-4 from its bar), one continuous-treatment study of the same size, and a binary-treatment report path that fits its own diagnostic propensity; a reused propensity report from a propensity-based estimator is not exercised, nor are separated fits, missing rows, effect-modifier masks or a custom target population. All thresholds are repository policy; no coverage or test size is claimed."
+sources = ["https://doi.org/10.3982/ECTA18515", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["For two clips (0.01 and 0.15), six published estimates (including one that never tips, one beyond the grid and one of the opposite sign) and two pass bars, the tipping delta, the bound, the pass verdict and the refusal of an opposite-sign contrast agree with the reference; the largest-cleared-delta rule makes an off-grid bar between two grid points pass or fail as the reference does. No defect was found and no product code changed."]
+record_sha256 = "03593a001162ea3522ebb3bc53509a5df020d762efdface7ad26e94bcdd78aad"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/riesz.rs"
+sha256 = "8f749ec047e1ae7327040e4f6841a52ca7d34351f30e82d506a7941f085ea327"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-validate/tests/diagnostic_propensity_reference.rs"
+sha256 = "3fc90718129f6b664c8de77fcebd2abce2dd06e5b3b8e048f279b613fa4d5bae"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-validate/tests/oracle_data/diagnostic_propensity_reference.py"
+sha256 = "9e9f0a986e379a134d45646f2414e4883b2c548cbd54a7eb7ba608587fac7fcd"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-validate/tests/oracle_data/diagnostic_propensity_reference.json"
+sha256 = "b9c7ec23887d8bf2f2d460c45458af14967de9238b7b32b57f4867d8cc61ced5"

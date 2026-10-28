@@ -26,3 +26,39 @@ test_sources = [
  "conformance/validate/overlap_graph_refutation",
  "python/tests/test_posterior_moments.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "OverlapRefuter and OverlapRuleRefuter in crates/antecedent-validate/src/overlap.rs and overlap_rule.rs on the diagnostic-propensity path: the logistic propensity of a binary treatment on the adjustment covariates, its minimum and maximum, the inverse-probability weights with the propensity clamped to [1e-9, 1 - 1e-9], the effective sample size (sum w)^2 / sum w^2 and its fraction of the rows, the pass rule (propensity range inside [eps, 1 - eps] and ESS fraction at least the bar), the comparison polarity (the unsupported share), the retained fraction of the trimming band [eps, 1 - eps] and the rule's pass rule, and the continuous-treatment support diagnostic (least-squares treatment location, residual order statistics at the first index at or above p (n - 1), both doses inside the band, shared by the two refuters). Not a review of the propensity fitter itself (the IRLS logistic fit is compared only through these outputs), of a reused estimator report, or of the optimal trimming threshold of the cited paper, which is not implemented."
+assumptions = ["The diagnostic propensity is the maximum-likelihood logistic regression of the treatment on an intercept and the adjustment covariates; the library's iteratively reweighted fit stops at a relative tolerance of 1e-8, so the reference is exact maximum likelihood and agreement is checked at 1e-6.", "Effective sample size is Kish's (sum w)^2 / sum w^2 of the ATE inverse-probability weights.", "The continuous support diagnostic is descriptive: it conditions on a linear treatment-location model and does not assert positivity."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote a separate reference of its own from the stated definitions; no upstream implementation or test source was consulted or copied."
+redistribution = "The reference script, its frozen output and the test are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited primary sources are linked, not redistributed."
+limitations = "The primary sources were not re-read in this review (nothing downloaded, no local copy), so the statements of the trimming rule, the effective sample size and the Riesz representer rest on the record and the code comments. The reference is one study of 160 rows with two covariates and a propensity from 0.07 to 0.95, a logistic fit by exact maximum likelihood compared with the library's IRLS at its default tolerance of 1e-8 (agreement is checked at 1e-6, so a boundary within that distance would be a coin flip; the study keeps every verdict at least 3e-4 from its bar), one continuous-treatment study of the same size, and a binary-treatment report path that fits its own diagnostic propensity; a reused propensity report from a propensity-based estimator is not exercised, nor are separated fits, missing rows, effect-modifier masks or a custom target population. All thresholds are repository policy; no coverage or test size is claimed."
+sources = ["https://doi.org/10.1093/biomet/asn055", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The overlap assessment reports comparison = 1 - ESS/n and passes or fails at the declared eps and ESS bar exactly as the reference for six combinations; the overlap rule reports the retained fraction and passes or fails at three bands and two retention bars; the continuous-treatment support fraction and verdict agree for four settings and between the two refuters. No defect was found and no product code changed."]
+record_sha256 = "2fca9bdda2311a1af37c9c93fe9a7c5c01539b6b13ee84515ae56ad76f203be1"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/overlap.rs"
+sha256 = "e3db2193ec22a4052cf62105d48372f5a63d77c0991f8be4d0c532ebe6e8f807"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/overlap_rule.rs"
+sha256 = "6ecb4a7103f6d9b4a7dc84d74835cbca276fb537bfbee363dca9fa4bbefe0956"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-validate/tests/diagnostic_propensity_reference.rs"
+sha256 = "3fc90718129f6b664c8de77fcebd2abce2dd06e5b3b8e048f279b613fa4d5bae"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-validate/tests/oracle_data/diagnostic_propensity_reference.py"
+sha256 = "9e9f0a986e379a134d45646f2414e4883b2c548cbd54a7eb7ba608587fac7fcd"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-validate/tests/oracle_data/diagnostic_propensity_reference.json"
+sha256 = "b9c7ec23887d8bf2f2d460c45458af14967de9238b7b32b57f4867d8cc61ced5"

@@ -103,3 +103,7 @@ path = "tests/cpdag_adjustment_envelope_exhaustive.rs"
 [[test]]
 name = "clamp_experiment_constraints"
 path = "tests/clamp_experiment_constraints.rs"
+
+[[test]]
+name = "temporal_mediation_population_regression"
+path = "tests/temporal_mediation_population_regression.rs"

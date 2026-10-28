@@ -29,7 +29,7 @@ record_sha256 = "84414a6662f73028fb94a7adbd331c6212e0e6bb520a92ec66db85a14f2c9a4
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/predictive_assessment/calibration.rs"
-sha256 = "a8fa06230950480cf4a8124be6961e2c0af47d7c1ef767a26ba4cfa5ff1ce6b3"
+sha256 = "6e7f0589f92a60c8cf8e0767f070f7457f34fd1382e9ae4e1e266671ce898031"
 
 [[method_review.artifacts]]
 role = "assertion"

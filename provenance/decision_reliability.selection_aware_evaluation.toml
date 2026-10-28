@@ -19,3 +19,34 @@ test_sources = [
   "crates/antecedent-design/tests/decision_reliability.rs",
   "crates/antecedent/tests/decision_reliability_facade.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "winners_curse_bound and its quadrature expected_maximum_independent in crates/antecedent-design/src/decision_reliability/selection.rs: the exact expected maximum of independent Gaussian noise with supplied standard errors (grouped by equal bits, unseen candidates padded at the largest supplied standard error, point-mass candidates), the dependence-free union bound s_max sqrt(2 ln N), the rule that selects between them (the exact maximum only for declared independent streams and only when it does not exceed the union bound), the adjusted value, and the refusals of malformed input. Not a review of the held-out re-evaluation, the sample splitting, the candidate-count bands or the coverage records, which this record also names."
+assumptions = ["The Monte Carlo errors of the candidates are independent Gaussian with the supplied standard errors treated as known; then E[e_selected] <= E[max_j e_j], and the expectation of the maximum is the integral of its survival function on both sides of zero.", "A candidate the search considered but did not retain carries the largest supplied standard error; a candidate with zero standard error is a point mass at zero.", "A nonnegative sample covariance does not license the independent-noise comparison, so only an independent-streams declaration selects the exact maximum."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote a separate reference of its own from the stated definitions; no upstream implementation or test source was consulted or copied."
+redistribution = "The reference script, its frozen output and the test are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited primary sources are linked, not redistributed."
+limitations = "The primary sources were not re-read in this review (nothing downloaded, no local copy); the upward bias of the maximum of noisy estimates and the sample-splitting argument rest on the record and the code comments. The reference covers ten configurations: six supplied candidates with standard errors from 0.01 to 2.0 alone and padded to 5000 considered, twelve distinct standard errors alone and padded to 100000, zero-noise candidates, a single candidate alone and padded to ten million, and standard errors spanning six orders of magnitude (1e-3 to 1e3) alone and padded; the groups are limited to 4096 distinct standard errors by the product, and a larger set reports the union bound only. The bound is an expectation over repetitions of the whole selection under Gaussian noise with known standard errors, not an interval for the realized selection, and the held-out and splitting routes of the record are outside this review. Calibration of the bound is measured elsewhere and is not examined here. Calibration remains deferred."
+sources = ["https://doi.org/10.1287/mnsc.1050.0451", "https://doi.org/10.1093/biomet/62.2.441", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["Defect fixed: with a zero-noise candidate the quadrature evaluated the lower half-line term F(-x) at the end point x = 0 as the point mass 1 instead of its limit 0, adding a jump of that size to the Simpson end point and overstating the expected maximum by h/6 (3.7e-4 on E[max(0, 0, Z)] = 0.39894, a 0.1 percent error; larger relative error for fewer panels).", "Defect fixed: one Simpson mesh sized by the largest standard error could not resolve a candidate whose standard error was much smaller, overstating the expected maximum by 6e-3 (1.6e-5 relative) when the standard errors were 1e-3, 1 and 1e3; scales more than a factor of four below the largest now get graded segments (the mesh is unchanged, bit for bit, when every standard error is within a factor of four of the largest, so stored reports do not move), and the result agrees with 20-digit quadrature to 2e-8 relative on all ten configurations.", "The union bound equals s_max sqrt(2 ln N) to rounding including the padding; every dependence declaration other than independent streams reports the union bound; malformed input (no estimate, fewer considered than supplied, a negative standard error, a non-finite in-sample value) is refused."]
+record_sha256 = "6f25de17d21918509ac1ba87de447e0380d373c1fcfd708c92b3c1e1c46cfca2"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_reliability/selection.rs"
+sha256 = "cc6d91296ed539d49f6cb32c04843c218e75bd75b3dd159bfed340be2267b18a"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/winners_curse_reference.rs"
+sha256 = "d98e87db8bc26ad6da0b6c90c8f7ecb30592346fa0b4eb0c100293f1764ed659"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-design/tests/oracle_data/winners_curse_reference.py"
+sha256 = "ddd82d0cb3fa33e78123c52c036fa0b2b73e4eb6e40fda901b5a894e34dcfeb5"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-design/tests/oracle_data/winners_curse_reference.json"
+sha256 = "76b6b9cd8e29fd58b42925d3580d024ca9824d5aa5c36ffd1bc71e9de52c453d"

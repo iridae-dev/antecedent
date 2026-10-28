@@ -17,3 +17,34 @@ implementation_deviations = [
 ]
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent-io/tests/predictive_assessment_artifact.rs", "crates/antecedent-validate/tests/predictive_assessment.rs"]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The calibration diagnostics of crates/antecedent-validate/src/predictive_assessment/calibration.rs for Gaussian, Bernoulli, finite real and ensemble laws: the PIT interval [F(y-), F(y)] of each case, the non-randomized PIT histogram that spreads a case's unit mass over the interval, its maximum bin deviation and chi-square descriptor, the Kolmogorov-Smirnov distance of the mid-PIT from uniform, the reliability table and weighted gap of Bernoulli forecasts, the central prediction interval and empirical coverage and mean width at each declared level (the normal quantile, the Bernoulli and finite quantile functions with a 1e-12 tolerance, the type-6 order-statistic rank of a sample), and the mean predictive spread. Not a review of the drift route, of joint or categorical laws (no PIT), or of the scores."
+assumptions = ["A calibrated law gives a uniform PIT; the non-randomized PIT of a discrete law spreads each case's mass uniformly over [F(y-), F(y)], and the KS distance of the mid-PIT of an ensemble or discrete law is itself discrete and descriptive.", "The central interval of a discrete law is the pair of quantiles Q(t), Q(1 - t) with t = (1 - level)/2 and Q(q) the smallest support point whose cumulative probability is at least q, with a 1e-12 tolerance so that probabilities written as decimals do not fall below a tail by one rounding.", "The central interval of a sample of m draws uses the exchangeable-rank (type 6) quantile with rank q (m + 1) clamped to [1, m]."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote a separate reference of its own from the stated definitions; no upstream implementation or test source was consulted or copied."
+redistribution = "The reference script, its frozen output and the test are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited primary sources are linked, not redistributed."
+limitations = "The primary sources were not re-read in this review (nothing downloaded, no local copy), so the statements of the PIT, the non-randomized PIT of discrete laws and the HAC construction rest on the record and the code comments. The reference is one 60-case Gaussian study (an outlier included), a 60-case Bernoulli study, a 40-case finite law and a 40-case ensemble of seven coarse draws with ties, and boundaries at decimal edges are avoided on purpose (a PIT or forecast probability exactly on a bin edge is decided by floating-point rounding in either direction and is not a defect); Student-t critical values are computed by the reference from the incomplete beta function and compared with the library's student_t_ppf at 1e-7. No claim of calibration or coverage is made: every diagnostic is labelled unmeasured and the intervals are constructed without a coverage record (the licensed route, which also needs a current attesting record, is exercised by the facade tests)."
+sources = ["https://doi.org/10.1111/j.1467-9868.2007.00587.x", "https://doi.org/10.1111/j.1541-0420.2009.01191.x", "https://doi.org/10.2307/2981683", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["Defect fixed: the central interval of a Bernoulli law compared 1 - p with the tail without the 1e-12 tolerance a finite law uses, so the same forecast written as Bernoulli(0.8) and as the two-point law {0: 0.2, 1: 0.8} had different intervals at level 0.6 (the cumulative probability 1 - 0.8 = 0.19999999999999996 fell below the tail (1 - 0.6)/2 = 0.2 by one rounding, collapsing the interval to the single point 1 and changing coverage and width); both now agree at every level from 0.5 to 0.98 in steps of 0.01.", "The PIT histogram, its descriptors, the mid-PIT values, the coverage and mean width at three to five levels, the reliability table and weighted gap and the mean predictive spread agree with the 60-digit reference for the four law families (to 1e-10 or better), including ties between ensemble draws and the outcome."]
+record_sha256 = "71a0f34511166a9315b2cd630c21ea2f4305db43bdd09a4625d52639feee4f7e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/predictive_assessment/calibration.rs"
+sha256 = "6e7f0589f92a60c8cf8e0767f070f7457f34fd1382e9ae4e1e266671ce898031"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-validate/tests/predictive_assessment_reference.rs"
+sha256 = "6eadb4f2a23b0fec7cd5b8da5c089d54ff0cd695fa5b0bbdf4b5ef3b2fbc742f"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-validate/tests/oracle_data/predictive_assessment_reference.py"
+sha256 = "a8b924ef105f350b148cfecec6b9096a1cadff0beb8164d195e8f48bb832517a"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-validate/tests/oracle_data/predictive_assessment_reference.json"
+sha256 = "b9a05453e627809284b7031cce018e87c94946f364126e312af7a7fbb9e5f6ba"

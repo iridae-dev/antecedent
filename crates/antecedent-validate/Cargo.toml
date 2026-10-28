@@ -81,3 +81,11 @@ path = "tests/linear_sensitivity_reference.rs"
 [[test]]
 name = "proper_scores_reference"
 path = "tests/proper_scores_reference.rs"
+
+[[test]]
+name = "diagnostic_propensity_reference"
+path = "tests/diagnostic_propensity_reference.rs"
+
+[[test]]
+name = "predictive_assessment_reference"
+path = "tests/predictive_assessment_reference.rs"

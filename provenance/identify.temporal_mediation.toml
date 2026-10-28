@@ -6,10 +6,11 @@ copied_comments = false
 copied_tests = false
 
 implementation_deviations = [
- "Does not calculate Wright path-coefficient products or propagate coefficients through temporal lags; all contrasts emit the same static front-door-shaped mediation functional.",
- "Direct, mediated, natural-direct, and natural-indirect labels do not produce distinct direct and indirect decompositions.",
- "The graph check only requires some treatment-to-mediator edge and some mediator-to-outcome edge anywhere in the template; it does not verify one coherent lagged path, treatment-mediator or mediator-outcome confounding conditions, or cross-world identification assumptions.",
- "Natural effects are optionally aliased to controlled effects under a declared linearity flag rather than identified by the cited natural-effect result.",
+ "Identification only: the identifier certifies one adjustment set S(h) shared by the mediator, outcome and reduced-form regressions at each horizon and emits one mediation functional shape for every contrast, separated by the method id; no path-coefficient product is computed here, and the decomposition into direct and mediated effects is carried out by the estimator.",
+ "Certification is graphical on the unfolded window DAG: S(h) is the treatment-outcome back-door set I(h) plus every mediator or outcome parent that is not a descendant of the treatment or a mediator, and is checked by d-separation for treatment-mediator, joint (treatment, mediator)-outcome and treatment-outcome confounding. A template that fails any check, that has no treatment-to-mediator or mediator-to-outcome edge, or whose adjustment nodes include a treatment- or mediator-induced covariate is refused.",
+ "The linear structural model with no treatment-mediator interaction is a declared parametric restriction that is not tested, and the identified set is only valid under it; cross-world independence is not established.",
+ "Natural direct and indirect effects are aliased to the controlled direct and mediated effects under an explicit linearity flag rather than identified by the cited natural-effect result.",
+ "A single call identifies one horizon; a query that lists several horizons is refused by identify and must be answered once per horizon by identify_with_horizon.",
 ]
 
 papers = [
@@ -23,4 +24,27 @@ upstream_implementations_observed = [
 
 test_sources = [
  "inline unit tests (crates/antecedent-identify/src/temporal_mediation.rs)",
+ "population regressions of random linear structural models over every template of eleven optional edges at horizons one and two, and over a two-mediator family (crates/antecedent-identify/tests/temporal_mediation_population_regression.rs)",
+ "crates/antecedent/tests/temporal_mediation_horizons.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "TemporalMediationIdentifier::identify_with_horizon and identify in crates/antecedent-identify/src/temporal_mediation.rs for a linear temporal structural model on a stationary template: the requirement of a treatment-to-mediator and a mediator-to-outcome edge, the refusal of treatment- or mediator-induced covariates, the treatment-outcome back-door set I(h) of the pulse convention, the shared adjustment set S(h) = I(h) plus the mediator and outcome parents that are not descendants of the treatment or a mediator, its d-separation certificate on the unfolded window DAG for the mediator, joint outcome and total regressions, the contrast methods, and the single-horizon contract of identify. Not a review of the temporal estimator that carries out the regressions, of the unfolding itself (the oracle is built on the unfolded DAG the identifier returns), of non-linear mediation or interactions, or of the natural-effect alias beyond its flag."
+assumptions = ["Each unfolded node is a linear function of its parents plus independent noise, so the population regressions of a node set are given exactly by the covariance (I - B)^-1 D (I - B)^-T.", "The true total effect of the treatment node on the outcome node is the path-sum entry of (I - B)^-1, the controlled direct effect is that entry with the edges into the mediators removed, and the mediated effect is their difference; the estimand prescribes M_j ~ T + S, Y ~ T + M + S and Y ~ T + S, with the mediated effect the sum of products of the first coefficients of the mediator models and the mediator coefficients of the outcome model.", "A set that fails the population check for random coefficients fails for the graph; a valid set found by search is a graphical witness up to measure-zero coincidence."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote a separate reference of its own from the stated definitions; no upstream implementation or test source was consulted or copied."
+redistribution = "The test, its coefficient generator and its linear solver are repository-authored under MIT OR Apache-2.0 and run inside the crate's own tests; the primary sources are linked, not redistributed."
+limitations = "Neither primary source was re-read in this review (nothing downloaded, no local copy); the mediation formula and path-product decomposition are the standard linear ones and a mistake in how they are stated would not be detected here. The oracle takes the unfolded window DAG from the identifier itself, so a defect shared by the unfolding and the identifier is outside the check; the unfolding is covered by its own tests. The sweep is every template over treatment, mediator, outcome and two covariates with the two required edges and eleven optional lagged or contemporaneous edges at horizons one and two (2048 templates at two horizons, 272 answers in 4096 calls), and 2048 two-mediator templates at two horizons (1400 answers in 4096 calls) with parallel and ordered mediators; larger lags, longer windows, non-Gaussian noise and non-linear or interacting mediation are not exercised. Refusal is conservative, not exact: of the four sampled refusals on a graph that exists, all four admitted a valid regression set, so a refusal is not evidence that the effects cannot be identified; 1536 of the 4096 single-mediator calls are refused as unsupported (treatment-induced covariates), and only 48 of the remaining refusals occur on templates whose back-door step succeeds, so the refusal rule of the shared-set certificate is exercised by few cases. The natural effects are the controlled ones under a declared linearity flag, not identified by the natural-effect result; cross-world independence is not tested. Calibration remains deferred."
+sources = ["https://doi.org/10.1214/aoms/1177732676", "https://doi.org/10.1017/CBO9780511803161"]
+findings_resolved = ["Every template the identifier answers (272 single-mediator and 1400 two-mediator answers, three random coefficient draws each) returns a set S for which the population regressions M ~ T + S, Y ~ T + M + S and Y ~ T + S reproduce the true total, controlled direct and mediated effects to 1e-7, and S never contains the treatment, the outcome or a mediator.", "Defect fixed: identify answered only the first horizon of a query that declares several and returned that result as if it covered the grid, silently ignoring the rest; it now refuses a multi-horizon query and points to identify_with_horizon, which is the per-horizon entry point every caller already uses.", "The record described an older implementation (all contrasts one static functional, a graph check of any treatment-to-mediator and mediator-to-outcome edge); its deviations, citation notes and test sources now describe the graphical certification and the single-horizon contract."]
+record_sha256 = "013da874a1d425631a42b42467763ec82fd6738873b1b3367b73921bee1dfd45"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/temporal_mediation.rs"
+sha256 = "6154d48be526a48c656317f2465e7c9a785079ce80fb81a72b8cb610fd9b0cb0"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-identify/tests/temporal_mediation_population_regression.rs"
+sha256 = "509b13ea1b2528c8c0e31bdb24289d353b82278c824b1776a40246f82f763856"

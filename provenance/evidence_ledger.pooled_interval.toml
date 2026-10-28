@@ -11,6 +11,7 @@ papers = [
 ]
 implementation_deviations = [
   "EqualStudyGaussian uses equal study weights and study-level Student t uncertainty, avoiding random estimated-variance precision weights. Independent Gaussian random effects enter the marginal study variances. A common marginal mean is required; arbitrary unequal fixed study means are not covered. This distinct method owns its separately collected known-law Gaussian-study records; no Wald/HKSJ calibration is inherited.",
+  "The Hartung-Knapp-Sidik-Jonkman variance is the modified form: the weighted residual spread q = sum w_i (y_i - mu)^2 / (k - 1) is floored at 1 before it multiplies the model variance 1 / sum w_i, so the interval is never narrower than the random-effects model interval.",
   "Implements the Wald z interval of the fixed-effect pooled mean and the Hartung-Knapp-Sidik-Jonkman t interval of the random-effects mean in the facade; each is reported only through a currently attesting coverage record of the whole method, and refuses cell_not_licensed otherwise. HKSJ publication is restricted to the baseline-family measured counts 20/25/30; historical strong-family 5/15 candidates and identities remain replayable without widening that publication scope.",
 ]
 upstream_implementations_observed = []
@@ -20,3 +21,29 @@ test_sources = [
   "crates/antecedent-contract/tests/evidence_ledger.rs",
   "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The interval constructions of the evidence ledger's pooled_interval_candidate in crates/antecedent/src/analysis/evidence_ledger.rs and the equal-study pool equal_study_gaussian of crates/antecedent-stats/src/synthesis.rs: the equal-weight mean and empirical variance of the mean sum (y_i - mean)^2 / (k (k - 1)) with the Student-t half-width at k - 1 degrees of freedom, the fixed-effect Wald z half-width at the model variance, the Hartung-Knapp-Sidik-Jonkman half-width of a DerSimonian-Laird or REML random-effects pool (weights 1/(v_i + tau^2), the weighted residual spread over k - 1 floored at 1, the t quantile at k - 1), the study count that keys the measured family 5 to 30, and the refusal outside it. Not a review of the DerSimonian-Laird or REML between-study variance (checked by the synthesis reference), of the coverage-record resolution that licenses publication, or of the Ibragimov-Mueller conservativeness result, which is not re-derived."
+assumptions = ["Study estimates are independent Gaussian with a common marginal mean; the equal-study interval is conservative (at least nominal at 95 percent or more) and uses no estimated precision weights.", "The Student-t quantiles are the published values at 4, 9, 14, 19, 24 and 29 degrees of freedom, independent of the library's quantile routine, to ten digits.", "The Hartung-Knapp variance is floored at the random-effects model variance (the modified form); the record's earlier text did not state this."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote a separate reference of its own from the stated definitions; no upstream implementation or test source was consulted or copied."
+redistribution = "The tests are repository-authored under MIT OR Apache-2.0 and run inside the crates' own suites; the primary sources are linked, not redistributed."
+limitations = "The primary source was not re-read in this review (nothing downloaded, no local copy). The checks are the existing facade assertions: the equal-study pool of five heterogeneous estimates against hand arithmetic (mean 5, variance of the mean 3.2) and the published t(4) quantile, and the fixed-effect and random-effects intervals of generated study families of 5, 10, 15, 20, 25 and 30 studies against an independent recomputation of the model variance, the DerSimonian-Laird tau^2, the Hartung-Knapp variance and the tabulated t quantile at 1e-9. The interval is checked at the 95 percent level only (the level the ledger fixes) and at the generated families; a study family with estimates or variances spanning many orders of magnitude, a REML pool, and heterogeneity large enough to make the floor at 1 inactive over a long range are not separately exercised. Coverage is not measured by this review; publication needs a current attesting coverage record. In the shared tree at the time of this review the facade test that publishes an interval through its record (a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record) fails with measured_inference.record_not_attesting for the pooled-mean estimator grid, as do two reliability-route tests of the design crate with their own records; that is the record-resolution layer, outside this scope and not touched here, and the other 25 tests of the facade file pass, including every construction test this review relies on. Calibration remains deferred."
+sources = ["https://doi.org/10.1198/jbes.2009.08046"]
+findings_resolved = ["The record did not say that the Hartung-Knapp variance is floored at the random-effects model variance (q = max(q, 1)); the floor is in the code and in the independent recomputation of the facade test, and the record's deviations now state it.", "The equal-study interval equals mean +/- t_{k-1} sqrt(sum (y - mean)^2 / (k (k - 1))) and the random-effects interval equals the Hartung-Knapp construction across the measured study-count family; outside 5 to 30 studies the facade refuses. No defect was found and no product code changed."]
+record_sha256 = "dffd0ffa247a6bc8525a244c7ad350a9a3f43bf1b2734bd609052a898e43bae9"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/evidence_ledger.rs"
+sha256 = "ad0449d8411fc116039e7af84ded05bb3eeb1bf65d049ed8785c446495ebd9bb"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/synthesis.rs"
+sha256 = "68041846370d0dc9960c5f44675a3c1dca583f8c985e9a983df05d63b94d6852"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/evidence_ledger_facade.rs"
+sha256 = "f5896ff26f137e93ecaa8d584834cc36f9df7279b9c0c6504cbedbb140ab4b0e"

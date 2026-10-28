@@ -24,3 +24,34 @@ test_sources = [
  "independently simulated seeded DGPs with known coefficients",
  "hand-computed one-way ANOVA and confusion-matrix inversion",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "LinearMoments::accumulate and solve, LinearErrorData, ErrorVariance (declared, from the main sample's own replicates, from an independent replicate study, from a validation sample) and CorrectedLinear::linear_functional in crates/antecedent-stats/src/measurement_error.rs: the corrected normal equations (M - s2 kbar e_W e_W') beta = r for a regressor averaged over replicates, the implied reliability and its floor, the uncorrected fit, the HC0 covariance of the uncorrected fit, the sandwich covariance of the corrected fit given the error variance, and the covariance that adds the error-variance estimate's uncertainty (with the retained influence when the variance comes from the same replicates). Not a review of the estimator wrappers that route a table into these moments or of the binary and categorical corrections."
+assumptions = ["Classical additive error with variance s2 independent of the latent regressor, the outcome and the covariates; a row that averages k replicates has error variance s2/k.", "The corrected coefficients are the solution of the moment equations with the error-variance shift, and the covariance is the delta-method sandwich over the stacked corrected score and the variance estimate, with no finite-sample correction.", "The reference derivative of the coefficients in the error variance is the numerical derivative of the solve, an independent route to the closed form A^-1 e_W beta_W kbar."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote a separate reference of its own from the stated definitions; no upstream implementation or test source was consulted or copied."
+redistribution = "The reference script, its frozen output and the test are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited primary sources are linked, not redistributed."
+limitations = "The book chapters were not re-read in this review (nothing downloaded, no local copy), so the regression-calibration and variance-component statements rest on the record and the code comments. The reference is one study of 150 rows with mixed replicate counts of one to three, one covariate and a coarse replicate study of 20 units with sizes one to five; the classical additive error model with a linear outcome, a single error-prone regressor and error-free covariates is the only case, and non-Gaussian errors, heteroscedastic errors and non-linear outcome models are not exercised. The estimate-variance part of the covariance is compared at 1e-7 because the reference differentiates the corrected solve numerically. Coverage of the resulting intervals is not measured here and no interval is claimed. Calibration remains deferred."
+sources = ["https://doi.org/10.1201/9781420010138", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["Coefficients, the uncorrected coefficients, the implied reliability, the covariance given the error variance, the full covariance with the estimate's uncertainty and the HC0 covariance of the uncorrected fit agree with the 60-digit reference to 1e-10 (1e-7 for the full covariance) for an error variance taken from the main sample's own replicates, from an independent replicate study, from a validation sample and declared; an error variance larger than the variance of the regressor given the covariates is refused. No defect was found and no product code changed."]
+record_sha256 = "4bbd59e4cf2ea7b4743fb9ba338c0c3e414f7334a3518eb10a925bf489b99042"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/measurement_error.rs"
+sha256 = "e141b13fbbf5bc4514c8a0f76aae3cc2bcd82fdfd8db1e0c3baa60f35ff471f3"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/measurement_continuous_reference.rs"
+sha256 = "8f5a9f1eb30d66603a9974efc9d6e076e206cc706d789b29468f3913cf566b0f"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/measurement_continuous_reference.py"
+sha256 = "1f0d0b01ad8c37990177616fd5898c49478f5f99722e4775a40ecf22173ffa88"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/measurement_continuous_reference.json"
+sha256 = "18fb111f310de735d8354fdabc33972c3cdc45f771085e1d994d67461fbfd2a7"

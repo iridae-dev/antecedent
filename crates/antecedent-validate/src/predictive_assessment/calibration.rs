@@ -234,8 +234,11 @@ fn central_interval(law: &ForecastLaw, level: f64) -> Option<(f64, f64)> {
             Some((mean - z * sd, mean + z * sd))
         }
         ForecastLaw::Bernoulli { probability } => {
-            let low = if (1.0 - probability) >= tail { 0.0 } else { 1.0 };
-            let high = if (1.0 - probability) >= 1.0 - tail { 0.0 } else { 1.0 };
+            // The same 1e-12 tolerance on the cumulative probability as a finite law: the
+            // two-point law {0: 1 - p, 1: p} must have the interval of `Bernoulli(p)`, and
+            // `(1 - 0.6) / 2` exceeds `1 - 0.8` by one rounding.
+            let low = if (1.0 - probability) >= tail - 1e-12 { 0.0 } else { 1.0 };
+            let high = if (1.0 - probability) >= 1.0 - tail - 1e-12 { 0.0 } else { 1.0 };
             Some((low, high))
         }
         ForecastLaw::FiniteReal { support, probabilities } => {

@@ -25,3 +25,34 @@ test_sources = [
  "independently simulated seeded DGPs with known coefficients",
  "hand-computed one-way ANOVA and confusion-matrix inversion",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "replicate_variance_components, ErrorVariance::from_main_sample_replicates and from_external_replicates in crates/antecedent-stats/src/measurement_error.rs: the one-way random-effects mean squares of unequal groups, the effective replicate number n0 of Searle, the between-unit variance (MSB - MSW)/n0 reported raw, the intraclass correlation, the within-variance degrees of freedom, the per-unit influence of the within variance and its ratio-estimator variance, and the grand mean. Not a review of the estimator wrappers or of the downstream correction."
+assumptions = ["Each unit's replicates are independent draws around a unit mean with common within variance; the between variance is a method-of-moments estimate that can be negative.", "The variance of the within variance is the distribution-free linearization sum xi_j^2 / m^2 with xi_j = (SSW_j - (k_j - 1) MSW)/((N - m)/m), the normal-theory chi-square interval is not used."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote a separate reference of its own from the stated definitions; no upstream implementation or test source was consulted or copied."
+redistribution = "The reference script, its frozen output and the test are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited primary sources are linked, not redistributed."
+limitations = "The book chapters were not re-read in this review (nothing downloaded, no local copy), so the regression-calibration and variance-component statements rest on the record and the code comments. The reference is one study of 150 rows with mixed replicate counts of one to three, one covariate and a coarse replicate study of 20 units with sizes one to five; the classical additive error model with a linear outcome, a single error-prone regressor and error-free covariates is the only case, and non-Gaussian errors, heteroscedastic errors and non-linear outcome models are not exercised. The estimate-variance part of the covariance is compared at 1e-7 because the reference differentiates the corrected solve numerically. Coverage of the resulting intervals is not measured here and no interval is claimed. Calibration remains deferred."
+sources = ["https://doi.org/10.1002/9780470316856", "https://doi.org/10.1201/9781420010138", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["Within and between variance, n0, the intraclass correlation, the grand mean, the degrees of freedom, the variance of the within variance and the per-unit influence of a 20-unit unbalanced study (group sizes one to five, a single-replicate unit included) agree with the 60-digit reference to 1e-10 or better. No defect was found and no product code changed."]
+record_sha256 = "19efe5ae6da3866e99304973f63b3363c88ae2a96c414d9685943f4dff08c173"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/measurement_error.rs"
+sha256 = "e141b13fbbf5bc4514c8a0f76aae3cc2bcd82fdfd8db1e0c3baa60f35ff471f3"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/measurement_continuous_reference.rs"
+sha256 = "8f5a9f1eb30d66603a9974efc9d6e076e206cc706d789b29468f3913cf566b0f"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/measurement_continuous_reference.py"
+sha256 = "1f0d0b01ad8c37990177616fd5898c49478f5f99722e4775a40ecf22173ffa88"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/measurement_continuous_reference.json"
+sha256 = "18fb111f310de735d8354fdabc33972c3cdc45f771085e1d994d67461fbfd2a7"
