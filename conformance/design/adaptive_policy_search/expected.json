@@ -1,30 +1,71 @@
 {
- "lq": {
-  "P": 1.291997617626161,
-  "a": 0.9,
-  "closed_loop_value": -20.671961882018575,
-  "gain": 0.6488835947248022,
-  "horizon": 12,
-  "open_loop_value": -49.09222759199204,
-  "q": 1.0,
-  "r": 0.5,
-  "sigma": 1.0,
-  "x0": 2.0
- },
- "oracle": {
-  "generator": "conformance/design/adaptive_policy_search/reference.py",
-  "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
-  "independence_basis": "reference.py is standard-library Python that imports no Antecedent code; each closed form is cross-checked by its own Monte Carlo with a separate generator. The author of the reference is the repository author and independence from the production implementation has not been reviewed.",
-  "kind": "closed_form",
-  "method": "treat-above-threshold optimum for a stationary Gaussian state and the linear-quadratic Riccati feedback optimum with the closed-form best open-loop schedule"
- },
- "schema_version": 1,
- "tolerance_class": "StableFloat",
- "treatment": {
-  "adaptive_value": 1.9779655740130604,
-  "best_fixed_schedule_value": 0.0,
-  "cost": 0.5,
-  "horizon": 10,
-  "stationary_sd": 1.0
- }
+  "lq": {
+    "P": 1.291997617626161,
+    "a": 0.9,
+    "closed_loop_value": -20.671961882018575,
+    "gain": 0.6488835947248022,
+    "horizon": 12,
+    "open_loop_value": -49.09222759199204,
+    "q": 1.0,
+    "r": 0.5,
+    "sigma": 1.0,
+    "x0": 2.0
+  },
+  "oracle": {
+    "asserted_outputs": [
+      "treatment.adaptive_value within 1e-5",
+      "treatment.best_fixed_schedule_value equal to 0",
+      "lq.P within 1e-12",
+      "lq.closed_loop_value within 1e-9 (as -(4P + 12P) for x0 = 2, horizon 12)",
+      "lq.gain within 1e-12"
+    ],
+    "command": "uv run --frozen --script conformance/design/adaptive_policy_search/reference.py --check",
+    "context_only_outputs": [
+      "lq.open_loop_value (the best open-loop cost; the closed-form expected-cost-ordering tests use it only as a separation, not through this document)",
+      "echoed parameters (a, q, r, sigma, x0, horizons, stationary_sd, cost)",
+      "schema_version and tolerance_class labels"
+    ],
+    "environment_lock": "conformance/design/adaptive_policy_search/reference.py.lock",
+    "generator": "conformance/design/adaptive_policy_search/reference.py",
+    "generator_retained": true,
+    "historical_exposure": "The generator predates this review and its --write produced the pinned numbers; its author is the repository author. Whether the author had seen the production implementation, and whether the in-test closed-form code was derived from this generator or the reverse, is unrecorded.",
+    "independence_basis": "The retained generator is standard-library Python with a PEP 723 header that imports no Antecedent code. It evaluates the Gaussian truncated-mean closed form, solves the discrete Riccati fixed point and forms the gain and the open-loop optimum by hand, then cross-checks the treatment and closed-loop values against its own seeded Monte Carlo with a separate generator and dynamics. The shared objects are the stated model (stage utility u(z - k); linear dynamics with quadratic cost) and its parameters, which the generator echoes and the test hard-codes separately.",
+    "kind": "closed_form",
+    "method": "treat-above-threshold optimum for a stationary Gaussian state and the linear-quadratic Riccati feedback optimum with the closed-form best open-loop schedule",
+    "reference_review": {
+      "artifacts": [
+        {
+          "path": "conformance/design/adaptive_policy_search/reference.py",
+          "role": "generator",
+          "sha256": "04a5457d3b0bc542be1329b588146e5ac43879e2d77ba5c0c8fb80c8e3f07811"
+        },
+        {
+          "path": "conformance/design/adaptive_policy_search/reference.py.lock",
+          "role": "environment_lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "path": "crates/antecedent-design/tests/adaptive_policy_search.rs",
+          "role": "assertion_source",
+          "sha256": "e6715712ce6615057058fb09e75db9709e9ab38fd84777192e35e3ff2be26c88"
+        }
+      ],
+      "fixture_payload_sha256": "a9e4b89dbc36d9ca3f4df6272545883c3b139fd19fb0cd2e79e659d3cbf3b6dc",
+      "historical_exposure": "The generator predates this review and its --write produced the pinned numbers; its author is the repository author. Whether the author had seen the production implementation, and whether the in-test closed-form code was derived from this generator or the reverse, is unrecorded.",
+      "independence_basis": "The retained generator is standard-library Python with a PEP 723 header that imports no Antecedent code. It evaluates the Gaussian truncated-mean closed form, solves the discrete Riccati fixed point and forms the gain and the open-loop optimum by hand, then cross-checks the treatment and closed-loop values against its own seeded Monte Carlo with a separate generator and dynamics. The shared objects are the stated model (stage utility u(z - k); linear dynamics with quadratic cost) and its parameters, which the generator echoes and the test hard-codes separately.",
+      "limitations": "The test compares its own in-test closed-form code with this document, so agreement shows the two implementations of the same formulas match, not that a policy-search run reaches the optimum; the Monte Carlo cross-check is a 0.05 and 0.3 absolute band on a seeded run. The generator regenerates the numeric blocks with --write but keeps the recorded oracle block; a rewrite that changes any numeric value makes the review stale. No calibration claim.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "scope": "Closed-form optimum of a treat-above-threshold rule on a Gaussian state, and the Riccati feedback optimum with its gain and best open-loop cost, for the declared parameters.",
+      "sources": []
+    }
+  },
+  "schema_version": 1,
+  "tolerance_class": "StableFloat",
+  "treatment": {
+    "adaptive_value": 1.9779655740130604,
+    "best_fixed_schedule_value": 0.0,
+    "cost": 0.5,
+    "horizon": 10,
+    "stationary_sd": 1.0
+  }
 }

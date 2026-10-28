@@ -317,8 +317,8 @@ def main():
         "outcomes": outcomes,
         "invariance": {k: {"statistic": v[0], "p_value": v[1]} for k, v in invariance.items()},
     }
-    (HERE / "data.json").write_text(json.dumps(data, separators=(",", ":")))
-    (HERE / "expected.json").write_text(json.dumps(expected, indent=2))
+    (HERE / "data.json").write_text(json.dumps(data, separators=(",", ":")), encoding="utf-8")
+    (HERE / "expected.json").write_text(json.dumps(expected, indent=2), encoding="utf-8")
     for name, o in outcomes.items():
         print(name, o["reference"], o["truth"], o["reference_se"])
     print({k: v for k, v in expected["invariance"].items()})

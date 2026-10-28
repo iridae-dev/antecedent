@@ -326,10 +326,10 @@ def close(a, b) -> bool:
 def main(argv: list[str]) -> int:
     doc = document()
     if "--write" in argv:
-        EXPECTED.write_text(json.dumps(doc, indent=1) + "\n")
+        EXPECTED.write_text(json.dumps(doc, indent=1) + "\n", encoding="utf-8")
         print(f"wrote {EXPECTED}")
         return 0
-    stored = json.loads(EXPECTED.read_text())
+    stored = json.loads(EXPECTED.read_text(encoding="utf-8"))
     if not close(json.loads(json.dumps(doc)), stored):
         print("expected.json differs from the reference; rerun with --write", file=sys.stderr)
         return 1
