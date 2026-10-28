@@ -292,10 +292,115 @@ impl LinearOlsSuffStats {
         if !self.published_matches_scatter() {
             return Err(unsupported("summary is out of step with its scatter"));
         }
-        match self.solve_centered() {
-            Some(beta) => Ok(beta),
-            None => solve_gram(&self.xtx, &self.xty, self.ncols),
+        if let Some(beta) = self.solve_centered() {
+            return Ok(beta);
         }
+        if self.offset_dominates() {
+            if let Some(solution) = self.solve_shifted() {
+                return Ok(solution.mean);
+            }
+        }
+        solve_gram(&self.xtx, &self.xty, self.ncols)
+    }
+
+    /// The scatter of `[x | y]` the summary rests on: sample size, means and the row-major
+    /// `(p + 1)²` centred cross-products. `None` for an invalidated summary or published
+    /// moments that left the scatter.
+    pub(crate) fn centred_moments(&self) -> Option<CentredMoments<'_>> {
+        if self.invalidated || self.n == 0 || !self.published_matches_scatter() {
+            return None;
+        }
+        Some(CentredMoments { n: self.n, mean: &self.joint.mean, m2: &self.joint.m2, p: self.ncols })
+    }
+
+    /// Whether two coefficient vectors for these rows are the same fit within the merge
+    /// tolerance.
+    ///
+    /// Coefficients that agree element-wise within [`merge_within_tolerance`] agree. Past that,
+    /// the vectors must still agree where the data can tell them apart: the fitted value at
+    /// the column means, and the fitted spread over the rows (`Δβᵀ S Δβ / n` against the
+    /// response's own spread), both within the merge tolerance. An intercept absorbs the slope
+    /// error times a covariate offset, so for a regressor near 1e6 two rebuilds of the same rows
+    /// legitimately differ in the intercept by far more than a relative `1e-9` of its value
+    /// while giving the same fit; a changed row moves the fit by far more than this.
+    pub(crate) fn coefficients_agree(&self, left: &[f64], right: &[f64]) -> bool {
+        if all_close(left, right) {
+            return true;
+        }
+        let Some(moments) = self.centred_moments() else {
+            return false;
+        };
+        let p = self.ncols;
+        if left.len() != p || right.len() != p {
+            return false;
+        }
+        let n = moments.n as f64;
+        let dim = p + 1;
+        let mu = moments.mean_x();
+        let delta: Vec<f64> = left.iter().zip(right).map(|(a, b)| a - b).collect();
+        if delta.iter().any(|d| !d.is_finite()) {
+            return false;
+        }
+        let y_spread = (moments.m2[p * dim + p].max(0.0) / n).sqrt();
+        let tolerance = MERGE_ABS_TOL + MERGE_REL_TOL * y_spread;
+        let at_mean: f64 = mu.iter().zip(&delta).map(|(m, d)| m * d).sum();
+        let level: f64 = mu.iter().zip(left).map(|(m, b)| (m * b).abs()).sum::<f64>()
+            + moments.mean_y().abs();
+        if at_mean.abs() > tolerance + 8.0 * f64::EPSILON * level {
+            return false;
+        }
+        let mut quadratic = 0.0;
+        for i in 0..p {
+            for j in 0..p {
+                quadratic += delta[i] * moments.m2[i * dim + j] * delta[j];
+            }
+        }
+        (quadratic.max(0.0) / n).sqrt() <= tolerance
+    }
+
+    /// Whether two residual variances for these rows agree within the merge tolerance, taken
+    /// against the response's total variance as well as their own size: the sum of squares is a
+    /// difference of terms as large as that total, so rebuilds of the same rows differ by a
+    /// fraction of it, not of a residual variance that may be much smaller.
+    pub(crate) fn variances_agree(&self, left: Option<f64>, right: Option<f64>) -> bool {
+        let (Some(a), Some(b)) = (left, right) else {
+            return left.is_none() && right.is_none();
+        };
+        if merge_within_tolerance(a, b) {
+            return true;
+        }
+        let Some(moments) = self.centred_moments() else {
+            return false;
+        };
+        let dim = self.ncols + 1;
+        let dof = moments.n as f64 - self.ncols as f64;
+        if !(dof > 0.0) {
+            return false;
+        }
+        let total = moments.m2[self.ncols * dim + self.ncols].max(0.0) / dof;
+        (a - b).abs() <= MERGE_ABS_TOL + MERGE_REL_TOL * total.max(a.abs()).max(b.abs())
+    }
+
+    /// Whether some column's mean is far larger than its spread, so the raw Gram holds the
+    /// square of an offset the centred scatter does not. Elsewhere the raw Gram is exact for the
+    /// rows and is solved as it stands.
+    fn offset_dominates(&self) -> bool {
+        let Some(moments) = self.centred_moments() else {
+            return false;
+        };
+        let dim = self.ncols + 1;
+        let n = moments.n as f64;
+        (0..self.ncols).any(|j| {
+            let spread = (moments.m2[j * dim + j] / n).max(0.0).sqrt();
+            moments.mean[j].abs() > 32.0 * spread
+        })
+    }
+
+    /// Normal equations `XᵀX β = Xᵀy` solved from the centred scatter, for any design.
+    fn solve_shifted(&self) -> Option<ShiftedNormalSolution> {
+        let moments = self.centred_moments()?;
+        let (xx, xy) = (moments.xx(), moments.xy());
+        solve_shifted_normal(&xx, &moments.mean_x(), moments.n as f64, &xy, moments.mean_y())
     }
 
     /// Coefficients in coordinates centred on the column means, for a design with exactly one
@@ -551,6 +656,169 @@ impl LinearOlsSuffStats {
         self.invalidated = true;
         unsupported(reason)
     }
+}
+
+/// The mean-centred scatter of `[x | y]` of a summary.
+pub(crate) struct CentredMoments<'a> {
+    /// Observations.
+    pub(crate) n: u64,
+    mean: &'a [f64],
+    m2: &'a [f64],
+    p: usize,
+}
+
+impl CentredMoments<'_> {
+    /// Row-major `p × p` centred cross-products of the design columns.
+    pub(crate) fn xx(&self) -> Vec<f64> {
+        let dim = self.p + 1;
+        (0..self.p * self.p).map(|k| self.m2[(k / self.p) * dim + k % self.p]).collect()
+    }
+
+    /// Centred cross-products of the design columns with the response.
+    pub(crate) fn xy(&self) -> Vec<f64> {
+        let dim = self.p + 1;
+        (0..self.p).map(|i| self.m2[i * dim + self.p]).collect()
+    }
+
+    /// Column means of the design.
+    pub(crate) fn mean_x(&self) -> Vec<f64> {
+        self.mean[..self.p].to_vec()
+    }
+
+    /// Mean of the response.
+    pub(crate) fn mean_y(&self) -> f64 {
+        self.mean[self.p]
+    }
+}
+
+/// Solution of a normal system in the coordinates its offset leaves well conditioned.
+pub(crate) struct ShiftedNormalSolution {
+    /// `Λ⁻¹ rhs`.
+    pub(crate) mean: Vec<f64>,
+    /// Row-major `Λ⁻¹`.
+    pub(crate) inverse: Vec<f64>,
+}
+
+/// Solve `Λ m = c + n μ ȳ` with `Λ = B + n μ μᵀ`: the normal system of rows whose column means
+/// are `μ` and whose centred cross-products are the symmetric `b` (a prior precision plus the
+/// centred scatter), `c` the centred right-hand side and `ȳ` the response mean.
+///
+/// Forming `Λ` outright adds `n μ μᵀ`, of the size of the square of the offset, to entries of
+/// the size of the spread, and the Cholesky factor of the sum keeps only the digits left after
+/// that. Here a Householder reflection `H` sends `μ` to `α e₁`, so `Λ = H (H B H + n α² e₁e₁ᵀ) H`
+/// and the one direction that carries the offset is isolated in the first coordinate; scaling it
+/// to unit diagonal leaves a matrix whose conditioning is that of `B`. The right-hand side
+/// `n μ ȳ` is `n α ȳ e₁` in those coordinates, so the offset is never subtracted from itself.
+///
+/// `None` when the scaled matrix is not positive definite or the solution is not finite.
+pub(crate) fn solve_shifted_normal(
+    b: &[f64],
+    mu: &[f64],
+    n: f64,
+    c: &[f64],
+    ybar: f64,
+) -> Option<ShiftedNormalSolution> {
+    let p = mu.len();
+    if p == 0 || b.len() != p * p || c.len() != p || !(n > 0.0) {
+        return None;
+    }
+    let norm = mu.iter().map(|v| v * v).sum::<f64>().sqrt();
+    // v = μ + sign(μ₁) |μ| e₁, H = I - 2 v vᵀ / vᵀv, H μ = -sign(μ₁) |μ| e₁.
+    let mut v = mu.to_vec();
+    let alpha = if norm > 0.0 {
+        let sign = if mu[0] >= 0.0 { 1.0 } else { -1.0 };
+        v[0] += sign * norm;
+        -sign * norm
+    } else {
+        0.0
+    };
+    let vv: f64 = v.iter().map(|x| x * x).sum();
+    let reflect = |x: &mut [f64]| {
+        if vv > 0.0 {
+            let dot: f64 = v.iter().zip(x.iter()).map(|(a, b)| a * b).sum();
+            let k = 2.0 * dot / vv;
+            for (slot, a) in x.iter_mut().zip(&v) {
+                *slot -= k * a;
+            }
+        }
+    };
+    // T = H B H.
+    let mut t = b.to_vec();
+    for row in t.chunks_exact_mut(p) {
+        reflect(row);
+    }
+    let mut column = vec![0.0; p];
+    for j in 0..p {
+        for i in 0..p {
+            column[i] = t[i * p + j];
+        }
+        reflect(&mut column);
+        for i in 0..p {
+            t[i * p + j] = column[i];
+        }
+    }
+    for i in 0..p {
+        for j in 0..i {
+            let mean = 0.5 * (t[i * p + j] + t[j * p + i]);
+            t[i * p + j] = mean;
+            t[j * p + i] = mean;
+        }
+    }
+    let shift = n * alpha * alpha;
+    let diagonal = t[0] + shift;
+    if !(diagonal > 0.0) || !diagonal.is_finite() {
+        return None;
+    }
+    let mut scale = vec![1.0; p];
+    scale[0] = 1.0 / diagonal.sqrt();
+    let mut k = vec![0.0; p * p];
+    for i in 0..p {
+        for j in 0..p {
+            k[i * p + j] = t[i * p + j] * scale[i] * scale[j];
+        }
+    }
+    k[0] = 1.0;
+    let mut g = c.to_vec();
+    reflect(&mut g);
+    g[0] += n * alpha * ybar;
+    for (value, s) in g.iter_mut().zip(&scale) {
+        *value *= s;
+    }
+    let mut factor = vec![0.0; p * p];
+    if cholesky_spd_into(&k, p, &mut factor).is_err() {
+        return None;
+    }
+    let mut work = vec![0.0; p];
+    let mut delta = vec![0.0; p];
+    chol_solve_into(&factor, p, &g, &mut work, &mut delta);
+    refine_solution(&k, &g, &factor, &mut delta);
+    // Λ⁻¹ = H D K⁻¹ D H, column by column.
+    let mut inverse = vec![0.0; p * p];
+    let mut unit = vec![0.0; p];
+    let mut solved = vec![0.0; p];
+    for col in 0..p {
+        unit.iter_mut().for_each(|x| *x = 0.0);
+        unit[col] = 1.0;
+        reflect(&mut unit);
+        for (value, s) in unit.iter_mut().zip(&scale) {
+            *value *= s;
+        }
+        chol_solve_into(&factor, p, &unit, &mut work, &mut solved);
+        for (value, s) in solved.iter_mut().zip(&scale) {
+            *value *= s;
+        }
+        reflect(&mut solved);
+        for row in 0..p {
+            inverse[row * p + col] = solved[row];
+        }
+    }
+    let mut mean = delta;
+    for (value, s) in mean.iter_mut().zip(&scale) {
+        *value *= s;
+    }
+    reflect(&mut mean);
+    let finite = mean.iter().chain(&inverse).all(|x| x.is_finite());
+    finite.then_some(ShiftedNormalSolution { mean, inverse })
 }
 
 /// `XᵀX β = Xᵀy` from a Cholesky factor. `None` of an inverse is formed.
@@ -1474,6 +1742,32 @@ mod tests {
             via_delta.apply_delta(LinearOlsDelta::AppendRow { row, y: y[i] }).expect("append");
         }
         assert_eq!(via_delta, batch(&rows, &y, 2));
+    }
+
+    #[test]
+    fn rebuilds_of_rows_far_from_zero_agree_as_a_fit_and_a_changed_row_does_not() {
+        let (rows, y): (Vec<f64>, Vec<f64>) = (0..40)
+            .map(|i| {
+                let t = f64::from(i);
+                let x = 1.0e6 + (t * 0.37).sin() * 3.0 + t / 8.0;
+                ([x], 2.0 + 0.5 * (x - 1.0e6) + (t * 1.3).cos() * 0.2)
+            })
+            .map(|(row, y)| (row[0], y))
+            .unzip();
+        let design: Vec<f64> = rows.iter().flat_map(|x| [1.0, *x]).collect();
+        let stats = batch(&design, &y, 2);
+        let beta = stats.solve_beta().expect("fit");
+        // A slope off by a few units in the last place moves the intercept by that times 1e6.
+        let slope_step = 4.0 * f64::EPSILON * beta[1].abs();
+        let rebuilt = [beta[0] - 1.0e6 * slope_step, beta[1] + slope_step];
+        assert!(!merge_within_tolerance(beta[0], rebuilt[0]) || (beta[0] - rebuilt[0]).abs() < 1e-3);
+        assert!(stats.coefficients_agree(&beta, &rebuilt));
+        // A slope that is wrong in the ninth digit is a different fit.
+        let wrong = [beta[0], beta[1] * (1.0 + 1e-6)];
+        assert!(!stats.coefficients_agree(&beta, &wrong));
+        // The same slope with an intercept that misses the mean point is a different fit.
+        let off_level = [beta[0] + 1e-3, beta[1]];
+        assert!(!stats.coefficients_agree(&beta, &off_level));
     }
 
     #[test]

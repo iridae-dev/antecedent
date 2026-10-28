@@ -28,8 +28,8 @@ use crate::disk_retention::{SpillDecoder, SpillEncoder, SpillHandle, SpillRegist
 use crate::error::StateError;
 use crate::retention::{RetainedOperation, RetentionMode};
 use crate::suff_stats::{
-    LinearOlsSuffStats, all_close, checked_row_ids, merge_within_tolerance, optional_close,
-    optional_scalar_close, repeated_row, source_digest_start,
+    LinearOlsSuffStats, all_close, checked_row_ids, merge_within_tolerance, repeated_row,
+    source_digest_start,
 };
 
 const SOURCE_TAG: &str = "antecedent.state.ols_refresh.source";
@@ -481,14 +481,17 @@ impl OlsRefresh {
         Ok(snapshot_of(&self.source, &stats, &digest, ledger))
     }
 
-    /// Compare the cached result with a fresh reconstruction: statistics, coefficients and
-    /// residual variance within [`merge_within_tolerance`]; source identity, source and
-    /// ledger exactly.
+    /// Compare the cached result with a fresh reconstruction: statistics within
+    /// [`merge_within_tolerance`]; coefficients and residual variance within it or, for a
+    /// regressor far from zero, as the same fit (see
+    /// [`LinearOlsSuffStats::coefficients_agree`]); source identity, source and ledger exactly.
     ///
     /// # Errors
     /// Rows are not retained, or the first field that disagrees.
     pub fn check_against_fresh(&self) -> Result<(), StateError> {
-        let fresh = self.fresh_snapshot()?;
+        self.require(RetainedOperation::RefitFromRetainedRows)?;
+        let (stats, digest, ledger) = derive(self.ncols, &self.source, &self.rows)?;
+        let fresh = snapshot_of(&self.source, &stats, &digest, ledger);
         let cached = self.snapshot();
         let mismatch = |field: &str| {
             Err(StateError::StaleCache(format!("cached {field} differs from the fresh rebuild")))
@@ -508,10 +511,15 @@ impl OlsRefresh {
         if !merge_within_tolerance(cached.yty, fresh.yty) {
             return mismatch("sum of squared responses");
         }
-        if !optional_close(cached.beta.as_deref(), fresh.beta.as_deref()) {
+        let coefficients = match (cached.beta.as_deref(), fresh.beta.as_deref()) {
+            (Some(left), Some(right)) => stats.coefficients_agree(left, right),
+            (None, None) => true,
+            _ => false,
+        };
+        if !coefficients {
             return mismatch("coefficients");
         }
-        if !optional_scalar_close(cached.residual_variance, fresh.residual_variance) {
+        if !stats.variances_agree(cached.residual_variance, fresh.residual_variance) {
             return mismatch("residual variance");
         }
         Ok(())

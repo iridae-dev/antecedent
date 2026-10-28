@@ -1,6 +1,10 @@
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
 """Exact rational reference for the autoregressive period refresh.
 
-Regenerate with:  python3 period_refresh_reference.py > period_refresh_reference.json
+Regenerate with:  uv run --offline --script period_refresh_reference.py > period_refresh_reference.json
 
 Every series value is a dyadic rational (an integer over 64 plus an exactly representable
 offset), so the rows the product forms are the rows written here with no rounding.  For each
@@ -148,12 +152,10 @@ a = ar_series(95, 10000, F(3, 5), F(1, 3))
 cases.append(scenario("offset_three_contiguous", 2, "declared",
                       [(0, a[:40]), (40, a[40:70]), (70, a[70:])], with_scale(F(1), 3)))
 # the same shape at an offset of 1e6: the Gram of [1, v, v'] is conditioned near 1e14 relative to
-# the prior, past what a double-precision Cholesky resolves, so the product may refuse it
+# the prior; the posterior is resolved from the centred scatter and must match the exact rationals
 a6 = ar_series(60, 1000000, F(3, 5), F(1, 3))
-big = scenario("offset_million_may_refuse", 2, "declared",
-               [(0, a6[:30]), (30, a6[30:])], with_scale(F(1), 3))
-big["may_refuse"] = True
-cases.append(big)
+cases.append(scenario("offset_million_two_periods", 2, "declared",
+                      [(0, a6[:30]), (30, a6[30:])], with_scale(F(1), 3)))
 # a gap: the second period starts later than the first ended; the spanning rows are not formed
 b = ar_series(70, 40, F(1, 2), F(1, 2))
 cases.append(scenario("gap_not_filled", 2, "declared",
@@ -176,4 +178,19 @@ cases.append(scenario("near_collinear_ramp", 2, "declared",
 f = ar_series(14, 0, F(1, 2), F(2))
 cases.append(scenario("strong_prior_few_rows", 2, "declared",
                       [(0, f[:7]), (7, f[7:])], with_scale(F(40), 3)))
+# added after the cases above so the series they draw are unchanged
+# offset 1e6, three contiguous periods, a weak prior
+g = ar_series(95, 1000000, F(3, 5), F(1, 3))
+cases.append(scenario("offset_million_three_contiguous", 2, "declared",
+                      [(0, g[:40]), (40, g[40:70]), (70, g[70:])], with_scale(F(1, 100), 3)))
+# a lag-3 design at offset 1e6 restarted on each period
+h = ar_series(70, 1000000, F(1, 2), F(1, 2))
+cases.append(scenario("offset_million_restart_lags3", 3, "undeclared",
+                      [(0, h[:35]), (35, h[35:])], with_scale(F(1), 4)))
+# nearly collinear ramp at offsets 1e4 and 1e6 (jitter far below the ramp), three periods
+for tag, base in (("1e4", 10000), ("1e6", 1000000)):
+    r = [F(base) + F(i, 64) + F(int((u01() - F(1, 2)) * 8), 4096) for i in range(75)]
+    r = [F(int(x * 4096), 4096) for x in r]
+    cases.append(scenario("near_collinear_ramp_" + tag, 2, "declared",
+                          [(0, r[:30]), (30, r[30:55]), (55, r[55:])], with_scale(F(1, 1000), 3)))
 print(json.dumps({"cases": cases}, indent=1))

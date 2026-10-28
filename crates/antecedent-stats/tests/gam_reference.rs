@@ -70,7 +70,10 @@ fn fixed_lambda_fits_equal_the_exact_joint_penalized_solution() {
         let (fit, _, nrows) = fit_case(case, false);
         assert!(fit.converged, "{name}");
         let want = vec_f(&case["fitted"]);
-        let scale = want.iter().fold(0.0_f64, |a, v| a.max(v.abs()));
+        // An outcome offset lives in the intercept; the smooths are held to the scale of the
+        // centred fit, not to the offset.
+        let offset = case.get("offset").and_then(Value::as_f64).unwrap_or(0.0);
+        let scale = want.iter().fold(0.0_f64, |a, v| a.max((v - offset).abs()));
         // The large-lambda case solves a system whose condition number grows with lambda.
         let rel = if name == "large_lambda" { 1e-6 } else { 1e-8 };
         for r in 0..nrows {
@@ -233,4 +236,42 @@ fn unweighted_and_unit_weight_fits_coincide() {
     for (p, q) in a.fitted.iter().zip(&b.fitted) {
         assert!((p - q).abs() < 1e-12);
     }
+}
+
+#[test]
+fn an_outcome_offset_does_not_loosen_the_smooths_under_the_default_stopping_rule() {
+    let fixture = fixture();
+    let case = fixture["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["name"] == "offset_million_outcome")
+        .unwrap();
+    let offset = case["offset"].as_f64().unwrap();
+    let cols: Vec<Vec<f64>> = case["x_cols"].as_array().unwrap().iter().map(vec_f).collect();
+    let nrows = cols[0].len();
+    let x: Vec<f64> = cols.iter().flatten().copied().collect();
+    let y = vec_f(&case["y"]);
+    let centred: Vec<f64> = y.iter().map(|v| v - offset).collect();
+    let lambdas = vec_f(&case["lambdas"]);
+    let specs = [SmoothSpec::new(0, 6, lambdas[0]), SmoothSpec::new(1, 7, lambdas[1])];
+    let run = |outcome: &[f64]| {
+        fit_gam(
+            &PredictorMatrix::new(&x, nrows, cols.len()),
+            outcome,
+            &specs,
+            &GamOptions::default(),
+            &FaerBackend,
+            &mut GamWorkspace::default(),
+        )
+        .unwrap()
+    };
+    let (shifted, plain) = (run(&y), run(&centred));
+    // The same stopping rule on the same centred problem: the iterates agree to rounding of the
+    // offset itself (the ulp of 1e6 is 1.2e-10), not to a tolerance scaled by the offset.
+    for r in 0..nrows {
+        let got = shifted.fitted[r] - offset;
+        assert!((got - plain.fitted[r]).abs() <= 1e-8, "row {r}: {got} vs {}", plain.fitted[r]);
+    }
+    assert_eq!(shifted.iterations, plain.iterations);
 }

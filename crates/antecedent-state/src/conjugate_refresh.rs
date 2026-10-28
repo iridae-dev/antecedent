@@ -32,7 +32,7 @@ use antecedent_core::CanonicalWriter;
 use antecedent_stats::invert_square;
 
 use crate::error::StateError;
-use crate::suff_stats::LinearOlsSuffStats;
+use crate::suff_stats::{LinearOlsSuffStats, ShiftedNormalSolution, solve_shifted_normal};
 
 const PRIOR_TAG: &str = "antecedent.state.conjugate_refresh.prior";
 const BLOCK_TAG: &str = "antecedent.state.conjugate_refresh.block";
@@ -326,6 +326,28 @@ impl ConjugateOlsPosterior {
         Ok(())
     }
 
+    /// The posterior mean and `Λ⁻¹` from the pooled blocks' centred scatter.
+    ///
+    /// The raw natural parameters `Λ = Λ₀ + XᵀX` carry the square of a covariate offset in their
+    /// entries, so their Cholesky factor resolves the mean only to the digits that survive that
+    /// sum. The pooled summary also holds the exact decomposition `XᵀX = S + n x̄ x̄ᵀ` with `S`
+    /// the centred scatter, and `Xᵀy = Sxy + n x̄ ȳ`, which `solve_shifted_normal` solves without
+    /// forming the sum. `None` when there is no pooled block or the centred system is not
+    /// positive definite, in which case the raw natural parameters decide.
+    fn centred_solution(&self) -> Option<ShiftedNormalSolution> {
+        let moments = self.pooled.as_ref()?.centred_moments()?;
+        let p = self.prior.ncols();
+        let mut b = moments.xx();
+        for (slot, add) in b.iter_mut().zip(&self.prior.precision) {
+            *slot += add;
+        }
+        let mut c = moments.xy();
+        for (slot, add) in c.iter_mut().zip(multiply(&self.prior.precision, p, &self.prior.mean)) {
+            *slot += add;
+        }
+        solve_shifted_normal(&b, &moments.mean_x(), moments.n as f64, &c, moments.mean_y())
+    }
+
     /// The posterior, under `prior`, which must be the prior this posterior was built with.
     ///
     /// # Errors
@@ -333,9 +355,14 @@ impl ConjugateOlsPosterior {
     pub fn summary(&self, prior: &ConjugateOlsPrior) -> Result<ConjugateOlsSummary, StateError> {
         self.check_prior(prior)?;
         let p = self.prior.ncols();
-        let scale = invert_square(&self.precision, p)
-            .ok_or_else(|| StateError::Numerical("singular posterior precision".into()))?;
-        let mean = multiply(&scale, p, &self.eta);
+        let (mean, scale) = match self.centred_solution() {
+            Some(solution) => (solution.mean, solution.inverse),
+            None => {
+                let scale = invert_square(&self.precision, p)
+                    .ok_or_else(|| StateError::Numerical("singular posterior precision".into()))?;
+                (multiply(&scale, p, &self.eta), scale)
+            }
+        };
         let residual = match &self.pooled {
             Some(pooled) => pooled.residual_sum_of_squares(&mean).ok_or_else(|| {
                 StateError::Numerical("residual sum of squares is not representable".into())

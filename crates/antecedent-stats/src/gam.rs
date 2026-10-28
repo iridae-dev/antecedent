@@ -614,8 +614,13 @@ pub fn fit_gam_weighted_design(
             rss += weights[r] * e * e;
         }
 
-        let fit_scale =
-            workspace.fitted[..nrows].iter().fold(0.0_f64, |acc, &v| acc.max(v.abs())).max(1.0);
+        // The scale of the smooth part alone: the intercept carries the outcome's offset, and a
+        // tolerance scaled by the offset would admit an absolute error in the centred smooths
+        // that grows with it.
+        let fit_scale = (0..nrows)
+            .map(|r| smooth_fits.iter().map(|sf| sf[r]).sum::<f64>().abs())
+            .fold(0.0_f64, f64::max)
+            .max(1.0);
         let rss_delta = (prev_rss - rss).abs();
         prev_rss = rss;
         if lambda_settled

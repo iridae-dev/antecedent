@@ -13,7 +13,35 @@
 //! count, `x`, `y` and `x·y` of earlier points, so each point's concordance-signed sums
 //! over all earlier points are two prefix queries.
 //!
+//! Distances are unchanged by a shift of either series, but the sums above are of the size of the
+//! location, so a series far from zero would cancel to the square of its offset. Every entry
+//! point therefore centres its inputs first (the subtraction of a nearby centre is exact), so a
+//! direct caller is as accurate as one that centres beforehand.
+//!
+//! A series with no spread has an undefined distance correlation, as it has an undefined Pearson
+//! correlation. The result is `NaN` (not `0`) for it, for fewer than two observations, a length
+//! mismatch and a non-finite value; a caller decides what an undefined dependence means.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+
+/// The series shifted to its mean. Equal values stay exactly equal.
+fn centred(x: &[f64]) -> Vec<f64> {
+    let n = x.len() as f64;
+    let first = x.iter().sum::<f64>() / n;
+    // One correction pass recovers the digits the first sum lost to the size of the offset.
+    let correction = x.iter().map(|v| v - first).sum::<f64>() / n;
+    let centre = first + correction;
+    x.iter().map(|v| v - centre).collect()
+}
+
+/// Whether every value equals the first (the series has no spread).
+#[allow(
+    clippy::float_cmp,
+    reason = "a series without spread is a run of exactly equal observed values"
+)]
+fn has_no_spread(x: &[f64]) -> bool {
+    x.first().is_none_or(|first| x.iter().all(|v| v == first))
+}
 
 /// Row sums `Σ_j |x_i − x_j|` for every `i`.
 fn abs_diff_row_sums(x: &[f64], order: &[usize]) -> Vec<f64> {
@@ -132,74 +160,113 @@ fn distance_covariance_sq(x: &[f64], y: &[f64], order_x: &[usize], order_y: &[us
 /// Székely distance correlation `sqrt(dCov²(x,y) / sqrt(dVar²(x) dVar²(y)))` in
 /// `O(n log n)` time and `O(n)` memory.
 ///
-/// Returns `0` for fewer than two observations, a length mismatch, or a constant series
-/// (zero distance variance), and `NaN` if either series holds a non-finite value.
+/// Returns `NaN` where the correlation is undefined: fewer than two observations, a length
+/// mismatch, a non-finite value, or a series with no spread (zero distance variance).
 #[must_use]
 pub fn distance_correlation(x: &[f64], y: &[f64]) -> f64 {
     let n = x.len();
     if n < 2 || y.len() != n {
-        return 0.0;
-    }
-    if x.iter().chain(y).any(|v| !v.is_finite()) {
         return f64::NAN;
     }
-    let order_x = sorted_order(x);
-    let order_y = sorted_order(y);
-    let dxx = distance_covariance_sq(x, x, &order_x, &order_x);
-    let dyy = distance_covariance_sq(y, y, &order_y, &order_y);
-    if dxx <= 0.0 || dyy <= 0.0 {
-        return 0.0;
+    if x.iter().chain(y).any(|v| !v.is_finite()) || has_no_spread(x) || has_no_spread(y) {
+        return f64::NAN;
     }
-    let dxy = distance_covariance_sq(x, y, &order_x, &order_y);
+    let (x, y) = (centred(x), centred(y));
+    let order_x = sorted_order(&x);
+    let order_y = sorted_order(&y);
+    let dxx = distance_covariance_sq(&x, &x, &order_x, &order_x);
+    let dyy = distance_covariance_sq(&y, &y, &order_y, &order_y);
+    if dxx <= 0.0 || dyy <= 0.0 {
+        return f64::NAN;
+    }
+    let dxy = distance_covariance_sq(&x, &y, &order_x, &order_y);
     (dxy.max(0.0) / (dxx * dyy).sqrt()).sqrt()
 }
 
 /// Sort order, absolute-difference row sums, and row-sum total of one regressand.
 ///
 /// `S₁` still depends on both series. Only `y`'s sort, row sums, and their total are reused.
-pub struct DistanceY<'a> {
-    y: &'a [f64],
+pub struct DistanceY {
+    /// The regressand shifted to its mean.
+    y: Vec<f64>,
     row_sums: Vec<f64>,
     row_sum_total: f64,
     dyy: f64,
+    defined: bool,
+    finite: bool,
 }
 
-impl<'a> DistanceY<'a> {
+impl DistanceY {
     /// Precompute `y`. A later [`Self::correlate`] matches [`distance_correlation`] against this `y`.
     #[must_use]
-    pub fn new(y: &'a [f64]) -> Self {
-        let order = sorted_order(y);
-        let row_sums = if y.len() >= 2 && y.iter().all(|v| v.is_finite()) {
-            abs_diff_row_sums(y, &order)
-        } else {
-            Vec::new()
-        };
+    pub fn new(y: &[f64]) -> Self {
+        let finite = y.iter().all(|v| v.is_finite());
+        let defined = y.len() >= 2 && finite && !has_no_spread(y);
+        if !defined {
+            return Self {
+                y: y.to_vec(),
+                row_sums: Vec::new(),
+                row_sum_total: 0.0,
+                dyy: 0.0,
+                defined: false,
+                finite,
+            };
+        }
+        let y = centred(y);
+        let order = sorted_order(&y);
+        let row_sums = abs_diff_row_sums(&y, &order);
         let row_sum_total = row_sums.iter().sum();
-        let dyy =
-            if row_sums.is_empty() { 0.0 } else { distance_covariance_sq(y, y, &order, &order) };
-        Self { y, row_sums, row_sum_total, dyy }
+        let dyy = distance_covariance_sq(&y, &y, &order, &order);
+        Self { y, row_sums, row_sum_total, dyy, defined: true, finite }
     }
 
-    /// Distance correlation of `x` with the prepared `y`.
+    /// Whether the prepared series has a distance correlation with anything: at least two
+    /// finite observations and some spread.
+    #[must_use]
+    pub const fn is_defined(&self) -> bool {
+        self.defined && self.dyy > 0.0
+    }
+
+    /// A dependence score for a procedure that needs a number: [`Self::correlate`], except that a
+    /// finite series without spread is independent of everything and scores `0`. A non-finite
+    /// value, a length mismatch and fewer than two observations stay `NaN`.
+    #[must_use]
+    pub fn correlate_or_zero_without_spread(&self, x: &[f64]) -> f64 {
+        let comparable = x.len() >= 2
+            && x.len() == self.y.len()
+            && self.finite
+            && x.iter().all(|v| v.is_finite());
+        if !comparable {
+            return f64::NAN;
+        }
+        if !self.defined || has_no_spread(x) {
+            return 0.0;
+        }
+        self.correlate(x)
+    }
+
+    /// Distance correlation of `x` with the prepared `y`; `NaN` where it is undefined, as for
+    /// [`distance_correlation`].
     ///
     /// Bit-identical to [`distance_correlation`]`(x, y)` for the slice passed to [`Self::new`].
     #[must_use]
     pub fn correlate(&self, x: &[f64]) -> f64 {
-        let y = self.y;
+        let y = &self.y;
         let n = x.len();
-        if n < 2 || y.len() != n {
-            return 0.0;
-        }
-        if x.iter().chain(y).any(|v| !v.is_finite()) {
+        if n < 2 || y.len() != n || !self.is_defined() {
             return f64::NAN;
         }
-        let order_x = sorted_order(x);
-        let dxx = distance_covariance_sq(x, x, &order_x, &order_x);
-        if dxx <= 0.0 || self.dyy <= 0.0 {
-            return 0.0;
+        if x.iter().any(|v| !v.is_finite()) || has_no_spread(x) {
+            return f64::NAN;
+        }
+        let x = centred(x);
+        let order_x = sorted_order(&x);
+        let dxx = distance_covariance_sq(&x, &x, &order_x, &order_x);
+        if dxx <= 0.0 {
+            return f64::NAN;
         }
         let dxy =
-            distance_covariance_sq_with_y_rows(x, y, &order_x, &self.row_sums, self.row_sum_total);
+            distance_covariance_sq_with_y_rows(&x, y, &order_x, &self.row_sums, self.row_sum_total);
         (dxy.max(0.0) / (dxx * self.dyy).sqrt()).sqrt()
     }
 }
@@ -284,15 +351,51 @@ mod tests {
     }
 
     #[test]
-    #[allow(
-        clippy::float_cmp,
-        reason = "a constant column has distance correlation exactly 0 by early return"
-    )]
-    fn self_correlation_is_one_and_constant_is_zero() {
+    #[allow(clippy::float_cmp, reason = "no spread scores exactly zero by construction")]
+    fn self_correlation_is_one_and_an_undefined_correlation_is_nan() {
         let (x, _) = series(30, 9, false);
         assert!((distance_correlation(&x, &x) - 1.0).abs() < 1e-12);
-        assert_eq!(distance_correlation(&x, &vec![2.0; 30]), 0.0);
+        // A series without spread has no distance correlation, as it has no Pearson correlation.
+        assert!(distance_correlation(&x, &vec![2.0; 30]).is_nan());
+        assert!(distance_correlation(&vec![2.0; 30], &x).is_nan());
+        assert!(distance_correlation(&vec![1.0e6 + 0.1; 30], &x).is_nan());
+        assert!(distance_correlation(&[1.0], &[2.0]).is_nan());
+        assert!(distance_correlation(&[1.0, 2.0], &[3.0]).is_nan());
         assert!(distance_correlation(&[1.0, f64::NAN, 3.0], &[1.0, 2.0, 3.0]).is_nan());
+        let prepared = DistanceY::new(&vec![2.0; 30]);
+        assert!(!prepared.is_defined());
+        assert!(prepared.correlate(&x).is_nan());
+        assert!(DistanceY::new(&x).is_defined());
+        assert!(DistanceY::new(&x).correlate(&vec![2.0; 30]).is_nan());
+        // A score for a procedure that needs a number: no spread is independence, not a value
+        // for the correlation, and a non-finite value stays undefined.
+        assert_eq!(DistanceY::new(&x).correlate_or_zero_without_spread(&vec![2.0; 30]), 0.0);
+        assert_eq!(prepared.correlate_or_zero_without_spread(&x), 0.0);
+        assert!(prepared.correlate_or_zero_without_spread(&vec![f64::NAN; 30]).is_nan());
+        assert!(DistanceY::new(&[1.0, f64::NAN]).correlate_or_zero_without_spread(&[1.0, 2.0]).is_nan());
+        assert_eq!(
+            DistanceY::new(&x).correlate_or_zero_without_spread(&x).to_bits(),
+            DistanceY::new(&x).correlate(&x).to_bits()
+        );
+    }
+
+    #[test]
+    fn series_far_from_zero_match_the_exact_rational_definition() {
+        let frozen: serde_json::Value =
+            serde_json::from_str(include_str!("../tests/oracle_data/dcor_offset_reference.json"))
+                .unwrap();
+        let column = |v: &serde_json::Value| -> Vec<f64> {
+            v.as_array().unwrap().iter().map(|e| e.as_f64().unwrap()).collect()
+        };
+        for case in frozen["cases"].as_array().unwrap() {
+            let name = case["name"].as_str().unwrap();
+            let (x, y) = (column(&case["x"]), column(&case["y"]));
+            let want: f64 = case["dcor"].as_str().unwrap().parse().unwrap();
+            let direct = distance_correlation(&x, &y);
+            assert!((direct - want).abs() < 1e-12, "{name}: direct {direct} vs exact {want}");
+            let prepared = DistanceY::new(&y).correlate(&x);
+            assert_eq!(prepared.to_bits(), direct.to_bits(), "{name}: prepared route");
+        }
     }
 
     #[test]

@@ -1203,13 +1203,8 @@ impl AssociationEstimator {
                 }
             }
         }
-        // The distance correlation is invariant to a shift of either series, but the sorting
-        // identities it is evaluated with subtract sums of the size of the location; centring
-        // first keeps the digits for a series far from zero.
-        for series in [&mut xs, &mut ys] {
-            let centre = series.iter().sum::<f64>() / series.len().max(1) as f64;
-            series.iter_mut().for_each(|v| *v -= centre);
-        }
+        // The distance correlation centres its inputs itself and is undefined (`NaN`, refused by
+        // the caller) for a series without spread, as the Pearson correlation is.
         Ok(vec![distance_correlation(&xs, &ys)])
     }
 

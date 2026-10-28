@@ -265,6 +265,17 @@ def main():
     x = [u01() * 3 for _ in range(60)]
     w = [0.05 + 4 * u01() for _ in x]
     gcv.append(gcv_case("weighted", x, [__import__("math").sin(3 * v) + 0.3 * normal() for v in x], 9, w=w))
+    # An outcome offset of 1e6 over a smooth of unit size: the intercept carries the offset and
+    # the centred smooths must keep their absolute accuracy (generated last so the data above is
+    # unchanged by this case).
+    n = 48
+    x1 = [u01() * 2 - 1 for _ in range(n)]
+    x2 = [u01() * 3 for _ in range(n)]
+    y = [1.0e6 + v ** 2 + 0.4 * __import__("math").sin(2 * u) + 0.1 * normal() for v, u in zip(x1, x2)]
+    big = case("offset_million_outcome", [x1, x2], y,
+               [{"raw_col": 0, "n_basis": 6}, {"raw_col": 1, "n_basis": 7}], [0.4, 2.0])
+    big["offset"] = 1.0e6
+    cases.append(big)
     json.dump({"cases": cases, "gcv": gcv, "grid": GRID}, __import__("sys").stdout, separators=(",", ":"))
 
 

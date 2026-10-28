@@ -646,6 +646,9 @@ fn declarations_the_estimator_cannot_honour_are_refused_with_their_reason() {
     let pearson = AssociationFunctional::Measure(AssociationMeasure::Pearson);
     let constant = [("y", y.clone()), ("x", flat.clone())];
     assert_eq!(code(run(&constant, 0, &[1], pearson, auto, None, &freq)), "invalid_argument");
+    // The distance correlation of a constant column is as undefined as the Pearson one: refused,
+    // never reported as zero.
+    assert_eq!(code(run(&constant, 0, &[1], distance, auto, None, &freq)), "invalid_argument");
     // Scale violations: a 0/1 outcome holding 2, a count holding a fraction.
     let not_binary =
         [("y", vec![0.0, 1.0, 2.0, 1.0, 0.0, 1.0]), ("x", vec![1.0, 2.0, 3.0, 4.0, 5.0, 7.0])];

@@ -5,8 +5,9 @@
 //! normal-inverse-gamma posterior under the stated prior with Fractions, and replays the three
 //! outcomes the refresh can reach: a contiguous extension (rows that reach back into the carried
 //! tail are formed), an extension over a gap (they are not), and a restart on the new period
-//! alone. Cases cover an offset of 1e6, three periods, periods shorter than the lag order, a
-//! nearly collinear ramp with a weak prior and a strong prior against few rows. The test also
+//! alone. Cases cover offsets of 1e4 and 1e6 (two and three periods, and a restart with three
+//! lags), periods shorter than the lag order, nearly collinear ramps at offsets 2000, 1e4 and 1e6
+//! with a weak prior, and a strong prior against few rows. The test also
 //! pins the row identities (the absolute time index of each target), the refusal of an overlapping
 //! or snapshot-reusing period and of a restart that leaves no row, and that a refused period
 //! leaves the state unchanged.
@@ -62,6 +63,15 @@ fn prior(p: usize, scale: f64) -> ConjugateOlsPrior {
     ConjugateOlsPrior::new(vec![0.0; p], precision, 3.0, 2.0).unwrap()
 }
 
+/// Relative tolerances against the exact replay.
+#[derive(Clone, Copy)]
+struct Tolerance {
+    /// The unregularised least-squares coefficients, from the centred scatter of the rows.
+    least_squares: f64,
+    /// The posterior mean and rate, from the centred system with the prior added.
+    posterior: f64,
+}
+
 fn close(got: f64, want: f64, rel: f64, what: &str) {
     assert!(
         (got - want).abs() <= rel * want.abs().max(1.0),
@@ -69,7 +79,8 @@ fn close(got: f64, want: f64, rel: f64, what: &str) {
     );
 }
 
-fn check(refresh: &PeriodRefresh, step: &Value, rel: f64, what: &str) {
+fn check(refresh: &PeriodRefresh, step: &Value, tolerance: Tolerance, what: &str) {
+    let Tolerance { least_squares, posterior: posterior_rel } = tolerance;
     let want_n = step["n"].as_u64().unwrap();
     let snapshot = refresh.fit().snapshot();
     assert_eq!(snapshot.n, want_n, "{what}: rows");
@@ -78,18 +89,15 @@ fn check(refresh: &PeriodRefresh, step: &Value, rel: f64, what: &str) {
     let got_ids: Vec<u64> = refresh.fit().rows().iter().map(|r| r.id).collect();
     assert_eq!(got_ids, ids, "{what}: row identities are the absolute time indices of the targets");
     for (k, (g, w)) in snapshot.beta.as_ref().unwrap().iter().zip(nums(&step["beta"])).enumerate() {
-        close(*g, w, rel, &format!("{what}: least squares {k}"));
+        close(*g, w, least_squares, &format!("{what}: least squares {k}"));
     }
     let posterior = refresh.summary().unwrap_or_else(|e| panic!("{what}: {e}"));
     assert_eq!(posterior.n, want_n, "{what}: posterior rows");
     for (k, (g, w)) in posterior.mean.iter().zip(nums(&step["mean"])).enumerate() {
-        close(*g, w, rel, &format!("{what}: posterior mean {k}"));
+        close(*g, w, posterior_rel, &format!("{what}: posterior mean {k}"));
     }
     close(posterior.shape, num(&step["shape"]), 1e-12, &format!("{what}: shape"));
-    // The rate is a difference of two sums near 1e8 at the ramp's offset, evaluated from a mean
-    // that itself carries the conditioning of the raw Gram; it is held to a percent there.
-    let rate_rel = if what.starts_with("near_collinear_ramp") { 5e-2 } else { rel };
-    close(posterior.rate, num(&step["rate"]), rate_rel, &format!("{what}: rate"));
+    close(posterior.rate, num(&step["rate"]), posterior_rel, &format!("{what}: rate"));
     refresh.check_against_fresh().expect("cached results equal a fresh reconstruction");
 }
 
@@ -104,16 +112,17 @@ fn every_period_outcome_matches_the_exact_replay() {
             "declared" => MechanismStanding::DeclaredInvariant,
             _ => MechanismStanding::Undeclared,
         };
-        // The nearly collinear ramp is solved to a looser relative tolerance: the Gram of
-        // [1, v, v'] at an offset of 2000 has a condition number near 1e12.
-        let rel = if name == "near_collinear_ramp" || name == "offset_million_may_refuse" {
-            1e-3
-        } else if name == "offset_three_contiguous" {
-            1e-4
-        } else {
-            1e-7
+        // The posterior is resolved from the centred scatter with the prior added, so it keeps its
+        // digits at an offset of 1e6 and on a ramp whose raw Gram is conditioned near 1e16. The
+        // unregularised least squares has no prior to bound it: its coefficients are limited by
+        // the conditioning of the centred scatter of the rows (accumulated in double precision),
+        // which is mild for the autoregressive designs and 1e8 or worse for the ramps.
+        let least_squares = match name {
+            "near_collinear_ramp_1e6" => 1e-4,
+            "near_collinear_ramp_1e4" | "near_collinear_ramp" => 1e-7,
+            _ => 1e-8,
         };
-        let may_refuse = case["may_refuse"].as_bool().unwrap_or(false);
+        let rel = Tolerance { least_squares, posterior: 1e-9 };
         let p = lags + 1;
         let scale = num(&case["prior_scale"]);
         let prior = prior(p, scale);
@@ -126,7 +135,6 @@ fn every_period_outcome_matches_the_exact_replay() {
         };
         let mut refresh: Option<PeriodRefresh> = None;
         let mut end = 0_i64;
-        let mut refused = 0;
         for (index, step) in case["steps"].as_array().unwrap().iter().enumerate() {
             let start = step["start"].as_i64().unwrap();
             let values = nums(&step["values"]);
@@ -149,15 +157,9 @@ fn every_period_outcome_matches_the_exact_replay() {
                     other => panic!("{what}: outcome {other:?}"),
                 }
             }
-            if may_refuse && refresh.as_ref().unwrap().summary().is_err() {
-                // Fail closed: a posterior that cannot be resolved is refused, never answered.
-                refused += 1;
-                continue;
-            }
             check(refresh.as_ref().unwrap(), step, rel, &what);
         }
         assert_eq!(refresh.unwrap().window().period.end, end);
-        assert!(may_refuse || refused == 0, "{name}: refused a posterior it should resolve");
     }
 }
 

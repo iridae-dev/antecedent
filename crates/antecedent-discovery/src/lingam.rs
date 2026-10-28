@@ -418,7 +418,9 @@ fn causal_order(
                 }
                 let beta = slope_from_gram(gram[i * p + j], gram[j * p + j], n);
                 residual_into(&cols[i], &cols[j], beta, &mut resid);
-                let d = y.correlate(&resid);
+                // A residual (or a column) without spread is independent of everything: it scores
+                // zero, where the correlation itself is undefined.
+                let d = y.correlate_or_zero_without_spread(&resid);
                 if !d.is_finite() {
                     return Err(DiscoveryError::stats_msg(
                         "DirectLiNGAM independence score is non-finite",
