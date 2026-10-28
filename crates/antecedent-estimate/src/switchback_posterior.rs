@@ -47,7 +47,7 @@ use antecedent_stats::invert_square;
 
 use crate::error::EstimationError;
 use crate::gaussian_linear_posterior::{
-    GaussianLinearPrior, PosteriorSummary, StudentPosterior, conjugate_posterior,
+    GaussianLinearPrior, PosteriorSummary, StudentPosterior, conjugate_posterior_from_residuals,
 };
 use crate::util::refuse;
 
@@ -245,7 +245,8 @@ fn correlation(
 struct Sufficient {
     gram: Vec<f64>,
     xty: Vec<f64>,
-    yty: f64,
+    /// `R^-1` of each distinct sequence length.
+    inverses: BTreeMap<usize, Vec<f64>>,
 }
 
 /// Design row of period `t` of a sequence: intercept, treatment, optional lag, optional period
@@ -268,12 +269,11 @@ fn accumulate(
     model: &SwitchbackModel,
     width: usize,
 ) -> Result<Sufficient, EstimationError> {
-    let mut inverses: BTreeMap<usize, Vec<f64>> = BTreeMap::new();
     let mut sufficient =
-        Sufficient { gram: vec![0.0; width * width], xty: vec![0.0; width], yty: 0.0 };
+        Sufficient { gram: vec![0.0; width * width], xty: vec![0.0; width], inverses: BTreeMap::new() };
     for indices in sequences.values() {
         let m = indices.len();
-        let inverse = match inverses.entry(m) {
+        let inverse = match sufficient.inverses.entry(m) {
             std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
             std::collections::btree_map::Entry::Vacant(entry) => {
                 let inverse =
@@ -294,7 +294,6 @@ fn accumulate(
             (0..m).map(|i| (0..m).map(|j| inverse[i * m + j] * v(j)).sum()).collect()
         };
         let ri_y = apply(&|j: usize| y[j]);
-        sufficient.yty += y.iter().zip(&ri_y).map(|(a, b)| a * b).sum::<f64>();
         for a in 0..width {
             let ri_xa = apply(&|j: usize| x[j][a]);
             sufficient.xty[a] += x.iter().zip(&ri_y).map(|(row, v)| row[a] * v).sum::<f64>();
@@ -305,6 +304,40 @@ fn accumulate(
         }
     }
     Ok(sufficient)
+}
+
+/// `sum_s e_s' R_s^-1 e_s` for the residual `e_s = y_s - X_s m` of every sequence.
+fn residual_quadratic_form(
+    sequences: &BTreeMap<&str, Vec<usize>>,
+    rows: &SwitchbackRows<'_>,
+    model: &SwitchbackModel,
+    inverses: &BTreeMap<usize, Vec<f64>>,
+    mean: &[f64],
+) -> f64 {
+    let mut total = 0.0;
+    for indices in sequences.values() {
+        let m = indices.len();
+        let Some(inverse) = inverses.get(&m) else { return f64::NAN };
+        let assignment: Vec<bool> = indices.iter().map(|i| rows.assignment[*i]).collect();
+        let residual: Vec<f64> = indices
+            .iter()
+            .enumerate()
+            .map(|(t, i)| {
+                let fitted: f64 = design_row(&assignment, t, model, m)
+                    .iter()
+                    .zip(mean)
+                    .map(|(x, b)| x * b)
+                    .sum();
+                rows.outcomes[*i] - fitted
+            })
+            .collect();
+        for a in 0..m {
+            for b in 0..m {
+                total += residual[a] * inverse[a * m + b] * residual[b];
+            }
+        }
+    }
+    total
 }
 
 fn group_sequences<'a>(
@@ -403,16 +436,18 @@ pub fn posterior_switchback(
             }
         })
         .collect();
-    let posterior = conjugate_posterior(
+    // The scale comes from the residual `y - X m_n` at the posterior mean, not from
+    // `y'R^-1y - m_n'X'R^-1y`, which subtracts numbers of the size of the outcome.
+    let posterior = conjugate_posterior_from_residuals(
         &sufficient.gram,
         &sufficient.xty,
-        sufficient.yty,
         n,
         &GaussianLinearPrior {
             coefficient_precision: precision,
             variance_shape: prior.variance_shape,
             variance_scale: prior.variance_scale,
         },
+        |mean| residual_quadratic_form(&sequences, rows, model, &sufficient.inverses, mean),
     )?;
     let marginal = |weights: Vec<f64>| {
         posterior.linear_functional(&weights).ok_or_else(|| {

@@ -47,7 +47,7 @@ use antecedent_stats::{
 };
 
 use crate::error::EstimationError;
-use crate::gaussian_linear_posterior::{GaussianLinearPrior, conjugate_posterior};
+use crate::gaussian_linear_posterior::{GaussianLinearPrior, conjugate_posterior_from_residuals};
 use crate::temporal_block::{circular_fixed_b_scale, dependence_block_length};
 use crate::util::SamplingDeclaration;
 
@@ -1494,13 +1494,13 @@ impl AssociationEstimator {
         };
         if let Some(strata) = &prepared.strata {
             let strata_count = strata.labels.len();
-            let (mut count, mut sum, mut square) =
-                (vec![0.0; strata_count], vec![0.0; strata_count], vec![0.0; strata_count]);
+            let (mut count, mut sum) = (vec![0.0; strata_count], vec![0.0; strata_count]);
+            let mut members: Vec<Vec<usize>> = vec![Vec::new(); strata_count];
             for row in 0..prepared.rows {
                 let k = strata.of_row[row];
                 count[k] += 1.0;
                 sum[k] += prepared.y[row];
-                square[k] += prepared.y[row] * prepared.y[row];
+                members[k].push(row);
             }
             let prior = GaussianLinearPrior {
                 coefficient_precision: vec![1.0 / scale_squared],
@@ -1509,12 +1509,14 @@ impl AssociationEstimator {
             };
             let mut terms = Vec::with_capacity(strata_count);
             for k in 0..strata_count {
-                let posterior = conjugate_posterior(
+                // The scale is formed from the residual about the posterior mean, not from
+                // the sum of squares, which cancels for an outcome far from zero.
+                let posterior = conjugate_posterior_from_residuals(
                     &[count[k]],
                     &[sum[k]],
-                    square[k],
                     strata.counts[k],
                     &prior,
+                    |mean| members[k].iter().map(|&row| (prepared.y[row] - mean[0]).powi(2)).sum(),
                 )?;
                 terms.push(summarise(&posterior, &[1.0])?);
             }
@@ -1545,13 +1547,19 @@ impl AssociationEstimator {
             }
             *slot = variance / scale_squared;
         }
-        let yty: f64 = prepared.y.iter().map(|v| v * v).sum();
         let prior = GaussianLinearPrior {
             coefficient_precision: precision,
             variance_shape: 1.0,
             variance_scale: variance_y,
         };
-        let posterior = conjugate_posterior(&gram, &xty, yty, n, &prior)?;
+        let posterior = conjugate_posterior_from_residuals(&gram, &xty, n, &prior, |mean| {
+            (0..n)
+                .map(|row| {
+                    let fitted: f64 = (0..p).map(|c| column(c)[row] * mean[c]).sum();
+                    (prepared.y[row] - fitted).powi(2)
+                })
+                .sum()
+        })?;
         design
             .report
             .iter()

@@ -22,4 +22,42 @@ upstream_implementations_observed = []
 
 test_sources = [
   "crates/antecedent/tests/bayesian_randomized_routes.rs",
+  "crates/antecedent-estimate/tests/switchback_posterior_reference.rs (every effect, variance shape and scale and Student-t marginal against a dense 60-digit generalised-least-squares posterior, including near-singular correlations and outcome offsets to 1e7)",
+  "crates/antecedent-estimate/src/gaussian_linear_posterior.rs unit test (the residual form against the exact scale at an outcome offset of 1e8)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "posterior_switchback of crates/antecedent-estimate/src/switchback_posterior.rs with the conjugate Normal-Inverse-Gamma core of gaussian_linear_posterior.rs that it calls: for sequences of unit-periods with an intercept, the period treatment, optional first-order carryover and optional fixed period effects, errors N(0, sigma2 R_s) with a declared independent, compound-symmetric or AR(1) correlation, a diagonal Gaussian coefficient prior and an Inverse-Gamma variance prior, the generalised-least-squares sufficient statistics, the posterior mean and precision, the variance shape and scale, the Student-t marginals of the direct, carryover, sustained and period-contrast functionals, their equal-tailed intervals and sign probabilities, and the admissible-correlation refusals. Not the design-based Horvitz-Thompson contrast, the randomization argument for conditioning on the assignment, the choice of the declared correlation (which is never estimated), the other users of the core (association and categorical-treatment posteriors, apart from the shared scale fix), or the coverage of the intervals."
+assumptions = ["The likelihood is y_s = X_s b + e_s with e_s ~ N(0, sigma2 R_s), sequences independent, R_s the declared correlation of the sequence length, rows in period order; carryover is first order with the first period starting from control.", "The prior is b_j | sigma2 ~ N(0, sigma2 / precision_j) and sigma2 ~ InvGamma(a0, b0), so every effect has an exact Student-t marginal with 2 a_n degrees of freedom; these are posterior statements under the stated model, not design-based intervals.", "The posterior is conditional on the observed assignment, which factors out of the likelihood for independently randomized sequences.", "Accuracy is stated against the exact function of the binary64 inputs."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the sufficient-statistic accumulation, the correlation inverses and the conjugate core, and compared results with an executing reference written for this review: a dense block-diagonal covariance inverted at 60 digits, the posterior formed from the residual, and the Student-t quantile and sign probability from the incomplete beta function. No upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review; the correspondence is between the product code and the standard conjugate linear-model posterior, verified numerically, not a page-level reading of the switchback paper or of Bayesian Data Analysis."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency."
+limitations = "Twelve designs of 6 to 8 sequences of 3 to 6 periods: independent, compound symmetric (rho 0.2 to 0.5 and 1e-3 above the lower admissible bound for four periods), AR(1) (rho -0.6, 0.3, 0.999), first-order carryover, fixed period effects, unequal sequence lengths, prior precision 1e-8 and 1e6, and outcomes offset by 1e3 to 1e7 under a negligible intercept prior. Posterior mean, standard deviation, variance scale and shape agree to a relative 1e-9 (1e-6 for the two near-singular correlations, 1e-7 at an offset of 1e7), the degrees of freedom to 1e-12, and the interval radius and sign probability to 1e-8. The coefficients come from the normal equations, so their absolute error grows with the outcome offset (about 1e-9 at 1e7 against an effect of order one); a design far more ill conditioned than these is not covered. Not exercised: more than eight sequences, sequences longer than six periods, three or more treatment states, and any model misspecification (the declared correlation is taken as true, so interval coverage under a wrong correlation is not examined and no coverage is claimed). The reference script pins mpmath in inline script metadata but is not run in a locked, isolated environment and is not wired into a gate; its output is frozen in the JSON compared by the test. The cited publications were not retrieved."
+sources = ["https://arxiv.org/abs/2009.00148", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The posterior scale was formed as y'R^-1y - m_n'X'R^-1y, a difference of two numbers of the size of the outcome. For an outcome near 1e5 the scale was wrong at relative 7e-6 and by 1e7 it carried no correct digit (the variance scale feeds every interval width and the sign probability). The core now offers a residual form, b_n = b0 + (|y - X m_n|^2 + m_n' Lambda0 m_n)/2, a sum of non-negative terms, and the switchback posterior, the categorical-treatment posterior (which had the same y'y reconstruction from a stored residual sum) and the association posterior use it; the scale now agrees with the exact value to 1e-9 at every offset tested, and a unit test shows the old form missing the exact scale by more than 1e-3 at an offset of 1e8.", "No formula defect was found: the whitened sufficient statistics, the carryover and period-effect columns, the Student-t degrees of freedom, scale, interval and sign probability agree with the dense generalised-least-squares reference for independent, compound-symmetric and autoregressive dependence, including unequal sequence lengths and correlations at the edge of their admissible ranges.", "The documentation of the core did not state the cancellation of the sum-of-squares form; it now does, and points callers that hold rows or a residual sum to the residual form."]
+record_sha256 = "806f2367ddd76c8bb5d022abeb7f304c03204e293a62c0873bcd63501a5cffa3"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/switchback_posterior.rs"
+sha256 = "ca79df60af727045e0b987b7806024d7e49c12c7aa81339d40f69e880eecb2c2"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/gaussian_linear_posterior.rs"
+sha256 = "437abd1f4a166833dfc95c370dbb6fd54b27562e446f3883f4f54a80a27a18b6"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/switchback_posterior_reference.rs"
+sha256 = "299295de2e5e5bf02a40ccbb617125a95f100bf422ccb4224c802c148df0e9b2"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/switchback_posterior_reference.py"
+sha256 = "8039294e1eb3fb31204fac3999f133847460f580ee1766537287e1bacc3e2605"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/switchback_posterior_reference.json"
+sha256 = "61ce0b5c15a62d8beb2192fc66aa9a98335b69ad0b69b1d816b3706a8b1e50b6"

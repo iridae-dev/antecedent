@@ -23,8 +23,9 @@ implementation_deviations = [
   "The pointwise normal interval uses a sandwich standard error with calibration unmeasured: the nominal level 0.95 is not a coverage claim. Coverage is allocated (cov.dose_response.randomized_dose.frequentist.l95.pointwise_local_quadratic_level, _derivative, _contrast) and not collected. The simultaneous band is a different claim and is closed (dose_grid.simultaneous_band_closed).",
   "Randomization of the dose is a caller attestation; no graph is re-derived and an observational dose is refused. Rows are treated as independent; clustered, serial or linked rows are outside the row.",
   "Support is judged per requested dose: outside the observed dose range, or Kish effective sample size below a caller-declared minimum (at least 3), is labelled and refused, never extrapolated.",
+  "A requested dose is labelled Supported by the Kish effective size of its Gaussian weights against the declared floor (at least 3), but the underlying local quadratic additionally refuses a window whose kernel weight sum is 3 or less (its residual scale is not estimable): a window can be labelled Supported and still be refused at the fit with dose_grid.insufficient_local_weight. The refusal is typed, never silent.",
   "Exactly one named functional is evaluated per call, each with its own claim flag; the measured numerical residual of the local solves is reported and is not a bound on estimation error.",
-  "estimate_dose_grid_bias_aware is a separate entry on the same row: under a caller-declared bound on the absolute third derivative of m it adds the exact worst-case smoothing bias of the linear smoother (M/6 times the sum of |l_i| |D_i - d|^3) to each interval through the folded-normal critical value, and builds a simultaneous band whose half-width is a Gaussian multiplier sup-t critical value times the standard error plus that bias. The sealed artifact keeps the band closed; calibration stays unmeasured.",
+  "estimate_dose_grid_bias_aware is a separate entry on the same row: under a caller-declared bound on the absolute third derivative of m it adds the worst-case smoothing bias bound of the linear smoother (M/6 times the sum of |l_i| |D_i - d|^3, which treats the Taylor remainders at the rows as independent and so is conservative; for a contrast, the sum of the two doses' bounds) to each interval through the folded-normal critical value, and builds a simultaneous band whose half-width is a Gaussian multiplier sup-t critical value times the standard error plus that bias. The sealed artifact keeps the band closed; calibration stays unmeasured.",
 ]
 
 upstream_implementations_observed = []
@@ -34,4 +35,36 @@ test_sources = [
   "crates/antecedent-io/tests/dose_grid_artifact.rs",
   "python/tests/test_dose_grid.py",
   "crates/antecedent-estimate/src/dose_grid_functional.rs",
+  "crates/antecedent-estimate/tests/dose_grid_local_quadratic_reference.rs (level, derivative, sandwich and contrast standard errors, Kish support labels, bias bound, folded-normal interval and sup-t critical value against 50-digit local quadratic fits)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "estimate_dose_grid_functional, dose_support_report and estimate_dose_grid_bias_aware of crates/antecedent-estimate/src/dose_grid_functional.rs for a randomized continuous dose: the Gaussian local quadratic level and first derivative at each requested dose, their heteroskedasticity-robust sandwich standard errors from the linearised influences, the covariance-aware contrast standard error from the difference of two influences, the Kish effective size and the support label it drives, the smoother-weight worst-case smoothing-bias bound M/6 sum |l_i||D_i - d|^3 (and the sum of two bounds for a contrast), the folded-normal bias-aware interval half-width, and the band built from a Gaussian-multiplier sup-t critical value plus the bias bound. Not the antecedent-stats local quadratic kernel itself (reviewed under stats.response.local_polynomial), the randomization attestation, bandwidth choice, the sealed artifact and Python surfaces, the Monte Carlo rank rule beyond its agreement with the bivariate-normal quadrature at two doses, or coverage."
+assumptions = ["The dose is randomized by caller attestation, rows are independent, and the bandwidth is fixed and declared; the fitted target is the smoother m_h, whose bias m_h - m is excluded from the plain intervals.", "The sandwich standard error is sqrt(sum (l_i e_i)^2) with l_i the linear-smoother weight of row i and e_i its local residual (the HC0 form, no leverage correction).", "The bias bound requires |m'''| <= M on the window; it bounds each row's Taylor remainder separately, so it is a conservative upper bound on the smoothing bias, not the exact worst case over smooth functions.", "The Kish size of the Gaussian kernel weights is the support criterion; the fit separately requires the kernel weight sum to exceed 3."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the helpers it calls for the Cholesky solve, the folded-normal root find and the sup-t rank, and compared results with an executing reference written for this review (50-digit weighted normal equations, smoother weights and residuals, bias bound, folded-normal root, and a bivariate-normal quadrature of the sup-t critical value). No upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency."
+limitations = "Eight designs of 40 to 60 rows with one to three grid doses each: interior doses, adjacent (correlation near one) and distant (near zero) grid pairs, doses offset by 1e8 and by -4e6, a bandwidth 40 times the dose range, a narrow window whose kernel weight sum is near 4, and an almost exactly quadratic mean; curvature bounds 0.5 to 3. Level, derivative and standard errors agree to a relative 1e-8, the Kish size to 1e-10, the bias bound and bias-aware half-width to 1e-7 and the two-dose sup-t critical value to 0.05 at 40,000 multiplier replicates (a Monte Carlo rank, not an exact value). Not exercised: more than three grid doses against the quadrature (the band is checked only as est +/- (critical se + bias) there), heavy-tailed or clustered noise, grids beyond 33 doses, and dependent rows. No coverage of any interval is measured or claimed; the sealed route stays unmeasured. The reference script pins mpmath in inline script metadata but is not run in a locked, isolated environment and is not wired into a gate; its output is frozen in the JSON compared by the test. The cited publications were not retrieved."
+sources = ["https://doi.org/10.3982/QE1199", "https://doi.org/10.2307/1912934", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No numerical defect was found. The level, derivative, robust standard errors, covariance-aware contrast standard error, Kish size, bias bound, bias-aware half-width and sup-t critical value agree with the multiprecision reference on every design, including doses offset by 1e8 where the local fit is centred on the evaluation dose.", "The documentation called the bias term the exact worst-case smoothing bias of the linear smoother. It is the sum of the row-wise Taylor remainder bounds, which treats the remainders as independent: a valid, conservative upper bound that is not attained, and for a contrast the sum of the two doses' bounds. The source documentation and the deviation text now say so.", "A window can carry the support label Supported (Kish size at or above the floor) and still be refused at the fit, because the local quadratic requires the kernel weight sum to exceed 3 and the weight sum can be below the Kish size. The refusal is typed and nothing is returned, so no result is affected; the behaviour is asserted and now stated in the deviations."]
+record_sha256 = "0bd2f9944ea4e106f0364aa641ae1a45dd3007009a7b484c6dc3c44843f9e961"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/dose_grid_functional.rs"
+sha256 = "8a6a2286bc058c8ef44682ca0b0cc54170239c6725dea8feb60a63263d29a848"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/dose_grid_local_quadratic_reference.rs"
+sha256 = "94182f8a624b45c45cb78751d75c14718f5d7dcee6b800be50ef44d4de9e5c96"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/dose_grid_local_quadratic_reference.py"
+sha256 = "2a81b0f5f79050fca922e9f47f5b015bc1ac8564a676a24f1b9d2cc09ab2bb8c"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/dose_grid_local_quadratic_reference.json"
+sha256 = "d00b3043d9901bccc790ec15cb0949b4c73173e623d2e2ebb26b0d22039efd4b"

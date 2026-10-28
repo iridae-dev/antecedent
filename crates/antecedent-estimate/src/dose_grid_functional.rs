@@ -48,7 +48,7 @@
 //! * **Bias-aware intervals and band.** [`estimate_dose_grid_bias_aware`] builds both
 //!   claims the row leaves out on the same fit: under a declared bound on the absolute third
 //!   derivative of the dose response, each interval is the bias-aware (folded-normal)
-//!   interval at the exact worst-case smoothing bias of the linear smoother, and the
+//!   interval at the worst-case smoothing bias bound of the linear smoother, and the
 //!   simultaneous band over the grid adds that bias to a Gaussian multiplier sup-t half-width.
 //!   Calibration stays unmeasured.
 //!
@@ -858,8 +858,9 @@ pub fn estimate_dose_grid_quadratic_mean_with_context(
 ///
 /// The row's own intervals exclude the smoothing bias `m_h - m`. Under a declared bound `M` on
 /// the absolute third derivative of the dose response, the worst-case bias of the linear
-/// smoother `sum_i l_i Y_i` at dose `d` is `M / 6 * sum_i |l_i| |D_i - d|^3` exactly (the local
-/// quadratic reproduces quadratics, so only the third-order Taylor remainder is left). Each
+/// smoother `sum_i l_i Y_i` at dose `d` is at most `M / 6 * sum_i |l_i| |D_i - d|^3` (the local
+/// quadratic reproduces quadratics, so only the third-order Taylor remainder is left; the bound
+/// treats the remainders at the rows as independent, so it is conservative, not attained). Each
 /// coordinate's interval is the bias-aware interval of Armstrong and Kolesar (the folded-normal
 /// critical value at the standardized worst-case bias), and the simultaneous band adds the
 /// worst-case bias to the Gaussian multiplier sup-t half-width over the grid. A bound of zero

@@ -47,7 +47,7 @@ use crate::categorical_treatment::{
 };
 use crate::error::EstimationError;
 use crate::gaussian_linear_posterior::{
-    GaussianLinearPosterior, GaussianLinearPrior, StudentPosterior, conjugate_posterior,
+    GaussianLinearPosterior, GaussianLinearPrior, StudentPosterior, conjugate_posterior_from_residuals,
 };
 use crate::util::refuse;
 use crate::vector_treatment::DesignSummary;
@@ -180,7 +180,9 @@ fn posterior_from_summary(
     prior: &CategoricalPosteriorPrior,
 ) -> Result<GaussianLinearPosterior, EstimationError> {
     let width = design.xty.len();
-    // y'y = RSS + X'y . G^-1 X'y for the OLS fit that produced the stored RSS.
+    // |y - X m|^2 = RSS + (m - b)' G (m - b) for the OLS fit b = G^-1 X'y that produced the stored
+    // RSS (the OLS residual is orthogonal to the columns of X). Using it avoids the cancellation
+    // in y'y - m . X'y when the outcome sits far from zero.
     let gram_inverse = invert_square(&design.gram, width).ok_or_else(|| {
         refuse(
             reason_code!("invalid_argument"),
@@ -188,12 +190,9 @@ fn posterior_from_summary(
             "the stored Gram matrix is singular",
         )
     })?;
-    let ols_explained: f64 = (0..width)
-        .map(|i| {
-            design.xty[i]
-                * (0..width).map(|j| gram_inverse[i * width + j] * design.xty[j]).sum::<f64>()
-        })
-        .sum();
+    let ols: Vec<f64> = (0..width)
+        .map(|i| (0..width).map(|j| gram_inverse[i * width + j] * design.xty[j]).sum::<f64>())
+        .collect();
     let precision = (0..width)
         .map(|j| {
             if j >= design.first_treatment {
@@ -208,12 +207,20 @@ fn posterior_from_summary(
         variance_shape: prior.variance_shape,
         variance_scale: prior.variance_scale,
     };
-    conjugate_posterior(
+    conjugate_posterior_from_residuals(
         &design.gram,
         &design.xty,
-        design.rss + ols_explained,
         design.n_rows,
         &model_prior,
+        |mean| {
+            let shift: Vec<f64> = mean.iter().zip(&ols).map(|(m, b)| m - b).collect();
+            let curvature: f64 = (0..width)
+                .map(|i| {
+                    shift[i] * (0..width).map(|j| design.gram[i * width + j] * shift[j]).sum::<f64>()
+                })
+                .sum();
+            design.rss + curvature
+        },
     )
 }
 

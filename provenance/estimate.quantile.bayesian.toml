@@ -21,4 +21,41 @@ upstream_implementations_observed = []
 
 test_sources = [
   "crates/antecedent/tests/bayesian_design_posterior_routes.rs",
+  "crates/antecedent-estimate/tests/quantile_posterior_reference.rs (sampler against the exact Beta-integral distribution of the resolved quantile, its mean, interval, resolved share and closed-form distribution-function means)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "randomized_quantile_posterior of crates/antecedent-estimate/src/quantile_posterior.rs for a two-arm randomized trial and a declared strictly increasing threshold grid: the right-closed bin counts, the symmetric Dirichlet(concentration + counts) posterior of each arm's bin masses, the cumulative-sum grid distribution function and its closed-form posterior mean, the draw-by-draw piecewise-linear inversion at a level tau (through invert_cdf_quantile), the unresolved-draw rule (no crossing, or span-normalised bracket density below 1e-3) with its one-percent refusal, and the summaries of the resolved draws: posterior means, the equal-tailed 95% intervals and the distribution of the quantile. Not the Dirichlet sampler beyond its agreement with the exact distribution, the treated-minus-control summaries beyond independence of the arms, the grid choice, or frequentist coverage of the credible intervals."
+assumptions = ["Within each randomized arm the outcomes are independent draws from a multinomial over the K + 1 bins cut by the declared grid; the within-bin law is the linear interpolation of the distribution function, so the quantile is a functional of the binned law, not of the unbinned outcome law.", "The prior is a symmetric Dirichlet over the bins with a declared concentration; the arms are independent under randomization, so the difference posterior is the draw-wise difference of independent arm posteriors.", "A draw whose quantile is not bracketed by the grid, or whose bracket density is below the guard, is unresolved and removed; the reported posterior is therefore the posterior conditional on resolution, and the request refuses when more than one percent of draws are removed.", "Accuracy is stated against the exact distribution of the binned model."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the inversion helper it calls, and compared the sampler with an exact distribution derived for this review: for the crossing bracket the Dirichlet splits into a Beta mass and an independent Beta fraction, so the probability that a draw crosses in a bracket, is at most a given value and passes the density guard is a one-dimensional integral of a Beta tail, evaluated by Gauss-Legendre quadrature. A separate pure-Python simulation, used only to arbitrate a discrepancy during the review, was not retained. No upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review; the correspondence is between the product code and the binned-Dirichlet model it states, verified numerically, not a page-level reading of Firpo or of the Bayesian bootstrap paper."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency."
+limitations = "Four settings on one pair of 12-unit arms with a six-point grid: Dirichlet concentrations 0.5, 0.01 and 20 and levels 0.5, 0.75 and 0.25, each at 200,000 draws. The exact distribution function of the resolved quantile (at six points per arm), its mean, its 2.5% and 97.5% points and the resolved share are compared with the sampler at tolerances of 0.006, 0.012, 0.03 and 0.002 (several Monte Carlo standard errors); the closed-form distribution-function means are compared to 1e-12. These are statistical agreements at one seed, not exact equality, and a different seed or draw count would need its own tolerance. Not exercised: grids longer than six points, arms of different sizes, counts of zero in the crossing bracket under the strong prior, and the Dirichlet sampler at concentrations far below 0.01. The reference quadrature is of limited precision (about 1e-5) and its internal integrand needed breakpoints at the tail kinks; an earlier quadrature without them disagreed with the sampler and with a simulation by 0.8 percentage points of resolved share. No coverage of the credible intervals is measured. The reference script pins mpmath in inline script metadata but is not run in a locked, isolated environment and is not wired into a gate; its output is frozen in the JSON compared by the test. The cited publications were not retrieved."
+sources = ["https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No defect was found. The right-closed binning, the Dirichlet posterior, the closed-form distribution-function means, the piecewise-linear inversion, the density guard and the one-percent unresolved rule agree with the exact distribution of the binned model at all four settings, including the resolved share, which depends on both the no-crossing and the density-guard rules.", "The deviation text did not state that the reported posterior is the posterior conditional on a draw being resolved (draws without a bracketed quantile or with bracket density below the guard are removed, up to one percent). The scope and assumptions now do."]
+record_sha256 = "10f212eb6ad740e90b653995f8e154eeddcfcd9634c0558d8cc8bc49e5d9b9b2"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/quantile_posterior.rs"
+sha256 = "b95852fdc95b7f7d0396f28ea6bbfe3a023480544d026d180100195e86942da5"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/quantile.rs"
+sha256 = "1aa447af8179bf0de890914053fa7fa96d8dbbbbd16da13eb2f8ee7c37ac148d"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/quantile_posterior_reference.rs"
+sha256 = "cd6cfb6387cbe91a6ecabb91ac713e7f5f9364a8d7814a5541f6528fd94666d7"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/quantile_posterior_reference.py"
+sha256 = "99c2fd0c7f039a09e269b34d6d02c1844826750d8397659af724e93d8a9f61cb"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/quantile_posterior_reference.json"
+sha256 = "034552617535cd7eff8bcf6f4b40db923a9659babda6468c9a3ac8193ec1880d"

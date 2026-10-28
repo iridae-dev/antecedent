@@ -22,4 +22,36 @@ upstream_implementations_observed = []
 
 test_sources = [
  "crates/antecedent-estimate/src/quantile.rs",
+  "crates/antecedent-estimate/tests/quantile_inversion_reference.rs (value, influence, density guard, support and projection refusals against an exact rational segment scan with dual-number derivatives, including weighted score tables at weight units 1e-200 to 1e200)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "invert_cdf_quantile and invert_supported_cdf of crates/antecedent-estimate/src/quantile.rs and the single-arm table path quantile_arm that feeds them: for a strictly increasing threshold grid and a monotone supplied CDF, the piecewise-linear inverse at a level tau, its row influence -phi_F(q)/f(q) with phi_F interpolated between the bracketing columns, the span-normalised density guard, the refusals for a level outside the estimated CDF range, an unsupported bracket and an isotonic projection that alters the bracket, and for a score table the weighted CDF 1 - mean with the weight-normalised influence n w_i/W (v_i - mean). Not the interventional CDF itself or its score columns, the isotonic projection routine, the two-arm contrast arithmetic, the Bayesian quantile posterior, the support thresholds that set the supported flags, or the coverage of intervals built from the influence."
+assumptions = ["The caller supplies a CDF on a frozen grid and its influence columns; the inversion is as valid as that CDF and ignores grid selection and interpolation bias, which the module documents as excluded.", "The quantile is the first point at which the linearly interpolated CDF reaches tau, so a plateau at tau resolves to its left end and a level equal to a grid CDF value resolves to that grid point.", "The influence is the derivative of that piecewise-linear map in a fixed bracket; at a level exactly equal to a grid CDF value the map has a kink and the influence is the one-sided derivative of the left bracket.", "The density used to invert is the bracket slope, not a smoothed density estimate; the guard compares it, scaled by the grid span, with 1e-3."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared it with an executing reference written for this review, which finds the quantile by scanning the segments of the exact rational CDF and differentiates the whole map, including the weight normalisation, with dual numbers over Fractions; it does not use the product's bracket position, weight clamp or influence formula. No upstream implementation or test source was consulted or copied. The cited text was not retrieved in this review: the correspondence is between the product code and the standard definition of the quantile functional and its influence function, verified numerically, not a page-level reading."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); Python's fractions module is used only to produce the frozen values and is not a product dependency."
+limitations = "Twenty-three direct cases and four weighted tables. Direct cases: grid units 1e-6, 1, 1e3 and 1e6, a level equal to and 2^-40 above a grid CDF value, a plateau below and at the level, both end segments, levels above and below the range, brackets whose span-normalised density is 9e-3 (accepted), 7.2e-4 and 6e-4 (refused) at three units, and a near-jump bracket of width 2^-30. Tables: 60 rows, four thresholds, unit weights and integer weights of units 1, 1e-200 and 1e200. The influence agrees with the exact derivative to a relative 1e-9; the value to a relative 1e-11. Not exercised: grids longer than six points, isotonic projection beyond the single violated-block cases asserted by refusal, weights with exact zeros, scores outside the unit interval and the support rule itself. The exact derivative has no value at a kink, so the influence at a level equal to a grid CDF value is only checked to be the left-bracket derivative. Nothing here tests that intervals built from the influence cover. The reference script declares no third-party dependency and is not run in a locked environment or wired into a gate; its output is frozen in the JSON compared by the test. The cited text was not retrieved."
+sources = ["https://doi.org/10.1017/CBO9780511802256", "https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["No numerical defect was found. The quantile, its density and its influence agree with the exact segment-scan and dual-number derivative in every accepted case, across five orders of magnitude of grid unit, and the weight-normalised table influence is identical at weight units 1, 1e-200 and 1e200.", "The accept/refuse decision of the density guard agrees with the exact rational span-normalised density on both sides of 1e-3 at three grid units; a level outside the CDF range, an unsupported bracket endpoint and a projection that alters the bracket are refused, and a projection away from the bracket is not.", "The deviation text did not state which side a plateau or a grid-value level resolves to or that the influence is one-sided there; the assumptions now do."]
+record_sha256 = "91a0ff786fb833d759df074d0820fa87c775c7612869d933bc144aa80e6eb54c"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/quantile.rs"
+sha256 = "1aa447af8179bf0de890914053fa7fa96d8dbbbbd16da13eb2f8ee7c37ac148d"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/quantile_inversion_reference.rs"
+sha256 = "b4f1e50349bdfac16f8ab7bfd6085e7004ae1e98eeb96c8acdbdf93445564932"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/quantile_inversion_reference.py"
+sha256 = "f8aea37f76e7b0d3e025c1ccc907ee48e95630bbe7f9ce65f12b7de81cc90bb7"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/quantile_inversion_reference.json"
+sha256 = "7e1a057cd94a90f9be582b6b7be1ebc7056e22105a13b568e1559040dfb064e6"

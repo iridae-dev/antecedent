@@ -115,23 +115,13 @@ fn invalid(detail: &str, message: &str) -> EstimationError {
     refuse(reason_code!("invalid_argument"), detail, message)
 }
 
-/// Posterior of a Gaussian linear model from `X' X` (row-major `p x p`), `X' y`, `y' y` and the
-/// row count `rows`.
-///
-/// # Errors
-///
-/// `invalid_argument` with `gaussian_linear_posterior.invalid_prior` for a non-positive or
-/// non-finite precision, shape or scale or a length that is not `p`;
-/// `gaussian_linear_posterior.invalid_statistics` for non-finite sufficient statistics or a
-/// shape mismatch; `gaussian_linear_posterior.singular_precision` when the posterior precision
-/// cannot be inverted.
-pub fn conjugate_posterior(
+/// Validate the prior and statistics, then return `(Lambda_n^-1, m_n)`.
+fn precision_and_mean(
     gram: &[f64],
     xty: &[f64],
-    yty: f64,
     rows: usize,
     prior: &GaussianLinearPrior,
-) -> Result<GaussianLinearPosterior, EstimationError> {
+) -> Result<(Vec<f64>, Vec<f64>), EstimationError> {
     let p = xty.len();
     let positive = |v: f64| v.is_finite() && v > 0.0;
     if p == 0
@@ -146,11 +136,7 @@ pub fn conjugate_posterior(
              finite Inverse-Gamma shape and scale",
         ));
     }
-    if gram.len() != p * p
-        || rows == 0
-        || !yty.is_finite()
-        || !gram.iter().chain(xty).all(|v| v.is_finite())
-    {
+    if gram.len() != p * p || rows == 0 || !gram.iter().chain(xty).all(|v| v.is_finite()) {
         return Err(invalid(
             "gaussian_linear_posterior.invalid_statistics",
             "the sufficient statistics must be finite with a p x p Gram matrix and at least one row",
@@ -169,9 +155,81 @@ pub fn conjugate_posterior(
     let mean: Vec<f64> = (0..p)
         .map(|i| (0..p).map(|j| precision_inverse[i * p + j] * xty[j]).sum::<f64>())
         .collect();
+    Ok((precision_inverse, mean))
+}
+
+/// Posterior of a Gaussian linear model from `X' X` (row-major `p x p`), `X' y`, `y' y` and the
+/// row count `rows`.
+///
+/// The scale `b_n` is formed as `y'y - m_n . X'y`, a difference of two numbers of the size of
+/// `y'y`. When the outcome sits far from zero relative to its spread around the fitted model,
+/// that difference loses digits in proportion (about `eps * y'y / (b_n - b0)` relative error in
+/// `b_n`). Callers that hold the rows, or an ordinary least-squares residual sum, should use
+/// [`conjugate_posterior_from_residuals`], which does not cancel.
+///
+/// # Errors
+///
+/// `invalid_argument` with `gaussian_linear_posterior.invalid_prior` for a non-positive or
+/// non-finite precision, shape or scale or a length that is not `p`;
+/// `gaussian_linear_posterior.invalid_statistics` for non-finite sufficient statistics or a
+/// shape mismatch; `gaussian_linear_posterior.singular_precision` when the posterior precision
+/// cannot be inverted.
+pub fn conjugate_posterior(
+    gram: &[f64],
+    xty: &[f64],
+    yty: f64,
+    rows: usize,
+    prior: &GaussianLinearPrior,
+) -> Result<GaussianLinearPosterior, EstimationError> {
+    if !yty.is_finite() {
+        return Err(invalid(
+            "gaussian_linear_posterior.invalid_statistics",
+            "the sufficient statistics must be finite with a p x p Gram matrix and at least one row",
+        ));
+    }
+    let (precision_inverse, mean) = precision_and_mean(gram, xty, rows, prior)?;
     let explained: f64 = mean.iter().zip(xty).map(|(m, c)| m * c).sum();
     let shape = prior.variance_shape + rows as f64 / 2.0;
     let scale = prior.variance_scale + 0.5 * (yty - explained).max(0.0);
+    Ok(GaussianLinearPosterior { mean, precision_inverse, shape, scale })
+}
+
+/// Posterior of a Gaussian linear model from `X' X`, `X' y` and a caller-supplied residual sum of
+/// squares at the posterior mean.
+///
+/// `residual_sum_of_squares(m)` must return `(y - X m)' (y - X m)` (or the same quadratic form in
+/// the known `Omega^-1`) evaluated at the coefficients `m` it is given, which are the posterior
+/// mean `m_n`. Because `Lambda_n m_n = X'y` implies `y'y - m_n . X'y = |y - X m_n|^2 + m_n' Lambda0
+/// m_n`, the scale is `b_n = b0 + (|y - X m_n|^2 + m_n' Lambda0 m_n) / 2`, a sum of non-negative
+/// terms: it does not subtract numbers of the size of `y'y`, so an outcome far from zero costs no
+/// accuracy beyond that of `m_n` itself.
+///
+/// # Errors
+///
+/// As [`conjugate_posterior`]; a non-finite or negative residual sum is `invalid_statistics`.
+pub fn conjugate_posterior_from_residuals(
+    gram: &[f64],
+    xty: &[f64],
+    rows: usize,
+    prior: &GaussianLinearPrior,
+    residual_sum_of_squares: impl FnOnce(&[f64]) -> f64,
+) -> Result<GaussianLinearPosterior, EstimationError> {
+    let (precision_inverse, mean) = precision_and_mean(gram, xty, rows, prior)?;
+    let residual = residual_sum_of_squares(&mean);
+    if !(residual.is_finite() && residual >= 0.0) {
+        return Err(invalid(
+            "gaussian_linear_posterior.invalid_statistics",
+            "the residual sum of squares must be finite and non-negative",
+        ));
+    }
+    let shrinkage: f64 = prior
+        .coefficient_precision
+        .iter()
+        .zip(&mean)
+        .map(|(precision, m)| precision * m * m)
+        .sum();
+    let shape = prior.variance_shape + rows as f64 / 2.0;
+    let scale = prior.variance_scale + 0.5 * (residual + shrinkage);
     Ok(GaussianLinearPosterior { mean, precision_inverse, shape, scale })
 }
 
@@ -237,6 +295,34 @@ mod tests {
         assert!((t.probability_above(1.5) - 0.5).abs() < 1e-12);
         let [lo, hi] = t.equal_tailed_interval(0.9);
         assert!((0.5 * (lo + hi) - 1.5).abs() < 1e-12);
+    }
+
+    // y = 1e8 + [-1, 0, 1, 0, 2, -2] on a constant column with precision 1e-16: the exact scale is
+    // b0 + (|y - m|^2 + pi m^2) / 2 with m = sum(y) / (6 + pi). The sum-of-squares form cancels
+    // 16 digits here; the residual form is exact to rounding of m.
+    #[test]
+    fn residual_form_does_not_cancel_for_an_outcome_far_from_zero() {
+        let offsets = [-1.0_f64, 0.0, 1.0, 0.0, 2.0, -2.0];
+        let y: Vec<f64> = offsets.iter().map(|d| 1.0e8 + d).collect();
+        let pi = 1.0e-16;
+        let prior = GaussianLinearPrior {
+            coefficient_precision: vec![pi],
+            variance_shape: 2.0,
+            variance_scale: 1.0,
+        };
+        let sum: f64 = y.iter().sum();
+        let yty: f64 = y.iter().map(|v| v * v).sum();
+        let m = 1.0e8 / (1.0 + pi / 6.0); // sum(offsets) = 0
+        let exact = 1.0 + 0.5 * (offsets.iter().map(|d| (d + 1.0e8 - m).powi(2)).sum::<f64>() + pi * m * m);
+        let stable = conjugate_posterior_from_residuals(&[6.0], &[sum], 6, &prior, |mean| {
+            y.iter().map(|v| (v - mean[0]).powi(2)).sum()
+        })
+        .unwrap();
+        let (_, scale) = stable.variance_shape_and_scale();
+        assert!((scale - exact).abs() < 1e-6 * exact, "{scale} vs {exact}");
+        let naive = conjugate_posterior(&[6.0], &[sum], yty, 6, &prior).unwrap();
+        let (_, naive_scale) = naive.variance_shape_and_scale();
+        assert!((naive_scale - exact).abs() > 1e-3 * exact, "the cancellation is the reason for the residual form");
     }
 
     #[test]

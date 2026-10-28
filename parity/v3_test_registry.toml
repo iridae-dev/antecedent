@@ -17771,3 +17771,31 @@ crate = "antecedent-graph"
 cargo_target = "cpdag_mec_exhaustive"
 path = "crates/antecedent-graph/tests/cpdag_mec_exhaustive.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "quantile-inversion-reference"
+crate = "antecedent-estimate"
+cargo_target = "quantile_inversion_reference"
+path = "crates/antecedent-estimate/tests/quantile_inversion_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "dose-grid-local-quadratic-reference"
+crate = "antecedent-estimate"
+cargo_target = "dose_grid_local_quadratic_reference"
+path = "crates/antecedent-estimate/tests/dose_grid_local_quadratic_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "switchback-posterior-reference"
+crate = "antecedent-estimate"
+cargo_target = "switchback_posterior_reference"
+path = "crates/antecedent-estimate/tests/switchback_posterior_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "quantile-posterior-reference"
+crate = "antecedent-estimate"
+cargo_target = "quantile_posterior_reference"
+path = "crates/antecedent-estimate/tests/quantile_posterior_reference.rs"
+gates = ["inventory", "named"]
