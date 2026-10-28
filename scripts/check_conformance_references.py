@@ -51,11 +51,21 @@ def python_executable() -> str:
     return sys.executable
 
 
+def has_inline_environment(path: Path) -> bool:
+    """A PEP 723 header means the generator declares (and locks) its own environment."""
+    with path.open(encoding="utf-8") as handle:
+        return any(line.strip() == "# /// script" for _, line in zip(range(40), handle))
+
+
 def main() -> int:
     executable = python_executable()
     failed = False
     for rel in GENERATORS:
-        command = [executable, str(REPO_ROOT / rel), "--check"]
+        path = REPO_ROOT / rel
+        if has_inline_environment(path):
+            command = ["uv", "run", "--script", str(path), "--check"]
+        else:
+            command = [executable, str(path), "--check"]
         print(" ".join(command))
         result = subprocess.run(command, cwd=REPO_ROOT, check=False)
         if result.returncode != 0:
