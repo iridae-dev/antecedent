@@ -1396,3 +1396,6 @@ mod design_cache_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod conditional_reference_tests;

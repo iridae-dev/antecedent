@@ -5,23 +5,52 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+modules = [
+ "crates/antecedent-model/src/registry/mod.rs",
+ "crates/antecedent-model/src/registry/cv.rs",
+ "crates/antecedent-model/src/registry/select.rs",
+ "crates/antecedent-model/src/registry/selection.rs",
+ "crates/antecedent-model/src/registry/fit/mod.rs",
+ "crates/antecedent-model/src/registry/fit/linear.rs",
+ "crates/antecedent-model/src/registry/fit/hierarchical.rs",
+ "crates/antecedent-model/src/registry/fit/basis.rs",
+ "crates/antecedent-model/src/registry/fit/state_space.rs",
+ "crates/antecedent-model/src/registry/fit/gp.rs",
+ "crates/antecedent-model/src/registry/fit/tree.rs",
+ "crates/antecedent-model/src/basis.rs",
+ "crates/antecedent-model/src/tree.rs",
+]
+
 implementation_deviations = [
  "The MultinomialLogit family is baseline-category multinomial label regression with quantized outcome levels, not an alternative-specific conditional-logit choice model with choice sets and alternative attributes.",
- "The LGSSM family is scalar and uses a fixed 25-iteration EM procedure; the Gaussian-process family uses an exact RBF kernel only up to 1000 rows and chooses its length scale and noise level from a 25-point grid on the data's own scale (signal variance and prior mean are the outcome's variance and sample mean) rather than general marginal-likelihood optimization.",
- "The tree-ensemble families are additive-noise models and one-vs-rest probability classifiers over fitted ensembles, not the cited procedures: the noise of the regression families is homoscedastic Gaussian with a scale from out-of-fold residuals cut like the selection (the training residuals of a tree ensemble are optimistic), and a categorical outcome with more than two levels is one-vs-rest renormalised, which is not a joint multiclass likelihood. Forest class scores are leaf means of 0/1 labels clipped away from 0 and 1, not log-loss probabilities. Piecewise-constant surfaces are flat outside the training support. The ensembles are fitted by antecedent-learn providers and stored as a provider-independent tree map.",
- "Dependence-aware validation is by declaration only: forward-chaining blocks with an optional purge for ordered rows, whole-unit folds for clustered rows. The scheme does not test for serial or cluster dependence, and the state-space candidates keep their prequential score.",
- "Hierarchical linear and GLM, Minnesota-style BVAR, automatic family assignment, and score-based family selection are not supported by the papers listed in this record. The BVAR is a conjugate ridge on scale-standardized parents (prior variance phi times the error variance, intercept unpenalized) without Minnesota lag decay, because parents carry no lag metadata. Family selection scores every family by mean held-out predictive log-likelihood on a shared seeded 5-fold partition less a BIC-scaled parameter-count penalty.",
+ "The LGSSM family is scalar and uses a fixed 25-iteration EM procedure (E-step by the Kalman filter and Rauch-Tung-Striebel smoother of model.lgssm, M-step the stationary point of the expected complete-data log likelihood with the autoregressive coefficient clamped to +-0.999 and both variances floored at 1e-8); its parent mean is the full-data ordinary-least-squares fit, estimated before the state parameters rather than jointly with them. The Gaussian-process family uses an exact RBF kernel only up to 1000 rows and chooses its length scale and noise level from a 25-point grid on the data's own scale (signal variance and prior mean are the outcome's variance and sample mean) rather than general marginal-likelihood optimization; above 1000 rows it switches to a 256-point farthest-point inducing set with a deterministic-training-conditional marginal likelihood. A Gaussian-process point is scored as a Gaussian about the posterior mean with the fitted noise standard deviation; the posterior variance of the latent function is not carried.",
+ "The tree-ensemble families are additive-noise models and one-vs-rest probability classifiers over fitted ensembles. The trees themselves (split search, bootstrap and feature subsets, boosting) are grown by the pinned providers forust-ml 0.5 and smartcore 0.4 through antecedent-learn and exported to a provider-independent tree map; this repository implements neither Breiman's random forest nor Friedman's gradient boosting machine, and forust-ml is an XGBoost-style second-order booster, not Friedman's procedure. What the registry itself does is fix the settings (boosted: 100 trees, depth 3, learning rate 0.1; forest: 100 trees, leaves of at least five rows for regression and the probability default for classification; one fixed seed), choose the rows, take the noise of the regression families as homoscedastic Gaussian with a scale from out-of-fold residuals cut like the selection (the training residuals of a tree ensemble are optimistic), and renormalise one-vs-rest scores for a categorical outcome with more than two levels, which is not a joint multiclass likelihood. Forest class scores are leaf means of 0/1 labels and boosted class scores are sigmoids, both clipped to [1e-9, 1 - 1e-9], not calibrated log-loss probabilities. Piecewise-constant surfaces are flat outside the training support.",
+ "Dependence-aware validation is by declaration only: forward-chaining blocks with an optional purge for ordered rows, whole-unit folds for clustered rows. The scheme does not test for serial or cluster dependence. The state-space candidates keep their prequential score; their linear parent mean is cut by the declared scheme (under the time-ordered scheme the leading block, which is only ever trained on, takes the residual of the first fold's fit and is not scored), but the state parameters are fit once on the whole series.",
+ "Hierarchical linear and GLM, Minnesota-style BVAR, automatic family assignment, and score-based family selection are not supported by the papers listed in this record. HierarchicalLinear is an empirical-Bayes ridge on the raw parents with a method-of-moments strength (lambda = sigma^2 / tau^2, tau^2 = mean of the squared ordinary-least-squares slopes less sigma^2 / n, clamped), not a random-effects model; with a UnitId column its slopes are the within-unit (fixed-effects) regression and the unit effects are removed, not shrunk. HierarchicalGlm is the same moment-based ridge applied to a binary logit (strength from the linear-probability fit, clamped to [1e-4, 1e3], intercept unpenalized) with no unit-level term, so it refuses a declared UnitId grouping rather than ignoring it. The BVAR is a conjugate ridge on scale-standardized parents (prior variance phi times the error variance, intercept unpenalized) without Minnesota lag decay, because parents carry no lag metadata. Family selection scores every family by mean held-out predictive log-likelihood on a shared seeded 5-fold partition (or the declared scheme) less a BIC-scaled parameter-count penalty; exact ties keep the candidate listing order, and the constant family is admissible only for a degenerate outcome.",
+ "The weighted and frequency-count refit of the standard families rescales weights to mean one and keeps the selected family. The standardization, interaction centers and spline knots of a basis family are the unweighted moments of the table (the weights enter the least-squares and logit objectives only), a zero count drops the row from the fit but not from the residual degrees of freedom, and a support value no weighted row carries keeps probability zero.",
 ]
 
 # Mechanism auto-assignment: hierarchical/linear-Gaussian fits, baseline-category
 # multinomial logit MLE, scalar LGSSM via Kalman EM, and (feature `gaussian-process`)
 # RBF Gaussian-process regression by exact Cholesky NLML.
+#
+# Citation judgment, from reading the code. The Kalman filter and the Rauch-Tung-Striebel
+# smoother are the E-step of the LGSSM fit and are cited with model.lgssm, which carries their own
+# review. The EM algorithm and its state-space form are what the fit loop is (the stationary point of
+# the expected complete-data log likelihood), so both introductions are cited; neither was
+# retrieved and no DOI is recorded for them rather than a guessed one. Gaussian-process regression
+# is cited to the book. Breiman's random forest and Friedman's gradient boosting machine are NOT
+# cited: the trees are grown by external crates this repository does not implement, and the
+# registry's own contribution (settings, rows, out-of-fold noise scale, one-vs-rest
+# renormalisation) is not either procedure. The logit, ridge and empirical-Bayes shrinkage fits are
+# textbook estimators with no single primary source; their exact references are the oracles
+# named under test_sources.
 papers = [
  { title = "A New Approach to Linear Filtering and Prediction Problems", doi = "10.1115/1.3662552", sections = ["Kalman filter (used inside the EM fit for the LGSSM mechanism family)"] },
  { title = "Maximum Likelihood Estimates of Linear Dynamic Systems", doi = "10.2514/3.3166", sections = ["Fixed-interval smoother (used inside the EM fit for the LGSSM mechanism family)"] },
- { title = "Random Forests", doi = "10.1023/A:1010933404324", sections = ["Random forest regression and class-probability estimation (tree-ensemble families)"] },
- { title = "Greedy Function Approximation: A Gradient Boosting Machine", doi = "10.1214/aos/1013203451", sections = ["Gradient boosting of regression trees (tree-ensemble families)"] },
- { title = "Gaussian Processes for Machine Learning", doi = "10.7551/mitpress/3206.001.0001", sections = ["Ch. 2: GP regression, exact Cholesky-based marginal likelihood"] },
+ { title = "Maximum Likelihood from Incomplete Data via the EM Algorithm", sections = ["EM iteration: E-step by conditional moments of the latent path, M-step by the stationary point of the expected complete-data log likelihood (the scalar LGSSM fit)"] },
+ { title = "An Approach to Time Series Smoothing and Forecasting Using the EM Algorithm", sections = ["EM for the linear Gaussian state-space model (the scalar LGSSM fit)"] },
+ { title = "Gaussian Processes for Machine Learning", doi = "10.7551/mitpress/3206.001.0001", sections = ["Ch. 2: GP regression, Cholesky-based predictive mean and log marginal likelihood (the exact path, scored over a fixed hyperparameter grid)"] },
 ]
 
 upstream_implementations_observed = [
@@ -36,5 +65,213 @@ test_sources = [
  "conformance/gcm/discrete_hierarchical_glm",
  "conformance/gcm/gaussian_process",
  "conformance/gcm/minnesota_bvar",
- "crates/antecedent-model/tests/registry_weighted_refit_reference.rs (exact weighted least squares for the weighted refit of linear-Gaussian mechanisms: weights, frequency counts with zeros, offsets, near-collinear parents, residual degrees of freedom; not a review of this record)",
+ "crates/antecedent-model/tests/registry_weighted_refit_reference.rs (exact weighted least squares for the weighted refit of linear-Gaussian mechanisms: weights, frequency counts with zeros, offsets, near-collinear parents, residual degrees of freedom)",
+ "crates/antecedent-model/tests/registry_glm_reference.rs (baseline-category multinomial logit, weighted and unweighted, interaction and spline bases, and the empirical-Bayes ridge binary logit against 50-digit Newton maximum likelihood; refusal of a declared unit structure)",
+ "crates/antecedent-model/tests/registry_linear_families_reference.rs (BVAR ridge, hierarchical-linear empirical-Bayes ridge with and without UnitId, interaction and spline bases, weighted refits, against 60-digit normal-equation solves)",
+ "crates/antecedent-model/tests/registry_state_space_reference.rs (Kalman filter and smoother against exact Fraction recursions equal to joint-Gaussian conditioning, predictive density at three scales, 25-iteration EM fit against a joint-law EM in 60 digits)",
+ "crates/antecedent-model/tests/registry_gaussian_process_reference.rs (feature gaussian-process: all 25 grid cells' exact marginal likelihoods, selected cell, dual weights, posterior mean and score)",
+ "crates/antecedent-model/tests/registry_tree_ensemble_reference.rs (frozen tree maps evaluated exactly: thresholds, missing branch, sum and mean, links, noise density, one-vs-rest class probabilities and floor)",
+ "crates/antecedent-model/tests/registry_tree_fit_wiring_reference.rs (features ml-gbdt and ml-forest: the stored ensemble equals a direct provider fit with the documented settings; out-of-fold noise scale and classifier indicators)",
+ "crates/antecedent-model/tests/registry_family_selection_reference.rs (every candidate's held-out score from exact refits under the shuffled and time-ordered schemes for continuous and binary outcomes, ranking, provenance, required family, exact ties by listing order)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The numerics of the mechanism registry in crates/antecedent-model: (1) the weighted and frequency-count refit of linear-Gaussian, interaction and spline mechanisms (exact weighted least squares, with the 2^-20..2^20 weights, zero counts, offsets, near-collinear and saturated designs of the earlier reference); (2) the baseline-category multinomial logit of Discrete and of the Discrete interaction and spline bases (unweighted and weighted, two to four categories, a parent in years), and the empirical-Bayes ridge binary logit of HierarchicalGlm with its recomputed strength (interior and clamped), against 50-digit Newton maximum likelihood; (3) the ridge fits of Bvar, HierarchicalLinear (without and with a UnitId within-unit regression) and the interaction and cubic truncated-power spline bases, against 60-digit normal-equation solves; (4) the scalar linear-Gaussian state space: Kalman filter, Rauch-Tung-Striebel smoother and lag-one covariance against exact Fraction recursions equal to joint-Gaussian conditioning, the unit-free predictive density, and the 25-iteration EM fit of the conditional state space against a joint-law EM; (5) the Gaussian process: the exact negative log marginal likelihood of all 25 hyperparameter-grid cells, the selected cell, the dual weights, the posterior mean and the point score; (6) the tree-ensemble families: the exact walk, aggregation and links of frozen tree maps, the additive-noise density, the one-vs-rest class probabilities with their renormalisation and floor, and the registry's own choices around the providers (documented settings, all rows, fixed seed, out-of-fold noise scale over the declared time-ordered folds, one 0/1 indicator per level); (7) family selection: every candidate's held-out log likelihood from exact refits on each training fold, the k ln n / 2n charge, the ranking and the recorded provenance for continuous and binary outcomes under the shuffled and the time-ordered scheme, a required-by-policy choice, the inadmissible constant, and exact ties broken by listing order. The trees themselves are grown by forust-ml and smartcore and are outside this review."
+assumptions = [
+ "Each reference solves the stated estimator exactly (closed-form normal equations in 60 digits, Newton on the concave logit likelihoods to a 1e-40 gradient, rational recursions) rather than re-implementing the library's iteration; the model whose maximiser or minimiser is compared is the one the code documents.",
+ "The empirical-Bayes strengths, the BVAR tightness 0.2, the spline conditioning ridge 1e-6 n, the EM clamp and floors, the 25-cell grid multiples and the penalty k ln n / 2n are the repository's documented constants; the review checks that the code applies them, not that they are optimal.",
+ "The shuffled five-fold partition is the library's seeded kernel; the test regenerates it, requires it equal to the frozen assignment and the reference scores are computed on that frozen assignment. The time-ordered partition (blocks of n/6 rows, purge) is recomputed independently.",
+ "Held-out rows of a categorical outcome whose level is absent from a training fold are not scored; the designs used here never have that case, and it is not exercised.",
+]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the registry modules and wrote its own references from the stated estimators in exact or 50 to 60 digit arithmetic (mpmath, Fractions); no upstream implementation was consulted for the references. DoWhy is disclosed above for a conditional-mean comparison that predates this review."
+redistribution = "The reference scripts, frozen outputs and Rust tests are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency and the frozen outputs carry no third-party data. The cited works are named, not redistributed."
+limitations = "None of the cited papers was retrieved (no downloads, no local copies); Dempster, Laird and Rubin and Shumway and Stoffer carry no DOI here because none could be verified, and none of the five is used as an oracle: the references are exact solutions of the estimators the code documents, not reproductions of published tables. Tree growth is not referenced: forust-ml 0.5 and smartcore 0.4 grow the trees (split search over bins, bootstrap and feature subsets, shrinkage and leaf regularisation are theirs), their settings are internal to those crates, an exact enumeration of their best splits would be a re-implementation of the providers, and Breiman's and Friedman's procedures are therefore neither cited nor claimed; what is covered is the provider-independent tree-map evaluation and the registry's own wiring, and the wiring test equates the stored ensemble with a direct fit by the same providers, so it detects a changed setting, row set or seed but not an error in a provider. The Gaussian-process inducing-point path above 1000 rows (256 farthest-point rows, deterministic training conditional) is not referenced (an exact 50-digit reference needs a 1000-row Gram accumulation per length scale) and rests on the library test gp_family_uses_inducing_points_above_the_exact_row_limit; the Gaussian-process comparison needs the gaussian-process feature, and the wiring test needs ml-gbdt and ml-forest. The comparison designs are small (24 to 320 rows, one to two parents); more than two parents is exercised only by the earlier weighted reference and basis designs are built for exactly two parents. The EM comparison reaches neither the coefficient clamp nor the variance floors in 25 iterations on any series, the n < 3 autoregressive fallback is not exercised, and the EM likelihood is multimodal in general, so only the fixed initialisation is checked. The Clustered scheme for the state-space candidate's parent residuals shares the code path fixed for the time-ordered scheme but has no exact-number reference; the Shuffled and TimeOrdered schemes do. The typing thresholds (declared type, level count, rows per level) are covered by library unit tests, not by these references. Poisson and other non-binomial GLM families are not mechanism families of this registry, so no Poisson fit is referenced. Tolerances are 1e-9 relative on closed-form fits, 1e-7 on logit fits and the conditional-state-space density, 1e-6 on spline coefficients (strongly correlated columns; the fitted surface is compared at 1e-7)."
+sources = ["https://mpmath.org/doc/1.3.0/", "https://docs.python.org/3/library/fractions.html"]
+findings_resolved = [
+ "Defect fixed: the conditional state-space candidate's out-of-fold parent residuals were always cut by the seeded shuffled partition, silently ignoring a declared time-ordered or clustered scheme, so under serially dependent rows a held-out row's later neighbours trained the linear mean that predicts it; the residuals now follow the declared folds (the time-ordered leading block takes the first fold's fit and is not scored). Failing first: registry_family_selection_reference_scores_and_ranking_match_exact_refits reported the time-ordered state-space held-out log likelihood -1.0518 against the exact -1.0259.",
+ "Defect fixed: HierarchicalGlm fit a ridge logit with no unit-level term and ignored a declared UnitId grouping; it now refuses with the declaration named, so the family is a recorded failure and another candidate is chosen. Failing first: registry_glm_reference_hierarchical_glm_refuses_a_declared_unit_structure fit successfully before the change.",
+ "No numerical defect found in the other paths: weighted least squares, multinomial and binary logit, BVAR, hierarchical-linear (with and without units), interaction and spline bases (fresh and weighted), the filter, smoother, predictive density and EM fit, the Gaussian-process grid selection, the tree-map evaluation and class probabilities, the provider wiring and the candidate scores and ranking agree with the exact references at the stated tolerances.",
+ "Recorded as behaviour, not changed: a Gaussian-process point is scored with the fitted noise standard deviation and no posterior variance; the complement 1 - q of a clipped tree-class score carries the rounding of q (relative 3e-8 near 1e-9); boosted and forest class scores are clipped at 1e-9 so the 2^-52 floor is reached only by a hand-built map.",
+]
+record_sha256 = "ac974e6a03fb66d56aaeb7629c62f3fff737d4005602b06da247abe5a72d6344"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/registry/mod.rs"
+sha256 = "bb70e833f2ea9d2ba8e19487cc07de5ada69b93d1d0f0f685c45072277fb3a63"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/registry/cv.rs"
+sha256 = "b3e8cafa762efe5d62bf7e19cdabd9f19491c2d95ca9c450c97674cf327ba7c1"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/registry/select.rs"
+sha256 = "778c0793b0cb842eb014b4b1b7fedef8f9d98e87f1c4ab8db690b9ac348f2cd5"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/registry/selection.rs"
+sha256 = "d0973a6f3bdd0764b55ed87616434c72fb7ba498efe545f5e7cc6906dc08c4f8"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/registry/fit/mod.rs"
+sha256 = "7ba3d56ecf6323bca2506c9da170774ae03dca41db6a89e36b7d87e1d38db73f"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/registry/fit/linear.rs"
+sha256 = "5fc86bc23616dbd01cc57549c42e46c9b97f469af4f3baa0f7869f7d9cce2837"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/registry/fit/hierarchical.rs"
+sha256 = "e4115efc1de7ec0ace47dce495e7a2530b8c8c60ef49f71765e3551b384a09b1"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/registry/fit/basis.rs"
+sha256 = "1700e2ba506c2a36762b50223164843a0b2872e6e68a9e83ce5eff1848c10c9e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/registry/fit/state_space.rs"
+sha256 = "4825dd49900fb1767d84a969c1a9dd5bf81a5cc69b062350f9067bf76d3f1397"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/registry/fit/gp.rs"
+sha256 = "976a50ebfaa0ebce41a9e90e3707930f75b557f262482dbc5e509eb04bde92b2"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/registry/fit/tree.rs"
+sha256 = "51f93f6e6d09fab1c6683b773086a3def63a8f936117e3a79177f0c2843e4cfd"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/lgssm.rs"
+sha256 = "564f1f0732b187f5417c997d3d22d9490582049df62610f3871c85e42f2ab615"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/tree.rs"
+sha256 = "a068abf548606e8496ed56115ffef626e7cf07459cdc28f33aa38cd360626395"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/basis.rs"
+sha256 = "910d16e29dee5ec6388094a24d0ac07f6bffb4da753076b2dd95b224528b148a"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/registry_weighted_refit_reference.rs"
+sha256 = "91baf98561e231f93694fff12c08e2ed04f72cc98e94e1772f6f3658aa03e878"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/registry_glm_reference.rs"
+sha256 = "053feb0c4646f7688fdc170fa7a310dcd326f74a6ee591e9f8f403ac1f0bcd0a"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/registry_linear_families_reference.rs"
+sha256 = "c9094951eaba0953f05bfc872531b324ba2c14f7c86c8e1eba6c8a6c8f254def"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/registry_state_space_reference.rs"
+sha256 = "c1d85cca3ef0d03fd392e306f3092a95eafe521d635f065b8541950689b9f982"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/registry_gaussian_process_reference.rs"
+sha256 = "8f54f1c4b3069db2dc636f924c0b28c2d136fb53b2853abfa8a88329fdec0b73"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/registry_tree_ensemble_reference.rs"
+sha256 = "1795854bea6a84cb2a53baa1e14762fc5513a6c18da9117d8aeeab8fe988e4ac"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/registry_tree_fit_wiring_reference.rs"
+sha256 = "0444c81b3dc1c99b214a79e00d4c5c986e2123160cb44eb287f9f61ccd967077"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/registry_family_selection_reference.rs"
+sha256 = "80f2c2187ba1a8aa914547ed5c3a8e351b5da1c9e10015c8329d2ce741ded0fc"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-model/tests/oracle_data/registry_weighted_refit_reference.py"
+sha256 = "40c73591a77c21bc11b26e84269a38203de1d6b5bba0d54ca9de9e5caed2c07f"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-model/tests/oracle_data/registry_glm_reference.py"
+sha256 = "56c46a9ab7f180dabd8cfa694d5453dc7f4fc17303d16e14bbad529fdfded120"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-model/tests/oracle_data/registry_linear_families_reference.py"
+sha256 = "07d67498cddfc077137f2509420fa6c456bfc79d61b1ea1897b2e4c3ee8835ae"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-model/tests/oracle_data/registry_state_space_reference.py"
+sha256 = "e546cfc455751873d65bfa35c2dc0c2e627fbde1aac9d8b30e7c2a52a0f22874"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-model/tests/oracle_data/registry_gaussian_process_reference.py"
+sha256 = "7047366c327ff402302ed346ae4751f3a22301aedca9478662583a2ed37f781d"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-model/tests/oracle_data/registry_tree_ensemble_reference.py"
+sha256 = "2449cbaae2ad897dad1e4ac63cd427e1775726b6a0eadf58d1b1e496381e35a2"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-model/tests/oracle_data/registry_family_selection_reference.py"
+sha256 = "20a1caf78318678be98b75410bb638f07b195690d750afdafc31429645271173"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-model/tests/oracle_data/registry_weighted_refit_reference.json"
+sha256 = "4ff50eaed5c8dd955576ea911fa872ffc43305bed282dba14688c682960d9e84"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-model/tests/oracle_data/registry_glm_reference.json"
+sha256 = "4fd073b1c36a9e98f25547ba09cc9ba11b33f36bd4d000682ce52c2a80812a17"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-model/tests/oracle_data/registry_linear_families_reference.json"
+sha256 = "245803c7cf5daf886513f4ae27a57ffe614e98a9a19528894ba754cff73cc6b3"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-model/tests/oracle_data/registry_state_space_reference.json"
+sha256 = "c18e68d41ce9291aad9608d9aa0c8265c69b9dbeabbb9c0fce457ac3d489a748"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-model/tests/oracle_data/registry_gaussian_process_reference.json"
+sha256 = "bf9a7156cd9b0550bd55e3b0b90abb5577393c2c0ce0a2c2e7f314e8e5f28cbc"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-model/tests/oracle_data/registry_tree_ensemble_reference.json"
+sha256 = "d3659b2508abc39d0c03eb123d179ace0366a1023953767b0dffcb67c21ff0f9"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-model/tests/oracle_data/registry_family_selection_reference.json"
+sha256 = "dd0e1d843294277f1f9f926f3e5c5c6965282787e02dd7ba084acda4a59e71ac"

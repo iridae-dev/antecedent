@@ -152,3 +152,5 @@ mod test_support;
 mod tests;
 #[cfg(test)]
 mod dbn_posterior_reference_tests;
+#[cfg(test)]
+mod discovery_stability_reference_tests;

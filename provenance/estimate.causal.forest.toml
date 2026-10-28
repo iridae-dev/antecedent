@@ -22,5 +22,42 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
+ "crates/antecedent-estimate/tests/estimate_causal_forest_reference.rs (ported random stream, exact-rational tree growth, honest leaves, forest average and leaf dispersion, with the marginal effect tied to the DML estimator)",
  "independently generated synthetic interaction SCM with monotone CATE",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "CausalForest::fit and its tree machinery in crates/antecedent-estimate/src/causal_forest.rs for a binary treatment: the per-tree subsample (a partial shuffle of the rows, or of whole clusters for a declared unit, from the tree's own stream), the honesty split into placing rows and estimating rows, the split search (candidate cuts, minimum-leaf and two-arm admissibility, squared-gap score, feature subset for more than four covariates), the honest leaf difference in arm means with its variance and the parent fallback, the portable tree encoding, the per-row forest average, the leaf-dispersion diagnostic, and the refusal of settings the forest cannot honour. The marginal effect, its standard error and its score table are the DML estimator's cross-fitted AIPW score on the forest's units and are relied on, not re-derived: the test asserts they equal that estimator's fit exactly. Not the generalized-random-forest weighting, local centering, a pointwise CATE standard error or interval (the product publishes none), or the facade handling of sampling weights."
+assumptions = ["Unconfoundedness given the adjustment set and positivity are identification assumptions taken as given.", "The forest effect is an uncentered honest leaf difference in means, a descriptive CATE; its relation to the target of the cited paper (a locally centred, adaptively weighted forest) is a recorded deviation, not a claim of equivalence.", "Rows (or the declared clusters) are exchangeable draws; the leaf dispersion is a descriptive measure of the leaf noise, not a sampling standard error of the CATE."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the stream derivation it calls, and compared results with definitions evaluated by an executing reference written for this review; no upstream implementation or test source was consulted or copied. The cited publication was not retrieved in this review: the correspondence is between the product code and the algorithm its own documentation states (squared-gap splits, subsample honesty, honest leaf difference in means), verified numerically, not a page-level reading of the paper."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Fourteen frozen runs on tables of 16 to 80 rows with one to six covariates: a continuous covariate, tied covariate levels without honesty, six covariates (so the feature subset draws), thinned cuts, a depth-one stump, a minimum leaf of half the table, an outcome offset of 1e7, a covariate offset of 1e6, whole-cluster honesty with unsorted labels, and the two ways an estimation half can lack a two-arm leaf (refused row, missing variance). The reference ports the library's SplitMix64 stream and the test first asserts the product's own stream equals the frozen draws, so the shuffles are checked against the stream definition and the tree against the reference; a different stream, thread count or a change of the shuffle would regenerate every case. The reference refuses a case whose best split score is within 1e-9 relative of another candidate, so float tie-breaking among equal scores is not reviewed; the dedup of covariate values within 1e-12 and the cut 0.5a+0.5b in binary64 are reproduced as conventions, not derived. Leaf effects are asserted to 1e-9 relative plus a few units in the last place of the largest outcome, dispersion to 1e-6. Forest-level properties (consistency, coverage of the leaf dispersion, bias of an uncentered leaf under confounding within a leaf) are not examined and the leaf dispersion is not an interval. Sampling weights, which the forest does not read, are refused by the facade; that refusal is outside this review's tests. The cited paper was not retrieved."
+sources = ["https://doi.org/10.1080/01621459.2017.1319839"]
+findings_resolved = ["Defect repaired: the honest-leaf variance was computed as the raw second moment minus n times the squared mean, which cancels catastrophically when the outcome is far from zero: at an outcome offset of 1e7 the dispersion was 0.6641 against the exact 0.6678 (and loses all digits as the offset grows). It is now the two-pass sum of squares about each arm's mean, and the reference match holds at the offset.", "Trees, honest leaf effects, the per-row forest effect, the leaf dispersion and the refusal of a row with no honest two-arm estimate equal the exact-rational reference on every frozen run, including the cluster path and the feature-subset path.", "A table of exactly two minimum leaves without honesty has a seed-free forest (all rows, one admissible cut), and the product is invariant to the seed there.", "Zero trees, a zero minimum leaf, depth or cut count, fewer rows than two minimum leaves, cluster labels without a unit declaration (and the reverse), labels declared both per analysed row and per source row, and a dyadic unit are refused rather than ignored."]
+record_sha256 = "b3abf9dd36eb49ff1dc601521b4869ea0aed7d989a26452b93e1b6f7e76b7767"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/causal_forest.rs"
+sha256 = "c53eb2047c1201c35006489b0129d989d9cda63bb59ea4e841adc7a55347f354"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/estimate_causal_forest_reference.rs"
+sha256 = "9b116c45ee1400760b53c5af054a1acd6ae348bfbba5f5e8e1c3e9b31bf4ef3b"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/estimate_causal_forest_reference.py"
+sha256 = "9af3e53ee7da02996c2d4262675520a66e3ecf8606f96284b4d0ed7d13f24f74"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/estimate_causal_forest_reference.json"
+sha256 = "bafd91c485b345d19669e7f751bdff7a975803aed27550b2a9ae0f42a1097cbb"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/table_support.rs"
+sha256 = "b1ea24c5e276526e60ac330f732477945909496ff3d03ecf38f12f50f61eafbc"

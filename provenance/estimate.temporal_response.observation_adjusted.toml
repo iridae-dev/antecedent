@@ -28,6 +28,53 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+  "crates/antecedent/tests/temporal_response_observation_adjusted_reference.rs (exact lag-aligned pseudo-outcomes, weights, per-horizon g-computed surface and outer bootstrap band; option reads and refusals)",
   "crates/antecedent/tests/temporal_observation.rs",
   "python/tests/test_temporal_observation.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The composition of an observation-adjusted temporal MeanCurve response through the facade, selected-outcome (IPW and cross-fitted AIPW) and right-censored Cox routes, for a policy pulse at a negative treatment offset and several horizons: the lag-aligned observation table of ObservationMechanismEstimator::adjust_temporal_series (conditioning columns read at the policy offset, outcome and indicator or recorded time at the outcome time, the first |offset| rows keeping their recorded outcome), the contiguous time-block folds keyed by lag-aligned row position, the downstream design columns (temporal_curve_outcome_regressors) added to the AIPW outcome regression with the leading rows falling back to the conditioning-only fit, the pseudo-outcome series handed to the per-horizon g-computation, the weight diagnostic, the containment of the treatment and every adjustment variable in the declared conditioning set, and the outer circular-block observation bootstrap of the execution path (adjust_temporal_anchors on the resampled anchors, per-horizon refit, the pointwise band as surface +/- z * dispersion * kernel * SD of the replicate surfaces). Relies on estimate.observation_selected, estimate.observation_cox_ipcw and estimate.response.observation_adjusted for the logistic, outcome-regression and Cox kernels, on estimate.temporal_response.gcomp for the per-horizon OLS level, and on the response family's block-length, fixed-b dispersion and kernel-bias records for the three disclosed numbers the band scales by. Not the marginal Kaplan-Meier and left-censoring branches, Sequence overlays, the class and Bayesian observed temporal routes, the simultaneous band, set or shift interventions, gapped series or the interval/truncation likelihood."
+assumptions = ["The observation mechanism is ignorable given the declared conditioning set read at the policy treatment offset (selected outcomes missing at random; censoring independent given the covariates), and the nuisance probabilities or survivals stay inside their floors; the correction cannot repair a violation, and a clamped probability changes the estimand.", "The downstream per-horizon model is the additive linear regression of estimate.temporal_response.gcomp on the identified adjustment set, taken as given; no joint double robustness, efficiency or interval-calibration theorem for pseudo-outcome-then-regression is claimed.", "The pointwise band is a nuisance-refitting outer block bootstrap; its dispersion and kernel-bias factors are the response family's and are read from the product's own diagnostics."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by an executing reference written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state (the augmented and inverse-probability pseudo-values, the Breslow inverse-censoring weight, the linear g-computed level), verified numerically through the facade, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script, its frozen output and the frozen library-drawn bootstrap anchors are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. It is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "One 100-row series (a lag-1 pulse, horizons 1 and 2, three doses, treatment x with confounder z) read through five option sets: AIPW with 5 folds, AIPW with 3 folds, in-sample IPW, AIPW with a declared floor of 0.3 that clamps 47 of 99 probabilities, and right-censored Cox IPCW (82 events of 100); the declared floor of 0.01 never binds in the default cases. Pseudo-outcomes and weights agree with the exact logistic, least-squares and Cox fits to 2e-6 relative (the product's logistic fit stops at a score norm near 1e-8) and the composed surface to 2e-5; the band half-widths to 1e-4 of the half-width. The ten bootstrap replicates (same seed) are the library's own circular-block draws, regenerated here from the disclosed block length and compared with the frozen anchors; they are not an independent sampling reference, and the block length, the fixed-b dispersion factor and the per-cell kernel-bias factors that scale the replicate deviations are read from the product's diagnostics, not re-derived, so an error in those response-family records would pass here. Replicate failure accounting is checked only for the case that every replicate completes; a shorter series made replicates fail on separable training folds in a trial run, which is the documented drop-and-count behaviour and is not otherwise examined. Not examined: the marginal Kaplan-Meier branch (no lag alignment applies), left censoring by sign reversal, delayed entry (refused, and the refusal is asserted), Sequence overlays and their lagged-outcome refusal, set and shift interventions, the class and Bayesian observed routes, gapped series, a policy offset other than -1, the simultaneous band, and any claim that the pointwise band covers: no cited paper proves joint inference for the composition and the band's calibration belongs to the response family. The cited publications (Bang and Robins; Satten and Datta; Cox) were not retrieved in this review. The reference script is not run in a locked, isolated environment and is not wired into any gate."
+sources = ["https://doi.org/10.1111/j.1541-0420.2005.00377.x", "https://doi.org/10.1198/000313001317098185", "https://doi.org/10.1111/j.2517-6161.1972.tb00899.x", "https://mpmath.org/"]
+findings_resolved = ["The pseudo-outcome of the lag-aligned temporal series (cross-fitted AIPW with time-block folds and downstream design columns, with the first leading row on the conditioning-only outcome model; IPW; Cox IPCW) equals the exact reference row by row, and the per-horizon g-computed surface of that series equals the exact rational levels in dose-major, horizon-minor layout; no defect was found in the composition.", "The declared options are each read: selected correction, cross-fitting folds, the observation-probability floor and the censoring-survival floor change the result or refuse as the reference does; a conditioning set that omits the treatment or the adjustment variable, and a delayed entry, are refused.", "The outer bootstrap draws its anchors from the library stream at the disclosed block length, refits the observation nuisance and both horizons on exactly those anchors, and publishes a band centred on the point surface whose half-width equals z times the disclosed dispersion and kernel factors times the SD of the exact replicate surfaces; every replicate completes."]
+record_sha256 = "28d8c8a8df08b25f9e342a4a6538fa509ec80b9108aa7b114ded9a9153cb7b23"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/observation.rs"
+sha256 = "88c7cc97648ca76e132a08a27f09646c9f321e966eacaf72d0223961108f4c81"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/execute/tuple_bootstrap.rs"
+sha256 = "b01a0a926742bec3c45dd9a78e4ef720aa45b0378d6c41724335f4a3df0a26b3"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/execute/temporal_path.rs"
+sha256 = "e61d68eb438f31fab5c02a3e1f971881d61872e461156243b659a0102dd6704e"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/temporal_response_observation_adjusted_reference.rs"
+sha256 = "ad1c3ab9de8259cbf5b81bcd3b021c09b472b53652e9e97394eecc72435f71f1"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent/tests/oracle_data/temporal_response_observation_adjusted_reference.py"
+sha256 = "7ef0fd3dbd02cdc97e930a3327b2d5ab83f6b665d06678703c84473dca3d56b2"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent/tests/oracle_data/temporal_response_observation_adjusted_reference.json"
+sha256 = "21360c033de9f026030d2264a0df1f31c16aa42b79eebbfd1919bb20cd7580e8"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent/tests/oracle_data/temporal_response_observation_adjusted_streams.json"
+sha256 = "e38ad061c0fed44bdb010aa03a118cdd28d69b2355c8bb142c4afb4a74f1a200"

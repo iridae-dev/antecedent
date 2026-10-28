@@ -44,7 +44,7 @@ sha256 = "09de1d73549c6df9e3ac8ff67856808adcde6424c13c8b546479db63c41cc2e9"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/engine.rs"
-sha256 = "d36f9bb2524fde38daebeace6f0443bed091ca6042a7720fcc7f7fd8e7c9d1b3"
+sha256 = "1231a45b3d03edbe717488330a29833c40c74462361185543ac6b8b6df3c7509"
 
 [[method_review.artifacts]]
 role = "assertion"

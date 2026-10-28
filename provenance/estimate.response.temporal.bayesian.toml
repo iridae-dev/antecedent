@@ -4,7 +4,71 @@ source_translation = false
 copied_code = false
 copied_comments = false
 copied_tests = false
-papers = [{ title = "Bayesian Data Analysis", sections = ["Gaussian regression; posterior functionals"] }]
+papers = [
+  { title = "Bayesian Data Analysis", sections = ["Gaussian regression; posterior functionals"] },
+  { title = "Automatic block-length selection for the dependent bootstrap", sections = ["flat-top lag-window block length b = (2 G^2 / D)^(1/3) n^(1/3) with the insignificant-autocorrelation bandwidth rule (Politis and White 2004; circular correction of Patton, Politis and White 2009)"] },
+  { title = "A new asymptotic theory for heteroskedasticity-autocorrelation robust tests", sections = ["fixed-b scaling of the Bartlett long-run variance"] },
+]
 upstream_implementations_observed = []
-implementation_deviations = ["Independent per-horizon Gaussian regressions on the identified lag-aligned adjustment designs. Posterior means and pointwise intervals are projected to a dose-by-horizon surface.", "This backend covers single-step pulse or sustained policy, complete observations, additive linear mechanisms and independent innovations conditional on regressors. No joint horizon posterior or simultaneous band in this backend. Multi-step Sequence uses estimate.temporal_sequential; non-Complete temporal observations use estimate.temporal_observed_bayes. Graph-posterior response points retain atom mass separately."]
-test_sources = ["conformance/bayesian/response_surfaces", "python/tests/test_posterior_moments.py"]
+implementation_deviations = [
+  "Per-horizon Gaussian regressions on the identified lag-aligned adjustment designs. Each horizon's likelihood is tempered by a factor kappa (rows weighted 1/kappa, the declared coefficient prior kept at full weight): the variance ratio of the horizon's grid-cell level combinations under a restricted-likelihood autoregression of the residual, scaled by the residual-scale and delta-method spread factors, bounded by three times the fixed-b prewhitened Newey-West long-run-variance ratio of the combination's estimating score, floored at 1 and capped at n/(p+2). This is a generalized (power) posterior, not the posterior of a dependent-data model. With a declared white-innovation premise at the single horizon of one step ahead the likelihood is untempered after a residual whiteness gate.",
+  "Several horizons are tied into one joint Gaussian trajectory law: each horizon keeps its own tempered posterior mean and covariance and the cross-horizon dependence is taken from the Bartlett long-run covariance of the stacked normal-equation scores on the shared series calendar, at a dependence block length set by the structural span (largest horizon plus declared history lag), the cube-root rule and a Politis-White length; draw r of every horizon is the same joint draw, so published horizon marginals are Gaussian with the posterior's first two moments (tail shape beyond them is the Gaussian one). Only when that dependence cannot be formed are the horizons independent draws, disclosed as a product of marginals. A single horizon keeps its Student-t marginal. Published summaries are Monte Carlo summaries of the retained draws. There is no analytic simultaneous band: the simultaneous credible band is the maximum studentized deviation of the retained draws.",
+  "This backend covers single-step pulse or sustained policy, complete observations, additive linear mechanisms and the Gaussian identity likelihood. Multi-step Sequence uses estimate.temporal_sequential; non-Complete temporal observations use estimate.temporal_observed_bayes. Graph-posterior response points retain atom mass separately.",
+]
+
+test_sources = [
+  "crates/antecedent-estimate/tests/estimate_response_temporal_bayesian_reference.rs (per-horizon tempering factor, Student-t and joint Gaussian posterior, cross-horizon correlation and dependence block length against a definition-level reference)",
+  "conformance/bayesian/response_surfaces",
+  "python/tests/test_posterior_moments.py",
+]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "TemporalResponseEstimator::estimate_bayesian for a MeanCurve over a dose grid or a single-coordinate hard-level InterventionResponse at one or several horizons with the Gaussian identity likelihood and the conjugate backend: the per-horizon lag-aligned design, the long-run tempering factor kappa of the horizon's grid-cell levels (SerialDependence::LongRunTempering over DependenceScope::Levels: restricted-likelihood residual AR(q) at the BIC order, tr(HR) scale, delta-method spread, score long-run-variance bound, floor and cap), the weighted Normal-Inverse-Gamma posterior of each level, and for several horizons the joint Gaussian trajectory law (joint_draws, joint_dependence_factor, dependence_block_length) with its published block length. Not the white-innovation branch, the simultaneous band, the support classification, gapped series, prior transfer, other backends or the Monte Carlo sampler of the conjugate draws."
+assumptions = ["Backdoor identification supplies an adjustment set that makes the additive linear regression a valid outcome model.", "The tempered posterior is a generalized posterior (likelihood power 1/kappa, prior at full weight), conditional on the observed adjustment distribution; it is not the posterior of a correctly specified dependent-data model.", "The residual serial dependence is short-memory enough for an AR(q) captured by the restricted-likelihood search; long memory is under-corrected.", "Several horizons are one Gaussian law with the per-horizon posterior mean and covariance and a cross-horizon dependence estimated from the long-run covariance of the normal-equation scores."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by an executing reference written for this review (dense covariance matrices, a Lyapunov-equation autocovariance, scipy optimization and 40-digit mpmath); no upstream implementation or test source was consulted or copied. None of the cited publications was retrieved in this review: the correspondence is between the product code and the definitions its own documentation states (restricted likelihood of an AR(q) error model, power posterior, Bartlett long-run covariance, fixed-b scaling, flat-top block length), verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); numpy, scipy and mpmath are used only to produce the frozen values and are not product dependencies. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "One 90-row series (88 design rows, one treatment, one confounder, horizons 1 and 2 with adjustment lags {1,2} and {2} read off the hand-derived graph) with moderately persistent regressor and AR(1) residual, giving kappa between 2 and 4.5, and one 9-row series for the untempered fallback. Kappa is compared at a relative 2e-4 (the finite-difference spread and the optimizer differ in the last digits); the bound-binding branch is exercised at horizon 2 of the curve query, the cap branch and the exact-fit branch are not, and the white-innovation branch is not. The reference's selection of the AR order visits the same orders by the same stopping rule but its optimum is a different optimizer's, so a design where BIC nearly ties two orders could split them; the cases here do not. The posterior is Monte Carlo (200000 draws): means are held to five Monte Carlo standard errors, retained-draw standard deviations to 8/sqrt(draws) relative, interval ends to 3 percent of the posterior standard deviation, and the cross-horizon correlation to 0.015, so the joint law is checked to those bounds and not exactly; the quantile of a joint horizon is the Gaussian one, and the single-horizon curve uses the Student-t. The reference takes the joint law's covariance factors from the exact posterior covariance whereas the product uses the sample covariance of its own draws, which differ by Monte Carlo error. The dependence block length is compared exactly for two declared history lags only. Prior-scale handling is tested at one prior scale (3). The cited publications were not retrieved."
+sources = ["https://mpmath.org/doc/1.3.0/", "https://docs.scipy.org/doc/scipy-1.17.0/"]
+findings_resolved = ["The published per-horizon tempering factor equals the definition-level kappa (restricted-likelihood AR(q) at the BIC order, tr(HR) scale, delta-method spread exp(tau^2/2), score long-run-variance bound, floor and n/(p+2) cap) at every horizon of the curve and level queries, including the case where the long-run-variance bound is the smaller term and the case where a different dose grid changes kappa.", "A single horizon's curve equals the weighted Normal-Inverse-Gamma Student-t posterior (rows weighted 1/kappa, prior at full weight, degrees of freedom 2(a0 + n/(2 kappa))); several horizons keep each horizon's tempered mean and covariance with Gaussian marginals.", "The cross-horizon correlation of a hard-level response at horizons 1 and 2 equals the correlation implied by the Bartlett long-run covariance of the stacked scores pushed through the posterior covariances and whitened blockwise.", "The dependence block length published with the joint law equals the independently computed max(rule, Politis-White) length, and it reads the declared history lag: a history of 6 gives 8 and a history of 0 gives 5.", "A horizon with fewer than max(8, p+2) rows keeps kappa 1, is disclosed as inestimable, and its curve equals the untempered Student-t posterior.", "Record text corrected: the previous deviation text said there was no joint horizon posterior and that horizons were independent regressions; the product ties horizons into a joint Gaussian trajectory law and tempers each horizon's likelihood."]
+record_sha256 = "eabb501e9d0175361f328ba891f29295d02f77423284347d4e4d045e854a8d94"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/temporal_response/bayes.rs"
+sha256 = "6f5bc5c23c13c8f767d2ba7c9a9d0ca447d82a7e13f27eab05fcd22912762f4a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/serial_dependence.rs"
+sha256 = "045c753bf7a4a0b8a13bf3bd2ffd9395321d3c21d39552c78798e43786814639"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/joint_coefficients.rs"
+sha256 = "3e5a96bbd0d8292982e8764d6a8c227d830b19e69ff3a0e191727ede9b0b239b"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/temporal_slope_design.rs"
+sha256 = "42af693e2b1519997682bbc92886ed7a3b6bbb69064292b76505c2c8de39ede5"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/temporal_block.rs"
+sha256 = "3222a823c1a808cd53c2b150b5b6a06b0e3244bd1bed8b05a0b9984523ea8392"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/estimate_response_temporal_bayesian_reference.rs"
+sha256 = "f4f2a55f1509a394168e357dd23a08ae6886211863eae67b2b2ed54399de6ace"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/estimate_response_temporal_bayesian_reference.py"
+sha256 = "96ba31353b2deba362634f77a7ae3a7dccda3f4366fd459804f078a29eb3aff3"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/estimate_response_temporal_bayesian_reference.json"
+sha256 = "ca164671d94fbfa830141081a404cc9cd8fb5e56b66a7663df941a9ce6426816"

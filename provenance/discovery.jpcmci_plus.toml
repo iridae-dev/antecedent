@@ -45,7 +45,7 @@ record_sha256 = "edb3c5210212ab485ade3ceb3d7f5e5dfcfec9f467ae22bee490610a599928c
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/jpcmci_plus.rs"
-sha256 = "600eaeff2e438f5368161f849aa3784c7958f057881c2d709d10dbd92804fe08"
+sha256 = "309b5c571ec51c90813ee87c38c1e90662e5de26814471c4238fee6aebb7ff28"
 
 [[method_review.artifacts]]
 role = "implementation"

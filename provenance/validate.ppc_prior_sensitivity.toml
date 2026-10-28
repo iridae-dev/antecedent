@@ -15,6 +15,9 @@ papers = [
 implementation_deviations = [
  "Replicates are draws from the observation model (Gaussian noise at a residual-variance draw, Bernoulli or Poisson draws); a prior check under a residual prior without a finite mean replicates fitted means only and scores the dispersion axis one-sided.",
  "Uses repository-defined two-sided Monte Carlo checks on outcome mean and dispersion with an alpha gate. On a posterior check those two axes are matched by the fit (the normal equations reproduce the mean, the replicate SD matches the residual SD) and have power only against a wrong prior or noise level; a realized-discrepancy axis (Gelman, Meng and Stern 1996) over residual skewness, excess kurtosis, curvature against the fitted mean and a variance trend, combined by an omnibus max-departure Monte Carlo p-value, supplies the power against misspecification.",
+ "A posterior-predictive Gaussian replicate draws its residual variance from the conditional given the coefficient draw under a diffuse conjugate prior, sigma^2 = SSR / chi-square(n + p); the residual-variance column is not retained on the posterior, so the prior's finite contributions (inverse-gamma shape and rate, the coefficient prior's quadratic form) are not available to the check and the replicate noise is exact only in the diffuse limit.",
+ "A prior-predictive check of a Gaussian outcome draws the coefficients from the conjugate prior the estimator fits with, beta | sigma^2 ~ N(m, sigma^2 V0); under a residual prior without a finite mean there is no sigma^2 to scale by and V0 is used as the variance itself, and non-Gaussian families use the independent Gaussian prior with the stated variance.",
+ "A replicate summary within 1e-12 of the largest summary of the observed value is a tie and counts in both Monte Carlo tails, so a discrete outcome's SD (a function of its number of ones) does not lose ties to rounding.",
  "Posterior predictive draws are spread evenly over the stored draws (chain-concatenated MCMC draws are not truncated to the start of the first chain).",
  "Prior sensitivity is a finite grid of isotropic prior scales, variance multipliers around a resolved prior, or external-prior alpha multipliers, judged by a maximum relative effect-mean range; it is not specified by the predictive-check papers.",
  "Simulation-based calibration draws the residual variance and coefficients from the prior the estimator fits with (coefficients conditional on the variance, the conjugate convention), requires n_draws + 1 to be a multiple of the 10 rank bins, at least 50 replicates and independent posterior draws, and refuses a residual prior without a finite mean; it and the MCMC diagnostics gate (the library's own publication predicate with named failing clauses) require separate provenance and are not established by the listed predictive-check citations.",
@@ -23,16 +26,55 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+ "crates/antecedent-validate/src/bayesian_checks/ppc_prior_sensitivity_reference_tests.rs (60-digit recomputation of every reported statistic from frozen library draw streams; exact conjugate laws with derived concentration bounds; compiled into the library test build)",
  "crates/antecedent-validate/src/bayesian_checks/tests.rs unit tests",
  "conformance/bayesian/ppc",
  "conformance/bayesian/prior_sensitivity",
  "conformance/validate/bayesian_checks",
 ]
 
-# Review status: not reviewed (no method_review, no mapping). bayesian_checks/predictive.rs,
-# sbc.rs, calibration.rs and prior_sensitivity.rs compute Monte Carlo predictive p-values,
-# realized-discrepancy axes, simulation-based-calibration rank statistics and refits over a prior grid
-# from posterior draws. An executing reference needs the exact conjugate predictive law of the fitted
-# model and an independent draw-free evaluation of each discrepancy; none was built, and reviewing
-# only PriorSensitivity::to_report (a max/min range over supplied means) would not cover the cited
-# predictive-check methods. Not mapped: the module contains its own sampling and arithmetic.
+[method_review]
+status = "reviewed_with_limits"
+scope = "The Monte Carlo predictive checks, simulation-based calibration and prior-sensitivity grids of crates/antecedent-validate/src/bayesian_checks: PosteriorPredictiveCheck::{check, replicates, check_temporal} and PriorPredictiveCheck::check_with_prior for the Gaussian, logit, probit and Poisson families (replicate construction from the coefficient draws and the library noise streams, location and dispersion summaries, (1 + count) / (1 + draws) tails, two-sided p, residual-shape axes with the omnibus p, the lag-1 serial axis, the mean-only improper-scale rule); the summary helpers in calibration.rs; SimulationBasedCalibration::{check, to_report} with its generating-parameter draw, true-effect, rank, bin and chi-square statistics and thresholds; and PriorSensitivity::{evaluate, evaluate_resolved_prior, evaluate_external_alpha, evaluate_in_force, to_report} with their option handling. The conjugate normal fits that supply the posterior draws are exercised, not reviewed (estimate.bayesian_gcomp); the external-prior composition rule is exercised through its output (compose_external_priors_with_alphas), not reviewed; the MCMC diagnostics gate (mcmc.rs), the negative-binomial family, correlated coefficient priors, HMC rank selection, temporal tempering and mixtures of reports are not covered."
+assumptions = ["The statistics are repository-defined (Monte Carlo tails with the (1 + count) / (1 + draws) form, an omnibus max-departure p-value, a ten-bin chi-square rank gate and a relative-range sensitivity verdict); the cited papers define posterior predictive assessment with realized discrepancies and prior checking but not these, so the review checks the code against the definitions stated in the reference script, not against those papers.", "The coefficient columns of a fitted posterior are its first design columns, as the product reads them; the estimator's draws are independent exact conjugate draws, which the rank and mean checks assume and test against the exact posterior.", "Floating-point replicate summaries equal to within 1e-12 of the largest summary are ties; the reference ties at 1e-40 in 60-digit arithmetic."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read predictive.rs, calibration.rs, sbc.rs and prior_sensitivity.rs and wrote its own reference from the stated definitions in 60-digit mpmath, plus closed-form conjugate laws (Student t and normal CDFs, the conjugate normal-inverse-gamma posterior); no upstream implementation was consulted."
+redistribution = "The reference script, frozen output and Rust tests are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited papers are linked, not redistributed."
+limitations = "None of the cited papers (Box 1980; Gelman, Meng and Stern 1996) was retrieved: nothing was downloaded and there is no local copy, so the review does not check the code against their text, and Talts et al. 2018, the source of the rank-uniformity statement, is not cited and was not retrieved either. Rank uniformity is verified by the exact Beta-integral identity for a ranks-from-uniform-posterior-CDF model at 99 draws, and the product's ranks by per-replicate binomial tails and a rank-sum Hoeffding bound against the exact conjugate posterior, not by a distributional uniformity test of the ranks. The comparison covers five posterior-predictive designs (a Gaussian fit with n_sims below the stored draw count so the stride is exercised, a six-row fit with n_sims above it so the cap is, a logit, a probit and a Poisson fit), five prior-predictive designs (known and inverse-gamma and improper residual variance, logit, Poisson), two simulation-based-calibration configurations of 60 replicates and 99 draws (inverse-gamma and known residual variance), and three sensitivity grids on one 30-row design, at 1e-10 relative on the continuous statistics and 1e-13 on the tails. Draw-dependent quantities are checked against exact laws with stated bounds: the prior-predictive mean tail at 20000 simulations within a Hoeffding bound of 0.023 (failure probability 1e-9), the residual-variance precision of 5000 conditional draws within a sub-gamma bound of about 2 percent (1e-9), the rank sum within a Hoeffding bound of about 9 percent (1e-9), and the sensitivity posterior means within a Cantelli plus sub-Gaussian bound of about five standard errors (1e-3 per point), so a shift below those widths is not detected; the posterior standard deviations are compared only within 35 percent. The posterior-predictive residual noise is exact only in the diffuse-prior limit (the residual-variance column is not retained), the improper-scale prior predictive uses the unscaled coefficient variance, and the Poisson normal-approximation branch above a mean of 1e4, the negative-binomial family, dense coefficient correlations, multiple chains and missing values are not exercised. The default thresholds (alpha, the 0.35 to 0.65 mean-rank band, the 0.5 relative range) are repository choices that are not calibrated here."
+sources = ["https://doi.org/10.2307/2982063", "https://sites.stat.columbia.edu/gelman/research/published/A6n41.pdf", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["Defect fixed: PriorPredictiveCheck drew a Gaussian outcome's coefficients from N(m, V0) although the estimator it checks fits the conjugate prior beta | sigma^2 ~ N(m, sigma^2 V0) (the documented convention of GaussianCoefficientPrior, and the one simulation-based calibration already used), so the prior predictive spread of the mean was too small by the factor sigma whenever V0 dominated; the lower tail of the replicate mean was 0.829 against the exact 0.728 (failing-first tests ppc_prior_sensitivity_prior_predictive_mean_follows_the_exact_law and ppc_prior_sensitivity_prior_predictive_equals_the_exact_reference); sigma is now drawn first and scales the coefficients.", "Defect fixed: the posterior-predictive Gaussian replicate drew sigma^2 = SSR / chi-square(n), which omits the p / 2 added to the inverse-gamma shape by the conjugate coefficient prior's sigma^-p factor, so the noise variance was inflated by (n + p - 2) / (n - 2) in the mean (the mean precision of 5000 draws was 2.917 against the exact conjugate 3.123, outside the bound 3.058 to 3.188; failing-first test ppc_prior_sensitivity_replicate_noise_variance_is_the_conjugate_conditional); the draw is now SSR / chi-square(n + p) in both check and replicates.", "Defect fixed: Monte Carlo tails compared replicate summaries with the observed value in floating point, so replicates tying the observed SD of a binary outcome (the SD depends only on the number of ones) lost the tie to last-bit rounding and fell out of one or both tails (a logit dispersion p of 0.732 against the tie-correct 0.829); ties within 1e-12 of the largest summary now count in both tails (failing-first test ppc_prior_sensitivity_posterior_predictive_equals_the_exact_reference).", "Every reported statistic of the posterior and prior predictive checks (location and dispersion tails, residual axes and omnibus p, serial axis, replicate sets), the generating draws, true effect, ranks, bin counts, chi-square statistic and verdict thresholds of simulation-based calibration, the exact posterior means of the isotropic, resolved-prior and external-alpha grids, their draw cap and option handling, and the relative-range report agree with the exact reference."]
+record_sha256 = "fa90db5bdbde74b072c060de240df396deb8667583e29fc6fe41dee9360773c5"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/bayesian_checks/predictive.rs"
+sha256 = "7b98db9dac74dba2182faac743e5978bc15da8cae54a72966d4bc52de7239871"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/bayesian_checks/calibration.rs"
+sha256 = "e51ad29f8a16450bcb2e9731d58a2efeca80ffac071e4d73a8b59aa3cb69e068"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/bayesian_checks/sbc.rs"
+sha256 = "b3db39134bb6867269eb73a8a76ba35f6b8852033abcd001288cc43ec36b6c4a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/bayesian_checks/prior_sensitivity.rs"
+sha256 = "89d0c9cbc1ee9c613fadd8253a6cf0a7e4dfdb8ba388590f85a0a00d5165d5d5"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-validate/src/bayesian_checks/ppc_prior_sensitivity_reference_tests.rs"
+sha256 = "f3a459ca54d3dbe6b904b400cf0c100b62f1d9ec43196f40e911c5a9dd740ba0"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-validate/tests/oracle_data/ppc_prior_sensitivity_reference.py"
+sha256 = "9ae9d9701a74470b006f5260e0e3250bc3cc37c32bf843db24eba61f2225e5ac"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-validate/tests/oracle_data/ppc_prior_sensitivity_reference.json"
+sha256 = "49f6eeb64aba4b39fed9290f84ab26c3efa24fd6aac6566ff61eda5f84badc09"

@@ -1025,3 +1025,7 @@ path = "tests/sample_split_analysis_reference.rs"
 [[test]]
 name = "estimate_response_kennedy_dr_declarations"
 path = "tests/estimate_response_kennedy_dr_declarations.rs"
+
+[[test]]
+name = "temporal_response_observation_adjusted_reference"
+path = "tests/temporal_response_observation_adjusted_reference.rs"

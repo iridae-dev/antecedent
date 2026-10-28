@@ -28,7 +28,7 @@ sha256 = "6410463f77eb2989ddf9e3dc2ab904078fb0f3b703798cdcc65c98f8837326a0"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/mediation.rs"
-sha256 = "5c1f533aea0c6eba0bb2cf50c1a6f98f5b611c22d52b2e45a221777906550a58"
+sha256 = "7c6d9b2e6bf5278780c52301e92bd815fb2126569ee1019b76b892c1577cc42a"
 
 [[method_review.artifacts]]
 role = "assertion"

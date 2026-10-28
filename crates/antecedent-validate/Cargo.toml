@@ -115,6 +115,14 @@ name = "static_mediation_reference"
 path = "tests/static_mediation_reference.rs"
 
 [[test]]
+name = "temporal_mediation_refuter_reference"
+path = "tests/temporal_mediation_refuter_reference.rs"
+
+[[test]]
 name = "joint_uncertainty_reference"
 path = "tests/joint_uncertainty_reference.rs"
 required-features = ["calibration-internal"]
+
+[[test]]
+name = "functional_reference"
+path = "tests/functional_reference.rs"

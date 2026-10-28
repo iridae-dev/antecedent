@@ -30,3 +30,6 @@ use sbc::{
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod ppc_prior_sensitivity_reference_tests;
