@@ -107,6 +107,18 @@ pub(super) fn fit_hierarchical_glm(
             message: "HierarchicalGlm requires binary {0,1} outcomes".into(),
         });
     }
+    // A declared `UnitId` grouping is a statement about the rows' structure. This family
+    // shrinks slopes; it has no unit-level term (a within-unit demeaning is not a logit
+    // estimator), so under a usable grouping it refuses instead of fitting as if the units
+    // had not been declared.
+    if frame.groups.as_deref().is_some_and(group_structure_usable) {
+        return Err(ModelError::Unsupported {
+            message: "HierarchicalGlm has no unit-level effect, so it cannot honour the declared \
+                      UnitId grouping; use the Discrete family, or HierarchicalLinear for a \
+                      continuous outcome"
+                .into(),
+        });
+    }
     // EB λ from linear-probability OLS moments.
     let ols = fit_linear_gaussian(frame, y, backend, ls_ws, 0.0)?;
     let lambda = match &ols {

@@ -370,21 +370,26 @@ pub(super) fn oof_mean_loglik(
 }
 
 /// Out-of-fold residuals of the ordinary-least-squares parent mean (the linear
-/// part of a conditional state-space mechanism).
+/// part of a conditional state-space mechanism), cut by the frame's declared
+/// validation scheme, and the first row whose residual is out of fold.
+///
+/// A shuffled or clustered scheme holds every row out once, so the first scored
+/// row is 0. The time-ordered scheme never holds out its leading block (it only
+/// trains): those rows take the residual of the first fold's fit, so the series
+/// the state-space filter runs over has no gap, and they are not scored.
 pub(super) fn oof_linear_residuals(
     frame: &FitFrame<'_>,
     y: &[f64],
     backend: FaerBackend,
     ls_ws: &mut LeastSquaresWorkspace,
     cancelled: &dyn Fn() -> bool,
-) -> Result<Vec<f64>, ModelError> {
+) -> Result<(Vec<f64>, usize), ModelError> {
     let n = y.len();
-    let fold = cv_fold_plan(n, None)?;
-    let folds = fold.iter().copied().max().map_or(0, |m| m + 1);
     let mut residual = vec![0.0; n];
-    for k in 0..folds {
+    let mut held_out = vec![false; n];
+    let mut first_fit: Option<(f64, Vec<f64>)> = None;
+    for FoldSplit { train, test } in frame.validation_folds(None)? {
         poll(cancelled)?;
-        let (train, test): (Vec<usize>, Vec<usize>) = (0..n).partition(|&r| fold[r] != k);
         if train.len() < 2 || test.is_empty() {
             continue;
         }
@@ -400,7 +405,24 @@ pub(super) fn oof_linear_residuals(
         let MechanismSlot::LinearGaussian { intercept, coeffs, .. } = slot else {
             return Err(ModelError::Unsupported { message: "linear reference fit failed".into() });
         };
+        let predict = |r: usize| {
+            let mut pred = intercept;
+            for (c, col) in frame.parents.iter().enumerate() {
+                pred += coeffs[c] * col[r];
+            }
+            pred
+        };
         for &r in &test {
+            residual[r] = y[r] - predict(r);
+            held_out[r] = true;
+        }
+        if first_fit.is_none() {
+            first_fit = Some((intercept, coeffs.to_vec()));
+        }
+    }
+    let first_scored = held_out.iter().position(|h| *h).unwrap_or(n);
+    if let Some((intercept, coeffs)) = first_fit {
+        for r in (0..first_scored).filter(|&r| !held_out[r]) {
             let mut pred = intercept;
             for (c, col) in frame.parents.iter().enumerate() {
                 pred += coeffs[c] * col[r];
@@ -408,7 +430,12 @@ pub(super) fn oof_linear_residuals(
             residual[r] = y[r] - pred;
         }
     }
-    Ok(residual)
+    if first_scored >= n {
+        return Err(ModelError::Unsupported {
+            message: "not enough rows to cross-validate a mechanism family".into(),
+        });
+    }
+    Ok((residual, first_scored))
 }
 
 /// Free parameters of a fitted mechanism, for the complexity penalty.
@@ -518,11 +545,12 @@ pub(super) fn score_family(
             // `y_{<t}` (prequential, so out of sample in the state), and the parent mean
             // it is applied to is the out-of-fold linear prediction. Row-shuffled folds
             // cannot refit the state model because the rows are a series.
-            let residual = if matches!(fitted, MechanismSlot::LinearGaussianStateSpace { .. }) {
-                y.to_vec()
-            } else {
-                oof_linear_residuals(frame, y, backend, ls_ws, cancelled)?
-            };
+            let (residual, first_scored) =
+                if matches!(fitted, MechanismSlot::LinearGaussianStateSpace { .. }) {
+                    (y.to_vec(), 0)
+                } else {
+                    oof_linear_residuals(frame, y, backend, ls_ws, cancelled)?
+                };
             let state = MechanismSlot::LinearGaussianStateSpace {
                 a: *a,
                 process_std: *process_std,
@@ -531,7 +559,7 @@ pub(super) fn score_family(
             };
             let mut lp = vec![0.0; n];
             log_prob_column(&state, &residual, ParentBatch::empty(n), &mut lp)?;
-            (lp.iter().sum::<f64>() / n.max(1) as f64, penalty)
+            (lp[first_scored..].iter().sum::<f64>() / (n - first_scored).max(1) as f64, penalty)
         }
         _ => (oof_mean_loglik(family, frame, y, backend, ls_ws, cancelled)?, penalty),
     };
