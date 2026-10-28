@@ -1,0 +1,134 @@
+{
+  "schema": 1,
+  "activity": "paired_ordinary_rust_cost_runs",
+  "calibration_attestation": false,
+  "host": {
+    "cpus": 10,
+    "rustc": "1.85.1",
+    "nextest": "0.9.146",
+    "os": "macOS (darwin 25.5, arm64)"
+  },
+  "settings": {
+    "CARGO_PROFILE_TEST_OPT_LEVEL": "2",
+    "CARGO_PROFILE_TEST_DEBUG": "line-tables-only",
+    "CARGO_INCREMENTAL": "0",
+    "flags": "--workspace --features antecedent/calibration-internal,antecedent-identify/test-util,antecedent-io/calibration-internal,antecedent-validate/calibration-internal --locked --no-fail-fast",
+    "cache": "cold: a fresh target directory per revision, removed afterwards",
+    "order": "sequential, one run per revision"
+  },
+  "runs": [
+    {
+      "label": "before_consolidation",
+      "revision": "99a9c55b0ef869807561a9201100b4634968faa2",
+      "nextest_execution_seconds": 86.37,
+      "tests_run": 8423,
+      "passed": 8411,
+      "failed": 12,
+      "skipped": 591,
+      "test_binaries": 640,
+      "build": {
+        "wall_seconds": 796.32,
+        "user_seconds": 5795.29,
+        "system_seconds": 231.04,
+        "peak_rss_bytes": 5414682624
+      },
+      "execution_process": {
+        "wall_seconds": 91.97,
+        "user_seconds": 447.43,
+        "system_seconds": 51.11,
+        "peak_rss_bytes": 410796032
+      },
+      "load_average_before_run": "3.55 11.29 22.66",
+      "failed_tests": [
+        "antecedent-design::artifact_compat_sequential_reliability_golden the_decision_reliability_golden_is_recomputed_and_gated",
+        "antecedent-estimate::counterfactual_transport_sampled_replicate a_sparse_replicate_with_an_unseen_cell_refuses_rather_than_filling_zero",
+        "antecedent-estimate::recovery_whole_method_calibration recovery_bca_original_measurement_identity_receipt",
+        "antecedent-io-core coverage_records_data::tests::snapshot_record_count_and_id_round_trip",
+        "antecedent::recalc_temporal temporal_history_closed_candidate_replays_whole_unit_identities_without_coverage_claim",
+        "antecedent::sample_split_effect_facade a_source_that_states_another_format_or_roles_is_refused",
+        "antecedent::sample_split_effect_facade an_interval_outside_the_measured_row_range_is_never_attested",
+        "antecedent::sample_split_effect_facade attestation_is_a_lookup_against_current_records_and_replays_when_it_holds",
+        "antecedent::sample_split_effect_facade the_basis_is_keyed_under_the_split_structure_and_its_own_estimator",
+        "antecedent::sample_split_effect_facade the_effect_is_the_adjusted_least_squares_coefficient_on_the_analysis_rows",
+        "antecedent::sample_split_effect_facade the_same_inputs_give_the_same_estimate_and_source",
+        "antecedent::scientific_bridge_interval_facade a_trial_level_prediction_interval_matches_the_hand_computed_variance_and_t_quantile"
+      ]
+    },
+    {
+      "label": "after_consolidation",
+      "revision": "d698376387ec5881fedb9f8d7b4183495794ad7b",
+      "nextest_execution_seconds": 73.097,
+      "tests_run": 8436,
+      "passed": 8436,
+      "failed": 0,
+      "skipped": 591,
+      "test_binaries": 231,
+      "build": {
+        "wall_seconds": 673.33,
+        "user_seconds": 4806.85,
+        "system_seconds": 138.98,
+        "peak_rss_bytes": 6433980416
+      },
+      "execution_process": {
+        "wall_seconds": 74.88,
+        "user_seconds": 451.98,
+        "system_seconds": 45.76,
+        "peak_rss_bytes": 414875648
+      },
+      "load_average_before_run": "51.66 54.45 41.35",
+      "failed_tests": []
+    },
+    {
+      "label": "head_ordinary_run",
+      "revision": "fa3ecc2070be6faf76e232f00786a08e3da74b26",
+      "nextest_execution_seconds": 463.802,
+      "tests_run": 13486,
+      "passed": 13473,
+      "failed": 13,
+      "skipped": 864,
+      "test_binaries": 480,
+      "build": {
+        "wall_seconds": 1160.19,
+        "user_seconds": 9174.77,
+        "system_seconds": 268.03,
+        "peak_rss_bytes": 10389078016
+      },
+      "execution_process": {
+        "wall_seconds": 467.21,
+        "user_seconds": 2857.16,
+        "system_seconds": 95.18,
+        "peak_rss_bytes": 1316028416
+      },
+      "load_average_before_run": "22.62 33.55 37.60",
+      "failed_tests": [
+        "antecedent-design::suite_01 decision_reliability::every_published_route_is_licensed_inside_a_measured_coverage_record",
+        "antecedent-design::suite_01 decision_reliability_intervals::a_derivation_is_published_inside_a_measured_record_and_refused_outside_it",
+        "antecedent-io measured_inference::transport::native_lifecycle_tests::every_measured_transport_variant_matches_original_execution_basis_bit_for_bit",
+        "antecedent-io::sampled_counterfactual_transport_artifact a_measured_construction_reports_an_interval_bound_to_its_coverage_record",
+        "antecedent::suite_01 adaptive_inference_facade::a_group_sequential_repeated_interval_is_bound_to_its_record",
+        "antecedent::suite_01 adaptive_inference_facade::a_thompson_credible_interval_inside_the_measured_range_is_bound_to_its_record",
+        "antecedent::suite_01 adaptive_inference_facade::a_weighted_contrast_and_a_confidence_sequence_are_bound_to_their_records",
+        "antecedent::suite_03 composed_uncertainty_facade::a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate",
+        "antecedent::suite_04 evidence_ledger_facade::a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record",
+        "antecedent::suite_07 scientific_bridge_interval_facade::a_correction_inside_a_measured_record_is_published_bound_to_it",
+        "antecedent::suite_07 scientific_bridge_interval_facade::a_trial_level_prediction_interval_inside_a_measured_record_is_published_bound_to_it",
+        "antecedent::suite_09 predictive_score_interval_facade::an_expected_score_interval_inside_a_measured_design_is_bound_to_its_record",
+        "antecedent::suite_09 predictive_score_interval_facade::the_serial_log_score_and_difference_are_measured_but_the_serial_crps_mean_is_a_boundary"
+      ]
+    }
+  ],
+  "conditions_not_controlled": [
+    "one run per revision: no variance estimate",
+    "interactive applications shared the host; load averages are recorded but include the previous run's tail",
+    "the before revision had 12 failing tests that the after revision does not, so executed work differs slightly (8,423 vs 8,436 tests)",
+    "the head revision has many more tests and test binaries than either October revision, so its numbers show growth and support no improvement claim"
+  ],
+  "comparison_supported": "before_consolidation vs after_consolidation only (same features and settings; the consolidation commit and its follow-up fixes are the intended difference)",
+  "derived_before_vs_after_consolidation": {
+    "test_binaries": "640 -> 231",
+    "build_wall_change_pct": -15.4,
+    "build_cpu_user_change_pct": -17.1,
+    "build_peak_rss_change_pct": 18.8,
+    "execution_wall_change_pct": -15.4
+  }
+}

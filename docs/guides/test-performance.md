@@ -263,6 +263,31 @@ The one comparison already on file,
 selections, checkout and Cargo settings differ, and its execution time rose
 from 744.162 to 903.397 seconds. No workspace speedup is claimed.
 
+### Paired runs: the test-binary consolidation
+
+`parity/evidence_audit/paired_rust_cost_runs.json` records three cold,
+sequential ordinary runs on one 10-CPU host with identical settings
+(`CARGO_PROFILE_TEST_OPT_LEVEL=2`, line-table debug info, no incremental
+compilation), the same workspace features and a fresh target directory per
+revision. Build and execution are timed separately.
+
+| Revision | Test binaries | Tests | Build wall / CPU | Execution (nextest) | Failures |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| before the consolidation (`99a9c55b0`) | 640 | 8,423 | 796 s / 5,795 s | 86 s | 12 |
+| after it (`d69837638`) | 231 | 8,436 | 673 s / 4,807 s | 73 s | 0 |
+| current ordinary run (`fa3ecc207`) | 480 | 13,486 | 1,160 s / 9,175 s | 464 s | 13 |
+
+Only the first pair supports a claim: same code and settings, with the
+consolidation as the intended difference. It shows about 15% less build wall
+time, 17% less build CPU time and 15% less execution time, at about 19% higher
+peak build memory. Each revision was run once, so there is no variance
+estimate; interactive applications shared the host; and the earlier revision had
+12 failing tests (and 13 fewer tests) that the later one does not. The current
+run has far more tests and binaries, so it shows growth, not an improvement. Its
+13 failures are the calibration-pending measured-record tests that
+`rust-software` deselects. The comparison is not called controlled: the
+checkouts differ by design.
+
 CI runs these controls in the `script unit tests` and `Test-suite controls`
 steps of the Python lint job (`scripts/test_evidence_audit.py` and
 `scripts/test_cost_report.py` through script discovery; the assertion scan and
@@ -347,7 +372,7 @@ The next broader changes, in priority order, are:
 | Change | Local benefit | Required validation |
 | --- | --- | --- |
 | Dedicated native development build with incremental compilation and LTO off | Avoid repeated whole-graph release link optimization after a Rust edit while retaining optimized numerical code. | Compare cold build, no-op build and a real edit/rebuild against the release path, then verify Python results and runtime. |
-| Measure the consolidated `suite_NN` targets | The grouping is in place; its benefit is unmeasured. | Compare library-edit and test-file-edit rebuilds before and after under matching conditions with `scripts/cost_report.py`. |
+| Measure the consolidated `suite_NN` targets | The grouping is in place; one paired cold run measured about 15% less build time (see the paired-runs table). | Compare library-edit and test-file-edit rebuilds before and after under matching conditions with `scripts/cost_report.py`. |
 | Exclude purely ignored calibration targets from ordinary builds | A conservative source inventory found 27 such integration targets, containing 112 ignored tests. These still cost compilation and links today. | Confirm actual collection, add an explicit measurement feature, and have the calibration driver enable it. |
 | Reduce dependency fan-out in core and artifact/facade layers | Limit how far a common source edit propagates. | Separate stable data/types from frequently edited implementations without weakening public API or provenance checks. |
 
@@ -385,6 +410,6 @@ snapshot/write checks, including the existing attestation guards, pass.
 Validation of the focused development changes includes all nineteen narrowed
 facade targets passing `cargo check`, a real focused Rust `dev` run, and 29
 Python tests through `python-test` without a native rebuild. The native profile
-candidate remains a benchmark proposal, and the consolidated targets' build benefit is unmeasured.
+candidate remains a benchmark proposal, and the consolidated targets' build benefit is measured once, with the caveats above.
 
 
