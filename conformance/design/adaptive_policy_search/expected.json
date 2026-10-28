@@ -1,0 +1,30 @@
+{
+ "lq": {
+  "P": 1.291997617626161,
+  "a": 0.9,
+  "closed_loop_value": -20.671961882018575,
+  "gain": 0.6488835947248022,
+  "horizon": 12,
+  "open_loop_value": -49.09222759199204,
+  "q": 1.0,
+  "r": 0.5,
+  "sigma": 1.0,
+  "x0": 2.0
+ },
+ "oracle": {
+  "generator": "conformance/design/adaptive_policy_search/reference.py",
+  "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
+  "independence_basis": "reference.py is standard-library Python that imports no Antecedent code; each closed form is cross-checked by its own Monte Carlo with a separate generator. The author of the reference is the repository author and independence from the production implementation has not been reviewed.",
+  "kind": "closed_form",
+  "method": "treat-above-threshold optimum for a stationary Gaussian state and the linear-quadratic Riccati feedback optimum with the closed-form best open-loop schedule"
+ },
+ "schema_version": 1,
+ "tolerance_class": "StableFloat",
+ "treatment": {
+  "adaptive_value": 1.9779655740130604,
+  "best_fixed_schedule_value": 0.0,
+  "cost": 0.5,
+  "horizon": 10,
+  "stationary_sd": 1.0
+ }
+}

@@ -1,0 +1,94 @@
+{
+  "oracle": {
+    "kind": "dense_linear_algebra",
+    "method": "numpy.linalg dense solve, inverse and eigenvalues of the affine equilibrium",
+    "independence_basis": "Dense LAPACK solves of (I - W) x = c + u on rings of 300 to 320 variables, the exact infinity-norm condition number from the dense inverse and the exact spectral radius of |W|. The generator is retained and checked by the conformance reference check; the author of the reference is the repository author and independence from the production implementation has not been reviewed.",
+    "generator": "conformance/gcm/sparse_feedback_equilibrium/reference.py",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
+  "schema_version": 1,
+  "cases": [
+    {
+      "case": "contractive_ring",
+      "order": 320,
+      "predecessor": 0.35,
+      "successor": 0.25,
+      "own": 0.1,
+      "clamps": [],
+      "intercept_rule": "0.05 * ((i % 7) - 3)",
+      "noise_rule": "sin(0.37 * i)",
+      "values_head": [
+        -0.9978509683504571,
+        0.31347487057454,
+        1.4790391618991359,
+        2.3885245175199534,
+        2.945238693692852,
+        3.0754015946157724
+      ],
+      "values_sum": 4.50032069149908,
+      "values_max_abs": 3.125937187982014,
+      "infinity_condition": 5.0,
+      "abs_weight_spectral_radius": 0.7000000000000045,
+      "abs_weight_row_sum": 0.7
+    },
+    {
+      "case": "noncontractive_directed_ring",
+      "order": 300,
+      "predecessor": 1.5,
+      "successor": 0.0,
+      "own": 0.0,
+      "clamps": [],
+      "intercept_rule": "0.05 * ((i % 7) - 3)",
+      "noise_rule": "sin(0.37 * i)",
+      "values_head": [
+        -1.132080207860122,
+        -1.4365048798252211,
+        -1.5304694081096866,
+        -1.4000054264844821,
+        -1.0541272951890837,
+        -0.519915739808326
+      ],
+      "values_sum": -8.593543629870556,
+      "values_max_abs": 1.6289367969041968,
+      "infinity_condition": 5.0,
+      "abs_weight_spectral_radius": 1.500000000000022,
+      "abs_weight_row_sum": 1.5
+    },
+    {
+      "case": "clamped_directed_ring",
+      "order": 300,
+      "predecessor": 0.5,
+      "successor": 0.0,
+      "own": 0.0,
+      "clamps": [
+        [
+          10,
+          2.0
+        ],
+        [
+          150,
+          -1.0
+        ],
+        [
+          299,
+          0.5
+        ]
+      ],
+      "intercept_rule": "0.05 * ((i % 7) - 3)",
+      "noise_rule": "sin(0.37 * i)",
+      "values_head": [
+        0.09999999999999998,
+        0.31161543196496194,
+        0.780095627610626,
+        1.2857464994853607,
+        1.6887540942803203,
+        1.90565225011546
+      ],
+      "values_sum": 17.098917620549408,
+      "values_max_abs": 2.0,
+      "infinity_condition": 3.0,
+      "abs_weight_spectral_radius": 0.5000000000000151,
+      "abs_weight_row_sum": 0.5
+    }
+  ]
+}

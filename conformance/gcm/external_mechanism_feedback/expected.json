@@ -1,0 +1,22 @@
+{
+  "oracle": {
+    "kind": "closed_form_and_bisection",
+    "method": "least-squares slope, bisection fixed point and explicit 2x2 Jacobian determinant of the two-equation saturating feedback system",
+    "independence_basis": "Standard-library arithmetic only; nothing is shared with the production solver, likelihood or resolver. The author of the reference is the repository author and independence has not been reviewed.",
+    "generator": "conformance/gcm/external_mechanism_feedback/reference.py",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
+  "schema_version": 1,
+  "fitted_gain": 0.7,
+  "fixed_points": [
+    [
+      0.2736850563982963,
+      0.25341008884638117
+    ],
+    [
+      -0.2736850563982964,
+      -0.2534100888463813
+    ]
+  ],
+  "joint_log_density_at_first_fixed_point": -1.9929987824015662
+}
