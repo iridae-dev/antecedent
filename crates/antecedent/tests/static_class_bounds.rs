@@ -186,6 +186,10 @@ fn partially_identified_cpdag_ate_carries_the_completion_identified_set() {
     let lo = per_completion.iter().copied().fold(f64::INFINITY, f64::min);
     let hi = per_completion.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     assert!(hi - lo > 0.1, "completions must disagree clearly: {per_completion:?}");
+    // Population values: adjusting z gives the structural effect 1; the t -> z completion
+    // leaves the confounding path open, 1 + Cov(t, z) / Var(t) = 1 + 0.8 / 1.64.
+    let confounded = 1.0 + 0.8 / 1.64;
+    assert!((lo - 1.0).abs() < 0.08 && (hi - confounded).abs() < 0.08, "[{lo}, {hi}]");
 
     assert_eq!(
         result.identification.status,
@@ -232,7 +236,8 @@ fn point_identified_cpdag_ate_still_reports_a_point() {
         "a point-identified class answer is not an identified set"
     );
     assert_eq!(claim_kind(&prepared, &result, &ctx), ClaimKind::Point);
-    assert!(result.estimate().as_effect().unwrap().ate.is_finite());
+    let ate = result.estimate().as_effect().unwrap().ate;
+    assert!((ate - 1.0).abs() < 0.08, "the oriented completion adjusts z: {ate}");
     round_trip(&prepared, &result, &ctx, "cpdag-ate-point");
 }
 
@@ -246,6 +251,7 @@ fn bayesian_partially_identified_cpdag_ate_carries_the_identified_set() {
     assert_eq!(claim_kind(&prepared, &result, &ctx), ClaimKind::Bounds);
     let (lo, hi) = identified_set(&result);
     assert!(hi - lo > 0.1, "Bayesian completions must disagree clearly: [{lo}, {hi}]");
+    assert!((lo - 1.0).abs() < 0.08 && (hi - (1.0 + 0.8 / 1.64)).abs() < 0.08, "[{lo}, {hi}]");
     let mut values = atom_values(&result);
     values.sort_by(f64::total_cmp);
     assert_eq!(values, vec![lo, hi], "the bounds are the per-completion posterior means");
@@ -296,6 +302,9 @@ fn partially_identified_cpdag_conditional_effect_carries_the_identified_set() {
     assert_eq!(claim_kind(&prepared, &result, &ctx), ClaimKind::Bounds);
     let (lo, hi) = identified_set(&result);
     assert!(hi - lo > 0.1, "conditional completions must disagree clearly: [{lo}, {hi}]");
+    // The effect is 1 + 0.8 x with x = 1 on half the rows (mean 1.4); the confounded
+    // completion adds 0.8 / 1.64 = 0.488.
+    assert!((lo - 1.4).abs() < 0.08 && (hi - (1.4 + 0.8 / 1.64)).abs() < 0.08, "[{lo}, {hi}]");
     let mut values = atom_values(&result);
     values.sort_by(f64::total_cmp);
     assert_eq!(values, vec![lo, hi], "the bounds are the per-completion conditional effects");

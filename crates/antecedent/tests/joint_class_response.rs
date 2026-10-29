@@ -126,11 +126,9 @@ fn bayesian_joint_response_uses_the_same_certificate() {
             ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) => *value,
             other => panic!("expected a joint scalar, got {other:?}"),
         };
-        assert!(
-            (value - pin()["mean"].as_f64().unwrap()).abs()
-                < pin()["bayesian_tolerance"].as_f64().unwrap(),
-            "got {value}"
-        );
+        // The data are noiseless, so the posterior mean sits within 2e-5 of the pinned 8.0;
+        // the pinned 0.05 is far above that, so the test holds 1e-3.
+        assert!((value - pin()["mean"].as_f64().unwrap()).abs() < 1e-3, "got {value}");
     }
 }
 
@@ -246,7 +244,8 @@ fn bayesian_joint_stochastic_policies_integrate_the_linear_response() {
             else {
                 panic!("scalar policy mean");
             };
-            assert!((mean - 7.0).abs() < 0.05, "mean={mean}");
+            // 1 + 2 * 0.5 + 3 + 4 * 0.5 = 7 for each policy mean 0.5 (observed error 1e-5).
+            assert!((mean - 7.0).abs() < 1e-3, "mean={mean}");
             assert!(
                 response
                     .support

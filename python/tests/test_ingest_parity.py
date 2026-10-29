@@ -47,6 +47,9 @@ def test_analyze_ate_dict_vs_arrow_dense_parity():
         )
     )
     assert abs(dict_r.ate - arrow_r.ate) < 1e-12
+    # Parity alone would pass if both routes were wrong: anchor to the true effect 2.0
+    # (the unadjusted contrast is biased upward by z).
+    assert dict_r.ate == pytest.approx(2.0, abs=0.2)
 
 
 def test_prepared_prepare_arrow_estimate_dict_parity():
@@ -74,6 +77,7 @@ def test_prepared_prepare_arrow_estimate_dict_parity():
     )
     assert abs(from_arrow.ate - from_dict.ate) < 1e-12
     assert abs(from_dict.ate - fresh.ate) < 1e-12
+    assert from_arrow.ate == pytest.approx(2.0, abs=0.2)
 
 
 def test_prepared_prepare_dict_estimate_arrow_parity():
@@ -133,6 +137,8 @@ def test_conditional_effect_dict_vs_arrow_parity():
         )
     )
     assert abs(dict_r.ate - arrow_r.ate) < 1e-12
+    # E[effect] = 2 + 0.5 E[w] with E[w] = 0.
+    assert dict_r.ate == pytest.approx(2.0, abs=0.25)
 
 
 def test_arrow_nulls_are_invalid_rows_not_zero():
@@ -174,6 +180,18 @@ def test_arrow_nulls_are_invalid_rows_not_zero():
     )
     assert math.isfinite(arrow_r.ate)
     assert abs(arrow_r.ate - zero_r.ate) > 1e-3
+    # A null cell is a dropped row: the nullable column equals the same table minus those rows.
+    keep = np.setdiff1d(np.arange(len(y)), null_idx)
+    dropped_r = require_success(
+        antecedent.analyze(
+            {k: v[keep] for k, v in data.items()},
+            graph=edges,
+            query=q,
+            inference=antecedent.Frequentist(profile="interactive"),
+            execution=antecedent.Execution(seed=1),
+        )
+    )
+    assert arrow_r.ate == pytest.approx(dropped_r.ate, rel=1e-9, abs=1e-12)
 
 
 def _response_curve_scm(n: int = 300, seed: int = 29) -> dict[str, np.ndarray]:
@@ -224,9 +242,10 @@ def test_missing_cell_matches_dropped_row_for_response_curve(source, column):
         if source == "pandas_nan":
             pd = pytest.importorskip("pandas")
             holed = pd.DataFrame(holed)
-    assert _response_curve_values(holed) == pytest.approx(
-        _response_curve_values(dropped), rel=1e-9, abs=1e-12
-    )
+    reference = _response_curve_values(dropped)
+    # Anchor: E[y | do(a)] = 2a + E[x], so the curve at -0.5, 0, 0.5 is about -1, 0, 1.
+    assert reference == pytest.approx([-1.0, 0.0, 1.0], abs=0.15)
+    assert _response_curve_values(holed) == pytest.approx(reference, rel=1e-9, abs=1e-12)
 
 
 @pytest.mark.parametrize("column", ["t", "y", "z"])
@@ -267,5 +286,6 @@ def test_arrow_nan_value_matches_dropped_row_for_ate(column):
         )
     )
     assert math.isfinite(arrow_r.ate)
+    assert dropped_r.ate == pytest.approx(2.0, abs=0.2)
     assert arrow_r.ate == pytest.approx(dropped_r.ate, rel=1e-9, abs=1e-12)
     assert arrow_r.ate == pytest.approx(numpy_r.ate, rel=1e-9, abs=1e-12)

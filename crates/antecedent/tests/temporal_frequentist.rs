@@ -919,6 +919,14 @@ fn temporal_dag_pulse_publishes_circular_block_se_only() {
         "the iid OLS SE must not be published on lagged rows"
     );
     assert_eq!(est.as_effect().unwrap().uncertainty.bootstrap.replicates_ok, Some(24));
+    // The point estimate recovers the population truth to within four of its own
+    // calibrated standard errors (a biased or mis-lagged estimate fails this).
+    let pulse_se = est.as_effect().unwrap().se_bootstrap().unwrap();
+    assert!(
+        (est.as_effect().unwrap().ate - BETA).abs() < 4.0 * pulse_se,
+        "pulse ate {} vs truth {BETA} (se {pulse_se})",
+        est.as_effect().unwrap().ate
+    );
     assert!(!has_diagnostic(&result, "estimate.temporal.circular_block_se.short_series"));
 
     // Without replicates there is no calibrated SE, and the result says so.
@@ -968,6 +976,19 @@ fn temporal_mediation_shares_one_block_replicate_across_contrasts() {
     for se in [block.total, block.direct, block.mediated] {
         assert!(se.is_some_and(|se| se.is_finite() && se > 0.0));
     }
+    // Each contrast's point estimate sits within four of its own block SEs of the
+    // population value (C + A*B, C, A*B).
+    let points = &slice.estimate;
+    for (point, se, truth) in [
+        (points.total, block.total, C + A * B),
+        (points.direct, block.direct, C),
+        (points.mediated, block.mediated, A * B),
+    ] {
+        let (point, se) = (point.unwrap(), se.unwrap());
+        assert!((point - truth).abs() < 4.0 * se, "point {point} vs truth {truth} (se {se})");
+    }
+    // The mediated and direct parts add to the total.
+    assert!((points.total.unwrap() - points.direct.unwrap() - points.mediated.unwrap()).abs() < 1e-9);
 
     // No replicates: every iid analytic SE stays NaN and no interval is claimed.
     let none = run(

@@ -185,6 +185,24 @@ fn mixed_study(
 fn a_posterior_of_temporal_pags_mixes_each_atoms_window_decomposition() {
     let series = lagged_series(6_000, 31);
     let ctx = ExecutionContext::for_tests(8_202);
+    // Population values from the generating equations (Pearl's natural effects), with
+    // m = 0.15 + 0.4 x + 0.3 w, P(w) = 0.35 and y = 0.1 + 0.2 x + 0.3 m + 0.2 x m:
+    // E[m | x=0] = 0.255 and E[m | x=1] = 0.655, so
+    //   total  = E[y(1, m1)] - E[y(0, m0)] = 0.6275 - 0.1765 = 0.451
+    //   direct = E[y(1, m0)] - E[y(0, m0)] = 0.4275 - 0.1765 = 0.251
+    //   indirect = E[y(0, m1)] - E[y(0, m0)] = 0.3 * 0.4 = 0.12
+    // (the interaction makes the total differ from direct + indirect). Observed errors are
+    // 0.026, 0.026 and 0.003 at 6000 rows; the alternative indirect convention gives 0.2.
+    for (contrast, truth) in [
+        (MediationContrast::Total, 0.451),
+        (MediationContrast::NaturalDirect, 0.251),
+        (MediationContrast::NaturalIndirect, 0.12),
+    ] {
+        for template in [lagged_template(), contemporaneous_template()] {
+            let value = explicit(&series, template, contrast);
+            assert!((value - truth).abs() < 0.05, "{contrast:?}: {value} vs {truth}");
+        }
+    }
     for contrast in [
         MediationContrast::Total,
         MediationContrast::NaturalDirect,
@@ -268,7 +286,11 @@ fn a_frequentist_mixture_of_templates_has_the_standard_error_of_its_shared_serie
         .unwrap();
     let effect = result.estimate().as_effect().unwrap();
     let se = effect.se_bootstrap().expect("the spread of the shared replicates");
-    assert!(se > 0.0 && se < 0.5, "{se}");
+    // The binary-outcome total effect at 3000 rows has a sampling sd near
+    // sqrt(2 * 0.25 / 1500) = 0.018 (observed bootstrap se 0.016), and the truth 0.451 lies
+    // within four of it.
+    assert!(se > 0.008 && se < 0.035, "{se}");
+    assert!((effect.ate - 0.451).abs() < 4.0 * se, "ate {} vs 0.451 (se {se})", effect.ate);
     assert!(effect.uncertainty.bootstrap.replicates_ok.unwrap() >= 40);
     assert!(
         result

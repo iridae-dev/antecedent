@@ -171,7 +171,7 @@ fn admg_posterior_average_effect_none_runs() {
         InferenceMode::Frequentist,
         InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)),
     ] {
-        let band: f64 = if matches!(inference, InferenceMode::Frequentist) { 1e-9 } else { 0.02 };
+        let band: f64 = if matches!(inference, InferenceMode::Frequentist) { 1e-9 } else { 0.01 };
         let result = run(data.clone(), gp.clone(), query.clone(), inference, RefuteSuite::None);
         assert_eq!(result.logical_plan.identifier.as_deref(), Some("general.id"));
         assert_eq!(result.logical_plan.estimator.as_deref(), Some("functional.effect"));
@@ -209,13 +209,12 @@ fn admg_posterior_average_effect_none_runs() {
                 && d.message.contains("single graphs")
         }));
         assert!(
-            has_policy(&result, StructuralAggregationPolicy::SameEstimandWeightedMean)
-                || result.estimate().as_effect().unwrap().ate.is_finite(),
+            has_policy(&result, StructuralAggregationPolicy::SameEstimandWeightedMean),
             "one identified front-door atom should mix as a scalar"
         );
         // The Frequentist route evaluates the front-door functional on the contingency counts,
         // which the fixture's exact rational reference reproduces to round-off; the Bayesian
-        // posterior mean carries Monte Carlo error over 32 draws, bounded well inside the gap to
+        // posterior mean carries Monte Carlo error over 32 draws (observed 0.0023, held to 0.01), well inside the gap to
         // the observational contrast (0.62) the front door removes.
         assert!(
             (result.estimate().as_effect().unwrap().ate - expected).abs() < band.max(tolerance),

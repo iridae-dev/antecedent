@@ -730,28 +730,50 @@ fn idc_post_treatment_conditioning_with_confounded_mediator() {
 /// and must be refused before the recursion can emit anything.
 #[test]
 fn overlapping_outcome_and_intervention_is_refused() {
+    use antecedent_identify::IdentificationError;
     let mut g = Admg::with_variables(2);
     g.insert_directed(d(0), d(1)).unwrap();
     let id = IdIdentifier::new();
     let idc = IdcIdentifier::new();
     let prep = id.prepare(&g).unwrap();
     let mut ws = IdentificationWorkspace::default();
+    let invalid = |e: Option<IdentificationError>, expected: &str, who: &str| match e {
+        Some(IdentificationError::InvalidQuery { message }) => {
+            assert!(message.contains(expected), "{who}: {message}");
+        }
+        other => panic!("{who}: expected InvalidQuery({expected}), got {other:?}"),
+    };
     for outcomes in [vec![0usize], vec![0, 1]] {
         let query = distribution_query(&outcomes, &[0]);
-        assert!(id.identify(&prep, &query, &mut ws).is_err(), "ID accepted Y ∩ X ≠ ∅");
-        assert!(idc.identify(&prep, &query, &mut ws).is_err(), "IDC accepted Y ∩ X ≠ ∅");
+        invalid(
+            id.identify(&prep, &query, &mut ws).err(),
+            "outcome V0 is also an intervention target",
+            "ID Y ∩ X ≠ ∅",
+        );
+        invalid(
+            idc.identify(&prep, &query, &mut ws).err(),
+            "outcome V0 is also an intervention target",
+            "IDC Y ∩ X ≠ ∅",
+        );
     }
     let conditioning_is_outcome = CausalQuery::Distribution(
         InterventionalDistributionQuery::new(v(1), [Intervention::set(v(0), level(1))])
             .with_conditioning([v(1)]),
     );
-    assert!(idc.identify(&prep, &conditioning_is_outcome, &mut ws).is_err());
+    invalid(
+        idc.identify(&prep, &conditioning_is_outcome, &mut ws).err(),
+        "conditioning overlaps outcome or intervention",
+        "IDC conditioning = outcome",
+    );
     let no_outcomes = CausalQuery::Distribution(
         InterventionalDistributionQuery::new(v(1), [Intervention::set(v(0), level(1))])
             .with_outcomes(Vec::new()),
     );
-    assert!(id.identify(&prep, &no_outcomes, &mut ws).is_err(), "ID accepted Y = ∅");
-    // The schedule-contrast entry has no query object to validate.
+    invalid(
+        id.identify(&prep, &no_outcomes, &mut ws).err(),
+        "requires at least one outcome",
+        "ID Y = ∅",
+    );
     let schedule = id.identify_schedule_contrast(
         &prep,
         v(0),
@@ -762,9 +784,6 @@ fn overlapping_outcome_and_intervention_is_refused() {
     assert!(schedule.is_err(), "schedule contrast accepted an intervened outcome");
 }
 
-/// Frozen worked examples: status, the published lines the derivation takes,
-/// the hedge node sets, and — for identified cases — agreement with an
-/// enumerated SCM on the same graph.
 #[test]
 fn frozen_id_cases_keep_status_lines_certificate_and_truth() {
     let fixture: serde_json::Value = serde_json::from_str(include_str!(

@@ -149,7 +149,10 @@ def test_trial_nuisance_misspecification_cases_are_separate(misspecified):
             inference=tr.TransportInference(0),
         ).estimate()
     )
-    assert result.estimate == pytest.approx(2.0, abs=0.16)
+    # Truth 2.0 in both cases (E[effect] over the target law). Observed deviations: 0.023
+    # (membership, correct outcome model) and 0.142 (outcome misspecified, linear fit of a
+    # quadratic).
+    assert result.estimate == pytest.approx(2.0, abs=0.06 if misspecified == "membership" else 0.16)
     assert result.interval is None
 
 
@@ -162,8 +165,12 @@ def test_trial_transformation_preview_uses_common_contract():
         inference=tr.TransportInference(bootstrap=0),
     )
     report = study.preview_transform("compatible_data_replace")
-    assert report
-    assert study.preview_transform("change_graph") != report
+    assert report["intent"] == "compatible_data_replace"
+    assert report["refused"] == "false"
+    graph_change = study.preview_transform("change_graph")
+    assert graph_change["refused"] == "true"
+    assert "transport.reprepare_required" in graph_change["refusal"]
+    assert graph_change["input_execution"] == report["input_execution"]
 
 
 def test_canonical_trial_executes_retained_checked_score_after_builder_disposal():

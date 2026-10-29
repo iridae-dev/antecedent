@@ -486,7 +486,8 @@ fn a_semantic_plan_binds_to_numbers_and_a_foreign_population_needs_its_admission
     // Numbers must exist for every planned mechanism.
     let mut missing = numbers();
     missing.remove("M");
-    assert!(lower_plan(&plan, &missing, PosteriorDependence::Unknown).is_err());
+    let absent = lower_plan(&plan, &missing, PosteriorDependence::Unknown).unwrap_err();
+    assert!(matches!(absent, MechanismCompositionArtifactError::Malformed(_)), "{absent:?}");
 
     // M fitted in another population: refused without a declaration ...
     let refusals = check_mechanism_composition(&declaration("source")).unwrap_err();

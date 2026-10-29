@@ -61,6 +61,8 @@ def test_a_declared_bound_widens_intervals_and_carries_a_replayable_band() -> No
     assert section.band_critical_value is not None and section.band_critical_value > 0.0
     assert section.band_lower is not None and section.band_upper is not None
     for j, point in enumerate(result.levels):
+        # The quadratic mean is reproduced by the local fit (observed error <= 1e-4).
+        assert point.value == pytest.approx(truth_level(point.dose), abs=1e-3)
         assert section.smoothing_bias_bound[j] > 0.0
         assert section.lower[j] <= point.lower and point.upper <= section.upper[j]
         assert section.band_lower[j] <= section.lower[j]
@@ -77,6 +79,9 @@ def test_a_declared_bound_widens_intervals_and_carries_a_replayable_band() -> No
 def test_a_contrast_under_a_bound_has_bias_aware_interval_and_no_band() -> None:
     result = run("contrast", curvature_bound=0.2)
     section = result.bias_aware
+    # The contrast is m(3) - m(1) = 3 exactly for the quadratic (a local quadratic fit
+    # reproduces it).
+    assert result.contrast.estimate == pytest.approx(truth_level(3.0) - truth_level(1.0), abs=1e-6)
     assert section is not None and len(section.lower) == 1
     assert section.band_lower is None and section.band_critical_value is None
     assert result.simultaneous_band == "closed"

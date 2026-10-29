@@ -79,11 +79,11 @@ def test_a_declared_joint_cell_recovers_the_known_law_and_the_interaction():
     assert result.treatments == ("t0", "t1")
     assert len(result.supported) == 4 and not result.unsupported
     for cell in result.cells:
-        assert cell.estimate == pytest.approx(truth(cell.cell), abs=0.08)
+        assert cell.estimate == pytest.approx(truth(cell.cell), abs=0.03)
         assert cell.ess > 100 and 0 < cell.propensity_min < cell.propensity_max < 1
-    assert result.cell(1, 1).estimate == pytest.approx(truth(3), abs=0.08)
+    assert result.cell(1, 1).estimate == pytest.approx(truth(3), abs=0.03)
     (interaction,) = result.contrasts
-    assert interaction.value == pytest.approx(1.0, abs=0.15)
+    assert interaction.value == pytest.approx(1.0, abs=0.05)
     by_hand = (
         result.cells[0].estimate
         - result.cells[1].estimate
@@ -118,7 +118,7 @@ def test_a_family_with_one_unsupported_cell_keeps_the_rest():
     assert result.degenerate_conditionals > 0
     assert result.sensitivity.orderings[0] == ("t1", "t0")
     by_name = {c.name: c for c in result.contrasts}
-    assert by_name["cell_minus_control:1"].value == pytest.approx(0.4, abs=0.08)
+    assert by_name["cell_minus_control:1"].value == pytest.approx(0.4, abs=0.04)
     for name in ("interaction", "cell_minus_control:3"):
         assert by_name[name].value is None
         assert by_name[name].refusal_code == "joint_cell_unsupported"
@@ -255,13 +255,13 @@ def test_a_declared_learner_nuisance_is_cross_fitted_and_point_only():
     assert result.claim == "point_only"
     assert len(result.supported) == 4
     for cell in result.cells:
-        # Loose band: a forest's leaf means carry bootstrap noise and no rate is claimed.
-        assert cell.estimate == pytest.approx(truth(cell.cell), abs=0.2)
+        # Observed deviation 0.014 at this seed; no rate is claimed for a forest.
+        assert cell.estimate == pytest.approx(truth(cell.cell), abs=0.05)
     assert "nuisance=ml_joint_cell" in result.provenance
     assert "propensity=ridge_logistic" not in result.provenance
     assert "fold_seed=3" in result.provenance
     (interaction,) = result.contrasts
-    assert interaction.value == pytest.approx(1.0, abs=0.3)
+    assert interaction.value == pytest.approx(1.0, abs=0.06)
 
 
 def test_a_cancelled_fit_is_never_a_result():

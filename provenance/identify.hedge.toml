@@ -57,4 +57,4 @@ sha256 = "8a2fb8d8664e894dbfc8640f1e2ec4c4d632e1828a41c4702488eba6ad25539d"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/id_completeness.rs"
-sha256 = "6d472237e8f2ff73147b23c7808af1d4eb4c416333f16a929974c3b6d035c3de"
+sha256 = "301c042f801515e92a17f6036156359465621af7ff8185271c3632a49569482a"

@@ -101,7 +101,9 @@ def test_conditional_dose_policy_keeps_group_labels_for_native_scientific_route(
     group[:] = "z"
     response = require_success(prepared.estimate()).continuous_dose_response
     assert response.support_status == "licensed"
-    assert response.fixed_policy.incremental_value == pytest.approx(0.7, abs=0.15)
+    # Group slopes 1.5 and 2.0 times the dose shift 0.4 give 0.6 and 0.8; equal group sizes
+    # average to 0.7 (observed 0.7065).
+    assert response.fixed_policy.incremental_value == pytest.approx(0.7, abs=0.02)
 
 
 def test_dataframe_labels_preserve_the_native_numeric_view_boundary():

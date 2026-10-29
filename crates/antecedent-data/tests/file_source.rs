@@ -597,6 +597,8 @@ fn a_dataset_directory_reads_its_files_in_order_and_refuses_a_different_schema()
     let materialized = table.materialize(&plan, &ctx()).unwrap();
     let ColumnView::Float64(y) = column(materialized.data(), "y") else { panic!("y") };
     assert_eq!(y.values.as_slice()[30], 101.0, "the second file follows the first");
+    assert_eq!(y.values.as_slice()[29], 1.0 + 2.0 * 29.0, "the first file ends at row 29");
+    assert_eq!(y.values.as_slice()[49], 1.0 + 2.0 * 19.0 + 100.0, "the second file ends last");
 
     let other = Schema::new(vec![Field::new("x", DataType::Int32, false)]);
     let odd =
@@ -633,6 +635,13 @@ fn the_writer_round_trips_library_tables_through_every_format() {
             "{name} round-trips the stored columns and masks"
         );
         assert_eq!(materialized.snapshot_digest(), data.storage().content_digest());
+        // Independent read-back of the written values, not only the digest.
+        let ColumnView::Float64(t) = column(materialized.data(), "t") else { panic!("t") };
+        assert_eq!(&t.values.as_slice()[..4], &[0.0, 1.0, 0.0, 1.0], "{name}");
+        assert!(!t.validity.is_valid(4), "{name}: a NaN is written invalid");
+        assert!((0..4).all(|row| t.validity.is_valid(row)), "{name}");
+        let ColumnView::Float64(y) = column(materialized.data(), "y") else { panic!("y") };
+        assert_eq!(y.values.as_slice(), &[1.0, 3.0, 1.5, 2.5, 0.5], "{name}");
         let left = materialized.row_range_identity(0..2).unwrap();
         assert_ne!(left, materialized.row_range_identity(2..5).unwrap());
         assert_ne!(left, materialized.snapshot_digest(), "a row range is not the full source");

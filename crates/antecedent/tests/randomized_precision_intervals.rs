@@ -61,6 +61,13 @@ fn supported_ancova_and_fixed_cuped_intervals_round_trip_and_refuse_forgery() {
         let [lower, upper] = fit.interval_95.expect("supported precision interval");
         assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
         assert!(lower < fit.effect && fit.effect < upper);
+        // The generated treatment effect is exactly 1.4; the covariates and the sinusoid
+        // average out (observed deviation <= 0.002), and the interval covers it.
+        assert!((fit.effect - 1.4).abs() < 0.03, "{label}: {}", fit.effect);
+        assert!(lower < 1.4 && 1.4 < upper, "{label}: [{lower}, {upper}]");
+        if label == "ancova" {
+            assert!(upper - lower < 0.3, "ancova must exploit the covariates: {}", upper - lower);
+        }
         assert!(fit.standard_error.unwrap() > 0.0);
         assert_eq!(
             result.interval().as_ref().unwrap().method,
@@ -75,24 +82,22 @@ fn supported_ancova_and_fixed_cuped_intervals_round_trip_and_refuse_forgery() {
         );
         let mut forged = artifact.clone();
         forged.randomized_effect.as_mut().unwrap().interval_95.as_mut().unwrap()[1] += 0.5;
-        assert!(
-            antecedent_io::encode_analysis_result_artifact(
-                &forged,
-                header.variable_names.clone(),
-                "forged-interval"
-            )
-            .is_err()
-        );
+        let refused = antecedent_io::encode_analysis_result_artifact(
+            &forged,
+            header.variable_names.clone(),
+            "forged-interval",
+        )
+        .expect_err("a forged interval must not encode");
+        assert!(refused.to_string().contains("fabricated interval"), "{label}: {refused}");
         let mut forged = artifact;
         forged.randomized_effect.as_mut().unwrap().standard_error = Some(0.01);
-        assert!(
-            antecedent_io::encode_analysis_result_artifact(
-                &forged,
-                header.variable_names,
-                "forged-se"
-            )
-            .is_err()
-        );
+        let refused = antecedent_io::encode_analysis_result_artifact(
+            &forged,
+            header.variable_names,
+            "forged-se",
+        )
+        .expect_err("a forged standard error must not encode");
+        assert!(refused.to_string().contains("fabricated interval"), "{label}: {refused}");
     }
 }
 
@@ -129,6 +134,7 @@ fn an_ancova_beyond_the_measured_covariates_publishes_the_flagged_student_interv
     let fit = result.randomized_effect().unwrap();
     let [lower, upper] = fit.interval_95.expect("flagged interval beyond two covariates");
     assert!(lower < fit.effect && fit.effect < upper);
+    assert!((fit.effect - 1.4).abs() < 0.03, "{}", fit.effect);
     assert_eq!(fit.uncertainty.as_ref(), "bernoulli_ancova_hc2_bell_mccaffrey_student_interval");
     assert!(result.support_status().is_none());
 }
@@ -230,6 +236,8 @@ fn three_hundred_row_trials_publish_intervals_from_their_own_arm_support() {
                 .interval_95
                 .unwrap_or_else(|| panic!("{name} {label}: 300 rows must publish an interval"));
             assert!(lower < fit.effect && fit.effect < upper, "{name} {label}");
+            assert!((fit.effect - 1.4).abs() < 0.03, "{name} {label}: {}", fit.effect);
+            assert!(lower < 1.4 && 1.4 < upper, "{name} {label}: [{lower}, {upper}]");
             assert_eq!(
                 result.support_status(),
                 Some(antecedent::support::CellStatus::Licensed),

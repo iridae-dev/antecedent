@@ -265,7 +265,16 @@ fn a_fresh_consumer_replays_the_export_and_refuses_tampering() {
     let mut flipped = bytes.clone();
     let middle = flipped.len() / 2;
     flipped[middle] ^= 0xff;
-    assert!(consume_composition_verification_artifact(&flipped, None).is_err());
+    let tampered = consume_composition_verification_artifact(&flipped, None).expect_err("tampered");
+    assert_eq!(tampered.code, "invalid_argument");
+    assert_eq!(tampered.detail, "composition_verification.artifact_invalid");
+    for offset in [0, bytes.len() / 4, 3 * bytes.len() / 4, bytes.len() - 1] {
+        let mut other = bytes.clone();
+        other[offset] ^= 0x01;
+        assert!(consume_composition_verification_artifact(&other, None).is_err(), "byte {offset}");
+    }
+    let stale = consumed.require_valid("decision").expect_err("recompute");
+    assert_eq!(stale.detail, "composition_verification.recompute_required");
     let other_identity = "0".repeat(64);
     let wrong = consume_composition_verification_artifact(&bytes, Some(other_identity.as_str()))
         .expect_err("retained identity");

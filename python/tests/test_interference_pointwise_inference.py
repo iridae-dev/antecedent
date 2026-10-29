@@ -46,6 +46,15 @@ def test_cluster_total_interval_is_retained_and_sealed() -> None:
     assert interval.level == 0.95
     assert interval.first_stage_arm_clusters == (40, 40)
     assert interval.lower < result.interference.contrast.horvitz_thompson < interval.upper
+    # The HT contrast of a completely randomized cluster design is the treated-minus-control
+    # cluster-mean difference, computed here from the outcomes: 2.3775.
+    treated = [value for value, flag in zip(outcome, assignment, strict=True) if flag]
+    control = [value for value, flag in zip(outcome, assignment, strict=True) if not flag]
+    assert result.interference.contrast.horvitz_thompson == pytest.approx(
+        np.mean(treated) - np.mean(control), abs=1e-9
+    )
+    # The population effect (mean of 2 + 0.1 (c % 7) over the 80 clusters) is 2.2925.
+    assert interval.lower < 2.2925 < interval.upper
     assert interval.standard_error > 0
     assert interval.degrees_of_freedom > 0
     assert "cluster" in result.interference.uncertainty_semantics.lower()
@@ -99,6 +108,8 @@ def test_saturation_interval_and_support_round_trip(
     assert interval is not None
     assert interval.first_stage_arm_clusters == (cluster_count // 2, cluster_count // 2)
     assert interval.lower < truth < interval.upper, name
+    # The saturation HT estimate is design-random (observed errors <= 0.58 at these sizes).
+    assert abs(result.interference.contrast.horvitz_thompson - truth) < 0.75, name
     assert interval.lower < result.interference.contrast.horvitz_thompson < interval.upper
     assert result.interference.support.from_observed_clusters >= 8
     assert result.interference.support.to_observed_clusters >= 8

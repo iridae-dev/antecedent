@@ -296,6 +296,20 @@ fn many_participants_do_not_underflow_or_lose_the_peak() {
     assert!((got.probability_best.iter().sum::<f64>() - 1.0).abs() < 1e-9);
     assert!(got.probability_best[2] > 0.99);
     assert!(got.sd.iter().all(|&s| s > 0.0 && s < 0.01));
+    // Independent reference (numpy/scipy): dense midpoint sum (2e6 nodes) of the
+    // beta-binomial likelihood at rho = 0.2 over the success probability.
+    close_all(
+        &got.mean,
+        &[0.5182697608541518, 0.6664235356451106, 0.7396319179674117],
+        1e-8,
+        "mean",
+    );
+    close_all(
+        &got.sd,
+        &[0.0016143273984490286, 0.0015101489400750285, 0.001370422025858784],
+        1e-8,
+        "sd",
+    );
     assert!(got.probability_error < 1e-9, "{}", got.probability_error);
 }
 
