@@ -64,9 +64,14 @@ fn predict_bytes(bytes: &[u8]) -> (Vec<f64>, String) {
     let model = consumed.body.fitted_effect.unwrap();
     let ctx = ExecutionContext::for_tests(3);
     let values = model.predict(&[VariableId::from_raw(0)], &[&[-1.0, 0.0, 1.0]], 3, &ctx).unwrap();
-    // Independent SCM truth E[Y(1)-Y(0)|z] = 2 + 0.4 z.
-    for (value, truth) in values.iter().zip([1.6, 2.0, 2.4]) {
-        assert!((value - truth).abs() < 0.12, "CATE SCM anchor: {value} vs {truth}");
+    // Independent SCM truth E[Y(1)-Y(0)|z] = 2 + 0.4 z. The outcome is noiseless and exactly
+    // linear in (t, t*z, z), so the fitted CATE deviates from the structural value only by
+    // fitting error (observed <= 7.1e-5); 5e-4 is about seven times that and excludes a wrong
+    // slope (0.4 -> 0.3 moves the z=+-1 anchors by 0.1) or intercept.
+    for (z, (value, truth)) in [-1.0_f64, 0.0, 1.0].iter().zip(values.iter().zip([1.6, 2.0, 2.4])) {
+        let closed_form = 2.0 + 0.4 * z;
+        assert!((closed_form - truth).abs() < 1e-12);
+        assert!((value - truth).abs() < 5e-4, "CATE SCM anchor at z={z}: {value} vs {truth}");
     }
     assert!(model.predict(&[VariableId::from_raw(1)], &[&[0.0]], 1, &ctx).is_err());
     assert!(model.predict(&[VariableId::from_raw(0)], &[&[f64::NAN]], 1, &ctx).is_err());

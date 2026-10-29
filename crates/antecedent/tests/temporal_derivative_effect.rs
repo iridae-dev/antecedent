@@ -102,8 +102,46 @@ fn temporal_dag_derivatives_publish_the_linear_slope() {
     let data = series();
     let graph = graph();
     let ctx = ExecutionContext::for_tests(11);
-    let tolerance = pin["tolerance"].as_f64().unwrap();
+    // The structural values from the generating coefficients (Y = 3 + 2 X + 0.5 B, V = 1 + X - B,
+    // B alternating so E[B] = 1/2), derived here and required to equal the retained pin: the mean
+    // response is 3.25 + 2x = 7.25 at x = 2, so the slope is 2, the log-treatment slope 2 * 2,
+    // the log-outcome slope 2 / 7.25, the elasticity 4 / 7.25, and the Jacobian is the
+    // coefficient matrix [[2, 0.5], [1, -1]] with directional derivative [[2, .5], [1, -1]] (1, 2).
+    let level = 3.0 + 0.5 * 0.5 + 2.0 * 2.0;
+    let structural: [(&str, Vec<f64>); 7] = [
+        ("point", vec![2.0]),
+        ("elasticity", vec![2.0 * 2.0 / level]),
+        ("semi_treatment", vec![2.0 * 2.0]),
+        ("semi_outcome", vec![2.0 / level]),
+        ("average", vec![2.0]),
+        ("jacobian", vec![2.0, 0.5, 1.0, -1.0]),
+        ("directional", vec![2.0 + 0.5 * 2.0, 1.0 - 2.0]),
+    ];
+    for (key, values) in &structural {
+        let pinned: Vec<f64> = pin[*key].as_f64().map_or_else(
+            || pin[*key].as_array().unwrap().iter().map(|x| x.as_f64().unwrap()).collect(),
+            |x| vec![x],
+        );
+        for (derived, pinned) in values.iter().zip(&pinned) {
+            assert!((derived - pinned).abs() < 1e-12, "{key}: {derived} vs pin {pinned}");
+        }
+    }
+    // Per-key tolerances at about three times the deviation observed over both inference modes
+    // and both graph inputs. The kernel-weighted local slope of the single treatment reads
+    // 2.0033 (a 0.0033 local-confounding term of the alternating covariate; the elasticity and
+    // log-scale readings inherit it), while the multivariate Jacobian and directional
+    // derivatives are exact least-squares coefficients of this noiseless linear series
+    // (deviation 1e-14).
+    let tolerance_of = |key: &str| match key {
+        "point" | "average" => 0.01,
+        "semi_treatment" => 0.02,
+        "elasticity" => 0.003,
+        "semi_outcome" => 0.0015,
+        "jacobian" | "directional" => 1e-9,
+        other => panic!("no tolerance for {other}"),
+    };
     for (key, functional) in functionals() {
+        let tolerance = tolerance_of(key);
         for accepted in [false, true] {
             for bayesian in [false, true] {
                 let builder = Study::series(data.clone())

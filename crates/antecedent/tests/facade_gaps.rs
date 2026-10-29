@@ -264,7 +264,32 @@ fn counterfactual_and_anomaly_via_causal_analysis() {
     assert_eq!(blocks.len(), 1);
     assert_eq!(blocks[0].scores.len(), blocks[0].rows.len());
     assert_eq!(&*blocks[0].rows, (0..60).collect::<Vec<usize>>().as_slice(), "one score per row, in order");
-    assert!(!blocks[0].scores.is_empty() && blocks[0].scores.iter().all(|s| s.is_finite()));
+    // Independent scores: the default reference is the target column's median with scale
+    // 1.4826 MAD, and a row scores -ln P(|Z| >= |y - median| / scale) with the Gaussian tail
+    // erfc(z / sqrt 2), computed here from the Maclaurin series of erf (no product code).
+    let y: Vec<f64> = (0..60).map(|i| 1.0 + 2.0 * f64::from(i % 2) + 0.01 * f64::from(i)).collect();
+    let median = |values: &[f64]| {
+        let mut sorted = values.to_vec();
+        sorted.sort_by(f64::total_cmp);
+        (sorted[29] + sorted[30]) / 2.0
+    };
+    let center = median(&y);
+    let mad = median(&y.iter().map(|v| (v - center).abs()).collect::<Vec<_>>());
+    let scale = 1.482_602_218_505_602 * mad;
+    let erfc = |x: f64| {
+        let mut term = x;
+        let mut sum = x;
+        for n in 1..80 {
+            term *= -x * x / f64::from(n);
+            sum += term / f64::from(2 * n + 1);
+        }
+        1.0 - 2.0 / std::f64::consts::PI.sqrt() * sum
+    };
+    for (row, score) in blocks[0].scores.iter().enumerate() {
+        let z = (y[row] - center).abs() / scale;
+        let want = -erfc(z / std::f64::consts::SQRT_2).ln();
+        assert!((score - want).abs() < 1e-9, "row {row}: score {score} vs {want} (z = {z})");
+    }
 }
 
 #[test]

@@ -107,10 +107,23 @@ fn nested_fisher_candidate_replays_covariance_and_refuses_semantic_mutations() {
     assert_eq!(consumer.effect_covariance, producer.effect_covariance);
     assert_eq!(consumer.interval_candidates, producer.interval_candidates);
     assert_eq!(consumer.calibration, "unmeasured");
-    assert!(
-        NestedMarkovArtifactWire::decode(&bytes).is_err(),
-        "point reader cannot mint an interval license"
-    );
+    // Independent point value: the SCM chain X2 -> X3 -> X4 gives the contrast
+    // (p3(1) - p3(0)) * 0.35 = 0.5 * 0.35 = 0.175, and the enumerated truth agrees.
+    let truth = truth_mean(1) - truth_mean(0);
+    assert!((truth - 0.175).abs() < 1e-12, "{truth}");
+    assert!((consumer.point.receipt.contrast.model_contrast - 0.175).abs() < 1e-9);
+    // The normal-delta candidate for the contrast is centred on that value with half-width
+    // z_{0.975} * sd (observed ratio 1.95996), computed here from the stored covariance.
+    let [lo, hi] = consumer.interval_candidates[2];
+    assert!(((lo + hi) / 2.0 - 0.175).abs() < 1e-9);
+    let half = (hi - lo) / 2.0;
+    let z = half / consumer.effect_covariance[2][2].sqrt();
+    assert!((z - 1.959_963_984_540_054).abs() < 1e-6, "{z}");
+    // The point reader refuses the candidate envelope by its schema (it carries `method`).
+    assert!(matches!(
+        NestedMarkovArtifactWire::decode(&bytes),
+        Err(IoError::Cbor(_))
+    ), "point reader cannot mint an interval license");
     for mutation in
         ["covariance", "interval", "sampling", "calibration", "method", "count", "version"]
     {
@@ -128,16 +141,26 @@ fn nested_fisher_candidate_replays_covariance_and_refuses_semantic_mutations() {
             "version" => bad.version = 99,
             _ => unreachable!(),
         }
-        assert!(
-            NestedFisherArtifact::consume(
-                &bad.export().unwrap(),
-                &expected,
-                NestedMarkovConsumeLimits::default(),
-                &ExecutionContext::for_tests(22)
-            )
-            .is_err(),
-            "{mutation}"
-        );
+        let error = NestedFisherArtifact::consume(
+            &bad.export().unwrap(),
+            &expected,
+            NestedMarkovConsumeLimits::default(),
+            &ExecutionContext::for_tests(22),
+        )
+        .expect_err(mutation);
+        match mutation {
+            "version" => assert!(matches!(error, IoError::UnsupportedVersion { version: 99 })),
+            "count" => assert!(
+                matches!(&error, IoError::Refused { code: "invalid_argument", message }
+                    if message.contains("data identity")),
+                "{mutation}: {error:?}"
+            ),
+            _ => assert!(
+                matches!(&error, IoError::Refused { code: "invalid_argument", message }
+                    if message == "nested markov artifact: fit receipt does not replay"),
+                "{mutation}: {error:?}"
+            ),
+        }
     }
 }
 

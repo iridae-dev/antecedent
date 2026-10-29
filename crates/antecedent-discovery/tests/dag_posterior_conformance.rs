@@ -206,6 +206,68 @@ fn dag_posterior_engines_put_fixture_mass_on_the_true_structure() {
     let lagged = post.lagged_edge_marginals().expect("lagged marginals");
     let mass = lagged[from * 2 + to];
     assert!(mass >= min_mass, "DbnPosterior: P(x_(t-1) -> y_t) = {mass} < {min_mass}");
+
+    // Exact reference: enumerate every template the engine declares (the 3 contemporaneous DAGs
+    // on two variables times the 2^4 lag-1 edge sets, uniform prior, no constraint forbidding
+    // any of them) and weight each by the Gaussian BIC of the aligned design, exactly as for the
+    // static enumeration. The design rows are t = 1..n-1 with columns (x_t, y_t, x_(t-1),
+    // y_(t-1)); a node's parents are its contemporaneous parents and its lagged sources.
+    use antecedent_data::TableView;
+    let series_x = data.float64_values(vars[0]).unwrap().to_vec();
+    let series_y = data.float64_values(vars[1]).unwrap().to_vec();
+    let rows = series_x.len() - 1;
+    let design: Vec<Vec<f64>> = vec![
+        series_x[1..].to_vec(),
+        series_y[1..].to_vec(),
+        series_x[..rows].to_vec(),
+        series_y[..rows].to_vec(),
+    ];
+    let n = rows as f64;
+    let contemporaneous: [&[(usize, usize)]; 3] = [&[], &[(0, 1)], &[(1, 0)]];
+    let mut logs = Vec::new();
+    let mut lag_sets = Vec::new();
+    let mut cmasks = Vec::new();
+    for (ci, edges) in contemporaneous.iter().enumerate() {
+        for lword in 0_u32..16 {
+            // lag bit = from * 2 + to
+            let lag_edge = |from: usize, to: usize| lword >> (from * 2 + to) & 1 == 1;
+            let log_weight: f64 = (0..2)
+                .map(|node| {
+                    let mut parents: Vec<usize> =
+                        edges.iter().filter(|e| e.1 == node).map(|e| e.0).collect();
+                    parents.extend((0..2).filter(|&from| lag_edge(from, node)).map(|from| 2 + from));
+                    -(n / 2.0) * (ols_rss(&design, node, &parents) / n).ln()
+                        - (parents.len() as f64 / 2.0) * n.ln()
+                })
+                .sum();
+            logs.push(log_weight);
+            lag_sets.push(lword);
+            cmasks.push(ci);
+        }
+    }
+    let top = logs.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    let total: f64 = logs.iter().map(|w| (w - top).exp()).sum();
+    let mut lag_marginals = [0.0_f64; 4];
+    for ((w, lword), _) in logs.iter().zip(&lag_sets).zip(&cmasks) {
+        for (bit, slot) in lag_marginals.iter_mut().enumerate() {
+            if lword >> bit & 1 == 1 {
+                *slot += (w - top).exp() / total;
+            }
+        }
+    }
+    for (bit, want) in lag_marginals.iter().enumerate() {
+        assert!(
+            (lagged[bit] - want).abs() < 1e-6,
+            "DbnPosterior lag-1 marginal of edge {} -> {}: {} vs enumeration {want}",
+            bit / 2,
+            bit % 2,
+            lagged[bit]
+        );
+    }
+    // The true edge x_(t-1) -> y_t carries essentially all the mass, and the enumeration says
+    // exactly how much.
+    assert!((mass - lag_marginals[1]).abs() < 1e-6);
+    assert!(lag_marginals[1] > 0.999, "enumerated mass {}", lag_marginals[1]);
 }
 
 /// Residual sum of squares of `target` regressed on an intercept and `parents` (normal

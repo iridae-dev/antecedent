@@ -239,6 +239,54 @@ def test_dense_trajectories_recover_the_epidemic_parameters_with_separate_eviden
     assert "converged" not in fit["identification"]
 
 
+def _season(time: float) -> float:
+    return float(np.interp(time, [0.0, 5.0, 10.0, 15.0, 20.0], [-1.0, 0.0, 1.0, 0.0, -1.0]))
+
+
+def _gaussian_fisher_information(theta: np.ndarray) -> np.ndarray:
+    """Expected Fisher information of the Euler Gaussian transitions of the retained data.
+
+    Each component of a transition is ``N(x + drift dt, variance dt)`` with ``drift`` and
+    ``variance`` the epidemic flux terms, so the information of ``(beta, amplitude, gamma)`` is
+    ``sum dt dd dd' / v + (1/2) dv dv' / v^2`` over components, computed here in numpy from the
+    stated coefficients (population 1000) with analytic derivatives.
+    """
+    beta, amplitude, gamma = theta
+    information = np.zeros((3, 3))
+    for unit in REFERENCE["quasi_likelihood"]["units"]:
+        times, states = unit["times"], unit["values"]
+        for k in range(len(times) - 1):
+            dt, u = times[k + 1] - times[k], _season(times[k])
+            s, i = states[k][0], states[k][1]
+            flux = beta * (1 + amplitude * u) * s * i / 1000.0
+            d_flux = np.array([(1 + amplitude * u) * s * i / 1000.0, beta * u * s * i / 1000.0, 0.0])
+            d_recovery = np.array([0.0, 0.0, i])
+            d_drift = (-d_flux, d_flux - d_recovery, d_recovery)
+            d_variance = (d_flux, d_flux + d_recovery, d_recovery)
+            variance = (flux, flux + gamma * i, gamma * i)
+            for dd, dv, v in zip(d_drift, d_variance, variance, strict=True):
+                information += dt * np.outer(dd, dd) / v + 0.5 * np.outer(dv, dv) / v**2
+    return information
+
+
+def _mean_contrast(theta: np.ndarray) -> np.ndarray:
+    """Deterministic (mean-field Euler) lockdown-minus-baseline contrast at t = 0, 5, 10."""
+    beta, amplitude, gamma = theta
+    paths = []
+    for locked in (True, False):
+        x = np.array(INITIAL)
+        rows = [x.copy()]
+        for n in range(200):
+            u = -1.0 if locked else _season(n * 0.05)
+            flux = beta * (1 + amplitude * u) * x[0] * x[1] / 1000.0
+            recovery = gamma * x[1]
+            x = x + np.array([-flux, flux - recovery, recovery]) * 0.05
+            if (n + 1) % 100 == 0:
+                rows.append(x.copy())
+        paths.append(np.array(rows))
+    return paths[0] - paths[1]
+
+
 def test_simulation_is_at_the_fit_and_parameter_spread_is_separate(dense_fit):
     _, result = dense_fit
     assert result["simulation"]["parameters"] == result["fit"]["theta"]
@@ -249,6 +297,32 @@ def test_simulation_is_at_the_fit_and_parameter_spread_is_separate(dense_fit):
     assert all(v >= 0 for row in contrast for v in row)
     assert any(v > 0 for v in contrast[-1])
     assert result["simulation"]["worlds"][0]["monte_carlo_standard_error"][-1][1] > 0
+
+    # Independent reference for the spread. The parameter draws are asymptotic-normal around the
+    # fit, so the variance of a contrast mean across draws is the delta-method value g' Sigma g,
+    # with Sigma the inverse Gaussian quasi-likelihood Fisher information of the retained data
+    # (numpy, above) and g the sensitivity of the mean-field contrast to the parameters.
+    theta = np.array(result["fit"]["theta"])
+    covariance = np.linalg.inv(_gaussian_fisher_information(theta))
+    # The fit's own standard errors are that information's inverse (observed ratio 0.98-1.00).
+    np.testing.assert_allclose(
+        np.sqrt(np.diag(covariance)), result["fit"]["standard_errors"], rtol=0.05
+    )
+    sensitivity = np.zeros((3, 3, 3))  # [time row, variable, parameter]
+    for j in range(3):
+        step = np.zeros(3)
+        step[j] = 1e-5 * max(1.0, abs(theta[j]))
+        sensitivity[:, :, j] = (_mean_contrast(theta + step) - _mean_contrast(theta - step)) / (
+            2 * step[j]
+        )
+    expected = np.einsum("tvi,ij,tvj->tv", sensitivity, covariance, sensitivity)
+    observed = np.array(contrast)
+    assert np.all(observed[0] == 0.0), "no parameter acts before the first output"
+    # A sample variance of 16 draws has a relative standard deviation of sqrt(2 / 15) = 0.37 and
+    # the ensemble is stochastic where the reference is mean-field; the observed ratios are
+    # 0.72-0.80 at t = 5 and 0.52-0.66 at t = 10, so a factor of 2.5 either way.
+    ratio = observed[1:] / expected[1:]
+    assert np.all((ratio > 0.4) & (ratio < 2.5)), ratio
 
 
 def test_evidence_projects_the_quasi_likelihood_and_world_means_with_error_diagnostics(dense_fit):

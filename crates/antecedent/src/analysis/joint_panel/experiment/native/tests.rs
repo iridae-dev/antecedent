@@ -177,7 +177,8 @@ fn all_native_target_kinds_execute_full_experiment_matrix_against_independent_re
         ][index];
         if index == 6 {
             assert!(
-                native_prior(&result, &binding).is_err(),
+                matches!(native_prior(&result, &binding), Err(JointPanelError::Unsupported(m))
+                    if m.contains("cannot become a Bayesian experimental prior")),
                 "unconditioned local ratio moments are not asserted"
             );
         }
@@ -188,9 +189,13 @@ fn all_native_target_kinds_execute_full_experiment_matrix_against_independent_re
             .map(|r| r.iter().zip(&binding.coefficients).map(|(v, c)| v * c).sum::<f64>())
             .sum::<f64>()
             / original_law.n_draws() as f64;
+        // Observed deviations of the projected prior mean from the separately derived truth are
+        // [-0.0038, -0.0012, 0.0228, -0.0020, -0.0032, 0.0075, -0.0048]; each tolerance is about
+        // four times its fixture's deviation, far under the 0.3 that admitted a wrong functional.
+        let tolerance = [0.015, 0.006, 0.09, 0.008, 0.013, 0.03, 0.02][index];
         assert!(
-            (projected - known_truth).abs() < 0.3,
-            "native target functional must recover the separately derived fixture truth{known_truth}"
+            (projected - known_truth).abs() < tolerance,
+            "native target functional must recover the separately derived fixture truth {known_truth}: {projected}"
         );
         let case = [
             "switchback",
@@ -296,13 +301,15 @@ fn exercise(
     let mut stale = request.clone();
     stale.mapping.dependency = original.prepared().dependency();
     assert!(
-        original.condition_native_experiment(binding.clone(), stale, &ledger, ctx).is_err(),
+        matches!(original.condition_native_experiment(binding.clone(), stale, &ledger, ctx),
+            Err(JointPanelError::Unsupported(m)) if m.contains("another fitted source or numerical dependency")),
         "a source-data identity alone cannot authorize posterior mapping slots"
     );
     let mut unsupported = request.clone();
     unsupported.bridge.target.quantity.functional_id = "population_ate".into();
     assert!(
-        original.condition_native_experiment(binding.clone(), unsupported, &ledger, ctx).is_err(),
+        matches!(original.condition_native_experiment(binding.clone(), unsupported, &ledger, ctx),
+            Err(JointPanelError::Compile(m)) if m.contains("exact method-native functional, population and units")),
         "a native structural/cohort/donor target cannot silently acquire another population-effect meaning"
     );
     if binding.local_ratio_regularization.is_some() {
@@ -311,7 +318,8 @@ fn exercise(
         let mut bad_request = request.clone();
         bad_request.bridge.target.quantity = original.experiment_quantity(&missing).unwrap();
         assert!(
-            original.condition_native_experiment(missing, bad_request, &ledger, ctx).is_err(),
+            matches!(original.condition_native_experiment(missing, bad_request, &ledger, ctx),
+                Err(JointPanelError::Compile(m)) if m.contains("bridge_binding_mismatch")),
             "undefined ratio moments need a complete posterior regularization premise"
         );
         let mut invalid = binding.clone();
@@ -319,7 +327,8 @@ fn exercise(
         let mut bad_request = request.clone();
         bad_request.bridge.target.quantity = original.experiment_quantity(&invalid).unwrap();
         assert!(
-            original.condition_native_experiment(invalid, bad_request, &ledger, ctx).is_err(),
+            matches!(original.condition_native_experiment(invalid, bad_request, &ledger, ctx),
+                Err(JointPanelError::Compile(m)) if m.contains("bridge_binding_mismatch")),
             "realizations outside claimed global support must refuse"
         );
     }
@@ -474,7 +483,8 @@ fn exercise(
     different.observed_mean -= 0.4;
     let changed =
         original.condition_native_experiment(binding.clone(), different, &ledger, ctx).unwrap();
-    assert!(changed.consume_current(&artifact, &ledger, ctx).is_err());
+    assert!(matches!(changed.consume_current(&artifact, &ledger, ctx),
+        Err(JointPanelError::Compile(m)) if m.contains("replay differs from caller-current")));
     let other = changed.numerical_law_source(&ledger).unwrap();
     assert!(
         other
@@ -487,7 +497,8 @@ fn exercise(
             .any(|(a, b)| (a - b).abs() > 1e-12)
     );
     ledger.withdraw_source(experiment, "withdrawn external evidence").unwrap();
-    assert!(updated.consume_current(&artifact, &ledger, ctx).is_err());
+    assert!(matches!(updated.consume_current(&artifact, &ledger, ctx),
+        Err(JointPanelError::Unsupported(m)) if m.contains("missing, withdrawn or superseded")));
     let max_weight_error =
         weights.iter().zip(&likelihood).map(|(w, l)| (w - l / mass).abs()).fold(0.0_f64, f64::max);
     acceptance_record::record(

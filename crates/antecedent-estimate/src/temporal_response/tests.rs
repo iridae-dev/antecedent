@@ -1152,20 +1152,70 @@ fn surface_bootstrap_rows_are_calendar_aligned_over_the_common_window() {
 /// persistent score, and reports when the n/3 cap binds.
 #[test]
 fn response_block_length_lengthens_on_persistent_scores() {
+    /// The stated rule, written out from its definition and not from the product code:
+    /// `rule = max(span, ceil(sqrt(rows)))` (capped at `rows`), `testing = ceil(b_PW rows^(1/6))`
+    /// with `b_PW` the largest Politis-White flat-top block length over the scores, and
+    /// `length = max(rule, min(testing, rows / 3))` (at most `rows`).
+    fn politis_white(scores: &[f64]) -> usize {
+        let n = scores.len();
+        let nf = n as f64;
+        let mean = scores.iter().sum::<f64>() / nf;
+        let centered: Vec<f64> = scores.iter().map(|s| s - mean).collect();
+        let autocov = |k: usize| -> f64 {
+            centered[..n - k].iter().zip(&centered[k..]).map(|(a, b)| a * b).sum::<f64>() / nf
+        };
+        let gamma0 = autocov(0);
+        let k_n = 5usize.max(nf.log10().sqrt().ceil() as usize);
+        let m_max = (nf.sqrt().ceil() as usize + k_n).min(n - 1);
+        let threshold = 2.0 * (nf.log10() / nf).sqrt();
+        let rho: Vec<f64> = (0..=m_max).map(|k| autocov(k) / gamma0).collect();
+        // first m after which K_n consecutive autocorrelations are insignificant
+        let m_hat = (0..=m_max.saturating_sub(k_n))
+            .find(|&m| (1..=k_n).all(|j| rho.get(m + j).is_none_or(|r| r.abs() < threshold)))
+            .unwrap_or(m_max.saturating_sub(k_n));
+        let big_m = (2 * m_hat).min(m_max).max(1);
+        let (mut g0, mut big_g) = (gamma0, 0.0);
+        for k in 1..=big_m {
+            let t = k as f64 / big_m as f64;
+            let weight = if t <= 0.5 { 1.0 } else { 2.0 * (1.0 - t) } * rho[k] * gamma0;
+            g0 += 2.0 * weight;
+            big_g += 2.0 * k as f64 * weight;
+        }
+        let b = (2.0 * big_g * big_g / (4.0 / 3.0 * g0 * g0)).cbrt() * nf.cbrt();
+        let cap = (3.0 * nf.sqrt()).min(nf / 3.0).ceil();
+        b.clamp(1.0, cap.max(1.0)).ceil() as usize
+    }
+    let stated = |span: usize, rows: usize, scores: &[&[f64]]| -> (usize, usize, usize) {
+        let rule = span.max((rows as f64).sqrt().ceil() as usize).min(rows).max(1);
+        let pw = scores.iter().map(|s| politis_white(s)).max().unwrap_or(0);
+        let testing = (pw as f64 * (rows as f64).powf(1.0 / 6.0)).ceil() as usize;
+        (rule.max(testing.min(rows / 3)).min(rows.max(1)), rule, testing)
+    };
+
     let n = 400;
     let white = gaussian_series(n, 0.0, 3);
     let persistent = gaussian_series(n, 0.9, 5);
     let short = ResponseBlockLength::new(2, n, &[&white]);
+    let (length, rule, testing) = stated(2, n, &[&white]);
     assert_eq!(short.rule, 20);
     assert_eq!(short.length, 20, "{short:?}");
+    assert_eq!((short.length, short.rule, short.testing), (length, rule, testing), "{short:?}");
     assert!(!short.capped());
     let long = ResponseBlockLength::new(2, n, &[&white, &persistent]);
+    let (length, rule, testing) = stated(2, n, &[&white, &persistent]);
+    assert_eq!((long.length, long.rule, long.testing), (length, rule, testing), "{long:?}");
     assert!(long.length > long.rule, "{long:?}");
     assert!(long.length <= n / 3);
     assert_eq!(long.length, long.testing.min(n / 3));
     let tight = ResponseBlockLength::new(2, 60, &[&persistent[..60]]);
+    let (length, rule, testing) = stated(2, 60, &[&persistent[..60]]);
+    assert_eq!((tight.length, tight.rule, tight.testing), (length, rule, testing), "{tight:?}");
     assert!(tight.length <= 20, "{tight:?}");
     assert_eq!(tight.capped(), tight.testing > tight.length);
+    // The stated rule evaluates to these lengths (rule, testing) on the fixed series.
+    assert_eq!((short.length, short.rule, short.testing), (20, 20, 3));
+    assert_eq!((long.length, long.rule, long.testing), (52, 20, 52));
+    assert_eq!((tight.length, tight.rule, tight.testing), (18, 8, 18));
 }
 
 /// Deterministic AR(1) series with Gaussian innovations (Box–Muller on splitmix64).

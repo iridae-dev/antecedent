@@ -1558,6 +1558,69 @@ fn run_temporal_bayes(
     run_temporal_class(data, graph, query, temporal_bayes(), replicates, seed)
 }
 
+/// The adjusted g-formula value of the lag-1 dose `a` on `agreeing_temporal_series`, computed
+/// independently of the product: ordinary least squares of `y[s]` on `(1, t[s-1], z[s-1])` over
+/// `s = 1..n`, evaluated at `t = a` and the empirical mean of `z[s-1]`. Every completion of the
+/// class adjusts `{Z@-1}`, so each completion's value is this one. Returns the value and the
+/// textbook standard error `sqrt(sigma^2 x0' (X'X)^-1 x0)` of the fitted value.
+fn lagged_ols_value(data: &TimeSeriesData, dose: f64) -> (f64, f64) {
+    let column = |index: u32| -> Vec<f64> {
+        let antecedent_data::ColumnView::Float64(column) =
+            data.column(VariableId::from_raw(index)).expect("column")
+        else {
+            panic!("float column");
+        };
+        column.values.to_vec()
+    };
+    let (t, y, z) = (column(0), column(1), column(2));
+    let rows = t.len() - 1;
+    let design = |row: usize| [1.0, t[row], z[row]];
+    let mut xtx = [[0.0_f64; 3]; 3];
+    let mut xty = [0.0_f64; 3];
+    for row in 0..rows {
+        let x = design(row);
+        for i in 0..3 {
+            for j in 0..3 {
+                xtx[i][j] += x[i] * x[j];
+            }
+            xty[i] += x[i] * y[row + 1];
+        }
+    }
+    let solve = |rhs: [f64; 3]| -> [f64; 3] {
+        let mut a = [[0.0_f64; 4]; 3];
+        for i in 0..3 {
+            a[i][..3].copy_from_slice(&xtx[i]);
+            a[i][3] = rhs[i];
+        }
+        for col in 0..3 {
+            let pivot = (col..3).max_by(|&p, &q| a[p][col].abs().total_cmp(&a[q][col].abs())).unwrap();
+            a.swap(col, pivot);
+            for r in 0..3 {
+                if r != col {
+                    let f = a[r][col] / a[col][col];
+                    for c in col..4 {
+                        a[r][c] -= f * a[col][c];
+                    }
+                }
+            }
+        }
+        [a[0][3] / a[0][0], a[1][3] / a[1][1], a[2][3] / a[2][2]]
+    };
+    let beta = solve(xty);
+    let rss: f64 = (0..rows)
+        .map(|row| {
+            let x = design(row);
+            (y[row + 1] - beta[0] - beta[1] * x[1] - beta[2] * x[2]).powi(2)
+        })
+        .sum();
+    let sigma2 = rss / (rows as f64 - 3.0);
+    let z_bar = z[..rows].iter().sum::<f64>() / rows as f64;
+    let x0 = [1.0, dose, z_bar];
+    let v = solve(x0);
+    let leverage: f64 = x0.iter().zip(v).map(|(a, b)| a * b).sum();
+    (beta[0] + beta[1] * dose + beta[2] * z_bar, (sigma2 * leverage).sqrt())
+}
+
 #[test]
 fn agreeing_temporal_cpdag_publishes_shared_band() {
     let data = agreeing_temporal_series(80, 0x110_0440);
@@ -1581,6 +1644,29 @@ fn agreeing_temporal_cpdag_publishes_shared_band() {
         .filter(|atom| atom.value.is_some())
         .collect();
     assert!(atoms.len() >= 2, "both orientations evaluate");
+    // Independent completion value: E[Y | do(T@-1 = 1)] adjusting {Z@-1}. The DGP gives
+    // 1 + 2 + 0.8 E[z] = 3 up to the sample mean of z; the least-squares g-formula on this very
+    // series is the finite-sample value both completions must publish, and the band is centred on
+    // it (a normal band `value +- 1.96 se`) with an `se` of the same order as the textbook one
+    // (the 19-replicate circular block bootstrap estimates it: observed ratio 1.46, so the window is a factor of two).
+    let (reference, textbook_se) =
+        lagged_ols_value(&agreeing_temporal_series(80, 0x110_0440), 1.0);
+    assert!((reference - 3.0).abs() < 0.5, "the g-formula {reference} recovers the structural 3");
+    for atom in &atoms {
+        let antecedent_core::ResponseValue::Surface { mean, .. } = atom.value.as_ref().unwrap()
+        else {
+            panic!("a surface value");
+        };
+        assert!((mean[0] - reference).abs() < 1e-6, "{} vs {reference}", mean[0]);
+    }
+    let ResponseUncertainty::PointwiseBand { lower, upper, level, .. } = &response.uncertainty
+    else {
+        unreachable!()
+    };
+    assert!((level - 0.95).abs() < 1e-12);
+    assert!(((lower[0] + upper[0]) / 2.0 - reference).abs() < 1e-6, "band centred on the value");
+    let ratio = (upper[0] - lower[0]) / (2.0 * 1.959_963_984_540_054) / textbook_se;
+    assert!((0.5..2.0).contains(&ratio), "bootstrap se / textbook se = {ratio}");
     assert!(
         atoms.iter().all(|atom| atom.response.as_ref().is_some_and(|response| {
             response.uncertainty == atoms[0].response.as_ref().unwrap().uncertainty
@@ -1597,6 +1683,12 @@ fn agreeing_temporal_cpdag_publishes_shared_band() {
         0x110_0441,
     );
     assert_interval_method(&study, &result, "posterior_quantile");
+    // The credible band holds the independent least-squares value (the conjugate posterior
+    // mean shrinks it by the weak prior only).
+    let (reference, _) = lagged_ols_value(&agreeing_temporal_series(80, 0x110_0441), 1.0);
+    let (lower, upper, _) = response_band(&result).expect("posterior band");
+    assert!(lower[0] < reference && reference < upper[0], "{lower:?} {upper:?} vs {reference}");
+    assert!(upper[0] - lower[0] < 3.0, "a credible band of ordinary width: {lower:?} {upper:?}");
 
     let (study, result) = run_temporal_class(
         agreeing_temporal_series(80, 0x110_0442),
@@ -1608,7 +1700,17 @@ fn agreeing_temporal_cpdag_publishes_shared_band() {
     );
     assert_interval_method(&study, &result, "circular_block_se");
     match response_band(&result) {
-        Some((lower, _, _)) => assert_eq!(lower.len(), 2),
+        Some((lower, upper, _)) => {
+            assert_eq!(lower.len(), 2);
+            let data = agreeing_temporal_series(80, 0x110_0442);
+            for (index, dose) in [0.0, 1.0].into_iter().enumerate() {
+                let (reference, _) = lagged_ols_value(&data, dose);
+                assert!(
+                    ((lower[index] + upper[index]) / 2.0 - reference).abs() < 1e-6,
+                    "curve band at dose {dose} is centred on the independent value {reference}"
+                );
+            }
+        }
         None => panic!("the shared curve band is pointwise"),
     }
 

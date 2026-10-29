@@ -100,6 +100,82 @@ def _network_outcomes(seed: int) -> dict[str, np.ndarray]:
     return {"y": 1.0 + 2.0 * treated + 0.5 * neighbors + rng.normal(size=UNITS)}
 
 
+def _check_cpdag_bounds(result: Any, data: dict[str, np.ndarray]) -> None:
+    """The identified set of the two completions of ``z - treatment``.
+
+    ``z -> treatment`` adjusts for ``z`` (least squares coefficient of the treatment), and
+    ``treatment -> z`` adjusts for nothing (the raw contrast, which carries the ``z`` path).
+    Generating values: the lower end is 1.5; the upper end is 1.5 + 4 E[z sigma(z)] = 2.326.
+    """
+    z, t, y = data["z"], data["treatment"], data["outcome"]
+    design = np.column_stack([np.ones_like(z), t, z])
+    lower = np.linalg.lstsq(design, y, rcond=None)[0][1]
+    upper = y[t == 1].mean() - y[t == 0].mean()
+    got_lower, got_upper = result.answer.bounds
+    assert got_lower == pytest.approx(lower, abs=1e-8)
+    assert got_upper == pytest.approx(upper, abs=1e-8)
+    nodes, weights = np.polynomial.hermite_e.hermegauss(80)
+    weights = weights / weights.sum()
+    propensity = 1 / (1 + np.exp(-nodes))
+    upper_truth = 1.5 + 4 * np.sum(weights * nodes * propensity)
+    # Observed deviations from the generating ends: 0.067 (lower), 0.023 (upper).
+    assert got_lower == pytest.approx(1.5, abs=0.2)
+    assert got_upper == pytest.approx(upper_truth, abs=0.1)
+
+
+def _check_transport(result: Any, data: dict[str, np.ndarray]) -> None:
+    """Trial-to-target IPW: sum psi / sum (1 - S), psi = S (+-1) (1 - s) / (s e) y.
+
+    The target is the non-trial population, ``E[x | S = 0] = -0.236`` under ``S | x ~
+    Bernoulli(sigma(x / 2))``, so the generating effect ``1 + x`` averages to 0.764 there.
+    """
+    a, y, trial, s, e = (data[k] for k in ("a", "y", "trial", "s", "e"))
+    prob = np.where(a == 1, e, 1 - e)
+    sign = np.where(a == 1, 1.0, -1.0)
+    ipw = np.sum(trial * sign * (1 - s) / (s * prob) * y) / np.sum(1 - trial)
+    assert result.answer.value == pytest.approx(ipw, abs=1e-9)
+    nodes, weights = np.polynomial.hermite_e.hermegauss(80)
+    weights = weights / weights.sum()
+    outside = 1 - 1 / (1 + np.exp(-0.5 * nodes))
+    truth = 1 + np.sum(weights * nodes * outside) / np.sum(weights * outside)
+    # Observed deviations from the generating target effect: 0.089 and 0.147 (n = 600).
+    assert result.answer.value == pytest.approx(truth, abs=0.4)
+
+
+def _check_interference(result: Any, data: dict[str, np.ndarray]) -> None:
+    """Horvitz-Thompson direct effect with no treated neighbour: levels (own 0, 0) -> (1, 0).
+
+    Under Bernoulli(1/2) on a ring a unit has own = a and no treated neighbour with
+    probability 1/2 * 1/4 = 1/8 at either level; the answer is the sum over exposed units of
+    y / (1/8) divided by n, difference of the two levels. The product draws the exposure
+    probabilities by Monte Carlo (observed deviation from 1/8: 0.8%, so 0.015 in the answer);
+    the generating direct effect is 2.0 but only 18 units inform it.
+    """
+    y = data["y"]
+    treated = np.array(ASSIGNMENT, dtype=float)
+    neighbors = np.array([treated[(i + 1) % UNITS] + treated[i - 1] for i in range(UNITS)])
+    probability = 0.125
+    ht = (
+        np.sum(y[(treated == 1) & (neighbors == 0)]) - np.sum(y[(treated == 0) & (neighbors == 0)])
+    ) / (probability * UNITS)
+    assert result.answer.value == pytest.approx(ht, abs=0.04)
+
+
+def _check_response_curve(result: Any, data: dict[str, np.ndarray]) -> None:
+    """``E[outcome | do(treatment = t)] = 1.5 t`` at the grid.
+
+    Observed deviations over seeds 1-4 are at most 0.19 at the grid ends and 0.06 at 0
+    (local-polynomial sampling noise, n = 1500), so the tolerances are 0.3 and 0.15: they
+    exclude the confounded slope (1.5 + 0.5 = 2.0 would give 0.5 at the ends) and a flat curve.
+    """
+    del data
+    response = result.response
+    assert [point[0] for point in response.points] == [-1.0, 0.0, 1.0]
+    for point, value in zip(response.points, response.values, strict=True):
+        tolerance = 0.15 if point[0] == 0.0 else 0.3
+        assert value[0] == pytest.approx(1.5 * point[0], abs=tolerance)
+
+
 STATIC_DAG = [("z", "treatment"), ("z", "outcome"), ("treatment", "outcome")]
 
 
@@ -113,6 +189,10 @@ class Case:
     options: dict[str, Any] = field(default_factory=dict)
     #: The generating value of a scalar answer (``None`` when the answer is not a point).
     truth: float | None = None
+    #: Independent structural check of a result against the data it was computed on: an exact
+    #: recomputation of the estimator or identified set from the data in numpy, and the
+    #: generating value at a tolerance of a few times the observed sampling deviation.
+    check: Callable[[Any, dict[str, np.ndarray]], None] | None = None
 
 
 CASES = [
@@ -152,6 +232,7 @@ CASES = [
         ),
         ant.AverageEffect("treatment", "outcome"),
         "bounds",
+        check=_check_cpdag_bounds,
     ),
     Case(
         "discovery-pc-average",
@@ -207,6 +288,7 @@ CASES = [
             treatment_probability="e",
         ),
         "point",
+        check=_check_transport,
     ),
     Case(
         "interference-neighbor-count",
@@ -222,6 +304,7 @@ CASES = [
             realized_assignment=ASSIGNMENT,
         ),
         "point",
+        check=_check_interference,
     ),
     Case(
         "response-curve",
@@ -229,6 +312,7 @@ CASES = [
         [("a", "treatment"), ("b", "treatment"), ("treatment", "outcome")],
         ant.ResponseCurve("treatment", "outcome", grid=[-1.0, 0.0, 1.0]),
         "response",
+        check=_check_response_curve,
     ),
 ]
 
@@ -271,6 +355,9 @@ def test_golden_path(case: Case) -> None:
             # about 0.9 in the static cases), on the first data and on the refreshed data.
             for answer in (result.answer, updated.answer):
                 assert answer.value == pytest.approx(case.truth, abs=0.12), case.name
+        if case.check is not None:
+            case.check(result, data)
+            case.check(updated, new_data)
         assert loaded.answer == result.answer
         assert report["answer"] == loaded_report["answer"]
         assert loaded.program_id == result.program_id

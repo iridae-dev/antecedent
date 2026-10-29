@@ -195,7 +195,15 @@ fn a_fresh_consumer_replays_the_ledger_and_recomputes_the_syntheses() {
     // the ledger labels the result an assumption range, and refuses an interval from it
     let record = consumed.ledger().result(f.envelope).expect("result");
     assert_eq!(record.claim_class.as_str(), "assumption_range");
-    assert!(consumed.ledger().request_interval(f.envelope).is_err());
+    let refusal = consumed.ledger().request_interval(f.envelope).unwrap_err();
+    assert_eq!(refusal.kind, antecedent_contract::evidence_ledger::RefusalKind::NotLicensed);
+    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.detail, "evidence_ledger.interval_not_licensed");
+    assert!(
+        refusal.message.contains("assumption_range claim"),
+        "the refusal names the result's claim class: {}",
+        refusal.message
+    );
 
     let hb = by_result(f.borrowed);
     close(hb.values[0], 56.0 / 31.0, "posterior mean");

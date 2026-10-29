@@ -47,7 +47,7 @@ fn columns(named: &[(&str, &Vec<f64>)]) -> TabularData {
 
 /// Prepare `study`, run it on its retained data, encode the contracted result and read it back.
 /// The consumer must decode the artifact and name the query the route answered.
-fn round_trip(label: &str, study: &Study) {
+fn round_trip(label: &str, study: &Study) -> antecedent::StudyResult {
     let ctx = ExecutionContext::for_tests(13);
     let prepared = study.prepare(&ctx).unwrap_or_else(|e| panic!("{label}: prepare: {e}"));
     let result = prepared.estimate_retained(&ctx).unwrap_or_else(|e| panic!("{label}: run: {e}"));
@@ -66,7 +66,74 @@ fn round_trip(label: &str, study: &Study) {
     let mut tampered = bytes;
     let middle = tampered.len() / 2;
     tampered[middle] ^= 0x40;
-    assert!(consume_analysis_result(&tampered).is_err(), "{label}: a tampered artifact is refused");
+    let error = consume_analysis_result(&tampered).expect_err("a tampered artifact is refused");
+    assert!(
+        matches!(&error, antecedent_io::IoError::ChecksumMismatch { section }
+            if section == "analysis_result.body"),
+        "{label}: a flipped body byte is a body checksum mismatch, not another failure: {error:?}"
+    );
+    result
+}
+
+fn close(got: f64, want: f64, label: &str) {
+    near(got, want, 1e-8, label);
+}
+
+fn near(got: f64, want: f64, tolerance: f64, label: &str) {
+    assert!((got - want).abs() < tolerance, "{label}: {got} vs {want}");
+}
+
+/// Last-row anomaly truth, derived outside the product (`conformance/estimate/
+/// class_attribution_truth/reference.py` functions on these tables): the score is
+/// -ln erfc(|y - median| / (1.4826 MAD sqrt 2)) of the planted row, the baseline is the score of the
+/// target rebuilt with every noise set to 0, and the Shapley split of score - baseline is
+/// over the members' players, merged with equal weights.
+fn check_anomaly_truth(
+    label: &str,
+    result: &antecedent::StudyResult,
+    target_slot: usize,
+    score: f64,
+    baseline: f64,
+    by_component: &[(u64, f64)],
+) {
+    let scores = &result.anomaly().expect("anomaly scores")[target_slot];
+    let last = scores.rows.len() - 1;
+    close(scores.scores[last], score, &format!("{label}: planted-row score"));
+    close(scores.baseline_scores[last], baseline, &format!("{label}: planted-row baseline"));
+    let width = scores.noise_components.len();
+    assert_eq!(width, by_component.len(), "{label}: players");
+    let mut total = 0.0;
+    for (id, want) in by_component {
+        let column = scores
+            .noise_components
+            .iter()
+            .position(|c| *c == antecedent_core::ComponentId::from_variable(variable(*id as u32)))
+            .unwrap_or_else(|| panic!("{label}: component {id}"));
+        let got = scores.noise_contributions[last * width + column];
+        close(got, *want, &format!("{label}: component {id}"));
+        total += got;
+    }
+    close(total, score - baseline, &format!("{label}: efficiency"));
+}
+
+fn check_change_truth(
+    label: &str,
+    result: &antecedent::StudyResult,
+    total: f64,
+    by_component: &[(u64, f64)],
+    tolerance: f64,
+) {
+    let change = result.change_attribution().expect("change attribution");
+    near(change.total_change, total, tolerance, &format!("{label}: total change"));
+    for (id, want) in by_component {
+        let got = change
+            .contributions
+            .iter()
+            .find(|c| c.component == antecedent_core::ComponentId::from_variable(variable(*id as u32)))
+            .unwrap_or_else(|| panic!("{label}: component {id}"))
+            .contribution;
+        near(got, *want, tolerance, &format!("{label}: component {id}"));
+    }
 }
 
 fn inferences() -> [(&'static str, InferenceMode); 2] {
@@ -186,14 +253,31 @@ fn static_attribution_body() {
     let mut pag = Pag::with_variables(2);
     pag.insert_circle_arrow(node(0), node(1)).unwrap();
     for (mode, inference) in inferences() {
-        round_trip(
+        let result = round_trip(
             &format!("cpdag-anomaly-{mode}"),
             &tabular(&chain_table(), cpdag.clone(), anomaly(1), &inference),
         );
-        round_trip(
+        if mode == "frequentist" {
+            // y = 2x + 0.4 sin(2.9 i + 1.3) with +25 planted on the last row: the planted noise
+            // is y's own, so y's player carries the score and x's is the small abduction term.
+            check_anomaly_truth(
+                "cpdag-anomaly",
+                &result,
+                0,
+                22.926_762_990_920_327,
+                0.063_641_067_229_894_39,
+                &[(0, -0.194_202_758_203_880_3), (1, 23.057_324_681_894_315)],
+            );
+        }
+        let result = round_trip(
             &format!("cpdag-change-{mode}"),
             &tabular(&shifted_chain_table(), cpdag.clone(), change(1, 80), &inference),
         );
+        if mode == "frequentist" {
+            // The second population is the first with y raised by exactly 5: the whole shift is
+            // y's own mechanism and x's mechanism is unchanged.
+            check_change_truth("cpdag-change", &result, 5.0, &[(0, 0.0), (1, 5.0)], 1e-8);
+        }
         round_trip(
             &format!("pag-anomaly-{mode}"),
             &tabular(&chain_table(), pag.clone(), anomaly(1), &inference),
@@ -202,14 +286,36 @@ fn static_attribution_body() {
             &format!("pag-change-{mode}"),
             &tabular(&shifted_chain_table(), pag.clone(), change(1, 80), &inference),
         );
-        round_trip(
+        let result = round_trip(
             &format!("admg-anomaly-{mode}"),
             &tabular(&collider_table(), latent_collider(), anomaly(2), &inference),
         );
-        round_trip(
+        if mode == "frequentist" {
+            // The planted +6 is on b, inside the {a, b} district block, which carries the score.
+            check_anomaly_truth(
+                "admg-anomaly",
+                &result,
+                0,
+                30.691_544_694_396_732,
+                0.053_115_005_623_028_524,
+                &[(0, 30.902_994_694_954_167), (2, -0.264_565_006_198_511_4)],
+            );
+        }
+        let result = round_trip(
             &format!("admg-change-{mode}"),
             &tabular(&collider_table(), latent_collider(), change(2, 40), &inference),
         );
+        if mode == "frequentist" {
+            // The mixed-graph change resamples noise rows (seeded): totals deviate from the
+            // closed-form mean difference by 0.047, so the tolerance is 0.06, not exact.
+            check_change_truth(
+                "admg-change",
+                &result,
+                0.324_326_898_370_536_63,
+                &[(0, 0.336_931_370_249_606_2), (2, -0.012_604_471_879_069_563)],
+                0.06,
+            );
+        }
     }
 }
 
