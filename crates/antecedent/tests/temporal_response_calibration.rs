@@ -722,6 +722,12 @@ fn frequentist_temporal_response_lengthens_blocks_under_persistence() {
     let persistent = persistent.response().expect("surface");
     let (short, long) = (block_length_record(iid), block_length_record(persistent));
     assert!(short[0] >= short[1], "the sqrt(n) rule is a floor: {short:?}");
+    // 159 lag-aligned rows (160 minus the one lost to the lag): the floor is ceil(sqrt(159)) = 13
+    // for both fits, the iid treatment keeps it (its uncapped testing length is only 3), and the
+    // persistent treatment lengthens to the uncapped length, which is below the n/3 = 53 cap.
+    assert_eq!((short[3], short[1], short[0]), (159.0, 13.0, 13.0), "{short:?}");
+    assert_eq!((long[3], long[1]), (159.0, 13.0), "{long:?}");
+    assert_eq!(long[0], long[2].min((long[3] / 3.0).floor()), "{long:?}");
     assert!(long[0] > long[1], "a persistent treatment must lengthen the blocks: {long:?}");
     assert!(long[0] > short[0], "persistent blocks exceed the iid ones: {long:?} {short:?}");
     assert!(long[0] <= (long[3] / 3.0).floor(), "capped at n/3: {long:?}");
@@ -736,7 +742,7 @@ fn frequentist_temporal_response_lengthens_blocks_under_persistence() {
         let rows = diagnostic(response, "response.temporal.effective_rows").expect("rows");
         assert_eq!(factors.len(), DOSES.len());
         assert_eq!(rows.len(), DOSES.len());
-        assert!(factors.iter().all(|f| (1.0..1.2).contains(f)), "{factors:?}");
+            assert!(factors.iter().all(|f| (1.0..1.2).contains(f)), "{factors:?}");
         assert!(rows.iter().all(|r| *r > 30.0), "{rows:?}");
         assert!(!warns_short_series(response));
     }
@@ -783,8 +789,10 @@ fn frequentist_temporal_shift_response_reads_short_under_a_persistent_treatment(
     let rows = |r: &antecedent_core::CausalResponse| {
         diagnostic(r, "response.temporal.effective_rows").expect("rows")[0]
     };
-    assert!((1.0..1.05).contains(&factor(iid)), "iid factor {}", factor(iid));
-    assert!(rows(iid) > 100.0, "iid rows {}", rows(iid));
+    // An iid influence has no persistence to correct: the factor is exactly 1 and every one of
+    // the 159 lag-aligned rows is effective (observed 1.0 and 159.0).
+    assert!((factor(iid) - 1.0).abs() < 1e-9, "iid factor {}", factor(iid));
+    assert!((rows(iid) - 159.0).abs() < 1e-6, "iid rows {}", rows(iid));
     assert!(!warns_short_series(iid));
     assert!(factor(persistent) > 1.01, "persistent factor {}", factor(persistent));
     assert!(rows(persistent) < 30.0, "persistent rows {}", rows(persistent));

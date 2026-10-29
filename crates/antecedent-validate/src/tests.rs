@@ -135,6 +135,9 @@ fn placebo_ols_is_non_informative() {
     assert!(!report.informative, "OLS placebo must not claim to falsify the causal claim");
     let max = fixture["expected"]["placebo_abs_max"].as_f64().unwrap();
     assert!(report.refuted_ate.abs() < max, "mean placebo ate={}", report.refuted_ate);
+    // Independent-noise treatment has true effect 0; the mean of the replicates is a Monte Carlo
+    // average (observed 2e-3 at this seed), far inside the fixture band of 0.35.
+    assert!(report.refuted_ate.abs() < 0.01, "mean placebo ate={}", report.refuted_ate);
 }
 
 #[test]
@@ -166,6 +169,8 @@ fn placebo_permute_ols_is_non_informative() {
     assert!(!report.informative, "OLS placebo permute must not claim to falsify");
     let max = fixture["expected"]["placebo_abs_max"].as_f64().unwrap();
     assert!(report.refuted_ate.abs() < max, "mean placebo ate={}", report.refuted_ate);
+    // A permuted treatment is unrelated to the outcome (observed 6e-3 at this seed).
+    assert!(report.refuted_ate.abs() < 0.03, "mean placebo ate={}", report.refuted_ate);
 }
 
 #[test]
@@ -194,6 +199,9 @@ fn rcc_ols_is_non_informative() {
     assert!(!report.informative, "OLS RCC must not claim to falsify the causal claim");
     let max = fixture["expected"]["random_common_cause_abs_delta_max"].as_f64().unwrap();
     assert!((report.refuted_ate - original.ate).abs() < max);
+    // The outcome is exactly linear in (t, z), so an unrelated extra covariate has coefficient 0
+    // and the effect cannot move beyond rounding (observed 1e-14).
+    assert!((report.refuted_ate - original.ate).abs() < 1e-9, "rcc delta {}", report.refuted_ate - original.ate);
 }
 
 #[test]
@@ -231,6 +239,9 @@ fn unobserved_common_cause_is_robust_to_mild_confounding() {
         "relative shift {} must stay below the analytic bound {bound}",
         report.comparison
     );
+    // The expected shift is exactly 0 (observed 5e-16 here), so any residual is a bias in the
+    // simulated confounder's scaling.
+    assert!(report.comparison < 1e-9, "relative shift {}", report.comparison);
 }
 
 /// Adversarial case: a weak effect (partial correlation about 0.2) and a strong simulated
@@ -499,6 +510,8 @@ fn data_subset_ols_is_non_informative() {
     assert!(!report.informative, "OLS data-subset must not claim to falsify the causal claim");
     let max = fixture["expected"]["subset_abs_delta_max"].as_f64().unwrap();
     assert!((report.refuted_ate - original.ate).abs() < max);
+    // Row subsets of an exactly linear outcome reproduce the coefficient (observed 4e-16).
+    assert!((report.refuted_ate - original.ate).abs() < 1e-9, "subset delta {}", report.refuted_ate - original.ate);
 }
 
 /// A non-default `LinearAdjustmentAte` config (e.g. `se_kind = AnalyticSeKind::Hc1`) set on a
@@ -651,6 +664,8 @@ fn dummy_outcome_ols_is_non_informative() {
     assert!(!report.informative, "OLS dummy-outcome must not claim to falsify the causal claim");
     let max = fixture["expected"]["dummy_outcome_abs_max"].as_f64().unwrap();
     assert!(report.refuted_ate.abs() < max, "mean dummy ate={}", report.refuted_ate);
+    // A pure-noise outcome has true effect 0 (observed 1e-2 at this seed).
+    assert!(report.refuted_ate.abs() < 0.05, "mean dummy ate={}", report.refuted_ate);
 }
 
 #[test]
@@ -928,6 +943,10 @@ fn graph_refute_reports_the_confounder_dependence_descriptively() {
     assert!(!report.passed, "{:?}", report.failure_condition);
     let min = fixture["graph_refutation"]["minimum_relative_effect_change"].as_f64().unwrap();
     assert!(report.comparison > min, "relative delta={}", report.comparison);
+    // Exactly: y = 1 + 2t + 3z with t = 1{z > 0.5}; dropping z leaves the raw mean contrast
+    // 2 + 3 (mean z | t=1 - mean z | t=0) = 2 + 3 (0.75 - 0.25) = 3.5, a relative change of
+    // 1.5 / 2 = 0.75 on the full-adjustment value 2.
+    assert!((report.comparison - 0.75).abs() < 1e-6, "relative delta={}", report.comparison);
 }
 
 #[test]

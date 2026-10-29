@@ -40,4 +40,4 @@ sha256 = "d3094cdc5169502b9fe681c8177005de6ac93c83609af8c9f35c0bba7d738765"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/latent_class_effects.rs"
-sha256 = "8eff036846d197ccb9e298af380ee541954aa39c4358abd83006502f6688eba1"
+sha256 = "21e02069652c8bf46bf6055f7ff088b14a8aab3a33cc4409dcf5c25858b80c78"

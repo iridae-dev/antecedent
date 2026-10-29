@@ -230,11 +230,24 @@ fn latent_deterministic_replay_given_seed_and_bootstrap_uncertainty() {
     let closed_form_p = (NOISE_VARIANCE / (24.0 * 0.25)).sqrt();
     let se_q = first.classes[0].effect_se.expect("se q");
     let se_p = first.classes[1].effect_se.expect("se p");
-    assert!(se_q > 0.5 * closed_form_q && se_q < 2.0 * closed_form_q, "{se_q} vs {closed_form_q}");
-    assert!(se_p > 0.5 * closed_form_p && se_p < 2.0 * closed_form_p, "{se_p} vs {closed_form_p}");
+    // The bootstrap SE of a 60-replicate run scatters by about 10 percent around the closed form
+    // (observed ratios 1.06 and 1.00; across seeds 7-10 the ratio stays within 0.96-1.24).
+    assert!(se_q > 0.8 * closed_form_q && se_q < 1.3 * closed_form_q, "{se_q} vs {closed_form_q}");
+    assert!(se_p > 0.8 * closed_form_p && se_p < 1.3 * closed_form_p, "{se_p} vs {closed_form_p}");
+    // Delta-method SE of the mixture average sum_k pi_k tau_k when the rows are resampled:
+    // Var = sum pi_k^2 Var(tau_k) + (tau_P - tau_Q)^2 Var(pi) with Var(pi) = 0.4 * 0.6 / 40 and
+    // the class effects independent, giving 0.264 (observed 0.25-0.29 across seeds 7-10).
     let avg_se = first.mixture_average_se.expect("average se");
-    assert!(avg_se.is_finite() && avg_se > 0.0);
-    assert!(first.classes[0].weight_se.expect("weight se") > 0.0);
+    let delta_method = (0.36 * closed_form_p.powi(2)
+        + 0.16 * closed_form_q.powi(2)
+        + 9.0 * (0.4 * 0.6 / 40.0))
+        .sqrt();
+    assert!(avg_se > 0.8 * delta_method && avg_se < 1.25 * delta_method, "{avg_se} vs {delta_method}");
+    // Binomial SE of a class weight under row resampling: sqrt(0.4 * 0.6 / 40) = 0.0775
+    // (observed 0.070-0.086), identical for the two classes because the weights sum to one.
+    let weight_se = first.classes[0].weight_se.expect("weight se");
+    assert!((weight_se - (0.4_f64 * 0.6 / 40.0).sqrt()).abs() < 0.02, "{weight_se}");
+    assert!((first.classes[1].weight_se.expect("weight se") - weight_se).abs() < 1e-9);
 
     // A different seed resamples differently (different SE) around the same point estimate.
     let mut other_cfg = cfg.clone();
@@ -280,9 +293,19 @@ fn latent_overlapping_classes_are_never_reported_as_separated() {
             assert!(message.contains("latent_class."), "{message}");
         }
         Ok(result) => {
-            // If a split is found at all it must satisfy the declared guards.
+            // If a split is found at all it must satisfy the declared guards ...
             assert!(result.separation >= cfg.min_separation);
             assert!(result.classes.iter().all(|c| c.weight >= cfg.min_class_weight));
+            // ... and, because the generating effect is 1 in both regimes (only the intercept
+            // differs), it must not claim effect heterogeneity: every class effect is 1, the
+            // classes are reported as not separately identified in effect (gap 0), and the
+            // mixture average is the common effect. (The deterministic noise lets EM split the
+            // rows by noise value, which is why a split is found at all.)
+            for class in &result.classes {
+                close(class.effect, 1.0, 1e-8);
+            }
+            close(result.min_effect_gap, 0.0, 1e-8);
+            close(result.mixture_average_effect, 1.0, 1e-8);
         }
         Err(other) => panic!("unexpected error {other:?}"),
     }
