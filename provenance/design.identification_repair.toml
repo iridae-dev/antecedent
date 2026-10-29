@@ -54,7 +54,7 @@ sha256 = "45ffb7842974cc71da6499641ccdc0fb9913f55102a9fc12e35c49c712db50d9"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/repair_artifact.rs"
-sha256 = "217a282f9c5501cb26f60a5ef8713c9d4c7e077876a24c1f59a7fc8b7e079fe9"
+sha256 = "28e93d520be38d9ea442e11c90a3606f710f8430d55c91433525d8c9e8cd8677"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

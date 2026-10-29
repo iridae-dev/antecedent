@@ -124,6 +124,12 @@ fn batch_shares_matching_nuisances_and_matches_per_query_fits_bit_for_bit() {
             .estimate_many(&queries, &ctx)
             .unwrap();
         assert_eq!(results.len(), queries.len());
+        // The generating equations fix the effects: t1 -> y1 is 2, t1 -> y2 is -1 and
+        // t2 -> y1 is 0.5; the unadjusted contrasts are pulled off these by the confounder.
+        for (result, truth) in results.iter().zip([2.0, -1.0, 0.5, 2.0]) {
+            let ate = result.estimate().as_effect().unwrap().ate;
+            assert!((ate - truth).abs() < 0.2, "threads={threads}: ate {ate} vs truth {truth}");
+        }
         for (i, (result, query)) in results.iter().zip(&queries).enumerate() {
             let alone = solo(&data, &graph, query, 41);
             assert_bit_identical(result, &alone, &format!("threads={threads} query {i}"));

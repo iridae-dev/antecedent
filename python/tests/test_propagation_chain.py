@@ -95,12 +95,15 @@ def test_export_is_consumed_independently_and_edits_are_refused() -> None:
     assert consumed.identity == chain.identity
     assert consumed.results == chain.results
     assert consumed.answer.value("mean") == chain.answer.value("mean")
-    with pytest.raises(R):
+    with pytest.raises(R) as wrong_identity:
         require_success(
             pc.consume_propagation_chain(bytes(chain.export()), expected_identity="0" * 64)
         )
-    with pytest.raises(R):
+    assert wrong_identity.value.detail == "propagation_chain.record_refused"
+    with pytest.raises(R) as truncated:
         require_success(pc.consume_propagation_chain(bytes(chain.export())[:-7]))
+    assert truncated.value.code == "invalid_argument"
+    assert truncated.value.detail == "propagation_chain.record_invalid"
 
 
 def _overlapping_estimates() -> tuple[np.ndarray, np.ndarray]:
@@ -204,10 +207,14 @@ def test_changed_assumptions_reach_exactly_the_dependent_stages() -> None:
     assert chain.stage("net").status == "current"
     consumed = require_success(pc.consume_propagation_chain(bytes(reweighted.export())))
     assert consumed.results == reweighted.results
-    with pytest.raises(R):
+    with pytest.raises(R) as unknown:
         require_success(chain.withdraw("nowhere"))
-    with pytest.raises(R):
+    assert unknown.value.detail == "propagation_chain.record_invalid"
+    assert "`nowhere`, which is not a source" in str(unknown.value)
+    with pytest.raises(R) as short:
         require_success(chain.reweight("effect", [0.0, 1.0]))
+    assert short.value.detail == "propagation_chain.record_invalid"
+    assert "one finite log weight per row" in str(short.value)
 
 
 def _evsi_reference(theta: np.ndarray, noise: np.ndarray, sd: float, n: float) -> float:
@@ -300,8 +307,10 @@ def test_intervals_run_into_an_enclosure_under_every_coupling() -> None:
         with pytest.raises(R) as refused:
             require_success(pc.propagate(sources, stages, output="utility", reading=reading))
         assert refused.value.code == "uncertainty_representation_insufficient"
-    with pytest.raises(R):
+    with pytest.raises(R) as interval_input:
         require_success(chain.reweight("effect", [0.0, 0.0]))
+    assert interval_input.value.code == "uncertainty_representation_insufficient"
+    assert interval_input.value.next_attempt == "supply_draws_for_interval_input"
 
 
 def test_declarations_are_validated_before_the_native_layer() -> None:
@@ -432,5 +441,8 @@ def test_a_chain_compiles_before_it_runs_and_the_result_carries_its_program() ->
         require_success(chain.reweight("effect", 0.5 * _grid(0.5, 0.6))).program_identity
         != chain.program_identity
     )
-    with pytest.raises(R):
+    with pytest.raises(R) as unmeasured:
         pc.plan_view([effect], stages, output="utility", reading="interval")
+    assert unmeasured.value.code == "uncertainty_representation_insufficient"
+    assert unmeasured.value.detail == "propagation_chain.interval_not_measured"
+    assert unmeasured.value.next_attempt == "measure_composed_coverage"

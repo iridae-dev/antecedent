@@ -329,7 +329,10 @@ def test_an_unknown_dependence_refuses_the_variance_but_not_the_point(
     source = source_composition(source_gcm, uncertain=True, independent=False)
     transported = source.transport_to(transport(refits=[refit_m(target_gcm, uncertain=True)]))
     contrast = mc.MeanContrast.mean_at("Y", {"X": 2.0})
-    assert np.isfinite(require_success(transported.mean_contrast(contrast)))
+    # The point is the carried-and-refitted structural system's, whatever the dependence.
+    a_m, b_mx = BM_TARGET
+    expected = BY[0] + 2.0 * BY[1] + BY[2] * (a_m + 2.0 * b_mx)
+    assert require_success(transported.mean_contrast(contrast)) == pytest.approx(expected, abs=TOL)
     error = refusal_of(lambda: require_success(transported.mean_contrast_uncertainty(contrast)))
     assert error.reason_code == "joint_law_required"
 

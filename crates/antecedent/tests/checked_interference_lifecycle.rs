@@ -284,7 +284,11 @@ fn bernoulli_neighbor_count_design_route_is_sealed_refreshable_and_artifact_scop
             .iter()
             .any(|dependency| dependency.as_ref() == "dependencies.checked_interference_operation")
     );
-    assert!(rebind_estimate(&mut prepared, wrong_unit_count(), &context).is_err());
+    let refused = rebind_estimate(&mut prepared, wrong_unit_count(), &context).unwrap_err();
+    assert!(
+        refused.to_string().contains("network, assignment, and unit table row counts must match"),
+        "{refused}"
+    );
 }
 
 #[test]
@@ -351,7 +355,11 @@ fn conjugate_gaussian_interference_route_is_sealed_refreshable_and_artifact_scop
             .iter()
             .any(|dependency| dependency.as_ref() == "dependencies.checked_interference_operation")
     );
-    assert!(rebind_estimate(&mut prepared, wrong_unit_count(), &context).is_err());
+    let refused = rebind_estimate(&mut prepared, wrong_unit_count(), &context).unwrap_err();
+    assert!(
+        refused.to_string().contains("network, assignment, and unit table row counts must match"),
+        "{refused}"
+    );
 }
 
 /// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.

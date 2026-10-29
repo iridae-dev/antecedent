@@ -336,19 +336,17 @@ fn resealed_mutation_of_candidate_obligation_classification_or_receipt_is_refuse
     // A changed obligation (its content no longer matches its id), resealed.
     let mut obligation = artifact.clone();
     obligation.report.obligations[0].reason = "back-door adjustment needs nothing".to_owned();
-    // Either the id check or the replay comparison refuses it; both are refusals.
+    // The content no longer replays from the contract.
     let refused = detail(&obligation.sealed().unwrap());
-    assert!(
-        refused == "repair_artifact.invalid_artifact"
-            || refused == "repair_artifact.replay_mismatch",
-        "{refused}"
-    );
+    assert_eq!(refused, "repair_artifact.replay_mismatch");
 
     // A changed obligation re-derived with a fresh id still differs from the
     // obligation the contract owes.
     let mut swapped = artifact.clone();
     swapped.report.obligations[0].kind = "measure".to_owned();
-    assert!(consume(&swapped.sealed().unwrap()).is_err());
+    let e = consume(&swapped.sealed().unwrap()).unwrap_err();
+    assert_eq!(e.detail, "repair_artifact.invalid_artifact");
+    assert!(e.message.contains("obligation id"), "{}", e.message);
 
     // A changed candidate with an honestly recomputed semantic id: the stored
     // outcomes no longer replay from it.
@@ -387,7 +385,8 @@ fn unknown_version_and_kind_are_refused_and_stored_limits_are_bounded() {
 
     // A corrupt container is refused by the bounded reader.
     let good = artifact.to_bytes("repair-ok").unwrap();
-    assert!(RepairReportArtifact::from_bytes(&good[..good.len() / 2]).is_err());
+    let e = RepairReportArtifact::from_bytes(&good[..good.len() / 2]).unwrap_err();
+    assert_eq!(e.detail, "repair_artifact.invalid_artifact");
 }
 
 // ------------------------------------------------------- truncated search
@@ -448,7 +447,9 @@ fn truncated_search_is_retained_as_unevaluated_never_as_impossible() {
     let mut lied = decoded;
     let at = lied.report.outcomes.iter().position(|o| o.classification == "unevaluated").unwrap();
     lied.report.outcomes[at].classification = "insufficient".to_owned();
-    assert!(consume(&lied.sealed().unwrap()).is_err());
+    let e = consume(&lied.sealed().unwrap()).unwrap_err();
+    assert_eq!(e.detail, "repair_artifact.replay_mismatch");
+    assert!(e.message.starts_with("classification:"), "{}", e.message);
 }
 
 #[test]

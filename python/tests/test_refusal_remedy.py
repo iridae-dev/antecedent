@@ -43,7 +43,7 @@ def test_jacobian_over_three_treatments_is_estimated_not_refused():
     # A derivative-family answer is the native vector or matrix, not a point grid.
     jacobian = np.asarray(result.estimate, dtype=float).ravel()
     assert jacobian.shape == (3,)
-    assert np.allclose(jacobian, [1.0, -0.5, 0.25], atol=0.15)
+    assert np.allclose(jacobian, [1.0, -0.5, 0.25], atol=0.05)
 
 
 def test_directional_derivative_over_three_treatments_is_estimated_not_refused():
@@ -59,7 +59,7 @@ def test_directional_derivative_over_three_treatments_is_estimated_not_refused()
     )
     # The derivative along the first coordinate is the additive slope of y in a.
     derivative = float(np.asarray(result.estimate, dtype=float).ravel()[0])
-    assert derivative == pytest.approx(1.0, abs=0.15)
+    assert derivative == pytest.approx(1.0, abs=0.05)
 
 
 def test_remedy_defaults_to_none_on_every_error():

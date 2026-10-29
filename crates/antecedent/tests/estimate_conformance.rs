@@ -73,6 +73,22 @@ fn assert_recovers(result: &antecedent::StudyResult, expected: &JsonValue) {
     );
     assert_eq!(result.logical_plan.identifier.as_deref(), expected["identifier"].as_str());
     assert_eq!(result.logical_plan.estimator.as_deref(), expected["estimator"].as_str());
+    // The fixture band is wide enough to admit a partly-adjusted answer; each estimator on its
+    // seeded design also stays within a few times its observed deviation.
+    let ate = result.estimate().as_effect().unwrap().ate;
+    let bound = match expected["estimator"].as_str().unwrap() {
+        "aipw" | "iv.2sls" | "frontdoor.linear_two_stage" | "rd.sharp" => 0.03,
+        "propensity.weighting" => 0.04,
+        "propensity.matching" => 0.06,
+        "distance.matching" => 0.1,
+        "propensity.stratification" => 0.12,
+        "iv.wald" => 0.2,
+        _ => f64::INFINITY,
+    };
+    assert!(
+        (ate - true_effect).abs() < bound,
+        "ate={ate} true_effect={true_effect} seeded-design bound={bound}"
+    );
 }
 
 // `iv_wald` and `iv_2sls` are the only estimators here whose SE was ever compared
@@ -675,7 +691,7 @@ fn auto_with_wald_reports_the_iv_claim() {
         .unwrap();
     let result = analysis.run(&ExecutionContext::for_tests(22)).unwrap();
     assert!(
-        (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.5,
+        (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.2,
         "ate={}",
         result.estimate().as_effect().unwrap().ate
     );
@@ -775,8 +791,8 @@ fn estimate_glm_adjustment_recovers_positive_ate() {
         result.estimate().as_effect().unwrap().ate
     );
     assert!(
-        (result.estimate().as_effect().unwrap().ate - truth).abs() < tol,
-        "ate={} truth={truth} tol={tol}",
+        (result.estimate().as_effect().unwrap().ate - truth).abs() < 0.04,
+        "ate={} truth={truth} seeded-design bound 0.04",
         result.estimate().as_effect().unwrap().ate
     );
 }
