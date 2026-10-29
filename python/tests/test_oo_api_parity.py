@@ -41,16 +41,28 @@ def test_analyze_with_dag_object_and_levels():
             inference=antecedent.Frequentist(bootstrap=0),
         )
     )
-    r1 = require_success(
+    swapped = require_success(
         antecedent.analyze(
             data,
             graph=g,
-            query=antecedent.AverageEffect("t", "y", control_level=0.0, active_level=2.0),
+            query=antecedent.AverageEffect("t", "y", control_level=1.0, active_level=0.0),
             refute=False,
             inference=antecedent.Frequentist(bootstrap=0),
         )
     )
-    assert r0.ate != pytest.approx(r1.ate, abs=1e-9) or abs(r1.ate) > abs(r0.ate) * 1.2
+    # Naming the arms in the other order negates the contrast.
+    assert swapped.ate == pytest.approx(-r0.ate, rel=1e-9)
+    # A contrast level that no row carries is refused, not read as a dose.
+    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="arm_not_populated"):
+        require_success(
+            antecedent.analyze(
+                data,
+                graph=g,
+                query=antecedent.AverageEffect("t", "y", control_level=0.0, active_level=2.0),
+                refute=False,
+                inference=antecedent.Frequentist(bootstrap=0),
+            )
+        )
 
 
 def test_sustained_vs_pulse_policy_accepted():

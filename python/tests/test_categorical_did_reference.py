@@ -9,7 +9,6 @@ non-smallest reference.
 
 from __future__ import annotations
 
-import json
 import math
 from fractions import Fraction
 from pathlib import Path
@@ -27,9 +26,9 @@ from antecedent.quasi import (
     estimate_did,
 )
 
-CASES = json.loads(
-    (Path(__file__).parent / "fixtures" / "categorical_did_reference.json").read_text()
-)["cases"]
+from _repo_text import load_json
+
+CASES = load_json(Path(__file__).parent / "fixtures" / "categorical_did_reference.json")["cases"]
 
 
 def exact(text: str) -> Fraction:

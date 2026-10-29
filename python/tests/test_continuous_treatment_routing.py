@@ -23,12 +23,12 @@ GRAPH = [("z", "t"), ("z", "y"), ("t", "y")]
 QUERY = ac.AverageEffect("t", "y")
 
 
-def _cheap(data: dict[str, np.ndarray], *, estimator=None):
+def _cheap(data: dict[str, np.ndarray], *, estimator=None, query=QUERY):
     return require_success(
         ac.analyze(
             data,
             graph=GRAPH,
-            query=QUERY,
+            query=query,
             estimator=estimator,
             refute="cheap",
             inference=ac.Frequentist(bootstrap=0),
@@ -50,13 +50,27 @@ def _names(result) -> list[str]:
     ],
 )
 def test_python_facade_classifies_treatment_encoding(treatment, binary):
-    names = _names(_cheap(_frame(np.asarray(treatment, dtype=np.float64))))
+    values = np.asarray(treatment, dtype=np.float64)
+    levels = sorted(set(values.tolist()))
+    # A two-valued column that does not carry 0 and 1 names its own arms; the contrast
+    # levels must be rows the column actually holds.
+    query = (
+        ac.AverageEffect("t", "y", control_level=levels[0], active_level=levels[1])
+        if len(levels) == 2 and levels != [0.0, 1.0]
+        else QUERY
+    )
+    names = _names(_cheap(_frame(values), query=query))
     if binary:
         assert "overlap.assessment" in names
         assert "overlap.continuous_support" not in names
     else:
         assert "overlap.continuous_support" in names
         assert "overlap.assessment" not in names
+
+
+def test_a_contrast_level_no_row_carries_is_refused():
+    with pytest.raises(ac.errors.CausalUnsupportedError, match="arm_not_populated"):
+        _cheap(_frame(np.tile([2.0, 5.0], 40)))
 
 
 @pytest.mark.parametrize("levels", [4, 3])

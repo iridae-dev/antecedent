@@ -46,7 +46,9 @@ def _declarations():
         data = {
             "a": [float(row[keys[4]]) for row in selected],
             "b": [float(row[keys[5]]) for row in selected],
-            "c": [2.0] * len(selected),
+            # Not an affine function of the other channels: the fit refuses a constant or
+            # exactly collinear channel, whose separate effect the data cannot identify.
+            "c": [2.0 + 0.5 * ((3 * index + group) % 5) for index in range(len(selected))],
             "y": [float(row[keys[6]]) if row[keys[6]] else None for row in selected],
             "z": [float(row[keys[3]]) if row[keys[3]] else None for row in selected],
             "season": [float(row[keys[2]]) for row in selected],

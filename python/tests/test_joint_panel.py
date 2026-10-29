@@ -27,8 +27,17 @@ def declarations():
         data = {
             "a": [float(row[keys[4]]) for row in selected],
             "b": [float(row[keys[5]]) for row in selected],
-            "c": [2.0] * len(selected),
-            "y": [float(row[keys[6]]) if row[keys[6]] else None for row in selected],
+            # Not an affine function of the other channels: the fit refuses a constant or
+            # exactly collinear channel, whose separate effect the data cannot identify.
+            "c": [2.0 + 0.5 * ((3 * index + group) % 5) for index in range(len(selected))],
+            # The third channel moves the outcome, so its effect is identified and the
+            # point-mean search has curvature to work with.
+            "y": [
+                float(row[keys[6]]) + 0.4 * (2.0 + 0.5 * ((3 * index + group) % 5))
+                if row[keys[6]]
+                else None
+                for index, row in enumerate(selected)
+            ],
             "z": [float(row[keys[3]]) if row[keys[3]] else None for row in selected],
             "season": [float(row[keys[2]]) for row in selected],
         }
@@ -58,7 +67,7 @@ def declarations():
     return groups, worlds
 
 
-def request(groups, worlds, functional=None, interactions=None):
+def request(groups, worlds, functional=None, interactions=None, max_iterations=1, tolerance=1e-12):
     return joint_panel.prepare(
         groups,
         channels=["a", "b", "c"],
@@ -72,7 +81,7 @@ def request(groups, worlds, functional=None, interactions=None):
         if interactions is not None
         else {"programmable": var("a") * var("b") * var("c") + minimum(var("c"), 0.25)},
         options={
-            "optimizer": {"max_iterations": 1, "gradient_tolerance": 1e-12},
+            "optimizer": {"max_iterations": max_iterations, "gradient_tolerance": tolerance},
             "inference": {"kind": "frequentist", "draws": 4},
             "initial": None,
         },
@@ -166,7 +175,7 @@ def test_python_panel_refuses_foreign_expression_read_without_fitting():
 
 def test_compiler_derived_program_certificate_replays_current_fit_and_domain():
     groups, worlds = declarations()
-    prepared = request(groups, worlds)
+    prepared = request(groups, worlds, max_iterations=2000, tolerance=1e-4)
     result = require_success(prepared.estimate(execution=Execution(seed=20261021)))
     controls = []
     for offset in range(24):
@@ -324,7 +333,13 @@ def test_continuous_instrumented_selection_fits_searches_holds_out_and_replays()
 
 def test_unsupported_certificate_expression_executes_actual_best_found_search():
     groups, worlds = declarations()
-    prepared = request(groups, worlds, interactions={"clipped": clip(var("a"), 0.0, 0.5)})
+    prepared = request(
+        groups,
+        worlds,
+        interactions={"clipped": clip(var("a"), 0.0, 0.5)},
+        max_iterations=2000,
+        tolerance=1e-4,
+    )
     result = require_success(prepared.estimate(execution=Execution(seed=20261021)))
     controls = [
         {
@@ -372,7 +387,7 @@ def finite_search_controls(*, budgeted=True):
 
 def test_finite_program_search_ranks_compiled_worlds_with_concrete_exclusions():
     groups, worlds = declarations()
-    prepared = request(groups, worlds)
+    prepared = request(groups, worlds, max_iterations=2000, tolerance=1e-4)
     result = require_success(prepared.estimate(execution=Execution(seed=20261021)))
     terminal = [entry["means"][-1] for entry in result.report()["point"]]
     assert abs(terminal[1] - terminal[0]) > 1e-9, (

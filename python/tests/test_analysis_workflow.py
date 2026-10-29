@@ -268,12 +268,22 @@ def test_one_call_and_explicit_prepare_have_same_defaults(latency):
 
 
 def test_failed_branch_estimate_retains_previous_binding_and_error_context():
+    # The confounder adjusts the effect, so a branch whose confounder equals the treatment
+    # has a rank-deficient design while both contrast arms are still populated.
     study = ant.prepare(
-        sample(), graph=GRAPH, query=QUERY, inference=ant.Frequentist(bootstrap=0), refute="none"
+        sample(),
+        graph=[("z", "t"), ("z", "y"), ("t", "y")],
+        query=QUERY,
+        inference=ant.Frequentist(bootstrap=0),
+        refute="none",
     )
     before = study.inspect()
     result = require_success(study.estimate())
-    branch = study.rebind(data={"t": np.zeros(2), "y": np.zeros(2), "z": np.zeros(2)})
+    branch = study.rebind(data={
+            "t": np.tile([0.0, 1.0], 2),
+            "y": np.zeros(4),
+            "z": np.tile([0.0, 1.0], 2),
+        })
     with pytest.raises(ant.errors.CausalEstimateError, match="rank deficient") as caught:
         require_success(branch.estimate())
     assert caught.value.reason_code == "design_rank_deficient"

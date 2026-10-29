@@ -11,7 +11,6 @@ check the declarations through the Python data class, the artifact and its repla
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import antecedent as ac
@@ -28,11 +27,13 @@ from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalVal
 from antecedent.outcomes import require_success
 from antecedent.transport import advanced
 
+from _repo_text import load_json
+
 ORACLE = Path(__file__).resolve().parents[2] / "crates" / "antecedent-estimate" / "tests" / "oracle_data"
 
 
 def oracle(name: str):
-    return json.loads((ORACLE / name).read_text())
+    return load_json(ORACLE / name)
 
 
 def close(got, want, rel, what=""):

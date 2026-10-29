@@ -581,6 +581,9 @@ _EXPECTED_STAGE_ALL = {
         "QuasiRolloutEstimate",
         "estimate_did",
         "estimate_group_time_att",
+        "CategoricalDidContrast",
+        "CategoricalDidEstimate",
+        "estimate_categorical_did",
     },
     "temporal_designs": {
         "DoseExcursion",

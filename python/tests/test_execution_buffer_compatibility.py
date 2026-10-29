@@ -66,6 +66,9 @@ def test_typed_transport_matches_json_and_owns_input(route):
         field.name: strided(getattr(data, field.name))
         for field in dataclasses.fields(data)
         if field.name not in ("sampling", "covariates")
+        # Optional per-row columns left unset and scalar options are not buffers.
+        and getattr(data, field.name) is not None
+        and np.ndim(getattr(data, field.name)) > 0
     }
     columns["covariates"] = {name: strided(values) for name, values in data.covariates.items()}
     owned = dataclasses.replace(data, **columns)
