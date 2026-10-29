@@ -183,9 +183,11 @@ fn the_report_matches_the_high_precision_evaluation() {
 fn too_few_rows_for_the_conditioning_set_is_an_error_not_a_verdict() {
     // Node 3 has two parents; its local Markov tests need n - 2 - 2 > 0 residual degrees.
     let result = ModelEvaluator::default().evaluate(&model(), &data(4), &ExecutionContext::for_tests(1));
-    assert!(result.is_err(), "df = 0 must not produce a p-value");
+    let message = result.expect_err("df = 0 must not produce a p-value").to_string();
+    assert!(message.contains("non-positive residual df"), "{message}");
     let empty = ModelEvaluator::default().evaluate(&model(), &data(0), &ExecutionContext::for_tests(1));
-    assert!(empty.is_err());
+    let message = empty.expect_err("empty data").to_string();
+    assert!(message.contains("empty data"), "{message}");
 }
 
 #[test]
@@ -239,9 +241,9 @@ fn a_permutation_baseline_is_a_mean_over_shuffles_of_the_last_node_only() {
         }
     }
     let expected = (others + pair_sum / N as f64) / (5 * N) as f64;
-    // 400 shuffles of 14 values: the standard error of the mean is a few percent of the spread.
+    // 400 shuffles of 14 values: observed deviation 1.3e-3, so 0.01 is several standard errors.
     assert!(
-        (report.permutation_loglik - expected).abs() < 0.05,
+        (report.permutation_loglik - expected).abs() < 0.01,
         "baseline {} vs exact expectation {expected}",
         report.permutation_loglik
     );

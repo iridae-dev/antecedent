@@ -114,7 +114,7 @@ fn an_average_derivative_is_checked_at_the_nodes_of_its_weighting_law() {
             &ctx,
         );
         let fd = report(&outcome, TargetRefuterKind::FiniteDifferenceConsistency);
-        assert!((fd.refuted[0] - 2.0).abs() < 0.4, "{weighting:?}: curve slope {:?}", fd.refuted);
+        assert!((fd.refuted[0] - 2.0).abs() < 0.05, "{weighting:?}: curve slope {:?}", fd.refuted);
         assert!(report(&outcome, TargetRefuterKind::LocalLinearity).passed);
     }
 }
@@ -159,6 +159,10 @@ fn the_posterior_predictive_check_replicates_a_series_under_a_lagged_reference_m
         &TargetRefitOptions::default(),
         &ctx,
     );
+    // The check ran on the series: it reports on the whole target, with all replicates refit
+    // (it may fail this graph, which omits the series' own lag, but it must speak to it).
+    let ppc = report(&outcome, TargetRefuterKind::PosteriorPredictive);
+    assert!(ppc.informative && ppc.replicates == 6, "{ppc:?}");
     // The check no longer refuses a series for replicating independent rows.
     assert!(
         !outcome.run.refused.iter().any(|r| r.kind == TargetRefuterKind::PosteriorPredictive
@@ -238,6 +242,10 @@ fn a_common_cause_is_declared_in_every_atom_of_a_graph_posterior() {
     );
     let cause = report(&outcome, TargetRefuterKind::RandomCommonCause);
     assert!(cause.informative);
+    // A random common cause carries no information about t or y, so it leaves the effect where
+    // it was (observed shift 1e-3 on the ate near 2).
+    assert!((cause.refuted[0] - cause.original[0]).abs() < 0.02, "{cause:?}");
+    assert!(cause.passed, "{:?}", cause.failure);
 }
 
 #[test]
@@ -337,7 +345,7 @@ fn a_jacobian_is_checked_along_each_treatment_axis() {
     let fd = report(&outcome, TargetRefuterKind::FiniteDifferenceConsistency);
     assert_eq!(fd.refuted.len(), 4);
     for (got, want) in fd.refuted.iter().zip([2.0, -0.5, 0.25, 1.5]) {
-        assert!((got - want).abs() < 0.3, "finite differences {:?}", fd.refuted);
+        assert!((got - want).abs() < 1e-6, "finite differences {:?}", fd.refuted);
     }
 }
 
@@ -434,4 +442,8 @@ fn a_common_cause_on_a_class_posterior_needs_the_declared_within_class_distribut
     );
     let cause = report(&outcome, TargetRefuterKind::RandomCommonCause);
     assert!(cause.informative);
+    // A random common cause carries no information about t or y, so it leaves the effect where
+    // it was (observed shift 1e-3 on the ate near 2).
+    assert!((cause.refuted[0] - cause.original[0]).abs() < 0.02, "{cause:?}");
+    assert!(cause.passed, "{:?}", cause.failure);
 }

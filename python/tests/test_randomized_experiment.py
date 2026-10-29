@@ -34,6 +34,16 @@ def test_calibrated_complete_interval_is_retained_by_analyze_and_prepare():
     assert fit.interval_95[0] < fit.effect < fit.interval_95[1]
     assert fit.standard_error > 0
     assert fit.uncertainty == "complete_neyman_normal_interval"
+    # Independent Neyman reference: difference of arm means and sqrt(s1^2/n1 + s0^2/n0).
+    arm = np.asarray(assignment)
+    treated, control = outcomes[arm], outcomes[~arm]
+    assert fit.effect == pytest.approx(treated.mean() - control.mean(), abs=1e-9)
+    assert fit.standard_error == pytest.approx(
+        np.sqrt(treated.var(ddof=1) / 30 + control.var(ddof=1) / 30), rel=1e-9
+    )
+    assert fit.interval_95[1] - fit.interval_95[0] == pytest.approx(
+        2 * 1.959964 * fit.standard_error, rel=1e-4
+    )
     assert fit.support_status == "licensed"
     assert result.evidence_status == "licensed"
     prepared = ant.prepare(data, query=query, refute="none")
@@ -52,8 +62,14 @@ def test_bernoulli_interval_has_exact_graphless_license():
             query=ant.experiment.RandomizedEffect("outcome", _design(assignment)),
         )
     )
-    assert result.randomized_effect.interval_95 is not None
-    assert result.randomized_effect.support_status == "licensed"
+    fit = result.randomized_effect
+    assert fit.interval_95 is not None
+    arm = np.asarray(assignment)
+    assert fit.effect == pytest.approx(outcomes[arm].mean() - outcomes[~arm].mean(), abs=1e-9)
+    assert fit.interval_95[1] - fit.interval_95[0] == pytest.approx(
+        2 * 1.959964 * fit.standard_error, rel=1e-4
+    )
+    assert fit.support_status == "licensed"
     assert result.evidence_status == "licensed"
 
 
@@ -74,8 +90,20 @@ def test_blocked_interval_has_exact_graphless_license():
     result = require_success(
         ant.analyze({"outcome": outcomes}, query=ant.experiment.RandomizedEffect("outcome", design))
     )
-    assert result.randomized_effect.interval_95 is not None
-    assert result.randomized_effect.support_status == "licensed"
+    fit = result.randomized_effect
+    assert fit.interval_95 is not None
+    # Block-share weighted difference of arm means (equal blocks of 30 here).
+    arm, block = np.asarray(assignment), np.asarray(blocks)
+    reference = sum(
+        (block == name).mean() * (outcomes[(block == name) & arm].mean()
+        - outcomes[(block == name) & ~arm].mean())
+        for name in set(blocks)
+    )
+    assert fit.effect == pytest.approx(reference, abs=1e-9)
+    assert fit.interval_95[1] - fit.interval_95[0] == pytest.approx(
+        2 * 1.959964 * fit.standard_error, rel=1e-4
+    )
+    assert fit.support_status == "licensed"
     assert result.evidence_status == "licensed"
 
 
@@ -106,6 +134,26 @@ def test_factorial_three_intervals_have_exact_graphless_license():
     assert fit.interval_95 is not None
     assert fit.second_factor_interval_95 is not None
     assert fit.factorial_interaction_interval_95 is not None
+    # Cell means by hand: main effect = mean of the two simple effects of the primary factor, the
+    # second-factor effect likewise, and the interaction is their difference of differences.
+    first, other = np.asarray(primary), np.asarray(second)
+
+    def cell(p, q):
+        return outcomes[(first == p) & (other == q)].mean()
+
+    assert fit.effect == pytest.approx(
+        0.5 * ((cell(1, 0) - cell(0, 0)) + (cell(1, 1) - cell(0, 1))), abs=1e-9
+    )
+    assert fit.second_factor_effect == pytest.approx(
+        0.5 * ((cell(0, 1) - cell(0, 0)) + (cell(1, 1) - cell(1, 0))), abs=1e-9
+    )
+    assert fit.factorial_interaction == pytest.approx(
+        (cell(1, 1) - cell(0, 1)) - (cell(1, 0) - cell(0, 0)), abs=1e-9
+    )
+    for interval, standard_error in (
+        (fit.interval_95, fit.standard_error),
+    ):
+        assert interval[1] - interval[0] == pytest.approx(2 * 1.959964 * standard_error, rel=1e-4)
     assert fit.support_status == "licensed"
     assert result.evidence_status == "licensed"
 
@@ -138,6 +186,11 @@ def test_calibrated_multi_action_intervals_are_pointwise_for_each_action():
         fit.multi_arm_intervals_95[1:]
     )
     assert all(interval is not None for interval in fit.multi_arm_intervals_95[1:])
+    # Arm means by hand (every arm has 100 rows, assignment probability 1/4).
+    arm_of = np.asarray(assignment)
+    for (label, value, *_), name in zip(fit.multi_arm_values, labels, strict=True):
+        assert label == name
+        assert value == pytest.approx(outcomes[arm_of == name].mean(), abs=1e-9)
     assert fit.support_status == "licensed"
 
 
@@ -384,8 +437,14 @@ def test_cluster_interval_has_exact_graphless_license():
     result = require_success(
         ant.analyze({"outcome": outcomes}, query=ant.experiment.RandomizedEffect("outcome", design))
     )
-    assert result.randomized_effect.interval_95 is not None
-    assert result.randomized_effect.support_status == "licensed"
+    fit = result.randomized_effect
+    assert fit.interval_95 is not None
+    arm = np.asarray(assignment)
+    assert fit.effect == pytest.approx(outcomes[arm].mean() - outcomes[~arm].mean(), abs=1e-9)
+    assert fit.interval_95[1] - fit.interval_95[0] == pytest.approx(
+        2 * 1.959964 * fit.standard_error, rel=1e-4
+    )
+    assert fit.support_status == "licensed"
     assert result.evidence_status == "licensed"
 
 
@@ -651,6 +710,17 @@ def test_switchback_supported_interval_uses_same_native_point_as_direct_utility(
     assert fit.interval_95[0] < fit.effect < fit.interval_95[1]
     assert fit.effect == pytest.approx(direct.effect)
     assert fit.standard_error == pytest.approx(direct.standard_error)
+    # Independent reference: the Horvitz-Thompson ITT difference at the declared probability 0.5,
+    # averaged within each of the 30 sequences; the standard error is the spread of those 30
+    # sequence means over sqrt(30), and the interval is Student-t with 29 degrees of freedom.
+    treated = np.asarray(assignment, dtype=float)
+    scores = (treated / 0.5 - (1.0 - treated) / 0.5) * outcomes
+    per_sequence = scores.reshape(30, 24).mean(axis=1)
+    assert fit.effect == pytest.approx(per_sequence.mean(), abs=1e-9)
+    assert fit.standard_error == pytest.approx(per_sequence.std(ddof=1) / np.sqrt(30), rel=1e-9)
+    assert fit.interval_95[1] - fit.interval_95[0] == pytest.approx(
+        2 * 2.045230 * fit.standard_error, rel=1e-4
+    )
     assert fit.uncertainty == "switchback_independent_sequence_student_interval"
     assert retained.evidence_status == "licensed"
 

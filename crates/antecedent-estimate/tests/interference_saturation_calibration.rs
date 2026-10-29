@@ -256,7 +256,10 @@ fn complete_cluster_randomization_pointwise_total_interval_covers_truth() {
         let truth = total_effect.iter().sum::<f64>() / CLUSTERS as f64;
         covered += u32::from(interval.bounds[0] <= truth && truth <= interval.bounds[1]);
     }
-    assert!(covered >= 360, "cluster total coverage {covered}/400");
+    // Two-sided about the nominal 95%: over-coverage (an inflated interval) is also wrong. 400
+    // trials have a binomial standard error of 0.011; observed 384/400.
+    let rate = f64::from(covered) / 400.0;
+    assert!((0.92..=0.985).contains(&rate), "cluster total coverage {covered}/400");
 }
 
 #[test]

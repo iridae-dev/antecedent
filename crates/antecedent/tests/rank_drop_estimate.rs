@@ -337,7 +337,9 @@ fn a_separating_propensity_refuses_the_cross_fitted_route_only() {
     assert!(reason.starts_with("rank_drop_estimate.propensity_separates"), "{reason}");
     let linear =
         estimate_with_rank_drop(&input, &order, EstimatorId::LinearAdjustmentAte, &ctx).unwrap();
-    assert!(linear.ate.is_finite());
+    // The least-squares route estimates the reduced design, equal to the normal-equations oracle.
+    let oracle = ols_treatment_coefficient(&f, &[&f.a, &f.b]);
+    assert!((linear.ate - oracle).abs() < 1e-8, "{} vs {oracle}", linear.ate);
 }
 
 /// The result carries its whole drop record on the wire form: original and reduced sets, the

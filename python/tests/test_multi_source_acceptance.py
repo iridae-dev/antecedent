@@ -170,7 +170,11 @@ def test_a_fitted_native_response_binds_to_its_program() -> None:
     assert [q.regime_id for q in claim.coordinates] == ["do(a=-0.5)", "do(a=0)", "do(a=0.5)"]
     assert claim.support == ("supported",) * 3
     assert claim.calibration in {"point_only", "unmeasured"}
-    assert claim.means == pytest.approx([-1.0, 0.0, 1.0], abs=0.3)
+    # Truth 2a on the grid; the independent least-squares line (np.polyfit) is the reference the
+    # kernel response is within 0.04 of (observed deviation 0.024).
+    slope, intercept = np.polyfit(treatment, outcome, 1)
+    assert claim.means == pytest.approx([slope * g + intercept for g in grid], abs=0.04)
+    assert claim.means == pytest.approx([-1.0, 0.0, 1.0], abs=0.05)
 
     low, high = claim.coordinates[0], claim.coordinates[2]
     contract = decision.Contract(

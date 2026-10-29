@@ -183,7 +183,10 @@ fn a_transform_keeps_the_noise_and_incoming_edges_while_an_assignment_replaces_t
         let vb: f64 = b.iter().map(|q| (q - mb).powi(2)).sum();
         cov / (va * vb).sqrt()
     };
-    assert!(corr(&z0, &xt) > 0.5, "a transform keeps the edge from z");
+    // corr(z, x) = 0.7 / sqrt(0.7^2 + 0.5^2) for x = 0.7 z + 0.5 e.
+    let expected_corr = 0.7 / (0.49_f64 + 0.25).sqrt();
+    let observed_corr = corr(&z0, &xt);
+    assert!((observed_corr - expected_corr).abs() < 0.02, "a transform keeps the edge from z");
     assert!(xa.iter().all(|v| *v == 1.0), "an assignment severs it");
     assert!(corr(&z0, &ya).abs() < 0.03, "y no longer depends on z");
     let variance = |v: &[f64]| {
@@ -192,7 +195,9 @@ fn a_transform_keeps_the_noise_and_incoming_edges_while_an_assignment_replaces_t
     };
     // Var(y | transform) = 4 Var(x) + 0.09; Var(y | assignment) = 0.09.
     assert!((variance(&yt) - variance(&y0)).abs() < 1e-9);
-    assert!(variance(&ya) < 0.12 && variance(&yt) > 1.0);
+    // Var(y | transform) = 4 (0.49 + 0.25) + 0.09 = 3.05 and Var(y | assignment) = 0.09.
+    assert!((variance(&ya) - 0.09).abs() < 0.01, "{}", variance(&ya));
+    assert!((variance(&yt) - 3.05).abs() < 0.15, "{}", variance(&yt));
 }
 
 #[test]
@@ -644,7 +649,16 @@ fn the_conditional_sampler_runs_programs_and_refuses_to_condition_on_them() {
     let z = column(&batch, 0);
     let x = column(&batch, 1);
     let unexplained: f64 = x.iter().zip(&z).map(|(x, z)| x - 1.0 - 0.8 * z).map(f64::abs).sum();
-    assert!(unexplained / 2_000.0 < 0.7, "x - 1 - 0.8 z is the structural residual");
+    // Posterior of the residual e given y = 0.5: e ~ N(0, 0.25), S = 0.8 z + e + 1 + eta with
+    // eta ~ N(0, 0.25) and the sum 0.8 z + e + eta = 0.5 - 1 = -0.5 (variance 1.14), so
+    // e | y ~ N(-0.5 * 0.25 / 1.14, 0.25 - 0.25^2 / 1.14) and E|e| is the folded-normal mean.
+    let mean_e = -0.5 * 0.25 / 1.14;
+    let sd_e = (0.25_f64 - 0.0625 / 1.14).sqrt();
+    let ratio = mean_e / sd_e;
+    let phi = |t: f64| 0.5 * (1.0 + libm_erf(t / std::f64::consts::SQRT_2));
+    let folded = sd_e * (2.0 / std::f64::consts::PI).sqrt() * (-(ratio * ratio) / 2.0).exp()
+        + mean_e * (1.0 - 2.0 * phi(-ratio));
+    assert!((unexplained / 2_000.0 - folded).abs() < 0.02, "x - 1 - 0.8 z is the structural residual");
 
     let on_x = [DenseNodeId::from_raw(1)];
     let evidence = ConditionEvidence { nodes: &on_x, values: &evidence_values };
@@ -700,6 +714,10 @@ fn normal_cdf(x: f64) -> f64 {
                 + t * (1.421_413_741 + t * (-1.453_152_027 + t * 1.061_405_429))));
     let erf = 1.0 - poly * (-(x * x) / 2.0).exp();
     0.5 * (1.0 + erf.copysign(x))
+}
+
+fn libm_erf(x: f64) -> f64 {
+    2.0 * normal_cdf(x * std::f64::consts::SQRT_2) - 1.0
 }
 
 fn normal_pdf(x: f64) -> f64 {

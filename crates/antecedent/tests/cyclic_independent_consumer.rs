@@ -220,6 +220,42 @@ fn the_dynamic_inference_family_replays_its_seeded_sampling_law() {
         panic!("bootstrap sampling law expected");
     };
     assert_eq!(law.replicates.len(), 20);
+
+    // Independent closed form. The rows are iid draws of the stationary OU law
+    // N(center, diffusion / (2 * |drift|)), so the maximum-likelihood fit is the sample mean and
+    // |drift| = diffusion / (2 * variance) with the maximum-likelihood (divide by n) variance.
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../parity/cyclic/dynamic-inference-ou");
+    let hint = format!("generate it with `{GENERATOR}`");
+    let request: serde_json::Value =
+        serde_json::from_slice(&read_fixture_bytes(&dir, "request.json", &hint)).unwrap();
+    let rows: Vec<f64> = request["problem"]["problem"]["rows"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| row["values"][0].as_f64().unwrap())
+        .collect();
+    let n = rows.len() as f64;
+    let mean = rows.iter().sum::<f64>() / n;
+    let variance = rows.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / n;
+    let diffusion = request["problem"]["problem"]["template"]["diffusion"][0].as_f64().unwrap();
+    let wire = serde_json::to_value(&report).unwrap();
+    let model = &wire["answer"]["result"]["fit"]["fit"]["model"];
+    close(model["center"][0].as_f64().unwrap(), mean, 1e-4);
+    close(model["drift"][0].as_f64().unwrap(), -diffusion / (2.0 * variance), 1e-4);
+    // The bootstrap replicates of the stationary mean scatter about the sample mean with
+    // standard error sd / sqrt(n): every replicate within six of them, and their mean within one.
+    let standard_error = (variance / n).sqrt();
+    let replicates: Vec<f64> = wire["answer"]["result"]["inference"]["result"]["replicates"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|replicate| replicate["quantities"][0].as_f64().unwrap())
+        .collect();
+    assert_eq!(replicates.len(), 20);
+    for replicate in &replicates {
+        close(*replicate, mean, 6.0 * standard_error);
+    }
+    close(replicates.iter().sum::<f64>() / 20.0, mean, standard_error);
 }
 
 #[test]

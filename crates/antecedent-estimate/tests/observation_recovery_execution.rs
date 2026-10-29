@@ -633,6 +633,9 @@ fn binary_posterior_mean_stays_at_the_enumerated_recovery() {
     {
         assert!((got - expected).abs() < 1e-5, "{got} vs {expected}");
     }
+    // Both equal the enumerated truth, not only each other (the weak prior moves it by ~1e-8).
+    let truth = model.truth();
+    assert!(close(recovered.law().probabilities(), &truth, 1e-6), "{truth:?}");
 }
 
 #[test]

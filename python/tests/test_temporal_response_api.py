@@ -560,6 +560,35 @@ def test_declared_feedback_reaches_the_response(policy: str):
         )
     )
     assert result.response is not None
+    # One step of the declared transition x1 = autoregression * x0 + input_gain * level, with
+    # x0 = 0.25, autoregression 0.5, gain 2.0 and the held level 1.0: 0.5 * 0.25 + 2 * 1 = 2.125.
+    np.testing.assert_allclose(_response_means(result), [0.5 * 0.25 + 2.0 * 1.0], atol=1e-12)
+    # Each declared coefficient reaches the response (a gain of zero leaves only the carried state).
+    for changes, expected in (
+        ({"initial_state": 0.0}, 2.0),
+        ({"input_gain": 0.0}, 0.5 * 0.25),
+        ({"autoregression": 0.0}, 2.0),
+        ({"input_gain": 3.0, "autoregression": 0.2}, 0.2 * 0.25 + 3.0),
+    ):
+        varied = require_success(
+            antecedent.analyze(
+                _fixture_data(),
+                graph=_EDGES,
+                query=antecedent.ResponseCurve(
+                    "t",
+                    "y",
+                    grid=[0.0, 1.0],
+                    horizons=[1],
+                    policy=policy,
+                    treatment_lag=1,
+                    feedback=_feedback(**{"initial_law": "origin", "initial_state": 0.25, **changes}),
+                ),
+                refute=False,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=21),
+            )
+        )
+        np.testing.assert_allclose(_response_means(varied), [expected], atol=1e-12, err_msg=str(changes))
 
 
 def test_feedback_is_keyword_only_and_validated():

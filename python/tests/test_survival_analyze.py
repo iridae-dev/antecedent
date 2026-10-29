@@ -212,6 +212,15 @@ def test_retained_survival_pointwise_intervals_round_trip_and_refuse_thin_draws(
         <= 0.1
         <= section.survival_at_tau_difference_interval[1]
     )
+    # Independent binomial reference: arms of 40 with event rates 0.2 and 0.1 give the survival
+    # difference 0.1 a standard error sqrt(0.2 * 0.8 / 40 + 0.1 * 0.9 / 40), and the restricted mean
+    # difference (1 + 2 S) a standard error twice that; the percentile widths follow within 25%.
+    standard_error = (0.2 * 0.8 / 40 + 0.1 * 0.9 / 40) ** 0.5
+    lower, upper = section.survival_at_tau_difference_interval
+    assert (upper - lower) / (2 * 1.96 * standard_error) == pytest.approx(1.0, abs=0.25)
+    lower, upper = section.rmst_difference_interval
+    assert (upper - lower) / (2 * 1.96 * 2 * standard_error) == pytest.approx(1.0, abs=0.25)
+    assert section.rmst_difference == pytest.approx(0.2)
     assert result.answer.detail == "randomized_survival_pointwise_bootstrap"
     assert "Pointwise 95% subject-bootstrap interval" in result.claim()
     assert (
@@ -313,7 +322,9 @@ def test_retained_competing_risk_known_g_pointwise_interval() -> None:
         )
     ).survival
     assert section is not None
-    assert (
-        section.incidence_difference_interval[0] <= 0.0 <= section.incidence_difference_interval[1]
-    )
+    # Both arms hold the same data, so the difference is exactly zero: the interval brackets it
+    # strictly, with the width of two binomial arms (0.2 each, 40 subjects): 2 * 1.96 * 0.0894.
+    lower, upper = section.incidence_difference_interval
+    assert lower < 0.0 < upper
+    assert (upper - lower) / (2 * 1.96 * (2 * 0.2 * 0.8 / 40) ** 0.5) == pytest.approx(1.0, abs=0.25)
     assert section.bootstrap_replicates_ok == 399

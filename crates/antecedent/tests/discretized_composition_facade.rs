@@ -134,6 +134,18 @@ fn a_discretized_contrast_carries_its_closed_form_and_a_computed_bound() {
 
     let result = bridged.mean_contrast(&top_minus_bottom(), &ctx()).unwrap();
     near(result.closed_form, 6.5 * (values[3] - values[0]));
+    // Each arm is the closed-form mean 0.5 + 6.5 v at its own cell value (the module oracle),
+    // the contrast is the signed sum of the arms, and the reported error is the actual gap.
+    near(result.arms[0].closed_form_mean, 0.5 + 6.5 * values[3]);
+    near(result.arms[1].closed_form_mean, 0.5 + 6.5 * values[0]);
+    near(
+        result.value,
+        result.arms[0].discretized_mean * result.arms[0].weight
+            + result.arms[1].discretized_mean * result.arms[1].weight,
+    );
+    near(result.absolute_error, (result.value - result.closed_form).abs());
+    // The four-cell grid is genuinely coarse (observed gap 0.62 of 33.05, bound 0.76) but close.
+    assert!(result.absolute_error > 1e-3 && result.absolute_error < 0.05 * result.closed_form.abs());
     assert!(result.error_bound.is_finite() && result.error_bound >= 0.0);
     assert!(result.absolute_error <= result.error_bound + 1e-9);
     assert_eq!(result.inference, BRIDGE_INFERENCE);

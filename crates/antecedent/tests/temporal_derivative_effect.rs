@@ -340,11 +340,17 @@ fn temporal_derivative_log_scales_use_the_fitted_mean_response_claims_06() {
     let sxx: f64 = xs.iter().map(|x| (x - xbar).powi(2)).sum();
     let slope = sxy / sxx;
     let mean_response = ybar - slope * xbar + 2.0 * slope;
+    // The vector functionals are exact in this noise-free design: y and v are linear in
+    // (x[t-1], b[t-1]) and both are parents, so the Jacobian is [[2, 0.5], [1, -1]] and the
+    // derivative along (1, 2) is (2 + 1, 1 - 2) = (3, -1); the average derivative is the slope.
     let expected = [
-        ("point", slope),
-        ("elasticity", 2.0 * slope / mean_response),
-        ("semi_treatment", 2.0 * slope),
-        ("semi_outcome", slope / mean_response),
+        ("point", vec![slope]),
+        ("elasticity", vec![2.0 * slope / mean_response]),
+        ("semi_treatment", vec![2.0 * slope]),
+        ("semi_outcome", vec![slope / mean_response]),
+        ("average", vec![slope]),
+        ("jacobian", vec![2.0, 0.5, 1.0, -1.0]),
+        ("directional", vec![3.0, -1.0]),
     ];
     let graph = graph();
     let ctx = ExecutionContext::for_tests(11);
@@ -372,13 +378,20 @@ fn temporal_derivative_log_scales_use_the_fitted_mean_response_claims_06() {
                 .estimate_retained(&ctx)
                 .unwrap();
             let response = result.response().unwrap();
-            let ResponseIdentification::PointIdentified(ResponseValue::Scalar(got)) =
-                &response.estimate
-            else {
-                panic!("{key} bayesian={bayesian}: scalar point-identified slope expected");
+            let ResponseIdentification::PointIdentified(value) = &response.estimate else {
+                panic!("{key} bayesian={bayesian}: point-identified slope expected");
             };
+            let got: Vec<f64> = match value {
+                ResponseValue::Scalar(x) => vec![*x],
+                ResponseValue::Jacobian { values, .. } => values.to_vec(),
+                ResponseValue::Vector(x) => x.to_vec(),
+                other => panic!("{key} bayesian={bayesian}: unexpected {other:?}"),
+            };
+            assert_eq!(got.len(), want.len(), "{key} bayesian={bayesian}");
             let band = if bayesian { 5e-3 } else { 1e-6 };
-            assert!((got - want).abs() < band, "{key} bayesian={bayesian}: {got} vs {want}");
+            for (got, want) in got.iter().zip(want) {
+                assert!((got - want).abs() < band, "{key} bayesian={bayesian}: {got} vs {want}");
+            }
         }
     }
 }

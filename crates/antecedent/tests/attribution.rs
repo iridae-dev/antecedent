@@ -173,7 +173,10 @@ fn mechanism_change_detect_conformance() {
     )
     .unwrap();
     let y = dets.iter().find(|d| d.variable == VariableId::from_raw(1)).unwrap();
+    let x = dets.iter().find(|d| d.variable == VariableId::from_raw(0)).unwrap();
     assert!(y.changed, "{y:?}");
+    // The x mechanism is identical across the periods, so it is not flagged.
+    assert!(!x.changed, "{x:?}");
 }
 
 #[test]
@@ -199,7 +202,10 @@ fn mechanism_change_kernel_conformance() {
     )
     .unwrap();
     let y = dets.iter().find(|d| d.variable == VariableId::from_raw(1)).unwrap();
+    let x = dets.iter().find(|d| d.variable == VariableId::from_raw(0)).unwrap();
     assert!(y.changed, "{y:?}");
+    // The x mechanism is identical across the periods, so it is not flagged.
+    assert!(!x.changed, "{x:?}");
     assert_eq!(&*y.method, expected["method"].as_str().unwrap());
 }
 
@@ -226,7 +232,10 @@ fn mechanism_change_change_point_conformance() {
     )
     .unwrap();
     let y = dets.iter().find(|d| d.variable == VariableId::from_raw(1)).unwrap();
+    let x = dets.iter().find(|d| d.variable == VariableId::from_raw(0)).unwrap();
     assert!(y.changed, "{y:?}");
+    // The x mechanism is identical across the periods, so it is not flagged.
+    assert!(!x.changed, "{x:?}");
     assert_eq!(&*y.method, expected["method"].as_str().unwrap());
 }
 
@@ -297,6 +306,9 @@ fn structure_change_parent_swap_conformance() {
     let result =
         attribute_structure_change(&baseline, &comparison, &data, &query, &opts, &ctx).unwrap();
     let min_change = expected["total_change_min"].as_f64().unwrap();
+    // Mean of y under the baseline fit: 1 + 2 * 1.95 = 4.9; under the comparison fit:
+    // 8 + 3 * 1.95 = 13.85. The Monte-Carlo total (600 draws, observed 9.09) is within 0.5 of 8.95.
+    assert!((result.total_change - 8.95).abs() < 0.5, "total {}", result.total_change);
     assert!(
         result.total_change.abs() >= min_change,
         "total_change={} < {}",

@@ -394,7 +394,7 @@ fn separation_rank_deficiency_and_nonfinite_updates_stay_visible() {
         &GlmOptions::new(30, 1e-8).without_separation_ridge(),
     )
     .expect("separation is a fit with a refusal, not a dropped error");
-    assert!(separated.separated || !separated.converged);
+    assert!(separated.separated, "a perfectly separating covariate must be reported as separated");
     assert!(separated.require_ok().is_err());
 
     let mut collinear = vec![0.0; n * 3];

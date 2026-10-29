@@ -26,7 +26,15 @@ def test_conditional_effect_recovers_interaction():
             execution=antecedent.Execution(seed=1),
         )
     )
-    assert abs(result.ate - 3.0) < 0.3
+    # Noise-free: the effect at the mean modifier (mean w = 2) is 2 + 0.5 * 2 exactly.
+    assert abs(result.ate - 3.0) < 1e-6
+
+
+def _ols_effect_at_the_mean_modifier(t, w, y):
+    """Least-squares effect of t at mean(w) from y ~ 1 + t + w + t*w, by lstsq (no shared code)."""
+    design = np.column_stack([np.ones(len(t)), t, w, t * w])
+    beta = np.linalg.lstsq(design, y, rcond=None)[0]
+    return float(beta[1] + beta[3] * w.mean())
 
 
 def test_conditional_bayesian_consults_prior():
@@ -44,7 +52,11 @@ def test_conditional_bayesian_consults_prior():
     )
     assert result.posterior is not None
     assert require_success(antecedent.load(result.export(quantity="posterior"))).n_draws == 512
-    assert result.ate == pytest.approx(2 + 0.5 * w.mean(), abs=0.1)
+    # Weak conjugate prior: within 0.015 of the independent least-squares effect (observed 0.005).
+    assert result.ate == pytest.approx(
+        _ols_effect_at_the_mean_modifier(t, w, data["y"]), abs=0.015
+    )
+    assert abs(result.ate - (2 + 0.5 * w.mean())) < 0.05
     assert result.estimate.estimator_id == "conditional.bayesian"
 
 
@@ -65,7 +77,9 @@ def test_handle_conditional_bayesian_uses_staged_estimator():
     )
     assert result.estimate.estimator_id == "conditional.bayesian"
     assert result.posterior is not None
-    assert np.isfinite(result.ate)
+    assert result.ate == pytest.approx(
+        _ols_effect_at_the_mean_modifier(t, w, data["y"]), abs=0.015
+    )
 
 
 def test_the_frequentist_conditional_effect_is_the_linear_adjustment_with_one_modifier():
@@ -85,7 +99,7 @@ def test_the_frequentist_conditional_effect_is_the_linear_adjustment_with_one_mo
     )
     assert result.estimate.estimator_id == "conditional.linear.adjustment"
     # The effect at the mean modifier: 2 + 0.5 * mean(w) = 3 for this noise-free design.
-    assert result.ate == pytest.approx(2.0 + 0.5 * float(w.mean()), abs=0.1)
+    assert result.ate == pytest.approx(2.0 + 0.5 * float(w.mean()), abs=1e-6)
     # One modifier carries no modifier-set interval assumption.
     assert not any(
         "conditional.joint_modifier_interval_uncalibrated" in str(a)
@@ -164,5 +178,6 @@ def test_conditional_effect_over_a_modifier_set_identifies_through_the_structure
     )
     baseline = antecedent.identify(graph=graph, query=antecedent.AverageEffect("t", "y"))
     assert identified.status == baseline.status
+    assert str(identified.status) == "NonparametricallyIdentified"
     # The statement names the whole modifier set.
     assert "w1" in identified.statement and "w2" in identified.statement

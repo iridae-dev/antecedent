@@ -84,13 +84,18 @@ fn anomaly_mean_score_quadrature(nodes: usize) -> f64 {
     z.iter().zip(w.iter()).map(|(&zi, &wi)| wi * tail_score(zi)).sum()
 }
 
-fn anomaly_dag_data(n: usize, seed: u64) -> TabularData {
+fn anomaly_columns(n: usize, seed: u64) -> (Vec<f64>, Vec<f64>) {
     let mut g = gaussian(seed);
     let (mut z, mut y) = (vec![0.0; n], vec![0.0; n]);
     for i in 0..n {
         z[i] = g();
         y[i] = A + B * z[i] + SIGMA * g();
     }
+    (z, y)
+}
+
+fn anomaly_dag_data(n: usize, seed: u64) -> TabularData {
+    let (z, y) = anomaly_columns(n, seed);
     TabularData::from_f64_columns([("z", z.as_slice()), ("y", y.as_slice())]).unwrap()
 }
 
@@ -168,6 +173,22 @@ fn anomaly_fixed_reference_matches_population_truth() {
 #[test]
 fn empirical_reference_posterior_is_non_degenerate() {
     let data = anomaly_dag_data(2000, 0xA0_0419);
+    // Independent oracle: the sample mean of the IT score against the sample median and
+    // 1.4826 MAD, the empirical reference the default path uses.
+    let y = anomaly_columns(2000, 0xA0_0419).1;
+    let median = |v: &mut Vec<f64>| {
+        v.sort_by(f64::total_cmp);
+        let n = v.len();
+        if n % 2 == 1 { v[n / 2] } else { 0.5 * (v[n / 2 - 1] + v[n / 2]) }
+    };
+    let center = median(&mut y.clone());
+    let scale = 1.4826 * median(&mut y.iter().map(|v| (v - center).abs()).collect());
+    let scores: Vec<f64> = y.iter().map(|v| tail_score((v - center) / scale)).collect();
+    let oracle_mean = scores.iter().sum::<f64>() / scores.len() as f64;
+    let score_variance = scores.iter().map(|s| (s - oracle_mean).powi(2)).sum::<f64>()
+        / (scores.len() - 1) as f64;
+    // The Bayesian bootstrap of a mean has standard deviation about sd(score) / sqrt(n).
+    let reference_width = 2.0 * 1.959_964 * (score_variance / scores.len() as f64).sqrt();
     let study = Study::tabular(data)
         .graph(anomaly_dag())
         .query(CausalQuery::AnomalyAttribution(AnomalyAttributionQuery::new(
@@ -183,6 +204,16 @@ fn empirical_reference_posterior_is_non_degenerate() {
     let posterior = result.posterior.as_ref().expect("empirical-reference anomaly posterior");
     let (lo, hi) = (posterior.summaries.q025[0], posterior.summaries.q975[0]);
     assert!(hi > lo, "empirical posterior must be non-degenerate: [{lo}, {hi}]");
+    assert!(
+        (posterior.summaries.mean[0] - oracle_mean).abs() < 0.005,
+        "posterior mean {} vs the sample mean score {oracle_mean}",
+        posterior.summaries.mean[0]
+    );
+    assert!(
+        ((hi - lo) / reference_width - 1.0).abs() < 0.2,
+        "width {} vs reference {reference_width}",
+        hi - lo
+    );
     assert!(
         posterior.summaries.mean[0] > 0.0,
         "mean {} must be positive",
