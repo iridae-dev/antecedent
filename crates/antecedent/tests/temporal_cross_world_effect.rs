@@ -202,7 +202,7 @@ fn temporal_dag_cross_world_points_match_the_linear_mechanism() {
 }
 
 #[test]
-fn nested_and_path_stay_the_fitted_quantities_when_adjustment_is_nonempty() {
+fn nested_and_path_adjust_for_a_declared_confounder_and_recover_the_structural_effect() {
     let n = 80;
     let mut x = vec![0.0; n];
     let mut m = vec![0.0; n];
@@ -231,7 +231,7 @@ fn nested_and_path_stay_the_fitted_quantities_when_adjustment_is_nonempty() {
     confounded.insert_directed(x1, y0).unwrap();
     confounded.insert_directed(m0, y0).unwrap();
     let ctx = ExecutionContext::for_tests(11);
-    for (key, query, _) in queries() {
+    for (key, query, structural) in queries() {
         let result = Study::series(data.clone())
             .graph(confounded.clone())
             .query(query)
@@ -242,7 +242,20 @@ fn nested_and_path_stay_the_fitted_quantities_when_adjustment_is_nonempty() {
             .unwrap()
             .estimate_retained(&ctx)
             .unwrap();
-        assert!(result.estimate().as_effect().unwrap().ate.is_finite(), "{key}");
+        let ate = result.estimate().as_effect().unwrap().ate;
+        assert!(ate.is_finite(), "{key}");
+        if matches!(key, "nested" | "path") {
+            // z[t-1] confounds x[t-1] and y[t]: the unadjusted regression gives 1.652 for the
+            // nested effect. The generating SCM (y = 1.5 x[t-1] + 4 m + z[t-1], m = 0.5 x[t-1]
+            // + shock) has nested direct effect 3/2 and path effect (1/2)(4) = 2; the shock is a
+            // fixed pattern, so the adjusted regression is exact for y and within sampling
+            // error of 1/2 for the x -> m edge.
+            let tolerance = if key == "nested" { 1e-8 } else { 0.1 };
+            assert!(
+                (ate - structural).abs() < tolerance,
+                "{key}: {ate} vs structural effect {structural}"
+            );
+        }
         let rule = result
             .identification
             .arena
@@ -251,11 +264,11 @@ fn nested_and_path_stay_the_fitted_quantities_when_adjustment_is_nonempty() {
         match key {
             "nested" => {
                 assert_eq!(rule.as_deref(), Some("temporal.cross_world.direct_slope"));
-                assert!(result.estimand.adjustment_set.is_empty(), "{key}");
+                assert!(!result.estimand.adjustment_set.is_empty(), "{key}");
             }
             "path" => {
                 assert_eq!(rule.as_deref(), Some("temporal.cross_world.mediator_edge_product"));
-                assert!(result.estimand.adjustment_set.is_empty(), "{key}");
+                assert!(!result.estimand.adjustment_set.is_empty(), "{key}");
             }
             "counterfactual" | "distribution" => {
                 assert_eq!(rule.as_deref(), Some("backdoor.adjustment"));
@@ -359,5 +372,9 @@ fn a_multi_node_path_is_the_product_of_the_edge_coefficients_along_it() {
         antecedent_expr::ExprNode::Product(_)
     ));
     // Listed against the graph's causal order, the nodes are not a directed chain.
-    assert!(run([ids[1], ids[0]]).is_err());
+    let reversed = run([ids[1], ids[0]]).expect_err("a reversed node order is not a chain");
+    assert!(
+        reversed.to_string().contains("path nodes must be listed in causal order"),
+        "{reversed}"
+    );
 }

@@ -231,7 +231,65 @@ pub(crate) fn identify_window_derivative(
         found.plan.origin,
         found.plan.periods - found.plan.origin,
     )?;
-    Ok(WindowDerivative { identification: found.result, estimand, indexer })
+    let mut identification = found.result;
+    if window_has_no_directed_path(&found.window, &found.plan, query) {
+        identification.diagnostics.push(no_directed_path_note(horizon));
+    }
+    Ok(WindowDerivative { identification, estimand, indexer })
+}
+
+/// Diagnostic code of a horizon whose window holds no directed path from the treatment to the
+/// outcome: the derivative is the structural zero, whatever the observed association.
+pub(crate) const NO_DIRECTED_PATH_CODE: &str = "response.temporal_admg.no_directed_path";
+
+/// Whether the window ADMG has no directed path from any treatment (at the treated period) to
+/// any outcome (at the outcome period) of a point or average derivative. Such a do-intervention
+/// leaves the outcome's law unchanged, so the derivative is exactly zero.
+fn window_has_no_directed_path(
+    window: &UnrolledTemporalAdmg,
+    plan: &TemporalAdmgWindowPlan,
+    query: &ResponseQuery,
+) -> bool {
+    use antecedent_core::ResponseFunctional as F;
+    if !matches!(query.functional, F::PointDerivative { .. } | F::AverageDerivative { .. }) {
+        return false;
+    }
+    let (Some(&treated), admg) = (plan.treated.first(), window.admg()) else {
+        return false;
+    };
+    let dense = |variable: VariableId, period: u32| {
+        window.coordinate(variable, period).and_then(|slot| admg.dense_of_static(slot))
+    };
+    let mut pairs = 0_usize;
+    for treatment in query.functional.treatment_ids() {
+        for outcome in query.functional.outcome_ids() {
+            let (Some(from), Some(to)) =
+                (dense(treatment, treated), dense(outcome, plan.outcome_period))
+            else {
+                return false;
+            };
+            if from == to || admg.reaches(from, to) {
+                return false;
+            }
+            pairs += 1;
+        }
+    }
+    pairs > 0
+}
+
+/// The typed note that a horizon's derivative is the structural zero of an absent causal path.
+fn no_directed_path_note(horizon: u32) -> antecedent_core::Diagnostic {
+    antecedent_core::Diagnostic::new(
+        NO_DIRECTED_PATH_CODE,
+        antecedent_core::DiagnosticKind::Scientific,
+        antecedent_core::DiagnosticSeverity::Info,
+        format!(
+            "horizon {horizon}: the declared graph has no directed path from the treatment to \
+             the outcome, so the do-effect is exactly zero; the published value is that \
+             structural zero, not the regression slope, which is a pure association here"
+        ),
+    )
+    .with_fields([("horizon", horizon.to_string())])
 }
 
 /// Identify the pulse, sustained or conditional contrast of `query` on `template`, numbering the

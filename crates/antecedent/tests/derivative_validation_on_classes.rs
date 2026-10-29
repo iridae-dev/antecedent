@@ -470,10 +470,12 @@ fn several_temporal_horizons_are_checked_without_mixing_them() {
         .unwrap();
     assert_eq!(result.support_status(), Some(CellStatus::Refused));
     assert!(has(&result, "derivative.support"));
-    // Each horizon's published slope is the regression slope of the outcome on the treatment
-    // given the window adjustment (`z`), computed here by the normal equations: 2 at horizon 1
-    // and the small finite-sample association at horizon 3 (no causal path, so the unadjusted
-    // slope near 1.0 must not be reported).
+    // Horizon 1 publishes the regression slope of the outcome on the treatment given the
+    // window adjustment (`z`), computed here by the normal equations. Horizon 3 has no
+    // directed path from `x(t-1)` to `y(t+2)`, so its do-effect is the structural zero (the
+    // Fractions propagation over the generator's coefficients gives total effects 2, 0, 0 at
+    // lags 1..3); the finite-sample regression slope there is only an association of the
+    // periodic regressors and must not be published.
     let Some(antecedent_core::ResponseIdentification::PointIdentified(
         antecedent_core::ResponseValue::Vector(slopes),
     )) = result.response().map(|r| r.estimate.clone())
@@ -485,7 +487,8 @@ fn several_temporal_horizons_are_checked_without_mixing_them() {
         ols(&[&cols[0][..n], &cols[2][..n]], &cols[1][h..])[1]
     };
     assert!((slopes[0] - oracle(1)).abs() < 0.02, "h=1: {} vs {}", slopes[0], oracle(1));
-    assert!((slopes[1] - oracle(3)).abs() < 0.1, "h=3: {} vs {}", slopes[1], oracle(3));
+    assert!(oracle(3).abs() > 0.2, "the association {} must differ from zero", oracle(3));
+    assert!(slopes[1] == 0.0, "h=3 has no causal path: {} is not the structural zero", slopes[1]);
     // The support report plus the Pulse-native suite of each of the two horizons' witnesses.
     assert!(result.refutations.len() > 2, "{:?}", result.refutations);
     assert!(

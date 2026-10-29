@@ -5878,17 +5878,10 @@ impl super::Study {
         let estimand = identification.estimands.first().cloned().ok_or_else(|| {
             CausalError::Compile { message: "temporal cross-world proof has no estimand".into() }
         })?;
-        let mut direct_estimand = estimand.clone();
-        if matches!(
-            &self.query,
-            CausalQuery::NestedCounterfactual(_) | CausalQuery::PathSpecific(_)
-        ) {
-            direct_estimand.adjustment_set = Arc::from([]);
-        }
-        let used = match &self.query {
-            CausalQuery::NestedCounterfactual(_) | CausalQuery::PathSpecific(_) => &direct_estimand,
-            _ => &estimand,
-        };
+        // Every route fits under the back-door set of the declared graph: a confounder of the
+        // treatment and the outcome is adjusted for in the direct slope and in each edge of a
+        // path, never dropped.
+        let used = &estimand;
         let contrast = CrossWorldContrast { treatment, outcome, mediator, active, control };
         // Every regression the point reads is recorded, so the interval refits the
         // same procedure (see `temporal_point_uncertainty`).
@@ -6377,18 +6370,18 @@ pub(super) fn template_scoped_cross_world(
     let active_value = antecedent_core::Value::f64(active);
     let control_value = antecedent_core::Value::f64(control);
     // Nested and path points are the direct slope and the mediator-edge product
-    // that were fit. A counterfactual and an interventional mean stay the
+    // that were fit, under the same adjustment set. A counterfactual and an interventional mean stay the
     // back-door formula of the adjustment set that entered that fit.
     let (method, adjustment, mediators, functional) = match (&query, mediator) {
         (CausalQuery::NestedCounterfactual(_), Some(mediator)) => (
             Arc::from(EstimandMethod::TemporalMediationDirect.as_str()),
-            Arc::from([]),
+            Arc::from(adjustment),
             Arc::from([mediator]),
             direct_slope_functional(&mut arena, treatment, mediator, outcome, active, control),
         ),
         (CausalQuery::PathSpecific(path), Some(_)) => (
             Arc::from(EstimandMethod::PathSpecificNatural.as_str()),
-            Arc::from([]),
+            Arc::from(adjustment),
             Arc::clone(&path.path_nodes),
             path_edge_product_functional(
                 &mut arena,
@@ -6766,6 +6759,50 @@ pub(super) struct DagDerivativeFit<'a> {
 /// functional is evaluated on joint draws of the tempered slope posterior and
 /// its credible band is attached. Callers refuse a mapped prior before calling.
 pub(super) fn temporal_dag_derivative_response(
+    data: &TimeSeriesData,
+    query: &ResponseQuery,
+    fit: DagDerivativeFit<'_>,
+    settings: (&InferenceMode, u32),
+    ctx: &ExecutionContext,
+) -> Result<CausalResponse, CausalError> {
+    let no_path = fit.identification.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code.as_ref() == crate::analysis::temporal_admg_contrast::NO_DIRECTED_PATH_CODE
+    });
+    let mut response = temporal_dag_derivative_fit(data, query, fit, settings, ctx)?;
+    if no_path {
+        // The window holds no directed path from the treatment to the outcome: the do-effect
+        // is exactly zero and the fitted slope is an association, so the point and its band
+        // collapse to the structural zero (nothing is estimated, hence no sampling band).
+        response.estimate = match &response.estimate {
+            ResponseIdentification::PointIdentified(ResponseValue::Scalar(_)) => {
+                ResponseIdentification::PointIdentified(ResponseValue::Scalar(0.0))
+            }
+            other => other.clone(),
+        };
+        response.uncertainty = match &response.uncertainty {
+            ResponseUncertainty::Scalar { level, interpretation, .. } => {
+                ResponseUncertainty::Scalar {
+                    standard_error: 0.0,
+                    level: *level,
+                    lower: 0.0,
+                    upper: 0.0,
+                    interpretation: *interpretation,
+                    draws: None,
+                }
+            }
+            other => other.clone(),
+        };
+        if let Some(note) = fit.identification.diagnostics.iter().find(|diagnostic| {
+            diagnostic.code.as_ref()
+                == crate::analysis::temporal_admg_contrast::NO_DIRECTED_PATH_CODE
+        }) {
+            response.support.warnings.push(note.clone());
+        }
+    }
+    Ok(response)
+}
+
+fn temporal_dag_derivative_fit(
     data: &TimeSeriesData,
     query: &ResponseQuery,
     fit: DagDerivativeFit<'_>,

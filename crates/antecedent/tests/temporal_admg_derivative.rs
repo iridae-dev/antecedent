@@ -154,7 +154,7 @@ fn value(result: &antecedent::StudyResult) -> f64 {
 #[test]
 fn the_window_adjustment_recovers_the_structural_slope_with_a_block_band() {
     let (structural, naive) = references();
-    assert!((structural - 2.0).abs() < 0.2, "{structural}");
+    assert!((structural - 2.0).abs() < 0.03, "{structural}");
     assert!((naive - structural).abs() > 0.4, "the confounder must bias {naive} vs {structural}");
     let result = Study::series(series())
         .graph(template())
@@ -166,7 +166,7 @@ fn the_window_adjustment_recovers_the_structural_slope_with_a_block_band() {
         .run(&ExecutionContext::for_tests(9))
         .unwrap();
     let got = value(&result);
-    assert!((got - structural).abs() < 0.15, "{got} vs the regression reference {structural}");
+    assert!((got - structural).abs() < 1e-9, "{got} vs the regression reference {structural}");
     assert!((got - naive).abs() > 0.3, "{got} is the confounded slope {naive}");
     assert!(
         !matches!(result.response().unwrap().uncertainty, ResponseUncertainty::None),
@@ -187,7 +187,7 @@ fn the_bayesian_derivative_publishes_a_credible_band_around_the_same_slope() {
         .run(&ExecutionContext::for_tests(10))
         .unwrap();
     let got = value(&result);
-    assert!((got - structural).abs() < 0.2, "{got} vs {structural}");
+    assert!((got - structural).abs() < 1e-4, "{got} vs {structural}");
     match &result.response().unwrap().uncertainty {
         ResponseUncertainty::Scalar { interpretation, lower, upper, .. } => {
             assert_eq!(*interpretation, antecedent_core::IntervalInterpretation::Credible);
@@ -234,10 +234,14 @@ fn derivative_at(horizons: Vec<u32>) -> CausalQuery {
 }
 
 #[test]
-fn several_horizons_publish_one_slope_each_and_a_horizon_without_a_path_is_zero() {
+fn several_horizons_publish_one_slope_each_and_a_horizon_without_a_path_is_the_structural_zero() {
     // `x(t-1)` reaches `y(t)` (horizon 1) and has no path to `y(t+2)` (horizon 3), whose
     // parents in the template are `x(t+1)` and `z(t+1)`. The independent reference for each
     // horizon is the regression of `y` at that horizon on the treatment and the confounders.
+    // That regression is a finite-sample association of periodic regressors, not an effect:
+    // the structural do-effect of `x(t-1)` on `y(t+2)` is the sum over directed paths of the
+    // generator's coefficients, 2 at horizon 1 and exactly 0 at horizon 3 (the Fractions
+    // propagation over the structural equations gives total effects 2, 0, 0, 0 at lags 1..4).
     // Horizon 3 sits past the first lag of the periodic regressors, whose serial correlation
     // would otherwise load a lag-1 horizon's regression with an association the template
     // does not draw.
@@ -248,7 +252,8 @@ fn several_horizons_publish_one_slope_each_and_a_horizon_without_a_path_is_zero(
         ols(&[regress(&x), regress(&z), regress(&w)], &y[horizon..])[1]
     };
     let (first, second) = (slope(1), slope(3));
-    assert!((first - 2.0).abs() < 0.2 && second.abs() < 1.0, "{first} {second}");
+    assert!((first - 2.0).abs() < 0.2, "{first}");
+    assert!(second.abs() > 0.2, "the association {second} must differ from the structural zero");
     let result = Study::series(series())
         .graph(template())
         .query(derivative_at(vec![1, 3]))
@@ -264,12 +269,53 @@ fn several_horizons_publish_one_slope_each_and_a_horizon_without_a_path_is_zero(
         panic!("several horizons publish a vector of slopes");
     };
     assert_eq!(values.len(), 2);
-    assert!((values[0] - first).abs() < 0.2, "{} vs {first}", values[0]);
-    assert!((values[1] - second).abs() < 0.6, "{} vs {second}", values[1]);
-    assert!(matches!(
-        result.response().unwrap().uncertainty,
-        ResponseUncertainty::PointwiseBand { .. }
-    ));
+    assert!((values[0] - first).abs() < 1e-9, "{} vs {first}", values[0]);
+    assert!(values[1] == 0.0, "no directed path gives the structural zero, not {}", values[1]);
+    let ResponseUncertainty::PointwiseBand { lower, upper, .. } =
+        &result.response().unwrap().uncertainty
+    else {
+        panic!("several horizons publish a pointwise band");
+    };
+    assert!(lower[0] < values[0] && values[0] < upper[0], "{lower:?} {values:?} {upper:?}");
+    assert!(lower[1] == 0.0 && upper[1] == 0.0, "a structural zero has no sampling band");
+    let notes: Vec<_> = result
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code.as_ref() == "response.temporal_admg.no_directed_path")
+        .collect();
+    assert_eq!(notes.len(), 1, "one typed note for the one horizon without a path");
+}
+
+#[test]
+fn a_single_horizon_without_a_path_publishes_the_structural_zero_with_a_degenerate_band() {
+    // Horizon 3 alone: no directed path from `x(t-1)` to `y(t+2)`, so the scalar slope is the
+    // structural zero for either inference mode, not the regression association.
+    for inference in [InferenceMode::Frequentist, InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64))]
+    {
+        let result = Study::series(series())
+            .graph(template())
+            .query(derivative_at(vec![3]))
+            .inference(inference.clone())
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(24)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(15))
+            .unwrap();
+        assert!(value(&result) == 0.0, "{inference:?}: {}", value(&result));
+        if let ResponseUncertainty::Scalar { lower, upper, standard_error, .. } =
+            &result.response().unwrap().uncertainty
+        {
+            assert!(*lower == 0.0 && *upper == 0.0 && *standard_error == 0.0);
+        }
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|d| d.code.as_ref() == "response.temporal_admg.no_directed_path"),
+            "{inference:?}: the typed no-path note"
+        );
+    }
 }
 
 #[test]
@@ -342,7 +388,7 @@ fn a_front_door_slope_on_the_window_is_estimated_not_refused() {
         .run(&ExecutionContext::for_tests(16))
         .unwrap();
     let got = value(&result);
-    assert!((got - reference).abs() < 0.2, "{got} vs the front-door reference {reference}");
+    assert!((got - reference).abs() < 0.01, "{got} vs the front-door reference {reference}");
     assert!((got - naive).abs() > 0.05, "{got} is the confounded slope {naive}");
     assert!(
         !matches!(result.response().unwrap().uncertainty, ResponseUncertainty::None),
