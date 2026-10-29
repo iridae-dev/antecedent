@@ -159,14 +159,16 @@ fn factorized_propensities_and_means_match_the_enumerated_law() {
             let oracle = law[usize::from(sample.z[i] > 0.5)][arm];
             worst = worst.max((propensities[j * n + i] - oracle).abs());
         }
-        assert!(worst < 0.05, "cell {arm}: worst propensity error {worst}");
+        // Observed worst error is 0.014 at n = 12 000.
+        assert!(worst < 0.03, "cell {arm}: worst propensity error {worst}");
     }
 
     // Oracle 2: the true cell means 0.4 c + 1{t0 = t1 = 1} + 0.25.
     for cell in 0..8 {
         let truth = 0.4 * cell as f64 + f64::from(u8::from(cell & 3 == 3)) + 0.25;
         let estimate = estimate_of(&fit, cell);
-        assert!((estimate - truth).abs() < 0.05, "cell {cell}: {estimate} vs {truth}");
+        // Observed worst cell-mean error is 0.007.
+        assert!((estimate - truth).abs() < 0.02, "cell {cell}: {estimate} vs {truth}");
         let CellStatus::Supported(report) = &fit.cells[cell].status else { unreachable!() };
         assert!(report.ess > 100.0 && report.propensity_min > 0.0);
     }
@@ -190,7 +192,7 @@ fn factorized_propensities_and_means_match_the_enumerated_law() {
     // family has no 2x2 interaction.
     let contrast = fit.contrast_point(JointContrast::CellMinusControl(7)).unwrap();
     assert!((contrast - (estimate_of(&fit, 7) - estimate_of(&fit, 0))).abs() < 1e-9);
-    assert!((contrast - 3.8).abs() < 0.1, "{contrast}");
+    assert!((contrast - 3.8).abs() < 0.03, "{contrast}");
     let (code, message) = refused(fit.contrast_point(JointContrast::Interaction).unwrap_err());
     assert_eq!(code, "joint_cell_unsupported");
     assert!(message.contains("joint_cells.contrast_cell_unsupported"), "{message}");
@@ -206,7 +208,7 @@ fn the_two_by_two_interaction_recovers_the_known_value() {
     let by_hand =
         estimate_of(&fit, 0) - estimate_of(&fit, 1) - estimate_of(&fit, 2) + estimate_of(&fit, 3);
     assert!((interaction - by_hand).abs() < 1e-9);
-    assert!((interaction - 1.0).abs() < 0.1, "{interaction}");
+    assert!((interaction - 1.0).abs() < 0.03, "{interaction}");
 }
 
 /// The score table is the artifact: its provenance marks the penalized propensity (so no
@@ -248,7 +250,7 @@ fn a_family_with_one_empty_cell_keeps_the_rest() {
     let fit = run(&data, 2, &["z"], &orderings_for(2, &[0, 1], true).unwrap(), &config()).unwrap();
     for cell in 0..3 {
         let truth = 0.4 * cell as f64 + 0.25;
-        assert!((estimate_of(&fit, cell) - truth).abs() < 0.06, "cell {cell}");
+        assert!((estimate_of(&fit, cell) - truth).abs() < 0.02, "cell {cell}");
     }
     assert_eq!(fit.cells[3].rows, 0);
     let CellStatus::Unsupported(refusal) = &fit.cells[3].status else {
@@ -258,7 +260,7 @@ fn a_family_with_one_empty_cell_keeps_the_rest() {
     assert_eq!(refusal.detail, "joint_cells.cell_empty");
     assert!(fit.degenerate_conditionals > 0);
     assert_eq!(fit.scores.n_columns(), 3);
-    assert!((fit.contrast_point(JointContrast::CellMinusControl(1)).unwrap() - 0.4).abs() < 0.06);
+    assert!((fit.contrast_point(JointContrast::CellMinusControl(1)).unwrap() - 0.4).abs() < 0.02);
     for contrast in [JointContrast::CellMinusControl(3), JointContrast::Interaction] {
         let (code, _) = refused(fit.contrast_point(contrast).unwrap_err());
         assert_eq!(code, "joint_cell_unsupported");
@@ -313,8 +315,8 @@ fn exact_duplicate_treatments_leave_two_cells() {
     let sample = Sample { z, t: vec![t.clone(), t], y };
     let data = frame(&sample, &[]);
     let fit = run(&data, 2, &["z"], &orderings_for(2, &[0, 1], true).unwrap(), &config()).unwrap();
-    assert!((estimate_of(&fit, 0) - 0.25).abs() < 0.05);
-    assert!((estimate_of(&fit, 3) - 1.25).abs() < 0.05);
+    assert!((estimate_of(&fit, 0) - 0.25).abs() < 0.02);
+    assert!((estimate_of(&fit, 3) - 1.25).abs() < 0.02);
     for cell in [1, 2] {
         let CellStatus::Unsupported(refusal) = &fit.cells[cell].status else {
             panic!("cell {cell} cannot occur and must be refused")
@@ -497,9 +499,8 @@ fn learner_config() -> FactorizedJointConfig {
 /// `antecedent-learn` contract) recovers the known cell means, interaction and propensities.
 /// Both nuisance models are correctly specified here (`z` is binary, so a logistic in `z` is
 /// saturated and the outcome is linear in `z`), so the AIPW cell mean has standard error near
-/// `0.17 / sqrt(n p_cell)`, about 0.004 at n = 12 000 with `p_cell >= 0.15`; the 0.05 and 0.1
-/// tolerances are an order of magnitude wider and exist to keep the test from being flaky,
-/// not to claim a rate. The table is marked so no interval is published.
+/// `0.17 / sqrt(n p_cell)`, about 0.004 at n = 12 000 with `p_cell >= 0.15`; the 0.02 and 0.03
+/// tolerances are a few times the observed deviation (at most 0.0073) and claim no rate. The table is marked so no interval is published.
 #[test]
 fn a_declared_learner_recovers_the_known_effect_point_only() {
     let law = law_two();
@@ -510,10 +511,10 @@ fn a_declared_learner_recovers_the_known_effect_point_only() {
     let fit = run(&data, 2, &["z"], &orderings, &learner_config()).unwrap();
     for cell in 0..4 {
         let truth = 0.4 * cell as f64 + f64::from(u8::from(cell == 3)) + 0.25;
-        assert!((estimate_of(&fit, cell) - truth).abs() < 0.05, "cell {cell}");
+        assert!((estimate_of(&fit, cell) - truth).abs() < 0.02, "cell {cell}");
     }
     let interaction = fit.contrast_point(JointContrast::Interaction).unwrap();
-    assert!((interaction - 1.0).abs() < 0.1, "{interaction}");
+    assert!((interaction - 1.0).abs() < 0.03, "{interaction}");
     let propensities = &fit.scores.propensities;
     for (j, column) in fit.scores.columns.iter().enumerate() {
         let worst = (0..n)
@@ -522,7 +523,7 @@ fn a_declared_learner_recovers_the_known_effect_point_only() {
                 (propensities[j * n + i] - oracle).abs()
             })
             .fold(0.0_f64, f64::max);
-        assert!(worst < 0.05, "cell {}: worst propensity error {worst}", column.arm);
+        assert!(worst < 0.02, "cell {}: worst propensity error {worst}", column.arm);
     }
     for check in &fit.normalization {
         assert!(check.max_abs_error.unwrap() < 1e-9, "{check:?}");

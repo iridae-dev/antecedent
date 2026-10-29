@@ -207,7 +207,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/class_posterior_ate.rs",
-          "sha256": "66fb53a1a3c7ef5139e393a3f61f184b8746f9591bb3cd4371c4ace101710985"
+          "sha256": "4be2ebbed61dfac1541b6d1792462a455212f5891dda846f272f90e3fedb3e5d"
         },
         {
           "role": "assertion_source",
@@ -217,12 +217,12 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/manufacturing_temporal.rs",
-          "sha256": "b090056d724650ccebefeff3410f117a7e870db2dc39d404883fef40a80559dd"
+          "sha256": "390dd829f34b107bb409f8cb0a54541ff8d5174541aebc203d3e81ca895bd0b2"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_class_posterior.rs",
-          "sha256": "6fdba49ae7ac08d5be0bf94bc95bc86c474a8bcf70ce44152623b9bcf45e4d71"
+          "sha256": "54bab9110d48b69bb8e0ef97941bcabaffa2cbd3802eb6b4208f97ec9aaedb41"
         }
       ],
       "fixture_payload_sha256": "61eac03a090bfcea9f49d379f66b0dbb436ad87155faa2591b9f0001647d7832"

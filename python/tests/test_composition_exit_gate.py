@@ -449,7 +449,9 @@ def s3_producer(design):
     )
     del query, data
     result = require_success(study.estimate())
-    assert result.estimate == pytest.approx(1.2, abs=0.3)
+    # Truth 1 + shift/2 = 1.2 (observed deviations <= 0.09, SE ~0.08); the untransported trial
+    # effect 1.0 is 0.2 away and is outside the band.
+    assert result.estimate == pytest.approx(1.2, abs=0.15)
     assert result.interval is None and result.uncertainty["status"] == "point_only"
     assert result.overlap["selection"]["probability_min"] > 0.05
     assert result.overlap["treatment"]["probability_min"] == pytest.approx(0.5)
@@ -463,7 +465,7 @@ def s3_producer(design):
     branch = study.bind_snapshot(fresh)
     moved = require_success(branch.estimate())
     assert moved.execution_id != result.execution_id and moved.certificate == result.certificate
-    assert moved.estimate == pytest.approx(1.2, abs=0.3)
+    assert moved.estimate == pytest.approx(1.2, abs=0.15)
     return bytes(moved.export()), moved
 
 
@@ -477,7 +479,7 @@ def test_story_3_learned_continuous_transport_estimate_with_overlap_refusal(desi
     assert consumed.provenance == live.provenance
     assert consumed.overlap == live.overlap and consumed.folds == live.folds
     assert consumed.interval is None and consumed.uncertainty == live.uncertainty
-    assert consumed.estimate == pytest.approx(1.2, abs=0.3)
+    assert consumed.estimate == pytest.approx(1.2, abs=0.15)
     # Overlap refusal: the target is outside what the trial can represent.
     weak_query, weak_data = s3_fixture(design, shift=3.0, seed=5)
     weak = transport.prepare_learned_continuous(
@@ -719,7 +721,7 @@ def s5_producer():
     per_unit = float(np.mean(s5_outcome(ACTIVE, m0) - s5_outcome(CONTROL, m0)))
     plug_in = float(s5_outcome(ACTIVE, m0.mean()) - s5_outcome(CONTROL, m0.mean()))
     assert abs(per_unit - plug_in) > 1.0
-    assert abs(shared.point - per_unit) < 0.25 and abs(shared.point - plug_in) > 1.0
+    assert abs(shared.point - per_unit) < 0.12  # observed 0.073 and abs(shared.point - plug_in) > 1.0
     separable = path_specific_effect(s5_dag(), data, direct).point
     assert abs(separable - per_unit) > 1.0
     # Typed refusals.
@@ -753,7 +755,7 @@ def test_story_5_second_fixed_dag_cross_world_query_with_shared_abduction_and_ty
         if witness is not None:
             assert consumed.witness == witness
             assert consumed.witness["intervened_edges"] == [[0, 1], [1, 2]]
-    assert abs(consumed.point - per_unit) < 0.25
+    assert abs(consumed.point - per_unit) < 0.12  # observed 0.073
     with pytest.raises(Exception, match=".") as bad:
         consume_cross_world_artifact(b"not an artifact")
     assert type(bad.value).__name__ == "CausalSerializationError"

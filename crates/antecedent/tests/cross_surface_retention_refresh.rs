@@ -28,6 +28,23 @@ fn prepared_summary_mutations_equal_fresh_reconstruction_and_reduced_retention_r
     fit.check_against_fresh().unwrap();
     let fresh = fit.fresh_snapshot().unwrap();
     assert_eq!(fit.snapshot().source_digest, fresh.source_digest);
+    // Independent weighted least squares on the surviving rows (ids 0..16 without 1, weight of 3
+    // replaced by 4.5) from the closed-form 2x2 normal equations, not from the product's sums.
+    let (mut sw, mut swx, mut swxx, mut swy, mut swxy) = (0.0, 0.0, 0.0, 0.0, 0.0);
+    for i in (0..16_usize).filter(|&i| i != 1) {
+        let x = 0.3 * i as f64 - 1.0;
+        let y = 1.0 + 2.0 * x + ((i * 7) % 5) as f64 * 0.1;
+        let w = if i == 3 { 4.5 } else { 0.5 + (i % 3) as f64 * 0.5 };
+        sw += w;
+        swx += w * x;
+        swxx += w * x * x;
+        swy += w * y;
+        swxy += w * x * y;
+    }
+    let slope = (sw * swxy - swx * swy) / (sw * swxx - swx * swx);
+    let intercept = (swy - slope * swx) / sw;
+    let beta = fit.snapshot().beta.expect("fitted coefficients");
+    assert!((beta[0] - intercept).abs() < 1e-9 && (beta[1] - slope).abs() < 1e-9, "{beta:?}");
 
     let summary = fit.clone().into_summary_only();
     assert_eq!(summary.retention(), RetentionMode::SummaryOnly);

@@ -72,4 +72,5 @@ def test_observed_temporal_posterior_and_response_roundtrip_together():
     assert again.variable_names == decoded.variable_names
     values = np.asarray(result.response.values).reshape(-1)
     truth = [2 + 0.75 * x.mean(), 2 + 1.5 * x.mean(), 3.5 + 0.75 * x.mean(), 2.75 + 1.5 * x.mean()]
-    assert values == pytest.approx(truth, abs=pin["mean_atol"])
+    # Observed worst deviation 0.030 (censored-data Gibbs posterior); the fixture band is 0.16.
+    assert values == pytest.approx(truth, abs=min(pin["mean_atol"], 0.08))

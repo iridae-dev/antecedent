@@ -166,7 +166,8 @@ fn native_structural_iv_compiler_keeps_actual_polynomial_features_and_joint_firs
         panic!("joint posterior")
     };
     for (got, want) in law.estimate.means.iter().zip([2.0, 4.0, 9.0]) {
-        assert!((got - want).abs() < 0.08);
+        // Observed deviation 0.0016 at 8000 draws under a diffuse prior.
+        assert!((got - want).abs() < 0.01);
     }
     replay(&prepared, JointDesignInference::InstrumentedGaussian { prior: prior.clone() });
     let model = fit_instrumented_joint_polynomial(
@@ -248,9 +249,11 @@ fn native_cohort_compiler_preserves_joint_regime_atts_and_complete_likelihood() 
         panic!("joint posterior")
     };
     for (got, want) in law.estimate.means.iter().zip([2.0, 3.0, 9.0]) {
-        assert!((got - want).abs() < 0.1);
+        // Observed deviation 0.023 (diffuse-prior Monte Carlo).
+        assert!((got - want).abs() < 0.06);
     }
-    assert!((law.estimate.covariance[1] - 0.5).abs() < 0.05);
+    // Observed 0.49999 against the stated 0.5.
+    assert!((law.estimate.covariance[1] - 0.5).abs() < 0.002);
     replay(&prepared, JointDesignInference::RolloutGaussian { prior });
     let mut bad = design;
     bad.parallel_trends.clear();
@@ -366,7 +369,8 @@ fn native_synthetic_joint_posterior_uses_actual_convergence_gated_donor_likeliho
         panic!("native joint posterior")
     };
     for (mean, want) in law.estimate.means.iter().zip([4.0, 8.0]) {
-        assert!((mean - want).abs() < 0.15);
+        // Observed deviation 0.002.
+        assert!((mean - want).abs() < 0.01);
     }
     assert!(law.estimate.covariance[0] > 0.0);
     assert!(law.estimate.covariance[3] > 0.0);

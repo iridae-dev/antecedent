@@ -97,7 +97,7 @@ fn bayesian_dag_ate_retains_proof_prior_validation_and_draws_across_refresh() {
             // The independent fixture is y = 2*t + z + noise under a complete
             // back-door graph. The posterior must estimate the known effect.
             assert!(
-                (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.2,
+                (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.08, // observed 0.040
                 "{coordinate}: {}",
                 result.estimate().as_effect().unwrap().ate
             );
@@ -190,11 +190,11 @@ fn bayesian_dag_ate_keeps_non_gaussian_likelihood_on_outcome_scale() {
         };
         assert_eq!(plan.inference(), &InferenceMode::Bayesian(config));
         let result = prepared.estimate(&data, &ctx).unwrap();
-        assert!(result.estimate().as_effect().unwrap().ate.is_finite());
-        assert!(
-            result.estimate().as_effect().unwrap().ate > 0.1
-                && result.estimate().as_effect().unwrap().ate < 0.5
-        );
+        // Outcome-scale truth: the mean over z of sigmoid(1 + z - 0.3) - sigmoid(z - 0.3) on the
+        // ten-point grid is 0.2190 (observed 0.2033 logit, 0.2037 probit; the log-odds
+        // contrast would be ~1).
+        let ate = result.estimate().as_effect().unwrap().ate;
+        assert!((ate - 0.2190).abs() < 0.03, "{likelihood:?}: {ate}");
         assert_eq!(result.posterior.as_ref().unwrap().draws.n_draws, 64);
         assert_eq!(result.posterior.as_ref().unwrap().diagnostics.backend_id.as_ref(), "laplace");
     }
@@ -234,7 +234,7 @@ fn bayesian_dag_ate_poisson_mean_contrast_uses_the_count_scale() {
     assert_eq!(plan.inference(), &InferenceMode::Bayesian(config));
     let result = prepared.estimate(&data, &ExecutionContext::for_tests(309)).unwrap();
     assert!(
-        (result.estimate().as_effect().unwrap().ate - 1.0).abs() < 0.1,
+        (result.estimate().as_effect().unwrap().ate - 1.0).abs() < 0.02,
         "{}",
         result.estimate().as_effect().unwrap().ate
     );

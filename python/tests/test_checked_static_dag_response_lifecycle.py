@@ -76,7 +76,10 @@ def test_checked_static_dag_response_python_lifecycle(accepted: bool, kind: str)
         observed = np.asarray([first.effect])
     # The response estimator fits its declared nuisance model; the exact structural
     # law is the independent truth reference, with finite-sample nuisance tolerance.
-    np.testing.assert_allclose(observed, expected, atol=0.03, rtol=0)
+    # Observed deviation: 0.022 for the doubly-robust curve, 0.0024 for the g-computation point.
+    np.testing.assert_allclose(
+        observed, expected, atol=0.03 if kind == "curve" else 0.006, rtol=0
+    )
 
     shifted = {**data, "y": data["y"] + 0.3}
     refreshed = require_success(prepared.rebind(data=shifted).estimate())

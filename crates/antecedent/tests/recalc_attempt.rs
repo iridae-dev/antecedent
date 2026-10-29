@@ -160,6 +160,17 @@ fn original_static_mid_execution_cancellation_preserves_completed_work_and_old_s
     let ctx = ExecutionContext::for_tests(7);
     let mut session = StaticResponseSession::new();
     let first = execute_static_response_with_receipt(&mut session, &request, &ctx).unwrap();
+    // Independent truth: the front-door contrast of the fixture's contingency table (benefit 1,
+    // cost 0 makes the utility contrast the ATE).
+    let pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/estimate/admg_frontdoor_functional/expected.json"
+    ))
+    .unwrap();
+    assert!(
+        (first.contrast - pin["frequentist"]["expected_ate"].as_f64().unwrap()).abs() < 1e-12,
+        "contrast {}",
+        first.contrast
+    );
     let result = std::ptr::from_ref(session.result().unwrap());
     let mut changed = request.clone();
     changed.columns[2].1[0] = 1.0 - changed.columns[2].1[0];
@@ -449,6 +460,10 @@ fn recalc_warm_aipw_configuration_refresh_matches_fresh_fit() {
     let mut fresh_session = RecalcSession::new();
     let fresh = execute_with_receipt(&mut fresh_session, &changed, &ctx).unwrap();
 
+    // Independent truth: y = 1 + 2t + 0.6z + 0.5tz + 0.3z^2 with z uniform on {-1, 0, 1} gives
+    // ATE = 2 + 0.5 E[z] = 2 (observed 1.9983, finite-fold nuisance error).
+    assert!((warm.law.ate - 2.0).abs() < 0.01, "warm ate {}", warm.law.ate);
+    assert!((fresh.law.ate - 2.0).abs() < 0.01, "fresh ate {}", fresh.law.ate);
     assert_ne!(original_scores, *warm_session.score_table().unwrap());
     assert!(matches!(warm.plan.status(Stage::Identification), Some(StageStatus::Reused { .. })));
     assert!(matches!(warm.plan.status(Stage::ScoreArtifact), Some(StageStatus::Recomputed { .. })));

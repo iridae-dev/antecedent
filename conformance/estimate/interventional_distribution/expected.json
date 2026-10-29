@@ -42,7 +42,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/src/tests.rs",
-          "sha256": "3660c62320dc50a97b708f41297a371bb4f80ffcf69f12c34fe2eaf3aeec26b2"
+          "sha256": "8e621ddd858b78a8d4a6055053f3fdec517307f5dd5b47a1c4a6f4f9b108ec69"
         }
       ],
       "sources": [],

@@ -67,6 +67,13 @@ fn has_structural_aggregation_policy(
     })
 }
 
+/// Distance-to-truth assertion; callers keep tolerances within a few times the observed deviation
+/// on these noise-free fixtures.
+fn assert_close(label: &str, got: f64, want: f64, tol: f64) {
+    let dev = (got - want).abs();
+    assert!(dev < tol, "{label}: got {got} want {want} (dev {dev:e} >= tol {tol:e})");
+}
+
 fn manufacturing_series(n: usize) -> (TimeSeriesData, TemporalDag, TemporalEffectQuery) {
     let mut b = CausalSchemaBuilder::new();
     b.add_variable(
@@ -365,11 +372,10 @@ fn assert_manufacturing_dbn_known_truth_mixture(policy: TemporalPolicy, suite: R
     let refreshed_eq = refreshed_post.effect_column().unwrap();
     assert!((click_post.summaries.mean[click_eq] - post.summaries.mean[eq]).abs() < 1e-12);
     assert!((refreshed_post.summaries.mean[refreshed_eq] - post.summaries.mean[eq]).abs() < 1e-12);
-    assert!(
-        (post.summaries.mean[eq] - effect_truth).abs() < tolerance,
-        "posterior mean={} truth={effect_truth}",
-        post.summaries.mean[eq]
-    );
+    // The fixture is noise-free: observed Bayesian deviation is ~1e-5 under the 1e6 prior scale.
+    let tight = tolerance.min(1e-4);
+    assert_close("dbn bayes mean", post.summaries.mean[eq], effect_truth, tight);
+    assert_close("dbn click ate", click.estimate().as_effect().unwrap().ate, effect_truth, tight);
     if suite != RefuteSuite::None {
         assert!(!click.refutations.is_empty());
         assert!(!click.predictive_checks.is_empty());
@@ -422,13 +428,11 @@ fn manufacturing_dbn_posterior_frequentist_shared_block_bootstrap() {
             .unwrap();
         let ctx = ExecutionContext::for_tests(41);
         let result = study.run(&ctx).unwrap();
-        assert!(
-            (result.estimate().as_effect().unwrap().ate
-                - pin["expected_effect_given_identified"].as_f64().unwrap())
-            .abs()
-                < pin["effect_abs_tolerance"].as_f64().unwrap(),
-            "{policy:?}: effect {}",
-            result.estimate().as_effect().unwrap().ate
+        assert_close(
+            "dbn freq boot ate",
+            result.estimate().as_effect().unwrap().ate,
+            pin["expected_effect_given_identified"].as_f64().unwrap(),
+            1e-9,
         );
         assert!(result.refutations.is_empty(), "{policy:?}: none runs no refuter");
         assert!(result.estimate().as_effect().unwrap().se_bootstrap().is_some());
@@ -521,11 +525,11 @@ fn manufacturing_dbn_posterior_frequentist_cheap_and_full_mix_atom_refuters() {
                 .iter()
                 .any(|diagnostic| { diagnostic.code.as_ref() == "refute.envelope.effect_mixture" })
         );
-        assert!(
-            (result.estimate().as_effect().unwrap().ate
-                - pin["expected_effect_given_identified"].as_f64().unwrap())
-            .abs()
-                < pin["effect_abs_tolerance"].as_f64().unwrap()
+        assert_close(
+            "dbn freq refute ate",
+            result.estimate().as_effect().unwrap().ate,
+            pin["expected_effect_given_identified"].as_f64().unwrap(),
+            1e-9,
         );
     }
 }
@@ -560,9 +564,14 @@ fn manufacturing_dbn_posterior_multistep_sustained_supports_cheap_without_collap
     let q = q.with_policy(TemporalPolicy::sustained(-2, -1));
     let gp = known_truth_dbn_posterior(pin, &weights, &q);
     let ctx = ExecutionContext::for_tests(11);
-    for inference in [
-        InferenceMode::Frequentist,
-        InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64).prior_scale(1_000_000.0)),
+    for (inference, tol) in [
+        (InferenceMode::Frequentist, 1e-9),
+        (
+            InferenceMode::Bayesian(
+                BayesianConfig::conjugate().n_draws(64).prior_scale(1_000_000.0),
+            ),
+            1e-4,
+        ),
     ] {
         let result = Study::series(series.clone())
             .graph_posterior(gp.clone())
@@ -574,7 +583,12 @@ fn manufacturing_dbn_posterior_multistep_sustained_supports_cheap_without_collap
             .unwrap()
             .run(&ctx)
             .unwrap();
-        assert!(result.estimate().as_effect().unwrap().ate.is_finite());
+        assert_close(
+            "dbn multistep ate",
+            result.estimate().as_effect().unwrap().ate,
+            pin["expected_effect_given_identified"].as_f64().unwrap(),
+            tol,
+        );
         assert!(!result.refutations.is_empty());
     }
 }
@@ -739,11 +753,7 @@ fn assert_dbn_mediation_known_truth_mixture(suite: RefuteSuite) {
     assert_eq!(post.identification, IdentificationStatus::GraphDependent);
     assert!((post.unidentified_mass - unidentified_truth).abs() < 1e-12);
     let eq = post.effect_column().unwrap();
-    assert!(
-        (post.summaries.mean[eq] - effect_truth).abs() < tolerance,
-        "posterior mean={} truth={effect_truth}",
-        post.summaries.mean[eq]
-    );
+    assert_close("med bayes mean", post.summaries.mean[eq], effect_truth, tolerance.min(0.012));
     assert!(
         fresh
             .diagnostics
@@ -832,10 +842,11 @@ fn manufacturing_dbn_posterior_frequentist_mediation_envelope() {
     assert_eq!(cached_count(&click), 1);
 
     // Known truth: the requested (mediated) contrast of the identified atom.
-    assert!(
-        (fresh.estimate().as_effect().unwrap().ate - effect_truth).abs() < tolerance,
-        "mediated {} vs truth {effect_truth}",
-        fresh.estimate().as_effect().unwrap().ate
+    assert_close(
+        "med freq ate",
+        fresh.estimate().as_effect().unwrap().ate,
+        effect_truth,
+        tolerance.min(0.015),
     );
     assert_eq!(fresh.identification.status, IdentificationStatus::GraphDependent);
     assert_eq!(fresh.logical_plan.identifier.as_deref(), Some("temporal.mediation"));
@@ -1002,10 +1013,11 @@ fn manufacturing_dbn_posterior_frequentist_mediation_cheap_and_full_mix_atom_ref
                 "full: contiguous window"
             );
         }
-        assert!(
-            (result.estimate().as_effect().unwrap().ate - effect_truth).abs() < tolerance,
-            "{suite:?}: {} vs {effect_truth}",
-            result.estimate().as_effect().unwrap().ate
+        assert_close(
+            "med freq refute ate",
+            result.estimate().as_effect().unwrap().ate,
+            effect_truth,
+            tolerance.min(0.015),
         );
     }
 }
@@ -1089,7 +1101,7 @@ fn manufacturing_dbn_posterior_frequentist_mediation_mixes_atoms_in_one_replicat
     );
     // The known-truth atom recovers 0.44; the lagged-mediator atom is a
     // different graph with its own S(h) and its own (graph-specific) value.
-    assert!((atom_values[0].1 - effect_truth).abs() < tolerance, "{atom_values:?}");
+    assert_close("med atom0", atom_values[0].1, effect_truth, tolerance.min(0.015));
     assert!((atom_values[0].1 - atom_values[1].1).abs() > 1e-6, "{atom_values:?}");
     assert!(
         result
@@ -1403,6 +1415,10 @@ fn dbn_posterior_response_curve_matches_identified_atom() {
     let explicit = run_explicit_temporal_response(&series, graph, response, inference);
     let mixed = response_values(&fresh);
     let atom = response_values(&explicit);
+    // Independent truth: defect_t = 0.9 pressure_{t-1}, so the mean curve over {0, 1} is {0, 0.9}.
+    assert_eq!(mixed.len(), 2);
+    assert_close("curve at 0", mixed[0], 0.0, 1e-9);
+    assert_close("curve at 1", mixed[1], 0.9, 1e-9);
     assert_eq!(mixed.len(), atom.len());
     for (got, want) in mixed.iter().zip(atom.iter()) {
         assert!((got - want).abs() < 1e-8, "GP mix {got} != identified atom {want}");
@@ -1445,9 +1461,14 @@ fn dbn_posterior_intervention_response_matches_identified_atom() {
         .collect();
     let (series, graph, q) = white_noise_pulse_series(n, seed);
     let response = temporal_intervention_response(&q);
-    for inference in [
-        InferenceMode::Frequentist,
-        InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64).prior_scale(1_000_000.0)),
+    for (inference, tol) in [
+        (InferenceMode::Frequentist, 1e-9),
+        (
+            InferenceMode::Bayesian(
+                BayesianConfig::conjugate().n_draws(64).prior_scale(1_000_000.0),
+            ),
+            2e-4,
+        ),
     ] {
         let gp = known_truth_dbn_posterior(temporal, &weights, &q);
         let result = Study::series(series.clone())
@@ -1469,6 +1490,9 @@ fn dbn_posterior_intervention_response_matches_identified_atom() {
             run_explicit_temporal_response(&series, graph.clone(), response.clone(), inference);
         let mixed = response_values(&result);
         let atom = response_values(&explicit);
+        // Independent truth: do(pressure = 1) at lag one gives defect = 0.9.
+        assert_eq!(mixed.len(), 1);
+        assert_close("ir truth", mixed[0], 0.9, tol);
         assert_eq!(mixed.len(), atom.len());
         for (got, want) in mixed.iter().zip(atom.iter()) {
             assert!((got - want).abs() < 1e-6, "IR mix {got} != identified atom {want}");
@@ -1540,6 +1564,10 @@ fn dbn_posterior_intervention_response_cheap_and_full_mix_atom_refuters() {
 
 #[test]
 fn dbn_posterior_response_agrees_with_independent_atom_mix() {
+    // Both atoms share one backdoor-free adjustment set (the extra contemporaneous edge
+    // p_t -> d_t is not a confounder of p_{t-1} -> d_t), so they agree and the frozen-weight mix
+    // must reproduce that common value; the known truth {0, 0.9} is asserted independently. The
+    // weighting itself is pinned where atoms differ, by the mediation mixture test.
     let (series, graph_a, q) = white_noise_pulse_series(80, 7);
     let mut graph_b = graph_a.clone();
     let p0 = ensure_lagged(&mut graph_b, VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
@@ -1552,6 +1580,8 @@ fn dbn_posterior_response_agrees_with_independent_atom_mix() {
     let values_a = response_values(&a);
     let values_b = response_values(&b);
     assert_eq!(values_a.len(), values_b.len());
+    assert_close("atom A truth", values_a[1], 0.9, 1e-9);
+    assert_close("atom B truth", values_b[1], 0.9, 1e-9);
     let w_a = 0.55;
     let w_b = 0.45;
     let expected: Vec<f64> = values_a
@@ -1561,8 +1591,8 @@ fn dbn_posterior_response_agrees_with_independent_atom_mix() {
         .collect();
 
     let contemporaneous_a = AdjacencyMask::EMPTY;
-    let contemporaneous_b = set_edge(0, 2, 0, 1, true);
     let lag = 2u64;
+    let contemporaneous_b = set_edge(0, 2, 0, 1, true);
     let gp = GraphPosterior::from_atoms(
         2,
         vec![w_a, w_b],
@@ -1666,7 +1696,7 @@ fn manufacturing_dbn_posterior_discovered_prepare_reuses_identification() {
     let refreshed_eq = refreshed_post.effect_column().unwrap();
     assert!((click_post.summaries.mean[click_eq] - post.summaries.mean[eq]).abs() < 1e-12);
     assert!((refreshed_post.summaries.mean[refreshed_eq] - post.summaries.mean[eq]).abs() < 1e-12);
-    assert!((post.summaries.mean[eq] - 0.9).abs() < 0.35, "mean={}", post.summaries.mean[eq]);
+    assert_close("discovered mean", post.summaries.mean[eq], 0.9, 1e-3);
 }
 
 #[test]
@@ -1738,7 +1768,7 @@ fn manufacturing_dbn_envelope_composed_prior_conflict() {
         .unwrap();
     let result = analysis.run(&ctx).unwrap();
     let post = result.posterior.expect("DBN mixture posterior");
-    assert!(post.summaries.mean[post.effect_column().unwrap()].is_finite());
+    assert_close("composed prior mean", post.summaries.mean[post.effect_column().unwrap()], 0.9, 1e-4);
     assert!(
         post.conflict_summary.is_some()
             || result.diagnostics.iter().any(|d| d.code.as_ref() == "bayes.prior_bank.conflict"),
@@ -1821,10 +1851,7 @@ fn manufacturing_pressure_defect_bayesian() {
     let post = result.posterior.as_ref().expect("Bayesian temporal should attach posterior");
     let eq = post.effect_column().unwrap();
     let mean = post.summaries.mean[eq];
-    assert!(
-        (mean - expected_ate).abs() < tolerance,
-        "posterior mean={mean} expected ~{expected_ate}"
-    );
+    assert_close("pressure_defect mean", mean, expected_ate, tolerance.min(1e-4));
     assert!((result.estimate().as_effect().unwrap().ate - mean).abs() < 1e-12);
     let p_below = post.probability_below(0.0).unwrap();
     assert!(p_below.is_finite(), "p_below_zero={p_below}");

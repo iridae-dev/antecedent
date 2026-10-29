@@ -103,7 +103,8 @@ def test_a_penalized_aipw_reports_a_point_the_scores_and_the_influence_interval(
             execution=ant.Execution(seed=7),
         )
     )
-    assert result.effect == pytest.approx(2.0, abs=0.3)
+    # Observed 2.022; the unadjusted contrast on this sample is 2.351, outside the band.
+    assert result.effect == pytest.approx(2.0, abs=0.08)
     estimate = result.estimate
     # The cross-fitted influence-function SE and the iid joint covariance are published.
     assert math.isfinite(estimate.se_analytic) and estimate.se_analytic > 0.0
@@ -204,7 +205,8 @@ def test_high_dimensional_separation_is_recovered_by_the_penalty_not_by_the_plai
                 execution=ant.Execution(seed=2),
             )
         )
-        assert result.effect == pytest.approx(2.0, abs=0.5)
+        # Observed 1.967 for both penalties; the unadjusted contrast is 3.73.
+        assert result.effect == pytest.approx(2.0, abs=0.1)
 
 
 def test_a_lasso_propensity_records_its_selected_support_per_fold():
@@ -222,7 +224,7 @@ def test_a_lasso_propensity_records_its_selected_support_per_fold():
             execution=ant.Execution(seed=5),
         )
     )
-    assert result.effect == pytest.approx(2.0, abs=0.35)
+    assert result.effect == pytest.approx(2.0, abs=0.2)  # observed 1.909
     support = result.estimate.penalized_support
     assert [fold.fold for fold in support] == [0, 1, 2, 3, 4]
     # z0 is the first data column (variable id 0), the strongest propensity covariate.
@@ -296,7 +298,7 @@ def test_a_failed_glm_fit_runs_the_declared_fallback_and_records_both():
             execution=ant.Execution(seed=2),
         )
     )
-    assert result.effect == pytest.approx(2.0, abs=0.5)
+    assert result.effect == pytest.approx(2.0, abs=0.1)  # observed 1.967
     fallback = result.estimate.penalized_fallback
     assert fallback is not None
     assert fallback.stage == "propensity_fit"

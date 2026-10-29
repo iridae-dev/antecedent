@@ -127,6 +127,11 @@ fn bayesian_ate_attaches_prior_and_posterior_predictive() {
         result.predictive_checks.iter().any(|c| c.kind == PredictiveCheckKind::Posterior),
         "expected posterior predictive check on Bayesian facade path"
     );
+    // Noise-free y = 1 + 2t + 3z adjusted for z: the posterior mean sits at the true ATE 2
+    // (observed 2.0016), far from the unadjusted contrast 3.5.
+    let fitted = result.posterior.as_ref().unwrap();
+    let mean = fitted.summaries.mean[fitted.effect_column().unwrap()];
+    assert!((mean - 2.0).abs() < 0.01, "posterior mean {mean}");
     let prior =
         result.predictive_checks.iter().find(|c| c.kind == PredictiveCheckKind::Prior).unwrap();
     assert!(prior.p_value.is_finite());
@@ -169,8 +174,11 @@ fn bayesian_exact_dag_posterior_effect_envelope() {
     let post = result.posterior.expect("mixture posterior");
     assert!((0.0..=1.0).contains(&post.unidentified_mass));
     let eq = post.effect_column().unwrap();
-    assert!(post.summaries.mean[eq].is_finite());
-    assert!(post.summaries.sd[eq].is_finite());
+    // Atoms either adjust for z (effect 2) or not (the unadjusted contrast 3 * (0.75 - 0.25) + 2
+    // = 3.5), so the mixture mean lies between the two closed forms; both are exact on this data.
+    let mean = post.summaries.mean[eq];
+    assert!((1.99..=3.51).contains(&mean), "mixture mean {mean} outside [2, 3.5]");
+    assert!(post.summaries.sd[eq] > 0.0 && post.summaries.sd[eq].is_finite());
     assert!(post.draws.n_draws > 0);
 }
 
@@ -232,13 +240,38 @@ fn graph_posterior_average_effect_accepts_frequentist() {
         &ctx,
     )
     .unwrap();
-    Study::tabular(data)
+    let result = Study::tabular(data)
         .graph_posterior(gp)
         .query(query)
         .inference(InferenceMode::Frequentist)
         .refute(RefuteSuite::None)
         .build()
-        .expect("AverageEffect × graph_posterior × Frequentist is licensed");
+        .expect("AverageEffect × graph_posterior × Frequentist is licensed")
+        .run(&ctx)
+        .unwrap();
+    // Atoms disagree on the estimand (adjust for z: 2.0; do not: 3 * (0.75 - 0.25) + 2 = 3.5), so
+    // the pooled scalar is withheld rather than averaged; each retained atom value is one of the
+    // two exact closed forms on this noise-free data.
+    assert!(result.estimate.as_effect().unwrap().ate.is_nan());
+    assert!(result.diagnostics.iter().any(|d| {
+        d.code.as_ref() == "estimate.graph_posterior.envelope"
+            && d.message.contains("scalar withheld: contributing atoms disagree")
+    }));
+    let mixture = result.structural_response.as_ref().expect("per-atom values are retained");
+    let values: Vec<f64> = mixture
+        .atoms
+        .iter()
+        .filter_map(|atom| match atom.value {
+            Some(antecedent_core::ResponseValue::Scalar(v)) => Some(v),
+            _ => None,
+        })
+        .collect();
+    assert!(!values.is_empty());
+    for v in &values {
+        assert!((v - 3.5).abs() < 1e-9 || (v - 2.0).abs() < 1e-9, "atom value {v}");
+    }
+    assert!(values.iter().any(|v| (v - 3.5).abs() < 1e-9));
+    assert!(values.iter().any(|v| (v - 2.0).abs() < 1e-9));
 }
 
 #[test]
@@ -589,7 +622,8 @@ fn confounded_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery)
 fn end_to_end_propensity_weighting_recovers_confounded_effect() {
     // Dual of python/tests/test_analyze_ate_estimate.py
     // (`test_analyze_propensity_weighting_recovers_ate_and_overlap`): true ATE=2;
-    // Rust band |ate−2|<0.3; shared cross-language floor is 0.4.
+    // Rust band |ate−2|<0.06 (observed 0.015); the unadjusted contrast is ~2.8, so 0.06 still
+    // separates adjusted from unadjusted by a wide margin.
     let (data, graph, query) = confounded_scm(800, 1);
     let analysis = Study::tabular(data)
         .graph(graph)
@@ -602,7 +636,7 @@ fn end_to_end_propensity_weighting_recovers_confounded_effect() {
     let ctx = ExecutionContext::for_tests(11);
     let result = analysis.run(&ctx).unwrap();
     assert!(
-        (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.3,
+        (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.06,
         "ate={}",
         result.estimate.as_effect().unwrap().ate
     );
@@ -698,7 +732,7 @@ fn end_to_end_iv_two_stage_least_squares() {
     let ctx = ExecutionContext::for_tests(21);
     let result = analysis.run(&ctx).unwrap();
     assert!(
-        (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.6,
+        (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.1,
         "ate={}",
         result.estimate.as_effect().unwrap().ate
     );
@@ -766,7 +800,7 @@ fn end_to_end_temporal_effect() {
     let ctx = ExecutionContext::for_tests(7);
     let result = analysis.run(&ctx).unwrap();
     assert!(
-        (result.estimate.as_effect().unwrap().ate - 0.75).abs() < 0.08,
+        (result.estimate.as_effect().unwrap().ate - 0.75).abs() < 1e-9,
         "ate={}",
         result.estimate.as_effect().unwrap().ate
     );

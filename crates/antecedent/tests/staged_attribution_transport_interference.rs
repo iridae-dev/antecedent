@@ -101,7 +101,8 @@ fn change_attribution_known_truth() {
     assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
     let change = result.change_attribution().expect("change attribution");
     let expected = pin["change"]["total_change"].as_f64().unwrap();
-    let tol = pin["change"]["tolerance"].as_f64().unwrap();
+    // Mean-difference allocation of an exact planted shift: observed deviation 1.6e-10.
+    let tol = pin["change"]["tolerance"].as_f64().unwrap().min(1e-6);
     assert!(
         (change.total_change - expected).abs() <= tol,
         "total_change={} pin={expected}±{tol}",
@@ -120,7 +121,8 @@ fn change_attribution_known_truth() {
         .iter()
         .find(|case| case["id"] == "y_intercept_plus_five")
         .unwrap();
-    let grid_tol = grid["comparison"]["sampled_absolute_tolerance"].as_f64().unwrap();
+    // Exact Shapley contribution of the planted shift: observed deviation 1.6e-10.
+    let grid_tol = grid["comparison"]["sampled_absolute_tolerance"].as_f64().unwrap().min(1e-6);
     let contribution = |variable: u32| {
         change
             .contributions
@@ -199,7 +201,8 @@ fn bayesian_attribution_shared_row_weight_known_truth() {
     let posterior = change.posterior.as_ref().expect("Bayesian change attribution draws");
     assert_eq!(posterior.draws.n_draws, 24);
     let expected_change = truth["change"]["total_change"].as_f64().unwrap();
-    let tolerance = truth["change"]["tolerance"].as_f64().unwrap();
+    // Observed: total 4.984 (prior shrinkage), carrying component 5.0 + 1e-10, other -0.016.
+    let tolerance = truth["change"]["tolerance"].as_f64().unwrap().min(0.05);
     assert!((posterior.summaries.mean[0] - expected_change).abs() < tolerance);
     let component_means: f64 = posterior.summaries.mean[1..].iter().sum();
     assert!((component_means - posterior.summaries.mean[0]).abs() < 1e-6);
@@ -207,7 +210,7 @@ fn bayesian_attribution_shared_row_weight_known_truth() {
     let mut components = posterior.summaries.mean[1..].to_vec();
     components.sort_by(f64::total_cmp);
     let (last, rest) = components.split_last().unwrap();
-    assert!((last - expected_change).abs() < tolerance, "carrying component {last}");
+    assert!((last - expected_change).abs() < 1e-6, "carrying component {last}");
     assert!(rest.iter().all(|c| c.abs() < tolerance), "uncarrying components {rest:?}");
     assert!(change.diagnostics.iter().any(|d| d.code.as_ref() == "gcm.attribution.bayesian"));
 }
@@ -374,6 +377,8 @@ fn bayesian_interference_fixed_network_posterior_matches_known_truth() {
     // to-minus-from contrast is beta-gamma=-1.
     let expected = fixture["expected_contrast"].as_f64().unwrap();
     let tolerance = fixture["tolerance"].as_f64().unwrap();
+    // The fixture band is a declared 0.08; the observed prior-shrinkage deviation is 0.026.
+    let tolerance = tolerance.min(0.05);
     assert!((result.estimate().as_effect().unwrap().ate - expected).abs() < tolerance);
     assert!(result.posterior.as_ref().unwrap().assumptions.entries.iter().any(|a| matches!(&a.assumption, antecedent_core::Assumption::ParametricRestriction(p) if p.id.as_ref() == "interference.fixed_network_gaussian_potential_outcomes")));
 }
@@ -754,7 +759,7 @@ fn interference_validation_checks_the_assignment_the_overlap_and_the_randomizati
             if !bayesian && suite != RefuteSuite::None {
                 // P(own 0, one treated neighbour) = 1/4 and P(own 1, no treated neighbour) = 1/8.
                 let overlap = &result.refutations[1];
-                assert!((overlap.original_ate - 0.125).abs() < 0.03, "{}", overlap.original_ate);
+                assert!((overlap.original_ate - 0.125).abs() < 0.02, "{}", overlap.original_ate);
             }
             if !bayesian && suite == RefuteSuite::Full {
                 let test = &result.refutations[2];

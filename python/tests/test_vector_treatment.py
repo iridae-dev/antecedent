@@ -130,6 +130,17 @@ def test_vector_adjustment_columns_are_shared() -> None:
     result = fit(adjust={"w": W})
     assert result.adjustment == ("w",)
     assert result.identity.adjustment_set_id != fit().identity.adjustment_set_id
+    # Independent least squares on the shared design [1, t1, t2, w]: the treatment block moves
+    # with the adjustment column and its covariance is sigma^2 (X'X)^-1 on the treatment rows.
+    design = np.column_stack([np.ones(6), X1, X2, W])
+    beta, *_ = np.linalg.lstsq(design, np.array(Y), rcond=None)
+    residual = np.array(Y) - design @ beta
+    sigma2 = float(residual @ residual) / (6 - 4)
+    cov = sigma2 * np.linalg.inv(design.T @ design)
+    assert result.residual_df == 2
+    assert result.estimates == pytest.approx(beta[1:3], abs=1e-9)
+    assert result.estimates != pytest.approx([2.75, 0.75], abs=1e-3)
+    assert result.covariance == pytest.approx(cov[1:3, 1:3], abs=1e-9)
 
 
 def test_vector_incompatible_adjustment_set_snapshot_and_rows_refuse() -> None:
@@ -220,6 +231,11 @@ def test_vector_robust_covariance_embeds_a_summary_and_replays() -> None:
     assert robust.replay == "robust_summary"
     assert robust.covariance_kind == "hc1"
     assert not np.allclose(robust.covariance, model.covariance)
+    # Independent HC1 sandwich on the frozen n = 6 design.
+    design = np.column_stack([np.ones(6), X1, X2])
+    assert robust.covariance == pytest.approx(
+        sandwich(design, np.array(Y), "hc1")[1:, 1:], rel=1e-8, abs=1e-12
+    )
     assert robust.estimates == pytest.approx(model.estimates, abs=1e-12)
     again = consume_joint_effects(bytes(robust.export()), expected_identity=robust.identity)
     assert np.array_equal(again.covariance, robust.covariance)

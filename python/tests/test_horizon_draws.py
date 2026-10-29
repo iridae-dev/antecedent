@@ -62,6 +62,21 @@ def _cells(result: Any) -> np.ndarray:
     return np.asarray([row[0] for row in result.response.values], dtype=float)
 
 
+def _independent_cells(data: dict[str, np.ndarray]) -> np.ndarray:
+    """Per-horizon least squares of y_t on x_{t-h} (pulse at lag h), rows t = h..n-1.
+
+    Dose-major, horizon-minor, evaluated at the grid doses; computed with numpy only.
+    """
+    x, y = data["x"], data["y"]
+    out = []
+    for dose in _GRID:
+        for horizon in _HORIZONS:
+            design = np.column_stack([np.ones(len(x) - horizon), x[: len(x) - horizon]])
+            beta = np.linalg.lstsq(design, y[horizon:], rcond=None)[0]
+            out.append(beta[0] + beta[1] * dose)
+    return np.asarray(out)
+
+
 def _column(rows: Any) -> np.ndarray:
     return np.asarray([row[0] for row in rows], dtype=float)
 
@@ -71,6 +86,9 @@ def test_frequentist_horizon_draws_are_the_joint_bootstrap_replicates_of_the_sur
     result = require_success(_estimate(data, bootstrap=60, retain_joint_horizons=True))
     cells = _cells(result)
     assert cells.shape == (len(_GRID) * len(_HORIZONS),)
+    # Independent truth for the surface: the horizon-h pulse cell is the least-squares fit of
+    # y_t on x_{t-h} evaluated at the dose (observed agreement ~1e-12).
+    np.testing.assert_allclose(cells, _independent_cells(data), rtol=1e-8)
     lower = _column(result.uncertainty.lower)
     upper = _column(result.uncertainty.upper)
 
@@ -159,6 +177,7 @@ def test_bayesian_horizon_draws_are_the_block_weight_posterior_draws():
         )
     )
     cells = _cells(result)
+    np.testing.assert_allclose(cells, _independent_cells(data), rtol=1e-6)
     draws = result.horizon_draws(1)
     assert draws.horizons == tuple(_HORIZONS)
     assert all(len(column) == 60 for column in draws.columns)

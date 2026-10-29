@@ -67,6 +67,10 @@ def test_linear_lowering_refresh_replays_portable_ols_moments() -> None:
     )
     original_inspection = prepared.inspect()
     first = require_success(prepared.estimate())
+    # Independent oracle: the OLS coefficient of t in y ~ 1 + t + z (the linear adjustment ATE).
+    design = np.column_stack([np.ones(512), t, z])
+    ols = np.linalg.lstsq(design, data["y"], rcond=None)[0]
+    assert first.effect == pytest.approx(ols[1], abs=1e-8)
     assert first.effect == pytest.approx(2.0, abs=0.2)
     changed = {**data, "y": data["y"] + 0.5 * t}
     refreshed = require_success(prepared.rebind(data=changed).estimate())

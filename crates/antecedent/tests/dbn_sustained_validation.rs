@@ -113,11 +113,11 @@ fn assert_validation(inference: &InferenceMode, suite: RefuteSuite) {
         .unwrap();
     let result = prepared.estimate_series(&series, &ctx).unwrap();
     assert!(
-        (result.estimate().as_effect().unwrap().ate - 4.25).abs() < 0.15,
+        (result.estimate().as_effect().unwrap().ate - 4.25).abs() < 0.01, // observed 0.003
         "{inference:?}/{suite:?}: {}",
         result.estimate().as_effect().unwrap().ate
     );
-    assert!((single.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.15);
+    assert!((single.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.01);
     assert!(
         result.estimate().as_effect().unwrap().ate - single.estimate().as_effect().unwrap().ate
             > 1.8,
@@ -189,7 +189,7 @@ fn single_graph_full_validation_retains_both_lagged_actions() {
             .run(&ExecutionContext::for_tests(21))
             .unwrap();
         assert!(
-            (result.estimate().as_effect().unwrap().ate - 5.0).abs() < 0.15,
+            (result.estimate().as_effect().unwrap().ate - 5.0).abs() < 0.01, // observed 0.0005
             "{}",
             result.estimate().as_effect().unwrap().ate
         );
