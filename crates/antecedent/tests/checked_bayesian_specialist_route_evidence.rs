@@ -48,7 +48,7 @@ fn iv_fixture() -> Fixture {
             1.0,
         ),
         truth: expected["true_structural_effect"].as_f64().unwrap(),
-        tolerance: 0.2,
+        tolerance: 0.01,
         identifier: IdentifierId::Iv,
         estimator: EstimatorId::BayesianIvJointLinear,
         bandwidth: None,
@@ -83,7 +83,7 @@ fn rd_fixture() -> Fixture {
         graph,
         query: AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)),
         truth: expected["true_jump"].as_f64().unwrap(),
-        tolerance: 0.08,
+        tolerance: 0.012,
         identifier: IdentifierId::RdSharp,
         estimator: EstimatorId::BayesianRdLocalLinear,
         bandwidth: Some(expected["fixed_bandwidth"].as_f64().unwrap()),
@@ -191,7 +191,10 @@ fn bayesian_specialists_execute_from_retained_plan_after_builder_drop_body() {
         );
         assert!(!consumed.acceptance.accepts_as_verified_program());
 
-        assert!(rebind_estimate(&mut prepared, widened(&fixture.data), &ctx).is_err());
+        let refused = rebind_estimate(&mut prepared, widened(&fixture.data), &ctx)
+            .unwrap_err()
+            .to_string();
+        assert!(refused.contains("refresh requires the same schema"), "{refused}");
     }
 }
 

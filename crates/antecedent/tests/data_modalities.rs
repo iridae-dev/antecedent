@@ -106,7 +106,7 @@ fn event_align_then_temporal_effect() {
         .unwrap();
     let result = analysis.run(&ExecutionContext::for_tests(1)).unwrap();
     assert!(
-        (result.estimate().as_effect().unwrap().ate - 0.8).abs() < 0.08,
+        (result.estimate().as_effect().unwrap().ate - 0.8).abs() < 1e-9,
         "ate={}",
         result.estimate().as_effect().unwrap().ate
     );
@@ -133,7 +133,7 @@ fn panel_stacked_estimate_with_cluster_se() {
         .unwrap();
     let result = analysis.run(&ExecutionContext::for_tests(2)).unwrap();
     assert!(
-        (result.estimate().as_effect().unwrap().ate - 0.8).abs() < 0.08,
+        (result.estimate().as_effect().unwrap().ate - 0.8).abs() < 1e-9,
         "ate={}",
         result.estimate().as_effect().unwrap().ate
     );
@@ -474,7 +474,7 @@ fn panel_response_curve_uses_unit_cluster_bands() {
     };
     assert!(mean.iter().all(|value| value.is_finite()));
     assert!(
-        (mean[1] - mean[0] - 0.8).abs() < 0.15,
+        (mean[1] - mean[0] - 0.8).abs() < 1e-9,
         "unit-average pulse contrast should stay near 0.8, got {mean:?}"
     );
     match &response.uncertainty {
@@ -520,7 +520,7 @@ fn bayesian_panel_response_uses_unit_cluster_bands() {
     };
     assert!(mean.iter().all(|value| value.is_finite()));
     assert!(
-        (mean[1] - mean[0] - 0.8).abs() < 0.25,
+        (mean[1] - mean[0] - 0.8).abs() < 1e-3,
         "Bayesian unit-average pulse contrast should stay near 0.8, got {mean:?}"
     );
 }
@@ -544,7 +544,7 @@ fn panel_class_pulse_uses_completion_masses() {
         .unwrap();
     assert_eq!(result.logical_plan.data_classification, DataClassification::Panel);
     assert!(
-        (result.estimate().as_effect().unwrap().ate - 0.8).abs() < 0.08,
+        (result.estimate().as_effect().unwrap().ate - 0.8).abs() < 1e-9,
         "ate={}",
         result.estimate().as_effect().unwrap().ate
     );
@@ -600,11 +600,11 @@ fn bayesian_panel_class_pulse_uses_completion_masses() {
     let mixture = enumeration.structural_response.as_ref().expect("completion masses");
     assert_eq!(mixture.weight_basis, antecedent::StructuralWeightBasis::CompletionEnumeration);
     let atom = mixture.atoms.iter().find(|atom| atom.posterior.is_some()).expect("atom posterior");
-    assert!((atom_scalar(atom) - 0.8).abs() < 0.15, "atom={:?}", atom.value);
+    assert!((atom_scalar(atom) - 0.8).abs() < 1e-3, "atom={:?}", atom.value);
 
     let prior = run(Some(ClassPrior::from_ordered([1.0]).unwrap()));
     assert!(
-        (prior.estimate().as_effect().unwrap().ate - 0.8).abs() < 0.15,
+        (prior.estimate().as_effect().unwrap().ate - 0.8).abs() < 1e-3,
         "ate={}",
         prior.estimate().as_effect().unwrap().ate
     );
@@ -700,7 +700,7 @@ fn panel_class_response_uses_completion_surfaces() {
         envelope.lower.iter().zip(envelope.upper.iter()).all(|(lo, hi)| (hi - lo).abs() < 1e-12)
     );
     assert!(
-        (envelope.lower[1] - envelope.lower[0] - 0.8).abs() < 0.15,
+        (envelope.lower[1] - envelope.lower[0] - 0.8).abs() < 1e-9,
         "class unit-average pulse contrast should stay near 0.8, got {:?}",
         envelope.lower
     );
@@ -1342,13 +1342,15 @@ fn bayesian_panel_class_multi_step_sustained_follows_the_class_prior_contract() 
     let atom = mixed.structural_response.as_ref().unwrap().atoms[0].clone();
     assert!(mixed.posterior.is_some());
     assert!(
-        (mixed.estimate().as_effect().unwrap().ate - atom_scalar(&atom)).abs() < 0.05,
+        (mixed.estimate().as_effect().unwrap().ate - atom_scalar(&atom)).abs() < 1e-3,
         "{}",
         mixed.estimate().as_effect().unwrap().ate
     );
     assert!(
         mixed.estimate().as_effect().unwrap().ate.is_finite()
-            && (mixed.estimate().as_effect().unwrap().ate - 0.8).abs() < 0.3
+            && (mixed.estimate().as_effect().unwrap().ate - 0.8).abs() < 0.06,
+        "{}",
+        mixed.estimate().as_effect().unwrap().ate
     );
 }
 

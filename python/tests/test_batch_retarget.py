@@ -126,7 +126,7 @@ def test_batch_entry_points_accept_typed_configurations_and_strings_alike():
         execution=ant.Execution(seed=11),
     )
     plain = [require_success(member) for member in require_success(plain).members]
-    assert plain[0].effect == pytest.approx(2.0, abs=0.35)
+    assert plain[0].effect == pytest.approx(2.0, abs=0.12)
     # The configuration dict form takes the same keys as `analyze`.
     via_dict = analyze_many(
         data,
@@ -186,6 +186,14 @@ def test_a_batch_retarget_reports_points_covariance_contrasts_and_a_simultaneous
         assert member.std_error == pytest.approx(math.sqrt(cov[i][i]))
         assert member.uncertainty_kind == "plug_in_score_covariance"
     assert by_name["a"].estimand.startswith("E[y1(do t1=1.0)]")
+    # Independent anchor: the effects are constant (y1 = 2 t1 + 0.5 t2 + ..., claim "b" is the
+    # t1 -> y1 effect too), so any covariate-dependent weighting must return the structural
+    # value to within sampling error, and the contrast between two weightings of the same
+    # effect must be consistent with zero.
+    for name, truth in (("a", 2.0), ("b", 2.0), ("c", 0.5)):
+        assert abs(by_name[name].value - truth) < 3.5 * by_name[name].std_error, name
+        assert by_name[name].std_error < 0.15, name
+    assert abs(report.contrasts[0].value) < 3.5 * report.contrasts[0].std_error
     # Contrast algebra: value a - b and variance S_aa + S_bb - 2 S_ab.
     contrast = report.contrasts[0]
     assert contrast.value == pytest.approx(by_name["a"].value - by_name["b"].value)

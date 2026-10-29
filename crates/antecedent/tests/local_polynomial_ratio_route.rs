@@ -127,35 +127,41 @@ fn retained_fuzzy_rd_recovers_truth_and_round_trips_calibrated_interval() {
     );
     let mut fabricated = body.clone();
     fabricated.local_polynomial_ratio.as_mut().unwrap().ci_lower = Some(2.0);
-    assert!(
+    let refused = (
         antecedent_io::encode_analysis_result_artifact(
             &fabricated,
             header.variable_names.clone(),
             "fabricated"
         )
-        .is_err()
-    );
+        .unwrap_err()
+    )
+    .to_string();
+    assert!(refused.contains("invalid local ratio support or fabricated interval"), "{refused}");
     let mut mismatched = body.clone();
     mismatched.local_polynomial_ratio.as_mut().unwrap().bandwidth = 0.5;
-    assert!(
+    let refused = (
         antecedent_io::encode_analysis_result_artifact(
             &mismatched,
             header.variable_names.clone(),
             "mismatched"
         )
-        .is_err()
-    );
+        .unwrap_err()
+    )
+    .to_string();
+    assert!(refused.contains("invalid local ratio support or fabricated interval"), "{refused}");
     let mut forged_license = body.clone();
     forged_license.local_polynomial_ratio.as_mut().unwrap().graphless_support_status =
         Some("allowed_unlicensed".into());
-    assert!(
+    let refused = (
         antecedent_io::encode_analysis_result_artifact(
             &forged_license,
             header.variable_names,
             "forged-license"
         )
-        .is_err()
-    );
+        .unwrap_err()
+    )
+    .to_string();
+    assert!(refused.contains("invalid local ratio support or fabricated interval"), "{refused}");
 }
 
 #[test]
@@ -184,24 +190,28 @@ fn retained_regression_kink_recovers_truth_and_round_trips_calibrated_interval()
     let mut forged_license = body.clone();
     forged_license.local_polynomial_ratio.as_mut().unwrap().graphless_support_status =
         Some("licensed_but_wrong".into());
-    assert!(
+    let refused = (
         antecedent_io::encode_analysis_result_artifact(
             &forged_license,
             header.variable_names.clone(),
             "forged-kink-license"
         )
-        .is_err()
-    );
+        .unwrap_err()
+    )
+    .to_string();
+    assert!(refused.contains("invalid local ratio support or fabricated interval"), "{refused}");
     let mut fabricated = body.clone();
     fabricated.local_polynomial_ratio.as_mut().unwrap().ci_upper = Some(fit.effect + 50.0);
-    assert!(
+    let refused = (
         antecedent_io::encode_analysis_result_artifact(
             &fabricated,
             header.variable_names,
             "fabricated-kink"
         )
-        .is_err()
-    );
+        .unwrap_err()
+    )
+    .to_string();
+    assert!(refused.contains("invalid local ratio support or fabricated interval"), "{refused}");
     let (mut data, query) = fixture(false);
     let y = match data.column(VariableId::from_raw(2)).unwrap() {
         antecedent_data::ColumnView::Float64(column) => column.values.clone(),
@@ -218,5 +228,7 @@ fn retained_regression_kink_recovers_truth_and_round_trips_calibrated_interval()
         ("y", y.as_slice()),
     ])
     .unwrap();
-    assert!(Study::tabular(data).query(query).build().unwrap().run(&ctx).is_err());
+    let refused =
+        Study::tabular(data).query(query).build().unwrap().run(&ctx).unwrap_err().to_string();
+    assert!(refused.contains("local treatment discontinuity is too small"), "{refused}");
 }

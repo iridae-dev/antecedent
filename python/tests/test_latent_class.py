@@ -203,9 +203,17 @@ def test_latent_bootstrap_is_seeded_label_aligned_and_unmeasured() -> None:
     closed_q = (NOISE_VARIANCE / (16.0 * 0.25)) ** 0.5
     closed_p = (NOISE_VARIANCE / (24.0 * 0.25)) ** 0.5
     se_q, se_p = first.classes[0].effect_se, first.classes[1].effect_se
-    assert se_q is not None and 0.5 * closed_q < se_q < 2.0 * closed_q
-    assert se_p is not None and 0.5 * closed_p < se_p < 2.0 * closed_p
-    assert first.mixture_effect_se is not None and first.mixture_effect_se > 0.0
+    # Replicate noise for 60 draws is about 9 percent; observed ratios over four seeds are
+    # 0.96 to 1.24, so a 0.8 to 1.35 band rejects a mis-scaled (for example sd/sqrt(n)) SE.
+    assert se_q is not None and 0.8 * closed_q < se_q < 1.35 * closed_q
+    assert se_p is not None and 0.8 * closed_p < se_p < 1.35 * closed_p
+    # Mixture effect = sum_k w_k tau_k with the class shares resampled too: the delta-method
+    # variance is sum_k w_k^2 se_k^2 + (tau_P - tau_Q)^2 * w_P w_Q / n (n = 40 rows).
+    closed_mixture = (
+        0.4**2 * closed_q**2 + 0.6**2 * closed_p**2 + (3.0**2) * 0.6 * 0.4 / 40.0
+    ) ** 0.5
+    assert first.mixture_effect_se is not None
+    assert 0.75 * closed_mixture < first.mixture_effect_se < 1.3 * closed_mixture
     other = fit(seed=8, bootstrap_replicates=60)
     assert other.classes[0].effect_se != se_q
     assert other.classes[0].effect == pytest.approx(first.classes[0].effect, abs=1e-9)

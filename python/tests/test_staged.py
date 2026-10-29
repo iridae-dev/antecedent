@@ -172,6 +172,20 @@ def test_nested_counterfactual_stages_shared_draws_artifact_and_refresh():
     assert refreshed_receipt["program"] == checked_receipt["program"]
 
 
+# Per-kind bands, about 2.5x the observed error on this fixture (fixture band is 0.15): the plug-in
+# Jacobian / directional derivative are exact for a linear law, the kernel point derivatives are
+# not, and the average derivative carries the observed-weighting bias.
+DERIVATIVE_ATOL = {
+    "point": 0.004,
+    "elasticity": 0.001,
+    "semi": 0.007,
+    "semi_outcome": 0.0005,
+    "average": 0.1,
+    "jacobian": 1e-9,
+    "directional": 1e-9,
+}
+
+
 @pytest.mark.parametrize(
     "kind,pin_key",
     [
@@ -217,7 +231,9 @@ def test_derivative_stages_and_artifacts(kind, pin_key, accepted):
     assert result.identification
     got = np.asarray(result.estimate, dtype=float).ravel()
     want = np.asarray(pin[pin_key], dtype=float).ravel()
-    assert got == pytest.approx(want, abs=pin["tolerance"])
+    atol = DERIVATIVE_ATOL[kind]
+    assert atol < pin["tolerance"]
+    assert got == pytest.approx(want, abs=atol)
     fresh = require_success(
         ac.analyze(data, graph=graph, query=query, estimator_config=config, refute="none")
     )
@@ -230,9 +246,7 @@ def test_derivative_stages_and_artifacts(kind, pin_key, accepted):
     assert refuted.validation is not None
     checks = [check.id for check in refuted.validation.checks]
     assert "derivative.support" in checks, checks
-    assert np.asarray(refuted.estimate, dtype=float).ravel() == pytest.approx(
-        want, abs=pin["tolerance"]
-    )
+    assert np.asarray(refuted.estimate, dtype=float).ravel() == pytest.approx(want, abs=atol)
 
 
 @pytest.mark.parametrize("kind", ["jacobian", "directional"])
@@ -319,8 +333,10 @@ def test_observation_pair_fixture(kind, accepted):
     result = require_success(outcome)
     fresh = require_success(ac.analyze(data, graph=graph, query=query, refute="none"))
     assert fresh.response.values == result.response.values
+    # Observed max errors: selected 0.033, Cox 0.059, Kaplan-Meier 0.209 (fixture band 0.3).
+    atol = {"selected": 0.08, "right_cox": 0.15, "left_cox": 0.15}.get(kind, pin["atol"])
     assert np.asarray(result.response.values).ravel() == pytest.approx(
-        np.array(pin["mean"]) * sign, abs=pin["atol"]
+        np.array(pin["mean"]) * sign, abs=atol
     )
     assert result.uncertainty.kind == "none"
     wire = artifacts.loads(bytes(outcome.export(quantity="record")))
@@ -343,6 +359,15 @@ def test_static_mediation_refuter_pin():
             got = actual.pop(key)
             assert got == pytest.approx(expected[key], abs=pin["atol"])
         assert actual == {k: v for k, v in expected.items() if k in actual}
+    # The regression pin is anchored to the independent structural truth (indirect effect
+    # 4 * 2 * (0.8 - 0.2) = 4.8): the unrefuted estimate, and a placebo mediator that has no effect.
+    truth = load_json(ROOT / "conformance/estimate/staged_static_kinds/expected.json")["indirect"]
+    reports = [report.to_dict() for report in result.validation.reports]
+    assert reports[0]["original_ate"] == pytest.approx(0.0, abs=1e-9)
+    assert abs(reports[0]["refuted_ate"]) < 1e-3
+    for report in reports[1:]:
+        assert report["original_ate"] == pytest.approx(truth, abs=0.03)
+        assert report["refuted_ate"] == pytest.approx(truth, abs=0.1)
 
 
 def test_new_derivative_boundaries():

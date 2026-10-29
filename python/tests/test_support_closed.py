@@ -64,6 +64,8 @@ def test_licensed_pag_response_curve_runs():
     )
     assert result.response is not None
     assert np.isfinite(result.response.values).all()
+    # y = 2 t + N(0, 0.1^2): the structural dose-response is 2 * dose (observed error 0.034).
+    assert np.asarray(result.response.values).ravel() == pytest.approx([1.0, 2.0, 3.0], abs=0.1)
     assert result.evidence_status == "licensed"
 
 
@@ -85,6 +87,7 @@ def test_licensed_response_curve_still_runs(graph):
     )
     assert result.response is not None
     assert np.isfinite(result.response.values).all()
+    assert np.asarray(result.response.values).ravel() == pytest.approx([1.0, 2.0, 3.0], abs=0.1)
 
 
 def test_licensed_average_effect_on_dag_frequentist():
@@ -99,6 +102,7 @@ def test_licensed_average_effect_on_dag_frequentist():
         )
     )
     assert np.isfinite(result.ate)
+    assert result.ate == pytest.approx(2.0, abs=0.1)  # structural slope 2, observed 2.013
     assert result.evidence_status == "licensed"
 
 
@@ -114,6 +118,7 @@ def test_licensed_pag_ate_runs():
         )
     )
     assert np.isfinite(result.ate)
+    assert result.ate == pytest.approx(2.0, abs=0.1)  # structural slope 2, observed 2.013
     assert result.evidence_status == "licensed"
 
 
@@ -169,6 +174,8 @@ def test_licensed_pulse_effect_temporal_dag_runs():
         )
     )
     assert np.isfinite(result.ate)
+    # y[i] = 0.5 t[i-1] + ...: the horizon-one pulse effect is 0.5 (observed 0.455).
+    assert result.ate == pytest.approx(0.5, abs=0.07)
     assert result.evidence_status == "licensed"
 
 

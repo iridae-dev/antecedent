@@ -46,7 +46,14 @@ def test_fixed_dose_policy_uses_retained_analyze_and_prepare():
     assert response.points == ()
     value = response.fixed_policy
     assert value is not None
-    assert value.incremental_value == pytest.approx(0.7, abs=0.15)
+    # Structural values (equal groups): policy mean of 1 + 1.5 * 0.7 = 2.05 (a) and 2 + 2 * 0.8
+    # = 3.6 (b) is 2.825; reference 1.45 and 2.8 gives 2.125; increment 0.7. Observed errors are
+    # 0.012, 0.005 and 0.007 (the smooth sin term and kernel bias).
+    assert value.policy_value == pytest.approx(2.825, abs=0.03)
+    assert value.reference_value == pytest.approx(2.125, abs=0.03)
+    assert value.incremental_value == pytest.approx(0.7, abs=0.03)
+    low, high = value.incremental_interval_95
+    assert low < 0.7 < high
     assert value.policy_interval_95 is not None
     assert value.reference_interval_95 is not None
     assert value.incremental_interval_95 is not None

@@ -24,7 +24,8 @@ def test_interactive_vs_standard_effort():
         )
     )
     assert math.isfinite(interactive.ate)
-    assert abs(interactive.ate - 2.0) < 0.5
+    # Structural ATE is 2 (the unadjusted slope is 2.69); observed 1.989, se 0.035.
+    assert abs(interactive.ate - 2.0) < 0.1
     assert interactive.performance.latency_mode == "interactive"
     assert interactive.performance.bootstrap_replicates_requested == 0
     assert interactive.identification.status
@@ -39,7 +40,8 @@ def test_interactive_vs_standard_effort():
             execution=antecedent.Execution(seed=1),
         )
     )
-    assert math.isfinite(standard.ate)
+    assert abs(standard.ate - 2.0) < 0.1
+    assert standard.ate == interactive.ate, "the profile changes effort, never the point estimate"
     assert standard.performance.latency_mode == "standard"
     assert standard.performance.bootstrap_replicates_requested == 199
     assert standard.performance.bootstrap_replicates_ok == 199
@@ -200,5 +202,6 @@ def test_hmc_requires_the_report_profile():
             run(profile)
     report = run("report")
     assert report.posterior is not None
-    assert np.isfinite(report.posterior.effect_mean)
+    # Structural ATE 2; the adjusted Frequentist estimate on this sample is 1.955.
+    assert report.posterior.effect_mean == pytest.approx(1.955, abs=0.06)
     assert report.performance.latency_mode == "report"

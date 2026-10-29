@@ -138,8 +138,8 @@ fn a_mediator_set_sums_its_path_products_and_decomposes_the_total() {
     let direct = estimate(MediationContrast::Direct, InferenceMode::Frequentist, RefuteSuite::None);
     let total = estimate(MediationContrast::Total, InferenceMode::Frequentist, RefuteSuite::None);
     let ate = |result: &antecedent::StudyResult| result.estimate().as_effect().unwrap().ate;
-    assert!((ate(&mediated) - MEDIATED_TRUTH).abs() < 0.05, "{}", ate(&mediated));
-    assert!((ate(&direct) - DIRECT_TRUTH).abs() < 0.05, "{}", ate(&direct));
+    assert!((ate(&mediated) - MEDIATED_TRUTH).abs() < 0.006, "{}", ate(&mediated));
+    assert!((ate(&direct) - DIRECT_TRUTH).abs() < 1e-9, "{}", ate(&direct));
     // The three contrasts come from one set of regressions, so they decompose exactly.
     assert!((ate(&total) - (ate(&direct) + ate(&mediated))).abs() < 1e-9);
     assert_eq!(mediated.estimand.mediators.len(), 2);
@@ -154,6 +154,6 @@ fn a_mediator_set_runs_the_bayesian_mechanisms_and_the_mediation_refuters() {
     );
     let posterior = result.posterior.as_ref().expect("a mediation posterior");
     let mean = posterior.summaries.mean[0];
-    assert!((mean - MEDIATED_TRUTH).abs() < 0.1, "{mean}");
+    assert!((mean - MEDIATED_TRUTH).abs() < 0.008, "{mean}");
     assert!(!result.refutations.is_empty());
 }

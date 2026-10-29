@@ -72,6 +72,23 @@ def test_simultaneous_difference_band_round_trip_and_determinism(competing: bool
     assert band.level == 0.95
     assert band.replicates_ok >= 399
     assert band.times == first.survival.times
+    # Independent empirical reference: nothing is censored before tau, so the Kaplan-Meier
+    # survival is the share still at risk and the cause-1 incidence is the share failing from
+    # cause 1 by t; the band's difference is treated minus control.
+    arms = {
+        arm: [i for i, a in enumerate(data["treatment"]) if a == arm] for arm in (0.0, 1.0)
+    }
+
+    def level(arm: float, t: float) -> float:
+        rows = arms[arm]
+        failed = sum(1 for i in rows if data["event"][i] == 1.0 and data["duration"][i] <= t)
+        return failed / len(rows) if competing else 1.0 - failed / len(rows)
+
+    assert band.difference == pytest.approx(
+        [level(1.0, t) - level(0.0, t) for t in band.times], abs=1e-12
+    )
+    assert band.difference[1] == pytest.approx(0.15 if competing else -0.05, abs=1e-12)
+    assert band.upper[1] - band.lower[1] > 0.1, "a simultaneous band at 100 per arm is not tight"
     assert len(band.lower) == len(band.upper) == len(band.difference)
     assert all(
         lower <= point <= upper

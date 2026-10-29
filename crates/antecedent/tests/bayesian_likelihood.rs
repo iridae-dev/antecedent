@@ -56,6 +56,73 @@ fn data(n: usize, seed: u64, outcome: impl Fn(f64, f64, f64) -> f64) -> (Tabular
     (table, truth / n as f64)
 }
 
+/// The `z` draws `data` makes for `(n, seed)` (three uniforms per row: `z`, `t`, outcome).
+fn z_draws(n: usize, seed: u64) -> Vec<f64> {
+    let mut u = uniforms(seed);
+    (0..n)
+        .map(|_| {
+            let z = 3.0 * u() - 1.5;
+            u();
+            u();
+            z
+        })
+        .collect()
+}
+
+const MLE_TOL: f64 = 0.003;
+
+/// The `(t, y, z)` columns `binary` draws.
+fn binary_columns(n: usize, seed: u64) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+    let mut u = uniforms(seed);
+    let (mut t, mut y, mut z) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    for i in 0..n {
+        z[i] = 3.0 * u() - 1.5;
+        t[i] = f64::from(u() < sigmoid(z[i]));
+        y[i] = f64::from(u() < sigmoid(-0.5 + 1.2 * t[i] + 0.8 * z[i]));
+    }
+    (t, y, z)
+}
+
+/// Logistic regression of `y` on `(1, t, z)` by Newton's method with the exact Hessian.
+fn logistic_mle(t: &[f64], y: &[f64], z: &[f64]) -> [f64; 3] {
+    let mut beta = [0.0f64; 3];
+    for _ in 0..50 {
+        let (mut grad, mut hess) = ([0.0; 3], [[0.0; 3]; 3]);
+        for i in 0..t.len() {
+            let x = [1.0, t[i], z[i]];
+            let p = sigmoid(beta[0] * x[0] + beta[1] * x[1] + beta[2] * x[2]);
+            for a in 0..3 {
+                grad[a] += (y[i] - p) * x[a];
+                for b in 0..3 {
+                    hess[a][b] += p * (1.0 - p) * x[a] * x[b];
+                }
+            }
+        }
+        // Solve hess * step = grad by Gaussian elimination.
+        let mut aug = [[0.0; 4]; 3];
+        for a in 0..3 {
+            aug[a][..3].copy_from_slice(&hess[a]);
+            aug[a][3] = grad[a];
+        }
+        for c in 0..3 {
+            let pivot = (c..3).max_by(|&i, &j| aug[i][c].abs().total_cmp(&aug[j][c].abs())).unwrap();
+            aug.swap(c, pivot);
+            for r in 0..3 {
+                if r != c {
+                    let f = aug[r][c] / aug[c][c];
+                    for k in c..4 {
+                        aug[r][k] -= f * aug[c][k];
+                    }
+                }
+            }
+        }
+        for a in 0..3 {
+            beta[a] += aug[a][3] / aug[a][a];
+        }
+    }
+    beta
+}
+
 fn binary(n: usize, seed: u64) -> (TabularData, f64) {
     data(n, seed, |t, z, u| f64::from(u < sigmoid(-0.5 + 1.2 * t + 0.8 * z)))
 }
@@ -107,6 +174,20 @@ fn a_logit_likelihood_recovers_the_risk_difference_on_a_binary_outcome() {
     let (table, truth) = binary(3000, 11);
     let (_, logit) = run_dag(table.clone(), bayes(BayesLikelihood::BernoulliLogit)).unwrap();
     let posterior = logit.posterior.as_ref().expect("posterior");
+    // Independent reference: the logistic-regression MLE (Newton on the exact score and
+    // Hessian of y ~ 1 + t + z), g-computed to the risk difference over the sample's z.
+    let (t, y, z) = binary_columns(3000, 11);
+    let beta = logistic_mle(&t, &y, &z);
+    let mle_rd = z
+        .iter()
+        .map(|&zi| sigmoid(beta[0] + beta[1] + beta[2] * zi) - sigmoid(beta[0] + beta[2] * zi))
+        .sum::<f64>()
+        / 3000.0;
+    let fitted = logit.estimate().as_effect().unwrap().ate;
+    assert!(
+        (fitted - mle_rd).abs() < MLE_TOL,
+        "Laplace logit posterior mean {fitted} vs exact logistic MLE g-computation {mle_rd}"
+    );
     assert!(
         (logit.estimate().as_effect().unwrap().ate - truth).abs() < 0.05,
         "logit ATE {} vs in-sample risk difference {truth}",
@@ -119,6 +200,10 @@ fn a_logit_likelihood_recovers_the_risk_difference_on_a_binary_outcome() {
     assert_eq!(disclosed(&logit), None, "a Bernoulli fit is not disclosed as a misfit");
 
     let (_, gaussian) = run_dag(table, bayes(BayesLikelihood::GaussianIdentity)).unwrap();
+    assert!(
+        (gaussian.estimate().as_effect().unwrap().ate - mle_rd).abs() > 0.0,
+        "the Gaussian fit is a different model"
+    );
     assert_ne!(
         gaussian.estimate().as_effect().unwrap().ate.to_bits(),
         logit.estimate().as_effect().unwrap().ate.to_bits()
@@ -165,9 +250,15 @@ fn a_poisson_likelihood_fits_a_count_outcome_and_gaussian_is_disclosed() {
         k
     });
     let (_, poisson) = run_dag(table.clone(), bayes(BayesLikelihood::PoissonLog)).unwrap();
+    let truth = z_draws(1500, 5)
+        .iter()
+        .map(|z| (0.2 + 0.5 + 0.3 * z).exp() - (0.2 + 0.3 * z).exp())
+        .sum::<f64>()
+        / 1500.0;
     assert!(
-        poisson.estimate().as_effect().unwrap().ate.is_finite()
-            && poisson.estimate().as_effect().unwrap().ate > 0.0
+        (poisson.estimate().as_effect().unwrap().ate - truth).abs() < 0.04,
+        "Poisson ATE {} vs in-sample mean difference {truth}",
+        poisson.estimate().as_effect().unwrap().ate
     );
     assert_eq!(disclosed(&poisson), None);
     let (_, gaussian) = run_dag(table, bayes(BayesLikelihood::GaussianIdentity)).unwrap();
@@ -329,6 +420,11 @@ fn non_gaussian_response_levels_run_through_study_on_probability_scale() {
     else {
         panic!("expected response surface")
     };
+    let zs = z_draws(240, 42);
+    let m0 = zs.iter().map(|z| sigmoid(-0.5 + 0.8 * z)).sum::<f64>() / 240.0;
+    let m1 = zs.iter().map(|z| sigmoid(0.7 + 0.8 * z)).sum::<f64>() / 240.0;
+    assert!((mean[0] - m0).abs() < 0.05, "E[y | do(t=0)] {} vs {m0}", mean[0]);
+    assert!((mean[1] - m1).abs() < 0.06, "E[y | do(t=1)] {} vs {m1}", mean[1]);
     assert_eq!(mean.len(), 2);
     assert!(mean.iter().all(|value| (0.0..=1.0).contains(value)));
     assert!(mean[0] < mean[1]);

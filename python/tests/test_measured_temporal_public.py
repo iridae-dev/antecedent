@@ -11,7 +11,13 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 from antecedent import _native
-from antecedent.errors import CausalCancelledError, CausalError, CausalTypeError
+from antecedent.errors import (
+    CausalCancelledError,
+    CausalError,
+    CausalResourceError,
+    CausalTypeError,
+    CausalValueError,
+)
 from antecedent.execution import Execution, ResourceLimits
 from antecedent.inference import MeasuredInference
 from antecedent.outcomes import require_success
@@ -176,8 +182,11 @@ def test_normal_checked_and_direct_neighboring_protocols_cannot_borrow_evidence(
         CheckedTemporalIntervalConfig(method="studentized", level=0.9),
         CheckedTemporalIntervalConfig(method="studentized", replicates=400),
     ]:
-        with pytest.raises(CausalError):
+        with pytest.raises(RecalcRefusal) as refused:
             session.dependent_interval(config=config)
+        assert refused.value.reason_code == "cell_not_licensed"
+        assert refused.value.detail == "temporal_interval.route_frozen"
+        assert "checked_temporal.protocol_not_measured" in str(refused.value)
     for args in [
         {"method": "percentile"},
         {"sequence": (1, 1)},
@@ -188,13 +197,18 @@ def test_normal_checked_and_direct_neighboring_protocols_cannot_borrow_evidence(
             "target_law": InitialStateLaw("fixed_target", {0: 0.3, 1: 0.7}),
             **args,
         }
-        with pytest.raises(CausalError):
-            temporal_dependent_interval(panel(), **options)
+        if "method" in args:
+            with pytest.raises(CausalValueError, match="direct temporal intervals require"):
+                temporal_dependent_interval(panel(), **options)
+        else:
+            with pytest.raises(Exception, match="measured_interval.protocol_not_measured") as no:
+                temporal_dependent_interval(panel(), **options)
+            assert no.value.reason_code == "cell_not_licensed"
     token = _native.CancellationToken()
     token.cancel()
     with pytest.raises(CausalCancelledError):
         session.dependent_interval(execution=Execution(cancel=token))
-    with pytest.raises(CausalError):
+    with pytest.raises(CausalResourceError, match="measured_inference.memory_budget_exceeded"):
         session.dependent_interval(execution=Execution(limits=ResourceLimits(memory_bytes=0)))
     calls = []
     session._handle = SimpleNamespace(measured_interval=lambda *a, **k: calls.append(1))
@@ -250,5 +264,7 @@ def test_checked_duplicate_history_cells_cannot_borrow_measured_protocol(method)
     changed = replace(req, units=(replace(unit, histories=tuple(histories)), *req.units[1:]))
     session = TemporalSession()
     require_success(session.execute(changed, execution=Execution(seed=41)))
-    with pytest.raises(CausalError):
+    with pytest.raises(RecalcRefusal) as refused:
         session.dependent_interval(config=CheckedTemporalIntervalConfig(method=method))
+    assert refused.value.reason_code == "cell_not_licensed"
+    assert refused.value.detail == "temporal_interval.route_frozen"

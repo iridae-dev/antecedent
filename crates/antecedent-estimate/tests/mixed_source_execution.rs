@@ -154,28 +154,31 @@ fn execution_reads_only_the_regimes_the_proof_cites_and_refuses_bad_requests() {
         evaluate_exact_mixed_source(&functional, data, request, limits, &ctx)
     };
     // A request must bind exactly the certified treatments.
-    assert!(evaluate(data.clone(), Assignment::from_pairs([])).is_err());
-    assert!(
-        evaluate(
-            data.clone(),
-            Assignment::from_pairs([(vid(X), Value::Bool(true)), (vid(Z), Value::Bool(true))])
-        )
-        .is_err()
-    );
+    let refused = evaluate(data.clone(), Assignment::from_pairs([])).unwrap_err().to_string();
+    assert!(refused.contains("exact request must bind precisely the certified treatment coordinates"), "{refused}");
+    let refused = evaluate(
+        data.clone(),
+        Assignment::from_pairs([(vid(X), Value::Bool(true)), (vid(Z), Value::Bool(true))]),
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(refused.contains("exact request must bind precisely the certified treatment coordinates"), "{refused}");
     // A law of a cited regime is required.
     let without_second = ExactTransportData::try_new(
         data.laws().iter().filter(|law| law.regime().raw() != 2).cloned().collect::<Vec<_>>(),
         4096,
     )
     .unwrap();
-    assert!(evaluate(without_second, request(X, true)).is_err());
+    let refused = evaluate(without_second, request(X, true)).unwrap_err().to_string();
+    assert!(refused.contains("empty support for V2"), "{refused}");
     // A law that disagrees with its regime is refused before evaluation.
     let mut other = chain_scm();
     other.exo_p[0] = 0.9;
     let (_, shifted) = build(&other, &studies);
     let (_, mismatched) =
         build(&scm, &[study("study-1", &[], &[X]), study("study-2", &[], &[Z, Y])]);
-    assert!(evaluate(mismatched, request(X, true)).is_err());
+    let refused = evaluate(mismatched, request(X, true)).unwrap_err().to_string();
+    assert!(refused.contains("missing_exact_provider in population target regime"), "{refused}");
     // A different population's numbers evaluate (same snapshot names) to a different point:
     // the frozen catalog binds identity, not values.
     let moved = point(&functional, &shifted, X, true);
@@ -506,7 +509,8 @@ fn a_value_restricted_trial_is_neither_searched_nor_bound_nor_executed() {
     };
     assert_eq!(inspection.exclusions[0].reason, "restricted_levels");
     // A proof from the family refuses to bind to the restricted catalog.
-    assert!(bind_mixed_source_catalog(&g, &derivation, &restricted).is_err());
+    let refused = bind_mixed_source_catalog(&g, &derivation, &restricted).unwrap_err().to_string();
+    assert!(refused.contains("mixed_search.invalid_derivation"), "{refused}");
     // Executing the family's plan on the restricted level's law alone evaluates that
     // level and refuses the level that was never measured.
     let only_true = Data::try_new(
@@ -530,7 +534,9 @@ fn a_value_restricted_trial_is_neither_searched_nor_bound_nor_executed() {
         )
     };
     assert!(evaluate(true).is_ok());
-    assert!(evaluate(false).is_err());
+    let refused = evaluate(false).unwrap_err().to_string();
+    assert!(refused.contains("missing_exact_provider in population target regime"), "{refused}");
+    assert!(refused.contains("Bool(false)"), "the unmeasured level is named: {refused}");
 }
 
 /// The Ananke surrogate-experiment specimen (GID and AID): `X1 -> W -> Y`, `X2 -> Y`,

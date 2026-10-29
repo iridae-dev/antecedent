@@ -16,6 +16,11 @@ use common::fixtures::{
     self, B1, chain_pag, chain_pag_series, confounded_cpdag, confounded_series,
 };
 
+/// The structural effect must lie in the identified envelope up to estimation error: the
+/// envelope's near end is within 0.011 of the truth in every case (observed), the far end is
+/// 0.26 to 0.49 beyond it, so 0.03 admits the sampling error and rejects a displaced envelope.
+const SLACK: f64 = 0.03;
+
 enum SourceGraph {
     Cpdag(TemporalCpdag),
     Pag(TemporalPag),
@@ -141,7 +146,7 @@ fn all_frequentist_temporal_class_effect_coordinates_execute_from_retained_sourc
             .as_ref()
             .expect("identified completion values define an envelope");
         assert!(
-            envelope.lower[0] - 0.08 <= true_effect && true_effect <= envelope.upper[0] + 0.08,
+            envelope.lower[0] - SLACK <= true_effect && true_effect <= envelope.upper[0] + SLACK,
             "class={}, source={source}, multi_step={multi_step}, suite={suite:?}, truth {true_effect} outside [{}, {}]",
             graph_class(&graph),
             envelope.lower[0],
@@ -170,8 +175,8 @@ fn all_frequentist_temporal_class_effect_coordinates_execute_from_retained_sourc
             .and_then(|mixture| mixture.identified_set.as_ref())
             .expect("refreshed completion values define an envelope");
         assert!(
-            refreshed_envelope.lower[0] - 0.08 <= refreshed_truth
-                && refreshed_truth <= refreshed_envelope.upper[0] + 0.08
+            refreshed_envelope.lower[0] - SLACK <= refreshed_truth
+                && refreshed_truth <= refreshed_envelope.upper[0] + SLACK
         );
         let RetainedOperation::TemporalClassEffect(rebound) = prepared.retained_operation() else {
             panic!("class effect must retain its plan after refresh")
