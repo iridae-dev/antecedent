@@ -100,6 +100,37 @@ fn licensed_pulse() -> TemporalEffectQuery {
         .with_max_history_lag(Some(1))
 }
 
+/// OLS coefficient of `t@-1` in `y ~ 1 + t@-1 (+ z@-1)` over `series()`, the structural pulse
+/// effect the identified atoms recover (the law is `y_t = 1.4 t_{t-1} + 0.6 z_{t-1} + wiggle`).
+fn series_lagged_coefficient(adjust_z: bool) -> f64 {
+    let n = 48usize;
+    let phase = |i: usize| f64::from(u32::try_from(i).unwrap()) * 0.37;
+    let t = |i: usize| f64::from(u8::from(phase(i).cos() > 0.0));
+    let z = |i: usize| phase(i).sin();
+    let y = |i: usize| 1.4 * t(i - 1) + 0.6 * z(i - 1) + 0.1 * (phase(i) * 1.7).sin();
+    let rows: Vec<usize> = (1..n).collect();
+    let m = rows.len() as f64;
+    let mean = |f: &dyn Fn(usize) -> f64| rows.iter().map(|&i| f(i)).sum::<f64>() / m;
+    let (xt, xz, yy) = (|i: usize| t(i - 1), |i: usize| z(i - 1), |i: usize| y(i));
+    let (mt, mz, my) = (mean(&xt), mean(&xz), mean(&yy));
+    let cov = |a: &dyn Fn(usize) -> f64, ma: f64, b: &dyn Fn(usize) -> f64, mb: f64| {
+        rows.iter().map(|&i| (a(i) - ma) * (b(i) - mb)).sum::<f64>() / m
+    };
+    let (stt, szz, stz) = (cov(&xt, mt, &xt, mt), cov(&xz, mz, &xz, mz), cov(&xt, mt, &xz, mz));
+    let (sty, szy) = (cov(&xt, mt, &yy, my), cov(&xz, mz, &yy, my));
+    if adjust_z { (sty * szz - szy * stz) / (stt * szz - stz * stz) } else { sty / stt }
+}
+
+/// The at-0 forms for both kinds, plus the explicit `t@-1` pulse where the class carries no
+/// visibility witness requirement (a TemporalPag atom needs one the single-mask posterior lacks).
+fn queries_for(kind: GraphPosteriorAtomKind) -> Vec<TemporalEffectQuery> {
+    let mut queries = vec![pulse(), sustained()];
+    if kind == GraphPosteriorAtomKind::Cpdag {
+        queries.push(licensed_pulse());
+    }
+    queries
+}
+
 fn sustained() -> TemporalEffectQuery {
     TemporalEffectQuery::sustained(VariableId::from_raw(0), VariableId::from_raw(1), 0, 1.0)
 }
@@ -350,9 +381,13 @@ fn temporal_pag_graph_posterior_licensed_pulse_runs() {
         result.structural_response.is_some(),
         "licensed pulse(-1) TemporalPag GP must identify"
     );
+    let ate = result.estimate().as_effect().unwrap().ate;
+    // The atom keeps only t@-1 -> y, so the identified adjustment is empty and the effect is the
+    // simple OLS slope of y on t@-1 over series() (1.4952), not the structural 1.4.
+    let reference = series_lagged_coefficient(false);
     assert!(
-        result.estimate().as_effect().unwrap().ate.is_finite()
-            || result.identification.status != antecedent_core::IdentificationStatus::NotIdentified
+        (ate - reference).abs() < 1e-6,
+        "licensed TemporalPag pulse {ate} vs unOLS slope {reference}"
     );
 }
 
@@ -366,26 +401,37 @@ fn temporal_class_graph_posterior_pulse_and_sustained_run() {
                 [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
             temporal_pag_from_dbn_atoms(0, identified, 0, 3, 1, &variables).unwrap();
         }
-        for query in [pulse(), sustained()] {
+        for query in queries_for(kind) {
             for inference in [
                 InferenceMode::Frequentist,
                 InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(8)),
             ] {
-                let result = run(gp.clone(), query.clone(), inference, RefuteSuite::None);
+                let result = run(gp.clone(), query.clone(), inference.clone(), RefuteSuite::None);
                 assert!(
                     result.structural_response.is_some(),
                     "{kind:?} {:?} missing mixture",
                     query.policy
                 );
-                assert!(
-                    result.estimate().as_effect().unwrap().ate.is_finite()
-                        || result
-                            .diagnostics
-                            .iter()
-                            .any(|d| d.message.contains("IdentifiedSetEnvelope")
-                                || d.message.contains("graph_dependent_atoms")),
-                    "{kind:?} produced neither a scalar nor a class policy"
-                );
+                let ate = result.estimate().as_effect().unwrap().ate;
+                if matches!(
+                    query.policy,
+                    antecedent_core::TemporalPolicy::Pulse { at: -1 }
+                        | antecedent_core::TemporalPolicy::Sustained { from: -1, until: -1 }
+                ) {
+                    // One identified atom (t@-1, z@-1 -> y; weight 1) of series(): the effect is
+                    // the OLS slope of y on t@-1 (z@-1 is a parent of y but not of t, so it is not a back-door
+                    // variable; Bayesian: within the 8-draw error).
+                    let reference = series_lagged_coefficient(false);
+                    let tol = if inference == InferenceMode::Frequentist { 1e-6 } else { 0.15 };
+                    assert!(
+                        (ate - reference).abs() < tol,
+                        "{kind:?} {:?}: effect {ate} vs OLS slope {reference}",
+                        query.policy
+                    );
+                } else {
+                    // The unlicensed at-0 forms are only required to run to a scalar here.
+                    assert!(ate.is_finite(), "{kind:?} {:?}: scalar expected", query.policy);
+                }
             }
         }
     }
@@ -494,7 +540,7 @@ fn assert_same_estimand_scalar() {
     let identified = identified_lag_mask();
     for kind in [GraphPosteriorAtomKind::Cpdag, GraphPosteriorAtomKind::Pag] {
         let gp = class_posterior(kind, &[1.0], &[0], &[identified]);
-        for query in [pulse(), sustained()] {
+        for query in queries_for(kind) {
             let result =
                 run(gp.clone(), query.clone(), InferenceMode::Frequentist, RefuteSuite::None);
             assert!(
@@ -513,6 +559,20 @@ fn assert_same_estimand_scalar() {
                 _ => panic!("{kind:?} {:?}: conditional_on_identified", query.policy),
             };
             assert!((conditional - result.estimate().as_effect().unwrap().ate).abs() < 1e-12);
+            // series(): y_t = 1.4 t_{t-1} + 0.6 z_{t-1} + wiggle, and the identified atom keeps
+            // t@-1 -> y, so the structural effect is 1.4 whatever else enters the adjustment.
+            if matches!(
+                query.policy,
+                antecedent_core::TemporalPolicy::Pulse { at: -1 }
+                    | antecedent_core::TemporalPolicy::Sustained { from: -1, until: -1 }
+            ) {
+                let reference = series_lagged_coefficient(false);
+                assert!(
+                    (conditional - reference).abs() < 1e-6,
+                    "{kind:?} {:?}: effect {conditional} vs OLS slope {reference}",
+                    query.policy
+                );
+            }
             assert!(
                 result.diagnostics.iter().any(|d| {
                     d.code.as_ref() == "estimate.graph_posterior.structural_aggregation"

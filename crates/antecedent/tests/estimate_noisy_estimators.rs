@@ -145,10 +145,20 @@ fn run_method(
     } else {
         expected["methods"][method_id]["val"].as_f64().expect("method val")
     };
+    // The fixture's value band (atol 0.35 + 15 %) admits a confounded or unadjusted estimate, so each
+    // method is held to a few times its observed gap to the independent reference: the OLS and
+    // 2SLS closed forms agree to rounding, AIPW to 2e-3, the weighting estimators to 0.02.
+    let tight = match method_id {
+        "linear_regression" | "iv_2sls" => 1e-9,
+        "aipw" => 0.01,
+        "ipw_ate" | "ipw_att" | "frontdoor" => 0.05,
+        other => panic!("no tight tolerance for {other}"),
+    };
+    let ate = result.estimate().as_effect().unwrap().ate;
+    assert!((ate - ref_val).abs() < tight, "{method_id}: ate={ate} vs ref={ref_val} (tol {tight})");
     assert!(
-        close(result.estimate().as_effect().unwrap().ate, ref_val, atol_val, rtol_val),
-        "{method_id}: ate={} vs ref={ref_val} (atol={atol_val} rtol={rtol_val})",
-        result.estimate().as_effect().unwrap().ate
+        close(ate, ref_val, atol_val, rtol_val),
+        "{method_id}: ate={ate} vs ref={ref_val} (atol={atol_val} rtol={rtol_val})"
     );
 
     // `iv.2sls` withholds both se_analytic and se_bootstrap and publishes a

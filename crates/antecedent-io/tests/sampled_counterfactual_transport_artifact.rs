@@ -196,7 +196,7 @@ fn fresh_consumer_recomputes_the_plug_in_from_the_counts_bit_for_bit() {
     // The number is the enumerated truth within sampling error at 5,000 units.
     let truth = case.targets[0].expected_value.unwrap();
     assert!(
-        (replayed_point.probability - truth).abs() <= 0.06,
+        (replayed_point.probability - truth).abs() <= 0.02,
         "{} vs {truth}",
         replayed_point.probability
     );

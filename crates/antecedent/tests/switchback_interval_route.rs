@@ -44,6 +44,26 @@ fn study(
     (TabularData::from_f64_columns([("outcome", outcomes.as_slice())]).unwrap(), query)
 }
 
+/// The Horvitz-Thompson contrast `mean(Y A / p) - mean(Y (1 - A) / (1 - p))` of the fixture's
+/// declared assignment probability, recomputed from the generating formulas.
+fn horvitz_thompson(sequences: usize, periods: usize, probability: f64) -> f64 {
+    let n = sequences * periods;
+    let (mut treated, mut control) = (0.0, 0.0);
+    for i in 0..n {
+        let assigned = (i.wrapping_mul(137) + (i / periods) * 31) % 11 < 5;
+        let y = 1.0
+            + 0.5 * ((i / periods) as f64 * 0.7).sin()
+            + 0.3 * ((i % periods) as f64 * 0.4).cos()
+            + if assigned { 1.4 } else { 0.0 };
+        if assigned {
+            treated += y / probability;
+        } else {
+            control += y / (1.0 - probability);
+        }
+    }
+    (treated - control) / n as f64
+}
+
 #[test]
 fn supported_switchback_interval_round_trips_and_rejects_forgery() {
     let (data, query) = study(30, 24, 0.2);
@@ -59,6 +79,11 @@ fn supported_switchback_interval_round_trips_and_rejects_forgery() {
     );
     let fit = result.randomized_effect().unwrap();
     let [lower, upper] = fit.interval_95.expect("supported switchback interval");
+    assert!(
+        (fit.effect - horvitz_thompson(30, 24, 0.2)).abs() < 1e-9,
+        "{} vs the Horvitz-Thompson contrast of the declared design",
+        fit.effect
+    );
     assert!(lower < fit.effect && fit.effect < upper);
     assert!(fit.standard_error.unwrap() > 0.0);
     assert_eq!(fit.uncertainty.as_ref(), "switchback_independent_sequence_student_interval");
@@ -115,6 +140,11 @@ fn sparse_or_weak_switchback_remains_point_only() {
             .unwrap();
         let fit = result.randomized_effect().unwrap();
         assert!(fit.effect.is_finite());
+        assert!(
+            (fit.effect - horvitz_thompson(sequences, 24, probability)).abs() < 1e-9,
+            "{sequences} sequences: {} vs the Horvitz-Thompson contrast",
+            fit.effect
+        );
         assert_eq!(fit.interval_95, None);
         assert_eq!(result.support_status(), None);
         assert_eq!(

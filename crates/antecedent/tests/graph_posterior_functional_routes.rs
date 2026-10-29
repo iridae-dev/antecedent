@@ -441,6 +441,17 @@ fn a_temporal_admg_conditional_mixture_mixes_the_atoms_refuter_reports() {
             ids.sort_unstable();
             ids.dedup();
             assert_eq!(ids.len(), before, "reports of one refuter are mixed: {ids:?}");
+            // Both atoms identify the same modifier-stratified contrast, so the original estimate
+            // every mixed report carries is the counted contrast, whatever the 0.6 / 0.4 weights.
+            let counted = stratified_difference();
+            for report in &result.refutations {
+                assert!(
+                    (report.original_ate - counted).abs() < 1e-9,
+                    "{}: original {} vs counted {counted}",
+                    report.refuter,
+                    report.original_ate
+                );
+            }
         }
     });
 }
@@ -765,13 +776,13 @@ fn an_intervention_level_over_several_coordinates_is_answered_atom_by_atom() {
             InferenceMode::Frequentist,
         );
         let ctx = ExecutionContext::for_tests(8_204);
-        match explicit.and_then(|study| study.run(&ctx)) {
-            Ok(reference) => {
-                let mixed = posterior.run(&ctx).unwrap();
-                assert!((coordinates(&mixed)[0] - coordinates(&reference)[0]).abs() < 1e-9);
-            }
-            Err(_) => assert!(posterior.run(&ctx).is_err()),
-        }
+        let reference = explicit
+            .and_then(|study| study.run(&ctx))
+            .expect("the explicit route executes a two-coordinate level");
+        let mixed = posterior.run(&ctx).unwrap();
+        let level = coordinates(&mixed)[0];
+        assert!(level.is_finite());
+        assert!((level - coordinates(&reference)[0]).abs() < 1e-9);
     });
 }
 
@@ -1288,6 +1299,16 @@ fn a_static_derivative_mixture_mixes_the_atoms_refuter_reports_by_weight() {
         ids.sort_unstable();
         ids.dedup();
         assert_eq!(ids.len(), before, "reports of one refuter are mixed: {ids:?}");
+        // The mixed reports start from the mixture's own point estimate.
+        let point = coordinates(&result)[0];
+        for report in &result.refutations {
+            assert!(
+                (report.original_ate - point).abs() < 1e-9,
+                "{}: original {} vs mixture point {point}",
+                report.refuter,
+                report.original_ate
+            );
+        }
     });
 }
 
@@ -1408,6 +1429,10 @@ fn several_horizons_share_one_band_and_match_the_single_horizon_points() {
             .refute(RefuteSuite::None)
             .build()
             .and_then(|study| study.run(&ExecutionContext::for_tests(8_505)));
-        assert!(refused.is_err());
+        let refused = refused.expect_err("a Jacobian over several horizons refuses");
+        assert!(
+            refused.to_string().contains("name one horizon, or a point or average derivative"),
+            "{refused}"
+        );
     });
 }

@@ -167,6 +167,7 @@ def test_retained_analyze_and_prepare_match_direct_point_result():
     assert fit.estimate == pytest.approx(direct.estimate, abs=1e-5)
     assert dict(fit.donor_weights) == pytest.approx(dict(direct.donor_weights))
     assert fit.placebo_effects == pytest.approx(direct.placebo_effects)
+    assert fit.estimate == pytest.approx(5.0, abs=1e-5)  # the constructed treatment effect
     assert fit.support_status == "unlicensed_point_utility"
     assert fit.uncertainty == "point_only_with_unlicensed_placebo_rank"
     assert math.isnan(result.estimate.se_analytic)
@@ -205,6 +206,8 @@ def test_uniform_unit_randomization_reports_exact_sharp_null_p_value_only():
     assert fit.randomization_p_value == pytest.approx(
         sum(statistic >= observed for _, statistic in fit.randomization_statistics) / 4
     )
+    # The treated unit's statistic is its exact effect 5 (the construction is exactly weighted).
+    assert observed == pytest.approx(5.0, abs=1e-4)
     assert fit.uncertainty == "point_only_with_exact_unit_randomization_p_value_no_interval"
     assert "exact_uniform_unit_randomization_sharp_null_test" in fit.diagnostics
     assert math.isnan(result.estimate.se_analytic)

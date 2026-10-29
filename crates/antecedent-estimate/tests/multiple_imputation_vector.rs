@@ -230,7 +230,14 @@ fn a_vector_run_pools_the_coordinates_jointly_and_agrees_with_the_scalar_run() {
     let PooledEstimate::Rubin(single) = &scalar.pooled else { panic!("Rubin pooling") };
     assert_eq!(joint.coordinates[1], *single, "the slope coordinate is the scalar pooling");
     assert!(joint.total[3] >= joint.within[3] && joint.between[3] > 0.0);
-    assert!((joint.point[1] - 2.9).abs() < 0.5, "slope {}", joint.point[1]);
+    // The marginal slope of y on x is 2 + 1.5 cov(x, z) / var(x) = 2 + 1.5 * 0.6 / 1 = 2.9; the
+    // pooled point must sit within a few of its own pooled standard errors of it.
+    let se = joint.total[3].sqrt();
+    assert!(
+        (joint.point[1] - 2.9).abs() < 4.0 * se,
+        "slope {} vs 2.9 (pooled se {se})",
+        joint.point[1]
+    );
     assert_eq!(vector.fits.len(), 8);
     let wald = joint.wald(&[1.0, 2.9]).unwrap();
     assert!(wald.statistic.is_finite() && wald.statistic >= 0.0);

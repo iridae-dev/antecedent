@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import antecedent
 import numpy as np
+import pytest
 from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, load_toml
@@ -37,6 +38,10 @@ _EDGES = [("t", "y")]
 _DAG = antecedent.Dag.from_edges(["t", "y"], _EDGES)
 _ACCEPTED = antecedent.AcceptedGraph.from_graph(_DAG, algorithm_id="hand")
 _CURVE = antecedent.ResponseCurve("t", "y", grid=[0.5, 1.0, 1.5])
+# `t -> y` has no confounder, so the interventional curve is the observational regression line
+# (the data are 2 t + noise; the fitted line is the independent reference).
+_SLOPE, _INTERCEPT = np.polyfit(_DATA["t"], _DATA["y"], 1)
+_LINE = [_INTERCEPT + _SLOPE * g for g in (0.5, 1.0, 1.5)]
 
 
 def test_admg_intervention_cheap_is_not_a_closed_rule():
@@ -59,6 +64,7 @@ def test_accepted_graph_analyze_response_curve_threads_accepted():
     )
     assert result.response is not None
     assert np.isfinite(result.response.values).all()
+    np.testing.assert_allclose(np.asarray(result.response.values).flatten(), _LINE, atol=0.05)
     assert (
         antecedent.artifacts.loads(bytes(result.export())).contract["structure_source"]
         == "accepted"
@@ -139,6 +145,8 @@ def test_handle_response_bayesian_curve_uses_staged_path():
     )
     assert result.response is not None
     assert np.isfinite(result.response.values).all()
+    # The conjugate posterior mean of the curve sits on the regression line (observed gap 1e-3).
+    np.testing.assert_allclose(np.asarray(result.response.values).flatten(), _LINE, atol=0.01)
 
 
 def test_handle_response_bayesian_derivative_is_licensed():
@@ -151,4 +159,6 @@ def test_handle_response_bayesian_derivative_is_licensed():
             refute=False,
         )
     )
-    assert result is not None
+    # The data are 2 t + noise: the average derivative is the fitted slope (observed gap 0.05).
+    assert abs(_SLOPE - 2.0) < 0.1
+    assert result.effect == pytest.approx(_SLOPE, abs=0.15)

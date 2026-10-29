@@ -207,7 +207,12 @@ fn aipw_and_weighting_pool_by_rubins_rules_and_refit_on_every_table() {
         assert!(close(report.total, total, 1e-8), "{name}: total");
         assert!(close(pooled.uncertainty.analytic.se, total.sqrt(), 1e-8), "{name}: se");
         assert!(close(report.df.unwrap(), df, 1e-6), "{name}: Rubin degrees of freedom");
-        assert!((pooled.ate - EFFECT).abs() < 0.35, "{name}: pooled effect {}", pooled.ate);
+        // Observed gaps are 0.014 and 0.033 against a pooled standard error of 0.12.
+        assert!(
+            (pooled.ate - EFFECT).abs() < 0.15,
+            "{name}: pooled effect {} vs the simulated {EFFECT}",
+            pooled.ate
+        );
     }
 }
 

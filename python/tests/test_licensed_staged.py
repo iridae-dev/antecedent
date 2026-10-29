@@ -230,6 +230,22 @@ _MED_ACCEPTED = antecedent.AcceptedGraph.from_graph(_MED_TDAG, algorithm_id="han
 _MED = antecedent.TemporalMediationEffect("t", "m", "y", contrast="mediated")
 
 
+def _adjusted_ols(data):
+    """OLS coefficients of `y ~ 1 + t + z`, the back-door adjusted linear reference."""
+    n = len(data["t"])
+    design = np.column_stack([np.ones(n), data["t"], data["z"]])
+    return np.linalg.lstsq(design, data["y"], rcond=None)[0]
+
+
+def _mediated_reference(data):
+    """Product of coefficients: m on lagged t, then y on (m, lagged t)."""
+    t, m, y = data["t"], data["m"], data["y"]
+    n = len(t)
+    a = np.linalg.lstsq(np.column_stack([np.ones(n - 1), t[:-1]]), m[1:], rcond=None)[0][1]
+    b = np.linalg.lstsq(np.column_stack([np.ones(n - 1), m[1:], t[:-1]]), y[1:], rcond=None)[0][1]
+    return a * b
+
+
 @pytest.mark.parametrize(
     "data, graph, query, refute, inference",
     [
@@ -373,6 +389,12 @@ def test_licensed_cell_prepare_matches_analyze(data, graph, query, refute, infer
     if isinstance(query, antecedent.ResponseCurve):
         assert click.response is not None and fresh.response is not None
         assert click.response.values == fresh.response.values
+        # Independent reference: E[y | do(t = g)] = b0 + b1 g + b2 mean(z) from the adjusted OLS.
+        b0, b1, b2 = _adjusted_ols(data)
+        expected = [b0 + b1 * g + b2 * float(np.mean(data["z"])) for g in (-0.5, 0.0, 0.5)]
+        np.testing.assert_allclose(
+            np.asarray(click.response.values).flatten(), expected, atol=0.05
+        )
         return
     if isinstance(query, antecedent.InterventionResponse):
         assert isinstance(click.estimate, float) and isinstance(fresh.estimate, float)
@@ -387,9 +409,30 @@ def test_licensed_cell_prepare_matches_analyze(data, graph, query, refute, infer
         assert click.mediation is not None and fresh.mediation is not None
         assert click.mediation.mediated == fresh.mediation.mediated
         assert click.ate == fresh.ate
+        assert click.mediation.mediated == pytest.approx(_mediated_reference(data), abs=1e-9)
         return
     assert math.isfinite(click.ate) and math.isfinite(fresh.ate)
     assert abs(click.ate - fresh.ate) < 1e-12
+    # Independent known answers, so the cell is checked against more than its own analyze().
+    if isinstance(query, antecedent.AverageEffect) and "z" in data:
+        # Back-door adjustment for z: the adjusted OLS coefficient on t (exact for the
+        # Frequentist fit; the conjugate posterior mean sits within prior shrinkage of it).
+        reference = _adjusted_ols(data)[1]
+        tol = 1e-9 if inference is None else 0.02
+        assert click.ate == pytest.approx(reference, abs=tol)
+        assert abs(reference - 2.0) < 0.05  # and that reference is the structural 2.0
+    elif isinstance(query, antecedent.AverageEffect):
+        # Front-door table: sum_m P(m | t) sum_t' P(t') E[y | m, t'] differences to exactly 0.
+        assert click.ate == pytest.approx(0.0, abs=1e-9)
+    elif isinstance(query, antecedent.ConditionalEffect):
+        # y = 1 + 2t + 0.5tw on balanced w = 0..4: the modifier-averaged contrast is 3.
+        assert click.ate == pytest.approx(3.0, abs=1e-8)
+    elif isinstance(query, antecedent.PathSpecificEffect):
+        # t -> m -> y is unconfounded, so the all-paths effect is E[y|t=1] - E[y|t=0] = 0.8 - 0.5.
+        assert click.ate == pytest.approx(0.3, abs=1e-9)
+    elif isinstance(query, antecedent.InterventionalDistribution):
+        # Back-door over z: sum_z P(z) P(y=1 | t=1, z) = 0.7 from the contingency table.
+        assert click.ate == pytest.approx(0.7, abs=1e-9)
     if isinstance(query, (antecedent.PulseEffect, antecedent.SustainedEffect)):
         # Known-truth pin: `y_i = 0.5 * t_(i-1)` with zero noise, so the structural
         # Pulse/single-step-Sustained contrast at treatment_lag=1 is exactly 0.5.
@@ -525,17 +568,15 @@ def _outcome(data, graph, query):
 
 
 def test_pag_analyze_matches_columns_by_name_not_position():
-    pag = antecedent.Pag.from_marked_edges(
-        ["z", "t", "y"],
-        [
-            ("z", "t", "tail", "arrow"),
-            ("z", "y", "tail", "arrow"),
-            ("t", "y", "tail", "arrow"),
-        ],
+    # The licensed four-variable PAG answers (the three-variable one refuses identically in both
+    # orders, which would make the comparison vacuous), so permuting the columns is a real check.
+    ordered = {name: _PAG_DATA[name] for name in ("y", "r", "z", "t")}
+    assert list(_PAG_DATA) != list(ordered)
+    outcome = _outcome(_PAG_DATA, _PAG, _ATE)
+    assert outcome == _outcome(ordered, _PAG, _ATE)
+    assert isinstance(outcome[0], str) and float(outcome[0]) == pytest.approx(
+        _adjusted_ols(_PAG_DATA)[1], abs=1e-9
     )
-    ordered = {name: _ATE_DATA[name] for name in ("z", "t", "y")}
-    assert list(_ATE_DATA) != list(ordered)
-    assert _outcome(_ATE_DATA, pag, _ATE) == _outcome(ordered, pag, _ATE)
 
 
 def test_admg_analyze_matches_columns_by_name_not_position():
@@ -544,7 +585,9 @@ def test_admg_analyze_matches_columns_by_name_not_position():
     )
     ordered = {name: _ADMG_DATA[name] for name in ("m", "t", "y")}
     assert list(_ADMG_DATA) != list(ordered)
-    assert _outcome(_ADMG_DATA, admg, _ADMG_ATE) == _outcome(ordered, admg, _ADMG_ATE)
+    outcome = _outcome(_ADMG_DATA, admg, _ADMG_ATE)
+    assert outcome == _outcome(ordered, admg, _ADMG_ATE)
+    assert isinstance(outcome[0], str) and float(outcome[0]) == pytest.approx(0.0, abs=1e-9)
 
 
 def test_licensed_graph_posterior_prepare_matches_analyze():
@@ -711,12 +754,15 @@ def test_checked_bayesian_dag_ate_retains_prior_and_refresh(accepted: bool):
     assert plan["validation"] == "none"
     assert plan["adjustment_set"] == ["z"]
     result = require_success(outcome)
-    assert result.ate == pytest.approx(2.0, abs=0.2)
+    # static_data is exactly y = 2t + z + noise-free structure: the adjusted OLS coefficient is 2.
+    assert _adjusted_ols(data)[1] == pytest.approx(2.0, abs=1e-9)
+    assert result.ate == pytest.approx(2.0, abs=0.02)
     assert result.posterior is not None
     changed = {**data, "y": data["y"] + 0.4 * data["t"]}
     refreshed_outcome = antecedent.estimate(antecedent.rebind(prepared, data=changed))
     refreshed = require_success(refreshed_outcome)
-    assert refreshed.ate == pytest.approx(2.4, abs=0.2)
+    assert _adjusted_ols(changed)[1] == pytest.approx(2.4, abs=1e-9)
+    assert refreshed.ate == pytest.approx(2.4, abs=0.02)
     consumed = antecedent.artifacts.accept(bytes(refreshed.export()))
     assert consumed["accepts_as_verified_program"] == "false"
     assert "dependencies.checked_bayesian_dag_ate_operation" in consumed["unresolved"]
@@ -985,6 +1031,8 @@ def test_prepared_dbn_posterior_discovery_reuses_identification():
     assert prepared.evidence_status == "licensed"
     assert click.evidence_status == "licensed"
     assert abs(click.ate - fresh.ate) < 1e-12
+    # defect_t = 0.9 pressure_{t-1} with no noise: the pulse effect of the identified atoms is 0.9.
+    assert click.ate == pytest.approx(0.9, abs=0.01)
     assert fresh.posterior is not None and click.posterior is not None
     assert 0.0 <= fresh.posterior.unidentified_mass <= 1.0
     assert click.posterior.unidentified_mass == pytest.approx(
@@ -1015,6 +1063,10 @@ def test_distribution_publishes_bounded_probability_intervals():
         lower, upper = atom.interval.bounds
         assert 0.0 < lower < atom.probability < upper < 1.0
     one = next(a for a in atoms if a.outcomes[0][1] == 1.0)
+    # Back-door over z from the contingency table: sum_z P(z) P(y = 1 | t = 1, z) = 0.7, and the
+    # two atoms form a distribution.
+    assert one.probability == pytest.approx(0.7, abs=1e-9)
+    assert sum(a.probability for a in atoms) == pytest.approx(1.0, abs=1e-9)
     # The binary headline mean is P(y = 1 | do(t = 1)) and uses that interval.
     assert result.estimate.mean_interval == one.interval
     assert result.effect == pytest.approx(one.probability)
