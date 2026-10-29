@@ -483,7 +483,7 @@ notes = "Cpdag and Pag AverageEffect license Bayesian. Do not mix atoms that ans
 [[child]]
 id = "P06.temporal.frequentist"
 parent = "P06"
-route = "closed.AverageEffect.TemporalCpdag"
+route = "licensed.AverageEffect.TemporalCpdag"
 target = "AverageEffect"
 module = "crates/antecedent/src/analysis/builder/finish.rs"
 inference = "temporal.linear.adjustment on the lag-0 pulse: per-completion temporal backdoor (parents of X_t) on TemporalCpdag, visibility-aware MAG adjustment on TemporalPag, Imbens-Manski identified-set interval from shared circular-block replicates"
@@ -492,12 +492,12 @@ missing = "none"
 owner = "crates/antecedent"
 fixtures = "crates/antecedent/tests/lag_zero_average_effect.rs::the_lag_zero_average_effect_is_the_explicit_pulse_and_stays_unlicensed"
 consumer = "crates/antecedent/src/analysis/query_license.rs;python/tests/test_lag_zero_average_effect.py"
-notes = "AverageEffect on one series under TemporalDag, TemporalCpdag or TemporalPag is the lag-0 contrast, compiled as the pulse at offset 0 read at horizon 1. Executes unlicensed: the AverageEffect cell is a refused, executing closed rule in parity/support_closed.toml and the result discloses estimate.temporal_class.lag_zero_average_effect; calibration unmeasured."
+notes = "AverageEffect on one series under TemporalDag, TemporalCpdag or TemporalPag is the lag-0 contrast, compiled as the pulse at offset 0 read at horizon 1. Licensed: the AverageEffect cells on these classes match the structural coefficient (lag_zero_average_effect_truth.rs) and the result discloses estimate.temporal_class.lag_zero_average_effect; calibration unmeasured."
 
 [[child]]
 id = "P06.temporal.bayesian"
 parent = "P06"
-route = "closed.AverageEffect.TemporalCpdag"
+route = "licensed.AverageEffect.TemporalCpdag"
 target = "AverageEffect"
 module = "crates/antecedent/src/analysis/builder/finish.rs"
 inference = "bayesian.temporal.gcomp on the lag-0 pulse: per-completion conjugate posteriors with draw-wise identified-set bounds (product-posterior envelope quantiles)"
@@ -506,7 +506,7 @@ missing = "none"
 owner = "crates/antecedent"
 fixtures = "crates/antecedent/tests/lag_zero_average_effect.rs::the_lag_zero_average_effect_is_the_explicit_pulse_and_stays_unlicensed"
 consumer = "crates/antecedent/src/analysis/query_license.rs;python/tests/test_lag_zero_average_effect.py"
-notes = "Unidentified mass stays mass, not a weight. Executes unlicensed through the same closed rule as P06.temporal.frequentist; calibration unmeasured."
+notes = "Unidentified mass stays mass, not a weight. Licensed through the same cells as P06.temporal.frequentist; calibration unmeasured."
 
 [[child]]
 id = "P07.curve.static.frequentist"

@@ -708,6 +708,15 @@ def licensed_methods(src: Sources) -> list[dict]:
                             }
                 asserted -= {"none"}
                 inherited = sibling[(estimator, inference, design_of(graph), structure)]
+                inherited_design = design_of(graph)
+                if not inherited and graph == "TemporalAdmg":
+                    # A TemporalAdmg answers through the contemporaneous projection of the
+                    # static class executor, so its procedure is that executor's: the static
+                    # sibling of the same structure, else of any structure.
+                    inherited_design = "static"
+                    inherited = sibling[(estimator, inference, "static", structure)] or set().union(
+                        *(sibling[(estimator, inference, "static", s)] for s in STRUCTURE_ORDER)
+                    )
                 if asserted:
                     kinds, basis = asserted, "asserted_in_test"
                     first = next(
@@ -719,7 +728,7 @@ def licensed_methods(src: Sources) -> list[dict]:
                     sources_ = [f"test:{first}"]
                 elif inherited:
                     kinds, basis = inherited, "estimator_records"
-                    sources_ = [f"estimator:{estimator}:{inference}:{design_of(graph)}:{structure}"]
+                    sources_ = [f"estimator:{estimator}:{inference}:{inherited_design}:{structure}"]
                 elif (estimator, inference) in DECLARED_UNMEASURED:
                     kinds_list, test = DECLARED_UNMEASURED[(estimator, inference)]
                     kinds, basis, sources_ = (

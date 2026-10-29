@@ -84,7 +84,7 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 | `Counterfactual` | licensed | licensed | licensed | licensed |
 | `DirectionalDerivative` | licensed | licensed | licensed | licensed |
 | `Elasticity` | licensed | licensed | licensed | licensed |
-| `InterferenceQuery` | licensed | licensed | executing | executing |
+| `InterferenceQuery` | licensed | licensed | licensed | licensed |
 | `InterventionResponse` | licensed | licensed | licensed | licensed |
 | `InterventionalDistribution` | licensed | licensed | licensed | licensed |
 | `MeasurementCorrectedFunctional` | executing | executing | executing | executing |
