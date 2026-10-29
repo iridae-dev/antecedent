@@ -45,6 +45,19 @@ fn fixture() -> (TabularData, Dag) {
     (data, graph)
 }
 
+/// Tolerance per coordinate: the kernel-weighted local derivatives are within 3e-3 of the linear
+/// truth here, the Riesz average derivative within 0.04, and the additive-GAM Jacobian and
+/// directional derivatives are exact for a linear surface.
+fn tolerance(case: &str) -> f64 {
+    if case.starts_with("Directional") || case.starts_with("ResponseJacobian") {
+        1e-6
+    } else if case.starts_with("AverageDerivative") {
+        0.08
+    } else {
+        0.01
+    }
+}
+
 fn ids(raw: &[u32]) -> Arc<[VariableId]> {
     raw.iter().copied().map(VariableId::from_raw).collect()
 }
@@ -236,7 +249,7 @@ fn all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_r
             };
             assert_eq!(got.len(), expected.len(), "{case}");
             for (got, expected) in got.iter().zip(expected) {
-                assert!((got - expected).abs() < 0.15, "{case}: {got} != {expected}");
+                assert!((got - expected).abs() < tolerance(case), "{case}: {got} != {expected}");
             }
 
             let refreshed = rebind_estimate(&mut prepared, data.clone(), &context).unwrap();
@@ -430,7 +443,7 @@ fn all_bayesian_static_dag_derivative_coordinates_execute_retained_operations() 
             };
             assert_eq!(values.len(), expected.len(), "{case}");
             for (actual, truth) in values.iter().zip(expected) {
-                assert!((actual - truth).abs() < 0.15, "{case}: {actual} != {truth}");
+                assert!((actual - truth).abs() < tolerance(case), "{case}: {actual} != {truth}");
             }
 
             let refreshed = rebind_estimate(&mut prepared, data.clone(), &context).unwrap();

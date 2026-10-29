@@ -108,7 +108,7 @@ fn accepted_and_explicit_dag_cell_aipw_body() {
                 }
             );
             let result = prepared.estimate(&initial, &context).unwrap();
-            assert!((result_value(&result) - 10.5).abs() < 0.2);
+            assert!((result_value(&result) - 10.5).abs() < 1e-3);
             assert!((result_value(&result) - result_value(&one_shot)).abs() < 1e-12);
             assert_eq!(result.refutations.is_empty(), suite == RefuteSuite::None);
 
@@ -121,7 +121,7 @@ fn accepted_and_explicit_dag_cell_aipw_body() {
             let refreshed_data = data(0.4);
             let refreshed =
                 rebind_estimate(&mut prepared, refreshed_data.clone(), &context).unwrap();
-            assert!((result_value(&refreshed) - 10.9).abs() < 0.2);
+            assert!((result_value(&refreshed) - 10.9).abs() < 1e-3);
             let refreshed_scores = prepared.score_table().expect("refresh retains cell scores");
             let refreshed_retargeted = prepared
                 .retarget(&vec![1.0; refreshed_scores.n_rows], &[], &context)
@@ -157,10 +157,10 @@ fn checked_cell_aipw_quantile_is_sealed_and_executes() {
     let result = prepared.estimate(&data(0.0), &context).unwrap();
     let value = result_value(&result);
     assert!(value.is_finite());
-    assert!((value - 10.5).abs() < 0.2, "median response {value}");
+    assert!((value - 10.5).abs() < 1e-3, "median response {value}");
 
     let refreshed = rebind_estimate(&mut prepared, data(0.4), &context).unwrap();
-    assert!((result_value(&refreshed) - 10.9).abs() < 0.2);
+    assert!((result_value(&refreshed) - 10.9).abs() < 1e-3);
 }
 
 #[test]

@@ -55,7 +55,16 @@ fn gpdc_permutation_pvalue_separates_dependence() {
     // The dependent pair (y = x) has dCor 1, which no permutation reaches: the add-one p is
     // at its floor 1/50. The independent pair is decided on the statistic, not on a
     // Monte Carlo p-value that is uniform under H0 and would trip a fixed cut-off by chance.
-    assert!(out.results[0].p_value < 0.05, "dependent p={}", out.results[0].p_value);
+    assert!(
+        (out.results[0].statistic - 1.0).abs() < 1e-9,
+        "dCor(x, x) is 1, got {}",
+        out.results[0].statistic
+    );
+    assert!(
+        (out.results[0].p_value - 0.02).abs() < 1e-12,
+        "dependent p={} (add-one floor over 49 permutations)",
+        out.results[0].p_value
+    );
     assert!(
         out.results[0].statistic > out.results[1].statistic + 0.3,
         "dCor dependent={} independent={}",
@@ -116,8 +125,9 @@ fn gpdc_scaled_z_null_and_power() {
     }
     let type_i = f64::from(null_rej) / f64::from(trials);
     let power = f64::from(alt_rej) / f64::from(trials);
-    assert!(type_i < 0.25, "scaled-Z GPDC null rejects near 1 without standardisation: {type_i}");
-    assert!(power > 0.5, "scaled-Z GPDC lost power after standardisation: {power}");
+    // Observed: 4 of 80 null rejections (nominal 0.05) and all 80 alternatives rejected.
+    assert!(type_i <= 0.15, "scaled-Z GPDC null rejects near 1 without standardisation: {type_i}");
+    assert!(power >= 0.9, "scaled-Z GPDC lost power after standardisation: {power}");
 }
 
 #[test]
@@ -349,7 +359,7 @@ fn gpdc_nystrom_agrees_with_the_exact_gp_where_both_run() {
     let exact = gp_residual(cols[0], Some(&exact_factor), Gpdc::new().ridge).unwrap();
     let fit = nystrom_fit(&cols, &[2, 3], n, &GpdcNystrom::new(), &ctx).unwrap();
     let [low_rank, _] = nystrom_residuals(Some(&fit), [cols[0], cols[1]], &ctx).unwrap();
-    assert!(pearson(&exact, &low_rank) > 0.95, "{}", pearson(&exact, &low_rank));
+    assert!(pearson(&exact, &low_rank) > 0.99, "{}", pearson(&exact, &low_rank));
 }
 
 #[test]

@@ -432,7 +432,7 @@ fn story_1_multi_source_limited_experiment_effect_requiring_complementary_source
         )
         .unwrap();
         let counted_result = counted_prepared.estimate(&ctx).unwrap();
-        assert!((risk_of(counted_result.distribution()) - truth(&P, 1)).abs() < 1e-2);
+        assert!((risk_of(counted_result.distribution()) - truth(&P, 1)).abs() < 1e-9);
         let u = counted_result.uncertainty();
         assert_eq!((u.status.as_str(), u.reason.as_str()), (MZ_WITHHELD, MZ_INTERVAL_NOT_LICENSED));
         assert!(!u.available() && u.mean_intervals.is_empty() && u.seed.is_none());
@@ -902,7 +902,7 @@ fn story_3_learned_continuous_transport_estimate_with_overlap_refusal() {
             let result = prepared.estimate(&ctx).unwrap();
             let estimate = result.estimate().clone();
             assert!(
-                (estimate.estimate - truth(0.4)).abs() < 0.3,
+                (estimate.estimate - truth(0.4)).abs() < 0.2,
                 "{sampling:?}: {} vs {}",
                 estimate.estimate,
                 truth(0.4)
@@ -924,7 +924,7 @@ fn story_3_learned_continuous_transport_estimate_with_overlap_refusal() {
             assert_eq!(refreshed.identification(), prepared.identification());
             let moved = refreshed.estimate(&ctx).unwrap();
             assert_ne!(moved.identity(), result.identity());
-            assert!((moved.estimate().estimate - truth(0.4)).abs() < 0.3);
+            assert!((moved.estimate().estimate - truth(0.4)).abs() < 0.2);
             (refreshed_export(&moved), moved.estimate().clone())
         };
 
@@ -935,7 +935,7 @@ fn story_3_learned_continuous_transport_estimate_with_overlap_refusal() {
         assert_eq!(consumed.estimate(), &producer);
         assert_eq!(consumed.estimate().estimate.to_bits(), producer.estimate.to_bits());
         assert_eq!(consumed.export().unwrap(), bytes, "consumption re-exports the same bytes");
-        assert!((consumed.estimate().estimate - truth(0.4)).abs() < 0.3);
+        assert!((consumed.estimate().estimate - truth(0.4)).abs() < 0.2);
     }
 
     // Overlap-refusal side: a target the trial cannot represent refuses; it never extrapolates.
@@ -1397,7 +1397,7 @@ fn story_5_second_fixed_dag_cross_world_query_with_shared_abduction_and_typed_re
         let plug_in = outcome(active, mbar) - outcome(control, mbar);
         assert!((per_unit - plug_in).abs() > 1.0, "the fixture must separate the semantics");
         assert!(
-            (shared.point - per_unit).abs() < 0.25,
+            (shared.point - per_unit).abs() < 0.15,
             "{} vs per-unit truth {per_unit}",
             shared.point
         );
@@ -1468,7 +1468,7 @@ fn story_5_second_fixed_dag_cross_world_query_with_shared_abduction_and_typed_re
     assert!((consumed.point - 3.0 * -0.6 * delta).abs() < 1e-9);
     let consumed = consume_cross_world_artifact(&nonsep_bytes, &ctx).unwrap();
     assert_eq!(consumed.point.to_bits(), producer.1, "shared-abduction point replays bit for bit");
-    assert!((consumed.point - producer.2).abs() < 0.25);
+    assert!((consumed.point - producer.2).abs() < 0.15);
     // A single flipped byte never returns a different answer.
     let mut tampered = nonsep_bytes.clone();
     let mid = tampered.len() / 2;

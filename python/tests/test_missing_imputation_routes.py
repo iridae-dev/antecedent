@@ -111,7 +111,8 @@ def test_a_conditional_effect_reports_its_vector_pooling_and_assumption_digest()
     assert report.between == pytest.approx(vector.between[0])
     assert result.estimate.ate == pytest.approx(vector.point[0])
     # The marginal conditional effect is 2 + 0.5 E[w] = 2.
-    assert result.estimate.ate == pytest.approx(2.0, abs=0.3)
+    # Observed deviation 0.017 against a pooled standard error of 0.08.
+    assert result.estimate.ate == pytest.approx(2.0, abs=0.2)
 
     digest = _assert_digest(result)
     assert _assert_digest(_conditional(data, _policy())) == digest
@@ -170,7 +171,7 @@ def test_a_response_curve_pools_every_grid_point_jointly():
     assert vector.covariance_basis in ("joint_covariance", "marginal_variances")
     assert vector.wald is not None
     for dose, value in zip(grid, vector.point, strict=True):
-        assert value == pytest.approx(1.7 * dose, abs=0.35)
+        assert value == pytest.approx(1.7 * dose, abs=0.2)  # observed deviation at most 0.055
     # Neighbouring grid points share rows: their pooled covariance is not zero.
     if vector.covariance_basis == "joint_covariance":
         assert abs(vector.covariance("total")[0][1]) > 1e-12
@@ -206,7 +207,7 @@ def test_an_interventional_distribution_pools_atoms_and_needs_a_variance_to_pool
     assert vector.covariance_basis == "marginal_variances"
     assert vector.labels[-1] == "mean"
     # P(y = 1 | do(t = 1)) = 0.6 + 0.1 * 0.5.
-    assert vector.point[-1] == pytest.approx(0.65, abs=0.08)
+    assert vector.point[-1] == pytest.approx(0.65, abs=0.06)  # observed deviation 0.025
     atoms = vector.point[:-1]
     assert sum(atoms) == pytest.approx(1.0, abs=1e-9)
     # Without bootstrap replicates the plug-in publishes no variance to pool: refused.
@@ -262,7 +263,7 @@ def test_a_randomized_trial_imputes_with_its_arm_and_pools_the_design_variance()
         ant.analyze(data, query=_trial_query(arm), missing="complete_case", refute="none")
     ).estimate.ate
     assert abs(complete - TRIAL_EFFECT) > 0.2
-    assert result.estimate.ate == pytest.approx(TRIAL_EFFECT, abs=0.25)
+    assert result.estimate.ate == pytest.approx(TRIAL_EFFECT, abs=0.15)  # observed deviation 0.053
     assert result.estimate.ate == pytest.approx(vector.point[0])
     _assert_digest(result)
 
@@ -338,9 +339,17 @@ def test_the_joint_normal_model_has_no_lagged_form_on_a_series():
     assert "chained-equations" in str(refused.value)
 
 
-def test_the_wald_view_treats_a_missing_denominator_as_the_chi_square_reference():
-    wald = ImputationWaldView(null=(0.0,), statistic=1.0, df_numerator=1.0, df_denominator=math.inf)
-    assert math.isinf(wald.df_denominator)
+def test_the_wald_statistic_of_a_scalar_answer_is_its_squared_point_over_the_total_variance():
+    """For one coordinate Li, Raghunathan and Rubin's D1 reduces to ``point**2 / total``, the
+    squared t statistic of Rubin's rules, with one numerator degree of freedom."""
+    result = _conditional(_conditional_data(1_500, 21), _policy())
+    vector = result.missing_data.imputation.vector
+    wald = vector.wald
+    assert wald is not None and wald.null == (0.0,) and wald.df_numerator == 1.0
+    expected = vector.point[0] ** 2 / vector.total[0]
+    assert wald.statistic == pytest.approx(expected, rel=1e-9)
+    # A finite number of imputations gives a finite denominator, not the chi-square limit.
+    assert math.isfinite(wald.df_denominator) and wald.df_denominator > 0.0
 
 
 def test_a_bayesian_mediation_pools_its_components_by_mean_with_their_between_variance():

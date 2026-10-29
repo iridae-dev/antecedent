@@ -287,7 +287,7 @@ fn temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point() {
                         };
                         let result = run(bayes(builder, bayesian));
                         assert!(
-                            (result.estimate().as_effect().unwrap().ate - truth).abs() < 0.05,
+                            (result.estimate().as_effect().unwrap().ate - truth).abs() < 0.015,
                             "sustained={sustained} pag={pag} posterior={posterior} accepted={accepted} bayesian={bayesian} ate={}",
                             result.estimate().as_effect().unwrap().ate
                         );
@@ -353,7 +353,8 @@ fn temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point() {
         .prepare(&ExecutionContext::for_tests(11))
         .unwrap()
         .estimate_retained(&ExecutionContext::for_tests(11));
-    assert!(err.is_err(), "a modifier that is not a series variable is refused");
+    let text = err.expect_err("a modifier that is not a series variable is refused").to_string();
+    assert!(text.contains("unknown variable V9"), "{text}");
     let mapped = Study::series(data)
         .query(CausalQuery::TemporalEffect(conditional_query(false)))
         .graph(TemporalCpdag::from_temporal_dag(&dag))
@@ -365,7 +366,11 @@ fn temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point() {
         .unwrap()
         .prepare(&ExecutionContext::for_tests(11))
         .unwrap();
-    assert!(mapped.estimate_retained(&ExecutionContext::for_tests(11)).is_err());
+    let text = mapped
+        .estimate_retained(&ExecutionContext::for_tests(11))
+        .expect_err("a mapped coefficient prior is refused")
+        .to_string();
+    assert!(text.contains("a mapped coefficient prior is not licensed"), "{text}");
 }
 
 fn attach(functional: ResponseFunctional) -> ResponseQuery {
@@ -421,7 +426,8 @@ fn temporal_class_derivatives_publish_the_linear_slope() {
         "../../../conformance/estimate/temporal_derivative/expected.json"
     ))
     .unwrap();
-    let tolerance = pin["tolerance"].as_f64().unwrap();
+    // Observed deviations are at most 0.0066 across the sixteen routes.
+    let tolerance = pin["tolerance"].as_f64().unwrap().min(0.02);
     let columns = derivative_columns();
     let dag = derivative_dag();
     for (key, functional) in derivative_values() {
@@ -564,7 +570,8 @@ fn temporal_class_cross_world_points_match_the_linear_mechanism() {
         "../../../conformance/estimate/temporal_cross_world/expected.json"
     ))
     .unwrap();
-    let tolerance = pin["tolerance"].as_f64().unwrap();
+    // Observed deviations are at most 0.0071 across the sixteen routes.
+    let tolerance = pin["tolerance"].as_f64().unwrap().min(0.02);
     let columns = cross_columns();
     let dag = cross_dag();
     for (key, query) in cross_queries() {

@@ -49,7 +49,8 @@ def test_callaway_santanna_recovers_the_simple_aggregate_the_two_way_coefficient
     overall = result.overall
     assert isinstance(overall, DesignEffect)
     assert overall.kind == "overall"
-    assert overall.estimate == pytest.approx(3.5, abs=0.4)
+    # Observed deviation from the 3.5 truth is 0.07 at this seed.
+    assert overall.estimate == pytest.approx(3.5, abs=0.25)
     twfe = result.diagnostic("twfe_static_coefficient")
     assert twfe is not None
     assert abs(twfe - 3.5) > 1.0
@@ -216,7 +217,8 @@ def test_doubly_robust_covariate_adjusted_did_recovers_the_effect():
     assert isinstance(result, QuasiRolloutEstimate)
     assert result.design == "covariate_adjusted_did"
     assert result.overall is not None
-    assert result.overall.estimate == pytest.approx(2.0, abs=0.25)
+    # Observed deviation from the 2.0 truth is 0.025 at this seed.
+    assert result.overall.estimate == pytest.approx(2.0, abs=0.1)
     assert result.licensed is False
 
 
@@ -282,7 +284,7 @@ def test_bayesian_rollout_is_a_whole_unit_bayesian_bootstrap_beside_the_posterio
     overall = rollout.overall
     assert overall is not None and overall.interval is not None
     # Dynamic summary: the mean of the post event-time effects 0, 3, 6, 9.
-    assert overall.estimate == pytest.approx(4.5, abs=0.5)
+    assert overall.estimate == pytest.approx(4.5, abs=0.3)  # observed deviation 0.11
     assert overall.interval[0] < overall.estimate < overall.interval[1]
     banded = [effect for effect in rollout.effects if effect.band is not None]
     assert banded

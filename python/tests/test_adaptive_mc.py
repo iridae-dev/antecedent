@@ -91,3 +91,5 @@ def test_bayesian_laplace_materializes_requested_draws():
     assert not result.performance.early_stopped
     assert result.posterior is not None
     assert math.isfinite(result.ate)
+    # The structural ATE is 2; the observed posterior mean is 1.957 (standard error 0.04).
+    assert result.ate == pytest.approx(2.0, abs=0.15)

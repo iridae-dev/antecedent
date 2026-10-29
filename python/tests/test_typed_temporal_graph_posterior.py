@@ -75,7 +75,7 @@ def test_temporal_class_posterior_executes_same_derivative_as_explicit_class_and
     assert supplied.inspect().stage == "prepared"
     result = require_success(supplied.estimate())
     reference = require_success(explicit.estimate())
-    np.testing.assert_allclose(np.asarray(result.estimate).reshape(-1), [2.0], atol=0.05, rtol=0)
+    np.testing.assert_allclose(np.asarray(result.estimate).reshape(-1), [2.0], atol=1e-8, rtol=0)
     np.testing.assert_allclose(
         np.asarray(result.estimate), np.asarray(reference.estimate), atol=1e-12, rtol=0
     )

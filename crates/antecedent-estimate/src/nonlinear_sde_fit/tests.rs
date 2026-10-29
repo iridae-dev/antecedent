@@ -169,7 +169,8 @@ fn dense_trajectories_recover_the_epidemic_parameters_with_separate_evidence() {
     let errors = fit.standard_errors.as_ref().unwrap();
     for ((value, truth), se) in fit.values.iter().zip(TRUTH).zip(errors) {
         assert!(*se > 0.0);
-        assert!((value - truth).abs() <= 5.0 * se, "{value} vs {truth} (se {se})");
+        // Observed deviations are 0.4, 0.01 and 1.3 standard errors.
+        assert!((value - truth).abs() <= 2.5 * se, "{value} vs {truth} (se {se})");
     }
     // The pseudo-likelihood maximum is at least as high as at the generating parameters.
     let truth_value = reference()["quasi_likelihood"]["log_likelihood_truth"].as_f64().unwrap();
@@ -377,7 +378,8 @@ fn trajectories_under_a_known_hold_exclude_the_held_component_from_the_likelihoo
     assert!(fit.fitting.converged, "{:?}", fit.fitting);
     let errors = fit.standard_errors.as_ref().unwrap();
     for ((value, truth), se) in fit.values.iter().zip(TRUTH).zip(errors) {
-        assert!((value - truth).abs() <= 6.0 * se, "{value} vs {truth} (se {se})");
+        // Observed deviations are 0.5, 1.2 and 0.2 standard errors.
+        assert!((value - truth).abs() <= 3.0 * se, "{value} vs {truth} (se {se})");
     }
 }
 
@@ -419,6 +421,12 @@ fn partial_noisy_observation_uses_the_extended_kalman_likelihood_and_says_so() {
     )
     .unwrap();
     assert!(fit.log_quasi_likelihood.is_finite());
+    // The two fitted parameters (beta, gamma) recover the generating values within their
+    // reported standard errors (observed 0.6 and 0.7 standard errors).
+    let errors = fit.standard_errors.as_ref().unwrap();
+    for ((value, truth), se) in fit.values.iter().zip([TRUTH[0], TRUTH[2]]).zip(errors) {
+        assert!((value - truth).abs() <= 3.0 * se, "{value} vs {truth} (se {se})");
+    }
     assert_eq!(fit.discretization.likelihood, "extended_kalman_euler_innovation");
     assert_eq!(fit.identification.unobserved_components, vec!["S", "R"]);
     for condition in ["extended_kalman_linearization", "unobserved_state_filtered"] {

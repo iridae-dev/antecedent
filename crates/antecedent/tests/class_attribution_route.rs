@@ -210,7 +210,8 @@ fn cpdag_change_body() {
     let change = result.change_attribution().expect("change payload");
     // The mechanism of `y` shifts by 5 and `x` does not move: the outcome moves by 5 in
     // both DAGs of the class.
-    assert!((change.total_change - 5.0).abs() < 0.5, "total {}", change.total_change);
+    // The shift is exact in the sample (the noise terms are common to both populations).
+    assert!((change.total_change - 5.0).abs() < 1e-9, "total {}", change.total_change);
     let share = |variable_id: u32| {
         change
             .contributions
@@ -224,11 +225,11 @@ fn cpdag_change_body() {
     // sensitivity is that spread.
     let spread = change.graph_sensitivity.as_ref().expect("graph sensitivity");
     assert_eq!(spread.len(), change.contributions.len());
-    assert!(spread.iter().all(|s| *s < 0.5), "{spread:?}");
+    assert!(spread.iter().all(|s| *s < 1e-9), "{spread:?}");
     let mixture = result.structural_response.as_ref().unwrap();
     let set = mixture.identified_set.as_ref().unwrap();
     for (lower, upper) in set.lower.iter().zip(set.upper.iter()) {
-        assert!(upper - lower < 1.0, "[{lower}, {upper}]");
+            assert!(upper - lower < 1e-9, "[{lower}, {upper}]");
     }
 }
 
@@ -269,7 +270,7 @@ fn cpdag_bayesian_body() {
     assert!(
         class.diagnostics.iter().any(|d| d.code.as_ref() == "attribution.class.posterior_envelope")
     );
-    assert!((class.change_attribution().unwrap().total_change - 5.0).abs() < 0.5);
+    assert!((class.change_attribution().unwrap().total_change - 5.0).abs() < 1e-9);
 }
 
 /// `a`, `b` (correlated through a shared sine) and `t = a + 2b + noise` over a collider.
@@ -369,7 +370,8 @@ fn admg_change_body() {
     let result = tabular_study(&data, latent_collider(), &query, &frequentist()).run(&ctx).unwrap();
     let change = result.change_attribution().unwrap();
     // The block {a, b} shifts t by 1 + 2 = 3 and the mechanism of t by 0.5.
-    assert!((change.total_change - 3.5).abs() < 0.3, "total {}", change.total_change);
+    // Observed deviations: total 0.062, block 0.054, target 0.0075.
+    assert!((change.total_change - 3.5).abs() < 0.15, "total {}", change.total_change);
     let share = |component: u32| {
         change
             .contributions
@@ -379,8 +381,8 @@ fn admg_change_body() {
             .unwrap()
     };
     assert_eq!(change.contributions.len(), 2);
-    assert!((share(0) - 3.0).abs() < 0.3, "block {}", share(0));
-    assert!((share(2) - 0.5).abs() < 0.3, "target {}", share(2));
+    assert!((share(0) - 3.0).abs() < 0.15, "block {}", share(0));
+    assert!((share(2) - 0.5).abs() < 0.03, "target {}", share(2));
     assert!((change.contribution_sum() - change.total_change).abs() < 1e-9);
 }
 

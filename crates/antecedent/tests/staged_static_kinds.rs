@@ -65,9 +65,12 @@ fn static_kinds_known_truth() {
                     .unwrap();
                 let prepared = study.prepare(&ctx).unwrap();
                 let result = prepared.estimate(&data, &ctx).unwrap();
+                // The direct effect is estimated to 5e-4 here; the pinned band governs the
+                // indirect and total effects, which carry the mediator's sampling error (0.018).
+                let band = if key == "direct" { 3e-3 } else { pin["tolerance"].as_f64().unwrap() };
                 assert!(
                     (result.estimate().as_effect().unwrap().ate - pin[key].as_f64().unwrap()).abs()
-                        < pin["tolerance"].as_f64().unwrap(),
+                        < band,
                     "{key}: {:?}",
                     result.estimate()
                 );
@@ -339,9 +342,9 @@ fn confounded_static_kinds_are_not_the_observational_association() {
             .unwrap()
             .estimate(&data, &ctx)
             .unwrap();
+        let band = if key == "direct" { 3e-3 } else { pin["tolerance"].as_f64().unwrap() };
         assert!(
-            (result.estimate().as_effect().unwrap().ate - pin[key].as_f64().unwrap()).abs()
-                < pin["tolerance"].as_f64().unwrap(),
+            (result.estimate().as_effect().unwrap().ate - pin[key].as_f64().unwrap()).abs() < band,
             "{key}: {:?}",
             result.estimate()
         );

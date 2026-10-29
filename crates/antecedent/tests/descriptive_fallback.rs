@@ -55,13 +55,50 @@ fn noise(i: usize) -> f64 {
     ((i as f64 * 12.9898).sin() * 43758.5453).fract().abs() - 0.5
 }
 
-/// Three columns `z`, `x`, `y`: `x` is a 0/1 treatment that depends on `z`, `y` follows both.
-fn zxy() -> TabularData {
+/// The columns `z`, `x`, `y`: `x` is a 0/1 treatment that depends on `z`, `y` follows both.
+fn zxy_vectors() -> (Vec<f64>, Vec<f64>, Vec<f64>) {
     let n = 160;
     let z: Vec<f64> = (0..n).map(|i| f64::from(u8::from(noise(i) > 0.0))).collect();
     let x: Vec<f64> = (0..n).map(|i| f64::from(u8::from(z[i] + noise(i + 500) > 0.3))).collect();
     let y: Vec<f64> = (0..n).map(|i| 1.0 + 2.0 * x[i] + z[i] + noise(i + 900)).collect();
+    (z, x, y)
+}
+
+fn zxy() -> TabularData {
+    let (z, x, y) = zxy_vectors();
     TabularData::from_f64_columns([("z", &z[..]), ("x", &x[..]), ("y", &y[..])]).unwrap()
+}
+
+/// Least squares by the normal equations and Gauss-Jordan elimination with partial pivoting,
+/// independent of the product's solver: the coefficients of `y` on an intercept and `columns`.
+fn ols(columns: &[&[f64]], y: &[f64]) -> Vec<f64> {
+    let p = columns.len() + 1;
+    let column = |j: usize, i: usize| if j == 0 { 1.0 } else { columns[j - 1][i] };
+    let mut a = vec![vec![0.0; p + 1]; p];
+    for r in 0..p {
+        for c in 0..p {
+            a[r][c] = (0..y.len()).map(|i| column(r, i) * column(c, i)).sum();
+        }
+        a[r][p] = (0..y.len()).map(|i| column(r, i) * y[i]).sum();
+    }
+    for c in 0..p {
+        let pivot = (c..p).max_by(|&i, &j| a[i][c].abs().total_cmp(&a[j][c].abs())).unwrap();
+        a.swap(c, pivot);
+        let d = a[c][c];
+        for j in 0..=p {
+            a[c][j] /= d;
+        }
+        for r in 0..p {
+            if r != c {
+                let f = a[r][c];
+                for j in 0..=p {
+                    let v = a[c][j];
+                    a[r][j] -= f * v;
+                }
+            }
+        }
+    }
+    (0..p).map(|r| a[r][p]).collect()
 }
 
 /// `z -> x`, `z -> y`, `x -> y` and `x <-> y`: the back door through `z` is closed by
@@ -87,11 +124,16 @@ fn confounded_study(data: TabularData) -> Study {
 }
 
 /// Columns `t`, `w`, `y`: `t -> w -> y` with `t <-> y` and `w <-> y`, all observed: a hedge.
-fn twy() -> TabularData {
+fn twy_vectors() -> (Vec<f64>, Vec<f64>, Vec<f64>) {
     let n = 160;
     let t: Vec<f64> = (0..n).map(|i| f64::from(u8::from(noise(i) > 0.0))).collect();
     let w: Vec<f64> = (0..n).map(|i| f64::from(u8::from(t[i] + noise(i + 300) > 0.4))).collect();
     let y: Vec<f64> = (0..n).map(|i| 0.5 + 1.5 * w[i] + noise(i + 700)).collect();
+    (t, w, y)
+}
+
+fn twy() -> TabularData {
+    let (t, w, y) = twy_vectors();
     TabularData::from_f64_columns([("t", &t[..]), ("w", &w[..]), ("y", &y[..])]).unwrap()
 }
 
@@ -205,6 +247,21 @@ fn an_unmeasured_confounder_returns_the_refusal_a_noncausal_description_and_the_
         2,
         "intercept and treatment; the held-fixed parent is not reported"
     );
+    // The reported terms are the least-squares fit of y on an intercept, x and the held-fixed
+    // parent z (not the unadjusted slope, which differs because z moves x and y).
+    let (z, x, y) = zxy_vectors();
+    let beta = ols(&[&x, &z], &y);
+    let unadjusted = ols(&[&x], &y);
+    assert!((beta[1] - unadjusted[1]).abs() > 0.05, "the fixture must separate the two");
+    assert_eq!(payload.estimate.terms[0].label, "intercept");
+    assert_eq!(payload.estimate.terms[1].label, "x");
+    assert!((payload.estimate.terms[0].estimate - beta[0]).abs() < 1e-8);
+    assert!(
+        (payload.estimate.terms[1].estimate - beta[1]).abs() < 1e-8,
+        "{} vs {}",
+        payload.estimate.terms[1].estimate,
+        beta[1]
+    );
     assert!(!fallback.ranks_actions());
     assert!(!fallback.answers_causal_question());
 
@@ -239,6 +296,12 @@ fn a_hedge_returns_the_refusal_the_description_and_a_ranked_plan_over_declared_s
     assert!(part.roles.adjustment.is_empty(), "the treatment has no measured parent");
     assert_eq!(part.claim.kind, ClaimKind::Associational);
     assert_eq!(part.result.association().unwrap().estimate.terms.len(), 2);
+    // With no measured parent the term is the unadjusted slope of y on t.
+    let (t, _, y) = twy_vectors();
+    let beta = ols(&[&t], &y);
+    let terms = &part.result.association().unwrap().estimate.terms;
+    assert_eq!(terms[1].label, "t");
+    assert!((terms[0].estimate - beta[0]).abs() < 1e-8 && (terms[1].estimate - beta[1]).abs() < 1e-8);
 
     let needs = fallback.evidence.as_ref().unwrap();
     let RankedPlan::Ranked(plan) = &needs.ranking else {
@@ -289,6 +352,13 @@ fn a_successful_causal_query_returns_the_ordinary_result_and_never_a_fallback() 
         result.estimate().as_effect().unwrap().ate,
         ordinary.estimate().as_effect().unwrap().ate
     );
+    // With no confounder the average effect is the difference of the group means.
+    let mean = |treated: f64| {
+        let rows: Vec<f64> = (0..120).filter(|i| x[*i] == treated).map(|i| y[i]).collect();
+        rows.iter().sum::<f64>() / rows.len() as f64
+    };
+    let ate = result.estimate().as_effect().unwrap().ate;
+    assert!((ate - (mean(1.0) - mean(0.0))).abs() < 1e-8, "{ate}");
 }
 
 #[test]
