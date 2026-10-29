@@ -66,6 +66,12 @@ def test_linear_calibration_and_simex_recover_the_slope():
     rc = prepared.estimate_continuous(mm.ContinuousErrorData(outcome=y, regressor=w))
     assert rc.naive_point == pytest.approx(1.6, abs=0.1)
     assert rc.point == pytest.approx(2.0, abs=0.15)
+    # Closed forms on the sample: the naive slope is cov(W, Y) / var(W) and the calibrated
+    # slope divides by the reliability (var(W) - sigma_u^2) / var(W) with sigma_u^2 = 0.25.
+    covariance = np.cov(w, y)
+    assert rc.naive_point == pytest.approx(covariance[0, 1] / covariance[0, 0], abs=1e-9)
+    assert rc.point == pytest.approx(covariance[0, 1] / (covariance[0, 0] - 0.25), rel=2e-3)
+    assert rc.reliability == pytest.approx(1.0 - 0.25 / covariance[0, 0], abs=5e-4)
     assert abs(rc.point - 2.0) < abs(rc.naive_point - 2.0)
     assert rc.functional_id == "linear_coefficient.regression_calibration"
     assert rc.reliability == pytest.approx(0.8, abs=0.05)

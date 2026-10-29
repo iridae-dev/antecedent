@@ -203,6 +203,29 @@ def test_compiler_derived_program_certificate_replays_current_fit_and_domain():
     assert report["scope"] == "model_conditional"
     assert report["selected_value_reliability"] == "unmeasured"
     assert len(report["controls"]) == len(controls)
+    # The certified maximiser is the only moving control at its upper bound, and the certified
+    # upper value dominates every pointwise schedule of that control (independent of the
+    # branch-and-bound: each point is its own degenerate-domain certificate).
+    last_a = 23 * 3
+    assert report["controls"] == [2.0 if i == last_a else 0.0 for i in range(len(controls))]
+    assert report["global_upper"] - report["incumbent"]["upper"] == pytest.approx(0.0, abs=1e-3)
+    pointwise = {}
+    for level in (0.0, 0.5, 1.0, 2.0):
+        fixed = [
+            {**c, "lower": level, "upper": level} if i == last_a else c
+            for i, c in enumerate(controls)
+        ]
+        pointwise[level] = result.certify_program(
+            base_world=0,
+            controls=fixed,
+            initial=[level if i == last_a else 0.0 for i in range(len(fixed))],
+            absolute_gap=1e-9,
+            max_splits=10,
+            execution=Execution(seed=1),
+        ).report()["global_upper"]
+    assert report["global_upper"] == pytest.approx(pointwise[2.0], abs=1e-3)
+    assert all(report["global_upper"] >= value - 1e-9 for value in pointwise.values())
+    assert pointwise[2.0] > pointwise[0.5] + 0.05  # the choice of control matters
     artifact = bytes(certificate.export(execution=Execution(seed=20261021)))
     certificate.verify_current(artifact, execution=Execution(seed=17))
     historical = joint_panel.consume_program_certificate(artifact, execution=Execution(seed=99))
@@ -364,7 +387,12 @@ def test_unsupported_certificate_expression_executes_actual_best_found_search():
     assert searched["gap"] is None
     assert searched["global_certificate"] is False
     assert "interval evaluator" in searched["certificate_refusal"]
-    assert searched["best"]["value"] is not None
+    # The best found moves the one free control to its upper bound (the fitted response is
+    # increasing in it) and improves on the do-nothing schedule, whose value is exactly zero
+    # against the base world.
+    assert searched["best"]["controls"] == [2.0 if i == 23 * 3 else 0.0 for i in range(72)]
+    assert searched["best"]["value"] > 0.1
+    assert searched["best"]["cost"] == 0.0
     assert prepared.inspect()["fits_performed"] == 1
 
 

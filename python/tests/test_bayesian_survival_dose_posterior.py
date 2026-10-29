@@ -273,10 +273,10 @@ def test_dose_policy_posterior_tracks_the_frequentist_kernel_row() -> None:
     # The truth is linear, so each group's symmetric window average equals the curve value:
     # 0.5 * 1.5 * 0.4 + 0.5 * 2.0 * 0.4 = 0.7.
     incremental = row.posterior_mean("incremental_value")
-    assert incremental == pytest.approx(0.7, abs=0.1)
-    assert incremental == pytest.approx(frequentist.fixed_policy.incremental_value, abs=0.1)
+    assert incremental == pytest.approx(0.7, abs=0.02)
+    assert incremental == pytest.approx(frequentist.fixed_policy.incremental_value, abs=0.02)
     assert row.posterior_mean("policy_value") == pytest.approx(
-        frequentist.fixed_policy.policy_value, abs=0.1
+        frequentist.fixed_policy.policy_value, abs=0.02
     )
     assert row.exact_mean is None
     covariance = row.covariance_matrix()
@@ -431,8 +431,25 @@ def test_quantile_posterior_matches_the_dirichlet_reference() -> None:
 def test_vague_prior_quantile_posterior_tracks_the_empirical_inversion() -> None:
     # Control grid distribution function 0, 2/12, 5/12, 8/12, 10/12, 1: median 2 + (1/2 - 5/12)/(1/4).
     row = _quantile(concentration=0.01, seed=4).posterior_row
-    assert row.posterior_mean("control_quantile") == pytest.approx(7.0 / 3.0, abs=0.35)
-    assert row.posterior_mean("treated_quantile") == pytest.approx(3.0, abs=0.35)
+    # Independent Dirichlet simulation of the same model: 7 bins cut at the thresholds, a 0.01
+    # prior per bin, the median read off the linearly interpolated distribution function.
+    data = _quantile_data()
+    thresholds = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
+    rng = np.random.default_rng(1)
+
+    def simulated_median(values: list[float]) -> float:
+        counts = np.histogram(values, bins=[-np.inf, *thresholds, np.inf])[0]
+        cdf = np.cumsum(rng.dirichlet(counts + 0.01, size=40_000), axis=1)[:, :6]
+        above = np.argmax(cdf >= 0.5, axis=1)
+        lo, hi = cdf[np.arange(len(cdf)), above - 1], cdf[np.arange(len(cdf)), above]
+        return float(np.mean(thresholds[above - 1] + (0.5 - lo) / (hi - lo)))
+
+    control = simulated_median(data["y"][:12])
+    treated = simulated_median(data["y"][12:])
+    assert control == pytest.approx(7.0 / 3.0, abs=0.05)  # the empirical inversion
+    assert row.posterior_mean("control_quantile") == pytest.approx(control, abs=0.03)
+    assert row.posterior_mean("treated_quantile") == pytest.approx(treated, abs=0.03)
+    assert row.posterior_mean("treated_quantile") == pytest.approx(3.0, abs=0.05)
 
 
 def test_quantile_posterior_refusals_name_the_next_attempt() -> None:

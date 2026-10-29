@@ -31,6 +31,14 @@ def _linear_chain(n: int = 800, seed: int = 5, coef: float = 2.0):
     return names, cols, edges, coef
 
 
+def _ols(response, *regressors):
+    """Least-squares coefficients (intercept first) and the residual variance (ddof = parameters)."""
+    design = np.column_stack([np.ones(len(response)), *regressors])
+    beta = np.linalg.lstsq(design, response, rcond=None)[0]
+    resid = response - design @ beta
+    return beta, float(resid @ resid / (len(response) - design.shape[1]))
+
+
 def test_counterfactual_ite_returns_unit_effects():
     names, cols, edges = _gcm_linear()
     result = antecedent.counterfactual.counterfactual_ite(
@@ -39,8 +47,12 @@ def test_counterfactual_ite_returns_unit_effects():
     assert result.n_units == len(cols[0])
     assert result.unit_effects.shape == (result.n_units,)
     assert np.isclose(result.unit_effects.mean(), result.mean_ite, rtol=1e-9)
-    # Structural β=1.5; rtol=0.15 is stable on this fixture (was 0.2).
-    assert np.isclose(result.mean_ite, 1.5, rtol=0.15)
+    # Independent oracle: for a linear additive-noise node the unit effect is the fitted
+    # coefficient of t in the regression of y on its parents (t, z), the same for every unit.
+    beta, _ = _ols(cols[2], cols[0], cols[1])
+    assert result.mean_ite == pytest.approx(beta[1], abs=1e-6)
+    assert result.mean_ite == pytest.approx(1.5, abs=0.05)
+    assert np.ptp(result.unit_effects) < 1e-9
 
 
 def test_sample_do_returns_draws():
@@ -53,6 +65,16 @@ def test_sample_do_returns_draws():
     assert result.draws.shape == (result.n_nodes, n_draws)
     means = result.draws.mean(axis=1)
     assert np.allclose(means, result.column_means, rtol=1e-9)
+    # The intervened node is pinned in every draw, and y follows its fitted mechanism
+    # (intercept + 1.5 * 1 + 0.5 * z) so the mean sits at the do(t = 1) value, not the observed 0.8.
+    t_row = names.index("t")
+    assert np.all(result.draws[t_row] == 1.0)
+    beta, sigma2 = _ols(cols[2], cols[0], cols[1])
+    z_draws = result.draws[names.index("z")]
+    predicted = beta[0] + beta[1] * 1.0 + beta[2] * z_draws
+    resid = result.draws[names.index("y")] - predicted
+    assert abs(resid.mean()) < 4 * np.sqrt(sigma2 / n_draws)
+    assert np.std(resid, ddof=1) == pytest.approx(np.sqrt(sigma2), rel=0.3)
 
 
 def test_sample_interventional_distribution():
@@ -63,6 +85,13 @@ def test_sample_interventional_distribution():
     )
     assert result.n_draws == n_draws
     assert result.draws.shape == (result.n_nodes, n_draws)
+    assert np.all(result.draws[names.index("t")] == 1.0)
+    beta, sigma2 = _ols(cols[2], cols[0], cols[1])
+    resid = result.draws[names.index("y")] - (
+        beta[0] + beta[1] * 1.0 + beta[2] * result.draws[names.index("z")]
+    )
+    assert abs(resid.mean()) < 4 * np.sqrt(sigma2 / n_draws)
+    assert np.std(resid, ddof=1) == pytest.approx(np.sqrt(sigma2), rel=0.35)
 
 
 def test_attribute_path_specific():
@@ -86,8 +115,12 @@ def test_attribute_path_specific():
         None,
     )
     assert mediated is not None, f"expected t→m→y path contribution, got {paths}"
-    # Linear SEM path product 0.8×0.6 = 0.48 (MonteCarlo tolerance).
-    assert abs(mediated - 0.48) < 0.25
+    # The path contribution is the product of the fitted coefficients along t -> m -> y:
+    # slope of m on t times the coefficient of m in y ~ m + t (about 0.8 * 0.6).
+    a = _ols(m, t)[0][1]
+    b = _ols(y, m, t)[0][1]
+    assert mediated == pytest.approx(a * b, abs=1e-6)
+    assert mediated == pytest.approx(0.48, abs=0.05)
 
 
 def test_fit_gcm_oo_sample_do():
@@ -98,7 +131,8 @@ def test_fit_gcm_oo_sample_do():
     assert result.draws.shape == (result.n_nodes, 40)
     ite = gcm.counterfactual_ite("t", "y", 1.0, 0.0, execution=antecedent.Execution(seed=1))
     assert ite.n_units == len(cols[0])
-    assert np.isclose(ite.mean_ite, 1.5, rtol=0.15)
+    assert ite.mean_ite == pytest.approx(_ols(cols[2], cols[0], cols[1])[0][1], abs=1e-6)
+    assert ite.mean_ite == pytest.approx(1.5, abs=0.05)
 
 
 def test_fit_gcm_oo_sample_do_shift_moves_outcome_by_coefficient_times_delta():
@@ -123,11 +157,16 @@ def test_fit_gcm_oo_sample_do_shift_moves_outcome_by_coefficient_times_delta():
     shifted_mean = shifted.column_means[y_idx]
     pinned_mean = pinned.column_means[y_idx]
 
-    # Shift moves the outcome mean by coefficient * delta relative to baseline.
-    assert np.isclose(shifted_mean - baseline_mean, coef * delta, atol=0.5)
-    # Hard set pins the outcome regardless of baseline x; on this fixture that
-    # lands far from what the shift produces.
-    assert abs(pinned_mean - shifted_mean) > 1.0
+    # Shift moves the outcome mean by the fitted coefficient * delta relative to baseline
+    # (common random numbers cancel the noise), i.e. 6.0 here, not a hard set.
+    slope = _ols(cols[1], cols[0])[0][1]
+    assert slope == pytest.approx(coef, abs=0.02)
+    assert shifted_mean - baseline_mean == pytest.approx(slope * delta, abs=0.01)
+    # A hard set pins x at delta: y lands at intercept + slope * delta (about 7), far from the
+    # shifted world (about 13).
+    intercept = _ols(cols[1], cols[0])[0][0]
+    assert pinned_mean == pytest.approx(intercept + slope * delta, abs=0.05)
+    assert abs(pinned_mean - shifted_mean) > 0.5
 
 
 def test_fit_gcm_oo_sample_do_rejects_variable_in_both_interventions_and_shifts():
@@ -148,9 +187,11 @@ def test_sample_do_free_function_shift():
         names, cols, edges, "x", delta, n_draws, execution=antecedent.Execution(seed=7), shift=True
     )
     y_idx = names.index("y")
-    assert np.isclose(
-        shifted.column_means[y_idx] - baseline.column_means[y_idx], coef * delta, atol=0.5
+    slope = _ols(cols[1], cols[0])[0][1]
+    assert shifted.column_means[y_idx] - baseline.column_means[y_idx] == pytest.approx(
+        slope * delta, abs=0.01
     )
+    assert slope == pytest.approx(coef, abs=0.02)
 
 
 def _mediated_chain(n: int = 2000, seed: int = 11, direct: float = 0.2):
@@ -176,25 +217,31 @@ def test_arrow_strengths_match_the_closed_form_linear_gaussian_strengths():
     strengths = {(s.parent, s.child): s for s in gcm.arrow_strengths()}
     assert set(strengths) == {("x", "m"), ("m", "y"), ("x", "y")}
     # coefficient^2 * Var(parent): Var(x) = 1, Var(m) = 0.8^2 + 0.3^2 = 0.73.
+    names, cols, _edges = _mediated_chain()
+    x, m, y = cols
+    # Closed form from the regressions of each child on its parents: coefficient, then
+    # coefficient^2 * Var(parent), then 0.5 * ln(1 + contribution / residual variance).
+    beta_m, s2_m = _ols(m, x)
+    beta_y, s2_y = _ols(y, m, x)
+    expected = {
+        ("x", "m"): (beta_m[1], beta_m[1] ** 2 * np.var(x, ddof=1), s2_m),
+        ("m", "y"): (beta_y[1], beta_y[1] ** 2 * np.var(m, ddof=1), s2_y),
+        ("x", "y"): (beta_y[2], beta_y[2] ** 2 * np.var(x, ddof=1), s2_y),
+    }
+    for edge, (coefficient, contribution, noise) in expected.items():
+        assert strengths[edge].coefficient == pytest.approx(coefficient, rel=1e-6)
+        # The contribution uses the model-implied parent variance, within 1e-3 of the sample one.
+        assert strengths[edge].variance_contribution == pytest.approx(contribution, rel=1e-3)
+        assert strengths[edge].strength == pytest.approx(
+            0.5 * math.log1p(strengths[edge].variance_contribution / noise), rel=1e-6
+        )
+    # And they sit at the generating values: 0.8, 0.5, 0.2 and 0.64, 0.25 * 0.73, 0.04.
     assert strengths[("x", "m")].coefficient == pytest.approx(0.8, abs=0.03)
     assert strengths[("m", "y")].coefficient == pytest.approx(0.5, abs=0.03)
     assert strengths[("x", "y")].coefficient == pytest.approx(0.2, abs=0.03)
     assert strengths[("x", "m")].variance_contribution == pytest.approx(0.64, rel=0.15)
     assert strengths[("m", "y")].variance_contribution == pytest.approx(0.25 * 0.73, rel=0.15)
     assert strengths[("x", "y")].variance_contribution == pytest.approx(0.04, rel=0.25)
-    # The strength is the cut-edge divergence 0.5 * ln(1 + contribution / sigma^2) with sigma
-    # the child's noise scale (m: 0.3, y: 0.1 in the generating model).
-    assert strengths[("x", "m")].strength == pytest.approx(
-        0.5 * math.log1p(0.64 / 0.3**2), rel=0.3
-    )
-    assert strengths[("m", "y")].strength == pytest.approx(
-        0.5 * math.log1p(0.25 * 0.73 / 0.1**2), rel=0.3
-    )
-    for s in strengths.values():
-        assert s.strength == pytest.approx(
-            0.5 * math.log1p(s.variance_contribution / (0.3**2 if s.child == "m" else 0.1**2)),
-            rel=0.35,
-        )
     # The sign survives in the coefficient while the strength is non-negative.
     flipped_names, flipped_cols, flipped_edges = _mediated_chain(direct=-0.2)
     flipped = {

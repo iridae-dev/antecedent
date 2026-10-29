@@ -90,8 +90,11 @@ fn bayesian_dag_graph_posterior_ate_is_sealed_across_validation_lifecycle() {
         assert!(plan.inference.starts_with("bayesian:"));
 
         let result = prepared.estimate(&data, &context).unwrap();
+        // The fixture is balanced within each (z, t) cell with zero-mean noise, so the
+        // z-adjusted contrast is exactly 2 while the unadjusted one is 3 (P(z=1|t=1) = 3/4 against
+        // P(z=1|t=0) = 1/4): the posterior mean sits at 2 up to the prior's shrinkage.
         assert!(
-            (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.12,
+            (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.005,
             "ATE={}",
             result.estimate().as_effect().unwrap().ate
         );

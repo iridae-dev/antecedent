@@ -33,7 +33,7 @@ def test_portable_predictor_fresh_process_matches_full_rerun_and_scm_truth(tmp_p
     model = result.fitted_model
     features = {"z": [-1.0, 0.0, 1.0]}
     expected = require_success(model.predict(features))
-    assert np.allclose(expected.values, [1.6, 2.0, 2.4], atol=0.12, rtol=0)
+    assert np.allclose(expected.values, [1.6, 2.0, 2.4], atol=2e-3, rtol=0)
     assert require_success(fitted_result().fitted_model.predict(features)) == expected
     artifact = tmp_path / "predictor.ant"
     artifact.write_bytes(bytes(model.export()))
@@ -63,9 +63,9 @@ def test_predictor_new_rows_preserve_parent_but_new_outcomes_need_a_new_fit():
     model = FittedEffectModel.load(bytes(fitted_result().export()))
     changed_features = require_success(model.predict({"z": [0.5, -0.5]}))
     assert changed_features.parent_claim == model.parent_claim
-    assert np.allclose(changed_features.values, [2.2, 1.8], atol=0.12, rtol=0)
+    assert np.allclose(changed_features.values, [2.2, 1.8], atol=2e-3, rtol=0)
     changed_model = fitted_result(3.0).fitted_model
     assert changed_model.parent_claim != model.parent_claim
     assert np.allclose(
-        require_success(changed_model.predict({"z": [0.0]})).values, [3.0], atol=0.12, rtol=0
+        require_success(changed_model.predict({"z": [0.0]})).values, [3.0], atol=2e-3, rtol=0
     )

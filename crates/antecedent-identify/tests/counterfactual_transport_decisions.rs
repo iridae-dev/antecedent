@@ -132,15 +132,20 @@ fn obstructions_agree_with_the_fixtures_own_alternative_models() {
         // The identifier does not claim an obstruction the fixture does not have:
         // it either proves one or reports missing evidence.
         let decision = decide(&case, target);
-        assert!(
-            matches!(
-                decision,
-                CounterfactualTransportDecision::ProvenNonTransportable(_)
-                    | CounterfactualTransportDecision::MissingEvidence(_)
+        // and the kind of verdict is the fixture's own declared class for that query.
+        match target.class {
+            ExpectedClass::NotIdentifiable | ExpectedClass::NotTransportable => assert!(
+                matches!(decision, CounterfactualTransportDecision::ProvenNonTransportable(_)),
+                "{}: {decision:?}",
+                case.name
             ),
-            "{}: {decision:?}",
-            case.name
-        );
+            ExpectedClass::EvidenceInsufficient => assert!(
+                matches!(decision, CounterfactualTransportDecision::MissingEvidence(_)),
+                "{}: {decision:?}",
+                case.name
+            ),
+            other => panic!("{}: a fixture with an alternative family cannot be {other:?}", case.name),
+        }
     }
 }
 

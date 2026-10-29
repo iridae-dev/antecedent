@@ -44,6 +44,14 @@ def test_the_posterior_cells_are_the_weighted_contrast_of_the_draws():
     assert min(per_draw) - 1e-9 <= result.posterior_lower <= result.posterior_mean
     assert result.posterior_mean <= result.posterior_upper <= max(per_draw) + 1e-9
     assert result.plug_in_effect == pytest.approx(contrast(COUNTS), abs=1e-9)
+    # The two-atom posterior (0.225 with mass 1/4, 0.125 with mass 3/4) has the weighted
+    # 2.5% and 97.5% quantiles 0.125 and 0.225; moving the mass to 1% puts both at 0.125.
+    assert result.posterior_lower == pytest.approx(per_draw[1], abs=1e-9)
+    assert result.posterior_upper == pytest.approx(per_draw[0], abs=1e-9)
+    thin = fd.finite_discrete_contrast(COUNTS, [(COUNTS, 0.01), (OTHER, 0.99)])
+    assert thin.posterior_lower == pytest.approx(per_draw[1], abs=1e-9)
+    assert thin.posterior_upper == pytest.approx(per_draw[1], abs=1e-9)
+    assert thin.posterior_mean == pytest.approx(0.01 * per_draw[0] + 0.99 * per_draw[1], abs=1e-9)
 
 
 def test_tables_and_weights_that_cannot_be_planned_are_refused():
@@ -114,6 +122,24 @@ def test_an_adjuster_widens_the_design_and_keeps_the_standardized_means_between_
     assert len(fit.coefficients) == 3
     assert fit.covariance.shape == (3, 3)
     assert 0.0 < fit.control_mean < fit.treated_mean < 1.0
+    # Independent maximum likelihood by Newton-Raphson, and the standardized means as the
+    # average fitted risk with everyone set to each arm.
+    design = np.column_stack([np.ones(400), t, z])
+    beta = np.zeros(3)
+    for _ in range(50):
+        p = 1.0 / (1.0 + np.exp(-design @ beta))
+        beta += np.linalg.solve(design.T @ (design * (p * (1 - p))[:, None]), design.T @ (y - p))
+    assert np.asarray(fit.coefficients) == pytest.approx(beta, abs=1e-6)
+    risk = lambda arm: float(np.mean(1.0 / (1.0 + np.exp(-(beta[0] + beta[1] * arm + beta[2] * z)))))  # noqa: E731
+    assert fit.treated_mean == pytest.approx(risk(1.0), abs=1e-7)
+    assert fit.control_mean == pytest.approx(risk(0.0), abs=1e-7)
+    p_hat = 1.0 / (1.0 + np.exp(-design @ beta))
+    bread = np.linalg.inv(design.T @ (design * (p_hat * (1 - p_hat))[:, None]))
+    meat = design.T @ (design * ((y - p_hat) ** 2)[:, None])
+    # The reported covariance is the heteroskedasticity-robust sandwich, not the model-based
+    # inverse information (which differs by up to 16% here).
+    assert fit.covariance == pytest.approx(bread @ meat @ bread, rel=1e-5, abs=1e-8)
+    assert abs(fit.covariance[0, 0] - bread[0, 0]) > 1e-3
     assert fit.effect == pytest.approx(fit.treated_mean - fit.control_mean, abs=1e-12)
 
 

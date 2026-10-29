@@ -37,12 +37,25 @@ def _change_args():
     return names, cols, EDGES, "y", 0, 100, 100, 200
 
 
+def _period_oracle():
+    """Difference of the period means of y and the standard error of that difference."""
+    _, (_, y) = _data()
+    first, second = y[:100], y[100:]
+    return (
+        float(second.mean() - first.mean()),
+        float(np.sqrt(first.var(ddof=1) / 100 + second.var(ddof=1) / 100)),
+    )
+
+
 def test_point_results_are_unchanged_without_an_uncertainty_option():
     result = attribute_distribution_change(
         *_change_args(), n_samples=300, execution=antecedent.Execution(seed=2)
     )
     assert not isinstance(result, AttributionWithUncertainty)
-    assert abs(result.total_change - 5.0) < 1.0
+    change, _ = _period_oracle()
+    # The change of y between the periods is the difference of the period means (about 5.6
+    # here, 5 up to sampling noise); the sampled attribution is within Monte Carlo error.
+    assert result.total_change == pytest.approx(change, abs=0.05)
 
 
 def test_change_attribution_posterior_and_bootstrap_agree_on_the_total():
@@ -53,7 +66,11 @@ def test_change_attribution_posterior_and_bootstrap_agree_on_the_total():
     posterior = bayes.uncertainty.posterior
     assert posterior is not None and posterior.draws == 24
     mean, sd, low, high = posterior.quantity("total_change")
-    assert abs(mean - 5.0) < 1.0 and sd > 0.0 and low < mean < high
+    change, standard_error = _period_oracle()
+    assert mean == pytest.approx(change, abs=0.15) and low < mean < high
+    # The spread of the total is the sampling error of a difference of two period means.
+    assert 0.5 * standard_error < sd < 1.5 * standard_error
+    assert low < change < high
     assert bayes.uncertainty.bootstrap is None
     assert bayes.uncertainty.point["total_change"] == pytest.approx(bayes.result.total_change)
 
@@ -66,7 +83,7 @@ def test_change_attribution_posterior_and_bootstrap_agree_on_the_total():
     bootstrap = freq.uncertainty.bootstrap
     assert bootstrap is not None and bootstrap.replicates_ok >= 15
     se = bootstrap.se["total_change"]
-    assert se is not None and 0.0 < se < 2.0
+    assert se is not None and 0.5 * standard_error < se < 1.5 * standard_error
     assert freq.uncertainty.posterior is None
     assert 0.3 < sd / se < 3.0
 
