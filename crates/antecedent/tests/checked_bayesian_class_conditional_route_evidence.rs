@@ -227,9 +227,10 @@ fn bayesian_class_conditional_effect_is_sealed_across_lifecycle() {
                     );
 
                     let result = prepared.estimate(&original, &ctx).unwrap();
-                    // Independent linear SCM truth: E[2 + 0.5 W] for balanced W = 0..4.
+                    // Independent linear SCM truth: E[2 + 0.5 W] for balanced W = 0..4. The data
+                    // are noise free, so the only gap is prior shrinkage (observed 4.9e-4).
                     assert!(
-                        (result.effect() - 3.0).abs() < 0.2,
+                        (result.effect() - 3.0).abs() < 0.005,
                         "{coordinate}: {}",
                         result.effect()
                     );
@@ -257,7 +258,7 @@ fn bayesian_class_conditional_effect_is_sealed_across_lifecycle() {
                     );
 
                     let refreshed = rebind_estimate(&mut prepared, class_data(0.35), &ctx).unwrap();
-                    assert!((refreshed.effect() - 3.0).abs() < 0.2, "{coordinate}");
+                    assert!((refreshed.effect() - 3.0).abs() < 0.005, "{coordinate}");
                     let RetainedOperation::BayesianClassConditional(rebound) =
                         prepared.retained_operation()
                     else {
@@ -268,9 +269,11 @@ fn bayesian_class_conditional_effect_is_sealed_across_lifecycle() {
                     assert_eq!(rebound.inference, plan.inference);
                     assert_eq!(rebound.adjustment_set, plan.adjustment_set);
                     assert_eq!(rebound.completion_count, plan.completion_count);
+                    let refused = rebind_estimate(&mut prepared, reordered_class_data(), &ctx)
+                        .expect_err("a schema-changing refresh must be refused");
                     assert!(
-                        rebind_estimate(&mut prepared, reordered_class_data(), &ctx).is_err(),
-                        "{coordinate}: schema-changing refresh must be refused"
+                        refused.to_string().contains("requires the same schema"),
+                        "{coordinate}: {refused}"
                     );
 
                     let artifact = prepared

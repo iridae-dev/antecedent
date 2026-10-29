@@ -10,6 +10,11 @@ import pytest
 from antecedent.outcomes import require_success
 
 
+def _ols(columns, response):
+    design = np.column_stack([np.ones(len(response)), *columns])
+    return np.linalg.lstsq(design, response, rcond=None)[0]
+
+
 def test_temporal_mediation_decomposition():
     n = 200
     t = np.zeros(n)
@@ -36,15 +41,15 @@ def test_temporal_mediation_decomposition():
         )
     )
     assert result.mediation is not None
-    assert result.mediation.mediated is not None and result.mediation.mediated > 0.1
-    if (
-        result.mediation.total is not None
-        and result.mediation.direct is not None
-        and result.mediation.mediated is not None
-    ):
-        assert (
-            abs(result.mediation.total - result.mediation.direct - result.mediation.mediated) < 0.15
-        )
+    # Path products of plain least squares on the lag-aligned sample; the decomposition
+    # total = direct + mediated holds exactly for nested OLS fits on one sample.
+    a = _ols([t[:-1]], m[1:])[1]
+    outcome = _ols([t[:-1], m[1:]], y[1:])
+    mediation = result.mediation
+    assert mediation.mediated == pytest.approx(a * outcome[2], abs=1e-8)
+    assert mediation.direct == pytest.approx(outcome[1], abs=1e-8)
+    assert mediation.total == pytest.approx(_ols([t[:-1]], y[1:])[1], abs=1e-8)
+    assert mediation.total - mediation.direct - mediation.mediated == pytest.approx(0.0, abs=1e-8)
 
 
 def test_handle_temporal_mediation_bayesian_uses_staged_estimator():
@@ -75,6 +80,26 @@ def test_handle_temporal_mediation_bayesian_uses_staged_estimator():
     assert result.estimate.estimator_id == "temporal.mediation.bayesian"
     assert result.posterior is not None
     assert np.isfinite(result.ate)
+    # With independent noise the posterior mean recovers the structural path product
+    # 0.8 * 0.5 = 0.4 (the sinusoidal toy series above is collinear and does not).
+    rng = np.random.default_rng(20260101)
+    size = 6000
+    t, m, y = np.zeros(size), np.zeros(size), np.zeros(size)
+    for i in range(1, size):
+        t[i] = 0.3 * t[i - 1] + rng.normal(scale=0.5)
+        m[i] = 0.8 * t[i - 1] + rng.normal(scale=0.3)
+        y[i] = 0.5 * m[i] + rng.normal(scale=0.3)
+    noisy = require_success(
+        antecedent.analyze(
+            {"t": t, "m": m, "y": y},
+            query=antecedent.TemporalMediationEffect("t", "m", "y", contrast="mediated"),
+            graph=graph,
+            inference=antecedent.Bayesian(backend="conjugate", n_draws=256),
+            refute=False,
+            execution=antecedent.Execution(seed=1, threads=1),
+        )
+    )
+    assert noisy.ate == pytest.approx(0.4, abs=0.03)
 
 
 def _mediated_series(n: int = 300):
@@ -109,9 +134,9 @@ def test_a_dag_mediation_slice_states_its_identification_and_a_frequentist_uncer
     # The generating coefficients give mediated 0.8 * 0.55 and direct 0.25.
     assert slice_.mediated == pytest.approx(0.44, abs=0.02)
     assert slice_.effect == pytest.approx(slice_.mediated, abs=1e-12)
-    if math.isfinite(slice_.total) and math.isfinite(slice_.direct):
-        assert slice_.direct == pytest.approx(0.25, abs=0.02)
-        assert slice_.total == pytest.approx(slice_.direct + slice_.mediated, abs=1e-9)
+    assert math.isfinite(slice_.total) and math.isfinite(slice_.direct)
+    assert slice_.direct == pytest.approx(0.25, abs=0.02)
+    assert slice_.total == pytest.approx(slice_.direct + slice_.mediated, abs=1e-9)
     assert slice_.uncertainty_kind == "frequentist_pointwise"
     assert slice_.q025 is None and slice_.q975 is None
     # A DAG has no completion range.
@@ -142,11 +167,6 @@ def test_a_class_mediation_slice_reports_its_completion_range_and_a_bayesian_int
     assert slice_.identified_lower == pytest.approx(0.44, abs=0.02)
     assert slice_.effect == pytest.approx(slice_.identified_lower, abs=0.02)
     assert result.mediation_grid.joint_posterior is False
-
-
-def _ols(columns, response):
-    design = np.column_stack([np.ones(len(response)), *columns])
-    return np.linalg.lstsq(design, response, rcond=None)[0]
 
 
 def test_temporal_mediation_matches_independent_ols_path_products_claims_06():

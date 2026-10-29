@@ -182,24 +182,32 @@ fn python_built_artifacts_refuse_tampered_bytes_and_other_inputs() {
     let result_bytes = read_fixture("py_decision_result.bin");
     let digest = source_digest(&source());
 
+    let flipped = DecisionContractArtifact::from_bytes(&flip_last_byte(&contract_bytes), &identity)
+        .unwrap_err()
+        .to_string();
     assert!(
-        DecisionContractArtifact::from_bytes(&flip_last_byte(&contract_bytes), &identity).is_err()
+        flipped.contains("checksum mismatch") && flipped.contains("decision.body"),
+        "{flipped}"
     );
-    assert!(
-        DecisionContractArtifact::from_bytes(&contract_bytes, "0".repeat(64).as_str()).is_err()
-    );
-    assert!(
+    let other = DecisionContractArtifact::from_bytes(&contract_bytes, "0".repeat(64).as_str())
+        .unwrap_err()
+        .to_string();
+    assert!(other.contains("decision_artifact.identity_expected"), "{other}");
+    let draws =
         DistributionArtifact::from_bytes(&flip_last_byte(&source_bytes), &source_identity())
-            .is_err()
-    );
-    assert!(
+            .unwrap_err()
+            .to_string();
+    assert!(draws.contains("checksum mismatch") && draws.contains("distribution.draws"), "{draws}");
+    let result =
         DecisionResultArtifact::from_bytes(&flip_last_byte(&result_bytes), &identity, &digest)
-            .is_err()
-    );
-    assert!(
+            .unwrap_err()
+            .to_string();
+    assert!(result.contains("checksum mismatch") && result.contains("decision.body"), "{result}");
+    let source =
         DecisionResultArtifact::from_bytes(&result_bytes, &identity, "0".repeat(64).as_str())
-            .is_err()
-    );
+            .unwrap_err()
+            .to_string();
+    assert!(source.contains("decision_artifact.source_expected"), "{source}");
 }
 
 /// Writes the Rust-built fixtures the Python tests consume.

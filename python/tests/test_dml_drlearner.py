@@ -31,7 +31,12 @@ def test_dml_auto_recovers_ate():
         )
     )
     assert result.estimate.estimator_id == "dml"
-    assert abs(result.ate - 2.0) < 0.45
+    # Truth 2.0 within three reported standard errors (observed gap 0.03, se 0.134), and the
+    # least-squares reading adjusted for z, the same identified quantity, within two.
+    design = np.column_stack([np.ones(len(data["t"])), data["t"], data["z"]])
+    ols = np.linalg.lstsq(design, data["y"], rcond=None)[0][1]
+    assert abs(result.ate - 2.0) < 3.0 * result.estimate.se_analytic
+    assert abs(result.ate - ols) < 2.0 * result.estimate.se_analytic
     assert result.estimate.outcome_oof_r2 is not None
     assert result.estimate.treatment_oof_logloss is not None
     assert result.estimate.crossfit_folds == 4
@@ -65,6 +70,12 @@ def test_drlearner_returns_cate():
     assert result.estimate.cate_se is not None
     assert len(result.estimate.cate_se) == n
     assert abs(result.ate - float(np.mean(result.estimate.cate))) < 1e-9
+    # The unit effect is 1 + z: the learned CATE tracks it (observed RMSE 0.044) and the
+    # average effect is 1 + mean(z) up to sampling error.
+    cate = np.asarray(result.estimate.cate)
+    assert float(np.sqrt(np.mean((cate - (1.0 + z)) ** 2))) < 0.12
+    assert float(np.corrcoef(cate, z)[0, 1]) > 0.99
+    assert abs(result.ate - (1.0 + float(np.mean(z)))) < 0.2
 
 
 @pytest.mark.parametrize("estimator", [DML(), DRLearner()])

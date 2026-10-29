@@ -34,7 +34,12 @@ def test_prepared_reestimate_matches_fresh_analyze():
     first = require_success(first_outcome)
     second = require_success(antecedent.estimate(antecedent.rebind(prepared, data=data)))
     assert math.isfinite(first.ate)
-    assert abs(first.ate - 2.0) < 0.5
+    # Independent oracle: the treatment coefficient of the least-squares fit of y on (1, t, z),
+    # and the truth 2.0 within four reported standard errors.
+    design = np.column_stack([np.ones(len(data["t"])), data["t"], data["z"]])
+    ols = np.linalg.lstsq(design, data["y"], rcond=None)[0]
+    assert first.ate == pytest.approx(ols[1], abs=1e-8)
+    assert abs(first.ate - 2.0) < 4.0 * first.estimate.se_analytic
     assert abs(first.ate - fresh.ate) < 1e-12
     assert abs(second.ate - fresh.ate) < 1e-12
     assert first.identification.status == fresh.identification.status
@@ -121,6 +126,14 @@ def test_prepared_response_curve_matches_analyze():
     assert click.response is not None
     assert fresh.response is not None
     assert click.response.values == fresh.response.values
+    # Independent oracle: E[y | do(t = g)] = b0 + b_t g + b_z mean(z) from the least-squares
+    # fit; the route's curve agrees within 0.05 (observed gap 0.023) and its slope with b_t.
+    design = np.column_stack([np.ones(400), t, z])
+    b0, bt, bz = np.linalg.lstsq(design, y, rcond=None)[0]
+    expected = [b0 + bt * g + bz * z.mean() for g in (-0.5, 0.0, 0.5)]
+    values = [value[0] for value in click.response.values]
+    assert values == pytest.approx(expected, abs=0.05)
+    assert values[2] - values[0] == pytest.approx(bt, abs=0.05)
     with pytest.raises(antecedent.errors.CausalUnsupportedError, match="not_applicable:"):
         require_success(clicked.study.refute(suite="cheap"))
 

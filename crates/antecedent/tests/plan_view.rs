@@ -319,10 +319,7 @@ fn study_plan_view_is_compile_and_nothing_more() {
 fn a_prepared_handle_views_the_installed_identification_and_the_retained_operation() {
     for (label, _, study) in families() {
         let ctx = ExecutionContext::for_tests(13);
-        let Ok(prepared) = study.prepare(&ctx) else {
-            // A family whose one-shot route has no prepared handle keeps its compiled view.
-            continue;
-        };
+        let prepared = study.prepare(&ctx).unwrap_or_else(|error| panic!("{label}: {error}"));
         let pool = ctx.admission().available();
         let view = observe_no_work(label, || prepared.plan_view().unwrap());
         assert_eq!(ctx.admission().available(), pool, "{label}: the view leased from the pool");
@@ -338,10 +335,10 @@ fn a_prepared_handle_views_the_installed_identification_and_the_retained_operati
         if view.identification().installed_at_prepare() {
             assert!(!view.identification().retained().is_empty(), "{label}");
         }
-        let result = prepared.estimate_retained(&ctx);
-        if let Ok(result) = result {
-            assert_eq!(result.lowered_program_identity(), Some(view.identity()), "{label}");
-        }
+        let result = prepared
+            .estimate_retained(&ctx)
+            .unwrap_or_else(|error| panic!("{label}: the retained operation runs: {error}"));
+        assert_eq!(result.lowered_program_identity(), Some(view.identity()), "{label}");
     }
 }
 
@@ -359,9 +356,10 @@ fn the_static_effect_view_states_its_identification_design_and_uncertainty() {
     assert_eq!(retained.kind(), "static");
     assert!(retained.status().is_some(), "a static product states its status");
     assert!(!retained.estimands().is_empty(), "the selected estimand is shown");
-    assert!(
-        !retained.estimands()[0].adjustment_set().is_empty(),
-        "the confounded fixture is identified by adjusting for its confounder"
+    assert_eq!(
+        retained.estimands()[0].adjustment_set(),
+        [VariableId::from_raw(2)],
+        "the confounded fixture is identified by adjusting for its confounder z"
     );
     assert!(!identification.assumptions().is_empty(), "the assumptions are listed");
     assert!(view.statistical().estimator().is_some(), "the estimator is named");
@@ -388,6 +386,20 @@ fn a_graph_posterior_is_one_mixture_over_its_atoms() {
     let identified = mixture.identified_mass().unwrap();
     let unidentified = mixture.unidentified_mass().unwrap();
     assert!((identified + unidentified - mixture.total_weight()).abs() < 1e-9);
+    // The fixture weighs a direct, an adjusted and an unidentified graph 0.5 / 0.3 / 0.2.
+    assert_eq!(mixture.atoms().len(), 3);
+    assert!((mixture.total_weight() - 1.0).abs() < 1e-12);
+    assert!((identified - 0.8).abs() < 1e-12 && (unidentified - 0.2).abs() < 1e-12);
+    let mut weights: Vec<(f64, Option<bool>)> =
+        mixture.atoms().iter().map(|atom| (atom.weight(), atom.identified())).collect();
+    weights.sort_by(|a, b| b.0.total_cmp(&a.0));
+    assert_eq!(
+        weights.iter().map(|w| w.1).collect::<Vec<_>>(),
+        [Some(true), Some(true), Some(false)]
+    );
+    for (got, want) in weights.iter().zip([0.5, 0.3, 0.2]) {
+        assert!((got.0 - want).abs() < 1e-12, "{weights:?}");
+    }
     for atom in mixture.atoms() {
         assert!(atom.weight() > 0.0, "every atom carries posterior weight");
         if atom.identified() == Some(true) {

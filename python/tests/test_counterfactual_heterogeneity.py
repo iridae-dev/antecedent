@@ -81,6 +81,13 @@ def test_bayesian_unit_effect_intervals_are_level_tagged_and_contain_the_point()
     b = data["b"]
     assert np.median(intervals[b == 1, 0]) > np.median(intervals[b == 0, 0])
     assert diagnostic(result, "gcm.counterfactual.uncertainty_unavailable") is None
+    # The generating unit effect is 0.8 + 0.6 b. The subgroup means recover it and the 95 percent
+    # intervals cover it for the large majority of units (observed 94.5 percent).
+    truth = 0.8 + 0.6 * b
+    assert effects[b == 0].mean() == pytest.approx(0.8, abs=0.1)
+    assert effects[b == 1].mean() == pytest.approx(1.4, abs=0.2)
+    covered = np.mean((intervals[:, 0] <= truth) & (truth <= intervals[:, 1]))
+    assert covered > 0.88, covered
 
 
 def test_frequentist_unit_effects_carry_no_interval():
@@ -205,6 +212,8 @@ def test_counterfactual_is_invariant_to_affine_rescaling_of_lever_parents(bayesi
     # unit effects this seeded (seed=1) run reports.
     expected = 0.04873661472022783 if bayesian else 0.048390
     assert float(raw_effects.mean()) == pytest.approx(expected, abs=5e-7)
+    # Anchor to the generating lever effect 0.06 (se of the mean effect is about 0.02).
+    assert float(raw_effects.mean()) == pytest.approx(0.06, abs=0.08)
 
 
 def test_non_convergence_refusal_code_is_registered():

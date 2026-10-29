@@ -122,9 +122,12 @@ def test_separation_and_empty_arms_are_flagged_or_refused() -> None:
     fitted = pf.fit_diagnostics(
         _frame(t, t + w, z=z, w=w), treatment="t", outcome="y", adjustment=["z", "w"]
     )
-    if fitted.status == "fitted":
-        assert fitted.fit is not None
-        assert fitted.fit.separated or not fitted.fit.converged or fitted.fit.boundary_saturated
+    # Treatment is the sign of z, so the logistic MLE does not exist: the fit is reported
+    # as separated, saturated at the boundary and not converged, never as a clean fit.
+    assert fitted.status == "fitted" and fitted.fit is not None
+    assert fitted.fit.separated and fitted.fit.boundary_saturated
+    assert not fitted.fit.converged
+    assert fitted.fit.min < 1e-6 and fitted.fit.max > 1.0 - 1e-6
 
     empty = pf.preflight(_frame(np.zeros(n), w, z=z), treatment="t", outcome="y", adjustment=["z"])
     assert [a.rows for a in empty.arms] == [n, 0]
@@ -132,7 +135,8 @@ def test_separation_and_empty_arms_are_flagged_or_refused() -> None:
     absent = pf.fit_diagnostics(
         _frame(np.zeros(n), w, z=z), treatment="t", outcome="y", adjustment=["z"]
     )
-    assert absent.status == "absent" and absent.reason is not None
+    assert absent.status == "absent"
+    assert absent.reason is not None and "no complete-case rows" in absent.reason
 
 
 def test_rank_drop_follows_the_declared_priority_and_refuses_query_columns() -> None:
@@ -199,10 +203,23 @@ def test_a_prepared_plan_diagnoses_and_counts_its_cost() -> None:
 
     fitted = require_success(prepared.diagnose_fit())
     assert fitted.status == "fitted" and fitted.fit is not None
-    assert 0.0 < fitted.fit.min <= fitted.fit.max < 1.0
     t = data["t"]
+    # Independent oracle: unpenalised logistic MLE of treatment on z by Newton steps, and the
+    # Kish effective sample size of the inverse-probability weights within each arm.
+    design = np.column_stack([np.ones(len(t)), data["z"]])
+    beta = np.zeros(2)
+    for _ in range(60):
+        q = 1.0 / (1.0 + np.exp(-design @ beta))
+        beta += np.linalg.solve(design.T @ (design * (q * (1.0 - q))[:, None]), design.T @ (t - q))
+    q = 1.0 / (1.0 + np.exp(-design @ beta))
+    assert fitted.fit.min == pytest.approx(q.min(), abs=1e-7)
+    assert fitted.fit.max == pytest.approx(q.max(), abs=1e-7)
+    expected_ess = {}
+    for arm_value, weight in ((0.0, 1.0 / (1.0 - q)), (1.0, 1.0 / q)):
+        w_arm = weight[t == arm_value]
+        expected_ess[int((t == arm_value).sum())] = w_arm.sum() ** 2 / (w_arm**2).sum()
     for arm in fitted.fit.arm_ess:
-        assert 0.0 < arm.ess <= arm.rows
+        assert arm.ess == pytest.approx(expected_ess[arm.rows], rel=1e-6)
     assert sum(arm.rows for arm in fitted.fit.arm_ess) == len(t)
 
     plan = prepared.plan_rank_drop()
@@ -303,7 +320,7 @@ def test_estimate_with_rank_drop_matches_numpy_and_records_the_drop() -> None:
         data, treatment="t", outcome="y", adjustment=["a", "b", "c"], estimator="aipw"
     )
     assert aipw.projection_invariance == "unpenalized_logistic_no_separation"
-    assert aipw.ate == pytest.approx(1.5, abs=0.25)
+    assert aipw.ate == pytest.approx(1.5, abs=0.1)
 
 
 def test_estimate_with_rank_drop_refuses_aliases_and_unlicensed_estimators() -> None:

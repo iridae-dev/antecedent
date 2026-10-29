@@ -40,4 +40,4 @@ sha256 = "d3094cdc5169502b9fe681c8177005de6ac93c83609af8c9f35c0bba7d738765"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/learned_continuous_lifecycle.rs"
-sha256 = "f92f7d14ff83a9c96474c3cad00d0cd1aa75baa1839347106f15ead86ba67ec7"
+sha256 = "fb53399680c8fb5b1a1fe196d084575eb0a80b7595fb2b5b1995477c6dfe45b6"

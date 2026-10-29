@@ -53,8 +53,10 @@ fn event_time_posteriors_match_the_analytic_group_coefficient_posterior() {
     for (effect, (event_time, mean, sd)) in fit.iter().zip(expected) {
         assert_eq!(effect.event_time, event_time);
         assert_eq!((effect.treated_subjects, effect.comparison_subjects), (6, 8));
-        assert!((effect.mean - mean).abs() < 0.012, "{event_time}: {}", effect.mean);
-        assert!((effect.sd - sd).abs() < 0.01, "{event_time}: {}", effect.sd);
+        // 40 000 draws put the Monte Carlo error of the mean near 0.0015 (sd / sqrt(draws)):
+        // observed gaps are at most 0.0028 and 0.0018, the bands about five standard errors.
+        assert!((effect.mean - mean).abs() < 0.008, "{event_time}: {}", effect.mean);
+        assert!((effect.sd - sd).abs() < 0.006, "{event_time}: {}", effect.sd);
     }
     // The pre-adoption lead is a descriptive posterior and the post-adoption effect is
     // separated from it: the lead interval covers zero and the adoption interval excludes it.

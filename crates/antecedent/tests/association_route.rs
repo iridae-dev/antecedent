@@ -48,14 +48,28 @@ fn line() -> (TabularData, Vec<f64>, Vec<f64>) {
     (TabularData::from_f64_columns([("x", &x[..]), ("y", &y[..])]).unwrap(), x, y)
 }
 
-/// Columns x, y over an AR(1) predictor and an outcome that follows it.
-fn series(n: usize) -> TimeSeriesData {
+/// The AR(1) predictor and the outcome that follows it.
+fn series_columns(n: usize) -> (Vec<f64>, Vec<f64>) {
     let (mut x, mut y) = (vec![0.0; n], vec![0.0; n]);
     for t in 1..n {
         x[t] = 0.8 * x[t - 1] + noise(t);
         y[t] = 0.5 * x[t] + 0.6 * y[t - 1] + noise(t + 1000);
     }
+    (x, y)
+}
+
+/// Columns x, y over an AR(1) predictor and an outcome that follows it.
+fn series(n: usize) -> TimeSeriesData {
+    let (x, y) = series_columns(n);
     TimeSeriesData::from_f64_columns([("x", &x[..]), ("y", &y[..])], 1_000_000_000).unwrap()
+}
+
+/// Least-squares slope of `y` on `x`.
+fn ols_slope(x: &[f64], y: &[f64]) -> f64 {
+    let n = x.len() as f64;
+    let (mx, my) = (x.iter().sum::<f64>() / n, y.iter().sum::<f64>() / n);
+    let sxx: f64 = x.iter().map(|a| (a - mx).powi(2)).sum();
+    x.iter().zip(y).map(|(a, b)| (a - mx) * (b - my)).sum::<f64>() / sxx
 }
 
 fn static_study(data: TabularData, query: AssociationQuery) -> Study {
@@ -267,6 +281,9 @@ fn a_bayesian_association_is_conjugate_for_a_gaussian_outcome_and_a_bootstrap_ot
     let result = study.run(&ctx(5)).unwrap();
     let draws = result.association().unwrap();
     assert_eq!(draws.estimate.posterior.unwrap().method, "bayesian_bootstrap");
+    // Closed form of the table: log odds ratio of 0.55 against 0.25.
+    let truth = (0.55_f64 / 0.45).ln() - (0.25_f64 / 0.75).ln();
+    assert!((draws.estimate.terms[1].estimate - truth).abs() < 1e-6);
     let log_odds_ratio = draws.estimate.terms[1].posterior.unwrap();
     assert!(log_odds_ratio.lower < 1.3 && 1.3 < log_odds_ratio.upper, "{log_odds_ratio:?}");
 }
@@ -288,11 +305,16 @@ fn a_bayesian_series_association_draws_block_weights() {
     assert_eq!(payload.estimate.posterior.unwrap().method, "bayesian_bootstrap");
     assert_eq!(payload.estimate.selection.modality.as_str(), "series");
     assert!(payload.estimate.terms.iter().all(|term| term.posterior.is_some()));
+    // The block-weighted posterior centres on the least-squares slope of the same series.
+    let (sx, sy) = series_columns(120);
+    let slope = payload.estimate.terms[1].posterior.unwrap();
+    assert!((slope.mean - ols_slope(&sx, &sy)).abs() < 0.08, "{slope:?}");
+    assert!(slope.lower < ols_slope(&sx, &sy) && ols_slope(&sx, &sy) < slope.upper, "{slope:?}");
 }
 
 #[test]
 fn a_predictive_model_is_scored_on_held_out_folds_beside_its_baseline() {
-    let (data, _, _) = line();
+    let (data, x, y) = line();
     let query = AssociationQuery::new(v(1), [v(0)])
         .with_functional(AssociationFunctional::Predictive { folds: 5 });
     let result = static_study(data, query).run(&ctx(7)).unwrap();
@@ -301,17 +323,32 @@ fn a_predictive_model_is_scored_on_held_out_folds_beside_its_baseline() {
     assert_eq!(scores.cases, 120);
     assert_eq!(scores.score, "log_score_gaussian");
     assert!(scores.mean_score < scores.baseline_score, "the slope beats the training mean");
+    // Gaussian log score of a fitted normal is 0.5 ln(2 pi s^2) + 0.5 with s^2 the residual
+    // variance: the baseline is the outcome's own variance, the model the line's residual.
+    let n = x.len() as f64;
+    let slope = ols_slope(&x, &y);
+    let (mx, my) = (x.iter().sum::<f64>() / n, y.iter().sum::<f64>() / n);
+    let sse: f64 = x.iter().zip(&y).map(|(a, b)| (b - my - slope * (a - mx)).powi(2)).sum();
+    let sst: f64 = y.iter().map(|b| (b - my).powi(2)).sum();
+    let gaussian = |s2: f64| 0.5 * (2.0 * std::f64::consts::PI * s2).ln() + 0.5;
+    assert!((scores.baseline_score - gaussian(sst / n)).abs() < 0.05, "{}", scores.baseline_score);
+    assert!((scores.mean_score - gaussian(sse / n)).abs() < 0.05, "{}", scores.mean_score);
     assert!(scores.mean_crps.is_some());
 }
 
 #[test]
 fn an_association_measure_needs_one_predictor_and_a_regression_declares_its_conditioning() {
-    let (data, _, _) = line();
+    let (data, x, y) = line();
     let query = AssociationQuery::new(v(1), [v(0)])
         .with_functional(AssociationFunctional::Measure(AssociationMeasure::Pearson));
     let result = static_study(data.clone(), query).run(&ctx(8)).unwrap();
     let r = result.association().unwrap().estimate.terms[0].estimate;
-    assert!(r > 0.99 && r <= 1.0, "{r}");
+    let n = x.len() as f64;
+    let (mx, my) = (x.iter().sum::<f64>() / n, y.iter().sum::<f64>() / n);
+    let sxy: f64 = x.iter().zip(&y).map(|(a, b)| (a - mx) * (b - my)).sum();
+    let sxx: f64 = x.iter().map(|a| (a - mx).powi(2)).sum();
+    let syy: f64 = y.iter().map(|b| (b - my).powi(2)).sum();
+    assert!((r - sxy / (sxx * syy).sqrt()).abs() < 1e-9, "{r}");
     let invalid = AssociationQuery::new(v(1), [v(0), v(0)]);
     assert!(Study::tabular(data).query(CausalQuery::Association(invalid)).build().is_err());
 }
@@ -399,7 +436,10 @@ fn every_association_counterpart_retains_its_own_operation_and_executes_its_prog
         assert_eq!(first.lowered_program_identity(), Some(program));
         let again = prepared.estimate_series(&rows, &ctx(9)).unwrap();
         let terms = &first.association().unwrap().estimate.terms;
-        assert!(terms.iter().all(|term| term.estimate.is_finite()));
+        let (sx, sy) = series_columns(120);
+        assert!(
+            (terms[1].estimate - ols_slope(&sx, &sy)).abs() < if posterior { 0.02 } else { 1e-8 }
+        );
         assert_eq!(terms, &again.association().unwrap().estimate.terms, "the seed fixes the draws");
         assert_eq!(terms.iter().all(|term| term.posterior.is_some()), posterior);
     }

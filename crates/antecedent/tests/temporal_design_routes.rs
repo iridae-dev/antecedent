@@ -291,7 +291,7 @@ fn multi_arm_and_ordered_categorical_contrasts_carry_a_band_and_a_holm_family() 
     assert_eq!(&*fit.coordinates[2], "step:high-mid");
     within(fit, 2, 1.0, 4.0);
     let posterior = run(&data, multi_arm(true, true).1, bayesian(300), 0, &ctx);
-    assert!((section(&posterior).estimate[1] - 1.5).abs() < 0.3);
+    assert!((section(&posterior).estimate[1] - 1.5).abs() < 0.2);
 }
 
 #[test]
@@ -629,7 +629,16 @@ fn a_misclassified_binary_outcome_is_corrected_with_its_validation_uncertainty()
     within(fit, 0, 0.25, 4.0);
     within(fit, 2, 0.3, 4.0);
     let posterior = run(&data, query, bayesian(300), 0, &ctx);
-    assert!((section(&posterior).estimate[0] - 0.25).abs() < 0.08);
+    // The uncorrected recorded contrast is 0.75 * 0.25 = 0.1875 in expectation (0.0625
+    // below truth); the corrected posterior must sit well inside that gap.
+    assert!((section(&posterior).estimate[0] - 0.25).abs() < 0.045);
+    // The corrected point is the inverse-probability-weighted recorded contrast (known
+    // probability 0.5) divided by se + sp - 1 = 0.75.
+    let weighted: f64 =
+        (0..rows).map(|i| recorded[i] * if assignment[i] { 1.0 } else { -1.0 } / 0.5).sum::<f64>()
+            / rows as f64;
+    let corrected = weighted / 0.75;
+    assert!((fit.estimate[0] - corrected).abs() < 0.01, "{} vs {corrected}", fit.estimate[0]);
 }
 
 #[test]
@@ -661,35 +670,32 @@ fn the_exported_artifact_carries_the_section_and_a_fresh_consumer_rejects_forger
     .unwrap();
     let mut licensed = body.clone();
     licensed.temporal_design.as_mut().unwrap().licensed = true;
-    assert!(
-        antecedent_io::encode_analysis_result_artifact(
-            &licensed,
-            header.variable_names.clone(),
-            "forged-license"
-        )
-        .is_err()
-    );
+    let error = antecedent_io::encode_analysis_result_artifact(
+        &licensed,
+        header.variable_names.clone(),
+        "forged-license",
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("claims no licence"), "{error}");
     let mut reversed = body.clone();
     let section = reversed.temporal_design.as_mut().unwrap();
     section.lower[0] = section.upper[0] + 1.0;
-    assert!(
-        antecedent_io::encode_analysis_result_artifact(
-            &reversed,
-            header.variable_names.clone(),
-            "forged-interval"
-        )
-        .is_err()
-    );
+    let error = antecedent_io::encode_analysis_result_artifact(
+        &reversed,
+        header.variable_names.clone(),
+        "forged-interval",
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("interval is reversed"), "{error}");
     let mut stripped = body;
     stripped.temporal_design = None;
-    assert!(
-        antecedent_io::encode_analysis_result_artifact(
-            &stripped,
-            header.variable_names,
-            "missing-section"
-        )
-        .is_err()
-    );
+    let error = antecedent_io::encode_analysis_result_artifact(
+        &stripped,
+        header.variable_names,
+        "missing-section",
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("missing its section"), "{error}");
 }
 
 /// A decision-time covariate drives both the treatment and the outcome, and no assignment
@@ -777,7 +783,11 @@ fn the_observational_excursion_refuses_what_it_cannot_identify_or_resample() {
         .query(CausalQuery::TemporalDesign(query.clone()))
         .build()
         .and_then(|study| study.run(&ctx));
-    assert!(missing.is_err());
+    let message = missing.unwrap_err().to_string();
+    assert!(
+        message.contains("required_option_missing") && message.contains("Next attempt"),
+        "{message}"
+    );
     // A treatment column that is not coded 0/1 is refused, not rounded.
     let (zeros, halves) = (vec![0.0; 240], vec![0.5; 240]);
     let wrong =
@@ -787,14 +797,15 @@ fn the_observational_excursion_refuses_what_it_cannot_identify_or_resample() {
         .bootstrap_replicates(99)
         .build()
         .and_then(|study| study.run(&ctx));
-    assert!(refused.is_err());
+    let message = refused.unwrap_err().to_string();
+    assert!(message.contains("must be coded exactly 0 or 1"), "{message}");
     // The outcome cannot also be a history column.
     let mut bad = query;
     bad.assignment = TemporalAssignment::ObservationalExcursion {
         treatment: VariableId::from_raw(1),
         history: Arc::from([VariableId::from_raw(0)]),
     };
-    assert!(bad.validate().is_err());
+    assert!(bad.validate().unwrap_err().to_string().contains("must be distinct"));
 }
 
 /// Two periods with treatment-confounder feedback: the baseline confounder drives the first
@@ -907,7 +918,11 @@ fn the_observational_regime_refuses_what_it_cannot_identify_or_resample() {
         .query(CausalQuery::TemporalDesign(query.clone()))
         .build()
         .and_then(|study| study.run(&ctx));
-    assert!(missing.is_err());
+    let message = missing.unwrap_err().to_string();
+    assert!(
+        message.contains("required_option_missing") && message.contains("Next attempt"),
+        "{message}"
+    );
     // Identical paths, paths of different length, a lag and a repeated column are invalid.
     let mut bad = query.clone();
     bad.assignment = TemporalAssignment::ObservationalRegime {
@@ -917,7 +932,7 @@ fn the_observational_regime_refuses_what_it_cannot_identify_or_resample() {
         reference: Arc::from([true, true]),
         method: TemporalRegimeMethod::GFormula,
     };
-    assert!(bad.validate().is_err());
+    assert!(bad.validate().unwrap_err().to_string().contains("differ in some period"));
     bad.assignment = TemporalAssignment::ObservationalRegime {
         treatment: VariableId::from_raw(1),
         confounders: Arc::from([VariableId::from_raw(2)]),
@@ -925,10 +940,10 @@ fn the_observational_regime_refuses_what_it_cannot_identify_or_resample() {
         reference: Arc::from([true, false]),
         method: TemporalRegimeMethod::GFormula,
     };
-    assert!(bad.validate().is_err());
+    assert!(bad.validate().unwrap_err().to_string().contains("differ in some period"));
     let mut lagged = query.clone();
     lagged.lag = 1;
-    assert!(lagged.validate().is_err());
+    assert!(lagged.validate().unwrap_err().to_string().contains("(lag 0)"));
     bad.assignment = TemporalAssignment::ObservationalRegime {
         treatment: VariableId::from_raw(1),
         confounders: Arc::from([VariableId::from_raw(0)]),
@@ -936,7 +951,7 @@ fn the_observational_regime_refuses_what_it_cannot_identify_or_resample() {
         reference: Arc::from([false, false]),
         method: TemporalRegimeMethod::GFormula,
     };
-    assert!(bad.validate().is_err());
+    assert!(bad.validate().unwrap_err().to_string().contains("must be distinct"));
     // A path longer than the follow-up is refused at execution.
     let mut long = query;
     long.assignment = TemporalAssignment::ObservationalRegime {
@@ -951,7 +966,8 @@ fn the_observational_regime_refuses_what_it_cannot_identify_or_resample() {
         .bootstrap_replicates(99)
         .build()
         .and_then(|study| study.run(&ctx));
-    assert!(refused.is_err());
+    let message = refused.unwrap_err().to_string();
+    assert!(message.contains("each regime names one action per period"), "{message}");
 }
 
 /// A factorial panel: main effects `1.0` and `0.5` and an interaction `0.4`, the factors drawn

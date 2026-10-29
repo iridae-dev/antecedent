@@ -308,6 +308,10 @@ def test_mnar_result_api_requests_the_sensitivity_of_the_analysed_effect() -> No
         data=data, model="delta_pattern_mixture", lower=-1.0, upper=1.0, decisions={"act": 0.0}
     )
     assert sensitivity.estimator == "difference_in_means"
-    assert sensitivity.mar.effect == pytest.approx(sensitivity.observed_case_effect)
+    # Observed cases by hand: treated 5 ones in 7 observed, control 2 ones in 6 observed.
+    assert sensitivity.mar.treated_mean == pytest.approx(5 / 7, abs=1e-12)
+    assert sensitivity.mar.control_mean == pytest.approx(2 / 6, abs=1e-12)
+    assert sensitivity.mar.effect == pytest.approx(5 / 7 - 2 / 6, abs=1e-12)
+    assert sensitivity.observed_case_effect == pytest.approx(5 / 7 - 2 / 6, abs=1e-12)
     assert sensitivity.assumption_range.is_confidence_interval is False
     assert sensitivity.decisions[0].name == "act"

@@ -606,10 +606,15 @@ fn estimate_reuses_the_prepared_certificate_and_refresh_keeps_it() {
     // A changed sampling design or schema needs a new preparation.
     let mut nested = fresh.clone();
     nested.sampling = antecedent_estimate::TrialSampling::NestedCohort;
-    assert!(prepared.refresh(nested, &ctx).is_err());
+    let error = prepared.refresh(nested, &ctx).err().expect("a changed design is refused");
+    assert!(error.to_string().contains("transport.reprepare_required"), "{error}");
     let mut bad = fresh;
     bad.randomization.fill(0.0);
-    assert!(prepared.refresh(bad, &ctx).is_err());
+    let (code, message) = refused_code(
+        prepared.refresh(bad, &ctx).err().expect("an out-of-bound randomization refuses"),
+    );
+    assert_eq!(code, "transport_support_failure");
+    assert!(message.starts_with("learned_transport.treatment_overlap"), "{message}");
 }
 
 fn exported(design: Design) -> (Vec<u8>, LearnedContinuousArtifactWire) {

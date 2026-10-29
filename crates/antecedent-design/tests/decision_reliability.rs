@@ -850,7 +850,8 @@ fn pre_specified_decisions_have_no_selection_effect_and_adaptive_ones_cannot_cla
         decision: DecisionChoice::PreSpecified("absent".into()),
         ..ReliabilityRequest::expected_utility()
     };
-    assert!(assess(&draws, None, &missing, &ctx()).is_err());
+    let absent = assess(&draws, None, &missing, &ctx()).unwrap_err();
+    assert_eq!(absent.reason_code(), "invalid_argument");
 }
 
 #[test]
@@ -929,7 +930,7 @@ fn the_artifact_round_trips_and_is_recomputed_from_the_draws() {
         assess(&consumed.draws, consumed.validation.as_ref(), &consumed.request, &ctx()).unwrap();
     assert_eq!(recomputed, consumed.report);
     // The decision is the true optimum here (index 2, true utility 0.4 against 0.2).
-    assert!(["c00000", "c00001", "c00002"].contains(&consumed.report.decided_id.as_str()));
+    assert_eq!(consumed.report.decided_id, "c00002");
 }
 
 #[test]
@@ -981,7 +982,7 @@ fn semantic_mutations_of_the_artifact_are_refused() {
     let mut forged = DecisionReliabilityArtifact::from_bytes(&bytes).unwrap();
     forged.draws.coupling = CandidateCoupling::DeclaredIndependent;
     reseal(&mut forged);
-    assert!(forged.verify(&default, &ctx()).is_err());
+    assert!(message(&forged, &default).contains("declared_independent_but_draws_overlap"));
 
     // A consistently resealed forgery (draws and report both regenerated) is caught by
     // an independently retained expectation.

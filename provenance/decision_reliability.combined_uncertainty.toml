@@ -32,4 +32,4 @@ sha256 = "33b17cd375d0c1329f42cbd9b5fa353d12913f0499106795f57f2737e6d7e2b1"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/decision_reliability.rs"
-sha256 = "76ef7528114960997b35070531ae7072662c28b379a0e72c92f193df7ca3088b"
+sha256 = "eadf3cfab1e952b0c0a7dcdbf7b4e1bf0934ce54dbd1d6d265282cb6b55ad6cc"

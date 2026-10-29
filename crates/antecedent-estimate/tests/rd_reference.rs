@@ -128,10 +128,8 @@ fn rows_outside_the_window_do_not_move_the_fit_and_rows_on_the_edges_do() {
 fn a_side_with_one_row_cannot_support_a_line_and_is_not_estimated() {
     let r = [-0.0625, 0.0, 0.0625, 0.125];
     let y = [1.0, 2.0, 3.0, 4.5];
-    match fit(&r, &y, 0.0, 0.2, AnalyticSeKind::Hc1) {
-        Err(_) => {}
-        Ok(effect) => {
-            assert!(!effect.ate.is_finite() || !effect.se_analytic().is_finite(), "{effect:?}")
-        }
-    }
+    // The right side holds three rows and the left side one: the pooled interaction design has
+    // four columns and rank three, so the fit is refused as rank deficient, not extrapolated.
+    let error = fit(&r, &y, 0.0, 0.2, AnalyticSeKind::Hc1).expect_err("a one-row side is refused");
+    assert!(format!("{error:?}").contains("RankDeficient"), "{error:?}");
 }

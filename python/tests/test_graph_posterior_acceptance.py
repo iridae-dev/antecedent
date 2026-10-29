@@ -323,6 +323,14 @@ def test_eight_variable_artifacts_are_still_consumed_and_wider_ones_carry_wide_e
         )
     )
     assert result.evidence_status == "licensed"
+    # The posterior mean effect is the atom-weighted mixture of the two regression readings:
+    # atoms 1 and 3 leave the confounder z0 out (unadjusted slope), atom 2 adjusts for it.
+    treatment, outcome, z0 = data["t"], data["y"], data["z0"]
+    unadjusted = np.polyfit(treatment, outcome, 1)[0]
+    design = np.column_stack([np.ones(len(z0)), treatment, z0])
+    adjusted = np.linalg.lstsq(design, outcome, rcond=None)[0][1]
+    mixture_mean = 0.2 * unadjusted + 0.5 * adjusted + 0.3 * unadjusted
+    assert result.posterior.effect_mean == pytest.approx(mixture_mean, abs=0.02)
     artifact = loads(bytes(result.export()))
     assert artifact is not None
     # Rebuilding the posterior from its own export is the same posterior.

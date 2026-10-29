@@ -66,7 +66,9 @@ fn basis_gcomp_matches_independent_quadratic_ate_and_cate_reference() {
     assert!(result.predictions.provenance.prior_id.contains("sd_8"));
     assert_eq!(result.predictions.draw_count, 600);
     assert_eq!(result.ate_draws.len(), 600);
-    assert!((result.ate_mean - ate_truth).abs() < 0.06, "ATE {} vs {ate_truth}", result.ate_mean);
+    // The noise is a small deterministic sine (0.08 amplitude) on a model the basis spans
+    // exactly: observed errors are 1.4e-4 (ATE) and 2.4e-3 (CATE RMSE).
+    assert!((result.ate_mean - ate_truth).abs() < 1e-3, "ATE {} vs {ate_truth}", result.ate_mean);
 
     let effects: Vec<f64> = (0..n)
         .map(|row| {
@@ -83,7 +85,7 @@ fn basis_gcomp_matches_independent_quadratic_ate_and_cate_reference() {
         .sum::<f64>()
         / n as f64)
         .sqrt();
-    assert!(cate_rmse < 0.07, "CATE RMSE {cate_rmse}");
+    assert!(cate_rmse < 0.01, "CATE RMSE {cate_rmse}");
     assert_eq!(result.predictions.diagnostics.fold_count, Some(5));
     assert_eq!(BayesianBasisGComputation.task(), PredictionTask::Regression);
     assert_eq!(BayesianBasisGComputation.estimator_id(), "bayesian.basis_gcomp");

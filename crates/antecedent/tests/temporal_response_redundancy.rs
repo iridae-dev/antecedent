@@ -597,6 +597,33 @@ fn confounded_multi_horizon_identifies_per_horizon_not_at_max() {
     }
 }
 
+/// Per-horizon treatment range `[min, max]` of the lag-aligned column `t[..n - h]`, and the
+/// per-cell status of each dose (dose-major): inside the horizon's own range or outside it.
+fn definition_cells(t: &[f64], doses: &[f64], horizons: &[u32]) -> (Vec<f64>, Vec<SupportStatus>) {
+    let mut ranges = Vec::new();
+    let windows: Vec<(f64, f64)> = horizons
+        .iter()
+        .map(|&h| {
+            let window = &t[..t.len() - h as usize];
+            let low = window.iter().copied().fold(f64::INFINITY, f64::min);
+            let high = window.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+            ranges.extend([low, high]);
+            (low, high)
+        })
+        .collect();
+    let mut statuses = Vec::new();
+    for &dose in doses {
+        for &(low, high) in &windows {
+            statuses.push(if dose >= low && dose <= high {
+                SupportStatus::Supported
+            } else {
+                SupportStatus::OutsideEmpiricalSupport
+            });
+        }
+    }
+    (ranges, statuses)
+}
+
 fn parse_status(value: &str) -> SupportStatus {
     match value {
         "supported" => SupportStatus::Supported,
@@ -620,6 +647,7 @@ fn horizon_support_is_per_cell_not_union() {
                 + 3.0 * i.checked_sub(2).map_or(0.0, |j| t[j])
         })
         .collect();
+    let t_column = t.clone();
     let (data, graph) = series(&["t", "y"], vec![t, y], &[(0, 1, 1, 0), (0, 2, 1, 0)]);
     let doses = f64s(&fixture["contract"]["dose_grid"]);
     let atol = fixture["tolerance"]["atol"].as_f64().unwrap();
@@ -645,6 +673,16 @@ fn horizon_support_is_per_cell_not_union() {
         .map(|value| parse_status(value.as_str().unwrap()))
         .collect();
     assert_eq!(support.point_status.as_ref().map(AsRef::as_ref), Some(expected.as_slice()));
+    // The fixture pins agree with the definition: a dose is supported at a horizon exactly when
+    // it lies in the range of that horizon's lag-aligned treatment column.
+    let horizon_steps: Vec<u32> = fixture["contract"]["horizons"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| u32::try_from(value.as_u64().unwrap()).unwrap())
+        .collect();
+    let (defined_ranges, defined_status) = definition_cells(&t_column, &doses, &horizon_steps);
+    assert_eq!(defined_status, expected);
     let ranges = support
         .diagnostics
         .iter()
@@ -654,6 +692,9 @@ fn horizon_support_is_per_cell_not_union() {
     assert_eq!(ranges.values.len(), expected_ranges.len());
     for (actual, truth) in ranges.values.iter().zip(&expected_ranges) {
         assert!((actual - truth).abs() <= atol, "range {actual} vs {truth}");
+    }
+    for (actual, truth) in ranges.values.iter().zip(&defined_ranges) {
+        assert!((actual - truth).abs() <= 1e-12, "range {actual} vs definition {truth}");
     }
     let union_max = ranges.values[1].max(ranges.values[3]);
     let union_min = ranges.values[0].min(ranges.values[2]);
@@ -707,6 +748,7 @@ fn bayesian_horizon_support_matches_frequentist_geometry() {
                 + 3.0 * i.checked_sub(2).map_or(0.0, |j| t[j])
         })
         .collect();
+    let t_column = t.clone();
     let (data, graph) = series(&["t", "y"], vec![t, y], &[(0, 1, 1, 0), (0, 2, 1, 0)]);
     let doses = f64s(&fixture["contract"]["dose_grid"]);
     let query = mean_curve_query(&doses, &fixture);
@@ -728,6 +770,23 @@ fn bayesian_horizon_support_matches_frequentist_geometry() {
         .map(|value| parse_status(value.as_str().unwrap()))
         .collect();
     assert_eq!(support.point_status.as_ref().map(AsRef::as_ref), Some(expected.as_slice()));
+    let horizon_steps: Vec<u32> = fixture["contract"]["horizons"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| u32::try_from(value.as_u64().unwrap()).unwrap())
+        .collect();
+    let (defined_ranges, defined_status) = definition_cells(&t_column, &doses, &horizon_steps);
+    assert_eq!(defined_status, expected, "the pinned statuses follow from the ranges");
+    let published = support
+        .diagnostics
+        .iter()
+        .find(|d| d.id.as_ref() == "response.temporal.horizon_treatment_range")
+        .expect("Bayesian temporal curves must publish the same per-horizon support geometry");
+    assert_eq!(published.values.len(), defined_ranges.len());
+    for (actual, truth) in published.values.iter().zip(&defined_ranges) {
+        assert!((actual - truth).abs() <= 1e-12, "range {actual} vs definition {truth}");
+    }
     assert!(
         support
             .diagnostics

@@ -63,7 +63,12 @@ def test_the_compiled_study_reports_the_least_squares_line_and_is_noncausal() ->
     slope = np.cov(x, y, bias=True)[0, 1] / np.var(x)
     assert section.analysis == "linear_regression"
     assert section.terms[1].estimate == pytest.approx(slope, abs=1e-8)
-    assert section.terms[1].standard_error is not None and section.terms[1].standard_error > 0
+    # HC1 sandwich standard error of the slope, recomputed from the residuals.
+    n = len(x)
+    centered = x - x.mean()
+    residual = y - y.mean() - slope * centered
+    hc1 = np.sqrt(n / (n - 2) * np.sum(centered**2 * residual**2) / np.sum(centered**2) ** 2)
+    assert section.terms[1].standard_error == pytest.approx(hc1, rel=1e-9)
     assert section.terms[1].standard_error_method == "sandwich_hc1"
     assert section.licensed is False and section.calibration == "unmeasured"
     assert section.ranks_actions is False and section.is_intervention_effect is False
@@ -126,6 +131,7 @@ def test_the_selection_rule_is_deterministic_and_a_declared_scale_wins() -> None
         require_success(ant.analyze(data, query=Association("y"), refute="none"))
     )
     assert marginal.analysis == "stratified_mean" and len(marginal.terms) == 1
+    assert marginal.terms[0].estimate == pytest.approx(np.mean(data["y"]), abs=1e-9)
 
 
 def test_correlations_and_a_scored_predictive_model() -> None:
@@ -146,7 +152,14 @@ def test_correlations_and_a_scored_predictive_model() -> None:
             )
         )
     )
-    assert distance.terms[0].estimate > 0.4
+    # Sample distance correlation (V-statistic) from double-centred distance matrices.
+    def centred(v: np.ndarray) -> np.ndarray:
+        d = np.abs(v[:, None] - v[None, :])
+        return d - d.mean(axis=0) - d.mean(axis=1)[:, None] + d.mean()
+
+    a, b = centred(data["x"]), centred(data["y"])
+    dcor = np.sqrt(np.mean(a * b) / np.sqrt(np.mean(a * a) * np.mean(b * b)))
+    assert distance.terms[0].estimate == pytest.approx(dcor, abs=1e-9)
     scored = _association(
         require_success(
             ant.analyze(
@@ -160,6 +173,16 @@ def test_correlations_and_a_scored_predictive_model() -> None:
     assert scored.prediction is not None
     assert scored.prediction.cases == 120 and scored.prediction.score == "log_score_gaussian"
     assert scored.prediction.mean_score < scored.prediction.baseline_score
+    # Gaussian log score 0.5 ln(2 pi s2) + 0.5: baseline at the outcome variance, model at
+    # the line's residual variance (held-out folds sit within 0.05 of the in-sample values).
+    line = _line()
+    lx, ly = line["x"], line["y"]
+    fit = np.polyfit(lx, ly, 1)
+    gaussian = lambda s2: 0.5 * np.log(2 * np.pi * s2) + 0.5  # noqa: E731
+    assert scored.prediction.baseline_score == pytest.approx(gaussian(np.var(ly)), abs=0.05)
+    assert scored.prediction.mean_score == pytest.approx(
+        gaussian(np.mean((ly - np.polyval(fit, lx)) ** 2)), abs=0.05
+    )
 
 
 def test_a_series_resamples_blocks_under_the_declared_dependent_design() -> None:
@@ -180,6 +203,10 @@ def test_a_series_resamples_blocks_under_the_declared_dependent_design() -> None
     assert section.resampling.unit == "calendar_block"
     assert section.resampling.block_length is not None and section.resampling.block_length > 1
     assert section.terms[1].standard_error_method == "bootstrap_circular_block"
+    series = _series()
+    centered = series["x"] - series["x"].mean()
+    slope = np.sum(centered * (series["y"] - series["y"].mean())) / np.sum(centered**2)
+    assert section.terms[1].estimate == pytest.approx(slope, abs=1e-8)
     with pytest.raises(CausalError) as refusal:
         require_success(
             ant.analyze(
@@ -223,6 +250,9 @@ def test_bayesian_readings_are_conjugate_for_gaussian_outcomes_and_a_bootstrap_o
         )
     )
     assert binary.posterior is not None and binary.posterior.method == "bayesian_bootstrap"
+    assert binary.terms[1].estimate == pytest.approx(
+        np.log(0.55 / 0.45) - np.log(0.25 / 0.75), abs=1e-6
+    )
     series = _association(
         require_success(
             ant.analyze(
