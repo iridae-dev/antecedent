@@ -94,6 +94,8 @@ impl DerivativeConsistency {
             },
             passed,
             informative: true,
+            standardised_bias: Arc::from([]),
+            standardised_bias_norm: None,
             replicates: 0,
             failure: (!passed).then(|| {
                 Arc::from(format!(
@@ -165,6 +167,8 @@ impl LocalLinearity {
             },
             passed,
             informative: true,
+            standardised_bias: Arc::from([]),
+            standardised_bias_norm: None,
             replicates: 0,
             failure: (!passed).then(|| {
                 Arc::from(format!(

@@ -57,7 +57,18 @@ diagnostic, **not a hypothesis test with a nominal rejection rate**: for
 bootstrap and subset stability the replicate mean minus the original estimates
 the resampling bias, and with an unbiased procedure the discrepancy is about
 `k / replicates` rather than chi-square with `k` degrees of freedom, so a clean
-case rejects far below `alpha`. Its rejection rate on clean data and its power
+case rejects far below `alpha`. Each replicate report also carries `standardised_bias` (replicate mean minus
+the expected vector, per coordinate, in replicate standard deviations) and
+`standardised_bias_norm` (the Mahalanobis length of the same shift, the square
+root of the discrepancy), the effect size behind the verdict. Subset stability
+is inherently weakly powered against one influential observation: under
+circular windows a mean-type statistic has a replicate mean equal to the
+original whatever the outlier, while the replicate spread that standardises the
+shift grows with it. Routes that read neither row weights nor an analysis mask
+refit lagged resamples on contiguous sub-windows (a third of the series), never
+on a block resample whose joins would pair values observed apart; attribution
+and weight-reading routes keep the block resample with join-crossing design
+rows hidden or carried as row weights. Its rejection rate on clean data and its power
 against planted violations are measured separately; nothing here is a
 calibration claim. Each refit's random stream is keyed by refuter and replicate,
 so a report does not depend on the thread count, and the replicate buffer is

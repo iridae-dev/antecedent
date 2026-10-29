@@ -74,8 +74,12 @@ impl Stream {
 
 /// Columns `x, y, w, r`.
 fn series(truth: &Truth) -> TimeSeriesData {
+    series_seeded(truth, 77)
+}
+
+fn series_seeded(truth: &Truth, seed: u64) -> TimeSeriesData {
     let law = |key: &str| truth.law[key].as_f64().unwrap();
-    let mut stream = Stream(77);
+    let mut stream = Stream(seed);
     let r: Vec<f64> = (0..N).map(|_| stream.normal()).collect();
     let w: Vec<f64> =
         (0..N).map(|_| f64::from(stream.uniform() < law("modifier_probability"))).collect();
@@ -514,4 +518,61 @@ fn temporal_conditional_graph_posterior_results_encode_and_are_consumed() {
             assert!(consumed.contract.is_some(), "{kind:?} {suite:?}");
         }
     }
+}
+
+/// The lead and control checks across a seed sweep: the clean law is rarely flagged and the
+/// planted anticipation usually is. The windows these checks refit are contiguous
+/// sub-windows (a route that reads neither row weights nor a mask cannot skip the design rows
+/// a block join would corrupt). The sweep is a correctness check, not a calibration.
+#[test]
+fn temporal_conditional_lead_and_control_checks_across_seeds() {
+    let truth = truth();
+    let context = ExecutionContext::for_tests(14);
+    let seeds = 20_u64;
+    let (mut pre, mut ant, mut nco, mut planted_pre) = (0_u64, 0_u64, 0_u64, 0_u64);
+    for seed in 1..=seeds {
+        let clean = series_seeded(&truth, 1_000 + seed * 7_919);
+        let run = |data: TimeSeriesData| {
+            builder(Class::TemporalDag, false, data)
+                .query(query(false))
+                .refute(RefuteSuite::Full)
+                .bootstrap_replicates(0)
+                .build()
+                .unwrap()
+                .run(&context)
+                .unwrap()
+        };
+        let failed = |result: &StudyResult, name: &str| {
+            result.refutations.iter().any(|r| r.refuter.as_ref() == name && !r.passed)
+        };
+        let result = run(clean.clone());
+        pre += u64::from(failed(&result, "target.pre_trend"));
+        ant += u64::from(failed(&result, "target.anticipation"));
+        nco += u64::from(failed(&result, "target.negative_control_outcome"));
+        let storage = clean.storage();
+        let column = |id: u32| -> Vec<f64> {
+            match &storage.columns()[id as usize] {
+                antecedent_data::OwnedColumn::Float64(column) => column.values.to_vec(),
+                _ => unreachable!("float columns"),
+            }
+        };
+        let (x, y, w, r) = (column(0), column(1), column(2), column(3));
+        let anticipated: Vec<f64> = (0..N).map(|t| y[t] + 1.5 * x[t]).collect();
+        let planted = TimeSeriesData::from_f64_columns(
+            [
+                ("x", x.as_slice()),
+                ("y", anticipated.as_slice()),
+                ("w", w.as_slice()),
+                ("r", r.as_slice()),
+            ],
+            1,
+        )
+        .unwrap();
+        planted_pre += u64::from(failed(&run(planted), "target.pre_trend"));
+    }
+    // Measured with seeds 1..=20: the clean law flagged 1, 1 and 1 times; the planted
+    // anticipation 20 times. Half-length windows flagged the clean law 7, 5 and 6 times and
+    // block resamples with joins 2, 0 and 0, so the window length is not free.
+    assert!(pre <= 3 && ant <= 3 && nco <= 3, "clean flagged {pre} {ant} {nco} of {seeds}");
+    assert!(planted_pre >= 18, "planted anticipation flagged {planted_pre} of {seeds}");
 }

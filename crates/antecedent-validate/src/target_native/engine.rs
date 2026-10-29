@@ -17,7 +17,7 @@ use antecedent_core::{
     SemanticOperation,
 };
 
-use super::joint::joint_mahalanobis;
+use super::joint::joint_mahalanobis_with_bias;
 use super::{
     RefutationTarget, RefuterExpectation, TargetFamily, TargetRefutationPlan,
     TargetRefutationReport, TargetRefuterKind,
@@ -381,8 +381,8 @@ fn replicate_check(
         }
         rows.extend_from_slice(&vector);
     }
-    let statistic = match joint_statistic(expectation, target, refit.original(), &rows, k) {
-        Ok(statistic) => statistic,
+    let (statistic, standardised_bias) = match joint_statistic(expectation, target, refit.original(), &rows, k) {
+        Ok(pair) => pair,
         // No usable replicate law (a coordinate the perturbation never moves, too few
         // replicates): the refuter cannot speak to this target; record it, do not abort.
         Err(ValidationError::NotApplicable { message }) => {
@@ -426,6 +426,8 @@ fn replicate_check(
         kind,
         original: refit.original().to_vec().into(),
         refuted: refuted.into(),
+        standardised_bias_norm: Some(statistic.value.sqrt()),
+        standardised_bias: standardised_bias.into(),
         statistic,
         passed,
         informative: true,
@@ -444,7 +446,7 @@ fn joint_statistic(
     original: &[f64],
     rows: &[f64],
     k: usize,
-) -> Result<super::JointStatistic, ValidationError> {
+) -> Result<(super::JointStatistic, Vec<f64>), ValidationError> {
     match expectation {
         RefuterExpectation::Null if target.family() == TargetFamily::WorldValued => {
             if k < 2 {
@@ -457,9 +459,9 @@ fn joint_statistic(
                 .chunks_exact(k)
                 .flat_map(|row| row[1..].iter().map(move |v| v - row[0]))
                 .collect();
-            joint_mahalanobis(&vec![0.0; k - 1], &contrasts, k - 1)
+            joint_mahalanobis_with_bias(&vec![0.0; k - 1], &contrasts, k - 1)
         }
-        RefuterExpectation::Null => joint_mahalanobis(&vec![0.0; k], rows, k),
-        _ => joint_mahalanobis(original, rows, k),
+        RefuterExpectation::Null => joint_mahalanobis_with_bias(&vec![0.0; k], rows, k),
+        _ => joint_mahalanobis_with_bias(original, rows, k),
     }
 }

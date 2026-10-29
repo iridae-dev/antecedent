@@ -81,6 +81,8 @@ pub fn prior_sensitivity_target_check(
         },
         passed,
         informative: true,
+        standardised_bias: Arc::from([]),
+        standardised_bias_norm: None,
         replicates: u32::try_from(input.alternatives.len()).unwrap_or(u32::MAX),
         failure: (!passed).then(|| {
             Arc::from(format!(
@@ -173,6 +175,8 @@ pub fn posterior_predictive_target_check(
         },
         passed,
         informative: true,
+        standardised_bias: Arc::from([]),
+        standardised_bias_norm: None,
         replicates: u32::try_from(s).unwrap_or(u32::MAX),
         failure: (!passed).then(|| {
             Arc::from(format!(

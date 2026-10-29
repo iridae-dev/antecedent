@@ -636,6 +636,52 @@ mod repack_tests {
         }
     }
 
+    /// A contiguous sub-window has no join: its source map is consecutive, so every design row
+    /// reads the lag window the original reads (judged by the same brute-force definition as
+    /// the block bootstrap above), for any window length and span.
+    #[test]
+    fn a_contiguous_subsample_window_has_no_crossing_design_row() {
+        let mut rng = antecedent_core::RngFactory::from_seed(3)
+            .stream_for(antecedent_core::StreamDomain::Test, 4);
+        for (rows, span) in [(12_usize, 2_usize), (30, 3), (7, 4), (100, 2)] {
+            for _ in 0..50 {
+                let (start, width) = subsample_bounds(rows, span, &mut rng);
+                assert!(width >= (span + 2).min(rows) && start + width <= rows);
+                let map: Vec<usize> = (start..start + width).collect();
+                let free = join_free_rows(&map, span);
+                for row in 0..width {
+                    let observed = row + 1 < span
+                        || (1..span).all(|k| map[row] >= k && map[row - k] == map[row] - k);
+                    assert!(observed && free[row], "rows {rows}, span {span}, row {row}");
+                }
+            }
+        }
+    }
+
+    /// The multiplicity form of the block bootstrap (read by the routes that take row weights)
+    /// puts every unit of weight on a source design row, which keeps its own lag window, so a
+    /// join cannot appear: the weights are exactly the counts of the source rows the gathered
+    /// form draws, with the same stream.
+    #[test]
+    fn block_multiplicities_are_the_counts_of_source_design_rows() {
+        for (n, span) in [(40_usize, 2_usize), (57, 3)] {
+            let draw = || {
+                antecedent_core::RngFactory::from_seed(8)
+                    .stream_for(antecedent_core::StreamDomain::Test, 1)
+            };
+            let weights = block_weights(n, span, &mut draw()).unwrap();
+            let length = antecedent_data::circular_block_length(span, n);
+            let mut map = vec![0_usize; n];
+            antecedent_data::fill_circular_block_indexes(n, length, &mut draw(), &mut map).unwrap();
+            let mut counts = vec![0.0_f64; n];
+            for &source in &map {
+                counts[source] += 1.0;
+            }
+            assert_eq!(&weights[..], &counts[..]);
+            assert!((weights.iter().sum::<f64>() - n as f64).abs() < 1e-12);
+        }
+    }
+
     #[test]
     fn multi_environment_refutation_quadrant_preserves_the_retained_structure_kind() {
         let data = DataClassification::MultiEnvironment;
@@ -1208,6 +1254,26 @@ fn block_weights(
     Ok(weights.into())
 }
 
+/// Fraction of a window a contiguous subsample keeps. Windows this short vary about as much
+/// as the full-window estimate would across samples (half-length windows vary too little and
+/// reject a clean series on a quarter to a third of seeds; see the lead and control sweep in
+/// `temporal_conditional_validation_truth`), so a null check against them is not over-eager.
+const SUBSAMPLE_FRACTION: f64 = 1.0 / 3.0;
+
+/// Start and width of a contiguous sub-window of `rows` periods for a route whose lag windows
+/// may not cross a join: `SUBSAMPLE_FRACTION` of the periods, at least `span + 2` of them (or
+/// all when fewer exist), starting uniformly among the positions that fit.
+fn subsample_bounds(rows: usize, span: usize, rng: &mut CausalRng) -> (usize, usize) {
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the fraction lies in (0, 1), and the saturating cast is clamped into [1, rows]"
+    )]
+    let kept = (SUBSAMPLE_FRACTION * rows as f64).round() as usize;
+    let width = kept.max(span + 2).min(rows);
+    (unbiased_index(rng, rows - width + 1), width)
+}
+
 /// Whether each design row of a gathered series (`map[row]` is the source position of `row`)
 /// reads a lag window that was observed together: a row whose lag window crosses a join of the
 /// map pairs values observed apart, an artificial lag relationship. The first `span - 1` rows
@@ -1503,6 +1569,14 @@ impl PreparedRefit<'_> {
         if let Some(id) = self.options.negative_control_exposure {
             return Ok(id);
         }
+        if self.study().graph_posterior.is_some() {
+            return Err(unsupported(
+                "a graph posterior has no single structure to read a negative-control exposure \
+                 from (its placeholder graph has no edges, so every column would read as \
+                 unrelated to the treatment and the outcome)",
+                "declare a negative-control exposure in TargetRefitOptions",
+            ));
+        }
         let adjustment = self.adjustment();
         let n = self.storage().columns().len();
         let candidates = (0..n)
@@ -1550,6 +1624,13 @@ impl PreparedRefit<'_> {
     fn control_outcome(&self) -> Result<VariableId, TargetRefitError> {
         if let Some(id) = self.options.negative_control_outcome {
             return Ok(id);
+        }
+        if self.study().graph_posterior.is_some() {
+            return Err(unsupported(
+                "a graph posterior has no single structure to read a negative-control outcome \
+                 from (its placeholder graph has no edges)",
+                "declare a negative-control outcome in TargetRefitOptions",
+            ));
         }
         let adjustment = self.adjustment();
         let Some(dag) = self.study().graph.as_dag() else {
@@ -2286,13 +2367,23 @@ impl PreparedRefit<'_> {
         if replicate == 0 {
             return Ok(Some(window));
         }
-        let plan = antecedent_data::ResamplingPlan::CircularBlock {
-            length: antecedent_data::circular_block_length(span, window.row_count()),
-        };
-        let mut scratch = Vec::new();
-        antecedent_data::resample_timeseries(&window, plan, rng, &mut scratch)
-            .map(Some)
-            .map_err(data_failed)
+        let rows = window.row_count();
+        if self.target.family() == TargetFamily::Attribution {
+            // An attribution fits row-wise lag-aligned tables and applies the analysis mask, so
+            // the circular block resample is gathered with its join-crossing rows hidden.
+            let length = antecedent_data::circular_block_length(span, rows);
+            let mut map = vec![0_usize; rows];
+            antecedent_data::fill_circular_block_indexes(rows, length, rng, &mut map)
+                .map_err(data_failed)?;
+            return self.gathered_rows(&window, &map).map(Some);
+        }
+        // Any other route that reads neither row weights nor an analysis mask cannot skip the
+        // design rows whose lag window crosses a join of a block resample, and a join pairs
+        // values observed apart. Its replicate is a contiguous sub-window instead, which has no
+        // join: a subsample of a dependent series (its spread is wider than the full series',
+        // so the check is conservative where the window is short).
+        let (start, width) = subsample_bounds(rows, span, rng);
+        truncated_series(&window, start, start + width)
     }
 
     /// The gathered series of the rows `map` (positions of `series`), with a design row whose lag
@@ -3706,6 +3797,8 @@ impl PreparedRefit<'_> {
             },
             passed,
             informative: true,
+            standardised_bias: Arc::from([]),
+            standardised_bias_norm: None,
             replicates: 0,
             failure: (!passed).then(|| {
                 Arc::from(format!(

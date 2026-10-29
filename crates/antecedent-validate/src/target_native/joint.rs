@@ -23,6 +23,11 @@
 //!   `R − 1` degrees of freedom, so `D²` is about `k / R` and a clean case rejects far less
 //!   often than `alpha`; a declared violation is detected only when its bias exceeds about
 //!   `sqrt(χ²_{k, 1−alpha})` replicate standard deviations.
+//! * Centred on the original, the check cannot see an influence that is linear in which rows are
+//!   present: under circular subset windows a mean-type statistic has a replicate mean equal to
+//!   the original whatever the outlier, while the replicate spread (the standardiser) grows with
+//!   it. Subset stability is therefore weakly powered against one influential observation; the
+//!   `standardised_bias` fields report the effect size so that is visible.
 //! * Nothing here is a calibration claim. The clean-case rejection rate and the power against
 //!   planted violations are separate measurements.
 //!
@@ -96,6 +101,24 @@ pub fn joint_mahalanobis(
     replicates: &[f64],
     k: usize,
 ) -> Result<JointStatistic, ValidationError> {
+    joint_mahalanobis_with_bias(expected, replicates, k).map(|(statistic, _)| statistic)
+}
+
+/// [`joint_mahalanobis`] and the per-coordinate standardised bias: replicate mean minus
+/// `expected`, in units of each coordinate's replicate standard deviation. A coordinate that
+/// never varies has bias `0` when the mean equals `expected` and `±∞` otherwise.
+///
+/// The overall effect size is `sqrt(statistic.value)`, the length of the same shift under the
+/// full covariance.
+///
+/// # Errors
+///
+/// As [`joint_mahalanobis`].
+pub fn joint_mahalanobis_with_bias(
+    expected: &[f64],
+    replicates: &[f64],
+    k: usize,
+) -> Result<(JointStatistic, Vec<f64>), ValidationError> {
     if k == 0 || expected.len() != k || replicates.len() % k != 0 {
         return Err(ValidationError::NotApplicable {
             message: "joint statistic: expected vector and replicate rows disagree in dimension",
@@ -112,14 +135,28 @@ pub fn joint_mahalanobis(
         return Err(ValidationError::estimation_msg("a refuted target vector is not finite"));
     }
     let (mean, mut cov) = mean_and_covariance(replicates, k);
+    let bias: Vec<f64> = (0..k)
+        .map(|i| {
+            let shift = mean[i] - expected[i];
+            let sd = cov[i * k + i].sqrt();
+            if sd > 0.0 {
+                shift / sd
+            } else if shift == 0.0 {
+                0.0
+            } else {
+                f64::INFINITY.copysign(shift)
+            }
+        })
+        .collect();
     let diff: Vec<f64> = expected.iter().zip(&mean).map(|(e, m)| e - m).collect();
     let value = mahalanobis_squared(&diff, &mut cov, k)?;
-    Ok(JointStatistic {
+    let statistic = JointStatistic {
         kind: JointStatisticKind::MahalanobisChiSquare,
         value,
         df: k,
         p_value: Some(chi_square_sf(value, k)),
-    })
+    };
+    Ok((statistic, bias))
 }
 
 /// Column means and the unbiased covariance (`k × k`, row-major) of `r × k` rows.
@@ -397,6 +434,77 @@ mod tests {
         let one = joint_mahalanobis(&[0.3, -0.2], &base, 2).unwrap();
         let two = joint_mahalanobis(&[0.3e6, -0.2e-6], &scaled, 2).unwrap();
         assert!((one.value - two.value).abs() < 1e-6 * one.value.max(1.0));
+    }
+
+    /// The standardised bias on a case with a closed form: replicates `0..=4` have mean 2 and
+    /// variance 2.5, so an expectation of 0 is `2 / sqrt(2.5)` replicate standard deviations
+    /// away, and with one coordinate the overall length equals it.
+    #[test]
+    fn the_standardised_bias_is_the_shift_in_replicate_standard_deviations() {
+        let (stat, bias) =
+            joint_mahalanobis_with_bias(&[0.0], &[0.0, 1.0, 2.0, 3.0, 4.0], 1).unwrap();
+        let exact = 2.0 / 2.5_f64.sqrt();
+        assert!((bias[0] - exact).abs() < 1e-12);
+        assert!((stat.value.sqrt() - exact).abs() < 1e-12);
+        // Two coordinates: marginal biases carry their own spread and sign; the norm is the
+        // Mahalanobis length, at least the largest marginal when they are correlated.
+        let mut reps = Vec::new();
+        for i in 0..5 {
+            let a = f64::from(i);
+            reps.extend([a, 10.0 * a + if i % 2 == 0 { 1.0 } else { -1.0 }]);
+        }
+        let (stat, bias) = joint_mahalanobis_with_bias(&[3.0, 10.0], &reps, 2).unwrap();
+        assert!((bias[0] - (2.0 - 3.0) / 2.5_f64.sqrt()).abs() < 1e-12);
+        assert!(bias[1] > 0.0);
+        assert!(stat.value.sqrt() >= bias[0].abs().max(bias[1].abs()) - 1e-12);
+    }
+
+    /// On the iid mean problem the bootstrap bias is zero in expectation, so the standardised
+    /// bias is the Monte Carlo error of the replicate mean over one replicate's spread: its
+    /// root mean square across data sets is `sqrt((R − 1) / (R − 3)) / sqrt(R)`.
+    #[test]
+    fn on_the_iid_mean_problem_the_standardised_bias_is_the_monte_carlo_error_over_the_spread() {
+        const REPS: usize = 300;
+        const R: usize = 30;
+        let mut draw = Normals(0xABCD_EF01_2345_6789);
+        let mut square = 0.0;
+        for _ in 0..REPS {
+            let (original, replicates) = bootstrap_problem(&mut draw, 40, R, 1);
+            let (stat, bias) = joint_mahalanobis_with_bias(&original, &replicates, 1).unwrap();
+            assert!((bias[0].abs() - stat.value.sqrt()).abs() < 1e-9);
+            square += bias[0] * bias[0];
+        }
+        let rms = (square / REPS as f64).sqrt();
+        let exact = (((R - 1) as f64) / ((R - 3) as f64) / R as f64).sqrt();
+        assert!((rms - exact).abs() < 0.2 * exact, "rms {rms} against {exact}");
+    }
+
+    /// Why subset stability is weakly powered against an influential observation: the check
+    /// compares the replicate mean with the original, and a statistic that is linear in row
+    /// inclusion (a mean score) has a replicate mean equal to the original under circular
+    /// windows, because every period is in the same number of windows. The discrepancy is then
+    /// exactly zero for any outlier size, while the replicate spread grows with it. This is
+    /// inherent to a mean-centred, spread-standardised check, not a defect of the windows.
+    #[test]
+    fn a_linear_statistic_is_exactly_stable_under_circular_windows_whatever_the_outlier() {
+        let n = 20_usize;
+        let width = 16_usize;
+        for outlier in [0.0, 10.0, 1.0e3, 1.0e6] {
+            let mut x: Vec<f64> = (0..n).map(|i| ((i * 7) % 5) as f64 * 0.1).collect();
+            x[9] += outlier;
+            let original = x.iter().sum::<f64>() / n as f64;
+            // Every circular window once: the exact replicate law of the check as the
+            // replicate count grows.
+            let replicates: Vec<f64> = (0..n)
+                .map(|start| (0..width).map(|i| x[(start + i) % n]).sum::<f64>() / width as f64)
+                .collect();
+            let stat = joint_mahalanobis(&[original], &replicates, 1).unwrap();
+            assert!(stat.value < 1e-12 * (1.0 + outlier * outlier), "{outlier}: {}", stat.value);
+            let (_, cov) = mean_and_covariance(&replicates, 1);
+            if outlier > 0.0 {
+                assert!(cov[0].sqrt() > 0.0);
+            }
+        }
     }
 
     #[test]

@@ -47,7 +47,9 @@ pub use engine::{
     TargetPerturbation, TargetRefit, TargetRefitError, TargetRefutationConfig, TargetRefutationRun,
     TargetRefuterRefusal, run_target_plan, target_refuter_stream,
 };
-pub use joint::{JointStatistic, JointStatisticKind, joint_mahalanobis};
+pub use joint::{
+    JointStatistic, JointStatisticKind, joint_mahalanobis, joint_mahalanobis_with_bias,
+};
 
 /// Domain tag of a refutation-target identity.
 const TARGET_IDENTITY_TAG: &str = "antecedent.refutation_target";
@@ -529,6 +531,13 @@ pub struct TargetRefutationReport {
     pub refuted: Arc<[f64]>,
     /// Joint statistic over the whole vector.
     pub statistic: JointStatistic,
+    /// Replicate mean minus the expected vector, per coordinate, in units of that coordinate's
+    /// replicate standard deviation (the effect size behind the joint discrepancy). Empty for a
+    /// check with no replicate law.
+    pub standardised_bias: Arc<[f64]>,
+    /// Length of the same shift under the replicate covariance, `sqrt` of the joint squared
+    /// Mahalanobis discrepancy; `None` for a check with no replicate law.
+    pub standardised_bias_norm: Option<f64>,
     /// Whether the check passed its configured threshold.
     pub passed: bool,
     /// Whether the check could speak to the target (enough replicates, a usable covariance).

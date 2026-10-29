@@ -231,6 +231,20 @@ fn a_procedure_that_invents_a_dose_trend_fails_the_placebo_on_the_whole_vector()
 }
 
 #[test]
+fn replicate_reports_carry_the_standardised_bias_behind_the_discrepancy() {
+    let refit = AdjustmentRefit::new(simulate(600, 12), 0.4);
+    let plan = TargetRefutationPlan::for_target(world_target(), TargetSuite::Placebo);
+    let run = run_target_plan(&plan, &refit, &config(), &ExecutionContext::for_tests(5)).unwrap();
+    let placebo = report(&run, TargetRefuterKind::PlaceboTreatment);
+    let norm = placebo.standardised_bias_norm.unwrap();
+    assert!((norm - placebo.statistic.value.sqrt()).abs() < 1e-12);
+    assert!(!placebo.standardised_bias.is_empty());
+    assert!(placebo.standardised_bias.iter().all(|b| b.is_finite()));
+    // The failing placebo is a large shift, not a marginal one.
+    assert!(norm > 1.0);
+}
+
+#[test]
 fn reports_are_deterministic_and_independent_of_the_thread_count() {
     let plan = TargetRefutationPlan::for_target(world_target(), TargetSuite::Full);
     let a = run_target_plan(

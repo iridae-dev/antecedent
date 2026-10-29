@@ -369,7 +369,8 @@ fn mediator_placebo(input: &ExtraInput<'_>) -> Result<Extras, CausalError> {
         (!passed).then(|| {
             Arc::from(format!(
                 "with the mediator permuted the effect is {mean:.4} where the cross-world \
-                 functional implies {expected:.4} (joint chi-square {:.3}, p = {p:.4})",
+                 functional implies {expected:.4} (standardised discrepancy {:.3}, reference tail {p:.4}; a resampling diagnostic, not a \
+                 hypothesis test)",
                 statistic.value
             ))
         }),
@@ -470,8 +471,9 @@ fn distribution_placebo(input: &ExtraInput<'_>) -> Result<Extras, CausalError> {
         (!passed).then(|| {
             Arc::from(format!(
                 "with the intervened variable permuted the interventional law should be the \
-                 observed marginal law of the outcome; it lies outside the refit replicate law \
-                 (joint chi-square {:.3} on {kept} df, p = {p:.4})",
+                 observed marginal law of the outcome; it is further from the refit replicate centre than the tolerance \
+                 (standardised discrepancy {:.3} on {kept} df, reference tail {p:.4}; a \
+                 resampling diagnostic, not a hypothesis test)",
                 statistic.value
             ))
         }),
