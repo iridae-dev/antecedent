@@ -3946,7 +3946,7 @@ uncertainty_basis = "point_only_cell|cell:no_interval_reported"
 uncertainty_by_structure = ["explicit=none|point_only_cell|cell:no_interval_reported"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/checked_attribution.rs"]
+implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
 provenance = ["estimate.gcm.fit", "estimate.gcm.fit"]
 evidence = ["crates/antecedent/tests/checked_attribution_route_evidence.rs::all_frequentist_static_dag_attribution_plans_are_sealed_and_dependency_refused"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_attribution_route_evidence.rs::all_frequentist_static_dag_attribution_plans_are_sealed_and_dependency_refused"]
@@ -4002,7 +4002,7 @@ uncertainty_basis = "asserted_in_test|test:crates/antecedent/tests/temporal_attr
 uncertainty_by_structure = ["explicit=posterior|asserted_in_test|test:crates/antecedent/tests/temporal_attribution_route_evidence.rs"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/checked_attribution.rs"]
+implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
 provenance = ["estimate.gcm.fit", "estimate.gcm.fit"]
 evidence = ["crates/antecedent/tests/temporal_attribution_route_evidence.rs::temporal_attribution_frequentist_known_truth"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_attribution_route_evidence.rs::temporal_attribution_frequentist_known_truth"]
@@ -4117,7 +4117,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/compile_graph_posterior.rs", "crates/antecedent-estimate/src/bayesian/gcomp.rs"]
 provenance = ["estimate.response.temporal.bayesian", "estimate.response.temporal.bayesian"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
 
 [[method]]
 id = "method.AverageDerivative.TemporalCpdag.temporal.response.gcomp.frequentist"
@@ -4145,7 +4145,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/panel_path.rs", "crates/antecedent/src/analysis/execute/temporal_response_execution.rs", "crates/antecedent-io-core/src/contract_section/verify.rs"]
 provenance = ["estimate.temporal_response.gcomp", "estimate.temporal_response.gcomp"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
 
 [[method]]
 id = "method.AverageDerivative.TemporalDag.response.temporal.bayesian.bayesian"
@@ -4229,7 +4229,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/compile_graph_posterior.rs", "crates/antecedent-estimate/src/bayesian/gcomp.rs"]
 provenance = ["estimate.response.temporal.bayesian", "estimate.response.temporal.bayesian"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
 
 [[method]]
 id = "method.AverageDerivative.TemporalPag.temporal.response.gcomp.frequentist"
@@ -4257,7 +4257,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/panel_path.rs", "crates/antecedent/src/analysis/execute/temporal_response_execution.rs", "crates/antecedent-io-core/src/contract_section/verify.rs"]
 provenance = ["estimate.temporal_response.gcomp", "estimate.temporal_response.gcomp"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
 
 [[method]]
 id = "method.AverageEffect.Admg.functional.effect.bayesian"
@@ -4282,7 +4282,7 @@ uncertainty_basis = "measured_record|coverage_record:cov.average_effect.admg.bay
 uncertainty_by_structure = ["explicit=posterior|measured_record|coverage_record:cov.average_effect.admg.bayesian.posterior_quantile.l90.average_effect_admg_frontdoor_bayesian_nominal_coverage", "accepted=posterior|measured_record|coverage_record:cov.average_effect.admg.bayesian.posterior_quantile.l90.average_effect_admg_frontdoor_bayesian_nominal_coverage", "graph_posterior=posterior|measured_record|coverage_record:cov.average_effect.admg.bayesian.posterior_quantile.l90.average_effect_admg_graph_posterior_bayesian_nominal_coverage"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs"]
+implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/checked_admg_graph_posterior_effect_route_evidence.rs::admg_graph_posterior_effect_is_sealed_for_both_inference_modes", "crates/antecedent/tests/admg_functional_effect_route_evidence.rs::admg_explicit_bayesian_none", "crates/antecedent/tests/admg_functional_effect_route_evidence.rs::admg_explicit_bayesian_cheap", "crates/antecedent/tests/admg_functional_effect_route_evidence.rs::admg_explicit_bayesian_full"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_admg_graph_posterior_effect_route_evidence.rs::admg_graph_posterior_effect_is_sealed_for_both_inference_modes"]
@@ -4310,7 +4310,7 @@ uncertainty_basis = "measured_record|coverage_record:cov.average_effect.admg.fre
 uncertainty_by_structure = ["explicit=design_aware_resampling|measured_record|coverage_record:cov.average_effect.admg.frequentist.bootstrap_se.l90.average_effect_admg_frontdoor_frequentist_nominal_coverage", "accepted=design_aware_resampling|measured_record|coverage_record:cov.average_effect.admg.frequentist.bootstrap_se.l90.average_effect_admg_frontdoor_frequentist_nominal_coverage", "graph_posterior=design_aware_resampling|measured_record|coverage_record:cov.average_effect.admg.frequentist.bootstrap_se.l90.average_effect_admg_graph_posterior_frequentist_nominal_coverage"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs"]
+implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/admg_functional_effect_route_evidence.rs::admg_default_estimator_replay_uses_resolved_commitment", "crates/antecedent/tests/admg_functional_effect_route_evidence.rs::admg_explicit_frequentist_cheap", "crates/antecedent/tests/admg_functional_effect_route_evidence.rs::admg_explicit_frequentist_full", "crates/antecedent/tests/admg_functional_effect_route_evidence.rs::admg_accepted_frequentist_none"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/admg_functional_effect_route_evidence.rs::admg_default_estimator_replay_uses_resolved_commitment"]
@@ -4758,7 +4758,7 @@ uncertainty_basis = "measured_record|coverage_record:cov.average_effect.dag.freq
 uncertainty_by_structure = ["explicit=analytic,design_aware_resampling|measured_record|coverage_record:cov.average_effect.dag.frequentist.analytic_se.l90.glm_adjustment_binary_outcome_nominal_coverage", "accepted=analytic,design_aware_resampling|measured_record|coverage_record:cov.average_effect.dag.frequentist.analytic_se.l90.glm_adjustment_binary_outcome_nominal_coverage"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-implementation = ["crates/antecedent/src/analysis/execute/dispatch.rs", "crates/antecedent/src/analysis/execute/streamed_nuisance_tests.rs", "crates/antecedent/src/strategy_table/workspace_tests.rs"]
+implementation = ["crates/antecedent/src/analysis/execute/dispatch.rs", "crates/antecedent/src/analysis/execute/streamed_nuisance_tests.rs", "crates/antecedent/src/planner/tests.rs"]
 provenance = ["estimate.propensity", "estimate.propensity_weighting"]
 evidence = ["crates/antecedent/tests/checked_propensity_route_evidence.rs::propensity_estimators_retain_procedure_through_public_lifecycle"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_propensity_route_evidence.rs::propensity_estimators_retain_procedure_through_public_lifecycle"]
@@ -4898,7 +4898,7 @@ uncertainty_basis = "asserted_in_test|test:crates/antecedent/tests/temporal_admg
 uncertainty_by_structure = ["explicit=design_aware_resampling|asserted_in_test|test:crates/antecedent/tests/temporal_admg_route_evidence.rs", "accepted=design_aware_resampling|asserted_in_test|test:crates/antecedent/tests/temporal_admg_route_evidence.rs", "graph_posterior=design_aware_resampling|asserted_in_test|test:crates/antecedent/tests/temporal_admg_route_evidence.rs"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs"]
+implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_average_effect_graph_posterior", "crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_average_effect_explicit_and_accepted"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_average_effect_graph_posterior"]
@@ -4926,7 +4926,7 @@ uncertainty_basis = "asserted_in_test|test:crates/antecedent/tests/temporal_admg
 uncertainty_by_structure = ["explicit=design_aware_resampling|asserted_in_test|test:crates/antecedent/tests/temporal_admg_route_evidence.rs", "accepted=design_aware_resampling|asserted_in_test|test:crates/antecedent/tests/temporal_admg_route_evidence.rs", "graph_posterior=design_aware_resampling|asserted_in_test|test:crates/antecedent/tests/temporal_admg_route_evidence.rs"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs"]
+implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_average_effect_explicit_and_accepted", "crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_average_effect_graph_posterior"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_average_effect_explicit_and_accepted"]
@@ -5038,7 +5038,7 @@ uncertainty_basis = "point_only_cell|cell:no_interval_reported"
 uncertainty_by_structure = ["explicit=none|point_only_cell|cell:no_interval_reported"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/checked_attribution.rs"]
+implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
 provenance = ["estimate.gcm.fit", "estimate.gcm.fit"]
 evidence = ["crates/antecedent/tests/checked_attribution_route_evidence.rs::all_frequentist_static_dag_attribution_plans_are_sealed_and_dependency_refused"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_attribution_route_evidence.rs::all_frequentist_static_dag_attribution_plans_are_sealed_and_dependency_refused"]
@@ -5094,7 +5094,7 @@ uncertainty_basis = "asserted_in_test|test:crates/antecedent/tests/temporal_attr
 uncertainty_by_structure = ["explicit=posterior|asserted_in_test|test:crates/antecedent/tests/temporal_attribution_route_evidence.rs"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/checked_attribution.rs"]
+implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
 provenance = ["estimate.gcm.fit", "estimate.gcm.fit"]
 evidence = ["crates/antecedent/tests/temporal_attribution_route_evidence.rs::temporal_attribution_frequentist_known_truth"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_attribution_route_evidence.rs::temporal_attribution_frequentist_known_truth"]
@@ -5122,7 +5122,7 @@ uncertainty_basis = "estimator_records|estimator:functional.effect:Bayesian:stat
 uncertainty_by_structure = ["explicit=design_aware_resampling,posterior|estimator_records|estimator:functional.effect:Bayesian:static:explicit", "accepted=design_aware_resampling,posterior|estimator_records|estimator:functional.effect:Bayesian:static:accepted"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs"]
+implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/admg_conditional_effect.rs::admg_conditional_effect_coordinates_execute_from_the_retained_plan"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/admg_conditional_effect.rs::admg_conditional_effect_coordinates_execute_from_the_retained_plan"]
@@ -5150,7 +5150,7 @@ uncertainty_basis = "estimator_records|estimator:functional.effect:Frequentist:s
 uncertainty_by_structure = ["explicit=design_aware_resampling,posterior|estimator_records|estimator:functional.effect:Frequentist:static:explicit", "accepted=design_aware_resampling,posterior|estimator_records|estimator:functional.effect:Frequentist:static:accepted"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs"]
+implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/admg_conditional_effect.rs::admg_conditional_effect_coordinates_execute_from_the_retained_plan"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/admg_conditional_effect.rs::admg_conditional_effect_coordinates_execute_from_the_retained_plan"]
@@ -5374,7 +5374,7 @@ uncertainty_basis = "measured_record|coverage_record:cov.counterfactual.dag.baye
 uncertainty_by_structure = ["explicit=posterior|measured_record|coverage_record:cov.counterfactual.dag.bayesian.posterior_quantile.l90.counterfactual_bayesian_mean_ite_boundary_within_band", "accepted=posterior|measured_record|coverage_record:cov.counterfactual.dag.bayesian.posterior_quantile.l90.counterfactual_bayesian_mean_ite_boundary_within_band"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/checked_attribution.rs"]
+implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
 provenance = ["estimate.gcm.fit", "estimate.gcm.fit"]
 evidence = ["crates/antecedent/tests/checked_bayesian_counterfactual_route_evidence.rs::bayesian_counterfactual_accepted_and_explicit_lifecycle_exposes_dependency_boundary"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_bayesian_counterfactual_route_evidence.rs::bayesian_counterfactual_accepted_and_explicit_lifecycle_exposes_dependency_boundary"]
@@ -5402,7 +5402,7 @@ uncertainty_basis = "point_only_cell|cell:no_interval_reported"
 uncertainty_by_structure = ["explicit=none|point_only_cell|cell:no_interval_reported", "accepted=none|point_only_cell|cell:no_interval_reported"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/checked_attribution.rs"]
+implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
 provenance = ["estimate.gcm.fit", "estimate.gcm.fit"]
 evidence = ["crates/antecedent/tests/checked_counterfactual_route_evidence.rs::checked_counterfactual_accepted_and_explicit_retain_worlds_and_refuse_portable_replay"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_counterfactual_route_evidence.rs::checked_counterfactual_accepted_and_explicit_retain_worlds_and_refuse_portable_replay"]
@@ -5433,7 +5433,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.temporal_linear", "estimate.temporal_linear_adjustment"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs::all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 
 [[method]]
 id = "method.Counterfactual.TemporalCpdag.temporal.linear.adjustment.frequentist"
@@ -5461,7 +5461,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.temporal_linear", "estimate.temporal_linear_adjustment"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs::all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 
 [[method]]
 id = "method.Counterfactual.TemporalDag.bayesian.temporal.gcomp.bayesian"
@@ -5545,7 +5545,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.temporal_linear", "estimate.temporal_linear_adjustment"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs::all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 
 [[method]]
 id = "method.Counterfactual.TemporalPag.temporal.linear.adjustment.frequentist"
@@ -5573,7 +5573,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.temporal_linear", "estimate.temporal_linear_adjustment"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs::all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 
 [[method]]
 id = "method.DirectionalDerivative.Dag.response.gam_derivative.bayesian"
@@ -5657,7 +5657,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/compile_graph_posterior.rs", "crates/antecedent-estimate/src/bayesian/gcomp.rs"]
 provenance = ["estimate.response.temporal.bayesian", "estimate.response.temporal.bayesian"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
 
 [[method]]
 id = "method.DirectionalDerivative.TemporalCpdag.temporal.response.gcomp.frequentist"
@@ -5685,7 +5685,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/panel_path.rs", "crates/antecedent/src/analysis/execute/temporal_response_execution.rs", "crates/antecedent-io-core/src/contract_section/verify.rs"]
 provenance = ["estimate.temporal_response.gcomp", "estimate.temporal_response.gcomp"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
 
 [[method]]
 id = "method.DirectionalDerivative.TemporalDag.response.temporal.bayesian.bayesian"
@@ -5769,7 +5769,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/compile_graph_posterior.rs", "crates/antecedent-estimate/src/bayesian/gcomp.rs"]
 provenance = ["estimate.response.temporal.bayesian", "estimate.response.temporal.bayesian"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
 
 [[method]]
 id = "method.DirectionalDerivative.TemporalPag.temporal.response.gcomp.frequentist"
@@ -5797,7 +5797,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/panel_path.rs", "crates/antecedent/src/analysis/execute/temporal_response_execution.rs", "crates/antecedent-io-core/src/contract_section/verify.rs"]
 provenance = ["estimate.temporal_response.gcomp", "estimate.temporal_response.gcomp"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
 
 [[method]]
 id = "method.Elasticity.Dag.response.kennedy_dr.bayesian"
@@ -5881,7 +5881,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/compile_graph_posterior.rs", "crates/antecedent-estimate/src/bayesian/gcomp.rs"]
 provenance = ["estimate.response.temporal.bayesian", "estimate.response.temporal.bayesian"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
 
 [[method]]
 id = "method.Elasticity.TemporalCpdag.temporal.response.gcomp.frequentist"
@@ -5909,7 +5909,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/panel_path.rs", "crates/antecedent/src/analysis/execute/temporal_response_execution.rs", "crates/antecedent-io-core/src/contract_section/verify.rs"]
 provenance = ["estimate.temporal_response.gcomp", "estimate.temporal_response.gcomp"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
 
 [[method]]
 id = "method.Elasticity.TemporalDag.response.temporal.bayesian.bayesian"
@@ -5993,7 +5993,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/compile_graph_posterior.rs", "crates/antecedent-estimate/src/bayesian/gcomp.rs"]
 provenance = ["estimate.response.temporal.bayesian", "estimate.response.temporal.bayesian"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
 
 [[method]]
 id = "method.Elasticity.TemporalPag.temporal.response.gcomp.frequentist"
@@ -6021,7 +6021,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/panel_path.rs", "crates/antecedent/src/analysis/execute/temporal_response_execution.rs", "crates/antecedent-io-core/src/contract_section/verify.rs"]
 provenance = ["estimate.temporal_response.gcomp", "estimate.temporal_response.gcomp"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
 
 [[method]]
 id = "method.InterferenceQuery.Dag.interference.bayesian_gaussian.bayesian"
@@ -6102,7 +6102,7 @@ uncertainty_basis = "measured_record|coverage_record:cov.intervention_response.a
 uncertainty_by_structure = ["explicit=posterior|measured_record|coverage_record:cov.intervention_response.admg.bayesian.posterior_quantile.l90.intervention_response_admg_bayesian_accepted_nominal_coverage", "accepted=posterior|measured_record|coverage_record:cov.intervention_response.admg.bayesian.posterior_quantile.l90.intervention_response_admg_bayesian_accepted_nominal_coverage", "graph_posterior=posterior|measured_record|coverage_record:cov.intervention_response.admg.bayesian.posterior_quantile.l90.intervention_response_admg_graph_posterior_bayesian_nominal_coverage"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs"]
+implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/admg_intervention_response_route_evidence.rs::graph_posterior_admg_intervention_response_is_sealed_across_refuters", "crates/antecedent/tests/admg_intervention_response_route_evidence.rs::explicit_and_accepted_admg_scalar_response_is_sealed_for_both_inference_modes", "crates/antecedent/tests/admg_intervention_response_route_evidence.rs::explicit_and_accepted_admg_scalar_response_runs_plugin_level_refuters"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/admg_intervention_response_route_evidence.rs::graph_posterior_admg_intervention_response_is_sealed_across_refuters"]
@@ -6130,7 +6130,7 @@ uncertainty_basis = "measured_record|coverage_record:cov.intervention_response.a
 uncertainty_by_structure = ["explicit=design_aware_resampling|measured_record|coverage_record:cov.intervention_response.admg.frequentist.bootstrap_se.l95.intervention_response_admg_frequentist_accepted_nominal_coverage.a_1", "accepted=design_aware_resampling|measured_record|coverage_record:cov.intervention_response.admg.frequentist.bootstrap_se.l95.intervention_response_admg_frequentist_accepted_nominal_coverage.a_1", "graph_posterior=design_aware_resampling|measured_record|coverage_record:cov.intervention_response.admg.frequentist.bootstrap_se.l95.intervention_response_admg_graph_posterior_frequentist_nominal_coverage.a_1"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs"]
+implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/admg_intervention_response_route_evidence.rs::graph_posterior_admg_intervention_response_is_sealed_across_refuters", "crates/antecedent/tests/admg_intervention_response_route_evidence.rs::explicit_and_accepted_admg_scalar_response_is_sealed_for_both_inference_modes", "crates/antecedent/tests/admg_intervention_response_route_evidence.rs::explicit_and_accepted_admg_scalar_response_runs_plugin_level_refuters"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/admg_intervention_response_route_evidence.rs::graph_posterior_admg_intervention_response_is_sealed_across_refuters"]
@@ -6382,7 +6382,7 @@ uncertainty_basis = "asserted_in_test|test:crates/antecedent/tests/temporal_admg
 uncertainty_by_structure = ["explicit=design_aware_resampling|asserted_in_test|test:crates/antecedent/tests/temporal_admg_route_evidence.rs", "accepted=design_aware_resampling|asserted_in_test|test:crates/antecedent/tests/temporal_admg_route_evidence.rs", "graph_posterior=design_aware_resampling|asserted_in_test|test:crates/antecedent/tests/temporal_admg_route_evidence.rs"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs"]
+implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_intervention_response_graph_posterior", "crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_intervention_response_explicit_and_accepted"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_intervention_response_graph_posterior"]
@@ -6410,7 +6410,7 @@ uncertainty_basis = "asserted_in_test|test:crates/antecedent/tests/temporal_admg
 uncertainty_by_structure = ["explicit=design_aware_resampling|asserted_in_test|test:crates/antecedent/tests/temporal_admg_route_evidence.rs", "accepted=design_aware_resampling|asserted_in_test|test:crates/antecedent/tests/temporal_admg_route_evidence.rs", "graph_posterior=design_aware_resampling|asserted_in_test|test:crates/antecedent/tests/temporal_admg_route_evidence.rs"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs"]
+implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_intervention_response_graph_posterior", "crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_intervention_response_explicit_and_accepted"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_intervention_response_graph_posterior"]
@@ -6777,7 +6777,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.temporal_linear", "estimate.temporal_linear_adjustment"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs::all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 
 [[method]]
 id = "method.InterventionalDistribution.TemporalCpdag.temporal.linear.adjustment.frequentist"
@@ -6805,7 +6805,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.temporal_linear", "estimate.temporal_linear_adjustment"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs::all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 
 [[method]]
 id = "method.InterventionalDistribution.TemporalDag.temporal.linear.adjustment.bayesian"
@@ -6889,7 +6889,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.temporal_linear", "estimate.temporal_linear_adjustment"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs::all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 
 [[method]]
 id = "method.InterventionalDistribution.TemporalPag.temporal.linear.adjustment.frequentist"
@@ -6917,7 +6917,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.temporal_linear", "estimate.temporal_linear_adjustment"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs::all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 
 [[method]]
 id = "method.MediationEffect.Dag.mediation.linear.bayesian"
@@ -7057,7 +7057,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.temporal_linear", "estimate.temporal_linear_adjustment"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs::all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 
 [[method]]
 id = "method.NestedCounterfactualEffect.TemporalCpdag.temporal.linear.adjustment.frequentist"
@@ -7085,7 +7085,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.temporal_linear", "estimate.temporal_linear_adjustment"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs::all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 
 [[method]]
 id = "method.NestedCounterfactualEffect.TemporalDag.temporal.linear.adjustment.bayesian"
@@ -7169,7 +7169,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.temporal_linear", "estimate.temporal_linear_adjustment"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs::all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 
 [[method]]
 id = "method.NestedCounterfactualEffect.TemporalPag.temporal.linear.adjustment.frequentist"
@@ -7197,7 +7197,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.temporal_linear", "estimate.temporal_linear_adjustment"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs::all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 
 [[method]]
 id = "method.PathSpecificEffect.Dag.functional.effect.bayesian"
@@ -7222,7 +7222,7 @@ uncertainty_basis = "measured_record|coverage_record:cov.path_specific_effect.da
 uncertainty_by_structure = ["explicit=design_aware_resampling,posterior|measured_record|coverage_record:cov.path_specific_effect.dag.bayesian.posterior_quantile.l90.path_specific_bayesian_nominal_90_coverage", "accepted=design_aware_resampling,posterior|measured_record|coverage_record:cov.path_specific_effect.dag.bayesian.posterior_quantile.l90.path_specific_bayesian_nominal_90_coverage"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs"]
+implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/dag_path_specific_functional_effect_route_evidence.rs::path_specific_dag_explicit_bayesian_none", "crates/antecedent/tests/dag_path_specific_functional_effect_route_evidence.rs::path_specific_dag_explicit_bayesian_cheap", "crates/antecedent/tests/dag_path_specific_functional_effect_route_evidence.rs::path_specific_dag_explicit_bayesian_full", "crates/antecedent/tests/dag_path_specific_functional_effect_route_evidence.rs::path_specific_dag_accepted_bayesian_none"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/dag_path_specific_functional_effect_route_evidence.rs::path_specific_dag_explicit_bayesian_none"]
@@ -7250,7 +7250,7 @@ uncertainty_basis = "measured_record|coverage_record:cov.path_specific_effect.da
 uncertainty_by_structure = ["explicit=design_aware_resampling,posterior|measured_record|coverage_record:cov.path_specific_effect.dag.bayesian.posterior_quantile.l90.path_specific_bayesian_nominal_90_coverage", "accepted=design_aware_resampling,posterior|measured_record|coverage_record:cov.path_specific_effect.dag.bayesian.posterior_quantile.l90.path_specific_bayesian_nominal_90_coverage"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs"]
+implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/dag_path_specific_functional_effect_route_evidence.rs::path_specific_dag_explicit_frequentist_none", "crates/antecedent/tests/dag_path_specific_functional_effect_route_evidence.rs::path_specific_dag_explicit_frequentist_cheap", "crates/antecedent/tests/dag_path_specific_functional_effect_route_evidence.rs::path_specific_dag_explicit_frequentist_full", "crates/antecedent/tests/dag_path_specific_functional_effect_route_evidence.rs::path_specific_dag_accepted_frequentist_none"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/dag_path_specific_functional_effect_route_evidence.rs::path_specific_dag_explicit_frequentist_none"]
@@ -7281,7 +7281,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.temporal_linear", "estimate.temporal_linear_adjustment"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs::all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 
 [[method]]
 id = "method.PathSpecificEffect.TemporalCpdag.temporal.linear.adjustment.frequentist"
@@ -7309,7 +7309,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.temporal_linear", "estimate.temporal_linear_adjustment"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs::all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 
 [[method]]
 id = "method.PathSpecificEffect.TemporalDag.temporal.linear.adjustment.bayesian"
@@ -7393,7 +7393,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.temporal_linear", "estimate.temporal_linear_adjustment"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs::all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 
 [[method]]
 id = "method.PathSpecificEffect.TemporalPag.temporal.linear.adjustment.frequentist"
@@ -7421,7 +7421,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.temporal_linear", "estimate.temporal_linear_adjustment"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs::all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 
 [[method]]
 id = "method.PointDerivative.Dag.response.kennedy_dr.bayesian"
@@ -7505,7 +7505,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/compile_graph_posterior.rs", "crates/antecedent-estimate/src/bayesian/gcomp.rs"]
 provenance = ["estimate.response.temporal.bayesian", "estimate.response.temporal.bayesian"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
 
 [[method]]
 id = "method.PointDerivative.TemporalCpdag.temporal.response.gcomp.frequentist"
@@ -7533,7 +7533,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/panel_path.rs", "crates/antecedent/src/analysis/execute/temporal_response_execution.rs", "crates/antecedent-io-core/src/contract_section/verify.rs"]
 provenance = ["estimate.temporal_response.gcomp", "estimate.temporal_response.gcomp"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
 
 [[method]]
 id = "method.PointDerivative.TemporalDag.response.temporal.bayesian.bayesian"
@@ -7617,7 +7617,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/compile_graph_posterior.rs", "crates/antecedent-estimate/src/bayesian/gcomp.rs"]
 provenance = ["estimate.response.temporal.bayesian", "estimate.response.temporal.bayesian"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
 
 [[method]]
 id = "method.PointDerivative.TemporalPag.temporal.response.gcomp.frequentist"
@@ -7645,7 +7645,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/panel_path.rs", "crates/antecedent/src/analysis/execute/temporal_response_execution.rs", "crates/antecedent-io-core/src/contract_section/verify.rs"]
 provenance = ["estimate.temporal_response.gcomp", "estimate.temporal_response.gcomp"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
 
 [[method]]
 id = "method.PulseEffect.TemporalCpdag.bayesian.temporal.gcomp.bayesian"
@@ -7838,7 +7838,7 @@ uncertainty_basis = "measured_record|coverage_record:cov.response_curve.admg.bay
 uncertainty_by_structure = ["explicit=posterior|measured_record|coverage_record:cov.response_curve.admg.bayesian.posterior_quantile.l95.response_curve_admg_bayesian_accepted_pointwise_nominal_coverage.a_0", "accepted=posterior|measured_record|coverage_record:cov.response_curve.admg.bayesian.posterior_quantile.l95.response_curve_admg_bayesian_accepted_pointwise_nominal_coverage.a_0", "graph_posterior=posterior|measured_record|coverage_record:cov.response_curve.admg.bayesian.posterior_quantile.l95.response_curve_admg_graph_posterior_bayesian_pointwise_nominal_coverage.a_0"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs"]
+implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/admg_response_curve_route_evidence.rs::graph_posterior_admg_response_curve_is_sealed_for_both_inference_modes", "crates/antecedent/tests/admg_response_curve_route_evidence.rs::admg_response_curve_explicit_bayesian_none", "crates/antecedent/tests/admg_response_curve_route_evidence.rs::admg_response_curve_accepted_bayesian_none"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/admg_response_curve_route_evidence.rs::graph_posterior_admg_response_curve_is_sealed_for_both_inference_modes"]
@@ -7866,7 +7866,7 @@ uncertainty_basis = "measured_record|coverage_record:cov.response_curve.admg.fre
 uncertainty_by_structure = ["explicit=design_aware_resampling|measured_record|coverage_record:cov.response_curve.admg.frequentist.bootstrap_se.l95.response_curve_admg_frequentist_accepted_pointwise_nominal_coverage.a_0", "accepted=design_aware_resampling|measured_record|coverage_record:cov.response_curve.admg.frequentist.bootstrap_se.l95.response_curve_admg_frequentist_accepted_pointwise_nominal_coverage.a_0", "graph_posterior=design_aware_resampling|measured_record|coverage_record:cov.response_curve.admg.frequentist.bootstrap_se.l95.response_curve_admg_graph_posterior_frequentist_pointwise_nominal_coverage.a_0"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs"]
+implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/admg_response_curve_route_evidence.rs::graph_posterior_admg_response_curve_is_sealed_for_both_inference_modes", "crates/antecedent/tests/admg_response_curve_route_evidence.rs::admg_response_curve_explicit_frequentist_publishes_bootstrap_band", "crates/antecedent/tests/admg_response_curve_route_evidence.rs::admg_response_curve_accepted_frequentist_publishes_bootstrap_band"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/admg_response_curve_route_evidence.rs::graph_posterior_admg_response_curve_is_sealed_for_both_inference_modes"]
@@ -8062,7 +8062,7 @@ uncertainty_basis = "asserted_in_test|test:crates/antecedent/tests/temporal_admg
 uncertainty_by_structure = ["explicit=design_aware_resampling|asserted_in_test|test:crates/antecedent/tests/temporal_admg_route_evidence.rs", "accepted=design_aware_resampling|asserted_in_test|test:crates/antecedent/tests/temporal_admg_route_evidence.rs", "graph_posterior=design_aware_resampling|asserted_in_test|test:crates/antecedent/tests/temporal_admg_route_evidence.rs"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs"]
+implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_response_curve_graph_posterior", "crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_response_curve_explicit_and_accepted"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_response_curve_graph_posterior"]
@@ -8090,7 +8090,7 @@ uncertainty_basis = "asserted_in_test|test:crates/antecedent/tests/temporal_admg
 uncertainty_by_structure = ["explicit=design_aware_resampling|asserted_in_test|test:crates/antecedent/tests/temporal_admg_route_evidence.rs", "accepted=design_aware_resampling|asserted_in_test|test:crates/antecedent/tests/temporal_admg_route_evidence.rs", "graph_posterior=design_aware_resampling|asserted_in_test|test:crates/antecedent/tests/temporal_admg_route_evidence.rs"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs"]
+implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_response_curve_graph_posterior", "crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_response_curve_explicit_and_accepted"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_response_curve_graph_posterior"]
@@ -8345,7 +8345,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/compile_graph_posterior.rs", "crates/antecedent-estimate/src/bayesian/gcomp.rs"]
 provenance = ["estimate.response.temporal.bayesian", "estimate.response.temporal.bayesian"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
 
 [[method]]
 id = "method.ResponseJacobian.TemporalCpdag.temporal.response.gcomp.frequentist"
@@ -8373,7 +8373,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/panel_path.rs", "crates/antecedent/src/analysis/execute/temporal_response_execution.rs", "crates/antecedent-io-core/src/contract_section/verify.rs"]
 provenance = ["estimate.temporal_response.gcomp", "estimate.temporal_response.gcomp"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
 
 [[method]]
 id = "method.ResponseJacobian.TemporalDag.response.temporal.bayesian.bayesian"
@@ -8457,7 +8457,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/compile_graph_posterior.rs", "crates/antecedent-estimate/src/bayesian/gcomp.rs"]
 provenance = ["estimate.response.temporal.bayesian", "estimate.response.temporal.bayesian"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
 
 [[method]]
 id = "method.ResponseJacobian.TemporalPag.temporal.response.gcomp.frequentist"
@@ -8485,7 +8485,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/panel_path.rs", "crates/antecedent/src/analysis/execute/temporal_response_execution.rs", "crates/antecedent-io-core/src/contract_section/verify.rs"]
 provenance = ["estimate.temporal_response.gcomp", "estimate.temporal_response.gcomp"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
 
 [[method]]
 id = "method.SemiElasticity.Dag.response.kennedy_dr.bayesian"
@@ -8569,7 +8569,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/compile_graph_posterior.rs", "crates/antecedent-estimate/src/bayesian/gcomp.rs"]
 provenance = ["estimate.response.temporal.bayesian", "estimate.response.temporal.bayesian"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
 
 [[method]]
 id = "method.SemiElasticity.TemporalCpdag.temporal.response.gcomp.frequentist"
@@ -8597,7 +8597,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/panel_path.rs", "crates/antecedent/src/analysis/execute/temporal_response_execution.rs", "crates/antecedent-io-core/src/contract_section/verify.rs"]
 provenance = ["estimate.temporal_response.gcomp", "estimate.temporal_response.gcomp"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
 
 [[method]]
 id = "method.SemiElasticity.TemporalDag.response.temporal.bayesian.bayesian"
@@ -8681,7 +8681,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/compile_graph_posterior.rs", "crates/antecedent-estimate/src/bayesian/gcomp.rs"]
 provenance = ["estimate.response.temporal.bayesian", "estimate.response.temporal.bayesian"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
 
 [[method]]
 id = "method.SemiElasticity.TemporalPag.temporal.response.gcomp.frequentist"
@@ -8709,7 +8709,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/panel_path.rs", "crates/antecedent/src/analysis/execute/temporal_response_execution.rs", "crates/antecedent-io-core/src/contract_section/verify.rs"]
 provenance = ["estimate.temporal_response.gcomp", "estimate.temporal_response.gcomp"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_derivatives_publish_the_linear_slope"]
 
 [[method]]
 id = "method.SustainedEffect.TemporalCpdag.bayesian.temporal.gcomp.bayesian"
@@ -8905,7 +8905,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.temporal_linear", "estimate.temporal_linear_adjustment"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs::all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"]
 
 [[method]]
 id = "method.TemporalConditionalPulse.TemporalCpdag.temporal.linear.adjustment.frequentist"
@@ -8933,7 +8933,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.temporal_linear", "estimate.temporal_linear_adjustment"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs::all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"]
 
 [[method]]
 id = "method.TemporalConditionalPulse.TemporalDag.temporal.linear.adjustment.bayesian"
@@ -9017,7 +9017,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.temporal_linear", "estimate.temporal_linear_adjustment"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs::all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"]
 
 [[method]]
 id = "method.TemporalConditionalPulse.TemporalPag.temporal.linear.adjustment.frequentist"
@@ -9045,7 +9045,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.temporal_linear", "estimate.temporal_linear_adjustment"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs::all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"]
 
 [[method]]
 id = "method.TemporalConditionalSustained.TemporalCpdag.temporal.linear.adjustment.bayesian"
@@ -9073,7 +9073,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.temporal_linear", "estimate.temporal_linear_adjustment"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs::all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"]
 
 [[method]]
 id = "method.TemporalConditionalSustained.TemporalCpdag.temporal.linear.adjustment.frequentist"
@@ -9101,7 +9101,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.temporal_linear", "estimate.temporal_linear_adjustment"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs::all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"]
 
 [[method]]
 id = "method.TemporalConditionalSustained.TemporalDag.temporal.linear.adjustment.bayesian"
@@ -9185,7 +9185,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.temporal_linear", "estimate.temporal_linear_adjustment"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs::all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"]
 
 [[method]]
 id = "method.TemporalConditionalSustained.TemporalPag.temporal.linear.adjustment.frequentist"
@@ -9213,7 +9213,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.temporal_linear", "estimate.temporal_linear_adjustment"]
 evidence = ["crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs::all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"]
 
 [[method]]
 id = "method.TemporalMediationEffect.TemporalCpdag.temporal.mediation.frequentist"
@@ -9493,7 +9493,7 @@ owning_module = "crates/antecedent/src/analysis/query_license.rs"
 implementation = ["crates/antecedent/src/analysis/query_license.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/class_attribution.rs", "crates/antecedent/src/analysis/execute/temporal_attribution.rs"]
 provenance = []
 evidence = ["crates/antecedent/tests/class_attribution_route.rs::an_admg_anomaly_is_attributed_to_the_noise_blocks", "crates/antecedent/tests/class_route_artifacts.rs::static_class_attributions_publish_an_artifact_a_consumer_reads"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/class_route_artifacts.rs::static_class_attributions_publish_an_artifact_a_consumer_reads"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/class_attribution_route.rs::an_admg_anomaly_is_attributed_to_the_noise_blocks"]
 
 [[method]]
 id = "method.closed.AnomalyAttribution.Cpdag"
@@ -9521,7 +9521,7 @@ owning_module = "crates/antecedent/src/analysis/query_license.rs"
 implementation = ["crates/antecedent/src/analysis/query_license.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/class_attribution.rs", "crates/antecedent/src/analysis/execute/temporal_attribution.rs"]
 provenance = []
 evidence = ["crates/antecedent/tests/class_attribution_route.rs::a_cpdag_anomaly_is_the_mean_of_its_dag_completions", "crates/antecedent/tests/class_attribution_route.rs::a_bayesian_cpdag_publishes_a_shared_posterior_and_never_a_mixture", "crates/antecedent/tests/class_route_artifacts.rs::static_class_attributions_publish_an_artifact_a_consumer_reads"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/class_route_artifacts.rs::static_class_attributions_publish_an_artifact_a_consumer_reads"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/class_attribution_route.rs::a_cpdag_anomaly_is_the_mean_of_its_dag_completions"]
 
 [[method]]
 id = "method.closed.AnomalyAttribution.Pag"
@@ -9549,7 +9549,7 @@ owning_module = "crates/antecedent/src/analysis/query_license.rs"
 implementation = ["crates/antecedent/src/analysis/query_license.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/class_attribution.rs", "crates/antecedent/src/analysis/execute/temporal_attribution.rs"]
 provenance = []
 evidence = ["crates/antecedent/tests/class_attribution_route.rs::a_pag_with_a_hedged_completion_keeps_the_identified_mass", "crates/antecedent/tests/class_route_artifacts.rs::static_class_attributions_publish_an_artifact_a_consumer_reads"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/class_route_artifacts.rs::static_class_attributions_publish_an_artifact_a_consumer_reads"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/class_attribution_route.rs::a_pag_with_a_hedged_completion_keeps_the_identified_mass"]
 
 [[method]]
 id = "method.closed.AnomalyAttribution.TemporalCpdag"
@@ -9577,7 +9577,7 @@ owning_module = "crates/antecedent/src/analysis/query_license.rs"
 implementation = ["crates/antecedent/src/analysis/query_license.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/class_attribution.rs", "crates/antecedent/src/analysis/execute/temporal_attribution.rs"]
 provenance = []
 evidence = ["crates/antecedent/tests/class_attribution_route.rs::a_temporal_cpdag_is_the_mean_of_its_temporal_dag_completions", "crates/antecedent/tests/class_route_artifacts.rs::temporal_class_attributions_publish_an_artifact_a_consumer_reads"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/class_route_artifacts.rs::temporal_class_attributions_publish_an_artifact_a_consumer_reads"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/class_attribution_route.rs::a_temporal_cpdag_is_the_mean_of_its_temporal_dag_completions"]
 
 [[method]]
 id = "method.closed.AnomalyAttribution.TemporalPag"
@@ -9633,7 +9633,7 @@ owning_module = "crates/antecedent/src/analysis/query_license.rs"
 implementation = ["crates/antecedent/src/analysis/query_license.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/class_attribution.rs", "crates/antecedent/src/analysis/execute/temporal_attribution.rs"]
 provenance = []
 evidence = ["crates/antecedent/tests/class_attribution_route.rs::a_temporal_admg_whose_latent_edge_misses_the_ancestors_is_the_temporal_dag_route", "crates/antecedent/tests/class_route_artifacts.rs::temporal_class_attributions_publish_an_artifact_a_consumer_reads"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/class_route_artifacts.rs::temporal_class_attributions_publish_an_artifact_a_consumer_reads"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/class_attribution_route.rs::a_temporal_admg_whose_latent_edge_misses_the_ancestors_is_the_temporal_dag_route"]
 
 [[method]]
 id = "method.closed.AverageDerivative.Admg"
@@ -9772,7 +9772,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent-estimate/src/bayesian/gcomp.rs"
 implementation = ["crates/antecedent-estimate/src/bayesian/gcomp.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/bayesian_arm_effect_routes.rs"]
+evidence = ["crates/antecedent/tests/bayesian_arm_effect_routes.rs::bayesian_gcomp_on_the_treated_and_untreated_recovers_each_arms_model_based_effect"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/identity_contract.rs::target_population_moves_target_and_program_not_identification"]
 
 [[method]]
@@ -9801,7 +9801,7 @@ owning_module = "crates/antecedent/src/analysis/query_license.rs"
 implementation = ["crates/antecedent/src/analysis/query_license.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/class_attribution.rs", "crates/antecedent/src/analysis/execute/temporal_attribution.rs"]
 provenance = []
 evidence = ["crates/antecedent/tests/class_attribution_route.rs::an_admg_change_matches_the_known_shift_of_each_block", "crates/antecedent/tests/class_route_artifacts.rs::static_class_attributions_publish_an_artifact_a_consumer_reads"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/class_route_artifacts.rs::static_class_attributions_publish_an_artifact_a_consumer_reads"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/class_attribution_route.rs::an_admg_change_matches_the_known_shift_of_each_block"]
 
 [[method]]
 id = "method.closed.ChangeAttribution.Cpdag"
@@ -9829,7 +9829,7 @@ owning_module = "crates/antecedent/src/analysis/query_license.rs"
 implementation = ["crates/antecedent/src/analysis/query_license.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/class_attribution.rs", "crates/antecedent/src/analysis/execute/temporal_attribution.rs"]
 provenance = []
 evidence = ["crates/antecedent/tests/class_attribution_route.rs::a_cpdag_change_that_every_member_agrees_on_keeps_one_value", "crates/antecedent/tests/class_route_artifacts.rs::static_class_attributions_publish_an_artifact_a_consumer_reads"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/class_route_artifacts.rs::static_class_attributions_publish_an_artifact_a_consumer_reads"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/class_attribution_route.rs::a_cpdag_change_that_every_member_agrees_on_keeps_one_value"]
 
 [[method]]
 id = "method.closed.ChangeAttribution.Pag"
@@ -9885,7 +9885,7 @@ owning_module = "crates/antecedent/src/analysis/query_license.rs"
 implementation = ["crates/antecedent/src/analysis/query_license.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/class_attribution.rs", "crates/antecedent/src/analysis/execute/temporal_attribution.rs"]
 provenance = []
 evidence = ["crates/antecedent/tests/class_attribution_route.rs::a_temporal_cpdag_is_the_mean_of_its_temporal_dag_completions", "crates/antecedent/tests/class_route_artifacts.rs::temporal_class_attributions_publish_an_artifact_a_consumer_reads"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/class_route_artifacts.rs::temporal_class_attributions_publish_an_artifact_a_consumer_reads"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/class_attribution_route.rs::a_temporal_cpdag_is_the_mean_of_its_temporal_dag_completions"]
 
 [[method]]
 id = "method.closed.ChangeAttribution.TemporalPag"
@@ -10584,7 +10584,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/query_license.rs"
 implementation = ["crates/antecedent/src/analysis/query_license.rs", "crates/antecedent/src/analysis/execute/class_path_specific.rs", "crates/antecedent/src/analysis/execute/static_path.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/path_specific_admg_route.rs::contracted_results_round_trip_through_the_consumer", "crates/antecedent/tests/path_specific_admg_route.rs::prepared_handles_run_through_the_estimator_route_and_equal_a_fresh_run"]
+evidence = ["crates/antecedent/tests/path_specific_admg_route.rs::contracted_results_round_trip_through_the_consumer"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/path_specific_admg_route.rs::contracted_results_round_trip_through_the_consumer"]
 
 [[method]]
@@ -10696,7 +10696,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/query_license.rs"
 implementation = ["crates/antecedent/src/analysis/query_license.rs", "crates/antecedent/src/analysis/execute/class_path_specific.rs", "crates/antecedent/src/analysis/execute/static_path.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/path_specific_admg_route.rs::contracted_results_round_trip_through_the_consumer", "crates/antecedent/tests/path_specific_admg_route.rs::prepared_handles_run_through_the_estimator_route_and_equal_a_fresh_run"]
+evidence = ["crates/antecedent/tests/path_specific_admg_route.rs::contracted_results_round_trip_through_the_consumer"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/path_specific_admg_route.rs::contracted_results_round_trip_through_the_consumer"]
 
 [[method]]
@@ -11508,7 +11508,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent-estimate/src/survival.rs"
 implementation = ["crates/antecedent-estimate/src/survival.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/survival_route.rs::licensed_survival_scalar_intervals_round_trip_and_refuse_forgery", "crates/antecedent/tests/survival_route.rs"]
+evidence = ["crates/antecedent/tests/survival_route.rs::licensed_survival_scalar_intervals_round_trip_and_refuse_forgery", "crates/antecedent/tests/survival_route.rs::subject_bootstrap_scalar_intervals_are_retained_and_artifact_checked"]
 artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/survival_route.rs::licensed_survival_scalar_intervals_round_trip_and_refuse_forgery"]
 
 [[method]]
@@ -11676,7 +11676,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent-estimate/src/continuous_dose.rs"
 implementation = ["crates/antecedent-estimate/src/continuous_dose.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/continuous_dose_policy_route.rs::retained_fixed_dose_policy_intervals_round_trip_and_refuse_tampering", "crates/antecedent/tests/continuous_dose_route.rs"]
+evidence = ["crates/antecedent/tests/continuous_dose_policy_route.rs::retained_fixed_dose_policy_intervals_round_trip_and_refuse_tampering", "crates/antecedent/tests/continuous_dose_route.rs::retained_grid_recovers_linear_truth_and_artifact_identity"]
 artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/continuous_dose_policy_route.rs::retained_fixed_dose_policy_intervals_round_trip_and_refuse_tampering"]
 
 [[method]]
@@ -11928,7 +11928,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_panel_did.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_panel_did.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/panel_did_route.rs::supported_repeated_cross_section_interval_round_trips_and_rejects_fabrication", "crates/antecedent/tests/panel_did_route.rs"]
+evidence = ["crates/antecedent/tests/panel_did_route.rs::supported_repeated_cross_section_interval_round_trips_and_rejects_fabrication", "crates/antecedent/tests/panel_did_route.rs::repeated_cross_section_did_runs_through_study_and_prepared_routes"]
 artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/panel_did_route.rs::supported_repeated_cross_section_interval_round_trips_and_rejects_fabrication"]
 
 [[method]]
@@ -11956,7 +11956,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_panel_did.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_panel_did.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/panel_did_route.rs::supported_staggered_event_study_interval_round_trips_and_rejects_forged_license", "crates/antecedent/tests/panel_did_route.rs"]
+evidence = ["crates/antecedent/tests/panel_did_route.rs::supported_staggered_event_study_interval_round_trips_and_rejects_forged_license"]
 artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/panel_did_route.rs::supported_staggered_event_study_interval_round_trips_and_rejects_forged_license"]
 
 [[method]]
@@ -12376,7 +12376,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_local_polynomial_ratio.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_local_polynomial_ratio.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/local_polynomial_ratio_route.rs::retained_fuzzy_rd_recovers_truth_and_round_trips_calibrated_interval", "crates/antecedent/tests/local_polynomial_ratio_route.rs"]
+evidence = ["crates/antecedent/tests/local_polynomial_ratio_route.rs::retained_fuzzy_rd_recovers_truth_and_round_trips_calibrated_interval"]
 artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/local_polynomial_ratio_route.rs::retained_fuzzy_rd_recovers_truth_and_round_trips_calibrated_interval"]
 
 [[method]]
@@ -12768,7 +12768,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_synthetic_control/rollout.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_synthetic_control/rollout.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/quasi_rollout_routes.rs::conformal_synthetic_control_reports_period_intervals_and_refuses_a_bayesian_request"]
+evidence = ["crates/antecedent/tests/quasi_rollout_routes.rs::conformal_synthetic_control_reports_period_intervals_and_refuses_a_bayesian_request", "crates/antecedent/tests/build_quasi_experimental_synthetic_dependence.rs::a_single_treated_unit_synthetic_control_honours_a_declared_serial_design_by_the_conformal_interval"]
 artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/quasi_rollout_routes.rs::conformal_synthetic_control_reports_period_intervals_and_refuses_a_bayesian_request"]
 
 [[method]]
@@ -12880,8 +12880,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_local_polynomial_ratio/design.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_local_polynomial_ratio/design.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/quasi_rollout_routes.rs"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/quasi_rollout_routes.rs"]
+evidence = ["crates/antecedent/tests/quasi_rollout_routes.rs::a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_design"]
+artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/quasi_rollout_routes.rs::a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_design"]
 
 [[method]]
 id = "method.quasi.local_ratio.design_layer"
@@ -12936,8 +12936,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_local_polynomial_ratio/design.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_local_polynomial_ratio/design.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/quasi_rollout_routes.rs"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/quasi_rollout_routes.rs"]
+evidence = ["crates/antecedent/tests/quasi_rollout_routes.rs::a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_design"]
+artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/quasi_rollout_routes.rs::a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_design"]
 
 [[method]]
 id = "method.bayesian.panel_did"
@@ -13320,7 +13320,7 @@ status = "execution_only"
 structures = []
 validations = []
 coordinates = 0
-uncertainty = "none"
+uncertainty = "analytic"
 uncertainty_structure = "none"
 uncertainty_basis = "declared_and_corroborated"
 uncertainty_by_structure = []
@@ -13356,7 +13356,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_history_match.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_history_match.rs"]
 provenance = ["estimate.bayesian_period_history_outcome_model", "estimate.bayesian_period_history_outcome_model"]
-evidence = ["crates/antecedent/tests/bayesian_arm_effect_routes.rs"]
+evidence = ["crates/antecedent/tests/bayesian_arm_effect_routes.rs::the_history_outcome_model_reports_a_model_based_effect_on_the_treated"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/compiler_consistency.rs::checked_aipw_executes_after_builder_discard_and_rebinds_rows"]
 
 [[method]]
@@ -13776,7 +13776,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/structural_route.rs"
 implementation = ["crates/antecedent/src/analysis/execute/structural_route.rs"]
 provenance = []
-evidence = ["crates/antecedent-discovery/tests/static_discovery_oracle.rs", "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs"]
+evidence = ["crates/antecedent-discovery/tests/static_discovery_oracle.rs::fci_and_ges_match_causal_learn_across_motifs_and_all_permutations", "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs::graph_mcmc_marginals_against_exact_exhaustive_targets"]
 artifact_consumer = ["crates/antecedent/src/analysis/structure_route.rs::accept_discovered", "crates/antecedent/tests/structure_compiler_routes.rs::discovered_provenance_reaches_the_downstream_contract_and_program"]
 
 [[method]]
@@ -13804,7 +13804,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/structural_route.rs"
 implementation = ["crates/antecedent/src/analysis/execute/structural_route.rs"]
 provenance = []
-evidence = ["crates/antecedent-discovery/tests/discovery_pcmci_lag1.rs", "crates/antecedent/tests/dbn_posterior_atom_identity.rs::lag_distinct_dbn_atoms_with_the_same_contemporaneous_key_keep_distinct_effects", "crates/antecedent/tests/dbn_posterior_atom_identity.rs::repeated_dbn_atoms_contribute_their_combined_mass_once"]
+evidence = ["crates/antecedent-discovery/tests/discovery_pcmci_lag1.rs::discovery_pcmci_lag1_exact_parents", "crates/antecedent/tests/dbn_posterior_atom_identity.rs::lag_distinct_dbn_atoms_with_the_same_contemporaneous_key_keep_distinct_effects", "crates/antecedent/tests/dbn_posterior_atom_identity.rs::repeated_dbn_atoms_contribute_their_combined_mass_once"]
 artifact_consumer = ["crates/antecedent/src/analysis/structure_route.rs::accept_discovered", "crates/antecedent/tests/structure_compiler_routes.rs::discovered_provenance_reaches_the_downstream_contract_and_program"]
 
 [[method]]
@@ -13888,8 +13888,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_temporal_design.rs"]
 provenance = ["estimate.temporal_design_excursion", "estimate.temporal_design_excursion"]
-evidence = ["crates/antecedent/tests/temporal_design_routes.rs"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs"]
+evidence = ["crates/antecedent/tests/temporal_design_routes.rs::the_two_arm_excursion_recovers_the_effect_under_carryover_in_both_modes"]
+artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs::the_two_arm_excursion_recovers_the_effect_under_carryover_in_both_modes"]
 
 [[method]]
 id = "method.bayesian.temporal_design.excursion.two_arm"
@@ -13916,8 +13916,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_temporal_design.rs"]
 provenance = ["estimate.bayesian_temporal_design_excursion", "estimate.bayesian_temporal_design_excursion"]
-evidence = ["crates/antecedent/tests/temporal_design_routes.rs"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs"]
+evidence = ["crates/antecedent/tests/temporal_design_routes.rs::the_two_arm_excursion_recovers_the_effect_under_carryover_in_both_modes"]
+artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs::the_two_arm_excursion_recovers_the_effect_under_carryover_in_both_modes"]
 
 [[method]]
 id = "method.temporal_design.excursion.multi_arm"
@@ -13944,8 +13944,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_temporal_design.rs"]
 provenance = ["estimate.temporal_design_excursion", "estimate.temporal_design_excursion"]
-evidence = ["crates/antecedent/tests/temporal_design_routes.rs"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs"]
+evidence = ["crates/antecedent/tests/temporal_design_routes.rs::multi_arm_and_ordered_categorical_contrasts_carry_a_band_and_a_holm_family"]
+artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs::multi_arm_and_ordered_categorical_contrasts_carry_a_band_and_a_holm_family"]
 
 [[method]]
 id = "method.bayesian.temporal_design.excursion.multi_arm"
@@ -13972,8 +13972,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_temporal_design.rs"]
 provenance = ["estimate.bayesian_temporal_design_excursion", "estimate.bayesian_temporal_design_excursion"]
-evidence = ["crates/antecedent/tests/temporal_design_routes.rs"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs"]
+evidence = ["crates/antecedent/tests/temporal_design_routes.rs::the_bayesian_bootstrap_recovers_the_multi_arm_factorial_and_interference_effects"]
+artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs::the_bayesian_bootstrap_recovers_the_multi_arm_factorial_and_interference_effects"]
 
 [[method]]
 id = "method.temporal_design.excursion.categorical"
@@ -14000,8 +14000,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_temporal_design.rs"]
 provenance = ["estimate.temporal_design_excursion", "estimate.temporal_design_excursion"]
-evidence = ["crates/antecedent/tests/temporal_design_routes.rs"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs"]
+evidence = ["crates/antecedent/tests/temporal_design_routes.rs::multi_arm_and_ordered_categorical_contrasts_carry_a_band_and_a_holm_family"]
+artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs::multi_arm_and_ordered_categorical_contrasts_carry_a_band_and_a_holm_family"]
 
 [[method]]
 id = "method.bayesian.temporal_design.excursion.categorical"
@@ -14028,8 +14028,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_temporal_design.rs"]
 provenance = ["estimate.bayesian_temporal_design_excursion", "estimate.bayesian_temporal_design_excursion"]
-evidence = ["crates/antecedent/tests/temporal_design_routes.rs"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs"]
+evidence = ["crates/antecedent/tests/temporal_design_routes.rs::multi_arm_and_ordered_categorical_contrasts_carry_a_band_and_a_holm_family"]
+artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs::multi_arm_and_ordered_categorical_contrasts_carry_a_band_and_a_holm_family"]
 
 [[method]]
 id = "method.temporal_design.excursion.factorial"
@@ -14056,8 +14056,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_temporal_design.rs"]
 provenance = ["estimate.temporal_design_excursion", "estimate.temporal_design_excursion"]
-evidence = ["crates/antecedent/tests/temporal_design_routes.rs"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs"]
+evidence = ["crates/antecedent/tests/temporal_design_routes.rs::the_factorial_and_interference_designs_recover_their_effects"]
+artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs::the_factorial_and_interference_designs_recover_their_effects"]
 
 [[method]]
 id = "method.bayesian.temporal_design.excursion.factorial"
@@ -14084,8 +14084,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_temporal_design.rs"]
 provenance = ["estimate.bayesian_temporal_design_excursion", "estimate.bayesian_temporal_design_excursion"]
-evidence = ["crates/antecedent/tests/temporal_design_routes.rs"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs"]
+evidence = ["crates/antecedent/tests/temporal_design_routes.rs::the_bayesian_bootstrap_recovers_the_multi_arm_factorial_and_interference_effects"]
+artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs::the_bayesian_bootstrap_recovers_the_multi_arm_factorial_and_interference_effects"]
 
 [[method]]
 id = "method.temporal_design.excursion.interference"
@@ -14112,8 +14112,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_temporal_design.rs"]
 provenance = ["estimate.temporal_design_excursion", "estimate.temporal_design_excursion"]
-evidence = ["crates/antecedent/tests/temporal_design_routes.rs"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs"]
+evidence = ["crates/antecedent/tests/temporal_design_routes.rs::the_factorial_and_interference_designs_recover_their_effects"]
+artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs::the_factorial_and_interference_designs_recover_their_effects"]
 
 [[method]]
 id = "method.bayesian.temporal_design.excursion.interference"
@@ -14140,8 +14140,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_temporal_design.rs"]
 provenance = ["estimate.bayesian_temporal_design_excursion", "estimate.bayesian_temporal_design_excursion"]
-evidence = ["crates/antecedent/tests/temporal_design_routes.rs"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs"]
+evidence = ["crates/antecedent/tests/temporal_design_routes.rs::the_bayesian_bootstrap_recovers_the_multi_arm_factorial_and_interference_effects"]
+artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs::the_bayesian_bootstrap_recovers_the_multi_arm_factorial_and_interference_effects"]
 
 [[method]]
 id = "method.temporal_design.excursion.continuous_dose"
@@ -14168,8 +14168,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_temporal_design.rs"]
 provenance = ["estimate.temporal_design_excursion", "estimate.temporal_design_excursion"]
-evidence = ["crates/antecedent/tests/temporal_design_routes.rs"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs"]
+evidence = ["crates/antecedent/tests/temporal_design_routes.rs::the_dose_targets_recover_the_curve_with_a_bias_aware_band"]
+artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs::the_dose_targets_recover_the_curve_with_a_bias_aware_band"]
 
 [[method]]
 id = "method.bayesian.temporal_design.excursion.continuous_dose"
@@ -14196,8 +14196,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_temporal_design.rs"]
 provenance = ["estimate.bayesian_temporal_design_excursion", "estimate.bayesian_temporal_design_excursion"]
-evidence = ["crates/antecedent/tests/temporal_design_routes.rs"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs"]
+evidence = ["crates/antecedent/tests/temporal_design_routes.rs::the_dose_targets_recover_the_curve_under_the_bayesian_bootstrap_and_the_smoothed_curve"]
+artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs::the_dose_targets_recover_the_curve_under_the_bayesian_bootstrap_and_the_smoothed_curve"]
 
 [[method]]
 id = "method.temporal_design.excursion.smoothed_dose"
@@ -14224,8 +14224,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_temporal_design.rs"]
 provenance = ["estimate.temporal_design_excursion", "estimate.temporal_design_excursion"]
-evidence = ["crates/antecedent/tests/temporal_design_routes.rs"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs"]
+evidence = ["crates/antecedent/tests/temporal_design_routes.rs::the_dose_targets_recover_the_curve_under_the_bayesian_bootstrap_and_the_smoothed_curve"]
+artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs::the_dose_targets_recover_the_curve_under_the_bayesian_bootstrap_and_the_smoothed_curve"]
 
 [[method]]
 id = "method.bayesian.temporal_design.excursion.smoothed_dose"
@@ -14252,8 +14252,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_temporal_design.rs"]
 provenance = ["estimate.bayesian_temporal_design_excursion", "estimate.bayesian_temporal_design_excursion"]
-evidence = ["crates/antecedent/tests/temporal_design_routes.rs"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs"]
+evidence = ["crates/antecedent/tests/temporal_design_routes.rs::the_dose_targets_recover_the_curve_under_the_bayesian_bootstrap_and_the_smoothed_curve"]
+artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs::the_dose_targets_recover_the_curve_under_the_bayesian_bootstrap_and_the_smoothed_curve"]
 
 [[method]]
 id = "method.temporal_design.excursion.dose_grid"
@@ -14280,8 +14280,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_temporal_design.rs"]
 provenance = ["estimate.temporal_design_excursion", "estimate.temporal_design_excursion"]
-evidence = ["crates/antecedent/tests/temporal_design_routes.rs"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs"]
+evidence = ["crates/antecedent/tests/temporal_design_routes.rs::the_dose_targets_recover_the_curve_with_a_bias_aware_band"]
+artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs::the_dose_targets_recover_the_curve_with_a_bias_aware_band"]
 
 [[method]]
 id = "method.bayesian.temporal_design.excursion.dose_grid"
@@ -14308,8 +14308,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_temporal_design.rs"]
 provenance = ["estimate.bayesian_temporal_design_excursion", "estimate.bayesian_temporal_design_excursion"]
-evidence = ["crates/antecedent/tests/temporal_design_routes.rs"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs"]
+evidence = ["crates/antecedent/tests/temporal_design_routes.rs::the_dose_targets_recover_the_curve_under_the_bayesian_bootstrap_and_the_smoothed_curve"]
+artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs::the_dose_targets_recover_the_curve_under_the_bayesian_bootstrap_and_the_smoothed_curve"]
 
 [[method]]
 id = "method.temporal_design.excursion.quantile"
@@ -14336,8 +14336,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_temporal_design.rs"]
 provenance = ["estimate.temporal_design_excursion", "estimate.temporal_design_excursion"]
-evidence = ["crates/antecedent/tests/temporal_design_routes.rs"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs"]
+evidence = ["crates/antecedent/tests/temporal_design_routes.rs::the_quantile_excursion_recovers_a_location_shift_in_both_modes"]
+artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs::the_quantile_excursion_recovers_a_location_shift_in_both_modes"]
 
 [[method]]
 id = "method.bayesian.temporal_design.excursion.quantile"
@@ -14364,8 +14364,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_temporal_design.rs"]
 provenance = ["estimate.bayesian_temporal_design_excursion", "estimate.bayesian_temporal_design_excursion"]
-evidence = ["crates/antecedent/tests/temporal_design_routes.rs"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs"]
+evidence = ["crates/antecedent/tests/temporal_design_routes.rs::the_quantile_excursion_recovers_a_location_shift_in_both_modes"]
+artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs::the_quantile_excursion_recovers_a_location_shift_in_both_modes"]
 
 [[method]]
 id = "method.temporal_design.regime_survival"
@@ -14420,8 +14420,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_temporal_design.rs"]
 provenance = ["estimate.bayesian_temporal_regime_survival", "estimate.bayesian_temporal_regime_survival"]
-evidence = ["crates/antecedent/tests/temporal_design_routes.rs"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs"]
+evidence = ["crates/antecedent/tests/temporal_design_routes.rs::regime_survival_recovers_the_contrast_with_both_procedures"]
+artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs::regime_survival_recovers_the_contrast_with_both_procedures"]
 
 [[method]]
 id = "method.measurement.static.frequentist"
@@ -14728,8 +14728,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent-estimate/src/dose_grid_posterior.rs"
 implementation = ["crates/antecedent-estimate/src/dose_grid_posterior.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/bayesian_design_posterior_routes.rs"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/bayesian_design_posterior_routes.rs"]
+evidence = ["crates/antecedent-estimate/src/dose_grid_posterior.rs::level_posterior_matches_the_conjugate_reference_and_keeps_the_covariance"]
+artifact_consumer = []
 
 [[method]]
 id = "method.closed.AverageEffect.TemporalDag"
@@ -14784,8 +14784,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/builder/finish.rs"
 implementation = ["crates/antecedent/src/analysis/builder/finish.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/lag_zero_average_effect.rs", "crates/antecedent/tests/lag_zero_average_effect.rs::the_lag_zero_average_effect_is_the_explicit_pulse_and_stays_unlicensed", "crates/antecedent/tests/lag_zero_average_effect.rs::every_lag_zero_average_effect_publishes_an_artifact_a_consumer_reads"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/lag_zero_average_effect.rs"]
+evidence = ["crates/antecedent/tests/lag_zero_average_effect.rs::the_lag_zero_average_effect_is_the_explicit_pulse_and_stays_unlicensed", "crates/antecedent/tests/lag_zero_average_effect.rs::every_lag_zero_average_effect_publishes_an_artifact_a_consumer_reads"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/lag_zero_average_effect.rs::the_lag_zero_average_effect_is_the_explicit_pulse_and_stays_unlicensed"]
 
 [[method]]
 id = "method.closed.AverageEffect.TemporalPag"
@@ -14924,7 +14924,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent-estimate/src/penalized_propensity_posterior.rs"
 implementation = ["crates/antecedent-estimate/src/penalized_propensity_posterior.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/treatment_score_product.rs"]
+evidence = ["crates/antecedent/tests/treatment_score_product.rs::the_product_matches_newton_modes_and_laplace_score_moments"]
 artifact_consumer = ["crates/antecedent/src/analysis/array_fits.rs::consume", "crates/antecedent/tests/treatment_score_product.rs"]
 
 [[method]]
@@ -14944,7 +14944,7 @@ status = "execution_only"
 structures = []
 validations = []
 coordinates = 0
-uncertainty = "none"
+uncertainty = "analytic"
 uncertainty_structure = "none"
 uncertainty_basis = "declared_and_corroborated"
 uncertainty_by_structure = []
@@ -14952,8 +14952,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent-estimate/src/temporal_penalized_score.rs"
 implementation = ["crates/antecedent-estimate/src/temporal_penalized_score.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/temporal_treatment_score_product.rs"]
-artifact_consumer = ["crates/antecedent/src/analysis/array_fits.rs::consume", "crates/antecedent/tests/temporal_treatment_score_product.rs"]
+evidence = ["crates/antecedent-estimate/tests/dependence_aware_interval_reference.rs::the_penalized_score_interval_is_the_subject_influence_sandwich_of_the_ridge_mode", "crates/antecedent-estimate/tests/dependence_aware_interval_reference.rs::a_dependent_series_refuses_the_penalized_score_interval", "crates/antecedent/tests/temporal_treatment_score_product.rs::the_penalized_score_is_the_ridge_mode_with_an_unpenalized_intercept", "crates/antecedent/tests/temporal_treatment_score_product.rs::a_single_dependent_series_is_refused_with_its_next_attempt"]
+artifact_consumer = ["crates/antecedent/src/analysis/array_fits.rs::consume", "crates/antecedent/tests/temporal_treatment_score_product.rs::the_retained_artifact_is_refit_on_load_and_refused_when_forged"]
 
 [[method]]
 id = "method.temporal_penalized_score.temporal.bayesian"
@@ -14980,7 +14980,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent-estimate/src/temporal_penalized_score.rs"
 implementation = ["crates/antecedent-estimate/src/temporal_penalized_score.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/temporal_treatment_score_product.rs"]
+evidence = ["crates/antecedent/tests/temporal_treatment_score_product.rs::the_posterior_score_is_a_laplace_mean_not_the_mode_probability"]
 artifact_consumer = ["crates/antecedent/src/analysis/array_fits.rs::consume", "crates/antecedent/tests/temporal_treatment_score_product.rs"]
 
 [[method]]
@@ -15008,7 +15008,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent-estimate/src/smoothed_dose.rs"
 implementation = ["crates/antecedent-estimate/src/smoothed_dose.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/smoothed_dose_calibration.rs"]
+evidence = ["crates/antecedent/tests/smoothed_dose_lifecycle.rs::known_truth_curve_under_both_designs"]
 artifact_consumer = ["crates/antecedent/src/analysis/smoothed_dose.rs::consume_smoothed_dose_artifact", "crates/antecedent/tests/smoothed_dose_lifecycle.rs"]
 
 [[method]]
@@ -15036,7 +15036,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent-estimate/src/smoothed_dose_posterior.rs"
 implementation = ["crates/antecedent-estimate/src/smoothed_dose_posterior.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/smoothed_dose_posterior_facade.rs"]
+evidence = ["crates/antecedent/tests/smoothed_dose_posterior_facade.rs::posterior_covers_the_closed_form_smoothed_target_under_both_designs"]
 artifact_consumer = ["crates/antecedent/src/analysis/smoothed_dose.rs::consume_smoothed_dose_posterior_artifact", "crates/antecedent/tests/smoothed_dose_posterior_facade.rs"]
 
 [[method]]
@@ -15056,7 +15056,7 @@ status = "execution_only"
 structures = []
 validations = []
 coordinates = 0
-uncertainty = "analytic"
+uncertainty = "none"
 uncertainty_structure = "none"
 uncertainty_basis = "declared_and_corroborated"
 uncertainty_by_structure = []
@@ -15064,7 +15064,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent-estimate/src/quantile.rs"
 implementation = ["crates/antecedent-estimate/src/quantile.rs"]
 provenance = []
-evidence = ["crates/antecedent-estimate/src/quantile.rs", "crates/antecedent-estimate/tests/quantile_inversion_reference.rs"]
+evidence = ["crates/antecedent-estimate/tests/quantile_inversion_reference.rs::direct_inversion_matches_exact_value_influence_and_refusals"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/compiler_consistency.rs"]
 
 [[method]]
@@ -15092,7 +15092,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent-estimate/src/categorical_treatment.rs"
 implementation = ["crates/antecedent-estimate/src/categorical_treatment.rs"]
 provenance = []
-evidence = ["crates/antecedent-estimate/tests/categorical_treatment.rs"]
+evidence = ["crates/antecedent-estimate/tests/categorical_treatment.rs::categorical_dummy_regression_covariance_matches_group_mean_algebra"]
 artifact_consumer = ["crates/antecedent-io/src/categorical_treatment_artifact.rs::decode_parts", "crates/antecedent-io/tests/categorical_treatment_artifact.rs::categorical_artifact_group_mean_algebra_survives_the_container"]
 
 [[method]]
@@ -15148,7 +15148,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent-estimate/src/adaptive_inference.rs"
 implementation = ["crates/antecedent-estimate/src/adaptive_inference.rs"]
 provenance = []
-evidence = ["crates/antecedent-estimate/tests/adaptive_whole_procedure_calibration.rs", "crates/antecedent-estimate/tests/adaptive_inference.rs::group_sequential_boundaries_and_decisions_follow_the_published_values"]
+evidence = ["crates/antecedent-estimate/tests/adaptive_whole_procedure_calibration.rs::an_unmistakable_best_arm_is_selected_with_no_regret", "crates/antecedent-estimate/tests/adaptive_inference.rs::group_sequential_boundaries_and_decisions_follow_the_published_values"]
 artifact_consumer = ["crates/antecedent-io/src/adaptive_inference_result_artifact.rs"]
 
 [[method]]
@@ -15232,7 +15232,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent-stats/src/adaptive_inference/repeated_measures_posterior.rs"
 implementation = ["crates/antecedent-stats/src/adaptive_inference/repeated_measures_posterior.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/repeated_measures_posterior_facade.rs"]
+evidence = ["crates/antecedent/tests/repeated_measures_posterior_facade.rs::the_posterior_matches_the_hand_calculation"]
 artifact_consumer = ["crates/antecedent/src/analysis/repeated_measures_posterior_report.rs::load_repeated_measures_posterior_report", "crates/antecedent/tests/repeated_measures_posterior_facade.rs"]
 
 [[method]]
@@ -15288,7 +15288,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent-estimate/src/bayesian_staggered_event_study.rs"
 implementation = ["crates/antecedent-estimate/src/bayesian_staggered_event_study.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/bayesian_design_routes.rs"]
+evidence = ["crates/antecedent-estimate/src/bayesian_staggered_event_study/tests.rs::event_time_posteriors_match_the_analytic_group_coefficient_posterior"]
 artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/bayesian_design_routes.rs"]
 
 [[method]]
@@ -15540,7 +15540,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent-state/src/ols_refresh.rs"
 implementation = ["crates/antecedent-state/src/ols_refresh.rs"]
 provenance = []
-evidence = ["crates/antecedent-state/tests/ols_refresh_contract.rs"]
+evidence = ["crates/antecedent-state/tests/ols_refresh_contract.rs::appended_rows_and_windows_equal_the_reference_without_a_rebuild"]
 artifact_consumer = ["crates/antecedent/src/period_refresh.rs::OlsRefresh", "crates/antecedent-state/tests/ols_refresh_contract.rs"]
 
 [[method]]
@@ -15568,7 +15568,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent-state/src/conjugate_refresh.rs"
 implementation = ["crates/antecedent-state/src/conjugate_refresh.rs"]
 provenance = []
-evidence = ["crates/antecedent-state/tests/conjugate_refresh_oracle.rs"]
+evidence = ["crates/antecedent-state/tests/conjugate_refresh_oracle.rs::sequential_blocks_equal_the_batch_posterior"]
 artifact_consumer = ["crates/antecedent/src/period_refresh.rs::ConjugateOlsPosterior", "crates/antecedent-state/tests/conjugate_refresh_oracle.rs"]
 
 [[method]]
@@ -15596,7 +15596,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/period_refresh.rs"
 implementation = ["crates/antecedent/src/period_refresh.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/period_refresh_lifecycle.rs"]
+evidence = ["crates/antecedent/tests/period_refresh_lifecycle.rs::a_declared_invariant_period_extends_and_equals_one_batch_fit"]
 artifact_consumer = ["crates/antecedent/src/analysis/temporal_extensions.rs::consume_period_refresh_artifact", "crates/antecedent/tests/period_refresh_lifecycle.rs"]
 
 [[method]]
@@ -15624,7 +15624,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/period_refresh.rs"
 implementation = ["crates/antecedent/src/period_refresh.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/period_refresh_lifecycle.rs"]
+evidence = ["crates/antecedent/tests/period_refresh_lifecycle.rs::a_prior_refresh_equals_the_batch_posterior_when_the_model_survives_and_restarts_otherwise"]
 artifact_consumer = ["crates/antecedent/src/analysis/temporal_extensions.rs::consume_period_refresh_artifact", "crates/antecedent/tests/period_refresh_lifecycle.rs"]
 
 [[method]]
@@ -15652,7 +15652,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/licensed_compiler.rs::every_licensed_cell_completes_the_compiler_path", "crates/antecedent/tests/linear_adjustment_route_evidence.rs::dag_explicit_frequentist_none_linear_adjustment_coordinate", "scripts/test_gate_retained_routes.py"]
+evidence = ["scripts/test_route_manifest_diff.py::test_the_working_tree_loses_no_capability_the_published_predecessor_had", "crates/antecedent/tests/licensed_compiler.rs::every_licensed_cell_completes_the_compiler_path", "crates/antecedent/tests/linear_adjustment_route_evidence.rs::dag_explicit_frequentist_none_linear_adjustment_coordinate", "scripts/test_gate_retained_routes.py"]
 artifact_consumer = ["scripts/gate_retained_routes.py", "crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result"]
 
 [[method]]
@@ -15680,7 +15680,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/licensed_compiler.rs::every_licensed_cell_completes_the_compiler_path", "crates/antecedent/tests/checked_bayesian_dag_ate_route_evidence.rs::bayesian_dag_ate_retains_proof_prior_validation_and_draws_across_refresh", "scripts/test_gate_retained_routes.py"]
+evidence = ["scripts/test_route_manifest_diff.py::test_the_working_tree_loses_no_capability_the_published_predecessor_had", "crates/antecedent/tests/licensed_compiler.rs::every_licensed_cell_completes_the_compiler_path", "crates/antecedent/tests/checked_bayesian_dag_ate_route_evidence.rs::bayesian_dag_ate_retains_proof_prior_validation_and_draws_across_refresh", "scripts/test_gate_retained_routes.py"]
 artifact_consumer = ["scripts/gate_retained_routes.py", "crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result"]
 
 [[method]]
@@ -15708,7 +15708,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/licensed_compiler.rs::every_licensed_cell_completes_the_compiler_path", "crates/antecedent/tests/checked_temporal_dag_effect_route_evidence.rs::fixed_temporal_contrasts_execute_from_retained_proof_and_procedure", "scripts/test_gate_retained_routes.py"]
+evidence = ["scripts/test_route_manifest_diff.py::test_the_working_tree_loses_no_capability_the_published_predecessor_had", "crates/antecedent/tests/licensed_compiler.rs::every_licensed_cell_completes_the_compiler_path", "crates/antecedent/tests/checked_temporal_dag_effect_route_evidence.rs::fixed_temporal_contrasts_execute_from_retained_proof_and_procedure", "scripts/test_gate_retained_routes.py"]
 artifact_consumer = ["scripts/gate_retained_routes.py", "crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result"]
 
 [[method]]
@@ -15736,7 +15736,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/licensed_compiler.rs::every_licensed_cell_completes_the_compiler_path", "crates/antecedent/tests/checked_bayesian_temporal_response_route_evidence.rs::bayesian_temporal_responses_are_sealed_refreshable_and_have_precise_artifact_dependency", "scripts/test_gate_retained_routes.py"]
+evidence = ["scripts/test_route_manifest_diff.py::test_the_working_tree_loses_no_capability_the_published_predecessor_had", "crates/antecedent/tests/licensed_compiler.rs::every_licensed_cell_completes_the_compiler_path", "crates/antecedent/tests/checked_bayesian_temporal_response_route_evidence.rs::bayesian_temporal_responses_are_sealed_refreshable_and_have_precise_artifact_dependency", "scripts/test_gate_retained_routes.py"]
 artifact_consumer = ["scripts/gate_retained_routes.py", "crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result"]
 
 [[method]]
@@ -15764,7 +15764,7 @@ decision_ports = "unlisted"
 owning_module = "scripts/closure_audit.py"
 implementation = ["scripts/closure_audit.py"]
 provenance = []
-evidence = ["scripts/test_closure_audit.py::test_every_unresolved_mandatory_row_is_listed_with_its_missing_element"]
+evidence = ["scripts/test_closure_report_rows.py::test_the_report_lists_every_unresolved_row_and_the_release_fails_on_each"]
 artifact_consumer = ["scripts/gate_release.sh"]
 
 [[method]]
@@ -15792,7 +15792,7 @@ decision_ports = "unlisted"
 owning_module = "scripts/closure_audit.py"
 implementation = ["scripts/closure_audit.py"]
 provenance = []
-evidence = ["scripts/test_closure_audit.py::test_a_counterpart_without_a_verified_attempt_is_reported"]
+evidence = ["scripts/test_closure_report_rows.py::test_the_report_lists_every_unresolved_row_and_the_release_fails_on_each"]
 artifact_consumer = ["scripts/gate_release.sh"]
 
 [[method]]
@@ -15820,7 +15820,7 @@ decision_ports = "unlisted"
 owning_module = "scripts/closure_audit.py"
 implementation = ["scripts/closure_audit.py"]
 provenance = []
-evidence = ["scripts/test_closure_audit.py::test_a_missing_consumer_is_reported_per_child"]
+evidence = ["scripts/test_closure_report_rows.py::test_the_report_lists_every_unresolved_row_and_the_release_fails_on_each"]
 artifact_consumer = ["scripts/gate_release.sh"]
 
 [[method]]
@@ -15848,7 +15848,7 @@ decision_ports = "unlisted"
 owning_module = "scripts/closure_audit.py"
 implementation = ["scripts/closure_audit.py"]
 provenance = []
-evidence = ["scripts/test_closure_audit.py::test_a_narrowed_promise_is_listed_with_its_adjusted_claim"]
+evidence = ["scripts/test_closure_report_rows.py::test_the_report_lists_every_unresolved_row_and_the_release_fails_on_each"]
 artifact_consumer = ["scripts/gate_release.sh"]
 
 [[method]]

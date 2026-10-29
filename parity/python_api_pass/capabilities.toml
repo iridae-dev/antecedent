@@ -10772,7 +10772,7 @@ required_dimensions = ["success", "inspection"]
 test = "python/tests/test_unlicensed_design_routes.py::test_period_history_match_matches_the_brute_force_reference"
 assertion_scopes = ["test_period_history_match_matches_the_brute_force_reference"]
 dimensions = ["success", "controls", "inspection"]
-assertion_contract = "With and without a caliper the matched query and donor indices equal a brute-force nearest-score reference, the contrast and standard error agree within 1e-12, and the fit is unlicensed with the abadie_imbens_standard_error_calibration_unmeasured_no_interval uncertainty label."
+assertion_contract = "With and without a caliper the matched query and donor indices equal a brute-force nearest-score reference, the contrast and standard error agree within 1e-12, and the fit is unlicensed with the abadie_imbens_and_newey_west_period_interval_calibration_unmeasured uncertainty label."
 
 [[capability]]
 id = "analysis.batch.retarget"

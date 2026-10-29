@@ -6,7 +6,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::AnalysisResultWire;
+use super::{AnalysisResultWire, HistoryMatchWire};
 use crate::IoError;
 use crate::graphless_support::{GraphlessAssignmentSupport, GraphlessSupportKey, graphless_admits};
 use crate::replay_tolerance::{ReplayNonFinite, ReplayScale, ReplayTolerance};
@@ -2455,13 +2455,14 @@ pub(in crate::analysis_result_artifact) fn validate_sequential_contrast_graphles
 
 /// Uncertainty label of the history-matched contrast.
 const HISTORY_MATCH_UNCERTAINTY: &str =
-    "abadie_imbens_standard_error_calibration_unmeasured_no_interval";
+    "abadie_imbens_and_newey_west_period_interval_calibration_unmeasured";
 
 /// Recompute a within-period history-matched contrast from its retained pairs.
 ///
-/// The result is unlicensed and reports no interval, so the check is that it claims neither and
-/// that the contrast, the weight total and the Abadie-Imbens standard error are those of the
-/// retained pairs and their within-arm variance estimates.
+/// The result is unlicensed and carries no top-level summary, so the check is that it claims none
+/// and that the contrast, the weight total, the Abadie-Imbens standard error and the Newey-West
+/// standard error and interval over the matched periods are those of the retained pairs, their
+/// periods and their within-arm variance estimates.
 pub(in crate::analysis_result_artifact) fn validate_history_match_graphless(
     result: &AnalysisResultWire,
 ) -> Result<(), IoError> {
@@ -2537,9 +2538,81 @@ pub(in crate::analysis_result_artifact) fn validate_history_match_graphless(
         (Some(reported), Some(recomputed)) => near(reported, recomputed),
         _ => false,
     };
-    if consistent {
+    if !consistent {
+        return fail("history match standard error is not the Abadie-Imbens form of its pairs");
+    }
+    validate_history_match_serial(fit, total, near)
+}
+
+/// Newey-West standard error and interval of the weighted mean of the pair differences, with the
+/// pairs aggregated by calendar period (periods enter by label, so a missing period invents no
+/// adjacency). Bartlett truncation lag `floor(4 (T / 100)^(2/9))` clamped to `[1, T - 1]`, scale
+/// `T / (T - 1) / total^2`, normal interval at the 97.5% point.
+fn validate_history_match_serial(
+    fit: &HistoryMatchWire,
+    total: f64,
+    near: impl Fn(f64, f64) -> bool,
+) -> Result<(), IoError> {
+    let fail = |message: &str| Err(IoError::Convert(message.into()));
+    let pairs = fit.matched_queries.len();
+    let reported = (
+        fit.serial_standard_error,
+        fit.interval_lower,
+        fit.interval_upper,
+    );
+    if fit.pair_periods.is_empty() {
+        return if reported == (None, None, None) && fit.serial_bandwidth == 0 {
+            Ok(())
+        } else {
+            fail("history match reports a period interval without its pair periods")
+        };
+    }
+    if fit.pair_periods.len() != pairs {
+        return fail("history match pair periods differ in length from its pairs");
+    }
+    let mut labels = fit.pair_periods.clone();
+    labels.sort_unstable();
+    labels.dedup();
+    if labels.len() < 2 || fit.pair_weights.iter().any(|w| *w <= 0.0) {
+        return if reported == (None, None, None) && fit.serial_bandwidth == 0 {
+            Ok(())
+        } else {
+            fail("history match reports a period interval that needs two matched periods")
+        };
+    }
+    let mut residual = vec![0.0_f64; labels.len()];
+    for k in 0..pairs {
+        let at = labels.binary_search(&fit.pair_periods[k]).unwrap_or_default();
+        residual[at] += fit.pair_weights[k] * (fit.differences[k] - fit.contrast);
+    }
+    let t = labels.len();
+    let bandwidth = {
+        let rule = (4.0 * (t as f64 / 100.0).powf(2.0 / 9.0)).floor().max(1.0) as usize;
+        rule.min(t - 1)
+    };
+    let mut meat: f64 = residual.iter().map(|r| r * r).sum();
+    for lag in 1..=bandwidth {
+        let weight = 1.0 - lag as f64 / (bandwidth as f64 + 1.0);
+        let Ok(step) = i64::try_from(lag) else { continue };
+        for (index, label) in labels.iter().enumerate() {
+            if let Some(earlier) = label.checked_sub(step).and_then(|p| labels.binary_search(&p).ok())
+            {
+                meat += 2.0 * weight * residual[index] * residual[earlier];
+            }
+        }
+    }
+    let variance = meat * t as f64 / (t as f64 - 1.0) / (total * total);
+    let expected_se = variance.max(0.0).sqrt();
+    let z = antecedent_stats::NORMAL_Q975;
+    let ok = matches!(reported, (Some(se), Some(lo), Some(hi))
+            if expected_se.is_finite()
+                && near(se, expected_se)
+                && near(lo, fit.contrast - z * expected_se)
+                && near(hi, fit.contrast + z * expected_se))
+        && fit.serial_bandwidth == bandwidth;
+    if ok {
         Ok(())
     } else {
-        fail("history match standard error is not the Abadie-Imbens form of its pairs")
+        fail("history match period interval is not the Newey-West interval of its pairs")
     }
 }

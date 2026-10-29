@@ -182,7 +182,18 @@ fn the_penalized_score_is_the_ridge_mode_with_an_unpenalized_intercept() {
     assert!((value("score0.at_mode") - sigmoid(mode[0])).abs() < 1e-6);
     assert!((value("score1.at_mode") - sigmoid(mode[0] + 1.5 * mode[1])).abs() < 1e-6);
     assert!(product.draws().is_empty());
-    assert_eq!(product.result().uncertainty, "penalized_mode_no_uncertainty");
+    assert_eq!(
+        product.result().uncertainty,
+        "penalized_target_subject_influence_interval_calibration_unmeasured"
+    );
+    for index in 0..2 {
+        let (lower, score, upper) = (
+            value(&format!("score{index}.lower")),
+            value(&format!("score{index}.at_mode")),
+            value(&format!("score{index}.upper")),
+        );
+        assert!(lower < score && score < upper && value(&format!("score{index}.se")) > 0.0);
+    }
     assert_eq!(product.result().licensing, "unlicensed");
     assert_eq!(product.result().calibration, "unmeasured");
     assert_eq!(product.estimator_id(), "temporal.penalized_propensity");

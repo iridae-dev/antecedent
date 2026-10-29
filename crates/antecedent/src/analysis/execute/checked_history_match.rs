@@ -4,8 +4,9 @@
 //! control of its own period, so a match never crosses a period, and a period with no control
 //! leaves its treated units unmatched. The estimand is the sampling-weighted effect on the matched
 //! treated units, conditional on the period and the history-mean score. The standard error is the
-//! Abadie-Imbens form for one match with replacement; no interval is reported, the route is
-//! unlicensed and its calibration is unmeasured. A posterior of this contrast does not exist (a
+//! Abadie-Imbens form for one match with replacement; the interval allows serial dependence
+//! between periods (Newey-West over the matched periods, normal at 97.5%) and is absent when
+//! fewer than two periods hold a match. The route is unlicensed and its calibration is unmeasured. A posterior of this contrast does not exist (a
 //! matching rule has no likelihood): Bayesian inference with the matching estimator is refused
 //! with that premise and the next attempt. That next attempt is the estimator
 //! `bayesian.period_history_outcome_model`: the posterior of a declared Gaussian outcome model
@@ -35,7 +36,7 @@ use antecedent_estimate::history_match::{HistoryUnit, PeriodHistoryContrast};
 use antecedent_estimate::history_outcome_model::prepare_history_outcome_model;
 
 /// Uncertainty label of the history-matched contrast.
-const UNCERTAINTY: &str = "abadie_imbens_standard_error_calibration_unmeasured_no_interval";
+const UNCERTAINTY: &str = "abadie_imbens_and_newey_west_period_interval_calibration_unmeasured";
 
 /// Frozen history match. The extra is the Bayesian configuration of the outcome-model estimator;
 /// the matching contrast itself has no posterior and holds none.
@@ -165,8 +166,8 @@ impl CheckedHistoryMatchOperation {
                 DiagnosticSeverity::Info,
                 "unlicensed and uncalibrated route: the mean history carrying the confounding is \
                  the caller's assumption, a match never crosses a calendar period, the standard \
-                 error is Abadie-Imbens for one match with replacement and its calibration is \
-                 unmeasured, and no interval is reported",
+                 error is Abadie-Imbens for one match with replacement, the interval is the Newey-West \
+                 interval over the matched calendar periods, and their calibration is unmeasured",
             )]),
         );
         result.estimate = crate::PrimaryEstimate::NotAnEffect;
@@ -184,6 +185,11 @@ impl CheckedHistoryMatchOperation {
             donor_variances: Arc::from(estimate.donor_variances.as_slice()),
             unmatched_treated: Arc::from(estimate.unmatched_treated.as_slice()),
             periods_matched: estimate.periods_matched,
+            pair_periods: Arc::from(estimate.matched_periods.as_slice()),
+            serial_standard_error: estimate.serial.as_ref().map(|s| s.standard_error),
+            interval_lower: estimate.serial.as_ref().map(|s| s.lower),
+            interval_upper: estimate.serial.as_ref().map(|s| s.upper),
+            serial_bandwidth: estimate.serial.as_ref().map_or(0, |s| s.bandwidth),
             caliper: self.query.caliper,
             uncertainty: Arc::from(UNCERTAINTY),
         });

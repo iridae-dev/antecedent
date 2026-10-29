@@ -262,6 +262,16 @@ fn period_history_match_matches_the_brute_force_reference_and_round_trips() {
     close(fit.weight_total, 4.5, 1.0e-12);
     close(fit.contrast, 4.333_333_333_333_333, 1.0e-12);
     close(fit.standard_error.unwrap(), 2.096_440_251_568_134, 1.0e-12);
+    // Matched periods 1, 1, 2 with residuals sum_q w_q (d_q - 13/3): -1 and 1. Two adjacent
+    // periods give bandwidth 1 and meat 1 + 1 + 2 (1 / 2) (-1) = 1, so the variance is
+    // 1 * (2 / 1) / 4.5^2 = 8 / 81 and the standard error is 2 sqrt(2) / 9.
+    assert_eq!(&*fit.pair_periods, &[1, 1, 2]);
+    assert_eq!(fit.serial_bandwidth, 1);
+    let serial_se = 2.0 * 2.0_f64.sqrt() / 9.0;
+    close(fit.serial_standard_error.unwrap(), serial_se, 1.0e-12);
+    close(fit.interval_lower.unwrap(), fit.contrast - 1.959_963_984_540_054 * serial_se, 1.0e-12);
+    close(fit.interval_upper.unwrap(), fit.contrast + 1.959_963_984_540_054 * serial_se, 1.0e-12);
+    assert_eq!(&*fit.uncertainty, "abadie_imbens_and_newey_west_period_interval_calibration_unmeasured");
     let bytes = prepared.encode_contracted_result(&result, "history-match", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     let wire = body.history_match.as_ref().unwrap();
@@ -275,6 +285,27 @@ fn period_history_match_matches_the_brute_force_reference_and_round_trips() {
             &forged_se,
             header.variable_names.clone(),
             "forged-se"
+        )
+        .is_err()
+    );
+    assert_eq!(wire.pair_periods, vec![1, 1, 2]);
+    let mut forged_interval = body.clone();
+    forged_interval.history_match.as_mut().unwrap().interval_upper = Some(9.0);
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &forged_interval,
+            header.variable_names.clone(),
+            "forged-interval"
+        )
+        .is_err()
+    );
+    let mut forged_periods = body.clone();
+    forged_periods.history_match.as_mut().unwrap().pair_periods = vec![1, 2, 3];
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &forged_periods,
+            header.variable_names.clone(),
+            "forged-periods"
         )
         .is_err()
     );

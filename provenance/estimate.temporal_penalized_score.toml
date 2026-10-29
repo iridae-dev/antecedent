@@ -23,6 +23,7 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent/tests/temporal_treatment_score_product.rs",
  "crates/antecedent-estimate/tests/temporal_propensity_reference.rs (40-digit ridge logistic mode and score on a mixed-scale design, Laplace mode and covariance, exact Gaussian posterior-mean score)",
+ "crates/antecedent-estimate/tests/dependence_aware_interval_reference.rs (subject-level influence-function sandwich standard errors and Wald interval of the ridge mode against a two-parameter Newton solve and explicit 2x2 algebra; a dependent series refused)",
 ]
 
 [method_review]
@@ -34,12 +35,12 @@ redistribution = "Primary works are cited, not redistributed. The reference scri
 limitations = "One 220-row design with an intercept and two lag columns on different scales (standard normal and about N(5, 3^2)); penalties 0.5, 8 and 400 and prior scale pairs (5, 2), (0.5, 0.5) and (1, 0.1). Ridge coefficients agree to a relative 1e-7 and scores to 1e-8; the Laplace mode agrees to 1e-6, the sample covariance of 60,000 draws within five Monte Carlo standard errors per entry, and the posterior-mean score within the Monte Carlo bound. Not exercised: separated data, more than two lag columns, very large penalties beyond 400, and any coverage. The cited publications were not retrieved."
 sources = ["https://mpmath.org/doc/1.3.0/"]
 findings_resolved = ["No numerical defect was found: the intercept is unpenalised and the slopes are penalised on the supplied scale, the Laplace covariance uses the prior precisions 1/sd^2 per coordinate, and the posterior-mean score agrees with the exact Gaussian expectation of the sigmoid.", "The ridge convention (penalty / 2 times the squared slopes, not scaled by the row count) is fixed by the reference and agrees with the module documentation."]
-record_sha256 = "74796949cd6300de3ab857981509a71f7a7c13c2140a7982eec52c9d6afb23b3"
+record_sha256 = "90cb935103300686274124f8047e848bef71333000a55ccaa459c0d935906e8e"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_penalized_score.rs"
-sha256 = "8ca281c75a1a04f3ee85678b0f2db2a3c3b0a888ca539190d20ee86ec0efc7bb"
+sha256 = "ac510f1266627c878bd3464fa65bbcadd66cb20200373b221f3bf345f0687d60"
 
 [[method_review.artifacts]]
 role = "assertion"

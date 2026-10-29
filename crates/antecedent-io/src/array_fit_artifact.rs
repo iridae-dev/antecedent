@@ -407,22 +407,38 @@ fn score_design(
     )?)
 }
 
+const PENALIZED_SCORE_PREMISES: [&str; 5] = [
+    "each row is one independent subject at one decision time",
+    "a nuisance score: not a posterior or an interval of any effect",
+    "in-sample summary of the treatment model, not an out-of-fold effect score",
+    "the interval is the subject-level influence-function Wald interval at the 97.5% normal point, for the penalized population target of the ridge fit and not for the unpenalized propensity",
+    "a single dependent series has no subject-level influence and is refused",
+];
+
 fn run_score(wire: &PenalizedScoreWire) -> Fit {
     let design = score_design(&wire.design)?;
-    let score = FrequentistTemporalPropensity::new(wire.penalty)?.fit_borrowed(&design)?;
+    let (score, interval) = FrequentistTemporalPropensity::new(wire.penalty)?
+        .fit_with_interval_borrowed(&design, &wire.design.histories)?;
     let mut values = vec![value("penalty", score.penalty)];
     for (j, coefficient) in score.coefficients.iter().enumerate() {
         values.push(value(&format!("coefficient.{j}"), *coefficient));
+        values.push(value(
+            &format!("coefficient.{j}.se"),
+            interval.coefficient_standard_error[j],
+        ));
     }
-    for (i, history) in wire.design.histories.iter().enumerate() {
-        values.push(indexed("score", i, "at_mode", score.at(history)?));
+    for (i, band) in interval.scores.iter().enumerate() {
+        values.push(indexed("score", i, "at_mode", band.score));
+        values.push(indexed("score", i, "se", band.standard_error));
+        values.push(indexed("score", i, "lower", band.lower));
+        values.push(indexed("score", i, "upper", band.upper));
     }
     let meta = Meta {
         id: ID_TEMPORAL_PROPENSITY,
         target: "propensity_score_nuisance",
-        uncertainty: "penalized_mode_no_uncertainty",
+        uncertainty: "penalized_target_subject_influence_interval_calibration_unmeasured",
     };
-    Ok(finish(&meta, values, Vec::new(), declared(&SCORE_PREMISES), Vec::new()))
+    Ok(finish(&meta, values, Vec::new(), declared(&PENALIZED_SCORE_PREMISES), Vec::new()))
 }
 
 fn run_score_posterior(wire: &PropensityScorePosteriorWire) -> Fit {

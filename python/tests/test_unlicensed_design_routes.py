@@ -323,7 +323,7 @@ def test_period_history_match_matches_the_brute_force_reference(caliper: float |
     assert fit.contrast == pytest.approx(tau, abs=1e-12)
     assert fit.standard_error == pytest.approx(se, abs=1e-12)
     assert fit.licensed is False
-    assert fit.uncertainty == "abadie_imbens_standard_error_calibration_unmeasured_no_interval"
+    assert fit.uncertainty == "abadie_imbens_and_newey_west_period_interval_calibration_unmeasured"
 
 
 def test_bayesian_matching_is_the_typed_boundary() -> None:

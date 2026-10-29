@@ -219,6 +219,170 @@ impl PenalizedPropensityScore {
     }
 }
 
+/// Subject-level influence-function interval of a penalized score.
+///
+/// The penalized mode solves `sum_i s_i(b) - penalty * D b = 0` with `s_i = (y_i - p_i) x_i` and
+/// `D` the identity on the slopes. Each row is one independent subject, so the influence of a
+/// subject on the coefficients is `H^-1 s_i` with `H = X'WX + penalty * D` at the mode, and the
+/// covariance is `n / (n - 1) * H^-1 (sum_i (s_i - mean s)(s_i - mean s)') H^-1`. The scores are
+/// centred because the penalty makes their sum non-zero at the mode. The interval is the Wald
+/// interval of the linear predictor `x'b` at the normal 97.5% point, mapped through the inverse
+/// link, so it covers the penalized population target of the ridge fit and not the unpenalized
+/// propensity. A single dependent series has no such covariance and is refused.
+#[derive(Clone, Debug)]
+#[must_use = "the interval is the reason this fit was requested"]
+pub struct PenalizedScoreInterval {
+    /// Row-major covariance of the penalized coefficients.
+    pub coefficient_covariance: Vec<f64>,
+    /// Standard error of each coefficient.
+    pub coefficient_standard_error: Vec<f64>,
+    /// One band per requested history.
+    pub scores: Vec<PenalizedScoreBand>,
+}
+
+/// Standard error and interval of one penalized score.
+#[derive(Clone, Copy, Debug)]
+pub struct PenalizedScoreBand {
+    /// The score, the inverse link at the penalized mode.
+    pub score: f64,
+    /// Delta-method standard error on the probability scale.
+    pub standard_error: f64,
+    /// Lower endpoint, the inverse link of the lower Wald bound of the linear predictor.
+    pub lower: f64,
+    /// Upper endpoint.
+    pub upper: f64,
+}
+
+impl FrequentistTemporalPropensity {
+    /// Fit the penalized score and its subject-level influence-function interval at each history.
+    ///
+    /// # Errors
+    /// A dependent series (`route_not_supported`), a history whose length is not the number of
+    /// lags, a singular penalized information matrix, or a ridge fit that does not converge.
+    pub fn fit_with_interval_borrowed(
+        &self,
+        design: &TemporalPropensityDesignRef<'_>,
+        histories: &[Vec<f64>],
+    ) -> Result<(PenalizedPropensityScore, PenalizedScoreInterval), EstimationError> {
+        let fit = self.fit_borrowed(design)?;
+        let (n, p) = (design.nrows, design.ncols);
+        let beta = &fit.coefficients;
+        let mut information = vec![0.0_f64; p * p];
+        let mut residual_rows = vec![0.0_f64; n * p];
+        let mut mean_score = vec![0.0_f64; p];
+        for i in 0..n {
+            let eta: f64 = (0..p).map(|j| beta[j] * design.x_colmajor[j * n + i]).sum();
+            let prob = sigmoid(eta);
+            let weight = prob * (1.0 - prob);
+            let residual = design.y[i] - prob;
+            for a in 0..p {
+                let xa = design.x_colmajor[a * n + i];
+                residual_rows[i * p + a] = residual * xa;
+                mean_score[a] += residual * xa / n as f64;
+                for b in 0..p {
+                    information[a * p + b] += weight * xa * design.x_colmajor[b * n + i];
+                }
+            }
+        }
+        for a in 1..p {
+            information[a * p + a] += self.penalty;
+        }
+        let inverse = invert(&information, p).ok_or_else(|| {
+            EstimationError::stats_msg("the penalized information matrix is singular")
+        })?;
+        let mut meat = vec![0.0_f64; p * p];
+        for i in 0..n {
+            for a in 0..p {
+                for b in 0..p {
+                    meat[a * p + b] +=
+                        (residual_rows[i * p + a] - mean_score[a])
+                            * (residual_rows[i * p + b] - mean_score[b]);
+                }
+            }
+        }
+        let scale = if n > 1 { n as f64 / (n as f64 - 1.0) } else { f64::NAN };
+        let left = multiply(&inverse, &meat, p);
+        let mut covariance = multiply(&left, &inverse, p);
+        covariance.iter_mut().for_each(|v| *v *= scale);
+        if covariance.iter().any(|v| !v.is_finite()) {
+            return Err(EstimationError::stats_msg(
+                "the penalized score covariance needs at least two subjects",
+            ));
+        }
+        let coefficient_standard_error =
+            (0..p).map(|j| covariance[j * p + j].max(0.0).sqrt()).collect();
+        let z = antecedent_stats::NORMAL_Q975;
+        let mut scores = Vec::with_capacity(histories.len());
+        for history in histories {
+            let eta = linear_predictor(beta, history)?;
+            let mut x = Vec::with_capacity(p);
+            x.push(1.0);
+            x.extend_from_slice(history);
+            let variance: f64 = (0..p)
+                .map(|a| (0..p).map(|b| x[a] * covariance[a * p + b] * x[b]).sum::<f64>())
+                .sum();
+            let half = z * variance.max(0.0).sqrt();
+            let score = sigmoid(eta);
+            scores.push(PenalizedScoreBand {
+                score,
+                standard_error: score * (1.0 - score) * variance.max(0.0).sqrt(),
+                lower: sigmoid(eta - half),
+                upper: sigmoid(eta + half),
+            });
+        }
+        Ok((fit, PenalizedScoreInterval { coefficient_covariance: covariance, coefficient_standard_error, scores }))
+    }
+}
+
+fn multiply(a: &[f64], b: &[f64], p: usize) -> Vec<f64> {
+    let mut out = vec![0.0_f64; p * p];
+    for i in 0..p {
+        for k in 0..p {
+            let aik = a[i * p + k];
+            for j in 0..p {
+                out[i * p + j] += aik * b[k * p + j];
+            }
+        }
+    }
+    out
+}
+
+/// Gauss-Jordan inverse with partial pivoting; `None` for a singular matrix.
+fn invert(matrix: &[f64], p: usize) -> Option<Vec<f64>> {
+    let mut a = matrix.to_vec();
+    let mut inv = vec![0.0_f64; p * p];
+    for i in 0..p {
+        inv[i * p + i] = 1.0;
+    }
+    for col in 0..p {
+        let pivot = (col..p).max_by(|&r, &s| a[r * p + col].abs().total_cmp(&a[s * p + col].abs()))?;
+        if a[pivot * p + col].abs() < 1e-300 {
+            return None;
+        }
+        for j in 0..p {
+            a.swap(col * p + j, pivot * p + j);
+            inv.swap(col * p + j, pivot * p + j);
+        }
+        let d = a[col * p + col];
+        for j in 0..p {
+            a[col * p + j] /= d;
+            inv[col * p + j] /= d;
+        }
+        for r in 0..p {
+            if r != col {
+                let f = a[r * p + col];
+                if f != 0.0 {
+                    for j in 0..p {
+                        a[r * p + j] -= f * a[col * p + j];
+                        inv[r * p + j] -= f * inv[col * p + j];
+                    }
+                }
+            }
+        }
+    }
+    Some(inv)
+}
+
 /// Gaussian prior for the temporal propensity posterior.
 ///
 /// `intercept_sd` and `slope_sd` are standard deviations of independent `N(0, sd²)` priors.

@@ -23,6 +23,7 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent/tests/unlicensed_design_routes.rs",
   "crates/antecedent-estimate/tests/history_match_variance_reference.rs (exhaustive noise enumeration of the period-matched standard error)",
+  "crates/antecedent-estimate/tests/dependence_aware_interval_reference.rs (Newey-West standard error and interval of the period-matched contrast against a hand-solved three-period case and a brute-force matching reference, gapped period labels included)",
 ]
 
 [method_review]
@@ -34,12 +35,12 @@ redistribution = "Primary work is cited, not redistributed. The reference script
 limitations = "Three designs of 3 to 9 units over one or two periods (an equal-distance tie, equal scores in one arm, shared donors with unequal weights and a control with no same-arm neighbour); every one of the 2^n sign patterns of the outcome noise (256, 512 and 8) is enumerated, contrast and standard error are asserted per pattern to 1e-12 relative, and the expected squared standard error is asserted equal to the conditional variance of the contrast. That identity needs the means constant within an arm and period and equal noise variance within an arm, which the designs have by construction; under heterogeneous means the within-arm estimate overstates the noise variance, and no matching-discrepancy bias term exists. Repeated-sampling coverage is not measured and no interval is produced."
 sources = ["https://doi.org/10.1111/j.1468-0262.2006.00655.x"]
 findings_resolved = ["Defect repaired: the standard error took the noise variance from the dispersion of the matched pair differences, (1/2) sum_q w_q (d_q - tau)^2 / (1 - sum w_q^2), but queries that share a donor share its noise, so the differences understate the spread: on a design with all five treated units matched to one control the expected squared standard error was 0.1545 against a true conditional variance of 0.6215. The Abadie-Imbens within-arm nearest-neighbour estimate (1/2)(y_i - y_l(i))^2 per matched treated unit and used donor now replaces it, its expectation equals the conditional variance exactly in the enumeration, and a missing within-arm neighbour gives no standard error instead of a number. The facade replay tests were updated to the exactly computed values (2.0964 and 2.0651, previously 0.9314 and 2.3486)."]
-record_sha256 = "9bbddd7dc6cbea190c6fa56b9772c66dcb980933466c507a19ed0a65c7d89db5"
+record_sha256 = "b4ff07268f7b2cbec356b4a991f9bef3eb15b5b33292b5366db28f6990c652b2"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/history_match.rs"
-sha256 = "ea21b54aea48ec3457b99a44ba4eb1c247d94907e27709782b789a369543733a"
+sha256 = "f63aa0df6a9c1871086e14cca4d527a5a8830766873e3e728a9a1bb98b601edc"
 
 [[method_review.artifacts]]
 role = "assertion"

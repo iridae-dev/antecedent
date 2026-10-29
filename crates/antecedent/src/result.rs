@@ -393,7 +393,7 @@ impl QuasiRolloutEstimate {
     }
 }
 
-/// Within-period history-matched contrast (unlicensed, uncalibrated, no interval).
+/// Within-period history-matched contrast (unlicensed, uncalibrated).
 ///
 /// The matched pairs are retained so a loader recomputes every summary.
 #[derive(Clone, Debug, PartialEq)]
@@ -423,6 +423,18 @@ pub struct HistoryMatchEstimate {
     pub unmatched_treated: Arc<[usize]>,
     /// Periods in which at least one treated unit matched.
     pub periods_matched: usize,
+    /// Calendar period of each matched treated unit, in pair order.
+    pub pair_periods: Arc<[i64]>,
+    /// Newey-West standard error of the contrast over the matched periods, which allows serial
+    /// dependence between periods; absent when fewer than two periods hold a match or a matched
+    /// weight is not positive.
+    pub serial_standard_error: Option<f64>,
+    /// Lower endpoint of the 95% normal interval around the contrast with `serial_standard_error`.
+    pub interval_lower: Option<f64>,
+    /// Upper endpoint of that interval.
+    pub interval_upper: Option<f64>,
+    /// Bartlett truncation lag of the Newey-West estimate; zero when it is absent.
+    pub serial_bandwidth: usize,
     /// The caliper, when one was declared.
     pub caliper: Option<f64>,
     /// Uncertainty semantics.

@@ -121,7 +121,7 @@ DECLARED_KIND = {
     "bayesian.sequential_regime_value": "posterior",
     "sequential.crossfit_contrast.wald": "analytic",
     "bayesian.sequential_crossfit_contrast": "posterior",
-    "matching.period_history_contrast": "none",
+    "matching.period_history_contrast": "analytic",
     "bayesian.period_history_outcome_model": "posterior",
     "iv_bounds.balke_pearl": "enclosure",
     "bayesian.iv_bounds.endpoint_bootstrap": "posterior",
@@ -181,7 +181,7 @@ DECLARED_KIND["bayesian.temporal_design.regime_survival"] = "posterior"
 FACADE_KIND = {
     "crates/antecedent-estimate/src/propensity/penalized.rs|static.frequentist": "analytic",
     "crates/antecedent-estimate/src/penalized_propensity_posterior.rs|static.bayesian": "posterior",
-    "crates/antecedent-estimate/src/temporal_penalized_score.rs|temporal.frequentist": "none",
+    "crates/antecedent-estimate/src/temporal_penalized_score.rs|temporal.frequentist": "analytic",
     "crates/antecedent-estimate/src/temporal_penalized_score.rs|temporal.bayesian": "posterior",
     "crates/antecedent-estimate/src/quantile.rs|static.frequentist": "none",
     "crates/antecedent-estimate/src/smoothed_dose.rs|static.frequentist": "design_aware_resampling",

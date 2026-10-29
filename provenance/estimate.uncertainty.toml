@@ -42,7 +42,7 @@ record_sha256 = "b560d1962941a50ff8fa5bb9a23ea8bf0195916b7131be2857584b4f9154468
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/result.rs"
-sha256 = "2b34503780c22288be7254a874a648eb1f0eb30ef555dfdfc1b7882db52533d6"
+sha256 = "f320e551f6d2a7d1d1f11416c0db2863306eea97f3a969bb4d9bd1512cb9b129"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

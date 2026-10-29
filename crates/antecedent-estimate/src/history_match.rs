@@ -34,6 +34,8 @@ use std::cmp::Ordering;
 use std::collections::BTreeMap;
 
 use crate::EstimationError;
+use crate::temporal_design::ClusterScores;
+use crate::temporal_design::serial::{newey_west_bandwidth, serial_sampling_summary};
 use crate::matching_posterior_boundary::{MatchingPosteriorRequest, refuse_matching_posterior};
 
 /// One unit: a history, the outcome contrasted after it, and a sampling weight.
@@ -399,8 +401,16 @@ impl PeriodHistoryContrast {
             .filter(|(index, unit)| unit.treated && matched_queries.binary_search(index).is_err())
             .map(|(index, _)| index)
             .collect();
+        let matched_periods: Vec<i64> = matched_queries.iter().map(|q| units[*q].period).collect();
+        let differences: Vec<f64> = pairs.iter().map(|pair| pair.difference).collect();
+        let pair_weights: Vec<f64> = pairs.iter().map(|pair| pair.weight).collect();
+        let serial = serial_history_interval(&matched_periods, &differences, &pair_weights).ok();
         Ok(PeriodHistoryEstimate {
             contrast,
+            matched_periods,
+            differences,
+            pair_weights,
+            serial,
             standard_error,
             query_variances,
             donor_variances,
@@ -441,6 +451,77 @@ pub struct PeriodHistoryEstimate {
     pub unmatched_treated: Vec<usize>,
     /// Periods in which at least one treated unit matched.
     pub periods_matched: usize,
+    /// Calendar period of each matched treated unit, in matched order.
+    pub matched_periods: Vec<i64>,
+    /// Outcome difference of each matched pair, in matched order.
+    pub differences: Vec<f64>,
+    /// Sampling weight of each matched treated unit, in matched order.
+    pub pair_weights: Vec<f64>,
+    /// Serial-dependence-aware standard error and interval over the matched periods. `None`
+    /// when fewer than two periods hold a match (see [`serial_history_interval`]).
+    pub serial: Option<SerialHistoryInterval>,
+}
+
+/// Newey-West standard error and normal interval of a period-matched contrast.
+///
+/// Matched pairs are aggregated by calendar period, the weighted-mean linearization residual of
+/// each period is `sum_q w_q (d_q - contrast)`, and the long-run variance of that period series
+/// is the Bartlett-kernel Newey-West estimator at the truncation lag
+/// `floor(4 (T / 100)^(2/9))` (periods enter by their labels, so a missing period invents no
+/// adjacency), scaled by `T / (T - 1) / (sum of weights)^2`. This is the estimator the arm
+/// designs use for serially dependent unit-period data. The interval is normal at the 97.5%
+/// point and is conditional on the periods that hold a match; its calibration is unmeasured.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SerialHistoryInterval {
+    /// Newey-West standard error.
+    pub standard_error: f64,
+    /// Lower endpoint of the 95% normal interval.
+    pub lower: f64,
+    /// Upper endpoint of the 95% normal interval.
+    pub upper: f64,
+    /// Bartlett truncation lag used.
+    pub bandwidth: usize,
+    /// Matched periods in ascending order.
+    pub periods: Vec<i64>,
+}
+
+/// The serial-dependence-aware interval of a weighted mean of matched differences.
+///
+/// `periods`, `differences` and `weights` are aligned per matched pair.
+///
+/// # Errors
+/// Misaligned inputs, a non-finite value, a non-positive weight, or fewer than two distinct
+/// periods (serial dependence cannot be estimated from one period).
+pub fn serial_history_interval(
+    periods: &[i64],
+    differences: &[f64],
+    weights: &[f64],
+) -> Result<SerialHistoryInterval, EstimationError> {
+    if periods.len() != differences.len() || periods.len() != weights.len() {
+        return Err(EstimationError::data_msg("matched periods, differences and weights differ in length"));
+    }
+    let mut labels: Vec<i64> = periods.to_vec();
+    labels.sort_unstable();
+    labels.dedup();
+    if labels.len() < 2 {
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
+            "a serial-dependence-aware interval needs matches in at least two calendar periods",
+        ));
+    }
+    let cluster: Vec<usize> = periods
+        .iter()
+        .map(|period| labels.binary_search(period).unwrap_or_default())
+        .collect();
+    let scores = ClusterScores::accumulate_weighted(differences, 1, &cluster, Some(weights))?;
+    let summary = serial_sampling_summary(&scores, &labels)?;
+    Ok(SerialHistoryInterval {
+        standard_error: summary.standard_error[0],
+        lower: summary.lower[0],
+        upper: summary.upper[0],
+        bandwidth: newey_west_bandwidth(labels.len()),
+        periods: labels,
+    })
 }
 
 /// Abadie-Imbens (2006) standard error of a weighted matched mean with one match, conditional on

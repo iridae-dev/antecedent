@@ -108,8 +108,6 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 
 | Row | Status | Next attempt |
 | --- | --- | --- |
-| `P02.penalized_propensity.temporal.frequentist` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
-| `P04.temporal.frequentist` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
 | `P07.derivative.temporal.frequentist` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
 | `P07.derivative.temporal.bayesian` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
 | `P07.dose_grid.static.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |

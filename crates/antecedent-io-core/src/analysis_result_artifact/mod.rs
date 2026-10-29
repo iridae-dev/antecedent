@@ -993,10 +993,16 @@ pub struct SequentialContrastWire {
     pub licensed: bool,
 }
 
+const fn is_zero_lag(lag: &usize) -> bool {
+    *lag == 0
+}
+
 /// Retained within-period history-matched contrast, its matched pairs and standard error.
 ///
 /// The pairs and the within-arm variance estimates of their units are kept so a loader recomputes
-/// the contrast, the weight total and the Abadie-Imbens standard error. No interval is reported and the result is unlicensed.
+/// the contrast, the weight total and the Abadie-Imbens standard error. The periods of the pairs
+/// are kept so a loader recomputes the Newey-West standard error and interval over the matched
+/// periods too. The result is unlicensed.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct HistoryMatchWire {
@@ -1028,10 +1034,26 @@ pub struct HistoryMatchWire {
     pub unmatched_treated: Vec<usize>,
     /// Periods in which at least one treated unit matched.
     pub periods_matched: usize,
+    /// Calendar period of each matched treated unit, in pair order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pair_periods: Vec<i64>,
+    /// Newey-West standard error over the matched periods; absent when fewer than two periods
+    /// hold a match.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub serial_standard_error: Option<f64>,
+    /// Lower endpoint of the 95% normal interval around the contrast.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interval_lower: Option<f64>,
+    /// Upper endpoint of that interval.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interval_upper: Option<f64>,
+    /// Bartlett truncation lag of the Newey-West estimate; zero when it is absent.
+    #[serde(default, skip_serializing_if = "is_zero_lag")]
+    pub serial_bandwidth: usize,
     /// The caliper, when one was declared.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub caliper: Option<f64>,
-    /// Always `abadie_imbens_standard_error_calibration_unmeasured_no_interval`.
+    /// Always `abadie_imbens_and_newey_west_period_interval_calibration_unmeasured`.
     pub uncertainty: String,
     /// Always `unmeasured`.
     pub calibration: String,

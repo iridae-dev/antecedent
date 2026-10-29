@@ -19973,3 +19973,10 @@ crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_scenario_matrix_pending.py"
 gates = ["inventory"]
+
+[[test]]
+id = "estimate-dependence-aware-interval-reference"
+crate = "antecedent-estimate"
+cargo_target = "dependence_aware_interval_reference"
+path = "crates/antecedent-estimate/tests/dependence_aware_interval_reference.rs"
+gates = ["inventory", "named"]
