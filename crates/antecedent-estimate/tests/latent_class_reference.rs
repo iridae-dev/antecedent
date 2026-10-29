@@ -111,7 +111,7 @@ fn premises_the_data_cannot_supply_are_refused_when_undeclared() {
     let error = fit_latent_class_effects(&data, &undeclared).unwrap_err().to_string();
     assert!(error.contains("randomization_not_declared"), "{error}");
     let single = LatentClassConfig::new(1, 7).declare_conditional_randomization();
-    assert!(fit_latent_class_effects(&data, &single).is_err(), "one class is not a mixture");
+    assert!(format!("{:?}", fit_latent_class_effects(&data, &single).err()).contains("latent_class.degenerate_class"), "one class is not a mixture");
     let constant = vec![1.0; outcome.len()];
     let flat = LatentClassData { outcome: &outcome, treatment: &constant, covariates: &covariates };
     let declared = LatentClassConfig::new(2, 7).declare_conditional_randomization();

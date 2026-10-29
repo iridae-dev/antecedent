@@ -87,7 +87,7 @@ def test_seal_evaluates_and_binds_the_policy_value_to_its_identities() -> None:
     assert shipped.identities["policy"] != artifact.identities["policy"]
     assert shipped.identities["evaluation"] != artifact.identities["evaluation"]
     # Logged trajectories need the logging policy that generated them.
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="logged trajectories need the logging policy"):
         require_success(se.seal(_problem(), _policy("v", {(): SHIP}), trajectories=[object()]))  # type: ignore[list-item]
 
 
@@ -116,9 +116,9 @@ def test_consume_replays_the_stored_value_bit_for_bit_and_enforces_retained_iden
     # Damaged and truncated bytes are refused, and bytes only.
     damaged = bytearray(data)
     damaged[len(damaged) // 2] ^= 0x55
-    with pytest.raises(se.SequentialEvaluationRefusal):
+    with pytest.raises(se.SequentialEvaluationRefusal, match="checksum mismatch for section"):
         require_success(se.consume_artifact(bytes(damaged)))
-    with pytest.raises(se.SequentialEvaluationRefusal):
+    with pytest.raises(se.SequentialEvaluationRefusal, match="sequential_evaluation.malformed"):
         require_success(se.consume_artifact(data[:30]))
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match="an artifact is bytes or ExportedArtifact"):
         require_success(se.consume_artifact("not bytes"))  # type: ignore[arg-type]

@@ -45,9 +45,9 @@ fn paired_moments_match_the_exact_definitions() {
         near(got.var_y, f(&case["var_y"]), 1.0, name);
         near(got.covariance, f(&case["covariance"]), 1.0, name);
     }
-    assert!(paired_moments(&[], &[]).is_err());
-    assert!(paired_moments(&[1.0], &[1.0, 2.0]).is_err());
-    assert!(paired_moments(&[1.0, f64::NAN], &[1.0, 2.0]).is_err());
+    assert!(format!("{:?}", paired_moments(&[], &[]).err()).contains("a draw column needs at least one row"), "a draw column needs at least one row");
+    assert!(format!("{:?}", paired_moments(&[1.0], &[1.0, 2.0]).err()).contains("aligned columns differ in length"), "aligned columns differ in length");
+    assert!(format!("{:?}", paired_moments(&[1.0, f64::NAN], &[1.0, 2.0]).err()).contains("NonFinite"), "NonFinite");
 }
 
 #[test]
@@ -76,12 +76,12 @@ fn correlation_ranges_match_the_exact_endpoint_values() {
         }
     }
     let m = MomentSummary { mean: 0.0, standard_deviation: 1.0 };
-    assert!(correlation_range_envelope(m, m, 1.0, 1.0, 0.5, 0.5).is_err(), "a single correlation");
-    assert!(correlation_range_envelope(m, m, 1.0, 1.0, 0.6, 0.5).is_err(), "a reversed range");
-    assert!(correlation_range_envelope(m, m, 1.0, 1.0, -1.5, 0.5).is_err());
-    assert!(correlation_range_envelope(m, m, 1.0, 1.0, 0.0, 1.5).is_err());
+    assert!(format!("{:?}", correlation_range_envelope(m, m, 1.0, 1.0, 0.5, 0.5).err()).contains("a single correlation is a covariance declaration"), "a single correlation");
+    assert!(format!("{:?}", correlation_range_envelope(m, m, 1.0, 1.0, 0.6, 0.5).err()).contains("a single correlation is a covariance declaration"), "a reversed range");
+    assert!(format!("{:?}", correlation_range_envelope(m, m, 1.0, 1.0, -1.5, 0.5).err()).contains("a single correlation is a covariance declaration"), "a single correlation is a covariance declaration");
+    assert!(format!("{:?}", correlation_range_envelope(m, m, 1.0, 1.0, 0.0, 1.5).err()).contains("a single correlation is a covariance declaration"), "a single correlation is a covariance declaration");
     let negative = MomentSummary { mean: 0.0, standard_deviation: -1.0 };
-    assert!(correlation_range_envelope(negative, m, 1.0, 1.0, 0.0, 0.5).is_err());
+    assert!(format!("{:?}", correlation_range_envelope(negative, m, 1.0, 1.0, 0.0, 0.5).err()).contains("standard deviation is negative"), "standard deviation is negative");
     let nan = MomentSummary { mean: f64::NAN, standard_deviation: 1.0 };
-    assert!(correlation_range_envelope(nan, m, 1.0, 1.0, 0.0, 0.5).is_err());
+    assert!(format!("{:?}", correlation_range_envelope(nan, m, 1.0, 1.0, 0.0, 0.5).err()).contains("NonFinite"), "NonFinite");
 }

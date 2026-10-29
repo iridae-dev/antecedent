@@ -110,6 +110,6 @@ fn posterior_reports_match_the_exact_beta_values() {
     }
     // A prior shape below one is refused, as is a count vector of the wrong length.
     let bad = BetaPrior { alpha: 0.5, beta: 1.0 };
-    assert!(bayesian_report(&spec, bad, &[0, 0, 0, 0], &never).is_err());
-    assert!(bayesian_report(&spec, BetaPrior::UNIFORM, &[0, 0, 0], &never).is_err());
+    assert!(format!("{:?}", bayesian_report(&spec, bad, &[0, 0, 0, 0], &never).err()).contains("Beta prior shape must be finite"), "Beta prior shape must be finite");
+    assert!(format!("{:?}", bayesian_report(&spec, BetaPrior::UNIFORM, &[0, 0, 0], &never).err()).contains("observed counts must hold a success and a failure per cell"), "observed counts must hold a success and a failure per cell");
 }

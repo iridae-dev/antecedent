@@ -93,5 +93,5 @@ fn inverse_censoring_weights_match_the_multiprecision_conditional_survival() {
         .filter(|(_, e)| **e == 1.0)
         .map(|(s, _)| *s)
         .fold(f64::INFINITY, f64::min);
-    assert!(cox_ipcw(&time, &event, &column_major(&fx), 2, (smallest * 1.01).min(0.99)).is_err());
+    assert!(format!("{:?}", cox_ipcw(&time, &event, &column_major(&fx), 2, (smallest * 1.01).min(0.99)).err()).contains("below the configured positivity floor"), "below the configured positivity floor");
 }

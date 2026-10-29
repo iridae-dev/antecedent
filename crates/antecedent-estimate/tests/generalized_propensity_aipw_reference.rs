@@ -138,8 +138,8 @@ fn an_undeclared_level_is_refused_and_a_trim_is_refused() {
     let query = AverageEffectQuery::with_levels(id(0), id(1), 0.0, 1.0);
     // Level 2 is observed but not declared: the population would silently change.
     let narrow = MultiLevelAipw::full_population(vec![0.0, 1.0]);
-    assert!(narrow.fit(&data, &estimand(2), &query, &ctx, AssumptionSet::new()).is_err());
+    assert!(format!("{:?}", narrow.fit(&data, &estimand(2), &query, &ctx, AssumptionSet::new()).err()).contains("treatment_level_undeclared"), "treatment_level_undeclared");
     let trimmed = MultiLevelAipw::full_population(vec![0.0, 1.0, 2.0])
         .with_overlap(OverlapPolicy::RequireDiagnostics { clip: Some(0.05), trim: Some(0.1) });
-    assert!(trimmed.fit(&data, &estimand(2), &query, &ctx, AssumptionSet::new()).is_err());
+    assert!(format!("{:?}", trimmed.fit(&data, &estimand(2), &query, &ctx, AssumptionSet::new()).err()).contains("generalized-propensity estimators do not trim"), "generalized-propensity estimators do not trim");
 }

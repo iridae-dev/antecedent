@@ -81,8 +81,8 @@ fn the_effect_on_the_treated_matches_the_exact_posterior() {
 #[test]
 fn unequal_sampling_weights_and_ragged_histories_are_refused() {
     let reference = reference();
-    assert!(prepare_history_outcome_model(&units(&reference, |i| 1.0 + (i % 2) as f64)).is_err());
+    assert!(format!("{:?}", prepare_history_outcome_model(&units(&reference, |i| 1.0 + (i % 2) as f64)).err()).contains("route_not_supported"), "route_not_supported");
     let mut ragged = units(&reference, |_| 1.0);
     ragged[0] = HistoryUnit::try_new(&[0.1, 0.2], 1.0, true, 1.0).unwrap().in_period(10);
-    assert!(prepare_history_outcome_model(&ragged).is_err());
+    assert!(format!("{:?}", prepare_history_outcome_model(&ragged).err()).contains("every history to have the same length"), "every history to have the same length");
 }

@@ -69,9 +69,9 @@ fn the_exact_maximum_and_the_union_bound_equal_the_quadrature_reference() {
 #[test]
 fn malformed_inputs_are_refused() {
     let est = estimates(&serde_json::json!([1.0, 2.0]));
-    assert!(winners_curse_bound(&est, 1, NoiseDependence::IndependentStreams, 0.0).is_err());
-    assert!(winners_curse_bound(&[], 3, NoiseDependence::IndependentStreams, 0.0).is_err());
+    assert!(format!("{:?}", winners_curse_bound(&est, 1, NoiseDependence::IndependentStreams, 0.0).err()).contains("need supplied estimates with finite non-negative standard errors"), "need supplied estimates with finite non-negative standard errors");
+    assert!(format!("{:?}", winners_curse_bound(&[], 3, NoiseDependence::IndependentStreams, 0.0).err()).contains("need supplied estimates with finite non-negative standard errors"), "need supplied estimates with finite non-negative standard errors");
     let negative = estimates(&serde_json::json!([1.0, -0.5]));
-    assert!(winners_curse_bound(&negative, 2, NoiseDependence::IndependentStreams, 0.0).is_err());
-    assert!(winners_curse_bound(&est, 2, NoiseDependence::IndependentStreams, f64::NAN).is_err());
+    assert!(format!("{:?}", winners_curse_bound(&negative, 2, NoiseDependence::IndependentStreams, 0.0).err()).contains("need supplied estimates with finite non-negative standard errors"), "need supplied estimates with finite non-negative standard errors");
+    assert!(format!("{:?}", winners_curse_bound(&est, 2, NoiseDependence::IndependentStreams, f64::NAN).err()).contains("need supplied estimates with finite non-negative standard errors"), "need supplied estimates with finite non-negative standard errors");
 }

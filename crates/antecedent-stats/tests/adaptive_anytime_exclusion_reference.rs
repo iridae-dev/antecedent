@@ -82,9 +82,9 @@ fn reported_bounds_match_the_reference_radius() {
     }
     // A level outside (0, 1), a count vector of the wrong length and a truth of the wrong shape
     // are refused, not defaulted.
-    assert!(anytime_valid_report(&spec, &[1, 1, 1, 1], 1.0, 10.0).is_err());
-    assert!(anytime_valid_report(&spec, &[1, 1, 1, 1], 0.05, 0.0).is_err());
-    assert!(anytime_valid_report(&spec, &[1, 1, 1], 0.05, 10.0).is_err());
+    assert!(format!("{:?}", anytime_valid_report(&spec, &[1, 1, 1, 1], 1.0, 10.0).err()).contains("miscoverage level must lie in (0, 1)"), "miscoverage level must lie in (0, 1)");
+    assert!(format!("{:?}", anytime_valid_report(&spec, &[1, 1, 1, 1], 0.05, 0.0).err()).contains("tuning sample size must be finite and positive"), "tuning sample size must be finite and positive");
+    assert!(format!("{:?}", anytime_valid_report(&spec, &[1, 1, 1], 0.05, 10.0).err()).contains("observed counts must hold a success and a failure per cell"), "observed counts must hold a success and a failure per cell");
     assert!(matches!(
         anytime_exclusion_probability(&spec, &[0.5], 0.05, 10.0, &never),
         Err(AdaptiveInferenceError::Shape(_))
