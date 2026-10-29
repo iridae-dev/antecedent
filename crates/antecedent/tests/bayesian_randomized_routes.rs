@@ -249,9 +249,11 @@ fn the_retained_artifact_carries_the_posterior_and_an_independent_loader_recompu
     // the wire layer, which does not know the inference mode; the contract section binds it.
     let mut corrupted = body;
     corrupted.posterior_artifact = Some(vec![1, 2, 3]);
-    assert!(
+    assert_eq!(
         antecedent_io::encode_analysis_result_artifact(&corrupted, header.variable_names, "c")
-            .is_err()
+            .unwrap_err()
+            .to_string(),
+        "io error: failed to fill whole buffer"
     );
 }
 
@@ -279,7 +281,11 @@ fn the_boundaries_are_refused_with_their_next_attempt() {
     let (data, mut query) = trial();
     query.design = RandomizationDesign::Cluster { treated_clusters: 4 };
     let error = run(&data, query, bayes(Some(uniform_arms())), None).err().expect("refused");
-    assert!(error.to_string().contains("Next attempt") || error.to_string().contains("cluster"));
+    assert_eq!(error.reason_code(), Some("route_not_supported"));
+    assert!(
+        error.to_string().contains("does not read a cluster, stratified or switchback assignment design"),
+        "{error}"
+    );
 
     // The design-based estimator does not run under Bayesian inference.
     let (data, query) = trial();
@@ -351,10 +357,10 @@ fn the_switchback_posterior_matches_the_whitened_least_squares_reference() {
     assert_eq!(result.support_status(), None);
     // Student-t with 20 degrees of freedom: location, scale and quantiles from scipy.stats.t.
     let (mean, sd, lower, upper) = column(&result, 0);
-    close(mean, 1.547_248_493, 5e-3, "direct mean");
-    close(sd, 0.204_015_378_4, 1e-2, "direct sd");
-    close(lower, 1.143_518_649, 1e-2, "direct 2.5%");
-    close(upper, 1.950_978_337, 1e-2, "direct 97.5%");
+    close(mean, 1.547_248_493, 1e-6, "direct mean");
+    close(sd, 0.204_015_378_4, 2e-4, "direct sd");
+    close(lower, 1.143_518_649, 2e-3, "direct 2.5%");
+    close(upper, 1.950_978_337, 2e-3, "direct 97.5%");
     assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
         &record.assumption, antecedent_core::Assumption::Custom { id, .. }
         if id.as_ref() == "switchback_no_carryover"

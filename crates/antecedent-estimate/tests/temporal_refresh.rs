@@ -250,7 +250,11 @@ fn third_period_invalidated_refresh_never_runs_the_evaluator() {
         called = true;
         evaluate(id)
     });
-    assert!(result.is_err());
+    let message = invalidation_detail(result);
+    assert!(
+        message.starts_with("temporal_refresh.horizon_changed:"),
+        "{message}"
+    );
     assert!(!called, "a stale proof must not be re-evaluated");
 }
 
@@ -370,14 +374,20 @@ fn resealed_refresh_cannot_change_inference_or_validate_an_invalid_window() {
     let (fresh, mut receipt) = refresh_held(&held, replacement(), evaluate).unwrap();
     receipt.inference_claim = "confidence_interval";
     receipt.digest = receipt.compute_digest();
-    assert!(accept_refresh(&held, &receipt, fresh).is_err());
+    assert_eq!(invalidation_detail(accept_refresh(&held, &receipt, fresh)), "temporal_refresh.receipt_mismatch: the receipt changes the point-only inference claim");
 
     let (mut fresh, mut receipt) = refresh_held(&held, replacement(), evaluate).unwrap();
     fresh.identity.period.end = fresh.identity.period.start;
     receipt.new_identity_digest = fresh.identity.digest();
     receipt.new_period = fresh.identity.period;
     receipt.digest = receipt.compute_digest();
-    assert!(accept_refresh(&held, &receipt, fresh).is_err());
+    let EstimationError::Refused { code, message } =
+        accept_refresh(&held, &receipt, fresh).unwrap_err()
+    else {
+        panic!("expected a coded refusal");
+    };
+    assert_eq!(code, "invalid_argument");
+    assert_eq!(message.as_ref(), "temporal_refresh.invalid_replacement: the replacement period is empty or reversed");
 }
 
 #[test]

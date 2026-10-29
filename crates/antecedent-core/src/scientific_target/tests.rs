@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use super::{
-    Conditioning, ContrastForm, ContrastTerm, CrossWorldPremise, DoseTimeSurface, GraphFamily,
+    Conditioning, ContrastForm, ContrastIncoherence, ContrastTerm, CrossWorldPremise, DoseTimeSurface, GraphFamily,
     HistoryWindow, InferenceSelection, InitialLaw, InterventionContrast, InterventionWorld,
     MediationArms, MediationComponent, MediationTarget, ModelAssumptions, ObservationUnit,
     OutcomeQuantity, QuantityUnits, ScientificTarget, ScientificTargetError, ScientificWorldId,
@@ -770,7 +770,10 @@ fn symbolic_marker_is_not_a_world_level() {
         Err(ScientificTargetError::InvalidAction { .. })
     ));
     let shift = Intervention::shift(vid(0), Value::symbolic_intervention());
-    assert!(WorldAction::at_decision([shift]).is_err());
+    assert!(matches!(
+        WorldAction::at_decision([shift]),
+        Err(ScientificTargetError::InvalidAction { .. })
+    ));
     let err = MediationArms::new(
         vid(0),
         [vid(2)],
@@ -1153,7 +1156,11 @@ fn arbitrary_linear_contrast_refuses_missing_duplicated_or_nonfinite_terms() {
             contrast.terms().iter().map(|term| (term.world, term.coefficient)).collect();
         terms[0].1 = invalid;
         assert!(
-            InterventionContrast::linear(contrast.worlds().clone(), terms, world_id(0)).is_err()
+            matches!(
+                InterventionContrast::linear(contrast.worlds().clone(), terms, world_id(0)),
+                Err(ScientificTargetError::InvalidLinearContrast)
+            ),
+            "coefficient {invalid}"
         );
     }
     let mut terms: Vec<_> =
@@ -1431,10 +1438,22 @@ mod feedback_vocabulary {
             ]),
             Err(ScientificTargetError::DuplicateInterventionVariable { id: vid(1) })
         );
-        assert!(StructuralAction::hard_clamp(vid(0), f64::NAN).is_err());
-        assert!(StructuralAction::replace_mechanism(vid(0), " ", &[1.0]).is_err());
-        assert!(StructuralAction::replace_mechanism(vid(0), "constant", &[f64::INFINITY]).is_err());
-        assert!(StructuralAction::initial_state(vid(0), "", 1.0).is_err());
+        assert!(matches!(
+            StructuralAction::hard_clamp(vid(0), f64::NAN),
+            Err(ScientificTargetError::InvalidAction { .. })
+        ));
+        assert_eq!(
+            StructuralAction::replace_mechanism(vid(0), " ", &[1.0]),
+            Err(ScientificTargetError::EmptyName { field: "mechanism family" })
+        );
+        assert!(matches!(
+            StructuralAction::replace_mechanism(vid(0), "constant", &[f64::INFINITY]),
+            Err(ScientificTargetError::InvalidAction { .. })
+        ));
+        assert_eq!(
+            StructuralAction::initial_state(vid(0), "", 1.0),
+            Err(ScientificTargetError::EmptyName { field: "initial law" })
+        );
         let specified = WorldAction::structural([]).unwrap();
         assert_eq!(specified.structural_actions(), Some(&[][..]));
         assert!(specified.at_decision_interventions().is_none());
@@ -1469,9 +1488,16 @@ mod feedback_vocabulary {
         )
         .unwrap();
         let mixed = WorldCollection::new([world(0, 0.0, true), shock]).unwrap();
+        let refused =
+            InterventionContrast::difference(mixed, world_id(1), world_id(0), world_id(0));
         assert!(
-            InterventionContrast::difference(mixed, world_id(1), world_id(0), world_id(0)).is_err(),
-            "a clamp and a shock are different coordinates, not two levels of one"
+            matches!(
+                refused,
+                Err(ScientificTargetError::IncoherentContrast {
+                    reason: ContrastIncoherence::TwoWorldsDiffer
+                })
+            ),
+            "a clamp and a shock are different coordinates, not two levels of one: {refused:?}"
         );
     }
 }

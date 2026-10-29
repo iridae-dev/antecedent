@@ -675,7 +675,8 @@ fn unknown_contract_format_needs_a_newer_reader() {
     let (body, target, names) = fixture_body();
     let mut contract = contract_for(target, &body);
     contract.format = 99;
-    assert!(validate_contract_section(&contract).is_err());
+    let refused = validate_contract_section(&contract).unwrap_err().to_string();
+    assert_eq!(refused, "convert error: unsupported `analysis_result.contract` format 99");
     let consumed =
         consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
     assert!(!consumed.acceptance.recognized);
@@ -992,14 +993,17 @@ fn rehashed_checked_aipw_with_invalid_fold_count_is_refused() {
         *program_digest(contract.program.as_ref().unwrap()).unwrap().as_bytes();
     seal_claim(&mut contract, &body);
 
-    assert!(
+    assert_eq!(
         encode_analysis_result_artifact_with_contract(
             &body,
             names.clone(),
             "tampered-aipw-lowering",
             Some(&contract),
         )
-        .is_err()
+        .unwrap_err()
+        .to_string()
+        .as_str(),
+        "convert error: contract payloads do not rehash: program.checked_aipw_lowering,program.checked_aipw_binding"
     );
     let consumed =
         consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
@@ -1098,14 +1102,17 @@ fn checked_aipw_rows_require_the_sealed_snapshot_digest() {
     contract.identities.checked_aipw_rows = Some([0; 32]);
     seal_claim(&mut contract, &body);
 
-    assert!(
+    assert_eq!(
         encode_analysis_result_artifact_with_contract(
             &body,
             names.clone(),
             "tampered-aipw-rows",
             Some(&contract),
         )
-        .is_err()
+        .unwrap_err()
+        .to_string()
+        .as_str(),
+        "convert error: contract payloads do not rehash: program.checked_aipw_binding,checked_aipw.row_binding"
     );
     let consumed =
         consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
@@ -1737,9 +1744,14 @@ fn temporal_nested_result_carries_the_uncertainty_of_its_inference_mode() {
 #[test]
 fn mixture_masses_must_sum_to_one() {
     validate_mixture_masses(0.5, 0.3, 0.2, 0.0).unwrap();
-    assert!(validate_mixture_masses(0.5, 0.3, 0.1, 0.0).is_err());
-    assert!(validate_mixture_masses(1.2, 0.0, 0.0, 0.0).is_err());
-    assert!(validate_mixture_masses(f64::NAN, 0.0, 0.0, 0.0).is_err());
+    let message = |result: Result<(), crate::IoError>| result.unwrap_err().to_string();
+    assert!(message(validate_mixture_masses(0.5, 0.3, 0.1, 0.0)).contains("must sum to 1"));
+    assert!(message(validate_mixture_masses(1.2, 0.0, 0.0, 0.0)).contains("inside [0, 1]"));
+    assert!(message(validate_mixture_masses(f64::NAN, 0.0, 0.0, 0.0)).contains("inside [0, 1]"));
+    assert!(message(validate_mixture_masses(-0.1, 1.1, 0.0, 0.0)).contains("inside [0, 1]"));
+    // The sum tolerance is 1e-12: a sum off by 5e-13 passes, one off by 5e-12 does not.
+    validate_mixture_masses(0.5, 0.3, 0.2 + 5e-13, 0.0).unwrap();
+    assert!(message(validate_mixture_masses(0.5, 0.3, 0.2 + 5e-12, 0.0)).contains("must sum to 1"));
 }
 
 #[test]
@@ -1796,13 +1808,16 @@ fn portable_family_evidence_is_sealed_without_claiming_scalar_replay_verifies_it
     let before = result_digest(&body).unwrap();
     body.joint_covariance.as_mut().unwrap().values[0] = 0.09;
     assert_ne!(result_digest(&body).unwrap(), before);
-    assert!(
+    assert_eq!(
         encode_analysis_result_artifact_with_contract(
             &body,
             names,
             "tampered-family",
             Some(&contract)
         )
-        .is_err()
+        .unwrap_err()
+        .to_string()
+        .as_str(),
+        "convert error: contract does not verify against analysis_result body: claim.id"
     );
 }

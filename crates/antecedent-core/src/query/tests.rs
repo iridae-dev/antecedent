@@ -93,15 +93,16 @@ fn nested_counterfactual_query_requires_distinct_roles_and_levels() {
     .unwrap();
     assert_eq!(q.as_mediation_query().contrast, MediationContrast::NaturalDirect);
     CausalQuery::NestedCounterfactual(q).validate().unwrap();
-    assert!(
+    assert_eq!(
         NestedCounterfactualQuery::new(
             VariableId::from_raw(0),
             VariableId::from_raw(0),
             VariableId::from_raw(2),
         )
-        .is_err()
+        .err(),
+        Some(QueryError::InvalidIntervention(InterventionFault::NestedRolesNotDistinct))
     );
-    assert!(
+    assert_eq!(
         NestedCounterfactualQuery::with_levels(
             VariableId::from_raw(0),
             VariableId::from_raw(1),
@@ -109,7 +110,8 @@ fn nested_counterfactual_query_requires_distinct_roles_and_levels() {
             0.0,
             0.0,
         )
-        .is_err()
+        .err(),
+        Some(QueryError::InvalidIntervention(InterventionFault::NestedLevels))
     );
 }
 
@@ -207,7 +209,12 @@ fn dynamic_policy_and_planned_populations() {
     let empty =
         TemporalEffectQuery::pulse(t, y, 1.0).with_policy(TemporalPolicy::dynamic(rule, []));
     assert_eq!(empty.try_treatment_offset(), Err(QueryError::DynamicPolicyHasNoTreatmentOffset));
-    assert!(empty.validate().is_err());
+    assert_eq!(
+        empty.validate(),
+        Err(QueryError::InvalidIntervention(InterventionFault::Rejected(
+            crate::intervention::InterventionError::EmptyDynamicSchedule
+        )))
+    );
 
     let named = AverageEffectQuery::binary_ate(t, y)
         .with_target_population(TargetPopulation::Predicate(PredicateExpr::named("cohort_a")));
