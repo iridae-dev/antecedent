@@ -432,6 +432,25 @@ fn unseen_cells_are_refused_smoothed_or_enveloped_and_never_zero_filled() {
     let smoothed_value = point(&smoothed);
     assert!((0.0..=1.0).contains(&smoothed_value), "{smoothed_value} vs {truth}");
     assert_ne!(point(&smoothed).to_bits(), point(&structural).to_bits());
+    // Independent limit: a vanishing pseudo-count adds no mass, so the smoothed reading of the
+    // counts tends to the structural-zero reading of the same counts (cell with zero mass).
+    let vanishing = estimate(
+        &derivation,
+        tables.clone(),
+        UnseenCellRule::AdditiveSmoothing { pseudo_count: 1e-9 },
+    )
+    .unwrap();
+    assert!(
+        (point(&vanishing) - point(&structural)).abs() <= 1e-6,
+        "{} vs structural {}",
+        point(&vanishing),
+        point(&structural)
+    );
+    // The declared pseudo-count moves the value monotonically away from that limit.
+    assert!(
+        (point(&smoothed) - point(&structural)).abs()
+            > (point(&vanishing) - point(&structural)).abs()
+    );
     assert_eq!(smoothed.inference.interval.code, "cell_not_licensed");
 
     // Envelope: a labelled structural range over a finite family, no single
@@ -611,10 +630,17 @@ fn malformed_count_tables_are_refused_at_construction() {
         structural_zeros: zeros,
     };
     // Shape, emptiness, a structural zero that has observations.
-    assert!(SampledRegimeCounts::try_new(parts(counts[1..].to_vec(), vec![])).is_err());
-    assert!(SampledRegimeCounts::try_new(parts(vec![0; counts.len()], vec![])).is_err());
+    let construction_error = |p: SampledRegimeCountsParts| match SampledRegimeCounts::try_new(p) {
+        Err(error) => refusal(&error).1,
+        Ok(_) => panic!("a malformed table was accepted"),
+    };
+    let message = construction_error(parts(counts[1..].to_vec(), vec![]));
+    assert!(message.contains(&format!("the table has {} cells but {} counts", counts.len(), counts.len() - 1)), "{message}");
+    let message = construction_error(parts(vec![0; counts.len()], vec![]));
+    assert!(message.contains("no observations carries no evidence"), "{message}");
     let observed = counts.iter().position(|c| *c > 0).unwrap();
-    assert!(SampledRegimeCounts::try_new(parts(counts.clone(), vec![observed])).is_err());
+    let message = construction_error(parts(counts.clone(), vec![observed]));
+    assert!(message.contains("structural zero is out of range or has observations"), "{message}");
     // A changed observation changes the content identity even when labels and
     // shape match.
     let mut changed = counts.clone();
@@ -627,7 +653,8 @@ fn malformed_count_tables_are_refused_at_construction() {
     let mut bad = parts(good.counts().to_vec(), vec![]);
     bad.design =
         SamplingDesign::Stratified { variables: vec![antecedent_core::VariableId::from_raw(999)] };
-    assert!(SampledRegimeCounts::try_new(bad).is_err());
+    let message = construction_error(bad);
+    assert!(message.contains("stratification variables are distinct measured variables"), "{message}");
 }
 
 #[test]
@@ -782,7 +809,13 @@ fn selection_obstruction_leaves_no_derivation_to_sample() {
     let mut rng = Rng(8);
     let tables = sample_laws(&data, 1_000, &mut rng);
     assert!(!tables.is_empty());
-    assert!(!matches!(identify(&case, target), CounterfactualTransportDecision::Identified(_)));
+    assert!(
+        matches!(
+            identify(&case, target),
+            CounterfactualTransportDecision::ProvenNonTransportable(_)
+        ),
+        "the obstruction is a verified non-transportability witness, not a missing formula"
+    );
 }
 
 #[cfg(feature = "calibration-internal")]

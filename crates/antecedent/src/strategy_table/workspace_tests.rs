@@ -97,7 +97,7 @@ fn propensity_workspace_reused_estimate_into_overlap() {
     let estimate = id_run.estimate.clone();
 
     let mut ws = StaticEstimateWorkspaces::default();
-    let _ = estimate_static_effect(
+    let dispatched = estimate_static_effect(
         &EstimatorSpec::Default(EstimatorId::PropensityWeighting),
         StaticEstimateInput {
             data: &data,
@@ -113,6 +113,8 @@ fn propensity_workspace_reused_estimate_into_overlap() {
         &mut ws,
     )
     .unwrap();
+    // The dispatcher is the same estimator under the same seed as the facade run.
+    assert!((dispatched.ate - estimate.as_effect().unwrap().ate).abs() < 1e-12);
     let score_grows = ws.propensity.propensity.scores_grow_count;
     let score_cap = ws.propensity.propensity.scores.capacity();
     let ols_grows = ws.propensity.propensity.ols.grow_count;
@@ -127,12 +129,17 @@ fn propensity_workspace_reused_estimate_into_overlap() {
         Some("propensity.weighting"),
         None,
     );
-    let _ = OverlapRefuter::new()
+    let warm = OverlapRefuter::new()
         .refute_with_propensity(&problem, &mut ws.propensity.propensity)
         .unwrap();
-    assert!(ws.propensity.propensity.scores.capacity() >= score_cap);
-    assert!(ws.propensity.propensity.scores_grow_count >= score_grows);
-    assert!(ws.propensity.propensity.ols.grow_count >= ols_grows);
+    // The refuter continues from the warmed buffers: same rows, same width, so no buffer grows
+    // again, and the report equals the one a cold workspace produces.
+    assert_eq!(ws.propensity.propensity.scores.capacity(), score_cap);
+    assert_eq!(ws.propensity.propensity.scores_grow_count, score_grows);
+    assert_eq!(ws.propensity.propensity.ols.grow_count, ols_grows);
+    let cold = OverlapRefuter::new().refute(&problem).unwrap();
+    assert_eq!(warm.comparison.to_bits(), cold.comparison.to_bits());
+    assert_eq!(warm.passed, cold.passed);
 
     // ATT uses the legacy residualized fit and its reusable propensity workspace.
     // AllObserved iid AIPW now cross-fits per-fold nuisances instead.
@@ -154,6 +161,7 @@ fn propensity_workspace_reused_estimate_into_overlap() {
         &mut ws2,
     )
     .unwrap();
-    assert!(aipw.ate.is_finite());
+    // The generating effect is 2.0 for every unit (observed 2.088 at 280 rows).
+    assert!((aipw.ate - 2.0).abs() < 0.25, "ATT {}", aipw.ate);
     assert!(ws2.aipw.propensity.scores_grow_count >= 1 || ws2.aipw.propensity.ols.grow_count >= 1);
 }

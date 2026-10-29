@@ -98,8 +98,11 @@ fn frequentist_dag_graph_posterior_effect_is_sealed_and_preserves_graph_mass() {
         );
         let mixture = result.structural_response.as_ref().expect("structural graph mixture");
         let set = mixture.identified_set.as_ref().expect("identified set retained");
-        assert!((set.lower[0] - 2.0).abs() < 0.06);
-        assert!((set.upper[0] - 3.0).abs() < 0.06);
+        // Closed forms from the cell counts: the Z-adjusted atom recovers 2 and the direct atom
+        // 2 + 2 (P(z=1 | t=1) - P(z=1 | t=0)) = 2 + 2 (0.75 - 0.25) = 3; the residuals alternate
+        // within each cell so they cancel in both fits.
+        assert!((set.lower[0] - 2.0).abs() < 1e-9, "lower {}", set.lower[0]);
+        assert!((set.upper[0] - 3.0).abs() < 1e-9, "upper {}", set.upper[0]);
         assert!((mixture.identified_mass - 0.8).abs() < 1e-12);
         assert!((mixture.unidentified_mass - 0.2).abs() < 1e-12);
         assert!(one_shot.estimate().as_effect().unwrap().ate.is_nan());

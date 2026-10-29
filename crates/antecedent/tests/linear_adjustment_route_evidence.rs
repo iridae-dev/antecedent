@@ -72,14 +72,17 @@ fn verify_linear_adjustment_coordinate(coordinate: &str, accepted: bool, validat
     let result = prepared.estimate(&data, &ctx).unwrap();
     // The fixture is generated from y = 2*t + z + noise and the graph supplies
     // the complete back-door adjustment set {z}; this is an independent truth.
+    let reference = independent_adjusted_effect(&data);
     assert!(
-        (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.2,
-        "{coordinate}: ate={}",
+        (result.estimate().as_effect().unwrap().ate - reference).abs() < 1e-9,
+        "{coordinate}: ate={} against least squares {reference}",
         result.estimate().as_effect().unwrap().ate
     );
+    // The sample estimate also sits within sampling error of the generating coefficient.
+    assert!((reference - 2.0).abs() < 0.2, "{coordinate}: reference {reference}");
     let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     assert!(
-        (refreshed.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.2,
+        (refreshed.estimate().as_effect().unwrap().ate - reference).abs() < 1e-9,
         "{coordinate}: refreshed ate={}",
         refreshed.estimate().as_effect().unwrap().ate
     );
@@ -234,6 +237,45 @@ fn dag_accepted_frequentist_full_linear_adjustment_coordinate() {
         true,
         "full",
     );
+}
+
+/// Ordinary least squares of `y` on `(1, t, z)` from the fixture's raw columns (ids 0, 1, 2 are
+/// `t`, `y`, `z`), solved here by Gaussian elimination on the normal equations: the exact
+/// back-door adjustment estimate for the adjustment set `{z}`.
+fn independent_adjusted_effect(data: &antecedent_data::TabularData) -> f64 {
+    let column = |id: usize| -> Vec<f64> {
+        match &data.storage().columns()[id] {
+            antecedent_data::OwnedColumn::Float64(c) => c.values.to_vec(),
+            other => panic!("unexpected column {other:?}"),
+        }
+    };
+    let (t, y, z) = (column(0), column(1), column(2));
+    let mut a = [[0.0_f64; 4]; 3];
+    for i in 0..t.len() {
+        let row = [1.0, t[i], z[i]];
+        for r in 0..3 {
+            for c in 0..3 {
+                a[r][c] += row[r] * row[c];
+            }
+            a[r][3] += row[r] * y[i];
+        }
+    }
+    for pivot in 0..3 {
+        let best = (pivot..3).max_by(|&p, &q| a[p][pivot].abs().total_cmp(&a[q][pivot].abs())).unwrap();
+        a.swap(pivot, best);
+        for r in pivot + 1..3 {
+            let factor = a[r][pivot] / a[pivot][pivot];
+            for c in pivot..4 {
+                a[r][c] -= factor * a[pivot][c];
+            }
+        }
+    }
+    let mut beta = [0.0_f64; 3];
+    for r in (0..3).rev() {
+        let tail: f64 = (r + 1..3).map(|c| a[r][c] * beta[c]).sum();
+        beta[r] = (a[r][3] - tail) / a[r][r];
+    }
+    beta[1]
 }
 
 /// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.

@@ -135,9 +135,10 @@ fn three_modifier_bayesian_cate_is_sealed_refreshable_and_refuses_unavailable_ar
 
             let result = prepared.estimate(&data, &context).unwrap();
             // Independent SCM truth is 2.0 because all three modifiers have
-            // zero population mean and their treatment interactions are centered.
+            // zero population mean and their treatment interactions are centered
+            // (observed 1.9984 for every coordinate).
             assert!(
-                (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.3,
+                (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.02,
                 "{coordinate}: {}",
                 result.estimate().as_effect().unwrap().ate
             );
@@ -168,11 +169,13 @@ fn three_modifier_bayesian_cate_is_sealed_refreshable_and_refuses_unavailable_ar
                 panic!("refreshed route retains its conditional plan")
             };
             assert_eq!(retained.query(), &query);
+            // Adding 0.25 to every outcome moves only the intercept (observed change 8e-7, from
+            // the weak N(0, 25^2) prior).
             assert!(
                 (refreshed.estimate().as_effect().unwrap().ate
                     - result.estimate().as_effect().unwrap().ate)
                     .abs()
-                    < 0.3
+                    < 1e-4
             );
 
             let artifact =

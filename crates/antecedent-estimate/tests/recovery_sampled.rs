@@ -185,9 +185,15 @@ fn sampled_recovery_truth_seeded_interval_is_centered_reproducible_and_keeps_cov
         "58453e2da4390ad27502dd354d3052ecbc58d48073a9dc77911b0a80e556e5de"
     );
     // The point is near the truth and the interval center near the point.
-    assert!((first.effect - TRUE_EFFECT).abs() < 0.15, "{}", first.effect);
+    assert!(
+        (first.effect - independent_effect(&data.rows)).abs() < 1e-12,
+        "{} vs the closed-form inverse-response standardisation {}",
+        first.effect,
+        independent_effect(&data.rows)
+    );
+    assert!((first.effect - TRUE_EFFECT).abs() < 0.08, "{}", first.effect);
     let center = 0.5 * (first.interval.lower + first.interval.upper);
-    assert!((center - first.effect).abs() < 0.03, "center {center} vs point {}", first.effect);
+    assert!((center - first.effect).abs() < 0.01, "center {center} vs point {}", first.effect);
     assert!(first.interval.lower < first.interval.upper);
     assert!(first.effect_standard_error > 0.0);
     assert_eq!(first.replicate_effects.len() + first.failed_replicates, 2000);

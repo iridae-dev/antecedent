@@ -112,8 +112,10 @@ fn propensity_estimators_retain_procedure_through_public_lifecycle() {
                 }
 
                 let result = prepared.estimate(&base_data, &ctx).unwrap();
+                // The generating effect is 2.0 with deterministic residuals of at most 0.23; the
+                // observed estimates are within 0.03 of it.
                 assert!(
-                    (result.effect() - 2.0).abs() < 0.45,
+                    (result.effect() - 2.0).abs() < 0.06,
                     "{estimator:?} effect={}",
                     result.effect()
                 );
@@ -130,8 +132,16 @@ fn propensity_estimators_retain_procedure_through_public_lifecycle() {
 
                 let refreshed_data = make_data(4.0);
                 let refreshed = rebind_estimate(&mut prepared, refreshed_data, &ctx).unwrap();
-                assert!((refreshed.effect() - 2.0).abs() < 0.45);
-                assert!((refreshed.effect() - result.effect()).abs() < 0.2);
+                assert!((refreshed.effect() - 2.0).abs() < 0.06);
+                // Both estimators are exactly invariant to a constant shift of the outcome (the
+                // refreshed data add 4.0 to every y): the Hajek contrast of weighted means and the
+                // matched-pair difference cancel it. Observed difference 4e-16.
+                assert!(
+                    (refreshed.effect() - result.effect()).abs() < 1e-9,
+                    "{estimator:?}: a constant outcome shift moved the effect from {} to {}",
+                    result.effect(),
+                    refreshed.effect()
+                );
                 let RetainedOperation::CheckedPropensity(rebound_plan) =
                     prepared.retained_operation()
                 else {

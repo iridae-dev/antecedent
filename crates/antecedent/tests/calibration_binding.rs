@@ -346,6 +346,39 @@ fn estimator_level_records_key_the_facade_construction() {
     }
 }
 
+/// Closed-form front-door effect of the 0 -> 1 contrast for binary `t`, `m` (columns 0, 2) and
+/// outcome `y` (column 1), by plug-in counting:
+/// `sum_m P(m | t = a) sum_t' P(t') E[y | t', m]`, then the difference of the two arms.
+fn frontdoor_saturated_effect(data: &TabularData) -> f64 {
+    let column = |id: usize| -> Vec<f64> {
+        match &data.storage().columns()[id] {
+            antecedent_data::OwnedColumn::Float64(c) => c.values.to_vec(),
+            other => panic!("unexpected column {other:?}"),
+        }
+    };
+    let (t, y, m) = (column(0), column(1), column(2));
+    let n = t.len() as f64;
+    let count = |tv: f64, mv: Option<f64>| {
+        (0..t.len()).filter(|&i| t[i] == tv && mv.is_none_or(|v| m[i] == v)).count() as f64
+    };
+    let mean_y = |tv: f64, mv: f64| {
+        let rows: Vec<usize> = (0..t.len()).filter(|&i| t[i] == tv && m[i] == mv).collect();
+        rows.iter().map(|&i| y[i]).sum::<f64>() / rows.len() as f64
+    };
+    let value = |arm: f64| -> f64 {
+        [0.0, 1.0]
+            .iter()
+            .map(|&mv| {
+                let p_m = count(arm, Some(mv)) / count(arm, None);
+                let inner: f64 =
+                    [0.0, 1.0].iter().map(|&tp| count(tp, None) / n * mean_y(tp, mv)).sum();
+                p_m * inner
+            })
+            .sum()
+    };
+    value(1.0) - value(0.0)
+}
+
 fn assert_owned_static_construction(study: &Study, result: &StudyResult, owner: &str) {
     let reported = constructions(&study.inspect().unwrap(), result);
     assert!(
@@ -439,6 +472,14 @@ fn checked_frontdoor_functional_calibration_owner_executes_all_static_coordinate
                     .unwrap();
                 let result = study.run(&context).unwrap();
                 assert_owned_static_construction(&study, &result, "frontdoor.functional");
+                if discrete {
+                    let reference = frontdoor_saturated_effect(&data);
+                    let ate = result.estimate().as_effect().unwrap().ate;
+                    assert!(
+                        (ate - reference).abs() < 1e-9,
+                        "saturated front-door effect {ate} against plug-in counts {reference}"
+                    );
+                }
                 let prepared = study.prepare(&context).unwrap();
                 let replay = prepared.estimate(&data, &context).unwrap();
                 assert_eq!(

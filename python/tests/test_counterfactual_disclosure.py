@@ -74,9 +74,14 @@ def test_interaction_is_estimated_not_disclosed(bayesian):
     effects = np.asarray(result.unit_effects)
     assert effects.shape == (2500,)
     b = data["b"]
-    # Sampling error of the interaction coefficient at n = 2500 is about 0.07.
-    assert effects[b == 0].mean() == pytest.approx(0.8, abs=0.2)
-    assert effects[b == 1].mean() == pytest.approx(1.4, abs=0.25)
+    # Least squares of y on (1, a, b, ab, z) written out here: the unit effect is the a
+    # coefficient where b == 0 and a + ab where b == 1 (sampling error of the interaction at
+    # n = 2500 is about 0.07 around 0.8 and 1.4; the fitted effects sit within 0.012 of this OLS).
+    design = np.column_stack([np.ones(2500), data["a"], b, data["a"] * b, data["z"]])
+    beta = np.linalg.lstsq(design, data["y"], rcond=None)[0]
+    assert effects[b == 0].mean() == pytest.approx(beta[1], abs=0.03)
+    assert effects[b == 1].mean() == pytest.approx(beta[1] + beta[3], abs=0.03)
+    assert abs(beta[1] - 0.8) < 0.1 and abs(beta[1] + beta[3] - 1.4) < 0.15
     assert effects[b == 1].mean() - effects[b == 0].mean() > 0.3
     assert float(effects.std()) > 0.1
 
@@ -99,10 +104,13 @@ def test_additive_dgp_keeps_every_number_it_reports_today():
     effects = np.asarray(result.unit_effects)
     assert effects.shape == (2500,)
     assert result.estimate.estimator_id == "gcm.fit"
-    # Pinned from the fitted linear-Gaussian slope of y on (a, z); the true
+    # The linear-Gaussian slope of y on (a, z), by least squares here (0.8590508); the true
     # structural coefficient is 0.8 and the fit recovers it to sampling error.
-    assert result.estimate.ate == pytest.approx(0.8590508, abs=1e-6)
-    assert result.mean_ite == pytest.approx(0.8590508, abs=1e-6)
+    design = np.column_stack([np.ones(2500), data["a"], data["z"]])
+    slope = np.linalg.lstsq(design, data["y"], rcond=None)[0][1]
+    assert slope == pytest.approx(0.8590508, abs=1e-6)
+    assert result.estimate.ate == pytest.approx(slope, abs=1e-9)
+    assert result.mean_ite == pytest.approx(slope, abs=1e-9)
     assert float(effects.std()) == pytest.approx(0.0, abs=1e-12)
 
     assert result.estimate.unit_effects_homogeneous is False

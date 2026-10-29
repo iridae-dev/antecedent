@@ -179,6 +179,15 @@ def test_cpdag_ate_envelope_numeric_pin(
             assert result.posterior.effect_mean == pytest.approx(
                 section["expected_ate"], abs=section["absolute_tolerance"]
             )
+            # The 1e-9 pin above reads the product's own draw sequence. Independent anchor: with
+            # equal atom weights the posterior mean is the average of the two completions'
+            # regression effects (adjusted 0.4, unadjusted 0.52, from the contingency table) up to
+            # the Monte Carlo error of 64 draws and the weak N(0, 10^2) prior; observed 0.0016
+            # away. Weights 0.3/0.7 (0.484) or a dropped atom (0.4 or 0.52) would sit 0.024 or more away.
+            completions = _PIN["identification"]["completion_effects"]
+            assert result.posterior.effect_mean == pytest.approx(
+                sum(completions) / len(completions), abs=0.01
+            )
 
 
 def test_cpdag_same_schema_refresh_reuses_identification() -> None:

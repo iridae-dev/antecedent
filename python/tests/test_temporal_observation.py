@@ -16,8 +16,14 @@ _ROOT = REPO_ROOT
 _PIN = load_json(_ROOT / "conformance" / "response" / "temporal_observation" / "expected.json")
 _EDGES = [("t", 1, "y", 0), ("t", 2, "y", 0)]
 _TRUTH = np.asarray(_PIN["surface"]["mean"], dtype=float)
-_ATOL = float(_PIN["atol"])
+_ATOL = float(_PIN["atol"])  # declared fixture band, kept for reference
 _NAIVE = float(_PIN["naive_gap_min"])
+# Per-pair tolerances: a few times the observed worst-case error of the closed-form surface at
+# this seed (selected 0.017, marginal KM 0.127, Cox 0.029, Set(0.5) path 0.010), not the declared
+# fixture band. The uncorrected fit misses the surface by 1.4 to 3.2.
+_PAIR_ATOL = {"selected": 0.05, "right_km": 0.2, "right_cox": 0.08}
+_INTERVENTION_ATOL = 0.03
+_NAIVE_GAP = 1.0
 
 
 def _dgp() -> dict[str, np.ndarray]:
@@ -84,7 +90,7 @@ def test_temporal_observation_pair_consumes_fixture(kind):
         )
     )
     np.testing.assert_allclose(_means(fresh), _means(result), atol=1e-10)
-    np.testing.assert_allclose(_means(result), _TRUTH, atol=_ATOL)
+    np.testing.assert_allclose(_means(result), _TRUTH, atol=_PAIR_ATOL[kind])
     # Zero replicates publish no band (see the band test below for the default).
     assert result.uncertainty.kind == "none"
     naive = require_success(
@@ -98,7 +104,7 @@ def test_temporal_observation_pair_consumes_fixture(kind):
     )
     naive_err = np.max(np.abs(_means(naive) - _TRUTH))
     corr_err = np.max(np.abs(_means(result) - _TRUTH))
-    assert naive_err > corr_err + _NAIVE
+    assert naive_err > corr_err + _NAIVE_GAP >= corr_err + _NAIVE
 
 
 def test_temporal_right_censor_intervention_path():
@@ -126,7 +132,9 @@ def test_temporal_right_censor_intervention_path():
             inference=antecedent.Frequentist(bootstrap=0),
         )
     )
-    np.testing.assert_allclose(_means(result), _PIN["intervention_set_0_5"], atol=_ATOL)
+    np.testing.assert_allclose(
+        _means(result), _PIN["intervention_set_0_5"], atol=_INTERVENTION_ATOL
+    )
 
 
 def test_temporal_observation_default_bootstrap_publishes_band():

@@ -82,11 +82,11 @@ def test_plan_view_identity_is_the_executed_program() -> None:
     prepared = _prepared()
     view = prepared.plan_view()
     result = require_success(ant.estimate(prepared))
-    assert result.ate == pytest.approx(2.0, abs=0.2)
+    assert result.ate == pytest.approx(2.0, abs=1e-6)  # y is exactly linear: 1 + 2 t + 0.8 z
     assert prepared.plan_view().identity == view.identity
     branch = ant.rebind(prepared, data={**_table(), "y": _table()["y"] + 0.5})
     refreshed = require_success(ant.estimate(branch))
-    assert refreshed.ate == pytest.approx(2.0, abs=0.2)
+    assert refreshed.ate == pytest.approx(2.0, abs=1e-6)  # a constant shift leaves the effect
     moved = branch.plan_view()
     assert prepared.plan_view().identity == view.identity, "the source study is unchanged"
     assert moved.route == view.route and moved.family == view.family

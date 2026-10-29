@@ -110,9 +110,9 @@ fn an_additive_linear_game_gives_each_feature_its_own_coefficient_times_the_shif
     let (model, data) = build(vec![("x", x), ("z", z), ("y", y)], &[(0, 2), (1, 2)]);
     for delta in [1.0, 2.5] {
         let s = scores(&model, &data, 2, &[0, 1], delta);
-        assert!((score_of(&s, 0) - 2.0 * delta).abs() < 0.1, "{s:?}");
+        assert!((score_of(&s, 0) - 2.0 * delta).abs() < 0.03, "{s:?}");
         // The score is the absolute Shapley value: the negative coefficient is reported positive.
-        assert!((score_of(&s, 1) - 3.0 * delta).abs() < 0.1, "{s:?}");
+        assert!((score_of(&s, 1) - 3.0 * delta).abs() < 0.03, "{s:?}");
         assert_eq!(s[0].0, 1, "ranked by score, largest first");
     }
 }
@@ -128,8 +128,8 @@ fn intervening_on_a_mediator_severs_its_cause_and_splits_the_effect() {
     let y: Vec<f64> = m.iter().map(|v| 2.0 * v).collect();
     let (model, data) = build(vec![("x", x), ("m", m), ("y", y)], &[(0, 1), (1, 2)]);
     let s = scores(&model, &data, 2, &[0, 1], 1.5);
-    assert!((score_of(&s, 0) - 1.5).abs() < 0.1, "{s:?}");
-    assert!((score_of(&s, 1) - 1.5).abs() < 0.1, "{s:?}");
+    assert!((score_of(&s, 0) - 1.5).abs() < 0.015, "{s:?}");
+    assert!((score_of(&s, 1) - 1.5).abs() < 0.015, "{s:?}");
 }
 
 #[test]
@@ -140,8 +140,8 @@ fn a_feature_that_does_not_reach_the_outcome_scores_zero() {
     let y: Vec<f64> = x.iter().map(|a| 2.0 * a).collect();
     let (model, data) = build(vec![("x", x), ("z", z), ("y", y)], &[(0, 2)]);
     let s = scores(&model, &data, 2, &[0, 1], 1.0);
-    assert!(score_of(&s, 1) < 0.05, "{s:?}");
-    assert!((score_of(&s, 0) - 2.0).abs() < 0.1, "{s:?}");
+    assert!(score_of(&s, 1) < 0.01, "{s:?}");
+    assert!((score_of(&s, 0) - 2.0).abs() < 0.03, "{s:?}");
 }
 
 #[test]
@@ -158,7 +158,8 @@ fn more_features_than_the_declared_limit_are_refused() {
         &FeatureRelevanceOptions { delta: 1.0, n_samples: 10, max_features: 0 },
         &ExecutionContext::for_tests(1),
     );
-    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("features count 1 exceeds max=0"), "{error}");
 }
 
 #[test]
@@ -172,7 +173,9 @@ fn a_repeated_feature_or_the_outcome_among_the_features_is_not_scored_silently()
     let x = VariableId::from_raw(0);
     let y = VariableId::from_raw(1);
     let repeated = feature_relevance(&model, &data, y, &[x, x], &options, &ctx);
-    assert!(repeated.is_err(), "a repeated feature would split its effect: {repeated:?}");
+    let message = repeated.as_ref().unwrap_err().to_string();
+    assert!(message.contains("features must be distinct"), "{message}");
     let outcome = feature_relevance(&model, &data, y, &[x, y], &options, &ctx);
-    assert!(outcome.is_err(), "the outcome is not a feature of itself: {outcome:?}");
+    let message = outcome.as_ref().unwrap_err().to_string();
+    assert!(message.contains("cannot attribute the outcome to itself"), "{message}");
 }

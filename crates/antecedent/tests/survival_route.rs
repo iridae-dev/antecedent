@@ -243,7 +243,8 @@ fn subject_bootstrap_scalar_intervals_are_retained_and_artifact_checked() {
     assert_eq!(section.bootstrap_replicates_requested, Some(399));
     assert_eq!(section.bootstrap_replicates_ok, Some(399));
     let rmst = section.rmst_difference_interval.unwrap();
-    assert!(rmst[0] <= 0.2 && 0.2 <= rmst[1]);
+    // Control: 8 of 40 fail at time 1 (S = 0.8); treated 4 of 40 (S = 0.9).
+    assert_single_event_time_curve(section, 3.0, 0.8, 0.9, 40.0);
     assert_eq!(section.difference_at_tau_interval.unwrap().len(), 2);
     assert_eq!(rebind_estimate(&mut prepared, data, &ctx).unwrap().survival(), first.survival());
     let artifact = prepared.encode_contracted_result(&first, "survival-bootstrap", &ctx).unwrap();
@@ -300,6 +301,8 @@ fn licensed_survival_scalar_intervals_round_trip_and_refuse_forgery() {
     assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
     let curve = result.survival().unwrap();
     assert_eq!(curve.assignment_counts, [120, 120]);
+    // Control: i % 3 == 0 gives 40 of 120 failures at time 1; treated: i % 7 == 0 gives 18 of 120.
+    assert_single_event_time_curve(curve, 3.0, 80.0 / 120.0, 102.0 / 120.0, 120.0);
     assert_eq!(curve.bootstrap_replicates_ok, Some(299));
     assert!(curve.rmst_difference_interval.is_some());
     assert!(curve.difference_at_tau_interval.is_some());
@@ -761,6 +764,9 @@ fn licensed_fixed_g_ipcw_survival_intervals_round_trip_and_refuse_forgery() {
     assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
     let curve = result.survival().unwrap();
     assert_eq!(curve.assignment_counts, [170, 170]);
+    // A constant censoring survival cancels in the normalised weights, so the curve is the
+    // product-limit one: i % 3 == 0 gives 57 of 170 failures (control), i % 6 == 0 gives 29.
+    assert_single_event_time_curve(curve, 3.0, 113.0 / 170.0, 141.0 / 170.0, 170.0);
     assert_eq!(
         curve.censoring_survival_provenance.as_deref(),
         Some("caller_supplied_fixed_not_fitted_or_verified")
@@ -1129,6 +1135,51 @@ fn competing_incidence_scalar_interval_is_off_axis_and_refuses_forged_license() 
             "forged-incidence-license",
         )
         .is_err()
+    );
+}
+
+/// Hand-derived product-limit values of a design whose only events are at time 1 (survival
+/// `s_control`/`s_treated` after it, no later events): `S` is 1 before time 1, so the restricted
+/// mean over `[0, tau]` is `1 + (tau - 1) S(1)`, and the difference at `tau` is `S_t - S_c`.
+fn assert_single_event_time_curve(
+    curve: &antecedent::result::SurvivalEstimate,
+    tau: f64,
+    s_control: f64,
+    s_treated: f64,
+    n_per_arm: f64,
+) {
+    let at_one = curve.times.iter().position(|t| *t == 1.0).expect("time 1 is on the grid");
+    let last = curve.times.len() - 1;
+    assert_eq!(curve.times[last], tau);
+    assert!((curve.control[0] - 1.0).abs() < 1e-12 && (curve.treated[0] - 1.0).abs() < 1e-12);
+    for index in at_one..=last {
+        assert!((curve.control[index] - s_control).abs() < 1e-12, "{:?}", curve.control);
+        assert!((curve.treated[index] - s_treated).abs() < 1e-12, "{:?}", curve.treated);
+    }
+    let rmst = |s: f64| 1.0 + (tau - 1.0) * s;
+    assert!((curve.rmst_control.unwrap() - rmst(s_control)).abs() < 1e-12);
+    assert!((curve.rmst_treated.unwrap() - rmst(s_treated)).abs() < 1e-12);
+    // A percentile-bootstrap interval brackets the point estimate it resamples around and is not
+    // degenerate: the resampling variation of a difference of two proportions is positive.
+    let rmst_diff = rmst(s_treated) - rmst(s_control);
+    let [lo, hi] = curve.rmst_difference_interval.expect("scalar RMST interval");
+    assert!(lo < rmst_diff && rmst_diff < hi, "[{lo}, {hi}] vs {rmst_diff}");
+    let diff = s_treated - s_control;
+    let [lo_d, hi_d] = curve.difference_at_tau_interval.expect("scalar difference interval");
+    assert!(lo_d < diff && diff < hi_d, "[{lo_d}, {hi_d}] vs {diff}");
+    // Width: the 95 percent percentile interval of a difference of two binomial proportions is
+    // about 2 * 1.96 * sqrt(p_c q_c / n + p_t q_t / n); the RMST difference scales it by tau - 1.
+    let se = (s_control * (1.0 - s_control) / n_per_arm
+        + s_treated * (1.0 - s_treated) / n_per_arm)
+        .sqrt();
+    let expected = 2.0 * 1.96 * se;
+    assert!((hi_d - lo_d - expected).abs() <= 0.2 * expected, "{} vs {expected}", hi_d - lo_d);
+    assert!(
+        ((hi - lo) - (tau - 1.0) * (hi_d - lo_d)).abs() <= 0.1 * (hi - lo),
+        "rmst width {} vs {} x difference width {}",
+        hi - lo,
+        tau - 1.0,
+        hi_d - lo_d
     );
 }
 
