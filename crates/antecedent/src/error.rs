@@ -1066,7 +1066,9 @@ mod tests {
         let error = CausalError::from(cause.clone());
         assert_eq!(error.to_string(), text);
         assert_eq!(error.compile_message(), Some(text.as_str()));
-        assert_eq!(error.reason_code(), None);
+        // A query that fails its own validation names no code of its own, so it is
+        // classified as an invalid argument.
+        assert_eq!(error.reason_code(), Some("invalid_argument"));
         assert!(error.blocker_id().is_none());
         assert!(matches!(
             &error,

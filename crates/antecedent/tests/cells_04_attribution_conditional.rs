@@ -347,11 +347,14 @@ fn the_conditional_effect_refuses_a_modifier_stratum_or_a_table_with_no_treated_
     let effect =
         conditional(conditional_table(false, false)).unwrap().estimate().as_effect().unwrap().ate;
     assert!((effect - 2.0).abs() < 1e-9, "{effect}");
-    for (what, data) in [
-        ("a stratum without treated rows", conditional_table(true, false)),
-        ("no treated rows at all", conditional_table(false, true)),
+    for (what, data, code) in [
+        ("a stratum without treated rows", conditional_table(true, false), "design_rank_deficient"),
+        // A table with no treated rows leaves the contrasted treated arm empty.
+        ("no treated rows at all", conditional_table(false, true), "arm_not_populated"),
     ] {
         let error = refused(conditional(data), what);
-        assert_eq!(error.reason_code(), Some("design_rank_deficient"), "{what}: {error}");
+        assert_eq!(error.reason_code(), Some(code), "{what}: {error}");
     }
+    let error = refused(conditional(conditional_table(false, true)), "no treated rows at all");
+    assert!(error.to_string().contains("treatment level 1 has no complete-case rows"), "{error}");
 }

@@ -69,7 +69,7 @@ record_sha256 = "9598d443139658aac8bffff40e1b9b22c7ada895b65f6f4e17a1adcf49584c6
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/execute/attribution_path.rs"
-sha256 = "1dd505e54c4f6ab4a47d7768b963eaab618cf3ada249dd4526085593989dbf59"
+sha256 = "4a0888fab1c549726c9eb1c0f42cc20922ae8644f5f609c2d83496b95edcd6d5"
 
 [[method_review.artifacts]]
 role = "assertion"

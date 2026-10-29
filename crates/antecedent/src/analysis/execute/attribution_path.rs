@@ -833,10 +833,12 @@ impl super::Study {
         if keep.is_all_valid() {
             return Ok(None);
         }
+        // Rows hidden by an analysis mask (a refit on a subset of the rows) are not missing
+        // cells: with no missing cell in any graph variable the table is used as it is.
+        let Some(cell) = first_missing_cell(data, &variables)? else {
+            return Ok(None);
+        };
         if policy != MissingPolicy::CompleteCase {
-            let cell = first_missing_cell(data, &variables)?.ok_or(CausalError::Unsupported {
-                message: "anomaly attribution validity changed during execution",
-            })?;
             return Err(CausalError::Estimate(antecedent_estimate::missing_policy::policy_required(
                 &cell,
                 MissingRoute::Attribution.label(),

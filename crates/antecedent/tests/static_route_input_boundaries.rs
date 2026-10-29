@@ -139,7 +139,7 @@ fn a_treatment_column_without_variation_is_refused_by_every_static_route() {
         });
         let text = error.to_string().to_lowercase();
         assert!(
-            ["rank deficient", "no mechanism candidates", "singular"]
+            ["rank deficient", "no mechanism candidates", "singular", "reason=arm_not_populated:"]
                 .iter()
                 .any(|needle| text.contains(needle)),
             "{name}: {text}"
@@ -236,10 +236,19 @@ fn the_equivalence_class_and_latent_variable_average_effect_routes_share_the_deg
                 .err()
                 .unwrap_or_else(|| panic!("{class} published an effect for a {what}"));
             let text = error.to_string().to_lowercase();
+            // A constant treatment leaves the contrasted arm empty; a duplicated confounder
+            // leaves the design rank deficient.
+            let expected: &[&str] = if constant {
+                &["reason=arm_not_populated:", "has no complete-case rows"]
+            } else {
+                &["rank deficient", "singular", "no variation", "no mechanism"]
+            };
             assert!(
-                ["rank deficient", "singular", "no variation", "no mechanism"]
-                    .iter()
-                    .any(|needle| text.contains(needle)),
+                if constant {
+                    expected.iter().all(|needle| text.contains(needle))
+                } else {
+                    expected.iter().any(|needle| text.contains(needle))
+                },
                 "{class} {what}: {text}"
             );
         }

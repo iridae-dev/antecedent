@@ -213,8 +213,14 @@ fn cells_01_refuters_refuse_rank_deficient_designs_and_a_constant_outcome_has_ze
         let constant_treatment = vec![1.0; N];
         let error = tabular_refuter_run(&constant_treatment, &y, &z, None, suite)
             .map(|_| ())
-            .expect_err("a constant treatment leaves the design rank deficient");
-        assert!(error.contains("rank deficient: rank=2 ncols=3"), "{suite:?}: {error}");
+            .expect_err("a constant treatment leaves the contrasted arm empty");
+        // The contrast 1 versus 0 names the empty arm instead of a rank deficiency.
+        assert!(error.contains("reason=arm_not_populated:"), "{suite:?}: {error}");
+        assert!(
+            error.contains("treatment level 0 has no complete-case rows")
+                && error.contains("the treatment takes the levels 1"),
+            "{suite:?}: {error}"
+        );
         let error = tabular_refuter_run(&t, &y, &z, Some(&affine_copy), suite)
             .map(|_| ())
             .expect_err("an exactly collinear adjustment column leaves the design rank deficient");

@@ -51,4 +51,4 @@ sha256 = "b2d0b9a7297425c4e7de68ae3bdeba0a849f8054a009853dfd8d0708cda4f2be"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs"
-sha256 = "84ab687ec69e5e16bf085b18f29808d672e758c06f8f5440c97d084f9e1167aa"
+sha256 = "42ca047d3dceee1dc9014d89e8bfda6f033a08291888ba6ca953c107fef99fc6"

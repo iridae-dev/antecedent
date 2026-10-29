@@ -2007,7 +2007,8 @@ fn placebo_permutation_is_invariant_to_missing_payloads() {
 fn sensitivity_reports_respect_treatment_contrast_units() {
     let (data, estimand, _) = toy_confounded();
     let treatment = VariableId::from_raw(0);
-    let est = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
+    // The contrasts 2 and -1 are doses of a numeric treatment, not arms of the 0/1 column.
+    let est = LinearAdjustmentAte::new().with_bootstrap_replicates(0).with_dose_reading(true);
     let ctx = ExecutionContext::for_tests(47);
     let mut ws = EstimationWorkspace::default();
     let mut reports = Vec::new();
@@ -2024,10 +2025,13 @@ fn sensitivity_reports_respect_treatment_contrast_units() {
             &original,
             Some("linear.adjustment.ate"),
             None,
-        );
+        )
+        .with_dose_treatment();
         let nonparametric =
             NonparametricSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap();
-        let unobserved = UnobservedCommonCause::new().refute(&problem, &mut ws, &ctx).unwrap();
+        let mut unobserved_refuter = UnobservedCommonCause::new();
+        unobserved_refuter.estimator = unobserved_refuter.estimator.with_dose_reading(true);
+        let unobserved = unobserved_refuter.refute(&problem, &mut ws, &ctx).unwrap();
         reports.push((
             nonparametric.refuted_ate / delta,
             nonparametric.comparison,
