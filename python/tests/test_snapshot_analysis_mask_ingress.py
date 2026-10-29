@@ -48,7 +48,7 @@ def test_complete_native_views_retain_screened_metadata_without_copying(view):
     assert shared.num_rows == 400
     assert all(np.shares_memory(shared[name], table[name]) for name in table.column_names)
     result = _analyze(shared, batch)
-    assert result.effect == pytest.approx(6, abs=0.3)
+    assert result.effect == pytest.approx(6, abs=0.05)
     original = require_success(member)
     direct = _analyze(table, batch)
     # A canonical execution snapshot also binds its observation contract and
@@ -74,7 +74,7 @@ def test_native_projection_and_reordered_columns_preserve_analysis_mask():
     assert projected.column_names == names
     assert projected.bytes_copied == 0
     assert all(np.shares_memory(projected[name], table[name]) for name in names)
-    assert _analyze(projected, batch).effect == pytest.approx(6, abs=0.3)
+    assert _analyze(projected, batch).effect == pytest.approx(6, abs=0.05)
 
 
 @pytest.mark.parametrize("transform", ["copy", "slice", "reverse", "arithmetic"])
@@ -92,7 +92,7 @@ def test_transformed_arrays_never_inherit_native_table_mask(transform):
     expected = _analyze({name: column.copy() for name, column in columns.items()}, batch)
     result = _analyze(ant.data.table(columns), batch)
     assert result.effect == expected.effect
-    assert result.effect == pytest.approx(4, abs=0.4)
+    assert result.effect == pytest.approx(4, abs=0.2)
     assert abs(result.effect - _analyze(table, batch).effect) > 1
     assert result.data_snapshot_id != require_success(member).data_snapshot_id
 
@@ -105,7 +105,7 @@ def test_mixed_native_and_materialized_columns_do_not_infer_a_table_mask():
     result = _analyze(ant.data.table(columns), batch)
     expected = _analyze({name: column.copy() for name, column in columns.items()}, batch)
     assert result.effect == expected.effect
-    assert result.effect == pytest.approx(4, abs=0.4)
+    assert result.effect == pytest.approx(4, abs=0.2)
     assert result.data_snapshot_id != require_success(member).data_snapshot_id
 
 

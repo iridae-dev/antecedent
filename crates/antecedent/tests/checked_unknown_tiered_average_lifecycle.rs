@@ -122,14 +122,38 @@ fn unknown_tiered_average_lifecycle_body() {
         assert!(bands[i].0 <= truths[i] && truths[i] <= bands[i].1);
     }
 
-    let refreshed_data = unknown_data(4_000, 23, 0.7);
-    let refreshed = rebind_estimate(&mut prepared, refreshed_data, &ctx).unwrap();
+    // A refresh on a different draw (another seed, a shifted outcome level) is recomputed, not
+    // replayed: its scenario values equal a fresh study of the same table and differ from the
+    // first run's, and both still bracket the truth.
+    let refreshed_data = unknown_data(4_000, 24, 0.7);
+    let refreshed = rebind_estimate(&mut prepared, refreshed_data.clone(), &ctx).unwrap();
     assert!(refreshed.estimate().as_effect().unwrap().ate.is_nan());
-    assert_eq!(
-        refreshed.estimate().as_effect().unwrap().scenarios.effects.as_ref().unwrap().len(),
-        2
-    );
-    assert!(refreshed.estimate().as_effect().unwrap().joint.covariance.is_some());
+    let refreshed_values =
+        refreshed.estimate().as_effect().unwrap().scenarios.effects.as_ref().unwrap();
+    assert_eq!(refreshed_values.len(), 2);
+    let refreshed_covariance =
+        refreshed.estimate().as_effect().unwrap().joint.covariance.as_ref().unwrap();
+    let fresh = Study::tabular(refreshed_data.clone())
+        .tiered_background(background(&refreshed_data))
+        .unwrap()
+        .query(query(&refreshed_data))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap()
+        .estimate(&refreshed_data, &ctx)
+        .unwrap();
+    let fresh_values = fresh.estimate().as_effect().unwrap().scenarios.effects.as_ref().unwrap();
+    for i in 0..2 {
+        assert_eq!(
+            refreshed_values[i], fresh_values[i],
+            "scenario {i}: refresh equals a fresh run"
+        );
+        assert_ne!(refreshed_values[i], values[i], "scenario {i}: another draw moves the value");
+        assert!((refreshed_values[i] - truths[i]).abs() < 4.0 * refreshed_covariance.se(i));
+    }
 
     let artifact =
         prepared.encode_contracted_result(&refreshed, "unknown-tiered-average", &ctx).unwrap();

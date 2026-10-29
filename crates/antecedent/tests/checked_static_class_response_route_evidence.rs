@@ -202,7 +202,8 @@ fn static_class_responses_body() {
             } else {
                 InferenceMode::Frequentist
             };
-            let tolerance = 0.2;
+            // Measured level error is at most 0.052 (completions differ by 0.49 at dose 1).
+            let tolerance = 0.1;
             for (name, query, key) in [
                 (
                     "intervention",

@@ -225,7 +225,8 @@ fn the_kde_sampler_reports_the_silverman_bandwidth_of_its_own_draws() {
     let want = var.sqrt() * (4.0 / (3.0 * n)).powf(0.2);
     near(got.bandwidth.unwrap(), want, 1e-12, "normal-reference rule");
     // The draws are the interventional law: y = 1 + 2 * 3 + noise with sd 0.5.
-    assert!((mean - 7.0).abs() < 0.2, "{mean}");
+    // Standard error of a 400-draw mean with sd 0.5 is 0.025; the seeded run is 0.0097 off.
+    assert!((mean - 7.0).abs() < 0.08, "{mean}");
     // A caller bandwidth is used as given.
     let mut sampler = KdeDoSampler::new(VariableId::from_raw(1));
     sampler.bandwidth = Some(0.125);
@@ -288,7 +289,7 @@ fn the_metropolis_chain_has_the_kernel_density_of_its_pilot_as_stationary_law() 
     let mean = out.values.iter().sum::<f64>() / n as f64;
     let var = out.values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n as f64 - 1.0);
     let rate = out.accept_rate.unwrap();
-    assert!(rate > 0.2 && rate < 0.95, "{rate}");
-    assert!((mean - pilot_mean).abs() < 0.15, "chain mean {mean} vs {pilot_mean}");
-    assert!((var / kde_var - 1.0).abs() < 0.2, "chain variance {var} vs {kde_var}");
+    assert!(rate > 0.5 && rate < 0.9, "{rate}");
+    assert!((mean - pilot_mean).abs() < 0.05, "chain mean {mean} vs {pilot_mean}");
+    assert!((var / kde_var - 1.0).abs() < 0.06, "chain variance {var} vs {kde_var}");
 }

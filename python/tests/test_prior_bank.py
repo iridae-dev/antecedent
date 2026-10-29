@@ -401,14 +401,16 @@ def test_compose_weight_and_conflict():
     assert result.posterior is not None
     assert composed2.alphas_applied[0] == 1.0
     assert composed2.alphas_applied[1] == 0.0
-    # Assumption restriction id from composition is recorded on the estimate.
-    assert (
-        any(
-            "external_composed_prior" in str(a) or "external" in str(a).lower()
-            for a in getattr(result, "assumptions", []) or []
-        )
-        or result.posterior is not None
-    )
+    # Exact mixture moments. Coordinate 1: components N(0.5, 1) (weight 0.7) and, with the
+    # conflicting source's alpha at 0, the baseline N(0, 100) (weight 0.3):
+    # mean = 0.7*0.5 = 0.35; var = 0.7*1 + 0.3*100 + 0.7*(0.15)^2 + 0.3*(0.35)^2 = 30.7525.
+    # Coordinate 0 has identical components N(0, 100).
+    assert composed2.mean == pytest.approx((0.0, 0.35), abs=1e-12)
+    assert composed2.variance == pytest.approx((100.0, 30.7525), abs=1e-9)
+    # One-dimensional case: components N(0.5, 1) and baseline N(0, 4): 0.35 and 1.9525.
+    assert composed.mean == pytest.approx((0.35,), abs=1e-12)
+    assert composed.variance == pytest.approx((1.9525,), abs=1e-9)
+    assert "external_composed_prior" in composed2.assumption_ids
 
 
 def test_transport_required_when_populations_differ():
@@ -486,8 +488,10 @@ def test_transport_with_policy_records_assumption():
         target_population="eu",
         transport=antecedent.priors.TransportPolicy.invariant_conditional_outcome(),
     )
-    assert all(math.isfinite(x) for x in composed.mean)
-    assert all(x > 0 and math.isfinite(x) for x in composed.variance)
+    # Precision-weighted product with the baseline N(0, 4): precision 1/4 + 1 = 1.25, so
+    # variance 0.8 and mean (0*0.25 + 2*1)/1.25 = 1.6.
+    assert composed.mean == pytest.approx((1.6,), abs=1e-12)
+    assert composed.variance == pytest.approx((0.8,), abs=1e-12)
     assert "external_transport_prior" in composed.assumption_ids
     assert composed.alphas_applied == (1.0,)
 
@@ -616,7 +620,11 @@ def test_ess_accounting_no_ess_declared_reports_none_but_kish_present():
     composed = antecedent.priors.compose_external_priors([src_a, src_b], baseline=([0.0], [4.0]))
     assert composed.effective_ess == (None, None)
     assert composed.composed_ess is None
-    assert composed.kish_ess is not None and composed.kish_ess > 0.0
+    # Kish ESS of the applied alphas (0.5, 0.3): 0.8^2 / (0.25 + 0.09) = 32/17.
+    assert composed.kish_ess == pytest.approx(32.0 / 17.0, abs=1e-12)
+    # Precision-weighted product with baseline N(0, 4): precision 0.25 + 0.5 + 0.3 = 1.05.
+    assert composed.mean == pytest.approx((1.9 / 1.05,), abs=1e-12)
+    assert composed.variance == pytest.approx((1.0 / 1.05,), abs=1e-12)
 
 
 def test_alpha_prior_sensitivity_on_composed_prior():

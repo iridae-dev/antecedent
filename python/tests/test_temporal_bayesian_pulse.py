@@ -34,7 +34,8 @@ def test_manufacturing_bayesian_pulse_recovers_effect():
         )
     )
     assert result.posterior is not None
-    assert abs(result.posterior.effect_mean - 0.9) < 0.05
+    # The series is noiseless, so the posterior is concentrated on 0.9 (sd 4e-4, mean error 5e-5).
+    assert abs(result.posterior.effect_mean - 0.9) < 0.005
     assert abs(result.ate - result.posterior.effect_mean) < 1e-12
     assert np.isfinite(result.posterior.p_below_zero)
     assert result.estimate.estimator_id == "bayesian.temporal.gcomp"
@@ -68,7 +69,7 @@ def test_manufacturing_bayesian_sustained_recovers_effect():
         )
     )
     assert result.posterior is not None
-    assert abs(result.posterior.effect_mean - 0.9) < 0.05
+    assert abs(result.posterior.effect_mean - 0.9) < 0.005
     assert result.evidence_status == "licensed"
 
 
@@ -123,8 +124,10 @@ def test_temporal_pulse_bayesian_composed_prior_is_hydrated():
     flat = run(antecedent.Bayesian(n_draws=64))
     informed = run(antecedent.Bayesian(n_draws=64, prior_from=tight))
     assert flat.posterior is not None and informed.posterior is not None
-    assert abs(flat.posterior.effect_mean - 0.9) < 0.05
-    assert informed.posterior.effect_mean > 1.5, informed.posterior.effect_mean
+    assert abs(flat.posterior.effect_mean - 0.9) < 0.005
+    # The prior N(5, 0.001) on the coefficients dominates the 0.9 data slope: the posterior
+    # mean is 4.54, between the data and the prior centre, nowhere near 0.9.
+    assert 4.0 < informed.posterior.effect_mean < 5.0, informed.posterior.effect_mean
     contract = antecedent.artifacts.loads(bytes(informed.export())).contract
     flat_contract = antecedent.artifacts.loads(bytes(flat.export())).contract
     assert (
@@ -168,7 +171,9 @@ def test_temporal_pulse_bayesian_prior_artifact_and_mapping_are_hydrated():
         )
     )
     assert transferred.posterior is not None
-    assert math.isfinite(transferred.posterior.effect_mean)
+    # The source posterior is centred on the data slope 0.9 with sd 4e-4, so hydrating it
+    # keeps the effect there (observed error 1e-5).
+    assert transferred.posterior.effect_mean == pytest.approx(0.9, abs=0.005)
     flat = antecedent.artifacts.loads(bytes(source.export())).contract
     bound = antecedent.artifacts.loads(bytes(transferred.export())).contract
     assert bound["identities"]["inference_binding"] != flat["identities"]["inference_binding"]
@@ -259,14 +264,16 @@ def test_the_serial_discrepancy_of_the_full_suite_reports_lag_one_residual_autoc
         in text
     )
     observed = float(text.split("lag-1 residual autocorrelation ")[1].split(" vs replicated")[0])
-    assert observed == pytest.approx(oracle, abs=0.03)
+    assert observed == pytest.approx(oracle, abs=0.02)  # measured gap 0.0115
     # Replicated rows are iid, so their lag-1 autocorrelation is about -1/n.
     replicated = float(text.split("vs replicated ")[1].split(" (p=")[0])
     assert abs(replicated) < 0.05
     # The temporal Bayesian interval is already tempered for this dependence: the report says so.
     assert "already tempered for this dependence" in text
     kappa = float(text.split("kappa=")[1].split(",")[0])
-    assert kappa > 1.0
+    # The long-run-variance inflation of an AR(1) residual is (1 + rho) / (1 - rho) = 13.8 at the
+    # oracle rho 0.865; the kernel estimate (16.3) sits within 30% of it, far above 1.
+    assert kappa == pytest.approx((1.0 + oracle) / (1.0 - oracle), rel=0.3)
 
     # The cheap suite has no serial axis, so the same data records no serial finding.
     cheap = _posterior_predictive_failure(pressure, defect, "cheap")

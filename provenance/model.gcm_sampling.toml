@@ -51,7 +51,7 @@ sha256 = "1c42d936a3d7a581f7e1da13967b918fb282cb295fbc787ba75a70052f7b9352"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/gcm_sampling_reference.rs"
-sha256 = "ce46d6cfcab875b27d6f9c89e1ed9e377cd10a8702c7bf8a76c939a43e7b18ac"
+sha256 = "bc5c3a3972336d0fabfd85e381725e3660eb1254d8bf38969ccb952a4b1cdca2"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -262,11 +262,12 @@ fn a_lagged_window_matches_the_structural_decomposition_of_the_series() {
         .run(&ctx)
         .unwrap_or_else(|e| panic!("{contrast:?}: {e}"));
         let expected = structural(contrast);
-        assert!((result.effect() - expected).abs() < 0.02, "{contrast:?}: {}", result.effect());
+        // Measured deviations on this 60 000-row series are at most 0.0054.
+        assert!((result.effect() - expected).abs() < 0.01, "{contrast:?}: {}", result.effect());
         let components = result.payload().mediation().expect("the decomposition");
-        assert!((components.total.unwrap() - structural_total()).abs() < 0.02);
-        assert!((components.direct.unwrap() - structural_direct()).abs() < 0.02);
-        assert!((components.mediated.unwrap() - structural_indirect()).abs() < 0.02);
+        assert!((components.total.unwrap() - structural_total()).abs() < 0.01);
+        assert!((components.direct.unwrap() - structural_direct()).abs() < 0.01);
+        assert!((components.mediated.unwrap() - structural_indirect()).abs() < 0.01);
         let window =
             diagnostic(&result, "estimate.temporal_pag.window").expect("window disclosure");
         // One template lag of history and the pulse period.
@@ -322,7 +323,7 @@ fn the_bayesian_bootstrap_shares_one_weight_per_block_into_an_identified_set_int
         study(series, lagged_template(), query(MediationContrast::NaturalDirect), inference, 0)
             .run(&ctx)
             .unwrap();
-    assert!((result.effect() - structural_direct()).abs() < 0.03, "{}", result.effect());
+    assert!((result.effect() - structural_direct()).abs() < 0.01, "{}", result.effect());
     // Two candidate ADMGs identify the direct effect by different functionals, so the result is
     // an identified set whose interval comes from the Dirichlet draws of every candidate,
     // each draw shared across a block of consecutive windows.

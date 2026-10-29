@@ -60,7 +60,7 @@ fn run(class: &str, bad: f64) -> Result<f64, String> {
 #[test]
 fn build_small_gaps_an_infinite_treatment_value_on_a_class_route_is_a_non_finite_refusal() {
     for class in ["dag", "admg", "cpdag"] {
-        assert!((run(class, 0.3).unwrap() - 3.0).abs() < 0.1, "{class}");
+        assert!((run(class, 0.3).unwrap() - 3.0).abs() < 0.02, "{class}");
         for bad in [f64::INFINITY, f64::NEG_INFINITY] {
             let error = run(class, bad).expect_err("an infinite treatment value must refuse");
             assert!(!error.contains("rank deficient"), "{class}: {error}");

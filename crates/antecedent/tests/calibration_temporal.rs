@@ -365,6 +365,12 @@ fn temporal_cpdag_mediation_slice_interval_is_the_shared_design_interval() {
         .unwrap()
         .run(&ExecutionContext::for_tests(3))
         .unwrap();
+    // The shared contrast is also near the path-product truth: 1.0 block SEs away here, so 2.5 SEs
+    // admits the seeded draw and refuses a null (0.3 / 0.07 = 4.3 SEs) or doubled effect.
+    assert!(
+        se > 0.0 && (effect - fixtures::mediation_truth()).abs() < 2.5 * se,
+        "{effect} +- {se}"
+    );
     assert_eq!(effect, dag.estimate().as_effect().unwrap().ate, "same contrast");
     assert_eq!(
         Some(se),

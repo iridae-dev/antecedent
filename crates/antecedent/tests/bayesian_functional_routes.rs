@@ -193,10 +193,11 @@ fn functional_bayesian_path_distribution_and_admg() {
     assert_eq!(rider.logical_plan.estimator.as_deref(), Some("functional.effect"));
     assert_ne!(rider.logical_plan.estimator.as_deref(), Some("bayesian.gcomp"));
     assert!(rider.posterior.is_some());
+    // Measured gap between the Dirichlet posterior mean and the frequentist functional is 0.0012.
     assert!(
         (rider.estimate().as_effect().unwrap().ate - freq.estimate().as_effect().unwrap().ate)
             .abs()
-            < 0.08
+            < 0.01
     );
 }
 
@@ -331,9 +332,11 @@ fn distribution_bayesian_known_truth() {
         .unwrap();
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("functional.distribution"));
     let dist = result.distribution().unwrap();
-    assert!((dist.mean - pin["distribution_mean"].as_f64().unwrap()).abs() < 0.08);
+    // Measured deviation from the closed-form mean is 0.003; 0.01 still fails a 0.05 bias.
+    assert!((dist.mean - pin["distribution_mean"].as_f64().unwrap()).abs() < 0.01);
     let mass: f64 = dist.atoms.iter().map(|a| a.probability).sum();
-    assert!((mass - 1.0).abs() < 0.05, "bayesian atoms must be a coherent law, mass={mass}");
+    // Posterior-mean atom probabilities of a Dirichlet draw set sum to one to rounding.
+    assert!((mass - 1.0).abs() < 1e-9, "bayesian atoms must be a coherent law, mass={mass}");
     let posterior = result.posterior.as_ref().unwrap();
     let atom_mean: f64 =
         dist.atoms.iter().map(|a| a.probability * a.outcomes[0].1.as_f64().unwrap()).sum();
@@ -1363,23 +1366,19 @@ fn class_envelope_prior_transfer_is_per_completion() {
         .build()
         .unwrap()
         .run(&ctx);
-    match transferred {
-        Ok(result) => {
-            assert_eq!(format!("{:?}", result.identification.status), status);
-            assert_eq!(result.posterior.as_ref().map(|p| p.unidentified_mass), mass);
-            assert_ne!(status, "NotIdentified");
-        }
-        Err(err) => {
-            let msg = err.to_string();
-            assert!(
-                msg.contains("mapping")
-                    || msg.contains("coefficient")
-                    || msg.contains("hydrate")
-                    || msg.contains("prior"),
-                "class-envelope transfer must fail closed without changing identification: {err}"
-            );
-        }
-    }
+    assert_eq!(status, "PartiallyIdentified");
+    assert_eq!(mass, Some(0.0));
+    // The source posterior has three coefficients (adjusting for the confounder) while the
+    // CPDAG completion without that adjustment has two: the mapping is refused with the typed
+    // dimension reason rather than silently hydrating a subset or changing identification.
+    let err = transferred
+        .expect_err("a three-coefficient source cannot hydrate a two-coefficient completion");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("prior_dimension_mismatch")
+            && msg.contains("posterior coefficient dimension 3 != expected n_coef 2"),
+        "class-envelope transfer must refuse with the dimension mismatch: {msg}"
+    );
 }
 
 #[test]

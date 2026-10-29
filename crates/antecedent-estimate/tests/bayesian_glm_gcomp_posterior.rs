@@ -74,8 +74,8 @@ fn logit_contrast_is_the_risk_difference_with_the_beta_posterior_spread() {
     let problem = problem(&counts(60), &counts(100));
     let (mean, sd) = posterior_moments(BayesLikelihood::BernoulliLogit, &problem);
     let reference_sd = (beta_variance(60.0, 140.0) + beta_variance(100.0, 100.0)).sqrt();
-    assert!((mean - 0.2).abs() < 0.006, "posterior mean {mean}");
-    assert!((sd / reference_sd - 1.0).abs() < 0.07, "sd {sd} against {reference_sd}");
+    assert!((mean - 0.2).abs() < 0.004, "posterior mean {mean}");
+    assert!((sd / reference_sd - 1.0).abs() < 0.04, "sd {sd} against {reference_sd}");
     // The treatment coefficient is the log odds ratio, ln(1 / 0.4286 ...) = 0.8473, not this
     // contrast.
     assert!((mean - 0.847_298).abs() > 0.5);
@@ -86,8 +86,8 @@ fn probit_contrast_answers_the_same_probability_scale_target() {
     let problem = problem(&counts(60), &counts(100));
     let (mean, sd) = posterior_moments(BayesLikelihood::BernoulliProbit, &problem);
     let reference_sd = (beta_variance(60.0, 140.0) + beta_variance(100.0, 100.0)).sqrt();
-    assert!((mean - 0.2).abs() < 0.006, "posterior mean {mean}");
-    assert!((sd / reference_sd - 1.0).abs() < 0.07, "sd {sd} against {reference_sd}");
+    assert!((mean - 0.2).abs() < 0.004, "posterior mean {mean}");
+    assert!((sd / reference_sd - 1.0).abs() < 0.04, "sd {sd} against {reference_sd}");
 }
 
 #[test]
@@ -99,8 +99,8 @@ fn poisson_contrast_is_the_difference_of_gamma_posterior_means() {
     let problem = problem(&control, &active);
     let (mean, sd) = posterior_moments(BayesLikelihood::PoissonLog, &problem);
     let reference_sd = ((300.0 + 500.0) / (200.0_f64 * 200.0)).sqrt();
-    assert!((mean - 1.0).abs() < 0.02, "posterior mean {mean}");
-    assert!((sd / reference_sd - 1.0).abs() < 0.07, "sd {sd} against {reference_sd}");
+    assert!((mean - 1.0).abs() < 0.004, "posterior mean {mean}");
+    assert!((sd / reference_sd - 1.0).abs() < 0.04, "sd {sd} against {reference_sd}");
 }
 
 #[test]
@@ -121,5 +121,5 @@ fn a_tight_prior_shrinks_the_contrast_that_a_flat_prior_leaves_alone() {
     let effect = tight.effect_column().expect("effect column");
     // N(0, 0.05^2) on every logit coefficient keeps both risks near one half and the contrast
     // near zero: the prior is part of the posterior, not a penalty on a point estimate.
-    assert!(tight.summaries.mean[effect].abs() < 0.01, "{}", tight.summaries.mean[effect]);
+    assert!(tight.summaries.mean[effect].abs() < 0.005, "{}", tight.summaries.mean[effect]);
 }

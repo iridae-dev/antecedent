@@ -239,6 +239,12 @@ def test_categorical_robust_covariance_embeds_a_summary_and_replays() -> None:
     robust = abc(covariance="hc1")
     assert robust.replay == "robust_summary"
     assert not np.allclose(robust.covariance, model.covariance)
+    # HC1 against the independent sandwich on the frozen design (intercept, b, c).
+    design = np.array([[1.0, lv == "b", lv == "c"] for lv in LEVELS], dtype=float)
+    expected = sandwich(design, np.asarray(OUTCOME), "hc1")[1:, 1:]
+    assert robust.covariance == pytest.approx(expected, rel=1e-9, abs=1e-12)
+    wrong = sandwich(design, np.asarray(OUTCOME), "hc0")[1:, 1:]
+    assert not np.allclose(robust.covariance, wrong, rtol=1e-6)
     assert robust.effect("c").estimate == pytest.approx(7.0, abs=1e-9)
     again = consume_categorical_effects(bytes(robust.export()), expected_identity=robust.identity)
     assert np.array_equal(again.covariance, robust.covariance)

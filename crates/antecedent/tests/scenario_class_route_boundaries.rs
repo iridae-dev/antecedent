@@ -201,12 +201,12 @@ fn the_effect_and_response_routes_recover_their_closed_forms_on_both_graph_class
     for class in CLASSES {
         for (name, query) in [("average effect", average_effect()), ("conditional effect", conditional.clone())] {
             let ate = plain(class, &query).unwrap().estimate().as_effect().unwrap().ate;
-            assert!((ate - 11.0).abs() < 0.3, "{class} {name}: {ate}");
+            assert!((ate - 11.0).abs() < 0.03, "{class} {name}: {ate}");
         }
         let curve = rise(&plain(class, &mean_curve()).unwrap());
-        assert!((curve - 11.0).abs() < 0.3, "{class} mean curve rise {curve}");
+        assert!((curve - 11.0).abs() < 0.05, "{class} mean curve rise {curve}");
         let slope = scalar(&plain(class, &derivative).unwrap());
-        assert!((slope - 11.0).abs() < 0.3, "{class} average derivative {slope}");
+        assert!((slope - 11.0).abs() < 0.05, "{class} average derivative {slope}");
         let level = scalar(&plain(class, &intervention).unwrap());
         assert!((level - truth).abs() < 0.25, "{class} intervention response {level} vs {truth}");
     }
@@ -214,7 +214,7 @@ fn the_effect_and_response_routes_recover_their_closed_forms_on_both_graph_class
     // ADMG: a graph with no bidirected edge adds nothing.
     let on_dag = plain("dag", &conditional).unwrap().estimate().as_effect().unwrap().ate;
     let on_admg = plain("admg", &conditional).unwrap().estimate().as_effect().unwrap().ate;
-    assert!((on_dag - 11.0).abs() < 0.3 && (on_dag - on_admg).abs() < 1e-9, "{on_dag} {on_admg}");
+    assert!((on_dag - 11.0).abs() < 0.03 && (on_dag - on_admg).abs() < 1e-9, "{on_dag} {on_admg}");
     // The counterfactual runs on the equivalence class and recovers the mean unit effect 11.
     let (on_admg, on_cpdag) = (
         scalar(&plain("admg", &intervention).unwrap()),
@@ -222,7 +222,7 @@ fn the_effect_and_response_routes_recover_their_closed_forms_on_both_graph_class
     );
     assert!((on_admg - on_cpdag).abs() < 1e-9, "{on_admg} vs {on_cpdag}");
     let unit_effect = plain("cpdag", &counterfactual()).unwrap().counterfactual().unwrap().mean_ite;
-    assert!((unit_effect - 11.0).abs() < 0.3, "cpdag counterfactual {unit_effect}");
+    assert!((unit_effect - 11.0).abs() < 0.03, "cpdag counterfactual {unit_effect}");
 }
 
 #[test]
@@ -469,14 +469,18 @@ fn the_response_routes_default_to_complete_case_and_equal_the_fit_on_the_remaini
         let imputed = run(
             "dag",
             table(&holey),
-            query,
+            query.clone(),
             None,
             Some(MissingDeclaration::new(MissingPolicy::MultipleImputation(
                 antecedent_data::ImputationSpec::new(),
             ))),
         )
         .unwrap_or_else(|error| panic!("{name}: imputation: {error}"));
-        assert!(headline(&imputed).is_finite(), "{name}");
+        // The pooled answer sits next to the fit on the complete table (10% of the confounder
+        // missing completely at random in a deterministic design).
+        let complete = headline(&run("dag", table(&columns()), query.clone(), None, None).unwrap());
+        let pooled = headline(&imputed);
+        assert!((pooled - complete).abs() < 0.02, "{name}: pooled {pooled} vs complete {complete}");
     }
 }
 
@@ -810,7 +814,9 @@ fn the_class_average_effect_refuses_a_contrast_level_a_two_valued_treatment_neve
                 .and_then(|study| study.run(&ctx))
         };
         let sound = run(1.0, 0.0).unwrap();
-        assert!(sound.estimate().as_effect().unwrap().ate > 2.0, "{class}");
+        // Structural slope 3 on y = 3a + z; the fitted adjusted slope is 0.03 away.
+        let sound_ate = sound.estimate().as_effect().unwrap().ate;
+        assert!((sound_ate - 3.0).abs() < 0.1, "{class}: {sound_ate}");
         for (active, control) in [(2.0, -3.0), (7.5, 0.0), (0.0, -3.0)] {
             let error = run(active, control)
                 .err()

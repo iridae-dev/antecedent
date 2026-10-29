@@ -173,6 +173,11 @@ def test_invariance_envelope_extremes_carry_the_report_of_the_scenario_behind_th
     assert lower is not None and upper is not None
     assert (lower.scenario, upper.scenario) == ("standardize", "direct")
     assert lower.value < upper.value
+    # By hand: P_s(y | do(x), z) = (0.08/0.4, 0.48/0.6) = (0.2, 0.8) and P*(z) = (0.75, 0.25),
+    # so the standardized value is 0.2 * 0.75 + 0.8 * 0.25 = 0.35; with no selection it is
+    # P_s(y = 1 | do(x)) = 0.08 + 0.48 = 0.56.
+    assert lower.value == pytest.approx(0.35, abs=1e-12)
+    assert upper.value == pytest.approx(0.56, abs=1e-12)
     # 0.35 from the scenario selecting on z (it relies on P_s(y | do(x), z) and P*(z)),
     # and the larger value from the scenario with no selection (P_s(y | do(x))).
     assert lower.report == report_of(result, "standardize")
