@@ -419,6 +419,16 @@ def test_rebinding_new_observations_leaves_the_source_study_unchanged():
     assert _same(_point(require_success(again)), _point(require_success(before)))
 
 
+@pytest.mark.parametrize("seed", [11, 12])
+def test_average_effect_route_recovers_the_data_generating_total_effect(seed):
+    # y = t + z + 0.8 m with m = 0.4 t + noise: the total effect of t is 1 + 0.8 * 0.4 = 1.32.
+    data = _tabular("average", n=1000, seed=seed)
+    result = require_success(
+        ant.analyze(data, **_kwargs("average", "tabular", "explicit", ""))
+    )
+    assert _point(result)[1] == pytest.approx(1.32, abs=0.05)
+
+
 def test_every_route_retains():
     for row in PRODUCTS.get("route", []):
         assert row.get("retains") is True, row
@@ -558,6 +568,12 @@ def test_panel_pulse_uses_every_unit():
     assert not math.isclose(first, second, rel_tol=1e-6)
     assert not math.isclose(pooled, first, rel_tol=1e-6)
     assert not math.isclose(pooled, second, rel_tol=1e-6)
+    # Known answers: y[i] = beta t[i-1] + 0.5 m[i] and m[i] = 0.4 t[i-1] + noise, so the
+    # lag-1 pulse effect is beta + 0.2 = 0.6 and 2.2; unit variances of t are equal, so the
+    # pooled slope is their mean 1.4.
+    assert first == pytest.approx(0.6, abs=0.12)
+    assert second == pytest.approx(2.2, abs=0.06)
+    assert pooled == pytest.approx(1.4, abs=0.05)
     # Unit order is not the answer: the pooled estimate is the same either way.
     assert math.isclose(pooled, _pulse(panel([UNIT_B, UNIT_A])), rel_tol=1e-9)
 

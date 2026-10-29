@@ -58,7 +58,7 @@ def test_good_overlap_point_matches_the_known_truth_under_each_design(design):
             query, data, options=options(), execution=ac.Execution(seed=5)
         ).estimate()
     )
-    assert result.estimate == pytest.approx(2.5, abs=0.3)
+    assert result.estimate == pytest.approx(2.5, abs=0.15)
     assert result.interval is None
     assert result.uncertainty["status"] == "point_only"
     assert result.sampling == design
@@ -110,7 +110,7 @@ def test_declared_bounds_designs_and_targets_refuse_with_their_details():
     )
     assert below.uncertainty["reason"] == "estimator_inference_mismatch"
     assert below.uncertainty["detail"] == "learned_transport.bootstrap_below_floor"
-    assert below.estimate == pytest.approx(2.5, abs=0.3)
+    assert below.estimate == pytest.approx(2.5, abs=0.15)
 
 
 def test_estimator_menu_lists_eligibility_requirements_and_refusals():
@@ -166,7 +166,7 @@ def test_estimator_menu_reads_the_retained_plan_after_builder_disposal():
     plan = study.estimator_menu()
     assert plan.eligible == ("learned_trial_aipw", "trial_ipw_supplied_probabilities")
     assert plan["learned_trial_aipw"].refusal is None
-    assert require_success(study.estimate()).estimate == pytest.approx(2.5, abs=0.3)
+    assert require_success(study.estimate()).estimate == pytest.approx(2.5, abs=0.15)
 
 
 def test_prepare_learned_continuous_retains_a_checked_plan_after_builder_disposal():
@@ -179,7 +179,7 @@ def test_prepare_learned_continuous_retains_a_checked_plan_after_builder_disposa
     plan = require_success(study.estimate())
     assert plan.certificate["formula"] == "standardize"
     assert plan.certificate["over"] == (0,)
-    assert plan.estimate == pytest.approx(2.5, abs=0.3)
+    assert plan.estimate == pytest.approx(2.5, abs=0.15)
 
 
 @pytest.mark.parametrize("design", DESIGNS)
@@ -305,7 +305,7 @@ def test_the_analytic_interval_replays_and_the_legacy_bootstrap_refuses():
     assert result.uncertainty["status"] == "withheld"
     assert result.uncertainty["reason"] == "cell_not_licensed"
     assert result.interval is None
-    assert result.estimate == pytest.approx(2.5, abs=0.3)
+    assert result.estimate == pytest.approx(2.5, abs=0.15)
     consumed = advanced.consume_learned_continuous(bytes(result.export()))
     assert consumed.uncertainty == result.uncertainty
     assert consumed.interval is None

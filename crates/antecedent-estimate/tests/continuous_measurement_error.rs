@@ -179,7 +179,8 @@ fn linear_calibration_recovers_the_attenuated_slope() {
         &ctx(),
     )
     .unwrap();
-    assert_recovers(&effect, 2.0, 0.15);
+    // Observed 2.006 against the true 2 (the naive slope is 1.6): a band of 5 observed errors.
+    assert_recovers(&effect, 2.0, 0.03);
     let naive = effect.record.naive_point.unwrap();
     assert!((naive - 1.6).abs() < 0.1, "naive {naive}");
     assert_eq!(effect.record.functional_id, "linear_coefficient.regression_calibration");
@@ -200,8 +201,8 @@ fn linear_simex_recovers_the_attenuated_slope() {
     )
     .unwrap();
     // The quadratic extrapolant under-corrects a rational path: at
-    // reliability 0.8 its large-sample limit is 1.94, not 2.
-    assert_recovers(&effect, 2.0, 0.15);
+    // reliability 0.8 its large-sample limit is 1.94, not 2 (observed 1.960).
+    assert_recovers(&effect, 2.0, 0.08);
     assert_eq!(effect.record.functional_id, "linear_coefficient.simex");
     let path = effect.simex.as_ref().unwrap();
     assert_eq!(path.lambdas, vec![0.0, 0.5, 1.0, 1.5, 2.0]);
@@ -302,7 +303,7 @@ fn error_in_a_covariate_corrects_the_treatment_coefficient() {
     )
     .unwrap();
     assert_eq!(effect.coefficient_index, 2);
-    assert_recovers(&effect, 1.0, 0.15);
+    assert_recovers(&effect, 1.0, 0.05);
     assert!(effect.record.naive_point.unwrap() > 1.2, "naive should absorb confounding");
     let out_of_range = run(
         &classical(0.5, 0.0),
@@ -355,14 +356,14 @@ fn repeated_measurements_identify_the_error_variance() {
         &ctx(),
     )
     .unwrap();
-    assert_recovers(&rc, 2.0, 0.15);
+    assert_recovers(&rc, 2.0, 0.03);
     assert!((rc.summary.error_variance.unwrap() - 0.5).abs() < 0.05);
     assert!(rc.replicate_components.is_some());
     assert_eq!(rc.record.parameter_uncertainty, ParameterUncertainty::Propagated);
     let sx =
         run(&m, &data, &spec(ErrorLocation::Treatment, OutcomeLink::Identity, simex(10)), &ctx())
             .unwrap();
-    assert_recovers(&sx, 2.0, 0.2);
+    assert_recovers(&sx, 2.0, 0.06);
 }
 
 #[test]

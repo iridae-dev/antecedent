@@ -189,7 +189,13 @@ fn a_covariate_shift_of_known_size_is_detected_and_asks_for_a_refresh() {
     let report = assess(&base, &shifted, false, &policy());
     assert!(exceeded(&report, FindingKind::CovariateShift, "z1:mean"), "{report:#?}");
     let z1 = report.findings().find(|f| f.subject == "z1:mean").unwrap();
-    assert!(z1.statistic > 0.5 && z1.statistic < 0.9, "standardized shift {}", z1.statistic);
+    // Means 0 and 0.9 with variances 2 and 2.2 - 0.81 = 1.39: 0.9 / sqrt((2 + 1.39) / 2) = 0.691.
+    let expected_smd = 0.9 / ((2.0_f64 + 1.39) / 2.0).sqrt();
+    assert!(
+        (z1.statistic.abs() - expected_smd).abs() < 0.06,
+        "standardized shift {} against the closed form {expected_smd}",
+        z1.statistic
+    );
     assert_eq!(z1.threshold_name, "smd_threshold");
     assert!(z1.adjusted_p_value.unwrap() <= 0.01);
     assert!(exceeded(&report, FindingKind::JointShift, "joint"));
@@ -398,6 +404,7 @@ fn an_exported_baseline_is_consumed_without_the_producer() {
     let consumed = assess_exported_baseline(&bytes, &new, &policy(), &ctx()).unwrap();
     assert_eq!(consumed.identity, direct.identity);
     assert_eq!(consumed.recommendation, direct.recommendation);
+    assert_eq!(consumed.recommendation, Recommendation::Refresh, "the shift is real, not reused");
 
     let mut tampered = bytes.clone();
     let last = tampered.len() - 10;

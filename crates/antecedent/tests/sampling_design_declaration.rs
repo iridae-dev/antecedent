@@ -109,7 +109,7 @@ fn a_whole_cluster_bootstrap_is_accepted_under_a_clustered_panel() {
     assert!((ate - undeclared_point_estimate()).abs() < 1e-12, "the design moved the estimate");
     // The accepted whole-cluster draw actually ran: a positive, finite spread from replicates.
     assert!(se.is_some_and(|se| se.is_finite() && se > 0.0), "{se:?}");
-    assert!(replicates.is_some_and(|ok| ok > 0), "{replicates:?}");
+    assert_eq!(replicates, Some(20), "every requested whole-cluster replicate ran");
 }
 
 #[test]
@@ -164,7 +164,7 @@ fn subject_labels_let_a_trajectory_design_resample_whole_subjects() {
     let (ate, se, replicates) = point_and_bootstrap(&result);
     assert!((ate - undeclared_point_estimate()).abs() < 1e-12, "the design moved the estimate");
     assert!(se.is_some_and(|se| se.is_finite() && se > 0.0), "{se:?}");
-    assert!(replicates.is_some_and(|ok| ok > 0), "{replicates:?}");
+    assert_eq!(replicates, Some(20), "every requested whole-cluster replicate ran");
 }
 
 #[test]

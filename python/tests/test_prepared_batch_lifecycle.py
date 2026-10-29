@@ -53,7 +53,9 @@ def test_owned_inputs_and_completed_runs_are_independent():
     study = _prepare(data)
     data["y"][:] = 1000
     first = require_success(ant.estimate(study))
-    assert _effects(first)[0] == pytest.approx(2, abs=0.3)
+    assert _effects(first)[0] == pytest.approx(2, abs=0.05)
+    # y2 = 0.5 y - z, and the adjustment removes z: the second effect is half the first.
+    assert _effects(first)[1] == pytest.approx(1, abs=0.05)
     assert study._native.materialized_plan_count() == 0
     assert first.study._native.materialized_plan_count() == 2
     assert first.study._native.retained_score_table_count() == 2
@@ -234,7 +236,7 @@ def test_batch_retarget_guide_executes_its_declared_scientific_journey():
         exec(compile(block, f"{guide}:python-block-{index}", "exec"), namespace)
     report = namespace["report"]
     assert report.complete
-    assert all(abs(claim.value - 2) < 0.3 for claim in report.claims)
+    assert all(abs(claim.value - 2) < 0.05 for claim in report.claims)
     assert report.contrasts[0].std_error is not None
     assert report.simultaneous_interval().level == 0.95
 
@@ -329,7 +331,7 @@ def test_screened_member_scientific_reconfiguration_uses_its_actual_native_rows(
         )
     )
     assert changed.effect == expected.effect
-    assert changed.effect == pytest.approx(6, abs=0.3)
+    assert changed.effect == pytest.approx(6, abs=0.06)
     assert batch.study._data.num_rows == 400
     assert member.study._data.num_rows == 400
 

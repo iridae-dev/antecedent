@@ -327,7 +327,13 @@ def test_without_a_declared_dependence_no_standard_error_is_reported() -> None:
     diff = result.report.differences[0]
     assert diff.standard_error is None and diff.dm_statistic is None
     assert diff.dependence == "undeclared"
-    assert result.report.predictor("a").score("crps").mean > 0
+    ys = normals(n, 3)
+    for name, mu in (("a", 0.0), ("b", 0.5)):
+        expected = mean_of([crps_gaussian(mu, 1.0, y) for y in ys])
+        assert result.report.predictor(name).score("crps").mean == pytest.approx(expected, abs=1e-10)
+    assert diff.mean_difference == pytest.approx(
+        mean_of([crps_gaussian(0.5, 1.0, y) - crps_gaussian(0.0, 1.0, y) for y in ys]), abs=1e-10
+    )
 
 
 # --------------------------------------------------------------------------- dependence
@@ -930,6 +936,11 @@ def test_a_consumer_rescores_every_case_and_reproduces_the_report() -> None:
     consumed = pa.consume_predictive_assessment_artifact(artifact, result.identity)
     assert consumed.report == result.report
     assert consumed.identity == result.identity
+    rng = random.Random(21)
+    ys = [rng.gauss(0.0, 1.0) for _ in range(30)]
+    for name, mu, sd in (("a", 0.0, 1.0), ("b", 0.3, 1.2)):
+        closed = mean_of([crps_gaussian(mu, sd, y) for y in ys])
+        assert consumed.report.predictor(name).score("crps").mean == pytest.approx(closed, abs=1e-10)
     for name in ("a", "b", "sample"):
         assert (
             consumed.report.predictor(name).score("crps").mean
@@ -974,7 +985,7 @@ def test_a_damaged_artifact_is_refused_and_never_consumed() -> None:
     )
     assert error.reason_code == "invalid_argument"
     bounded = refused(lambda: pa.consume_predictive_assessment_artifact(artifact, max_cases=5))
-    assert bounded.detail.startswith("predictive_assessment.")
+    expect(bounded, "invalid_argument", "predictive_assessment.invalid_artifact")
     with pytest.raises(CausalTypeError):
         pa.consume_predictive_assessment_artifact("not bytes")  # type: ignore[arg-type]
 

@@ -415,13 +415,22 @@ fn joint_posterior_artifact_refuses_an_unknown_version_foreign_feature_and_claim
     ));
     let mut foreign = wire.clone();
     foreign.required_features = vec!["something_else".into()];
-    assert!(JointBayesianArtifactWire::decode(&foreign.export().expect("export")).is_err());
+    let message = JointBayesianArtifactWire::decode(&foreign.export().expect("export"))
+        .expect_err("foreign artifact is refused")
+        .to_string();
+    assert!(message.contains("unsupported semantics: required features"), "{message}");
     let mut calibrated = wire.clone();
     calibrated.calibration = "calibrated".into();
-    assert!(JointBayesianArtifactWire::decode(&calibrated.export().expect("export")).is_err());
+    let message = JointBayesianArtifactWire::decode(&calibrated.export().expect("export"))
+        .expect_err("calibrated artifact is refused")
+        .to_string();
+    assert!(message.contains("unsupported semantics: calibration is unmeasured"), "{message}");
     let mut marginals = wire;
     marginals.result.draws.alignment = "independent_marginals".into();
-    assert!(JointBayesianArtifactWire::decode(&marginals.export().expect("export")).is_err());
+    let message = JointBayesianArtifactWire::decode(&marginals.export().expect("export"))
+        .expect_err("marginals artifact is refused")
+        .to_string();
+    assert!(message.contains("unsupported semantics: draws must be aligned joint draws"), "{message}");
 }
 
 #[test]

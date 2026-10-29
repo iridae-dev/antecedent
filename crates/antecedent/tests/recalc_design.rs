@@ -350,7 +350,10 @@ fn design_cutoff_mediator_and_resource_refusals_preserve_previous_state() {
         let cancelled = ctx();
         cancelled.cancellation.cancel();
         let ((), solves) = count_least_squares_solves(|| {
-            assert!(execute_design_with_receipt(&mut session, &r, &cancelled).is_err())
+            assert!(matches!(
+                execute_design_with_receipt(&mut session, &r, &cancelled),
+                Err(DesignRunError::Recalc(RecalcRunError::Request(RecalcRequestCode::Cancelled)))
+            ));
         });
         assert_eq!(solves, 0);
         let mut changed = r.clone();
@@ -358,7 +361,12 @@ fn design_cutoff_mediator_and_resource_refusals_preserve_previous_state() {
         let mut budget = ctx();
         budget.set_memory_limit(Some(1));
         let ((), solves) = count_least_squares_solves(|| {
-            assert!(execute_design_with_receipt(&mut session, &changed, &budget).is_err())
+            assert!(matches!(
+                execute_design_with_receipt(&mut session, &changed, &budget),
+                Err(DesignRunError::Recalc(RecalcRunError::Request(
+                    RecalcRequestCode::MemoryBudgetExceeded
+                )))
+            ));
         });
         assert_eq!(solves, 0);
         changed = r.clone();
@@ -367,7 +375,19 @@ fn design_cutoff_mediator_and_resource_refusals_preserve_previous_state() {
             DesignModel::Rd { cutoff, .. } => *cutoff = 2.,
             DesignModel::Frontdoor { mediator } => *mediator = 1,
         };
-        assert!(execute_design_with_receipt(&mut session, &changed, &ctx()).is_err());
+        // An instrument or mediator that is the outcome is an invalid role; a cutoff outside the
+        // running variable's range is not a checked regression discontinuity.
+        let expected_code = if matches!(r.model, DesignModel::Rd { .. }) {
+            RecalcRequestCode::DesignNotChecked
+        } else {
+            RecalcRequestCode::InvalidDesignRoles
+        };
+        let bad = execute_design_with_receipt(&mut session, &changed, &ctx());
+        assert!(
+            matches!(&bad, Err(DesignRunError::Recalc(RecalcRunError::Request(code))) if *code == expected_code),
+            "{:?}",
+            bad.as_ref().err()
+        );
         assert_eq!(std::ptr::from_ref(session.result().unwrap()), old);
         assert_eq!(run(&mut session, &r).receipt.totals().total(), 0);
     }
@@ -427,8 +447,14 @@ fn design_role_exclusion_and_window_changes_reidentify_actual_checked_engines() 
                 execute_design_with_receipt(&mut session, &r, &ctx())
             });
             assert!(
-                failed.is_err(),
-                "instrument exclusion/front-door complete mediation must be checked"
+                matches!(
+                    failed,
+                    Err(DesignRunError::Recalc(RecalcRunError::Execution(
+                        antecedent::CausalError::NotIdentified { .. }
+                    )))
+                ),
+                "instrument exclusion/front-door complete mediation must be checked: {:?}",
+                failed.as_ref().err()
             );
             assert_eq!(solves, 0, "causal graph refusal precedes numerical fits");
         }

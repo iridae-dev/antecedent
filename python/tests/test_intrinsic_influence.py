@@ -60,7 +60,8 @@ def test_efficiency_gap_is_reported_and_small():
     total = sum(s.contribution for s in result.sources)
     assert result.allocation_residual == pytest.approx(result.total_variance - total)
     assert abs(result.allocation_residual) <= 6 * max(result.allocation_residual_stderr, 0.3)
-    assert result.total_variance == pytest.approx(sum(TRUTH.values()), rel=0.1)
+    assert result.total_variance == pytest.approx(sum(TRUTH.values()), rel=0.05)
+    assert result.total_variance == pytest.approx(float(np.var(_data()["z"], ddof=1)), rel=0.01)
 
 
 def test_unmeasured_mechanism_fit_is_marked_unquantified_not_zero():

@@ -432,5 +432,5 @@ fn a_design_over_the_resident_budget_streams_through_the_closed_form_reduction()
     // A cancelled run stops before it reads a batch.
     let cancelled = ExecutionContext::for_tests(1);
     cancelled.cancellation.cancel();
-    assert!(study.run(&cancelled).is_err());
+    assert!(matches!(study.run(&cancelled), Err(crate::CausalError::Cancelled { .. })));
 }
