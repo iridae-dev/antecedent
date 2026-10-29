@@ -21,7 +21,9 @@ def test_fit_gcm_discovered_lingam_smoke():
     fitted, edges = antecedent.gcm.fit_gcm_discovered(
         data, discovery=antecedent.discovery.LiNGAM(), execution=antecedent.Execution(seed=1)
     )
-    assert edges
+    # The generating graph is z -> t, z -> y, t -> y; LiNGAM orients all three.
+    assert set(edges) == {("z", "t"), ("z", "y"), ("t", "y")}
+    assert len(edges) == 3
     assert fitted is not None
 
 

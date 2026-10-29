@@ -140,10 +140,12 @@ fn a_resealed_scene_edit_does_not_replay_and_an_unsealed_edit_changes_identity()
         TransportRevalidationArtifact::from_meta(&reseal(moved), None).expect_err("scene edited");
     assert!(matches!(error, TransportRevalidationArtifactError::ReplayMismatch(_)), "{error:?}");
 
-    // The same edit without resealing is an identity mismatch or a replay mismatch, never accepted.
+    // The same edit without resealing: the stored removals no longer replay from the scenes.
     let mut unsealed = meta.clone();
     unsealed.removed.push("ghost".to_owned());
-    assert!(TransportRevalidationArtifact::from_meta(&unsealed, None).is_err());
+    let error = TransportRevalidationArtifact::from_meta(&unsealed, None)
+        .expect_err("an unsealed edit is refused");
+    assert_eq!(error, TransportRevalidationArtifactError::ReplayMismatch("removed claims"));
 
     // A retained identity of another report.
     let error = TransportRevalidationArtifact::from_meta(&meta, Some(&"0".repeat(64)))

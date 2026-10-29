@@ -61,4 +61,4 @@ sha256 = "2dabc547ed4ba02a1f25a65c4618c74950d5aac8baf2855d1b97f4421054f0f6"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/scenario_invariance_report.rs"
-sha256 = "ac55764da851d8c950358b89003aff35c2c08504b1238e95849c2cfa709381a3"
+sha256 = "d12ab2dcce3c1023bfb77bb18cca84d1947467d24f026fbd92714717aef24c64"

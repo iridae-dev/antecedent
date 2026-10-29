@@ -117,28 +117,30 @@ fn a_single_arm_trial_and_too_few_draws_are_refused() {
     let all_treated = [true, true, false];
     let sel = [0.5; 3];
     let prop = [0.5; 3];
-    assert!(
-        trial_to_target_bayesian_bootstrap(
-            &identification(),
-            &outcome,
-            &all_treated,
-            &trial,
-            &sel,
-            &prop,
-            DrawSpec { draws: 100, seed: 1 },
-        )
-        .is_err()
-    );
-    assert!(
-        trial_to_target_bayesian_bootstrap(
-            &identification(),
-            &outcome,
-            &[true, false, false],
-            &trial,
-            &sel,
-            &prop,
-            DrawSpec { draws: 1, seed: 1 },
-        )
-        .is_err()
-    );
+    let single_arm = trial_to_target_bayesian_bootstrap(
+        &identification(),
+        &outcome,
+        &all_treated,
+        &trial,
+        &sel,
+        &prop,
+        DrawSpec { draws: 100, seed: 1 },
+    )
+    .err()
+    .expect("a single-arm trial is refused")
+    .to_string();
+    assert!(single_arm.contains("requires both observed treatment arms"), "{single_arm}");
+    let one_draw = trial_to_target_bayesian_bootstrap(
+        &identification(),
+        &outcome,
+        &[true, false, false],
+        &trial,
+        &sel,
+        &prop,
+        DrawSpec { draws: 1, seed: 1 },
+    )
+    .err()
+    .expect("one draw is refused")
+    .to_string();
+    assert!(one_draw.contains("requires at least two draws"), "{one_draw}");
 }

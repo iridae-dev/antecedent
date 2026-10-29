@@ -60,7 +60,7 @@ sha256 = "20498b0939de03ba181934dbf94853423be8726e921b2596306193248dd3280b"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/trial_bayesian_bootstrap_reference.rs"
-sha256 = "f609a7568947c7d23309a2dd1e655ee167667e48df8bbeeae03fda83f6110abb"
+sha256 = "573825c4580a4f639ab55342f0fe387995b3fee854cf52ce7926189bad4304ce"
 
 [[method_review.artifacts]]
 role = "reference"

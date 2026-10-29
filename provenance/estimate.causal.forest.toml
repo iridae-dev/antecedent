@@ -45,7 +45,7 @@ sha256 = "c53eb2047c1201c35006489b0129d989d9cda63bb59ea4e841adc7a55347f354"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/estimate_causal_forest_reference.rs"
-sha256 = "9b116c45ee1400760b53c5af054a1acd6ae348bfbba5f5e8e1c3e9b31bf4ef3b"
+sha256 = "af7ce980dd8550ede16deb852841e1ad585984625ed2261d2d24e65a9431e563"
 
 [[method_review.artifacts]]
 role = "reference"

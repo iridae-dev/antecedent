@@ -102,6 +102,11 @@ def test_overlapping_windows_are_resampled_in_blocks() -> None:
     )
     se = result.estimate.se_bootstrap
     assert se is not None and se > 0.0
+    # Overlapping windows are resampled as circular blocks, not as independent rows.
+    window = next(str(d) for d in result.diagnostics if DISCLOSURE in str(d))
+    assert "resamples circular blocks of" in window
+    block = int(window.split("circular blocks of ")[1].split()[0])
+    assert block >= 3  # never shorter than the three-period window
 
 
 def test_a_conditional_pulse_is_idc_on_the_same_window() -> None:
@@ -121,7 +126,8 @@ def test_the_bayesian_form_shares_one_weight_per_block() -> None:
         antecedent.PulseEffect("x", "y", treatment_lag=1, horizon_steps=1),
         inference=antecedent.Bayesian(n_draws=300, backend="conjugate"),
     )
-    assert abs(result.ate - _counted_conditional(series)) < 0.1
+    # Observed deviation from the counted contrast is 1.4e-3 (conjugate posterior mean).
+    assert abs(result.ate - _counted_conditional(series)) < 0.01
     assert result.posterior is not None
     assert _discloses(result)
 

@@ -147,10 +147,10 @@ fn a_published_interval_is_the_estimate_plus_or_minus_z_standard_errors_or_withh
     let half = reported_se_interval_z() * report.se_analytic;
     let candidate = multi_level_normal_interval(report.effect, report.se_analytic).unwrap();
     assert_eq!(candidate, (report.effect - half, report.effect + half));
-    assert!(
-        candidate.0 < TRUTH + 4.0 * report.se_analytic
-            && candidate.1 > TRUTH - 4.0 * report.se_analytic
-    );
+    // The normal quantile of the reported level, and an effect within four standard errors of
+    // the generating contrast 0.9.
+    assert!((reported_se_interval_z() - 1.959_963_984_540_054).abs() < 1e-12);
+    assert!((report.effect - TRUTH).abs() < 4.0 * report.se_analytic, "{}", report.effect);
     if let Some(interval) = &report.interval {
         assert_eq!((interval.lower, interval.upper), candidate);
         assert_eq!(interval.level, REPORTED_SE_INTERVAL_LEVEL);

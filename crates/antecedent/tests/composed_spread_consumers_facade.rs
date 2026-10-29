@@ -171,7 +171,12 @@ fn an_aligned_transported_spread_is_not_read_as_a_decision_or_a_composition() {
 
 #[test]
 fn the_joint_law_consumer_replays_both_transported_spreads_to_identical_bits() {
-    for claim in [covariance_claim(), aligned_claim()] {
+    // Hand values. Covariance form: weights (1, 1, 1) on the stated covariance, whose entries
+    // sum to 1 + 4 + 9 + 2 * 0.5 = 15. Aligned form: the draws of a + b + c are 3, 3, 8, 9,
+    // mean 5.75, squared deviations 7.5625, 7.5625, 5.0625, 10.5625, population variance
+    // 30.75 / 4 = 7.6875.
+    for (claim, variance) in [(covariance_claim(), 15.0), (aligned_claim(), 7.6875)] {
+        assert!((claim.value("variance").unwrap() - variance).abs() < 1e-12, "{:?}", claim.value("variance"));
         let bytes = claim.export().expect("export");
         let consumed =
             consume_joint_law_propagation_artifact(&bytes, Some(claim.identity()), &ctx())
@@ -182,6 +187,7 @@ fn the_joint_law_consumer_replays_both_transported_spreads_to_identical_bits() {
             consumed.value("variance").map(f64::to_bits),
             claim.value("variance").map(f64::to_bits)
         );
+        assert!((consumed.value("variance").unwrap() - variance).abs() < 1e-12);
     }
 }
 

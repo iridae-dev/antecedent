@@ -41,6 +41,11 @@ fn close(got: f64, want: f64, rel: f64, what: &str) {
     close_with_floor(got, want, rel, 0.0, what);
 }
 
+fn assert_refused<T, E: std::fmt::Debug>(result: Result<T, E>, expected: &str) {
+    let text = format!("{:?}", result.err().expect("the artifact must be refused"));
+    assert!(text.contains(expected), "expected {expected}: {text}");
+}
+
 /// `floor` is the absolute rounding of the data themselves (a few units in the last place of the
 /// largest outcome), below which a difference of two large arm means cannot be resolved.
 fn close_with_floor(got: f64, want: f64, rel: f64, floor: f64, what: &str) {
@@ -278,29 +283,22 @@ fn settings_and_declarations_the_forest_cannot_honour_are_refused() {
         forest.fit(&prepared, &ExecutionContext::for_tests(1), AssumptionSet::new())
     };
     let base = || forest_of(case);
-    assert!(fit(base().with_n_trees(0)).is_err(), "zero trees");
-    assert!(fit(base().with_min_leaf(0)).is_err(), "zero minimum leaf");
-    assert!(fit(base().with_max_depth(0)).is_err(), "zero depth");
-    assert!(fit(base().with_max_cuts(Some(0))).is_err(), "zero cuts");
-    assert!(fit(base().with_min_leaf(31)).is_err(), "fewer than two minimum leaves of rows");
+    assert_refused(fit(base().with_n_trees(0)), "CausalForest requires at least one tree");
+    assert_refused(fit(base().with_min_leaf(0)), "CausalForest min_leaf and max_depth must be ≥ 1");
+    assert_refused(fit(base().with_max_depth(0)), "CausalForest min_leaf and max_depth must be ≥ 1");
+    assert_refused(fit(base().with_max_cuts(Some(0))), "CausalForest min_leaf and max_depth must be ≥ 1");
+    assert_refused(fit(base().with_min_leaf(31)), "CausalForest needs more complete-case rows than 2 × min_leaf");
     // Cluster labels need the declaration and the declaration needs labels.
-    assert!(fit(base().with_cluster_ids(vec![0; pb.n])).is_err(), "labels without a unit");
-    assert!(
-        fit(base().with_cluster_dml(ClusterDml::new(10).unwrap())).is_err(),
-        "a unit without labels"
-    );
+    assert_refused(fit(base().with_cluster_ids(vec![0; pb.n])), "causal-forest clusters need both the unit labels and the cluster declaration");
+    assert_refused(fit(base().with_cluster_dml(ClusterDml::new(10).unwrap())), "causal-forest clusters need both the unit labels and the cluster declaration");
     let labels: Vec<u32> = (0..pb.n as u32).map(|i| i % 12).collect();
-    assert!(
-        fit(base()
+    assert_refused(fit(base()
             .with_cluster_dml(ClusterDml::new(10).unwrap())
             .with_cluster_ids(labels.clone())
-            .with_source_cluster_ids(labels))
-        .is_err(),
-        "labels declared both per analysed row and per source row"
-    );
+            .with_source_cluster_ids(labels)), "source_cluster_ids and cluster_ids both declared");
     // A dyadic unit has no whole-cluster subsample.
     let mut dyadic = base().with_cluster_dml(ClusterDml::new(10).unwrap());
     dyadic.units.first = Some((0..pb.n as u32).map(|i| i % 12).collect());
     dyadic.units.second = Some((0..pb.n as u32).map(|i| i % 11).collect());
-    assert!(fit(dyadic).is_err(), "dyadic unit");
+    assert_refused(fit(dyadic), "a dyadic unit has no whole-cluster subsample");
 }

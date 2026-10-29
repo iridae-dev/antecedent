@@ -197,11 +197,16 @@ fn run(case: &Case, declaration: Option<MissingDeclaration>) -> Result<StudyResu
 /// The contrast of the responders' mean outcomes in the treated and control rows; the 2x2
 /// factorial averages the contrast within the two levels of its second factor.
 fn responder_contrast(case: &Case) -> f64 {
+    contrast_without(case, &case.holes)
+}
+
+/// The same contrast with `holes` removed from every arm mean (none: the table before any hole).
+fn contrast_without(case: &Case, holes: &[usize]) -> f64 {
     let contrast = |keep: &dyn Fn(usize) -> bool| {
         let mean = |rows: &[usize]| {
             let kept: Vec<f64> = rows
                 .iter()
-                .filter(|&&r| keep(r) && !case.holes.contains(&r))
+                .filter(|&&r| keep(r) && !holes.contains(&r))
                 .map(|&r| case.outcomes[r])
                 .collect();
             kept.iter().sum::<f64>() / kept.len() as f64
@@ -281,8 +286,19 @@ fn multiple_imputation_completes_the_table_and_publishes_a_finite_effect() {
         )
         .unwrap_or_else(|error| panic!("{}: {error}", case.name));
         let fit = result.randomized_effect().unwrap();
-        assert!(fit.effect.is_finite() && fit.variance_upper_bound.is_finite(), "{}", case.name);
+        assert!(fit.effect.is_finite() && fit.variance_upper_bound > 0.0, "{}", case.name);
+        // The imputed effect estimates the contrast of the table before any hole: it lies within
+        // three standard errors (the published variance bound) of that contrast.
+        let full = contrast_without(&case, &[]);
+        let spread = 3.0 * fit.variance_upper_bound.sqrt();
+        assert!(
+            (fit.effect - full).abs() <= spread,
+            "{}: effect {} vs complete-table contrast {full} (3 se = {spread})",
+            case.name,
+            fit.effect
+        );
         let report = result.missing_data().as_ref().expect("a missing-data report");
         assert!(matches!(report.policy(), MissingPolicy::MultipleImputation(_)), "{}", case.name);
+        assert_eq!(report.accounting.rows_total, case.outcomes.len(), "{}", case.name);
     }
 }

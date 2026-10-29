@@ -26,7 +26,9 @@ def _pulse(level: float, execution: ant.Execution | None = None):
 
 
 def test_a_level_inside_the_range_has_no_extrapolation_flag() -> None:
-    assert require_success(_pulse(0.5)) is not None
+    result = require_success(_pulse(0.5))
+    assert not any("extrapol" in str(d).lower() for d in result.diagnostics)
+    assert result.ate == pytest.approx(2.0 * 0.5, abs=0.05)  # y_t = 2 t_{t-1} + small noise
 
 
 def test_a_level_beyond_the_default_bound_is_refused_with_a_next_attempt() -> None:
@@ -40,7 +42,7 @@ def test_the_bound_is_a_declared_execution_policy() -> None:
     wide = ant.Execution(seed=5, pulse_extrapolation_ranges=1000.0)
     assert require_success(_pulse(1000.0, wide)) is not None
     tight = ant.Execution(seed=5, pulse_extrapolation_ranges=1.0)
-    with pytest.raises(ant.errors.CausalError):
+    with pytest.raises(ant.errors.CausalError, match="positivity_violated"):
         _pulse(7.0, tight)
 
 

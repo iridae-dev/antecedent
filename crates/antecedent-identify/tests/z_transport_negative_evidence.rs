@@ -32,6 +32,11 @@ struct Regime {
 
 type Law = [f64; 16];
 
+fn assert_refused<T, E: std::fmt::Debug>(result: Result<T, E>, expected: &str) {
+    let text = format!("{:?}", result.err().expect("the artifact must be refused"));
+    assert!(text.contains(expected), "expected {expected}: {text}");
+}
+
 fn assert_law_equal(left: Law, right: Law) {
     assert_eq!(left.map(f64::to_bits), right.map(f64::to_bits));
 }
@@ -250,31 +255,23 @@ fn two_models_match_target_observations_and_complete_zw_experiments_but_disagree
 
     let mut changed_terminal = record.clone();
     changed_terminal.terminal.rules.push("tampered.rule".into());
-    assert!(
-        antecedent_identify::ZTransportObstruction::from_record_checked(
+    assert_refused(antecedent_identify::ZTransportObstruction::from_record_checked(
             changed_terminal,
             &diagram,
             &query,
             limits,
             &ExecutionContext::for_tests(21),
-        )
-        .is_err(),
-        "changed terminal reasoning must not replay as a checked obstruction"
-    );
+        ), "z_transport.obstruction_record_mismatch");
     let mut changed_line11 = record.clone();
     changed_line11.terminal.c0.clear();
     changed_line11.terminal.candidate_active.push(2);
-    assert!(
-        antecedent_identify::ZTransportObstruction::from_record_checked(
+    assert_refused(antecedent_identify::ZTransportObstruction::from_record_checked(
             changed_line11,
             &diagram,
             &query,
             limits,
             &ExecutionContext::for_tests(25),
-        )
-        .is_err(),
-        "tampered C0 and Z∩X premises must not replay as a checked obstruction"
-    );
+        ), "z_transport.obstruction_record_mismatch");
     let empty = EvidenceCatalog::try_new(
         [catalog.environments[0].clone(), catalog.environments[1].clone()],
         [],

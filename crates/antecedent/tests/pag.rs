@@ -284,7 +284,12 @@ fn envelope_unidentified_mass() {
     let env = id.identify_pag_envelope(&pag, &q).unwrap();
     let total = env.identified_weight.0 + env.unidentified_weight.0;
     assert!(expected["require_mass_accounted"].as_bool().unwrap());
-    assert!((total - env.cases.len() as f64).abs() < 1e-9);
+    // `x o-> y` completes to `x -> y` or `x <-> y`: two cases, each of weight one.
+    assert_eq!(env.cases.len(), 2);
+    assert!((total - 2.0).abs() < 1e-9, "{total}");
+    // The `x <-> y` completion (a latent common cause) cannot identify the effect, so at least
+    // one unit of mass is unidentified and kept.
+    assert!(env.unidentified_weight.0 >= 1.0 - 1e-9, "{}", env.unidentified_weight.0);
 }
 
 #[test]
@@ -305,8 +310,12 @@ fn completion_sampler_respects_bound() {
     let max = 3usize;
     // The bound truncates the enumeration exactly: with the cap lifted the sampler yields
     // every completion, and the capped run yields min(total, max) of them (never zero).
+    // By hand: `0 o-o 1` takes `->`, `<-` or `<->`; `1 o-> 2` takes `->` or `<->`. A completion
+    // may not make an arrowhead at 1 from both edges (an unshielded collider the PAG lacks), which
+    // excludes `{->, <->}` and `{<->, <->}`: 3 + 1 = 4 completions.
     let total = CompletionSampler::new(pag.clone(), 1_000).unwrap().count();
-    assert!(total >= 1, "the PAG has at least one completion");
+    assert_eq!(total, 4);
     let n = CompletionSampler::new(pag, max).unwrap().count();
-    assert_eq!(n, total.min(max));
+    assert_eq!(n, max);
+    assert_eq!(CompletionSampler::new(Pag::with_variables(1), max).unwrap().count(), 1);
 }

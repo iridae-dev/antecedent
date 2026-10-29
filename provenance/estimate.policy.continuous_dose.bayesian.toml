@@ -49,7 +49,7 @@ sha256 = "41f2eaef2dd900f95159d59a1c239fce104ca8afd0440d6f064e64545c41e94d"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/dose_posterior_reference.rs"
-sha256 = "f04d2d8f4150299e21c5240a2300fc7121d1264bfa2280cb279b16850decf4e9"
+sha256 = "264acc2f2c1bc3279e60a1521cc3d977c0c57cfe727a9ff227348f363195efe5"
 
 [[method_review.artifacts]]
 role = "reference"

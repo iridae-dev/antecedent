@@ -55,4 +55,4 @@ sha256 = "7bfb1884cfeae63d2a052278394f7f5b713780ee6d7971c8b9c2482d43f15ebb"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/tiered_closure_enumeration.rs"
-sha256 = "04971f662feadf09bd2308925afd9765224baf529480f6b67a164b71ed47d888"
+sha256 = "3d9e18f81cff557c2575e8339571bac6db3a6a5da1b8748d6bb442967b869ca9"

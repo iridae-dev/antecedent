@@ -107,7 +107,10 @@ fn a_loose_prior_approaches_the_unpenalized_fit_and_a_tight_prior_flattens_the_c
     // shrunk to zero.
     let (level, derivative) = run(tight, 1e-9);
     assert!(derivative.abs() < 1e-6, "{derivative}");
-    assert!(level.is_finite());
+    // That mean is the weighted mean of the local outcomes: the retained normal equations give
+    // it as `rhs[0] / sum of weights` (the basis is centred at the evaluation point).
+    let weighted_mean = text(&tight["rhs"][0]) / text(&tight["weight_sum"]);
+    close(level, weighted_mean, 1e-6, "tight prior level is the weighted mean");
 }
 
 struct PolicyCase {

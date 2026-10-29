@@ -12,6 +12,11 @@ use antecedent_prob::{
     PriorSpec, fit_conjugate_gaussian,
 };
 
+fn assert_refused<T, E: std::fmt::Debug>(result: Result<T, E>, expected: &str) {
+    let text = format!("{:?}", result.err().expect("the request must be refused"));
+    assert!(text.contains(expected), "expected {expected}: {text}");
+}
+
 fn quantity(id: &str, functional: &str) -> ScientificQuantity {
     ScientificQuantity {
         variable_id: id.into(),
@@ -187,24 +192,20 @@ fn heterogeneous_design_sequential_equals_exact_pooled() {
 fn incompatible_sources_and_mapping_refuse() {
     let artifact = exact_source();
     let bytes = artifact.to_bytes("batch-a-posterior").unwrap();
-    assert!(mapped(&bytes, &identity(), &baseline(2.0)).is_err());
+    assert_refused(mapped(&bytes, &identity(), &baseline(2.0)), "mapped_posterior_transfer.residual_variance");
     let mut wrong_snapshot = identity();
     wrong_snapshot.snapshot_id = "other".into();
-    assert!(mapped(&bytes, &wrong_snapshot, &baseline(1.0)).is_err());
+    assert_refused(mapped(&bytes, &wrong_snapshot, &baseline(1.0)), "aligned_joint_draws.identity_expected");
     let mut bootstrap = artifact.metadata().clone();
     bootstrap.identity.semantic = DistributionMeaningWire::Bootstrap;
     let bootstrap = DistributionArtifact::new(bootstrap, artifact.draws().to_vec()).unwrap();
-    assert!(
-        mapped(
+    assert_refused(mapped(
             &bootstrap.to_bytes("bootstrap").unwrap(),
             &bootstrap.metadata().identity,
             &baseline(1.0)
-        )
-        .is_err()
-    );
+        ), "mapped_posterior_transfer.parameter_posterior");
     let reused = [("source:x".into(), "target:x".into()), ("source:x".into(), "target:y".into())];
-    assert!(
-        transfer(
+    assert_refused(transfer(
             &bytes,
             &identity(),
             &reused,
@@ -212,12 +213,9 @@ fn incompatible_sources_and_mapping_refuse() {
             "batch-b-snapshot",
             "fixed-gaussian-contract",
             &baseline(1.0)
-        )
-        .is_err()
-    );
+        ), "mapped transfer reuses a coefficient identity");
     let partial = [("source:x".into(), "target:x".into())];
-    assert!(
-        transfer(
+    assert_refused(transfer(
             &bytes,
             &identity(),
             &partial,
@@ -225,11 +223,8 @@ fn incompatible_sources_and_mapping_refuse() {
             "batch-b-snapshot",
             "fixed-gaussian-contract",
             &baseline(1.0)
-        )
-        .is_err()
-    );
-    assert!(
-        transfer(
+        ), "requires a complete coefficient bijection");
+    assert_refused(transfer(
             &bytes,
             &identity(),
             &[("source:x".into(), "target:x".into()), ("source:y".into(), "target:y".into())],
@@ -237,13 +232,10 @@ fn incompatible_sources_and_mapping_refuse() {
             "",
             "fixed-gaussian-contract",
             &baseline(1.0),
-        )
-        .is_err()
-    );
+        ), "requires target snapshot and causal contract IDs");
     let mut changed_target = targets();
     changed_target[0].units = "meters".into();
-    assert!(
-        transfer(
+    assert_refused(transfer(
             &bytes,
             &identity(),
             &[("source:x".into(), "target:x".into()), ("source:y".into(), "target:y".into())],
@@ -251,9 +243,7 @@ fn incompatible_sources_and_mapping_refuse() {
             "batch-b-snapshot",
             "fixed-gaussian-contract",
             &baseline(1.0)
-        )
-        .is_err()
-    );
+        ), "mapped transfer coefficient coordinates differ");
 }
 
 #[test]
@@ -265,7 +255,7 @@ fn fresh_process_replays_mapped_prior() {
         assert!(prior.coefficient_correlation().is_some());
         let mut wrong = identity();
         wrong.snapshot_id = "resealed-other".into();
-        assert!(mapped(&bytes, &wrong, &baseline(1.0)).is_err());
+        assert_refused(mapped(&bytes, &wrong, &baseline(1.0)), "aligned_joint_draws.identity_expected");
         return;
     }
     let unique =

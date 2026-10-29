@@ -43,7 +43,7 @@ sha256 = "2392379ef56a7c77b1b9ad93e6af3c5901be61402840112cbe2ab4f55443bdb0"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/temporal_design_excursion_bayesian_bootstrap_reference.rs"
-sha256 = "56f4ad3d768aa8c27ced60c2a1688be0f9afc12261617a64ed08cdd4259acc92"
+sha256 = "017436ca2cb04be7ac5bd47acb01985cd20c386a377ce349d6175dc40e56f518"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -353,6 +353,10 @@ fn an_effect_modifier_after_the_treatment_is_refused_not_dropped() {
     let layout = Layout { n: 3, tier: vec![0, 1, 2] };
     for w in [0, 2] {
         let query = AverageEffectQuery::binary_ate(v(0), v(2)).with_effect_modifiers([v(w)]);
-        assert!(identify_tiered(&layout.background(), &query).is_err());
+        let error = identify_tiered(&layout.background(), &query)
+            .err()
+            .expect("a modifier equal to the treatment or outcome is not a query")
+            .to_string();
+        assert!(error.contains("invalid average-effect query"), "w={w}: {error}");
     }
 }

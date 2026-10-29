@@ -50,7 +50,8 @@ def test_eventframe_pcmci_discovery_happy_path():
             refute=False,
         )
     )
-    assert np.isfinite(result.ate)
+    # y_t = 0.6 x_{t-1} + noise, so a unit pulse at lag 1 moves y by 0.6.
+    assert result.ate == pytest.approx(0.6, abs=0.05)
 
 
 def test_eventframe_rejects_jpcmci_plus():

@@ -212,18 +212,13 @@ fn multi_horizon_bayesian_responses_supply_no_aligned_joint_law() {
         assert!(draws.is_none(), "independent horizon draws must not be retained");
     }
 
-    let contract = quantile_contract();
-    let requirement = contract.source_requirement().unwrap().unwrap();
-    match NativeResponseClaim::from_response(response, &schema(), &context()) {
-        // The two-horizon grid is not the one-dimensional dose grid of the program.
-        Err(refusal) => assert!(refusal.validate().is_ok()),
-        Ok(claim) => {
-            assert!(!claim.has_joint_law());
-            let refusal = claim.decision_source(&requirement).unwrap_err();
-            assert_eq!(refusal.code, "decision_contract_unsatisfied");
-            assert_eq!(refusal.detail, "native_claims.source_not_supplied");
-            assert_eq!(refusal.expected.as_deref(), Some("joint_draws,marginal_draws"));
-            assert_eq!(refusal.supplied.as_deref(), Some("mean"));
-        }
-    }
+    // The two-horizon grid (0, 1) is not the one-dimensional dose grid (1, 2) of the program,
+    // so no claim, and hence no aligned joint law, can be bound from it.
+    let refusal = NativeResponseClaim::from_response(response, &schema(), &context())
+        .expect_err("a horizon grid is not the program's dose grid");
+    assert!(refusal.validate().is_ok());
+    assert_eq!(refusal.code, "quantity_semantics_mismatch");
+    assert_eq!(refusal.detail, "program_binding.dose_grid_changed");
+    assert_eq!(refusal.expected.as_deref(), Some("1,2"));
+    assert_eq!(refusal.supplied.as_deref(), Some("0,1"));
 }

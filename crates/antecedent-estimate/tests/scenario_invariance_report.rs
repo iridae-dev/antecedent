@@ -182,6 +182,11 @@ fn invariances(report: &ScenarioSetInvarianceReport, name: &str) -> Vec<SourceIn
     report.scenario(name).unwrap().report.invariances().unwrap().to_vec()
 }
 
+fn assert_refused<T, E: std::fmt::Debug>(result: Result<T, E>, expected: &str) {
+    let text = format!("{:?}", result.err().expect("the artifact must be refused"));
+    assert!(text.contains(expected), "expected {expected}: {text}");
+}
+
 #[test]
 fn scenario_invariance_each_envelope_extreme_lists_the_edges_selections_and_invariances_behind_it()
 {
@@ -265,5 +270,5 @@ fn scenario_invariance_the_report_is_independent_of_scenario_supply_order() {
 fn scenario_invariance_a_report_for_another_set_is_refused() {
     let (prepared, _) = run(four());
     let (_, small) = run(vec![scenario("standardize", &[Z]), scenario("direct", &[])]);
-    assert!(prepared.invariance_report(&small).is_err());
+    assert_refused(prepared.invariance_report(&small), "the scenario report does not describe the decided scenario set");
 }

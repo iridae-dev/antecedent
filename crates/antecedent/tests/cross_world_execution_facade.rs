@@ -91,7 +91,9 @@ fn natural_direct_effect_seals_replays_and_resumes() {
     let sealed = CrossWorldExecution::seal(&request(), &ctx()).unwrap();
     assert!((sealed.result().value - 0.25).abs() < 1e-12, "{}", sealed.result().value);
     assert_eq!(sealed.result().label, "point_only");
-    assert!(sealed.interval().is_err());
+    let interval = sealed.interval().err().expect("an unqualified interval is closed");
+    assert_eq!(interval.code, "cell_not_licensed");
+    assert_eq!(interval.detail, "cross_world_execution.interval_route_closed");
     assert_eq!(sealed.posterior().unwrap_err().code, "cell_not_licensed");
 
     let bytes = sealed.to_bytes("natural-direct").unwrap();
