@@ -44,7 +44,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/attribution.rs",
-          "sha256": "b85777654e4e9aaf2dcadb59e3dd5fdf5756eb0dd39255549b84a9c6d4f9df2b"
+          "sha256": "72e42fd27f426ef16c70fab94ebcf46bc9aae038feaeb7702fae79a1aa12f65f"
         }
       ],
       "fixture_payload_sha256": "b4cfc25b0688689db3c563e114eeb767f09d5ec3a0e666e5b6cf60ac77f3907c"

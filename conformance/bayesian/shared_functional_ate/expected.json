@@ -44,7 +44,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/licensed_static_cells.rs",
-          "sha256": "7360b7f88bb5a462834945cb4c9daa271c00def2468a4469699034526eaa6e83"
+          "sha256": "fa3e67c018eb8c1bb9fc0529e778baa32fd2367066fbe402136951a50c2cddb0"
         }
       ],
       "fixture_payload_sha256": "5214e33e6465873c8b9e33d10b65220153558df47b5473fb1358c34677034529"

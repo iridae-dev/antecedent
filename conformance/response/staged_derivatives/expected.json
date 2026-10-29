@@ -55,7 +55,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/staged_derivatives.rs",
-          "sha256": "59999fc9f2bcd2245a24e9f041eb9f1592eca2de785d1debe186199cb9597280"
+          "sha256": "46744016dbc67f7d8e26b0a5694878dc68f86390bb1335ee14ca1941ba92f891"
         }
       ],
       "fixture_payload_sha256": "af8cb929e87122f941017d809e96968129b45c756d0240da795864cd32848eb8"

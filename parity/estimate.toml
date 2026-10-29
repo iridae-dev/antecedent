@@ -80,11 +80,11 @@ id = "estimate.identify.automatic"
 group = "identification"
 description = "Automatic identification"
 status = "done"
-evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/identify/auto_envelopes"
+evidence_kind = "implementation_exists"
 owner = "estimate"
 evidence_test = "crates/antecedent-identify/src/auto.rs"
 evidence_assertion = "auto_finds_backdoor_on_chain"
+limitations = "The fixture conformance/identify/auto_envelopes is a software-only routing check, not an independent oracle; the executing test asserts the back-door criterion's known answer on a chain (every back-door estimand adjusts exactly the confounder)."
 
 [[capabilities]]
 id = "estimate.identify.backdoor"

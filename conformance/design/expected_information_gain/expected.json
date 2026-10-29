@@ -57,7 +57,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-design/tests/design_oracle.rs",
-          "sha256": "c49305e23348b9f40062d1e98da0534a2fae0c446a75c5fe77977c9987e39564"
+          "sha256": "e272a61ef60c5195b89585b0714b23075a35080af92e7b956ef0c37d758fafd7"
         }
       ],
       "fixture_payload_sha256": "5066b617b57196aaa2558d5ff3b3e13be5ad2e21f80155d836a755caeb83232c"

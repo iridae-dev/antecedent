@@ -133,7 +133,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-stats/tests/foundations_oracle.rs",
-          "sha256": "7afc6376b6cea0e9b96b6da728d16c373901b54c23886bd7b0647b327cc764a1"
+          "sha256": "1dd4b2e088fb457a9b704c07fa86ce5211a58e18e9c46642cbbf38486dc025df"
         }
       ],
       "fixture_payload_sha256": "78b8b7c2bab5b539c4cd7b6a5adcb0ffd000889875c0837e87786d7721388bc5"

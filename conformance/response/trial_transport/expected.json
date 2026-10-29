@@ -94,7 +94,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/src/transport.rs",
-          "sha256": "a190456f974409a14fdac5312ba8e5367ed1c71452285b261a0560bc03706b1f"
+          "sha256": "20498b0939de03ba181934dbf94853423be8726e921b2596306193248dd3280b"
         }
       ],
       "fixture_payload_sha256": "19e4c23dfc33761ce3b8804722cde3c405e4f6f257c68c1b18192e070dd6d31e"

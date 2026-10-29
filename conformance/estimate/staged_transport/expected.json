@@ -42,7 +42,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/staged_attribution_transport_interference.rs",
-          "sha256": "dd04b254711d7306a693c84b83a437a54b8eecb576c646313a5af1fb2c1eab02"
+          "sha256": "1382a08672636c8fc02715d1dd4da8052bd8f4535c63e9f427fe8b9071a5daee"
         }
       ],
       "fixture_payload_sha256": "fe5af72d2b16c5493b62460482674462623d44acacda710c4a06582b639f1baf"

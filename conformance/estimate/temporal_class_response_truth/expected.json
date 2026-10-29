@@ -48,7 +48,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs",
-          "sha256": "5bbd6c7b40fdfd89680900fc4f5232d45f3a10299fda53cdca1c05f2f8991422"
+          "sha256": "dae61c24a4a391e352a3bf151eac096ccd7fd1b9defc93743ca99fc45978c0b1"
         }
       ],
       "fixture_payload_sha256": "2dd31961529955a04775c235a79f693a37b3483c518203e03768967da7cee443"

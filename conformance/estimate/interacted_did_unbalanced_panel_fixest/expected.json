@@ -87,7 +87,7 @@
         {
           "role": "input_fixture",
           "path": "conformance/estimate/interacted_did_unbalanced_panel/expected.json",
-          "sha256": "db8039a7d465fc0d8638f80377fd1cc94499f8acc4edab12f18c1c2d93bbca4b"
+          "sha256": "ab5223fa0f00f48f02b2b1cb3892a986a4ea98291d259aeeb44c2871003fdfb4"
         },
         {
           "role": "assertion_source",

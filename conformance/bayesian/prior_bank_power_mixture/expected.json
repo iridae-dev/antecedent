@@ -7,7 +7,9 @@
   "expected_precision": 0.75,
   "expected_mean": 1.3333333333333333,
   "expected_variance": 1.3333333333333333,
-  "required_assumption_ids": ["external_composed_prior"],
+  "required_assumption_ids": [
+    "external_composed_prior"
+  ],
   "tol": 1e-12,
   "notes": "P4C power-prior precision-add: Λ = Λ0 + α Λ_old",
   "oracle": {
@@ -49,7 +51,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/bayesian.rs",
-          "sha256": "40cada97dd3003c3914a8429d3800f80699299acbda7898600b74248ff9b7bca"
+          "sha256": "f2f11f9729d3226feecc149094235ae27240171659e933d51350ca603c4838b1"
         }
       ],
       "fixture_payload_sha256": "da3bfb78330a8424f4f304bb026e5fd269df0439fb0c6faeb701febb0aadb302"

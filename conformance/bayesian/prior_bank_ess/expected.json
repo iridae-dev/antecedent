@@ -6,25 +6,53 @@
     "source_variance": 1.0,
     "alpha": 0.5,
     "ess": 40.0,
-    "expected_effective_ess": [20.0],
+    "expected_effective_ess": [
+      20.0
+    ],
     "expected_composed_ess": 20.0,
     "expected_kish_ess": 1.0
   },
   "power_partial_coverage": {
     "baseline_mean": 0.0,
     "baseline_variance": 4.0,
-    "source_a": {"mean": 2.0, "variance": 1.0, "alpha": 0.5, "ess": 40.0},
-    "source_b": {"mean": 3.0, "variance": 1.0, "alpha": 0.25, "ess": null},
-    "expected_effective_ess": [20.0, null],
+    "source_a": {
+      "mean": 2.0,
+      "variance": 1.0,
+      "alpha": 0.5,
+      "ess": 40.0
+    },
+    "source_b": {
+      "mean": 3.0,
+      "variance": 1.0,
+      "alpha": 0.25,
+      "ess": null
+    },
+    "expected_effective_ess": [
+      20.0,
+      null
+    ],
     "expected_composed_ess": null,
     "expected_kish_ess": 1.8
   },
   "power_dropped_source": {
     "baseline_mean": 0.0,
     "baseline_variance": 4.0,
-    "source_a": {"mean": 2.0, "variance": 1.0, "alpha": 0.5, "ess": 40.0},
-    "source_b": {"mean": 5.0, "variance": 1.0, "alpha": 0.0, "ess": 999.0},
-    "expected_effective_ess": [20.0, 0.0],
+    "source_a": {
+      "mean": 2.0,
+      "variance": 1.0,
+      "alpha": 0.5,
+      "ess": 40.0
+    },
+    "source_b": {
+      "mean": 5.0,
+      "variance": 1.0,
+      "alpha": 0.0,
+      "ess": 999.0
+    },
+    "expected_effective_ess": [
+      20.0,
+      0.0
+    ],
     "expected_composed_ess": 20.0,
     "expected_kish_ess": 1.0
   },
@@ -36,7 +64,9 @@
     "alpha": 1.0,
     "mixture_weight": 0.4,
     "ess": 50.0,
-    "expected_effective_ess": [50.0],
+    "expected_effective_ess": [
+      50.0
+    ],
     "expected_composed_ess": null,
     "expected_kish_ess": 1.0
   },
@@ -81,7 +111,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/bayesian.rs",
-          "sha256": "40cada97dd3003c3914a8429d3800f80699299acbda7898600b74248ff9b7bca"
+          "sha256": "f2f11f9729d3226feecc149094235ae27240171659e933d51350ca603c4838b1"
         }
       ],
       "fixture_payload_sha256": "fcaf6e4d0de2383ce8cf5d8b030b66a7c37ad28e8da4e9d9d159ce588a8ef94e"
