@@ -202,6 +202,57 @@ impl<'a> DbnPoint<'a> {
     }
 }
 
+/// The unfolded-window namespace `(variable, offset)` of the template the result of a
+/// [`dbn_route_query`] over a dynamic graph posterior names its identification on: the first
+/// distinct template the temporal back-door identifier decides, in posterior order, exactly as
+/// the executor selects it. The artifact declares it so the identification's dense node ids
+/// stay inside a variable-and-offset namespace.
+#[must_use]
+pub(crate) fn dbn_route_window_namespace(study: &super::Study) -> Option<Vec<(u32, i32)>> {
+    let gp = study.graph_posterior.as_ref()?;
+    if !dbn_atoms(gp) || !dbn_route_query(&study.query) {
+        return None;
+    }
+    let (crate::analysis::builder::DataInput::Temporal(data)
+    | crate::analysis::builder::DataInput::Event(data)) = &study.data
+    else {
+        return None;
+    };
+    let variables: Vec<VariableId> =
+        data.schema().variables().iter().map(|variable| variable.id).collect();
+    let points = DbnPoint::of_all(&study.query).ok()?;
+    let point = points.first()?;
+    for index in 0..gp.n_graphs() {
+        let graph = crate::analysis::prepared::temporal_dag_from_dbn_atom(
+            gp,
+            u64::try_from(index).ok()?,
+            &variables,
+        )
+        .ok()?;
+        let identifier = if matches!(point, DbnPoint::Conditional(_)) {
+            TemporalBackdoorIdentifier::new().with_parent_adjustment_fallback()
+        } else {
+            TemporalBackdoorIdentifier::new()
+        };
+        let Ok(found) = identifier.identify_temporal(&graph, point.identification_query()) else {
+            continue;
+        };
+        if !identification_status_ok_for_case(found.result.status)
+            || found.result.estimands.is_empty()
+            || select_estimand(&found.result, EstimatorId::TemporalLinearAdjustment).is_err()
+        {
+            continue;
+        }
+        return (0..found.indexer.dense_len())
+            .map(|dense| {
+                let key = found.indexer.key_of(u32::try_from(dense).ok()?).ok()?;
+                Some((key.variable.raw(), key.offset))
+            })
+            .collect();
+    }
+    None
+}
+
 /// One distinct template of the posterior, identified on its own graph.
 struct IdentifiedTemplate {
     key: u64,

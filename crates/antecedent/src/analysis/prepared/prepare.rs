@@ -557,9 +557,13 @@ impl Study {
                 Ok(())
             }
             CausalQuery::Mediation(_) => Ok(()),
+            // An attribution identifies each atom's mechanisms at execution, on the window of
+            // the atom's own template, under the parametric structural-model claim of the query.
+            CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_) => Ok(()),
             _ => Err(CausalError::Unsupported {
                 message: "a lagged temporal-ADMG graph posterior answers a pulse, sustained \
-                              or conditional temporal contrast and a temporal mediation",
+                              or conditional temporal contrast, a temporal mediation and an \
+                              anomaly or change attribution",
             }),
         }
     }

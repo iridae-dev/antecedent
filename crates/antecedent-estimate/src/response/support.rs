@@ -232,6 +232,52 @@ pub(super) fn support_report(
     }
 }
 
+/// Rows beyond this many are subsampled by a fixed stride when taking the reference quantile.
+const JOINT_REFERENCE_ROWS: usize = 2000;
+
+/// Distance from `at` to its nearest observed treatment row, and the 95th percentile of the
+/// observed rows' leave-one-out nearest-row distances, each treatment scaled by its standard
+/// deviation. Non-finite when fewer than two rows are observed.
+fn joint_nearest_distance(at: &[f64], treatment_matrix: &[f64], dimensions: usize) -> (f64, f64) {
+    let n = treatment_matrix.len() / dimensions.max(1);
+    if n < 2 {
+        return (f64::INFINITY, f64::NAN);
+    }
+    let scale: Vec<f64> = (0..dimensions)
+        .map(|j| {
+            let column = &treatment_matrix[j * n..(j + 1) * n];
+            let mean = column.iter().sum::<f64>() / n as f64;
+            let sd = (column.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / (n - 1) as f64).sqrt();
+            if sd > 0.0 && sd.is_finite() { sd } else { 1.0 }
+        })
+        .collect();
+    let distance = |row: usize, other: &dyn Fn(usize) -> f64| {
+        (0..dimensions)
+            .map(|j| ((treatment_matrix[j * n + row] - other(j)) / scale[j]).powi(2))
+            .sum::<f64>()
+            .sqrt()
+    };
+    let nearest = (0..n).map(|row| distance(row, &|j| at[j])).fold(f64::INFINITY, f64::min);
+    let stride = n.div_ceil(JOINT_REFERENCE_ROWS);
+    let mut own: Vec<f64> = (0..n)
+        .step_by(stride)
+        .map(|row| {
+            (0..n)
+                .filter(|&other| other != row)
+                .map(|other| distance(row, &|j| treatment_matrix[j * n + other]))
+                .fold(f64::INFINITY, f64::min)
+        })
+        .collect();
+    own.sort_by(f64::total_cmp);
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "0.95 times the last index is a valid index"
+    )]
+    let index = (0.95 * (own.len() - 1) as f64).ceil() as usize;
+    (nearest, own[index.min(own.len() - 1)])
+}
+
 pub(super) fn multivariate_support(
     at: &[f64],
     treatment_matrix: &[f64],
@@ -248,22 +294,40 @@ pub(super) fn multivariate_support(
         maxima.push(hi);
         outside |= point < lo || point > hi;
     }
-    let status =
-        if outside { SupportStatus::OutsideEmpiricalSupport } else { SupportStatus::Extrapolative };
+    let (nearest, reference) = joint_nearest_distance(at, treatment_matrix, dimensions);
+    let status = if outside {
+        SupportStatus::OutsideEmpiricalSupport
+    } else if nearest <= reference {
+        SupportStatus::Supported
+    } else {
+        SupportStatus::Extrapolative
+    };
     SupportReport {
         status,
         query_region: SupportRegion {
             minima: Arc::from(at.to_vec()),
             maxima: Arc::from(at.to_vec()),
         },
-        diagnostics: vec![SupportDiagnostic {
-            id: Arc::from("response.marginal_observed_bounds"),
-            values: Arc::from(minima.into_iter().chain(maxima).collect::<Vec<_>>()),
-            detail: Arc::from(
-                "per-treatment minima followed by maxima; joint support is not established",
-            ),
-            scope: DiagnosticScope::Global,
-        }],
+        diagnostics: vec![
+            SupportDiagnostic {
+                id: Arc::from("response.marginal_observed_bounds"),
+                values: Arc::from(minima.into_iter().chain(maxima).collect::<Vec<_>>()),
+                detail: Arc::from("per-treatment minima followed by maxima"),
+                scope: DiagnosticScope::Global,
+            },
+            SupportDiagnostic {
+                id: Arc::from("response.joint_nearest_row_distance"),
+                values: Arc::from([nearest, reference]),
+                detail: Arc::from(
+                    "joint support criterion: distance from the evaluation point to its nearest \
+                     observed treatment row, then the 95th percentile of the rows' own \
+                     leave-one-out nearest-row distances, both in standard-deviation units of \
+                     each treatment; the point is Supported when the first does not exceed the \
+                     second and lies within the marginal ranges, otherwise Extrapolative",
+                ),
+                scope: DiagnosticScope::Global,
+            },
+        ],
         // One joint query point answers the whole vector-valued derivative, so
         // every component of the value shares that point's label; the summary
         // `status` is therefore their worst value by construction.
@@ -273,7 +337,7 @@ pub(super) fn multivariate_support(
                 "response.plugin_jacobian_model_dependent",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Warning,
-                "multivariate derivative uses an additive GAM plug-in and marginal support checks",
+                "multivariate derivative uses an additive GAM plug-in; support is the marginal ranges and the nearest-row joint distance",
             )];
             if outside {
                 // The cubic B-spline basis is clamped at its boundary knots, so the
@@ -301,6 +365,7 @@ mod point_status_tests {
         // Two treatments, four rows each (column-major).
         let matrix = [0.0, 1.0, 2.0, 3.0, 0.0, 1.0, 2.0, 3.0];
         let inside = multivariate_support(&[1.0, 1.0], &matrix, 2, 4);
+        assert_eq!(inside.status, SupportStatus::Supported);
         assert_eq!(inside.point_status.as_deref().map(<[_]>::len), Some(4));
         assert!(inside.point_status.as_deref().unwrap().iter().all(|s| *s == inside.status));
         let outside = multivariate_support(&[1.0, 9.0], &matrix, 2, 1);
@@ -310,6 +375,23 @@ mod point_status_tests {
             Some(&[SupportStatus::OutsideEmpiricalSupport][..])
         );
         assert!(multivariate_support(&[1.0, 1.0], &matrix, 2, 0).point_status.is_none());
+    }
+
+    #[test]
+    fn joint_support_separates_an_interior_point_from_a_gap_inside_the_marginal_ranges() {
+        // Rows lie on two short stretches of the diagonal, (0..1, 0..1) and (2.5..3.5, 2.5..3.5):
+        // each coordinate spans 0 to 3.5, but the off-diagonal corners hold no rows.
+        let stretch: Vec<f64> = (0..=10)
+            .map(|i| f64::from(i) / 10.0)
+            .chain((0..=10).map(|i| 2.5 + f64::from(i) / 10.0))
+            .collect();
+        let matrix: Vec<f64> = stretch.iter().chain(stretch.iter()).copied().collect();
+        let interior = multivariate_support(&[0.5, 0.5], &matrix, 2, 1);
+        assert_eq!(interior.status, SupportStatus::Supported, "{:?}", interior.diagnostics);
+        let corner = multivariate_support(&[0.0, 3.5], &matrix, 2, 1);
+        assert_eq!(corner.status, SupportStatus::Extrapolative, "{:?}", corner.diagnostics);
+        let outside = multivariate_support(&[0.5, 9.0], &matrix, 2, 1);
+        assert_eq!(outside.status, SupportStatus::OutsideEmpiricalSupport);
     }
 
     #[test]

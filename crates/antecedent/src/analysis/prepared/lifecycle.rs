@@ -316,7 +316,7 @@ impl PreparedStudy {
         self.transform_capability(antecedent_contract::TransformIntent::CompatibleDataReplace)?;
         self.ensure_schema_compatible(&data)?;
         if crate::analysis::functional_validation::requested(&self.analysis) {
-            let result = crate::analysis::functional_validation::validate_data(
+            let mut result = crate::analysis::functional_validation::validate_data(
                 &self.analysis,
                 DataInput::Tabular(data.clone()),
                 ctx,
@@ -324,6 +324,12 @@ impl PreparedStudy {
             let mut refreshed = self.analysis.clone();
             refreshed.data = DataInput::Tabular(data);
             self.replace_study(refreshed);
+            // Bound once, to the snapshot the handle now retains.
+            result.executed_contract = Some(self.executed_contract(
+                &self.analysis.data,
+                self.analysis.settings.refute,
+                None,
+            )?);
             return Ok(result);
         }
         // The refreshed result carries the same native observations a fresh estimate does, so
@@ -799,11 +805,12 @@ impl PreparedStudy {
         self.ensure_series_compatible(data)?;
         let input = series_input(&self.analysis.data, data.clone());
         if crate::analysis::functional_validation::requested(&self.analysis) {
-            return crate::analysis::functional_validation::validate_data(
+            let result = crate::analysis::functional_validation::validate_data(
                 &self.analysis,
-                input,
+                input.clone(),
                 ctx,
-            );
+            )?;
+            return self.stamp(&input, result);
         }
         let mut result = if crate::analysis::missing_imputation::imputes_series(&self.analysis) {
             self.estimate_series_imputed(&self.analysis, data, SeriesEntry::Estimate, ctx)?
@@ -894,11 +901,12 @@ impl PreparedStudy {
         self.ensure_panel_compatible(data)?;
         let input = DataInput::Panel(data.clone());
         if crate::analysis::functional_validation::requested(&self.analysis) {
-            return crate::analysis::functional_validation::validate_data(
+            let result = crate::analysis::functional_validation::validate_data(
                 &self.analysis,
-                input,
+                input.clone(),
                 ctx,
-            );
+            )?;
+            return self.stamp(&input, result);
         }
         let result = self.analysis.execute_on(&input, &self.plan, Some(&self.execution), ctx)?;
         self.stamp(&input, result)
@@ -956,11 +964,12 @@ impl PreparedStudy {
         self.ensure_multi_env_compatible(data)?;
         let input = DataInput::MultiEnv(data.clone());
         if crate::analysis::functional_validation::requested(&self.analysis) {
-            return crate::analysis::functional_validation::validate_data(
+            let result = crate::analysis::functional_validation::validate_data(
                 &self.analysis,
-                input,
+                input.clone(),
                 ctx,
-            );
+            )?;
+            return self.stamp(&input, result);
         }
         let result = self.analysis.execute_on(&input, &self.plan, Some(&self.execution), ctx)?;
         self.stamp(&input, result)

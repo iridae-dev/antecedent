@@ -331,6 +331,18 @@ fn mediator_placebo(input: &ExtraInput<'_>) -> Result<Extras, CausalError> {
             values.push(value);
         }
     }
+    // A functional that sums the mediator out inside a district kernel never reads its
+    // column: permuting it cannot move the effect, so the placebo says nothing about the
+    // functional and is not run as a check.
+    if !values.is_empty() && values.iter().all(|value| (value - original).abs() <= 1e-12) {
+        notes.push(not_applicable(
+            NAME,
+            "the identified functional does not read the permuted mediator column, so \
+             permuting it cannot move the effect",
+            "a route whose functional reads the mediator (the edge g-formula)",
+        ));
+        return Ok((Vec::new(), notes));
+    }
     let statistic = match joint_mahalanobis(&[expected], &values, 1) {
         Ok(statistic) => statistic,
         Err(error) => {
@@ -619,6 +631,19 @@ fn noise_block_permutation(input: &ExtraInput<'_>) -> Result<Extras, CausalError
     let replicates = (input.replicates / 3).max(MIN_BLOCK_REPLICATES);
     let anomaly = input.result.anomaly().and_then(|scores| scores.first());
     let change = input.result.change_attribution();
+    if anomaly.is_none() && change.is_some() {
+        // A change attribution allocates the shift of the mechanisms between two populations;
+        // permuting the residuals of one block leaves its mechanism, and so its share of the
+        // change, where it was. The refuter would report a surviving share for every correct
+        // attribution, so it does not apply.
+        notes.push(not_applicable(
+            NAME,
+            "a change attribution allocates a shift of mechanisms, which a permutation of the \
+             residuals of a block does not remove",
+            "use subset or bootstrap stability of the change vector",
+        ));
+        return Ok((Vec::new(), notes));
+    }
     // Blocks: the noise components of the first scored target, or the change components.
     let blocks: Vec<usize> = if let Some(scores) = anomaly {
         scores.noise_components.iter().map(|c| c.variable().raw() as usize).collect()

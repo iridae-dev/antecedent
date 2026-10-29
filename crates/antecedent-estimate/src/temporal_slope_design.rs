@@ -235,6 +235,13 @@ impl TemporalSlopeDesign {
             ));
         }
         query.validate()?;
+        if data.storage().weights().is_some() {
+            return Err(crate::sampling_weights::unsupported_route(
+                "the conditional effect over declared modifiers centres each modifier at its \
+                 window mean, which a weighted series would have to centre at the weighted mean; \
+                 the interaction design does not read the series' sampling weights",
+            ));
+        }
         if query.target_population != TargetPopulation::AllObserved {
             return Err(EstimationError::TargetPopulation);
         }

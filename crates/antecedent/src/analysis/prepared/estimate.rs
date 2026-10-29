@@ -148,11 +148,15 @@ impl PreparedStudy {
             return self.materialize(ctx)?.estimate_with_shared(data, shared, ctx);
         }
         if crate::analysis::functional_validation::requested(&self.analysis) {
-            return crate::analysis::functional_validation::validate_data(
+            // The validated result is stamped with the contract it executed under, as every other
+            // click is, so a claim can be sealed from it.
+            let input = crate::analysis::builder::DataInput::Tabular(data.clone());
+            let result = crate::analysis::functional_validation::validate_data(
                 &self.analysis,
-                crate::analysis::builder::DataInput::Tabular(data.clone()),
+                input.clone(),
                 ctx,
-            );
+            )?;
+            return self.stamp(&input, result);
         }
         // A stats-layer refusal of a regression, GLM, IV or matching design fit learns here
         // which plan it was for and, for a rank refusal, which columns are dependent on the

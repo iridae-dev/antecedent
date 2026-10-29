@@ -22,6 +22,17 @@ pub(super) fn window_namespace(study: &Study) -> Option<Vec<HorizonAdjustmentNod
         return None;
     };
     let count = u32::try_from(series.schema().len()).ok()?;
+    // A dynamic graph posterior answered atom by atom identifies in line (no cached product),
+    // so its result's identification is declared on the unfolded window of the template it
+    // names.
+    if let Some(nodes) = crate::analysis::execute::dbn_route_window_namespace(study) {
+        return Some(
+            nodes
+                .into_iter()
+                .map(|(variable, offset)| HorizonAdjustmentNodeWire { variable, offset })
+                .collect(),
+        );
+    }
     crate::analysis::execute::mediation_window_namespace(
         study.graph.graph_ref(),
         &study.query,

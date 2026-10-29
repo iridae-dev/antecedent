@@ -247,9 +247,24 @@ impl CompiledEvaluator {
             EvalOp::Kernel { body } => self.eval_slot(arena, provider, ctx, env, *body, track),
             EvalOp::Product { children } => {
                 let mut product = Quantity::ONE;
+                // A factor whose cell is not in the table makes the product unknown unless
+                // another factor is exactly zero: a zero weight on that context means the
+                // cell is never reached and the term contributes nothing. Every other error
+                // propagates at once.
+                let mut missing = false;
+                let mut zero = false;
                 for &c in children.iter() {
-                    let factor = self.eval_slot(arena, provider, ctx, env, c, track)?;
-                    product = product.times(factor, track);
+                    match self.eval_slot(arena, provider, ctx, env, c, track) {
+                        Ok(factor) => {
+                            zero |= factor.value.to_f64() == 0.0;
+                            product = product.times(factor, track);
+                        }
+                        Err(EvalError::MissingTableEntry) => missing = true,
+                        Err(error) => return Err(error),
+                    }
+                }
+                if missing && !zero {
+                    return Err(EvalError::MissingTableEntry);
                 }
                 Ok(product)
             }
@@ -1235,6 +1250,64 @@ mod tests {
         let val =
             arena.compile(sum).unwrap().evaluate(&arena, &p, &EvalContext::default()).unwrap();
         assert!((val - 2.0).abs() < 1e-12, "val={val}");
+    }
+
+    #[test]
+    fn a_zero_weight_context_with_no_table_entry_contributes_nothing() {
+        // Σ_{z,y} P(y | z) P(z) with P(z=1) = 0 and no row of z = 1 at all: the cell
+        // P(y | z=1) is not estimable, but its weight is exactly zero, so the term is zero and
+        // the sum is the z = 0 term, 1.0. The missing factor is listed first on purpose.
+        let mut arena = CausalExprArena::new();
+        let (y, z) = (v(0), v(1));
+        let yset = arena.intern_var_set([y]);
+        let zset = arena.intern_var_set([z]);
+        let yzset = arena.intern_var_set([y, z]);
+        let empty = arena.empty_var_set();
+        let empty_i = arena.empty_intervention_set();
+        let y_given_z = arena.intern_distribution(yset, zset, empty_i, DomainRef::Observational);
+        let z_marginal = arena.intern_distribution(zset, empty, empty_i, DomainRef::Observational);
+        let list = arena.intern_list([y_given_z, z_marginal]);
+        let product = arena.intern(ExprNode::Product(list));
+        let sum = arena.intern(ExprNode::SumOut { variables: yzset, expr: product });
+
+        let mut p = EmpiricalTableProvider::new();
+        p.set_domain(y, [f(0.0), f(1.0)]);
+        p.set_domain(z, [f(0.0), f(1.0)]);
+        let cond_spec = FactorSpec {
+            variables: &[y],
+            conditioned_on: &[z],
+            intervention: &[],
+            domain: DomainRef::Observational,
+            population: "",
+            regime: None,
+        };
+        for (level, probability) in [(0.0, 0.25), (1.0, 0.75)] {
+            p.insert_probability(
+                &cond_spec,
+                &Assignment::from_pairs([(y, f(level)), (z, f(0.0))]),
+                probability,
+            )
+            .unwrap();
+        }
+        let marg_spec = FactorSpec {
+            variables: &[z],
+            conditioned_on: &[],
+            intervention: &[],
+            domain: DomainRef::Observational,
+            population: "",
+            regime: None,
+        };
+        p.insert_probability(&marg_spec, &Assignment::from_pairs([(z, f(0.0))]), 1.0).unwrap();
+        p.insert_probability(&marg_spec, &Assignment::from_pairs([(z, f(1.0))]), 0.0).unwrap();
+        let val =
+            arena.compile(sum).unwrap().evaluate(&arena, &p, &EvalContext::default()).unwrap();
+        assert!((val - 1.0).abs() < 1e-12, "val={val}");
+
+        // A positive weight on the unobserved context still refuses.
+        let mut positive = p.clone();
+        positive.insert_probability(&marg_spec, &Assignment::from_pairs([(z, f(1.0))]), 0.5).unwrap();
+        let err = arena.compile(sum).unwrap().evaluate(&arena, &positive, &EvalContext::default());
+        assert_eq!(err, Err(EvalError::MissingTableEntry));
     }
 
     #[test]

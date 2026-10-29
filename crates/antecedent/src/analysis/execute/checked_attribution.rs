@@ -462,10 +462,91 @@ impl CheckedAttributionOperation {
                     .into(),
             });
         }
+        // Rows hidden by an analysis mask (a refit on a subset of the rows) are deleted before
+        // fitting and scoring. A mask the route ignored would make every subset refit
+        // reproduce the full-sample vector, and the subset refuter could never see a change.
+        if matches!(self.target, AttributionTarget::Anomaly(_) | AttributionTarget::Change(_)) {
+            if let Some((table, kept)) = Self::visible_rows(data)? {
+                return match &self.target {
+                    AttributionTarget::Anomaly(query) => {
+                        let query = antecedent_core::AnomalyAttributionQuery {
+                            unit_rows: query
+                                .unit_rows
+                                .as_ref()
+                                .map(|rows| Self::retained_positions(rows, &kept)),
+                            ..query.clone()
+                        };
+                        self.execute_anomaly(&query, &table, ctx, Some(&kept))
+                    }
+                    AttributionTarget::Change(query) => {
+                        let mut query = query.clone();
+                        query.baseline = Self::retained_selector(&query.baseline, &kept);
+                        query.comparison = Self::retained_selector(&query.comparison, &kept);
+                        self.execute_change(&query, &table, ctx)
+                    }
+                    AttributionTarget::Model(_) => unreachable!("guarded above"),
+                };
+            }
+        }
         match &self.target {
-            AttributionTarget::Anomaly(query) => self.execute_anomaly(query, data, ctx),
+            AttributionTarget::Anomaly(query) => self.execute_anomaly(query, data, ctx, None),
             AttributionTarget::Change(query) => self.execute_change(query, data, ctx),
             AttributionTarget::Model(query) => self.execute_model(query, data, ctx),
+        }
+    }
+
+    /// The table without its masked-out rows and the submitted positions of the rows it keeps,
+    /// or `None` when no row is hidden.
+    fn visible_rows(data: &TabularData) -> Result<Option<(TabularData, Vec<usize>)>, CausalError> {
+        let Some(mask) = data.storage().analysis_mask().filter(|mask| !mask.is_all_valid()) else {
+            return Ok(None);
+        };
+        let kept: Vec<usize> = (0..data.row_count()).filter(|&row| mask.is_valid(row)).collect();
+        if kept.len() < 2 {
+            return Err(CausalError::Compile {
+                message: "an analysis mask leaves fewer than two rows to fit the mechanisms".into(),
+            });
+        }
+        let storage = data.storage();
+        let columns = (0..storage.schema().len())
+            .map(|index| {
+                storage
+                    .column(VariableId::from_raw(u32::try_from(index).unwrap_or(u32::MAX)))?
+                    .gather_rows(&kept)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let weights = storage
+            .weights()
+            .map(|weights| kept.iter().map(|&row| weights[row]).collect::<Arc<[f64]>>());
+        let table = TabularData::new(antecedent_data::OwnedColumnarStorage::try_new(
+            storage.schema().clone(),
+            columns,
+            None,
+            weights,
+        )?);
+        Ok(Some((table, kept)))
+    }
+
+    /// Submitted row positions as positions in the retained rows; a hidden row drops out.
+    fn retained_positions(rows: &[usize], kept: &[usize]) -> Arc<[usize]> {
+        rows.iter().filter_map(|row| kept.binary_search(row).ok()).collect()
+    }
+
+    /// A population selector over the submitted rows as one over the retained rows.
+    fn retained_selector(
+        selector: &antecedent_core::PopulationSelector,
+        kept: &[usize],
+    ) -> antecedent_core::PopulationSelector {
+        use antecedent_core::PopulationSelector;
+        match selector {
+            PopulationSelector::Rows(rows) => {
+                PopulationSelector::Rows(Self::retained_positions(rows, kept))
+            }
+            PopulationSelector::TimeRange { start, end } => PopulationSelector::TimeRange {
+                start: kept.partition_point(|&row| row < *start),
+                end: kept.partition_point(|&row| row < *end),
+            },
+            other => other.clone(),
         }
     }
 
@@ -1086,6 +1167,7 @@ impl CheckedAttributionOperation {
         query: &antecedent_core::AnomalyAttributionQuery,
         data: &TabularData,
         ctx: &ExecutionContext,
+        submitted_rows: Option<&[usize]>,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let fitted = fit_gcm(self.graph.clone(), data)?;
@@ -1103,6 +1185,17 @@ impl CheckedAttributionOperation {
         let (estimate, posterior, mut extra_diagnostics) =
             publish_lag_aligned(self.lag_aligned.is_some(), estimate, posterior);
         extra_diagnostics.extend(bootstrap_diagnostic);
+        // Scored rows are positions in the retained table; publish the submitted positions.
+        let scores = match submitted_rows {
+            None => scores,
+            Some(kept) => scores
+                .into_iter()
+                .map(|mut score| {
+                    score.rows = score.rows.iter().map(|&row| kept[row]).collect();
+                    score
+                })
+                .collect(),
+        };
         if posterior.is_some() {
             let disclosure = match query.reference {
                 antecedent_core::AnomalyReference::Empirical => {

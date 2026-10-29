@@ -1049,6 +1049,18 @@ fn unsupported(reason: impl Into<Arc<str>>, next_attempt: &str) -> TargetRefitEr
     TargetRefitError::Unsupported { reason: reason.into(), next_attempt: Arc::from(next_attempt) }
 }
 
+/// A refuter that cannot speak to this target (a degenerate replicate law, too few draws) is
+/// recorded as not run with its reason and next attempt; any other failure stays an error.
+fn refuter_outcome(error: ValidationError) -> TargetRefitError {
+    match error {
+        ValidationError::NotApplicable { message } => unsupported(
+            message,
+            "raise the replicate count, or check that the perturbation moves the target",
+        ),
+        other => TargetRefitError::Failed(other),
+    }
+}
+
 /// Copy of an explicit coefficient prior with every Gaussian coefficient standard deviation
 /// multiplied by `factor`; means, residual-variance and restriction specs are kept.
 fn scale_prior_deviations(
@@ -1075,6 +1087,16 @@ fn scale_prior_deviations(
 }
 
 fn failed(error: &CausalError) -> TargetRefitError {
+    // A perturbed table that leaves a cell the functional reads empty is a table the
+    // refuter cannot refit, not a failed refit: the refuter is refused with its reason.
+    let message = error.to_string();
+    if message.contains("missing table cell") {
+        return unsupported(
+            format!("a perturbed table leaves a required probability cell empty: {message}"),
+            "supply more rows per cell, or a table whose resamples keep every cell the \
+             functional reads populated",
+        );
+    }
     TargetRefitError::Failed(match error {
         CausalError::Cancelled { .. } => ValidationError::Cancelled,
         CausalError::Resource { message } => ValidationError::Resource { message: message.clone() },
@@ -1262,6 +1284,32 @@ impl PreparedRefit<'_> {
 
     fn adjustment(&self) -> Vec<VariableId> {
         self.result.estimand.adjustment_set.iter().copied().collect()
+    }
+
+    /// Covariates of the reference outcome model besides the treatment: the estimand's
+    /// adjustment set, or, for a structural-model query (a counterfactual or a nested natural
+    /// effect on a DAG), which carries no adjustment set, the other float parents of the
+    /// outcome, so the reference model does not fold a confounder into the treatment slope.
+    fn reference_covariates(&self) -> Vec<VariableId> {
+        let adjustment = self.adjustment();
+        if !adjustment.is_empty()
+            || !matches!(
+                self.study().query,
+                CausalQuery::Counterfactual(_) | CausalQuery::NestedCounterfactual(_)
+            )
+        {
+            return adjustment;
+        }
+        let Some(dag) = self.study().graph.as_dag() else { return adjustment };
+        let Some(outcome) = static_node(dag, self.outcome) else { return adjustment };
+        dag.parents(outcome)
+            .iter()
+            .filter_map(|parent| match dag.nodes().get(parent.as_usize())? {
+                antecedent_core::NodeRef::Static(variable) => Some(*variable),
+                _ => None,
+            })
+            .filter(|variable| *variable != self.treatment && self.is_float(*variable))
+            .collect()
     }
 
     fn storage(&self) -> &antecedent_data::OwnedColumnarStorage {
@@ -1899,7 +1947,11 @@ impl PreparedRefit<'_> {
                 self.reestimate(&Modal::Tabular(masked), ctx)
             }
             TargetPerturbation::Bootstrap { .. } => {
-                self.reestimate(&Modal::Tabular(Self::bootstrap(data, rng)?), ctx)
+                let strata = self.change_populations(data.row_count());
+                self.reestimate(
+                    &Modal::Tabular(Self::bootstrap_within(data, rng, strata.as_deref())?),
+                    ctx,
+                )
             }
             TargetPerturbation::NegativeControlExposure { replicate } => {
                 let control = self.control_exposure()?;
@@ -1925,6 +1977,37 @@ impl PreparedRefit<'_> {
 
     /// Row bootstrap of a table whose columns are all complete float64 columns.
     fn bootstrap(data: &TabularData, rng: &mut CausalRng) -> Result<TabularData, TargetRefitError> {
+        Self::bootstrap_within(data, rng, None)
+    }
+
+    /// The row positions of the baseline and the comparison population of a change attribution,
+    /// when the study is one whose populations are row selections; `None` otherwise.
+    fn change_populations(&self, rows: usize) -> Option<Vec<Vec<usize>>> {
+        use antecedent_core::PopulationSelector;
+        let CausalQuery::ChangeAttribution(query) = &self.study().query else { return None };
+        let positions = |selector: &PopulationSelector| -> Option<Vec<usize>> {
+            match selector {
+                PopulationSelector::All => Some((0..rows).collect()),
+                PopulationSelector::Rows(rows_) => {
+                    Some(rows_.iter().copied().filter(|&row| row < rows).collect())
+                }
+                PopulationSelector::TimeRange { start, end } => {
+                    Some((*start..(*end).min(rows)).collect())
+                }
+                _ => None,
+            }
+        };
+        Some(vec![positions(&query.baseline)?, positions(&query.comparison)?])
+    }
+
+    /// A row bootstrap that draws each position's source row from the stratum the position lies
+    /// in (a population of a change attribution), so a resample never moves a row from one
+    /// population into the other; positions outside every stratum keep their own row.
+    fn bootstrap_within(
+        data: &TabularData,
+        rng: &mut CausalRng,
+        strata: Option<&[Vec<usize>]>,
+    ) -> Result<TabularData, TargetRefitError> {
         let storage = data.storage();
         if storage.analysis_mask().is_some() || storage.weights().is_some() {
             return Err(unsupported(
@@ -1933,7 +2016,18 @@ impl PreparedRefit<'_> {
             ));
         }
         let n = data.row_count();
-        let rows: Vec<usize> = (0..n).map(|_| unbiased_index(rng, n)).collect();
+        let rows: Vec<usize> = match strata {
+            None => (0..n).map(|_| unbiased_index(rng, n)).collect(),
+            Some(strata) => {
+                let mut rows: Vec<usize> = (0..n).collect();
+                for stratum in strata.iter().filter(|stratum| !stratum.is_empty()) {
+                    for &position in stratum {
+                        rows[position] = stratum[unbiased_index(rng, stratum.len())];
+                    }
+                }
+                rows
+            }
+        };
         let mut replacements = Vec::with_capacity(storage.columns().len());
         for column in storage.columns() {
             let OwnedColumn::Float64(column) = column else {
@@ -2112,6 +2206,58 @@ impl PreparedRefit<'_> {
             .map_err(data_failed)
     }
 
+    /// The gathered series of the rows `map` (positions of `series`), with a design row whose lag
+    /// window crosses a join of the map weighted zero and the sampling weight carried over.
+    fn gathered_rows(
+        &self,
+        series: &TimeSeriesData,
+        map: &[usize],
+    ) -> Result<TimeSeriesData, TargetRefitError> {
+        let n = map.len();
+        let span = max_graph_lag(self.study()) + 1;
+        let time_index = match truncated_series(series, 0, n)? {
+            Some(head) => head.time_index().clone(),
+            None => series.time_index().clone(),
+        };
+        let storage = series.storage();
+        let mut columns = Vec::with_capacity(storage.columns().len());
+        for column in storage.columns() {
+            let OwnedColumn::Float64(column) = column else {
+                return Err(unsupported(
+                    "a gathered window gathers float64 columns only",
+                    "encode every column as float64",
+                ));
+            };
+            let values: Arc<[f64]> = map.iter().map(|&row| column.values[row]).collect();
+            let validity = column.validity.gather_rows(map).map_err(data_failed)?;
+            columns.push(OwnedColumn::Float64(
+                antecedent_data::Float64Column::new(column.id, values, validity)
+                    .map_err(data_failed)?,
+            ));
+        }
+        let mask = storage
+            .analysis_mask()
+            .map(|mask| mask.gather_rows(map))
+            .transpose()
+            .map_err(data_failed)?;
+        let weights: Arc<[f64]> = (0..n)
+            .map(|row| {
+                let aligned = row + 1 >= span && (1..span).all(|k| map[row - k] + k == map[row]);
+                let sampling = storage.weights().map_or(1.0, |weights| weights[map[row]]);
+                if aligned { sampling } else { 0.0 }
+            })
+            .collect();
+        let gathered = antecedent_data::OwnedColumnarStorage::try_new(
+            storage.schema().clone(),
+            columns,
+            mask,
+            Some(weights),
+        )
+        .and_then(|gathered| TimeSeriesData::try_new(gathered, time_index))
+        .map_err(data_failed)?;
+        Ok(gathered)
+    }
+
     /// The bootstrap of a series drawn as a gathered circular-block series, with a zero row
     /// weight on every design row whose lag window crosses a block join (such a row pairs values
     /// observed apart and would attenuate a lagged effect). A route that reads row weights
@@ -2182,7 +2328,9 @@ impl PreparedRefit<'_> {
         rng: &mut CausalRng,
         ctx: &ExecutionContext,
     ) -> Result<Vec<f64>, TargetRefitError> {
-        if self.options.gathered_resamples
+        // An attribution fits its mechanisms on the rows it is given and reads no row weights,
+        // so its block resample must be drawn as a gathered series, not as multiplicities.
+        if (self.options.gathered_resamples || self.target.family() == TargetFamily::Attribution)
             && !matches!(perturbation, TargetPerturbation::RandomCommonCause { .. })
         {
             if matches!(perturbation, TargetPerturbation::Bootstrap { .. }) {
@@ -2194,6 +2342,28 @@ impl PreparedRefit<'_> {
         }
         if matches!(perturbation, TargetPerturbation::RandomCommonCause { .. }) {
             return self.random_common_cause(rng, ctx);
+        }
+        // The window of an attribution subset is drawn circularly: a window that must lie inside
+        // the series includes the first and last periods far less often than the middle ones,
+        // so the replicate mean of a statistic that depends on which periods are present
+        // (a planted outlier at the edge) is not the original even for a clean series. A
+        // circular window includes every period with the same probability.
+        if let (TargetPerturbation::Subset { fraction, .. }, TargetFamily::Attribution) =
+            (perturbation, self.target.family())
+        {
+            let n = series.row_count();
+            if n < 2 {
+                return Err(unsupported("a window needs at least two periods", "more data"));
+            }
+            #[allow(
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss,
+                reason = "the subset fraction lies in (0, 1), and the saturating cast is clamped into [1, n]"
+            )]
+            let width = ((fraction * n as f64).round() as usize).clamp(1, n);
+            let start = unbiased_index(rng, n);
+            let map: Vec<usize> = (0..width).map(|i| (start + i) % n).collect();
+            return self.reestimate(&Modal::Series(self.gathered_rows(series, &map)?), ctx);
         }
         let exposure = match perturbation {
             TargetPerturbation::NegativeControlExposure { .. } => Some(self.control_exposure()?),
@@ -2596,7 +2766,7 @@ impl PreparedRefit<'_> {
             alternatives: &alternatives,
             tolerance: self.options.prior_shift_tolerance,
         })
-        .map_err(TargetRefitError::Failed)
+        .map_err(refuter_outcome)
     }
 
     /// Posterior-predictive check of the target through the compiler, under the reference
@@ -2623,7 +2793,7 @@ impl PreparedRefit<'_> {
             ));
         }
         let mut ids = vec![self.treatment];
-        ids.extend(self.adjustment());
+        ids.extend(self.reference_covariates());
         let mut columns = Vec::with_capacity(ids.len());
         for id in &ids {
             columns.push(Self::column_of(storage, *id)?);
@@ -2707,7 +2877,7 @@ impl PreparedRefit<'_> {
             replicated: &replicated,
             alpha: self.alpha,
         })
-        .map_err(TargetRefitError::Failed)
+        .map_err(refuter_outcome)
     }
 
     /// Posterior-predictive check on a series or the units of a panel, under a reference outcome
@@ -2740,7 +2910,13 @@ impl PreparedRefit<'_> {
         let lags = max_graph_lag(self.study()).max(1);
         let mut ids = vec![self.treatment];
         ids.extend(self.adjustment());
-        let p = ids.len() + 1 + lags;
+        // The reference model is an autoregressive distributed-lag regression: the outcome on its
+        // own lags and on the treatment and the adjustment covariates at every lag the graph
+        // spans, so a treatment read at an earlier period (a pulse at a lag) is in the model the
+        // target is recomputed under, not only its contemporaneous value.
+        let width = lags + 1;
+        let y_base = ids.len() * width;
+        let p = y_base + 1 + lags;
         let mut outcomes: Vec<&[f64]> = Vec::with_capacity(units.len());
         let mut covariates: Vec<Vec<&[f64]>> = Vec::with_capacity(units.len());
         let mut rows = 0_usize;
@@ -2783,10 +2959,12 @@ impl PreparedRefit<'_> {
             for t in lags..y.len() {
                 design[row] = 1.0;
                 for (c, column) in covariates[u].iter().enumerate() {
-                    design[(1 + c) * rows + row] = column[t];
+                    for k in 0..width {
+                        design[(1 + c * width + k) * rows + row] = column[t - k];
+                    }
                 }
                 for j in 1..=lags {
-                    design[(ids.len() + j) * rows + row] = y[t - j];
+                    design[(y_base + j) * rows + row] = y[t - j];
                 }
                 response.push(y[t]);
                 row += 1;
@@ -2838,10 +3016,12 @@ impl PreparedRefit<'_> {
                         for t in lags..y.len() {
                             let mut mean = beta[0];
                             for (c, column) in covariates[u].iter().enumerate() {
-                                mean += beta[1 + c] * column[t];
+                                for k in 0..width {
+                                    mean += beta[1 + c * width + k] * column[t - k];
+                                }
                             }
                             for j in 1..=lags {
-                                mean += beta[ids.len() + j] * path[t - j];
+                                mean += beta[y_base + j] * path[t - j];
                             }
                             path[t] = if noisy {
                                 mean + sigma * antecedent_kernels::standard_normal(rng)
@@ -2892,7 +3072,7 @@ impl PreparedRefit<'_> {
             replicated: &replicated,
             alpha: self.alpha,
         })
-        .map_err(TargetRefitError::Failed)
+        .map_err(refuter_outcome)
     }
 
     /// The fitted response curve of a derivative at the points the derivative diagnostics read,

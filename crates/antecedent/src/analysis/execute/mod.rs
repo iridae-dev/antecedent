@@ -358,7 +358,7 @@ mod atom_mix;
 mod atom_route_posterior;
 pub(crate) use atom_route_posterior::atom_route_response;
 mod dbn_route_posterior;
-pub(crate) use dbn_route_posterior::{dbn_atoms, dbn_route_query};
+pub(crate) use dbn_route_posterior::{dbn_atoms, dbn_route_query, dbn_route_window_namespace};
 mod interference_posterior;
 mod transport_class;
 mod transport_posterior;

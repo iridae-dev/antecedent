@@ -383,8 +383,13 @@ impl super::Study {
         // Completions that identify different functionals list one estimand each in the combined
         // identification; the result names the first evaluated completion's functional, the
         // others are disclosed through the structural mixture.
-        let estimand = match first_estimand {
-            Some(estimand) if identification.estimands.len() > 1 => estimand,
+        // The combined identification re-homes every member's functional into its own arena, so
+        // the named functional is read from that list (a member's own estimand indexes the
+        // member's arena, not the combined one).
+        let estimand = match identification.estimands.first() {
+            Some(estimand) if identification.estimands.len() > 1 && first_estimand.is_some() => {
+                estimand.clone()
+            }
             _ => select_estimand(&identification, estimator_id)?,
         };
         let result = self.finish_identified_execute(

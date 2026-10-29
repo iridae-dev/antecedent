@@ -346,13 +346,38 @@ pub fn distribution_change_blocks(
         })
         .unzip();
 
-    // One row of each population per block per draw, shared by every coalition.
+    // One row of each population per block per draw, shared by every coalition. Under a refit the
+    // rows are drawn in proportion to the weights the mechanisms were fitted under (the Bayesian
+    // bootstrap weights, or the counts of a resample), so the sampled population is the weighted
+    // one and a row of weight zero is never drawn; unweighted draws would reproduce the
+    // unweighted population whatever the weights and collapse the spread of a posterior.
     let mut rng = attribution_stream(ctx, DISTRIBUTION_STREAM, options.seed);
-    let mut draw_rows = |units: usize| -> Vec<usize> {
-        (0..components.len() * n_samples).map(|_| row_below(rng.next_f64(), units)).collect()
+    let mut draw_rows = |units: usize, weights: Option<&[f64]>| -> Vec<usize> {
+        let cumulative: Option<Vec<f64>> = weights.map(|weights| {
+            let mut total = 0.0;
+            weights
+                .iter()
+                .map(|weight| {
+                    total += weight.max(0.0);
+                    total
+                })
+                .collect()
+        });
+        (0..components.len() * n_samples)
+            .map(|_| {
+                let u = rng.next_f64();
+                match cumulative.as_deref() {
+                    Some(cumulative) if cumulative.last().is_some_and(|total| *total > 0.0) => {
+                        let target = u * cumulative[cumulative.len() - 1];
+                        cumulative.partition_point(|held| *held <= target).min(units - 1)
+                    }
+                    _ => row_below(u, units),
+                }
+            })
+            .collect()
     };
-    let baseline_rows = draw_rows(baseline_units);
-    let comparison_rows = draw_rows(comparison_units);
+    let baseline_rows = draw_rows(baseline_units, refit.map(|held| held.baseline()));
+    let comparison_rows = draw_rows(comparison_units, refit.map(|held| held.comparison()));
 
     let mut payoff = BlockSwapPayoff {
         slots: baseline_store.slots.to_vec(),

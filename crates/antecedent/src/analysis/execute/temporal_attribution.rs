@@ -395,7 +395,18 @@ impl LagAlignedScm {
         }
         let refs: Vec<(&str, &[f64])> =
             owned.iter().map(|(name, values)| (name.as_str(), values.as_slice())).collect();
-        Ok(TabularData::from_f64_columns(refs)?)
+        let mut table = TabularData::from_f64_columns(refs)?;
+        // The row weights of the series (the multiplicities of a block resample) and its
+        // analysis mask belong to the rows of the aligned table: dropping them would refit the
+        // unweighted, unmasked series and make every resample reproduce the original.
+        let storage = series.storage();
+        if let Some(weights) = storage.weights() {
+            table = table.with_weights(weights.into())?;
+        }
+        if let Some(mask) = storage.analysis_mask().filter(|mask| !mask.is_all_valid()) {
+            table = table.with_analysis_mask(mask.clone())?;
+        }
+        Ok(table)
     }
 }
 

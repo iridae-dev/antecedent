@@ -874,7 +874,7 @@ impl super::Study {
         )?;
         diagnostics.extend(refute_notes);
         drop(front_door);
-        Ok(self.finish_identified_execute(
+        let mut result = self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
                 identification,
@@ -896,7 +896,11 @@ impl super::Study {
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
             }),
-        ))
+        );
+        // No evidence row names the front-door derivative route: the cell's licence belongs to
+        // the adjustment-identified plug-ins, so a front-door run reports its status as refused.
+        result.support_status = Some(crate::support::CellStatus::Refused);
+        Ok(result)
     }
 
     /// Estimates and finishes a response whose static identification is already settled.

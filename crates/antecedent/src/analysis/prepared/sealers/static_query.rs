@@ -62,9 +62,15 @@ pub(super) fn attribution(cx: &SealContext<'_>) -> SealOutcome {
             Some(cache),
             GraphClass::Dag,
             InferenceMode::Frequentist | InferenceMode::Bayesian(_),
-        ) if analysis.structure_source == crate::support::StructureSource::Explicit => Some(
-            crate::analysis::execute::CheckedAttributionOperation::checked(analysis, plan, cache)?,
-        ),
+        ) if matches!(
+            analysis.structure_source,
+            crate::support::StructureSource::Explicit | crate::support::StructureSource::Accepted
+        ) =>
+        {
+            Some(crate::analysis::execute::CheckedAttributionOperation::checked(
+                analysis, plan, cache,
+            )?)
+        }
         (
             DataInput::Temporal(_) | DataInput::Event(_),
             CausalQuery::AnomalyAttribution(_)
@@ -76,9 +82,15 @@ pub(super) fn attribution(cx: &SealContext<'_>) -> SealOutcome {
             Some(cache),
             GraphClass::TemporalDag,
             InferenceMode::Frequentist | InferenceMode::Bayesian(_),
-        ) if analysis.structure_source == crate::support::StructureSource::Explicit => Some(
-            crate::analysis::execute::CheckedAttributionOperation::checked(analysis, plan, cache)?,
-        ),
+        ) if matches!(
+            analysis.structure_source,
+            crate::support::StructureSource::Explicit | crate::support::StructureSource::Accepted
+        ) =>
+        {
+            Some(crate::analysis::execute::CheckedAttributionOperation::checked(
+                analysis, plan, cache,
+            )?)
+        }
         // The fitted-model routes and the mechanism- and unit-change studies run on
         // a supplied DAG or on one accepted from a compiled discovery, whose
         // provenance the contract carries.

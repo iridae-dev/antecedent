@@ -283,6 +283,7 @@ fn validate(
             ),
         ));
     }
+    let licensed = matches!(study.support_status(), Some(crate::support::CellStatus::Licensed));
     result.diagnostics.push(Diagnostic::new(
         "refute.functional.state",
         DiagnosticKind::Scientific,
@@ -290,16 +291,25 @@ fn validate(
         format!(
             "functional refuter state: the {}-coordinate target vector of the result was \
              refitted by its own compiled program on perturbed data ({} replicates per \
-             refuter) and each refuter reports one joint statistic over the whole vector. It \
-             executes unlicensed: no coverage or evidence record names it, and the verdicts \
-             are diagnostics, not a calibration claim.",
+             refuter) and each refuter reports one joint statistic over the whole vector. {} \
+             The verdicts are diagnostics, not a calibration claim.",
             values.len(),
-            config.replicates
+            config.replicates,
+            if licensed {
+                "The validated cell is licensed on known-truth refuter evidence."
+            } else {
+                "It executes unlicensed: no coverage or evidence record names it."
+            }
         ),
     ));
-    // The validated cell is not licensed, and the handle's contract names a run with no
-    // validation: neither describes this result.
-    result.support_status = Some(crate::support::CellStatus::Refused);
+    // The handle's contract names a run with no validation, which does not describe this
+    // result. The result carries the status of the validated cell itself: licensed when a row
+    // names it, refused otherwise.
+    result.support_status = Some(if licensed {
+        crate::support::CellStatus::Licensed
+    } else {
+        crate::support::CellStatus::Refused
+    });
     result.executed_contract = None;
     Ok(result)
 }
