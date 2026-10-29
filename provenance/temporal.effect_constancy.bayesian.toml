@@ -40,4 +40,4 @@ sha256 = "d3094cdc5169502b9fe681c8177005de6ac93c83609af8c9f35c0bba7d738765"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/effect_constancy.rs"
-sha256 = "3e58351e83dce10ea150cdec2d83a8b27bf850fcc13a3798581bd312daa4faf9"
+sha256 = "b74ddc1cea214bd4c0375df7c80fe5e3af43a318141133464029a535f9ee5527"

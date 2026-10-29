@@ -4,6 +4,7 @@ Success lifecycles and independent numerical oracles live in the measured-family
 suites. These adjacent requests cannot borrow evidence from those exact protocols.
 """
 
+import re
 from types import SimpleNamespace
 
 import pytest
@@ -104,13 +105,18 @@ def test_joint_bayesian_scope_refusals_carry_their_own_details():
 def test_joint_bayesian_validates_its_arguments_as_typed_errors():
     with pytest.raises(CausalTypeError):
         transport.joint_bayesian_transport(**joint_kwargs(sources="s1"))
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=re.escape("graph must be an Admg or None")):
         transport.joint_bayesian_transport(**joint_kwargs(graph="not a graph"))
-    with pytest.raises(CausalValueError):
+    with pytest.raises(
+        CausalValueError,
+        match=re.escape("graph_class must be one of ('fixed_dag', 'admg', 'graph_posterior')"),
+    ):
         transport.joint_bayesian_transport(**joint_kwargs(graph_class="cyclic"))
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=re.escape("features must not repeat a name")):
         transport.joint_bayesian_transport(**joint_kwargs(features=["x", "x"]))
-    with pytest.raises(CausalValueError):
+    with pytest.raises(
+        CausalValueError, match=re.escape("draws must be a non-negative integer, got -1")
+    ):
         transport.joint_bayesian_transport(**joint_kwargs(draws=-1))
 
 
@@ -172,13 +178,19 @@ def test_nested_markov_invalid_counts_and_arguments_are_typed_errors():
         CausalValueError,
     )
     assert_refused(error, "invalid_argument", "nested_markov.invalid_counts")
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(
+        CausalTypeError, match=re.escape("binary_nested_markov requires graph=Admg(...)")
+    ):
         transport.binary_nested_markov(graph="not a graph", regimes=[observational()])
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(
+        CausalTypeError, match=re.escape("a regime needs counts, a sequence of cell counts")
+    ):
         transport.binary_nested_markov(graph=verma(), regimes=[{"counts": "many"}])
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=re.escape("tolerance must be finite and positive")):
         transport.binary_nested_markov(graph=verma(), regimes=[observational()], tolerance=0.0)
-    with pytest.raises(CausalValueError):
+    with pytest.raises(
+        CausalValueError, match=re.escape("intervened variable 'nope' is not in the graph")
+    ):
         transport.binary_nested_markov(
             graph=verma(), regimes=[{"counts": CELLS, "intervened": ["nope"]}]
         )
@@ -282,15 +294,22 @@ def test_sampled_recovery_bounds_and_malformed_rows_carry_their_own_details():
 def test_sampled_recovery_validates_its_arguments_as_typed_errors():
     with pytest.raises(CausalTypeError):
         transport.sampled_observation_recovery(**sampled_kwargs(stage=object()))
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(
+        CausalTypeError, match=re.escape("query must be an ObservationRecoveryQuery")
+    ):
         transport.sampled_observation_recovery(**sampled_kwargs(query="not a query"))
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(
+        CausalTypeError, match=re.escape("a row is (id, responses, proxies, fully)")
+    ):
         transport.sampled_observation_recovery(**sampled_kwargs(rows=[(1, 2, 3)]))
-    with pytest.raises(CausalValueError):
+    with pytest.raises(
+        CausalValueError,
+        match=re.escape("a row id must be in 0..=2**64-1 and each pattern field in 0..=255"),
+    ):
         transport.sampled_observation_recovery(**sampled_kwargs(rows=[(0, 1, 300, 0)]))
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=re.escape("snapshot must name the rows' snapshot")):
         transport.sampled_observation_recovery(**sampled_kwargs(snapshot=" "))
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=re.escape("seed is outside its supported range")):
         transport.sampled_observation_recovery(**sampled_kwargs(execution=Execution(seed=-1)))
 
 

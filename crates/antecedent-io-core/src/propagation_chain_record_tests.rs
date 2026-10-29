@@ -846,11 +846,15 @@ fn caller_limits_refuse_what_the_defaults_admit() {
         PropagationChainRecordWire::decode_within(&bytes, &short_text),
         Err(PropagationChainError::LimitsExceeded("text bytes"))
     );
-    assert!(record.export_within(&short_text).is_err());
-    assert!(record.consume_within(None, &ctx(), &short_text).is_err());
-    assert!(record.plan_within(&short_text).is_err());
+    let text_limit = Some(PropagationChainError::LimitsExceeded("text bytes"));
+    assert_eq!(record.export_within(&short_text).err(), text_limit);
+    assert_eq!(record.consume_within(None, &ctx(), &short_text).err(), text_limit);
+    assert_eq!(record.plan_within(&short_text).err(), text_limit);
     let no_values = PropagationChainLimits { max_stage_values: 0, ..defaults };
-    assert!(record.export_within(&no_values).is_err());
+    assert_eq!(
+        record.export_within(&no_values).err(),
+        Some(PropagationChainError::LimitsExceeded("result values"))
+    );
 }
 
 #[test]

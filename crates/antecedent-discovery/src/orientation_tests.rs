@@ -53,7 +53,8 @@ fn collider_opposite_direction_records_conflict() {
         &mut queue,
     )
     .unwrap();
-    assert!(state.conflicts >= 1 || d.conflicts >= 1);
+    // One opposite-direction edge was met, so exactly one conflict is recorded, in both counters.
+    assert_eq!((state.conflicts, d.conflicts), (1, 1));
     assert!(
         g.edge_between(c, a).unwrap().is_conflict(),
         "opposite-direction conflict should mark x-x"

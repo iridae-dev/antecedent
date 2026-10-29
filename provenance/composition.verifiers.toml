@@ -46,4 +46,4 @@ sha256 = "0a3186359fabd4e7977b37b29c21f4aa51d5a97e536d51e5229f1ed275b48f8c"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/composition_verifiers.rs"
-sha256 = "5043f51b6c6bb643fb08f7f17022e3f4cd5ae3aaf30427d64e862550f5526847"
+sha256 = "8897875e0620350933cdb065c6068e15570f346a5aa815cdf0ef5e13005041c0"

@@ -188,10 +188,9 @@ fn admg_graph_posterior_intervention_response_matches_identified_atom() {
             .run(&ExecutionContext::for_tests(3))
             .unwrap();
         assert_eq!(mixed.support_status().unwrap().as_str(), "licensed");
-        assert!(mixed.diagnostics.iter().any(|d| {
-            d.code.as_ref() == "identify.response.general_id"
-                || d.code.as_ref() == "estimate.response.admg_graph_posterior"
-        }));
+        for code in ["identify.response.general_id", "estimate.response.admg_graph_posterior"] {
+            assert!(mixed.diagnostics.iter().any(|d| d.code.as_ref() == code), "missing {code}");
+        }
         assert!(has_policy(&mixed, StructuralAggregationPolicy::SameEstimandWeightedMean));
         let atom = response_values(&explicit);
         let got = response_values(&mixed);

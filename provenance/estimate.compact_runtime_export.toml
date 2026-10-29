@@ -49,7 +49,7 @@ sha256 = "219b2874cf85a72d1be2782e187625358fe01a9541ae4b3d2d190df851a84977"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-io/tests/compact_export.rs"
-sha256 = "99c2d39fd4215415f9e374005969045c46201239ae0a6cffe2a37bd7c82c121d"
+sha256 = "386affca2f6ba7c2edff7db724db28df3e5917cf28981b89d20a2df42adb9c51"
 
 [[method_review.artifacts]]
 role = "reference"

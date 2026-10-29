@@ -19,6 +19,7 @@ give 0.8, 0.8 and 0.38 (see ``test_cpdag_scenarios.py``).
 """
 
 import json
+import re
 
 import pytest
 from antecedent import Admg, Cpdag, decision
@@ -359,9 +360,17 @@ def test_b_claims_the_result_must_be_an_estimated_stage():
     with pytest.raises(CausalUnsupportedError) as unestimated:
         decide(prepare(two_scenarios()))
     assert_registered_refusal(unestimated.value)
-    with pytest.raises(CausalValueError):
+    with pytest.raises(
+        CausalValueError,
+        match=re.escape(
+            "Contract.structural_policy must be one of ('require_invariant_best_action', 'max"
+        ),
+    ):
         decide(two(), policy="always_treat")
-    with pytest.raises(sd.ScenarioDecisionRefusal):
+    with pytest.raises(
+        sd.ScenarioDecisionRefusal,
+        match=re.escape("reason=not_executed: scenario_decision.no_native_run"),
+    ):
         sd.decide_from_cpdag_completions(
             contract(0.2, "report_only"),
             object(),
@@ -571,11 +580,16 @@ def test_an_unresolved_scenario_blocks_an_envelope_reading():
         )
     assert unresolved.value.detail == "decision_claims.unresolved_scenarios"
     assert_registered_refusal(unresolved.value)
-    with pytest.raises(CausalValueError):
+    with pytest.raises(
+        CausalValueError, match=re.escape("route is one of report, envelope, weighted; got 'mean'")
+    ):
         sd.identified_utilities_from_scenarios(
             contract(0.2, "report_only"), two(), **utility_options(route="mean")
         )
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(
+        CausalTypeError,
+        match=re.escape("scenario_result must be the stage prepare_transport_scenarios returned"),
+    ):
         sd.identified_utilities_from_scenarios(
             contract(0.2, "report_only"), {"scenarios": []}, **utility_options()
         )
@@ -648,5 +662,8 @@ def test_interval_utilities_refuse_a_truncated_enumeration_and_a_missing_input()
     with pytest.raises(sd.ScenarioDecisionRefusal) as missing:
         sd.identified_utilities_from_intervals(contract(0.2, "report_only"), elsewhere)
     assert missing.value.detail == "decision_claims.missing_scenario_utility"
-    with pytest.raises(CausalValueError):
+    with pytest.raises(
+        CausalValueError,
+        match=re.escape("reading is one of estimated_bounds, coverage_interval; got 'midpoint'"),
+    ):
         sd.identified_utilities_from_intervals(contract(0.2, "report_only"), [], reading="midpoint")

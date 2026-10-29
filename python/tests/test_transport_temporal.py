@@ -9,6 +9,7 @@ population's structural model, independently of the formula under test.
 """
 
 import json
+import re
 
 import antecedent
 import pytest
@@ -392,9 +393,19 @@ def test_artifact_round_trip_is_recomputed_bit_for_bit_and_tampering_fails():
     # The consumer's own limits bound the recorded ones.
     with pytest.raises(CausalResourceError):
         transport.consume_temporal_transport_artifact(artifact, max_steps=5)
-    with pytest.raises(CausalSerializationError):
+    with pytest.raises(
+        CausalSerializationError,
+        match=re.escape(
+            'cbor error: Io(Error { kind: UnexpectedEof, message: "failed to fill whole buffe'
+        ),
+    ):
         transport.consume_temporal_transport_artifact(artifact[:-3])
-    with pytest.raises(antecedent.errors.CausalTypeError):
+    with pytest.raises(
+        antecedent.errors.CausalTypeError,
+        match=re.escape(
+            "an artifact is bytes or ExportedArtifact; read paths with Path.read_bytes()"
+        ),
+    ):
         transport.consume_temporal_transport_artifact("not bytes")
 
 

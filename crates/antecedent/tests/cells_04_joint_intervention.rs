@@ -766,13 +766,18 @@ fn dependence_refusal_body() {
         Some(DeclaredSamplingDesign::ClusteredPanel),
         Some(labels(59)),
     );
-    assert!(short.is_err(), "a short label vector was accepted");
+    let short = refused(short, "a short label vector");
+    assert!(
+        short.to_string().contains("a cluster label was declared for fewer rows than the table has"),
+        "{short}"
+    );
     let single = dependent_study(
         table(),
         Some(DeclaredSamplingDesign::ClusteredPanel),
         Some(ScoreDependence::clusters(vec![0u32; 60])),
     );
-    assert!(single.is_err(), "one cluster has no cluster-robust variance");
+    let single = refused(single, "one cluster");
+    assert!(single.to_string().contains("cluster-robust variance requires at least 2 clusters"), "{single}");
     // A bootstrap beside the declaration is not read by an influence-function route.
     let error = refused(
         Study::tabular(table())
@@ -857,9 +862,10 @@ fn prepared_body() {
     assert!((a.ate - b.ate).abs() < 1e-12, "{} vs {}", a.ate, b.ate);
     assert!((a.se_analytic() - b.se_analytic()).abs() < 1e-12);
     assert!(b.diagnostics.sampling_weights.is_some());
-    // Scores fitted for a weighted population cannot be retargeted with other weights.
+    // The prepared cell keeps no score table, so no other weights can retarget it.
     let rows = b.scores.table.as_ref().unwrap().n_rows;
-    assert!(prepared.retarget(&vec![1.0; rows], &[], &ctx()).is_err());
+    let error = prepared.retarget(&vec![1.0; rows], &[], &ctx()).unwrap_err();
+    assert_eq!(error.reason_code(), Some("score_table_unavailable"), "{error}");
     // Two results that differ only in the declared labels never share an identity.
     let other = study(labels(1));
     let mut other_prepared = other.prepare(&ctx()).unwrap();

@@ -216,7 +216,9 @@ fn incompatible_partition_too_few_and_non_finite_refuse() {
     let (code, message) = refusal(run_independent(&[part("a", 1.0, 0.5)]).unwrap_err());
     assert_eq!(code, "invalid_argument");
     assert!(message.contains("effect_constancy.too_few_partitions"));
-    assert!(run_independent(&[]).is_err());
+    let (code, message) = refusal(run_independent(&[]).unwrap_err());
+    assert_eq!(code, "invalid_argument");
+    assert!(message.contains("effect_constancy.too_few_partitions"), "{message}");
     for bad in [f64::NAN, f64::INFINITY] {
         let (code, message) =
             refusal(run_independent(&[part("a", 1.0, 0.5), part("b", bad, 0.5)]).unwrap_err());
@@ -326,9 +328,12 @@ fn covariance_validation_is_invariant_to_measurement_units() {
         let parts = [part("a", scale, scale), part("b", 2.0 * scale, scale)];
         let s2 = scale * scale;
         let covariance = PartitionDependence::Covariance(vec![s2, 0.5 * s2, 0.1 * s2, s2]);
-        assert!(
-            test_effect_constancy(&parts, &covariance, &ContrastFamily::AllPairs, 0.05).is_err()
+        let (code, message) = refusal(
+            test_effect_constancy(&parts, &covariance, &ContrastFamily::AllPairs, 0.05)
+                .unwrap_err(),
         );
+        assert_eq!(code, "invalid_argument");
+        assert!(message.contains("effect_constancy.invalid_covariance"), "{message}");
         let valid = PartitionDependence::Covariance(vec![s2, 0.5 * s2, 0.5 * s2, s2]);
         let result =
             test_effect_constancy(&parts, &valid, &ContrastFamily::AllPairs, 0.05).unwrap();
@@ -339,15 +344,26 @@ fn covariance_validation_is_invariant_to_measurement_units() {
 #[test]
 fn overflow_underflow_and_blank_identities_refuse() {
     for se in [1e-300, 1e300] {
-        assert!(run_independent(&[part("a", 0.0, se), part("b", 1.0, se)]).is_err());
+        let (code, message) =
+            refusal(run_independent(&[part("a", 0.0, se), part("b", 1.0, se)]).unwrap_err());
+        assert_eq!(code, "invalid_argument");
+        assert!(message.contains("effect_constancy.invalid_standard_error"), "{message}");
     }
-    assert!(run_independent(&[part("a", -1e308, 1.0), part("b", 1e308, 1.0)]).is_err());
-    assert!(run_independent(&[part(" ", 0.0, 1.0), part("b", 1.0, 1.0)]).is_err());
+    let (code, message) =
+        refusal(run_independent(&[part("a", -1e308, 1.0), part("b", 1e308, 1.0)]).unwrap_err());
+    assert_eq!(code, "invalid_argument");
+    assert!(message.contains("the statistic overflows at the supplied scale"), "{message}");
+    let (code, message) =
+        refusal(run_independent(&[part(" ", 0.0, 1.0), part("b", 1.0, 1.0)]).unwrap_err());
+    assert_eq!(code, "route_not_supported");
+    assert!(message.contains("effect_constancy.incompatible_partitions"), "{message}");
     let mut parts = [part("a", 0.0, 1.0), part("b", 1.0, 1.0)];
     for p in &mut parts {
         p.estimand.population.clear();
     }
-    assert!(run_independent(&parts).is_err());
+    let (code, message) = refusal(run_independent(&parts).unwrap_err());
+    assert_eq!(code, "route_not_supported");
+    assert!(message.contains("effect_constancy.incompatible_partitions"), "{message}");
 }
 
 #[test]

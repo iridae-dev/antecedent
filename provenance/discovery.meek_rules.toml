@@ -44,4 +44,4 @@ sha256 = "4c723a2e542dd15806433a7461b42b896a9be1e9cc59578f1b9d8aa09754f825"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/src/orientation_tests.rs"
-sha256 = "0f8d7b066088970e40675a4e2501a6a39c53382005c9948a4319c57fef807bf4"
+sha256 = "51c1ad59533c9d6813c83e545ce6514f3f64cc2ac87eb01c7c0ded94f6699a49"

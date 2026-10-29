@@ -10,6 +10,7 @@ theorem route, identifies ``P(y | do(x))``; the studies together do.
 
 import itertools
 import json
+import re
 
 import pytest
 from antecedent import Admg
@@ -370,7 +371,9 @@ def test_export_binds_names_limits_and_snapshots_into_the_verified_identity():
     with pytest.raises(CausalSerializationError, match="digest mismatch"):
         transport.consume_mixed_source_artifact(renamed)
     # A consumer with smaller limits than the producer refuses.
-    with pytest.raises(CausalResourceError):
+    with pytest.raises(
+        CausalResourceError, match=re.escape("consumer limit exceeded: search operation limit")
+    ):
         transport.consume_mixed_source_artifact(artifact, max_search_operations=10)
 
 
@@ -420,13 +423,20 @@ def test_prepare_exact_compiles_a_checked_plan_after_builder_disposal():
 def test_query_contract_is_validated_before_search():
     with pytest.raises(CausalValueError):
         transport.MixedSourceQuery(target="target", outcomes=["y"], treatments=["y"])
-    with pytest.raises(CausalValueError):
+    with pytest.raises(
+        CausalValueError, match=re.escape("target must be a non-empty population name")
+    ):
         transport.MixedSourceQuery(target="", outcomes=["y"], treatments=["x"])
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=re.escape("sources must be ZTransportSource values")):
         transport.MixedSourceQuery(target="target", outcomes=["y"], treatments=["x"], sources=[1])
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=re.escape("catalog must be an EvidenceCatalog")):
         transport.identify_mixed_source_transport(graph=chain_graph(), query=query(), catalog={})
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(
+        CausalTypeError,
+        match=re.escape(
+            "an artifact is bytes or ExportedArtifact; read paths with Path.read_bytes()"
+        ),
+    ):
         transport.consume_mixed_source_artifact("not bytes")
 
 

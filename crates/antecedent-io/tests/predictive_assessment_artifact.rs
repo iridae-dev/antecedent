@@ -236,11 +236,19 @@ fn consumer_limits_and_corruption_are_refused_without_replay() {
         Error::LimitsExceeded("predictors")
     );
     let truncated = &bytes[..bytes.len() / 2];
-    assert!(PredictiveAssessmentArtifact::from_bytes(truncated, None, &ctx()).is_err());
+    assert_eq!(
+        PredictiveAssessmentArtifact::from_bytes(truncated, None, &ctx()).unwrap_err(),
+        Error::Decode("io error: failed to fill whole buffer".into())
+    );
     let mut flipped = bytes.clone();
     let middle = flipped.len() / 2;
     flipped[middle] ^= 0xff;
-    assert!(PredictiveAssessmentArtifact::from_bytes(&flipped, None, &ctx()).is_err());
+    // A flipped byte fails the container checksum of the section it lands in.
+    let error = PredictiveAssessmentArtifact::from_bytes(&flipped, None, &ctx()).unwrap_err();
+    assert!(
+        format!("{error:?}").contains("ChecksumMismatch { section: \"predictive_assessment_meta\" }"),
+        "{error:?}"
+    );
 }
 
 #[test]

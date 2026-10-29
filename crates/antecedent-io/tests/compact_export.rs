@@ -409,7 +409,10 @@ fn compact_resealed_forgery_passes_only_under_the_forgers_own_identity() {
     let (_, forged_body) = read_body(&forged);
     // The producer's retained identity refuses it; only the forger's own would pass,
     // which is why the consumer must retain the identity independently.
-    assert!(CompactExport::consume(&forged, &limits(), export.identity()).is_err());
+    assert_eq!(
+        CompactExport::consume(&forged, &limits(), export.identity()).unwrap_err().detail,
+        "compact_export.identity_unexpected"
+    );
     let accepted = CompactExport::consume(&forged, &limits(), &forged_body.identity).unwrap();
     approx(accepted.evaluate(&x_query(0.0)).unwrap().point, 9.0);
 }
@@ -732,11 +735,18 @@ fn compact_indefinite_asymmetric_and_negative_covariances_are_refused() {
     // Unit diagonal with correlations 0.9, -0.9, 0.9: every pairwise bound holds, the determinant
     // 1 + 2abc - a^2 - b^2 - c^2 is negative, so the matrix is not positive semidefinite.
     let indefinite = vec![1.0, 0.9, -0.9, 0.9, 1.0, 0.9, -0.9, 0.9, 1.0];
-    assert!(CompactExport::build(base(indefinite)).is_err());
+    let refusal = CompactExport::build(base(indefinite)).unwrap_err();
+    assert_eq!(refusal.detail, "compact_export.covariance_not_psd");
+    assert!(refusal.subject.starts_with("pivot"), "pairwise bounds hold: {}", refusal.subject);
     let asymmetric = vec![1.0, 0.3, 0.0, 0.1, 1.0, 0.0, 0.0, 0.0, 1.0];
-    assert!(CompactExport::build(base(asymmetric)).is_err());
+    assert_eq!(
+        CompactExport::build(base(asymmetric)).unwrap_err().detail,
+        "compact_export.covariance_asymmetric"
+    );
     let negative = vec![-1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
-    assert!(CompactExport::build(base(negative)).is_err());
+    let refusal = CompactExport::build(base(negative)).unwrap_err();
+    assert_eq!(refusal.detail, "compact_export.covariance_not_psd");
+    assert_eq!(refusal.subject, "diagonal 0");
     let identity = vec![1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
     assert!(CompactExport::build(base(identity)).is_ok());
 }

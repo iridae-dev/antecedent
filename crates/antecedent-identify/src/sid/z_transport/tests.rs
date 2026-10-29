@@ -124,7 +124,10 @@ fn a_fourteen_node_graph_completes_and_its_derivation_audit_is_reproduced() {
     assert_eq!(replay.graph_signature, proof.graph_signature);
     // The audit is of this graph: a derivation checked against another query is refused.
     let (_, other_query) = chain_fixture(14, 7);
-    assert!(verify_z_transport_derivation(&diagram, &other_query, &proof, limits, &ctx).is_err());
+    assert_eq!(
+        verify_z_transport_derivation(&diagram, &other_query, &proof, limits, &ctx),
+        Err(IdentificationError::invalid_derivation("z_transport.proof_input_mismatch"))
+    );
 }
 
 #[test]
@@ -327,15 +330,15 @@ fn registered_surrogate_query_has_checked_formula_and_rejects_substitution() {
     .unwrap();
     let mut altered = query.clone();
     altered.controllable = Arc::from([VariableId::from_raw(0)]);
-    assert!(
+    assert_eq!(
         verify_z_transport_derivation(
             &diagram,
             &altered,
             &proof,
             super::super::SidLimits::default(),
             &antecedent_core::ExecutionContext::for_tests(0)
-        )
-        .is_err()
+        ),
+        Err(IdentificationError::invalid_input("z_transport.invalid_experiment_assignment"))
     );
 }
 
@@ -401,15 +404,15 @@ fn direct_exchange_requires_concrete_joint_intervention_and_checks_proof() {
             value: Value::Bool(false),
         },
     ]);
-    assert!(
+    assert_eq!(
         verify_z_transport_derivation(
             &diagram,
             &changed,
             &proof,
             super::super::SidLimits::default(),
             &antecedent_core::ExecutionContext::for_tests(0)
-        )
-        .is_err()
+        ),
+        Err(IdentificationError::invalid_derivation("z_transport.proof_input_mismatch"))
     );
 }
 

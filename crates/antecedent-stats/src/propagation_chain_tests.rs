@@ -177,7 +177,10 @@ fn weights_reweight_the_summary_and_equal_weights_reproduce_it() {
     let shifted = summarize(&column, Some(&heavy)).expect("summary");
     near(shifted.mean, 3.0, 1e-9);
     assert!(shifted.effective_size < 1.0 + 1e-6);
-    assert!(weights_from_log(&[0.0, f64::NAN]).is_err());
+    assert_eq!(
+        weights_from_log(&[0.0, f64::NAN]),
+        Err(ChainError::InvalidWeights("a log weight is not finite"))
+    );
 }
 
 #[test]
@@ -282,13 +285,19 @@ fn a_stage_that_leaves_its_domain_is_refused() {
 fn malformed_chains_are_refused_before_any_number() {
     // A stage may not read itself or a later node.
     let forward = vec![StageSpec { inputs: vec![1], op: StageOp::Unary(UnaryFn::Exp) }];
-    assert!(validate_spec(1, &forward).is_err());
+    assert_eq!(
+        validate_spec(1, &forward),
+        Err(ChainError::Shape("a stage reads only earlier nodes"))
+    );
     // A coefficient is an input after the first.
     let coefficient = vec![StageSpec {
         inputs: vec![0],
         op: StageOp::Affine { scale: Coefficient::Input(0), shift: Coefficient::Fixed(0.0) },
     }];
-    assert!(validate_spec(1, &coefficient).is_err());
+    assert_eq!(
+        validate_spec(1, &coefficient),
+        Err(ChainError::Shape("a coefficient is an input after the first"))
+    );
     // An update is terminal.
     let study =
         Preposterior { noise_sd: 1.0, sample_size: 1.0, reference_utility: 0.0, noise: vec![] };
@@ -296,7 +305,10 @@ fn malformed_chains_are_refused_before_any_number() {
         StageSpec { inputs: vec![0, 0], op: StageOp::Preposterior(study) },
         unary(1, UnaryFn::Exp),
     ];
-    assert!(validate_spec(1, &after_update).is_err());
+    assert_eq!(
+        validate_spec(1, &after_update),
+        Err(ChainError::Shape("no stage may read a preposterior update"))
+    );
 }
 
 #[test]
@@ -500,10 +512,23 @@ fn an_expression_with_a_broken_stack_or_input_is_refused_before_any_number() {
         vec![StageSpec { inputs: vec![0, 1], op: StageOp::Expression(terms) }]
     };
     // No terms, two columns left, an operation without operands, an unread input slot.
-    assert!(validate_spec(2, &stage(vec![])).is_err());
-    assert!(validate_spec(2, &stage(vec![ExprTerm::Input(0), ExprTerm::Input(1)])).is_err());
-    assert!(validate_spec(2, &stage(vec![ExprTerm::Input(0), ExprTerm::Add])).is_err());
-    assert!(validate_spec(2, &stage(vec![ExprTerm::Input(2)])).is_err());
+    let shape = |message| Err(ChainError::Shape(message));
+    assert_eq!(
+        validate_spec(2, &stage(vec![])),
+        shape("an expression holds between one and MAX_EXPRESSION_TERMS terms")
+    );
+    assert_eq!(
+        validate_spec(2, &stage(vec![ExprTerm::Input(0), ExprTerm::Input(1)])),
+        shape("an expression leaves exactly one column")
+    );
+    assert_eq!(
+        validate_spec(2, &stage(vec![ExprTerm::Input(0), ExprTerm::Add])),
+        shape("an expression operation reads two columns")
+    );
+    assert_eq!(
+        validate_spec(2, &stage(vec![ExprTerm::Input(2)])),
+        shape("an expression reads an input the stage has")
+    );
     // A bound that is not a finite magnitude, a range that is out of order.
     let divide = |bound| {
         stage(vec![
@@ -512,13 +537,20 @@ fn an_expression_with_a_broken_stack_or_input_is_refused_before_any_number() {
             ExprTerm::Divide { min_magnitude: bound },
         ])
     };
-    assert!(validate_spec(2, &divide(-1.0)).is_err());
-    assert!(validate_spec(2, &divide(f64::NAN)).is_err());
-    assert!(validate_spec(2, &divide(0.0)).is_ok());
+    let bound = Err(ChainError::Operator("a denominator bound is a finite non-negative magnitude"));
+    assert_eq!(validate_spec(2, &divide(-1.0)), bound);
+    assert_eq!(validate_spec(2, &divide(f64::NAN)), bound);
+    assert_eq!(validate_spec(2, &divide(0.0)), Ok(()));
     let range = stage(vec![ExprTerm::Input(0), ExprTerm::RequireRange { low: 1.0, high: 0.0 }]);
-    assert!(validate_spec(2, &range).is_err());
+    assert_eq!(
+        validate_spec(2, &range),
+        Err(ChainError::Operator("a range's low end exceeds its high end"))
+    );
     // The size limit.
-    assert!(validate_spec(2, &stage(vec![ExprTerm::Input(0); MAX_EXPRESSION_TERMS + 1])).is_err());
+    assert_eq!(
+        validate_spec(2, &stage(vec![ExprTerm::Input(0); MAX_EXPRESSION_TERMS + 1])),
+        shape("an expression holds between one and MAX_EXPRESSION_TERMS terms")
+    );
 }
 
 #[test]

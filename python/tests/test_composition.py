@@ -16,6 +16,7 @@ attested, and a ``native`` requirement refuses a label that has no execution rec
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 import numpy as np
@@ -240,7 +241,10 @@ def test_composition_boundary_python_cannot_assert_a_native_or_verified_provider
         comp.TrustEvidence("native")  # type: ignore[arg-type]
     assert not hasattr(comp.TrustEvidence, "native")
     assert not hasattr(comp.TrustEvidence, "verified")
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(
+        CausalTypeError,
+        match=re.escape("use DecisionInput.from_distribution, from_means or from_scalar"),
+    ):
         comp.DecisionInput("native")  # type: ignore[arg-type]
 
 
@@ -427,7 +431,12 @@ def test_composition_boundary_a_probability_is_never_answered_from_a_mean() -> N
         evidence=comp.TrustEvidence.attested("lab"),
     )
     assert scalar.source == "scalar"
-    with pytest.raises(comp.SupportRefusal):
+    with pytest.raises(
+        comp.SupportRefusal,
+        match=re.escape(
+            "reason=decision_contract_unsatisfied: composition_boundary.mean_is_not_a_distrib"
+        ),
+    ):
         require_success(
             comp.evaluate_functional(
                 mean_only, "treat", comp.Functional.probability(2.0, "upper"), scalar
@@ -554,7 +563,12 @@ def test_composition_boundary_shared_data_refuses_paired_draws_without_a_license
     with pytest.raises(comp.DependenceRefusal):
         require_success(comp.check_paired_draws(pair, [shared_data("native", "external")]))
     # The order of the pair does not matter.
-    with pytest.raises(comp.DependenceRefusal):
+    with pytest.raises(
+        comp.DependenceRefusal,
+        match=re.escape(
+            "reason=scenario_aggregate_not_licensed: composition_boundary.shared_evidence_not"
+        ),
+    ):
         require_success(comp.check_paired_draws(pair, [shared_data("external", "native")]))
 
     route = comp.DependenceRoute("joint_law", "joint-law-1", "native")
@@ -667,7 +681,12 @@ def test_composition_boundary_operations_are_declared_separately() -> None:
     statistical: tuple[comp.Operation, ...] = ("statistical_pooling", "bayesian_borrowing")
     data = relation(comp.EvidenceRelation.shared_data("trial-2", "trial-1"))
     for operation in statistical:
-        with pytest.raises(comp.DependenceRefusal):
+        with pytest.raises(
+            comp.DependenceRefusal,
+            match=re.escape(
+                "reason=scenario_aggregate_not_licensed: composition_boundary.shared_evidence_not"
+            ),
+        ):
             require_success(comp.check_composition(inputs, data, operation))
     assert not require_success(
         comp.check_composition(inputs, data, "causal_transport")
@@ -678,7 +697,12 @@ def test_composition_boundary_operations_are_declared_separately() -> None:
     # A shared fitted model is refused by both statistical operations.
     model = relation(comp.EvidenceRelation.shared_fitted_model("fit-3"))
     for operation in statistical:
-        with pytest.raises(comp.DependenceRefusal):
+        with pytest.raises(
+            comp.DependenceRefusal,
+            match=re.escape(
+                "reason=scenario_aggregate_not_licensed: composition_boundary.shared_evidence_not"
+            ),
+        ):
             require_success(comp.check_composition(inputs, model, operation))
     require_success(comp.check_composition(inputs, model, "evidence_reuse"))
 
@@ -695,7 +719,12 @@ def test_composition_boundary_conflicting_atoms_never_become_a_silent_average() 
 
     # Probabilities on only some atoms are still not a license to average.
     partial = [comp.StructuralAtom("graph-a", 0.5), comp.StructuralAtom("graph-b")]
-    with pytest.raises(comp.DependenceRefusal):
+    with pytest.raises(
+        comp.DependenceRefusal,
+        match=re.escape(
+            "reason=scenario_aggregate_not_licensed: composition_boundary.conflicting_atoms_n"
+        ),
+    ):
         require_success(comp.check_atom_combination(partial, "weighted_by_declared_probabilities"))
 
     # Reporting each atom and the worst case need no probability.

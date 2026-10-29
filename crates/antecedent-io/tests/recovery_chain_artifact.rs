@@ -178,7 +178,7 @@ fn artifact_producer_refuses_a_mutated_checked_plan() {
     let recovered = evaluate_chain_recovery(&plan, &law).unwrap();
     let mut altered = *plan;
     altered.tail_depends_on_head_variable = false;
-    assert!(
+    assert_eq!(
         RecoveryChainArtifactWire::from_recovered(
             &graph,
             &query(),
@@ -187,7 +187,8 @@ fn artifact_producer_refuses_a_mutated_checked_plan() {
             &law,
             &recovered,
         )
-        .is_err()
+        .err(),
+        Some(IoError::Convert("the recovery plan is not the checked query plan".into()))
     );
 }
 
@@ -440,7 +441,10 @@ fn artifact_graph_wire_round_trips_and_refuses_a_bidirected_graph() {
 
     let mut confounded = build(&edges(0, true, &[]));
     confounded.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    assert!(ChainGraphWire::from_graph(&confounded).is_err());
+    assert_eq!(
+        ChainGraphWire::from_graph(&confounded).err(),
+        Some(IoError::Convert("the m-graph of this row has no bidirected edge".into()))
+    );
 }
 
 #[test]
