@@ -183,7 +183,7 @@ FACADE_KIND = {
     "crates/antecedent-estimate/src/penalized_propensity_posterior.rs|static.bayesian": "posterior",
     "crates/antecedent-estimate/src/temporal_penalized_score.rs|temporal.frequentist": "analytic",
     "crates/antecedent-estimate/src/temporal_penalized_score.rs|temporal.bayesian": "posterior",
-    "crates/antecedent-estimate/src/quantile.rs|static.frequentist": "none",
+    "crates/antecedent-estimate/src/quantile.rs|static.frequentist": "analytic",
     "crates/antecedent-estimate/src/smoothed_dose.rs|static.frequentist": "design_aware_resampling",
     "crates/antecedent-estimate/src/smoothed_dose_posterior.rs|static.bayesian": "posterior",
     "crates/antecedent-estimate/src/adaptive_inference.rs|static.frequentist": "analytic",
