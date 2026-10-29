@@ -41,11 +41,11 @@ def test_policy_declaration_is_validated():
     assert coerce_missing(None) is None
     assert coerce_missing("complete_case") == MissingPolicy.complete_case()
     assert MissingPolicy.inverse_probability(["a", "b"]).covariates == ("a", "b")
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="unknown missing-data policy 'listwise'"):
         MissingPolicy("listwise")  # type: ignore[arg-type]
     with pytest.raises(CausalValueError, match="observation model"):
         MissingPolicy("complete_case", ("a",))
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="covariates must be distinct column names"):
         MissingPolicy.inverse_probability(["a", "a"])
 
 
@@ -185,7 +185,7 @@ def test_notears_refuses_then_runs_on_declared_complete_cases():
     assert (accounting["rows_total"], accounting["rows_kept"]) == (n, len(keep))
     assert accounting["dropped_rows"] == [int(i) for i in holes]
     assert reference.row_accounting["rows_dropped"] == 0
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="NOTEARS missing must be None"):
         ant.discovery.NOTEARS(missing="pairwise")  # type: ignore[arg-type]
 
 

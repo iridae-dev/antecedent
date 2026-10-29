@@ -478,9 +478,9 @@ def test_receipt_a_foreign_repair_artifact_is_refused(fx):
 
 
 def test_receipt_bundle_inputs_must_be_bytes(fx):
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match="an artifact is bytes or ExportedArtifact"):
         px.ProposalBundle.build("repair", fx.ranking_bytes)
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match="an artifact is bytes or ExportedArtifact"):
         fx.bundle.verify(fx.repair_bytes, "ranking")
 
 

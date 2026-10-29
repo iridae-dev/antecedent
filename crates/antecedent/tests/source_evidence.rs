@@ -314,7 +314,7 @@ fn original_external_attestation_retains_exact_support_request_and_source_withou
     let original = ExternalClaimArtifact::from_bytes(bytes, &expected).unwrap();
     let evidence = SourceEvidence::from_external(bytes).unwrap();
     assert!(!evidence.is_native_source());
-    assert!(evidence.original_consumption().is_err());
+    assert_eq!(evidence.original_consumption().unwrap_err().to_string(), "invalid_argument: source_evidence.resolution_scope_unsupported");
     assert!(evidence.unresolved().is_empty());
     let summary = evidence.summary();
     assert_eq!(summary["source_kind"], "external_bound_claim");

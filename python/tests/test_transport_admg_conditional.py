@@ -400,7 +400,7 @@ def test_a_proven_obstruction_bounds_and_invalid_queries_carry_reason_codes():
     with pytest.raises((CausalSerializationError, CausalUnsupportedError)):
         transport.consume_admg_conditional_obstruction_artifact(bytes(tampered))
     # An identified stage has no obstruction to export.
-    with pytest.raises(CausalUnsupportedError):
+    with pytest.raises(CausalUnsupportedError, match="only a proven obstruction exports as an obstruction artifact"):
         decide().export_obstruction()
     # A budget stop is a receipt, never a verdict.
     exhausted = decide(max_operations=2)

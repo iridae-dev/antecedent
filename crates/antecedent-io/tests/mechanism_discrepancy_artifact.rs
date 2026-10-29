@@ -302,6 +302,11 @@ fn discrepancy_artifact_unknown_version_and_corruption_refuse() {
         MechanismDiscrepancyArtifact::from_bytes(&reencoded, None).unwrap_err(),
         MechanismDiscrepancyArtifactError::UnsupportedSemantics("feature marker")
     );
-    assert!(MechanismDiscrepancyArtifact::from_bytes(&bytes[..bytes.len() / 2], None).is_err());
-    assert!(MechanismDiscrepancyArtifact::from_bytes(&[], None).is_err());
+    assert_eq!(
+        MechanismDiscrepancyArtifact::from_bytes(&bytes[..bytes.len() / 2], None)
+            .unwrap_err()
+            .to_string(),
+        "mechanism discrepancy artifact does not decode: io error: failed to fill whole buffer"
+    );
+    assert_eq!(MechanismDiscrepancyArtifact::from_bytes(&[], None).unwrap_err().to_string(), "mechanism discrepancy artifact does not decode: io error: failed to fill whole buffer");
 }

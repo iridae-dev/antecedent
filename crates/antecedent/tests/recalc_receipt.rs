@@ -560,8 +560,13 @@ fn recalc_failed_refresh_law_and_decision_preserve_successful_state() {
         Some(TargetWeights { weights: vec![0.; N], depends_on: vec![VariableId::from_raw(Z)] });
     let mut bad_decision = base.clone();
     bad_decision.utility.benefit_per_unit = f64::MAX;
-    for bad in [bad_refresh, bad_law, bad_decision] {
-        assert!(execute_with_receipt(&mut session, &bad, &ctx(SEED)).is_err());
+    for (bad, want) in [
+        (bad_refresh, "invalid argument: AIPW cross-fit fold is missing a treatment arm"),
+        (bad_law, "invalid argument: weights have no positive mass"),
+        (bad_decision, "recalc.invalid_request"),
+    ] {
+        let refused = execute_with_receipt(&mut session, &bad, &ctx(SEED)).unwrap_err().to_string();
+        assert_eq!(refused, want);
         assert!(session.is_live());
         assert_eq!(session.identities(), &identities);
         assert_eq!(

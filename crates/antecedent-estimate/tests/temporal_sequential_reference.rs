@@ -57,6 +57,14 @@ const REPLICATES: u32 = 12;
 const DRAWS: usize = 200_000;
 const PRIOR_SCALE: f64 = 4.0;
 
+/// The rendered refusal of a result that must be an `Err`.
+fn refusal<T, E: std::fmt::Display>(result: Result<T, E>) -> String {
+    match result {
+        Ok(_) => panic!("expected a refusal, got Ok"),
+        Err(error) => error.to_string(),
+    }
+}
+
 fn reference() -> Json {
     serde_json::from_str(include_str!("oracle_data/temporal_sequential_reference.json")).unwrap()
 }
@@ -403,7 +411,10 @@ fn temporal_sequential_prepared_design_refits_every_mechanism_on_frozen_rows() {
     let aligned = design.aligned_rows();
     assert_eq!((aligned.first_time, aligned.rows), (3, 21));
     assert_eq!(design.structural_span(), 4);
-    assert!(design.estimate_on_rows(&[21]).is_err(), "a row past the aligned rows is refused");
+    assert!(
+        refusal(design.estimate_on_rows(&[21])).contains("aligned row index out of range"),
+        "a row past the aligned rows is refused"
+    );
     assert_eq!(
         design.block_length(),
         reference["bootstrap"]["long_contrast"]["block_length"].as_u64().unwrap() as usize
@@ -703,39 +714,42 @@ fn temporal_sequential_declared_options_are_read() {
         },
         &ctx(),
     );
-    assert!(refused.is_err(), "an unidentified status must be refused");
+    assert!(
+        refusal(refused).contains("requires an identified unfolded multi-step contrast"),
+        "an unidentified status must be refused"
+    );
     // target population: only AllObserved is estimated.
     let restricted = window_query(1.0, 0.0).with_target_population(TargetPopulation::Treated);
     assert!(
-        estimate_sustained_window(
+        refusal(estimate_sustained_window(
             &identified.problem(&data),
             &restricted,
             inference(&identified, 0, None),
             &ctx(),
-        )
-        .is_err()
+        ))
+        .contains("AllObserved")
     );
     // policy: a single-step window is not a sequential contrast.
     let single = window_query(1.0, 0.0).with_policy(TemporalPolicy::sustained(0, 0));
     assert!(
-        estimate_sustained_window(
+        refusal(estimate_sustained_window(
             &identified.problem(&data),
             &single,
             inference(&identified, 0, None),
             &ctx(),
-        )
-        .is_err()
+        ))
+        .contains("identified unfolded multi-step contrast")
     );
     // backend: composed HMC is refused rather than approximated, and so is a non-Gaussian likelihood.
     let hmc = BayesianGComputationAte { backend: BayesianBackendKind::Hmc, ..bayes_estimator() };
     assert!(
-        estimate_sustained_window(
+        refusal(estimate_sustained_window(
             &identified.problem(&data),
             &query,
             inference(&identified, 0, Some(&hmc)),
             &ctx(),
-        )
-        .is_err()
+        ))
+        .contains("composed sustained HMC requires derived-contrast chain diagnostics")
     );
     // assumptions: the premises passed in are carried onto the estimate.
     let carried = antecedent_estimate::temporal_sequential::SequentialMechanismOverlay::mean_target_assumption();
@@ -893,7 +907,10 @@ fn temporal_sequential_overlay_validation_refuses_and_discloses() {
     };
     let base = overlays_of(point_case(&reference, "level_hard"));
     assert!(run(&base, None).is_ok());
-    assert!(run(&[], None).is_err(), "an empty sequence is refused");
+    assert!(
+        refusal(run(&[], None)).contains("requires at least one step"),
+        "an empty sequence is refused"
+    );
     let duplicated = [base[0], base[0]];
     assert!(run(&duplicated, None).is_err(), "one (variable, time) assigned twice is refused");
     for broken in [
@@ -904,10 +921,18 @@ fn temporal_sequential_overlay_validation_refuses_and_discloses() {
         },
         SequentialMechanismOverlay { bounds: Some((1.0, 0.0)), ..base[0] },
     ] {
-        assert!(run(&[broken, base[1], base[2]], None).is_err(), "{broken:?}");
+        assert!(
+            refusal(run(&[broken, base[1], base[2]], None))
+                .contains("sequential overlays require finite levels and shifts"),
+            "{broken:?}"
+        );
     }
     let hmc = BayesianGComputationAte { backend: BayesianBackendKind::Hmc, ..bayes_estimator() };
-    assert!(run(&base, Some(&hmc)).is_err(), "composed HMC is refused for a level too");
+    assert!(
+        refusal(run(&base, Some(&hmc)))
+            .contains("composed sequence HMC requires derived-contrast chain diagnostics"),
+        "composed HMC is refused for a level too"
+    );
     // A bounded shift discloses the population-mean-targeting restriction; an unbounded level does not.
     let bounded = overlays_of(point_case(&reference, "level_bounded_upper"));
     let restriction = SequentialMechanismOverlay::mean_target_assumption();

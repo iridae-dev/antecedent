@@ -285,13 +285,15 @@ fn source_projection_original_artifact_replay_refuses_resealed_numerical_changes
     }
     let mut bytes = artifact.export().unwrap();
     bytes.pop();
-    assert!(SourceProjectionArtifact::consume(&bytes, artifact.identity()).is_err());
-    assert!(
-        SourceProjectionArtifact::consume(
-            &artifact.export().unwrap(),
-            "different_retained_identity"
-        )
-        .is_err()
+    assert_eq!(
+        SourceProjectionArtifact::consume(&bytes, artifact.identity()).unwrap_err().to_string(),
+        "reason=invalid_argument: source_projection.invalid_artifact"
+    );
+    assert_eq!(
+        SourceProjectionArtifact::consume(&artifact.export().unwrap(), "different_retained_identity")
+            .unwrap_err()
+            .to_string(),
+        "reason=invalid_argument: source_projection.identity_mismatch"
     );
     let (_, actual, ctx) = source();
     let receipt = SourceResolution::execute(&evidence, &actual, &ctx).unwrap();

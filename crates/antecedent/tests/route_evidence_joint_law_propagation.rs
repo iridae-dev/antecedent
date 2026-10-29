@@ -230,7 +230,7 @@ fn propagate_runs_a_declared_covariance_composition_to_its_closed_form() {
         },
         &ctx(),
     );
-    assert!(wrong.is_err());
+    assert_eq!(wrong.expect_err("wrong shape").details(), vec!["joint_law_propagation.invalid_request"]);
 }
 
 #[test]
@@ -318,7 +318,7 @@ fn aligned_functionals_are_expectations_under_the_joint_law() {
         ValueFunctional::Ratio,
         &ctx(),
     );
-    assert!(refused.is_err());
+    assert_eq!(refused.expect_err("zero denominator").details(), vec!["joint_law_propagation.artifact_invalid"]);
 }
 
 #[test]
@@ -340,7 +340,10 @@ fn a_known_weight_mixture_splits_variance_into_within_and_between() {
     assert_eq!(claim.route(), "known_weight_mixture");
     // Weights that do not sum to one are refused.
     let bad = MixtureComponent { weight: 0.4, ..component("c", "s3", 0.0) };
-    assert!(propagate_mixture(&[bad.clone(), bad], &ctx()).is_err());
+    assert_eq!(
+        propagate_mixture(&[bad.clone(), bad], &ctx()).expect_err("weights").details(),
+        vec!["joint_law_propagation.invalid_request"]
+    );
 }
 
 #[test]
@@ -404,7 +407,7 @@ fn a_correlation_range_gives_an_assumption_range_linear_in_the_correlation() {
         0.3,
         &ctx(),
     );
-    assert!(refused.is_err());
+    assert_eq!(refused.expect_err("single correlation").details(), vec!["joint_law_propagation.invalid_request"]);
 }
 
 #[test]

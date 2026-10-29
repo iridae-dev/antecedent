@@ -250,5 +250,8 @@ fn a_sealed_cohort_query_replays_under_its_identity_and_follows_the_fitted_model
         seal(query_on(&other, mean_at_least(5.0)), &other_forward, InverseDemand::default())
             .unwrap();
     let other_bytes = inverse_query::export(&other_artifact, "cohort-inverse").unwrap();
-    assert!(inverse_query::consume(&other_bytes, Some(artifact.identity())).is_err());
+    assert_eq!(
+        inverse_query::consume(&other_bytes, Some(artifact.identity())).unwrap_err().to_string(),
+        "reason=inverse_functional_unsupported: functional_inverse_query.wrong_contract: premises digest differs from the consumer's retained identity"
+    );
 }

@@ -64,7 +64,9 @@ def test_identification_estimate_matches_analyze():
     )
     assert math.isfinite(staged.ate)
     assert abs(staged.ate - direct.ate) < 1e-9
-    assert abs(staged.ate - 2.0) < 0.6
+    # The adjusted estimate recovers the structural effect 2 (observed error 0.015); the
+    # unadjusted arm-mean contrast is confounded by z and misses it by far more than this band.
+    assert abs(staged.ate - 2.0) < 0.05
 
 
 def test_response_curve_identify_then_estimate_matches_analyze():

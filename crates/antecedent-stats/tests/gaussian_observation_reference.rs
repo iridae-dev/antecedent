@@ -102,11 +102,26 @@ fn truncated_terms_divide_by_the_interval_mass() {
 
 #[test]
 fn invalid_or_impossible_terms_are_refused_not_scored() {
-    assert!(loglik(&[G::Truncated { value: 3.0, lower: -1.0, upper: 2.0 }], &[0.0], 1.0).is_err());
-    assert!(loglik(&[G::IntervalCensored { lower: 1.0, upper: 1.0 }], &[0.0], 1.0).is_err());
-    assert!(loglik(&[G::IntervalCensored { lower: 2.0, upper: 1.0 }], &[0.0], 1.0).is_err());
-    assert!(loglik(&[G::Exact(f64::NAN)], &[0.0], 1.0).is_err());
-    assert!(loglik(&[G::Exact(0.0)], &[0.0], 0.0).is_err());
+    assert_eq!(
+        loglik(&[G::Truncated { value: 3.0, lower: -1.0, upper: 2.0 }], &[0.0], 1.0)
+            .unwrap_err()
+            .to_string(),
+        "unsupported: truncated Gaussian observation lies outside sampling bounds"
+    );
+    assert_eq!(
+        loglik(&[G::IntervalCensored { lower: 1.0, upper: 1.0 }], &[0.0], 1.0)
+            .unwrap_err()
+            .to_string(),
+        "unsupported: Gaussian observation bounds must be ordered"
+    );
+    assert_eq!(
+        loglik(&[G::IntervalCensored { lower: 2.0, upper: 1.0 }], &[0.0], 1.0)
+            .unwrap_err()
+            .to_string(),
+        "unsupported: Gaussian observation bounds must be ordered"
+    );
+    assert_eq!(loglik(&[G::Exact(f64::NAN)], &[0.0], 1.0).unwrap_err().to_string(), "unsupported: Gaussian observation endpoint must be finite");
+    assert_eq!(loglik(&[G::Exact(0.0)], &[0.0], 0.0).unwrap_err().to_string(), "unsupported: Gaussian means/scale must be finite and scale positive");
     // Mass below the representable log scale of the tail is zero probability, not a number.
     assert!(loglik(&[G::IntervalCensored { lower: 60.0, upper: 61.0 }], &[0.0], 1.0).is_ok());
     // The sum over rows adds the per-row terms.

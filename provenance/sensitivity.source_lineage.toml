@@ -29,4 +29,4 @@ sha256 = "fed6ce20a11ca26d3204c5083604025b2f2029e1440e775f7bfaad94991fe079"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/source_evidence.rs"
-sha256 = "20176eea72e5166c8c5b9317606ddb38aabbaaaf86e568ac712d3b87c3834178"
+sha256 = "dae85605839d4e98912b56880d1bbcff074ae7478322aa5a6477fb87dae8ebcf"

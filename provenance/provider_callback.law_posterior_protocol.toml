@@ -54,4 +54,4 @@ sha256 = "f5a5ebe1d86cb244d0e3478e9e14220c5cecac6529d13e274df45aba55f3dae4"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/callback_protocol.rs"
-sha256 = "39b31e9de4fe06240342c13db11c2626b77e80bae3d5d1f4081fc48856a5b3c1"
+sha256 = "45bde3187a560eb04720069043f6a22f7718e87813b434bd4f7f0c2ca6f6318e"

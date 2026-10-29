@@ -166,14 +166,20 @@ fn operations_are_negotiated_separately_and_none_implies_another() {
     for missing in
         [ExternalCapability::Sample, ExternalCapability::Cdf, ExternalCapability::Quantile]
     {
-        assert!(mean_only.negotiate(&request(missing)).is_err());
+        assert_eq!(
+            mean_only.negotiate(&request(missing)).unwrap_err(),
+            ExternalContractError::MissingCapability(missing)
+        );
     }
     // A distribution function does not supply a quantile function, and the
     // protocol keeps them apart although both disclose a law.
     let cdf_only = with_ops(&[CallbackOperation::Cdf]);
     assert!(cdf_only.operations.contains(&CallbackOperation::Cdf));
     assert!(!cdf_only.operations.contains(&CallbackOperation::Quantile));
-    assert!(cdf_only.provider_object().negotiate(&request(ExternalCapability::Quantile)).is_err());
+    assert_eq!(
+        cdf_only.provider_object().negotiate(&request(ExternalCapability::Quantile)).unwrap_err(),
+        ExternalContractError::MissingCapability(ExternalCapability::Quantile)
+    );
     assert_eq!(
         CallbackOperation::Cdf.contract_operation(),
         CallbackOperation::Quantile.contract_operation()
@@ -202,14 +208,15 @@ fn a_posterior_update_is_a_separate_signal_that_needs_its_observation_law() {
             .is_ok()
     );
     // The posterior object itself answers mean and sample, not the update.
-    assert!(
+    assert_eq!(
         declaration
             .provider_object()
             .negotiate(&ExternalCapabilityRequest {
                 expected_identity: identity("1.0"),
                 operation: ExternalCapability::Update,
             })
-            .is_err()
+            .unwrap_err(),
+        ExternalContractError::MissingCapability(ExternalCapability::Update)
     );
     // An update without the observation law is refused, as in the provider contract.
     let mut no_law = posterior();

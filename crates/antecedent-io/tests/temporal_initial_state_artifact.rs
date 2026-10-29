@@ -286,7 +286,7 @@ fn initial_state_artifact_is_not_the_specified_initial_state_artifact() {
     assert_ne!(TEMPORAL_INITIAL_STATE_ARTIFACT_FEATURE, TEMPORAL_TRANSPORT_ARTIFACT_FEATURE);
     let bytes = artifact().export().unwrap();
     // The specified-initial-state sequence artifact decoder refuses these bytes outright.
-    assert!(TemporalSequenceArtifactWire::decode(&bytes).is_err());
+    assert_eq!(TemporalSequenceArtifactWire::decode(&bytes).unwrap_err().to_string(), "cbor error: Custom(\"unknown field `kind`, expected one of `version`, `required_features`, `horizon`, `graph`, `selections`, `slots`, `coordinates`, `source`, `target`, `sequence`, `search_operations`, `search_depth`, `search_memory_bytes`, `catalog`, `provider`, `laws`, `max_support_rows`, `operation_limit`, `depth_limit`, `report`, `premises_digest`, `data_digest`\")");
     // A foreign feature marker or kind is refused by this decoder.
     let mut foreign = artifact();
     foreign.required_features = vec![TEMPORAL_TRANSPORT_ARTIFACT_FEATURE.into()];
@@ -296,7 +296,10 @@ fn initial_state_artifact_is_not_the_specified_initial_state_artifact() {
     assert!(message.contains("unsupported_semantics"), "{message}");
     let mut kind = artifact();
     kind.kind = "temporal_transport_sequence".into();
-    assert!(TemporalInitialStateArtifactWire::decode(&kind.export().unwrap()).is_err());
+    assert_eq!(
+        TemporalInitialStateArtifactWire::decode(&kind.export().unwrap()).unwrap_err().to_string(),
+        "convert error: temporal_initial_state_artifact.unsupported_semantics"
+    );
     let mut version = artifact();
     version.version = 2;
     assert!(matches!(
@@ -313,7 +316,10 @@ fn initial_state_artifact_is_not_built_for_a_source_law_or_a_support_gap() {
         vec![(0, 0.5), (1, 0.5)],
     )
     .unwrap();
-    assert!(MarginalizedQuery::new(SEQUENCE, InitialStateSpec::Law(source)).is_err());
+    assert_eq!(
+        MarginalizedQuery::new(SEQUENCE, InitialStateSpec::Law(source)).unwrap_err().to_string(),
+        "reason=transport_missing_evidence: initial_state.target_law_missing: only a source initial-state law was supplied; source and target laws cannot be interchanged"
+    );
 
     let gap = InitialStateLaw::new(
         InitialStatePopulation::Target,

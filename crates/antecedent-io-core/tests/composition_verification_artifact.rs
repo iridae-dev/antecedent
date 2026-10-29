@@ -338,11 +338,21 @@ fn versions_markers_and_corruption_are_refused() {
     .expect("bytes");
     let middle = bytes.len() / 2;
     bytes[middle] ^= 0xff;
-    assert!(CompositionVerificationArtifact::from_bytes(&bytes, None).is_err());
-    assert!(CompositionVerificationArtifact::from_bytes(&bytes[..bytes.len() / 3], None).is_err());
-    assert!(
+    assert_eq!(
+        CompositionVerificationArtifact::from_bytes(&bytes, None).unwrap_err().to_string(),
+        "composition verification artifact does not decode: checksum mismatch for section `composition_verification_meta`"
+    );
+    assert_eq!(
+        CompositionVerificationArtifact::from_bytes(&bytes[..bytes.len() / 3], None)
+            .unwrap_err()
+            .to_string(),
+        "composition verification artifact does not decode: io error: failed to fill whole buffer"
+    );
+    assert_eq!(
         CompositionVerificationArtifact::to_bytes(None, &s.after, &BTreeMap::new(), &[], None, " ")
-            .is_err()
+            .unwrap_err()
+            .to_string(),
+        "composition verification artifact does not encode: missing artifact id"
     );
 }
 

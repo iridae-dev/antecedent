@@ -914,14 +914,20 @@ fn an_exported_transported_decision_replays_and_refuses_resealed_edits() {
     assert_eq!(consumed.decision.receipt.target_population, "clinic_b");
     let retained = consumed.decision.identity.clone();
     assert!(consume_transported_decision(&bytes, Some(&retained)).is_ok());
-    assert!(consume_transported_decision(&bytes, Some("not-the-identity")).is_err());
+    assert_eq!(
+        consume_transported_decision(&bytes, Some("not-the-identity")).unwrap_err().to_string(),
+        "reason=decision_contract_unsatisfied: transported_decision_artifact.identity_expected: the decision identity differs from the consumer's retained identity"
+    );
 
     // The same decision at another carried value has another identity, so a
     // consumer that retained the first refuses the second's bytes.
     let other = point(3.0);
     let other_bytes =
         export_transported_decision(&contract, &other, &accepting(), "transported-2").unwrap();
-    assert!(consume_transported_decision(&other_bytes, Some(&retained)).is_err());
+    assert_eq!(
+        consume_transported_decision(&other_bytes, Some(&retained)).unwrap_err().to_string(),
+        "reason=decision_contract_unsatisfied: transported_decision_artifact.identity_expected: the decision identity differs from the consumer's retained identity"
+    );
 
     // A law has its own export.
     let law = transported_law(DistributionCalibration::PointOnly, DistributionTrust::Unverified);
@@ -935,5 +941,10 @@ fn an_exported_transported_decision_replays_and_refuses_resealed_edits() {
         unsupported: UnsupportedActionPolicy::RequireAllActions,
         weakest_support: SupportStatus::Supported,
     };
-    assert!(export_transported_decision(&contract, &response, &strict, "strict").is_err());
+    assert_eq!(
+        export_transported_decision(&contract, &response, &strict, "strict")
+            .unwrap_err()
+            .to_string(),
+        "reason=cell_not_licensed: transported_decision.transported_not_accepted: reason=cell_not_licensed: transported_decision.transported_not_accepted"
+    );
 }

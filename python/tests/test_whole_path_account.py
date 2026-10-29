@@ -145,7 +145,7 @@ def test_an_undeclared_unit_sampling_is_refused() -> None:
         require_success(sealed.whole_path_uncertainty("undeclared"))  # type: ignore[arg-type]
     assert_registered_refusal(undeclared.value)
     assert undeclared.value.reason_code == "sampling_dependence_unknown"
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="unit_sampling is 'fixed_units' or 'independent_sample'"):
         require_success(sealed.whole_path_uncertainty("whole_population"))  # type: ignore[arg-type]
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match="cross_world must be a CrossWorldExecution"):
         require_success(sealed.whole_path_uncertainty("fixed_units")).verify_against(object())  # type: ignore[arg-type]

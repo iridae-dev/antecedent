@@ -202,7 +202,7 @@ def test_batch_execution_honors_cancellation():
     data, graph = _two_treatment_scm()
     token = antecedent.CancellationToken()
     token.cancel()
-    with pytest.raises(CausalCancelledError):
+    with pytest.raises(CausalCancelledError, match="cancelled during ingest"):
         antecedent.estimation.analyze_many(
             data,
             graph=graph,

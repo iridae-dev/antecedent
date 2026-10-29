@@ -118,8 +118,11 @@ fn bayesian_bootstrap_weights_sum_to_n() {
 fn bayesian_bootstrap_rejects_index_fill() {
     let mut rng = CausalRng::from_seed(1);
     let mut idx = Vec::new();
-    assert!(
-        fill_resample_indexes(ResamplingPlan::BayesianBootstrap, 10, &mut rng, &mut idx).is_err()
+    assert_eq!(
+        fill_resample_indexes(ResamplingPlan::BayesianBootstrap, 10, &mut rng, &mut idx)
+            .unwrap_err()
+            .to_string(),
+        "invalid argument: BayesianBootstrap index draws is not supported: BayesianBootstrap yields weights; use fill_resample_weights"
     );
 }
 
@@ -129,7 +132,10 @@ fn iid_plans_are_refused_on_time_series_without_opt_in() {
     let mut idx = Vec::new();
     for plan in [ResamplingPlan::IidBootstrap, ResamplingPlan::BayesianBootstrap] {
         let mut rng = CausalRng::from_seed(3);
-        assert!(resample_timeseries(&data, plan, &mut rng, &mut idx).is_err());
+        assert_eq!(
+            resample_timeseries(&data, plan, &mut rng, &mut idx).unwrap_err().to_string(),
+            "invalid argument: IID bootstrap of time-series data is not supported: it ignores serial dependence; use a block plan or pass TemporalRandomPolicy::Allow"
+        );
         let out = resample_timeseries_with_policy(
             &data,
             plan,
@@ -417,7 +423,12 @@ fn unequal_cluster_bootstrap_draws_g_whole_clusters_without_conditioning_on_rows
         assert!((count as f64 / 4000.0 - target).abs() < 0.04);
     }
     let mut fixed = vec![GlobalId::new(0); 8];
-    assert!(fill_resample_index_batch(plan, 4, 2, Some(&ids), &context, 11, &mut fixed).is_err());
+    assert_eq!(
+        fill_resample_index_batch(plan, 4, 2, Some(&ids), &context, 11, &mut fixed)
+            .unwrap_err()
+            .to_string(),
+        "invalid argument: fixed-width batch output is not supported: unequal cluster sizes cannot be represented"
+    );
 }
 
 #[test]

@@ -153,11 +153,20 @@ fn a_treatment_column_with_one_level_is_refused_by_every_contrast_estimator() {
     for (name, run) in runners() {
         for (label, t) in [("every row treated", &all_treated), ("no row treated", &none_treated)] {
             let outcome = run(t, &y, &z);
-            assert!(
-                outcome.is_err(),
-                "{name} published {:?} for a treatment column with {label}",
-                outcome.map(|fit| fit.ate)
-            );
+            let message = match outcome {
+                Ok(fit) => panic!(
+                    "{name} published {:?} for a treatment column with {label}",
+                    fit.ate
+                ),
+                Err(error) => error.to_string(),
+            };
+            // Each estimator refuses for its own reason; none publishes an effect.
+            let expected = match name {
+                "propensity matching" => "complete separation",
+                "aipw" => "cross-fit fold is missing a treatment arm",
+                _ => "has no complete-case rows",
+            };
+            assert!(message.contains(expected), "{name}: {label}: {message}");
         }
     }
 }

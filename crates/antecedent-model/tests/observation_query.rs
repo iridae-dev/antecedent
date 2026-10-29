@@ -433,7 +433,7 @@ fn finite_bayes_update_matches_the_hand_computed_posterior() {
     // The count form is the same update, without materialising the stream.
     let counts = model.posterior_from_counts(&[1, 2]).unwrap();
     assert_eq!(counts, a);
-    assert!(model.posterior_from_counts(&[1]).is_err());
+    assert_eq!(model.posterior_from_counts(&[1]).unwrap_err().to_string(), "invalid declaration: one count per observation level is required");
     let long = model.posterior_from_counts(&[0, 5_000_000]).unwrap();
     assert!(long.hypotheses[0].1 > 1.0 - 1e-6);
 }
@@ -441,13 +441,21 @@ fn finite_bayes_update_matches_the_hand_computed_posterior() {
 #[test]
 fn finite_bayes_model_refuses_malformed_declarations_and_impossible_evidence() {
     let names = || vec!["a".to_owned(), "b".to_owned()];
-    assert!(FiniteBayesModel::new(names(), vec![0.5, 0.4], names(), vec![0.5; 4]).is_err());
-    assert!(
-        FiniteBayesModel::new(names(), vec![0.5, 0.5], names(), vec![0.5, 0.4, 0.5, 0.5]).is_err()
+    assert_eq!(
+        FiniteBayesModel::new(names(), vec![0.5, 0.4], names(), vec![0.5; 4]).unwrap_err().to_string(),
+        "invalid declaration: the prior is not a distribution"
     );
-    assert!(
+    assert_eq!(
+        FiniteBayesModel::new(names(), vec![0.5, 0.5], names(), vec![0.5, 0.4, 0.5, 0.5])
+            .unwrap_err()
+            .to_string(),
+        "invalid declaration: a likelihood row is not a distribution over the observation levels"
+    );
+    assert_eq!(
         FiniteBayesModel::new(vec!["a".into(), "a".into()], vec![0.5, 0.5], names(), vec![0.5; 4])
-            .is_err()
+            .unwrap_err()
+            .to_string(),
+        "invalid declaration: hypotheses must be distinct non-blank names"
     );
     let degenerate =
         FiniteBayesModel::new(names(), vec![0.5, 0.5], names(), vec![1.0, 0.0, 1.0, 0.0]).unwrap();
@@ -472,9 +480,12 @@ fn conjugate_update_matches_the_closed_form() {
     let sequential = prior.update(3, 1).unwrap().update(4, 2).unwrap();
     near(sequential.alpha(), posterior.alpha());
     near(sequential.beta(), posterior.beta());
-    assert!(BetaBernoulli::new(0.0, 1.0).is_err());
-    assert!(BetaBernoulli::new(f64::NAN, 1.0).is_err());
-    assert!(BetaBernoulli::new(1.0, 1.0).unwrap().update(1_u64 << 53, 1).is_err());
+    assert_eq!(BetaBernoulli::new(0.0, 1.0).unwrap_err().to_string(), "invalid declaration: Beta shapes must be finite and positive");
+    assert_eq!(BetaBernoulli::new(f64::NAN, 1.0).unwrap_err().to_string(), "invalid declaration: Beta shapes must be finite and positive");
+    assert_eq!(
+        BetaBernoulli::new(1.0, 1.0).unwrap().update(1_u64 << 53, 1).unwrap_err().to_string(),
+        "invalid declaration: observation counts exceed 2^53"
+    );
 }
 
 #[test]
@@ -501,8 +512,8 @@ fn the_required_bayes_factor_is_the_odds_ratio() {
     let satisfied = required_bayes_factor(0.8, 0.5, Direction::Raise).unwrap();
     assert!(satisfied.already_satisfied);
     near(satisfied.factor, 1.0);
-    assert!(required_bayes_factor(0.0, 0.5, Direction::Raise).is_err());
-    assert!(required_bayes_factor(0.5, 1.0, Direction::Raise).is_err());
+    assert_eq!(required_bayes_factor(0.0, 0.5, Direction::Raise).unwrap_err().to_string(), "invalid declaration: the prior must lie in (0, 1)");
+    assert_eq!(required_bayes_factor(0.5, 1.0, Direction::Raise).unwrap_err().to_string(), "invalid declaration: the level must lie in (0, 1)");
 }
 
 #[test]
@@ -996,9 +1007,17 @@ fn redraw_refuses_mismatched_retained_data_and_bad_counts() {
         Err(ObservationQueryError::Invalid(_))
     ));
     // A draw count outside the supported range and a prior outside its range.
-    assert!(draw(RetainedMechanism::Gaussian(good.clone()), 1, RedrawPrior::default()).is_err());
+    assert_eq!(
+        draw(RetainedMechanism::Gaussian(good.clone()), 1, RedrawPrior::default())
+            .unwrap_err()
+            .to_string(),
+        "invalid declaration: the draw count must lie between the supported minimum and maximum"
+    );
     let bad_prior = RedrawPrior { variance_scale: 0.0, ..RedrawPrior::default() };
-    assert!(draw(RetainedMechanism::Gaussian(good), 10, bad_prior).is_err());
+    assert_eq!(
+        draw(RetainedMechanism::Gaussian(good), 10, bad_prior).unwrap_err().to_string(),
+        "invalid declaration: every redraw prior parameter must be finite and positive"
+    );
     // Retained data of a variable the composition does not have.
     let stranger = GaussianSufficient::from_columns("Q", &[], &y).unwrap();
     assert_eq!(
