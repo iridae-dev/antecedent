@@ -35,7 +35,8 @@ fn three_treatment_derivatives_are_answered_through_the_prepared_workflow() {
     let outcomes: Arc<[VariableId]> = Arc::from([VariableId::from_raw(3)]);
     let ctx = ExecutionContext::for_tests(7);
     // The outcome is exactly linear, so its Jacobian is the coefficient vector and a
-    // directional derivative is the coefficient along the direction.
+    // directional derivative is the coefficient along the direction. A local-linear fit of an
+    // exactly linear surface reproduces it to rounding (observed 2.5e-9).
     let cases = [
         (
             ResponseFunctional::Jacobian {
@@ -81,7 +82,7 @@ fn three_treatment_derivatives_are_answered_through_the_prepared_workflow() {
         };
         assert_eq!(got.len(), expected.len());
         for (got, expected) in got.iter().zip(&expected) {
-            assert!((got - expected).abs() < 0.2, "{got} != {expected}");
+            assert!((got - expected).abs() < 1e-6, "{got} != {expected}");
         }
     }
 }

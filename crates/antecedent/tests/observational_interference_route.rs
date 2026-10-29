@@ -156,6 +156,14 @@ fn known_probabilities_retain_pointwise_interval_and_artifact() {
     let result = prepared.estimate(&data, &ctx).unwrap();
     let interval = result.interference_inference().unwrap().interval.as_ref().unwrap();
     assert!(interval.lower < 2.0 && interval.upper > 2.0);
+    // The Hajek contrast with propensity 1/2 is the treated-minus-control mean: the effect 2
+    // plus the baseline difference of the odd and even clusters, computed here from the data.
+    let baseline = |cluster: usize| 1.0 + (cluster % 7) as f64 / 10.0;
+    let odd: f64 = (0..60).filter(|c| c % 2 == 1).map(baseline).sum::<f64>() / 30.0;
+    let even: f64 = (0..60).filter(|c| c % 2 == 0).map(baseline).sum::<f64>() / 30.0;
+    let point = result.estimate().as_effect().unwrap().ate;
+    assert!((point - (2.0 + odd - even)).abs() < 1e-9, "{point} vs {}", 2.0 + odd - even);
+    assert!((0.5 * (interval.lower + interval.upper) - point).abs() < 1e-9);
     assert_eq!(interval.degrees_of_freedom, 59.0);
     assert_eq!(interval.first_stage_arm_clusters, [30, 30]);
     let artifact = prepared.encode_contracted_result(&result, "known-network", &ctx).unwrap();
@@ -174,7 +182,8 @@ fn observational_network_refuses_missing_assumption_and_cross_cluster_edge() {
     {
         *assume_network_exchangeability = false;
     }
-    assert!(query.validate().is_err());
+    let invalid = query.validate().unwrap_err();
+    assert_eq!(format!("{invalid:?}"), "InvalidInterference(ObservedExposure)");
     let (_, _, query, _) = fixture();
     edges.push(NetworkEdge::new(0, 2, 1.0));
     let network = NetworkData::try_new(data.clone(), edges).unwrap();
@@ -185,5 +194,9 @@ fn observational_network_refuses_missing_assumption_and_cross_cluster_edge() {
         .refute(RefuteSuite::None)
         .build()
         .unwrap();
-    assert!(study.prepare(&ExecutionContext::for_tests(352)).is_err());
+    let refusal = study.prepare(&ExecutionContext::for_tests(352)).unwrap_err();
+    assert_eq!(
+        format!("{refusal:?}"),
+        "Estimate(Unsupported { message: \"partial-interference assumption violated: network edge crosses cluster boundary\" })"
+    );
 }

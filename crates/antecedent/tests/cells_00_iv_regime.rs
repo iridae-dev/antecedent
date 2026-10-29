@@ -62,6 +62,16 @@ fn cells_00_iv_refuses_contrast_levels_the_discrete_treatment_never_takes() {
         let ok = run(&t, &y, &z, (0.0, 1.0), wald).unwrap();
         let ate = ok.estimate().as_effect().unwrap().ate;
         assert!((ate - 2.0).abs() < 0.1, "wald {wald}: {ate}");
+        // With a binary instrument both estimators are the Wald ratio of the reduced form to
+        // the first stage, computed here from the arm means.
+        let arm_mean = |values: &[f64], arm: f64| {
+            let in_arm: Vec<f64> =
+                values.iter().zip(&z).filter(|(_, zi)| **zi == arm).map(|(v, _)| *v).collect();
+            in_arm.iter().sum::<f64>() / in_arm.len() as f64
+        };
+        let wald_ratio = (arm_mean(&y, 1.0) - arm_mean(&y, 0.0))
+            / (arm_mean(&t, 1.0) - arm_mean(&t, 0.0));
+        assert!((ate - wald_ratio).abs() < 1e-9, "wald {wald}: {ate} vs ratio {wald_ratio}");
         for levels in [(0.0, 5.0), (2.0, 3.0), (-1.0, 1.0)] {
             let error = run(&t, &y, &z, levels, wald).err().unwrap_or_else(|| {
                 panic!("wald {wald} {levels:?}: scaled a slope to an unvisited level")

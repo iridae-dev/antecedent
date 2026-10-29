@@ -166,22 +166,32 @@ fn declared_levels_modifiers_and_population_are_used_or_refused() {
     // Equal levels, a non-AllObserved population and a quantile functional are refused.
     let mut same = c.query.clone();
     same.active = same.control.clone();
-    assert!(fit(&same).is_err());
+    assert_eq!(
+        fit(&same).unwrap_err().to_string(),
+        "active and control treatment levels must differ"
+    );
     let treated = c.query.clone().with_target_population(TargetPopulation::Treated);
-    assert!(fit(&treated).is_err());
+    assert_eq!(
+        fit(&treated).unwrap_err().to_string(),
+        "reason=population_not_estimable: ConditionalLinearAdjustment only supports AllObserved"
+    );
     let quantile = c.query.clone().with_outcome_functional(OutcomeFunctional::Quantile(
         antecedent_core::OrderedFloatBits::from_f64(0.5),
     ));
-    assert!(fit(&quantile).is_err());
+    assert_eq!(
+        fit(&quantile).unwrap_err().to_string(),
+        "conditional quantiles require CDF-grid inversion through Study; a mean regression cannot estimate a quantile"
+    );
     // A third treatment level the contrast does not name is refused rather than dropped.
     let mut third = json["t"].as_array().unwrap().clone();
     third[0] = serde_json::json!(0.5);
     let mut altered = json.clone();
     altered["t"] = serde_json::Value::Array(third);
     let c3 = case(&altered);
-    assert!(
-        ConditionalLinearAdjustment::new().estimate_ate(&c3.data, &c3.estimand, &c3.query).is_err()
-    );
+    let e3 = ConditionalLinearAdjustment::new().estimate_ate(&c3.data, &c3.estimand, &c3.query);
+    let message = e3.unwrap_err().to_string();
+    assert!(message.starts_with("reason=treatment_level_undeclared:"), "{message}");
+    assert!(message.contains("first found 0.5"), "{message}");
     // Fewer than eight complete rows are refused.
     let mut short = json.clone();
     for key in ["t", "y"] {
@@ -198,8 +208,10 @@ fn declared_levels_modifiers_and_population_are_used_or_refused() {
         );
     }
     let c7 = case(&short);
-    assert!(
-        ConditionalLinearAdjustment::new().estimate_ate(&c7.data, &c7.estimand, &c7.query).is_err()
+    let e7 = ConditionalLinearAdjustment::new().estimate_ate(&c7.data, &c7.estimand, &c7.query);
+    assert_eq!(
+        e7.unwrap_err().to_string(),
+        "invalid argument: too few complete rows for conditional ATE"
     );
 }
 
@@ -210,8 +222,11 @@ fn a_threshold_functional_is_refused_not_read_as_the_mean_contrast() {
     let exceedance = c.query.clone().with_outcome_functional(OutcomeFunctional::Exceedance(
         antecedent_core::OrderedFloatBits::from_f64(1.0),
     ));
-    assert!(
-        ConditionalLinearAdjustment::new().estimate_ate(&c.data, &c.estimand, &exceedance).is_err(),
-        "the linear interaction fit estimates a mean; an exceedance probability must be refused"
+    let refusal = ConditionalLinearAdjustment::new()
+        .estimate_ate(&c.data, &c.estimand, &exceedance)
+        .unwrap_err();
+    assert_eq!(
+        refusal.to_string(),
+        "the linear interaction fit estimates a mean; an exceedance functional requires the outcome transformed to its indicator and the Mean functional"
     );
 }

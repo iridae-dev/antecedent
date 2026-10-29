@@ -450,7 +450,7 @@ fn the_posterior_over_the_mechanisms_returns_its_refits_beside_the_bootstrap() {
         };
         let ratio = stderr / boot;
         assert!(
-            (0.25..4.0).contains(&ratio),
+            (0.5..2.0).contains(&ratio),
             "source {i}: posterior over bootstrap spread {ratio}"
         );
     }
@@ -474,7 +474,7 @@ fn a_bootstrap_with_data_quantifies_mechanism_fit_separately() {
         else {
             panic!("mechanism fit not quantified: {:?}", s.uncertainty);
         };
-        assert!(stderr.is_finite() && *stderr >= 0.0 && *stderr < 2.0);
+        assert!(stderr.is_finite() && *stderr > 0.0 && *stderr < 1.0);
         assert_eq!(*df, 19.0);
         assert!((s.contribution - truth).abs() <= 6.0 * stderr.max(0.2), "source {i}");
         assert!(s.quantified_stderr().is_complete());
@@ -762,12 +762,12 @@ fn permutation_and_simulation_errors_shrink_with_their_own_budgets() {
     let large_sim = run_with(1600, 50);
     let sim_ratio = component(&small_sim, UncertaintyComponent::Simulation)
         / component(&large_sim, UncertaintyComponent::Simulation);
-    assert!(sim_ratio >= 1.5, "simulation error ratio {sim_ratio}");
+    assert!(sim_ratio >= 1.8, "simulation error ratio {sim_ratio}");
 
     let large_perm = run_with(100, 800);
     let perm_ratio = component(&small_sim, UncertaintyComponent::PermutationSampling)
         / component(&large_perm, UncertaintyComponent::PermutationSampling);
-    assert!(perm_ratio >= 1.5, "permutation error ratio {perm_ratio}");
+    assert!(perm_ratio >= 2.5, "permutation error ratio {perm_ratio}");
 }
 
 /// `a -> b -> c -> y`: `b = 2a + e_b`, `c = 1.5b + e_c`, `y = 0.5c + e_y`, noise scales

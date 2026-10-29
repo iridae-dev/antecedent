@@ -41,7 +41,7 @@ sha256 = "976de99d9a4f6b0f9d28bc0e5bd78e53168602553d4301834733b78c9e2f676a"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/observational_interference_route.rs"
-sha256 = "a48607a2cf6489a493caec855c1a8db3fa2c683cf8c813d95bd5eac00d33ba7a"
+sha256 = "1324318f6a07f54c40ae5123858d7dc8e177b963ec362671a5bd0d79f13d088f"
 
 [[method_review.artifacts]]
 role = "assertion"

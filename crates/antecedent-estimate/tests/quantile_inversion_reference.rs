@@ -71,7 +71,11 @@ fn unsupported_bracket_and_projection_are_refused_where_the_reference_has_none()
     let cdf = [0.1, 0.3, 0.5, 0.7, 0.85, 0.95];
     let mut bad = ok;
     bad[3] = false;
-    assert!(invert_supported_cdf(&x, &cdf, &phi, &bad, 0.6).is_err());
+    let e = invert_supported_cdf(&x, &cdf, &phi, &bad, 0.6).unwrap_err().to_string();
+    assert_eq!(
+        e,
+        "quantile inversion refused: insufficient tail or overlap support at the bracket"
+    );
     assert!(invert_supported_cdf(&x, &cdf, &phi, &bad, 0.4).is_ok());
     // A violation away from the bracket is projected without touching the bracket.
     let raw = [0.1, 0.3, 0.7, 0.6, 0.65, 0.9];
@@ -79,7 +83,11 @@ fn unsupported_bracket_and_projection_are_refused_where_the_reference_has_none()
     assert!((arm.value - 0.5).abs() < 1e-12, "{}", arm.value);
     // A violation inside the bracket is refused, whichever side of it the level falls on.
     for tau in [0.4, 0.5, 0.65] {
-        assert!(invert_supported_cdf(&x, &raw, &phi, &ok, tau).is_err(), "tau {tau}");
+        let e = invert_supported_cdf(&x, &raw, &phi, &ok, tau).unwrap_err().to_string();
+        assert_eq!(
+            e, "quantile uncertainty refused: isotonic projection changes the inversion bracket",
+            "tau {tau}"
+        );
     }
     // The pooled plateau (0.65) is exact at its last point, so the last segment is untouched.
     assert!(invert_supported_cdf(&x, &raw, &phi, &ok, 0.8).is_ok());

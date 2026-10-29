@@ -45,7 +45,7 @@ sha256 = "5badac795d43276303fad3b25aa9596a157a86d53eaa013d332dca2bffb8694c"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/conditional_reference.rs"
-sha256 = "0df6bf904263e2c01a393fa91071a3e98bd4ce897a104dd3e52f8c2940705d11"
+sha256 = "756e58c47d274dcc30a780d24c28083a62fba5fdff472f2c8f0a0c575ca00247"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -175,10 +175,11 @@ fn change_attribution_draws_use_one_weight_vector_per_population_and_stay_couple
             "draw {draw}: components do not add to the total"
         );
         // The covariate component is 2 * (difference of the weighted covariate means) up to the
-        // Monte Carlo error of the sampled covariate marginals (2000 samples, sd about 1.15).
+        // Monte Carlo error of the sampled covariate marginals (2000 samples, sd about 1.15); the
+        // largest observed deviation is 9e-3.
         worst = worst.max((covariate[draw] - 2.0 * shift).abs());
         assert!(
-            (covariate[draw] - 2.0 * shift).abs() < 0.2,
+            (covariate[draw] - 2.0 * shift).abs() < 0.03,
             "draw {draw}: {} vs {}",
             covariate[draw],
             2.0 * shift

@@ -233,7 +233,8 @@ fn class_aware_conditional_pins_z_conditional_effect() {
     let freq_ate = freq["expected_ate"].as_f64().unwrap();
     let freq_tol = freq["absolute_tolerance"].as_f64().unwrap();
     let bayes_ate = bayes["expected_ate"].as_f64().unwrap();
-    let bayes_tol = bayes["absolute_tolerance"].as_f64().unwrap();
+    // The pinned posterior band is 0.01; the observed deviation is 1.5e-3 on 64 draws.
+    let bayes_tol = bayes["absolute_tolerance"].as_f64().unwrap().min(5e-3);
     let seed = bayes["seed"].as_u64().unwrap();
     let table_truth = stratified_contrast_from_table(&pin);
     assert!(
@@ -385,6 +386,12 @@ fn checked_pag_conditional_certificate_retains_completion_masses() {
         let antecedent::Identification::Envelope { envelope, .. } = crate_identification else {
             panic!("PAG conditional result did not retain its completion envelope");
         };
+        // The circle-circle pair s o-o v has three completions (s -> v, v -> s, s <-> v) and the
+        // chain r -> t -> y with the modifier r is amenable in each, so all three mass units
+        // are identified and none is not.
+        assert_eq!(envelope.cases.len(), 3);
+        assert_eq!(format!("{:?}", envelope.identified_weight), "ProbabilityMass(3.0)");
+        assert_eq!(format!("{:?}", envelope.unidentified_weight), "ProbabilityMass(0.0)");
         assert_eq!(envelope.cases.len(), expected.cases.len());
         assert_eq!(envelope.identified_weight, expected.identified_weight);
         assert_eq!(envelope.unidentified_weight, expected.unidentified_weight);

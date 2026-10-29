@@ -65,4 +65,4 @@ sha256 = "a362324fe570478d04c25a955eceac7161339676c00b6bc8b13e68d2e956853b"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/sequential_evaluation.rs"
-sha256 = "d298633c3a228bd9b31554054d4993fdded09e11ce65fced8c9cc2945be796f6"
+sha256 = "f18f20d2fdb494365a0d89695938e05317d1df6cd1e89e5e4eea9e173381676a"

@@ -173,5 +173,8 @@ fn an_inherited_external_claim_requires_regeneration() {
     let mut flipped = inherited("external_claim.bin");
     let middle = flipped.len() / 2;
     flipped[middle] ^= 0xFF;
-    assert!(ExternalClaimArtifact::from_bytes(&flipped, &current_claim_identity()).is_err());
+    let corrupt = ExternalClaimArtifact::from_bytes(&flipped, &current_claim_identity())
+        .expect_err("a flipped byte is refused")
+        .to_string();
+    assert_eq!(corrupt, "checksum mismatch for section `external_claim.meta`");
 }

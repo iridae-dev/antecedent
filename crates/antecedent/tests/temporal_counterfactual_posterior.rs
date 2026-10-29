@@ -115,11 +115,11 @@ fn the_bayesian_temporal_counterfactual_is_the_posterior_of_the_slope_times_the_
     let mean = posterior.summaries.mean[column];
     let sd = posterior.summaries.sd[column];
     // Diffuse prior: the centre is the least squares slope; 2000 draws leave a Monte Carlo
-    // error of about 0.02 standard errors.
-    assert!((mean - slope).abs() < 0.25 * se, "posterior mean {mean} vs slope {slope} (se {se})");
-    // The tempered posterior is never narrower than the iid one (up to Monte Carlo error)
-    // and, for a serially independent series, stays within a small factor of it.
-    assert!(sd > 0.85 * se && sd < 1.8 * se, "posterior sd {sd} vs iid se {se}");
+    // error of about 0.02 standard errors (observed 0.033).
+    assert!((mean - slope).abs() < 0.1 * se, "posterior mean {mean} vs slope {slope} (se {se})");
+    // For a serially independent series the posterior sd is the iid standard error
+    // (observed ratio 0.996; 2000 draws leave about 2 percent Monte Carlo error).
+    assert!(sd > 0.95 * se && sd < 1.05 * se, "posterior sd {sd} vs iid se {se}");
     let mut draws = posterior.draws.column(column).unwrap().to_vec();
     draws.sort_by(f64::total_cmp);
     let (low, high) = (

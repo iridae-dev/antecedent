@@ -152,5 +152,14 @@ fn streaming_ols_statistics_are_bounded_by_the_design_width_not_the_rows() {
     let y: Vec<f64> = (0..100_000).map(response).collect();
     batch.append_batch(&rows, &y).unwrap();
     assert_eq!(beta, batch.solve_beta().unwrap());
-    assert!((beta[1] - 2.0).abs() < 0.05, "{beta:?}");
+    // numpy.linalg.lstsq of the same 100000 rows (an independent solve), to 1e-9.
+    let reference = [
+        1.470_584_831_508_133_3,
+        1.996_360_620_158_106,
+        -4.126_180_007_116_41e-6,
+        -0.499_996_014_824_548_53,
+    ];
+    for (got, want) in beta.iter().zip(reference) {
+        assert!((got - want).abs() < 1e-9, "{beta:?} vs {reference:?}");
+    }
 }

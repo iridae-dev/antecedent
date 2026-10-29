@@ -19,7 +19,7 @@ def test_learned_transport_branches_without_mutating_the_preparation_or_earlier_
     study = advanced.prepare_learned_continuous(
         query, data, options=continuous_options(), execution=Execution(seed=5)
     )
-    with pytest.raises(CausalUnsupportedError):
+    with pytest.raises(CausalUnsupportedError, match="not_executed: transport.no_execution_claim"):
         study._native.export()
     result = require_success(study.estimate())
     original = bytes(result.export())
@@ -28,9 +28,9 @@ def test_learned_transport_branches_without_mutating_the_preparation_or_earlier_
     )
     branch = study.bind_snapshot(shifted)
     assert branch is not study
-    with pytest.raises(CausalUnsupportedError):
+    with pytest.raises(CausalUnsupportedError, match="not_executed: transport.no_execution_claim"):
         branch._native.export()
-    with pytest.raises(CausalUnsupportedError):
+    with pytest.raises(CausalUnsupportedError, match="not_executed: transport.no_execution_claim"):
         study._native.export()
     changed = require_success(branch.estimate())
     assert changed.estimate == pytest.approx(result.estimate + 2.0, abs=1e-9)
@@ -51,9 +51,9 @@ def test_smoothed_transport_branches_preserve_the_entire_grid_and_prior_executio
     result = require_success(study.estimate())
     original = bytes(result.export())
     branch = study.bind_snapshot(replace(data, outcome=tuple(y + 1.0 for y in data.outcome)))
-    with pytest.raises(CausalUnsupportedError):
+    with pytest.raises(CausalUnsupportedError, match="not_executed: transport.no_execution_claim"):
         branch._native.export()
-    with pytest.raises(CausalUnsupportedError):
+    with pytest.raises(CausalUnsupportedError, match="not_executed: transport.no_execution_claim"):
         study._native.export()
     changed = require_success(branch.estimate())
     assert tuple(point.dose for point in changed.grid) == tuple(point.dose for point in result.grid)

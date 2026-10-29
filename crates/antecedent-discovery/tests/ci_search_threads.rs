@@ -175,6 +175,9 @@ fn static_skeleton_searches_match_across_thread_counts() {
     };
     let serial = run(1);
     assert!(serial.0.2 > 100, "fixture must exercise deep conditioning-set searches");
+    // Invariance of an empty result would be vacuous: every search found links and sepsets.
+    assert!(!serial.0.0.is_empty() && !serial.0.1.is_empty());
+    assert!(!serial.1.0.is_empty() && !serial.2.0.is_empty());
     assert_eq!(serial, run(4));
     assert_eq!(serial, run(3));
 }
@@ -206,5 +209,6 @@ fn temporal_searches_match_across_thread_counts() {
     };
     let serial = run(1);
     assert!(serial.0.2 > 100 && serial.1.2 > 100);
+    assert!(!serial.0.0.is_empty() && !serial.1.0.is_empty(), "invariance of nothing is vacuous");
     assert_eq!(serial, run(4));
 }

@@ -128,7 +128,12 @@ fn the_max_t_band_covers_the_known_retargeted_truths_family_wise() {
     // The max-t multiplier averaged over the replications exceeds the marginal 1.96: the
     // Monte-Carlo error of the mean of 300 critical values is far below the gap.
     let mean_critical = critical_sum / REPS as f64;
-    assert!(mean_critical > Z975 + 0.01, "mean critical value {mean_critical}");
+    // Observed mean 2.218; the Bonferroni value 2.394 and the marginal 1.96 are both excluded.
+    assert!((2.15..2.29).contains(&mean_critical), "mean critical value {mean_critical}");
+    assert!(
+        coverage <= LEVEL + tolerance,
+        "family-wise coverage {coverage} above {LEVEL} + {tolerance}: the band is too wide"
+    );
 }
 
 /// The family band is strictly wider than each marginal Wald band on a replication with enough
@@ -143,5 +148,7 @@ fn the_max_t_band_is_strictly_wider_than_each_marginal_band() {
         assert!(member.value - member.lower > marginal_half, "{}", member.name);
     }
     // Three correlated claims need less than the independent three-claim multiplier (about 2.39).
-    assert!(band.critical_value < 2.4, "c = {}", band.critical_value);
+    // The observed multiplier is 2.217 (400000 draws); the independent-claims value 2.39, which
+    // the Bonferroni split also gives, and the marginal 1.96 are both excluded.
+    assert!((2.15..2.28).contains(&band.critical_value), "c = {}", band.critical_value);
 }

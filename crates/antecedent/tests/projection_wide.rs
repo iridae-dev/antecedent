@@ -109,6 +109,21 @@ fn wide_table_projection_matches_full_column_ate() {
         "ate={}",
         result.estimate().as_effect().unwrap().ate
     );
+    // The projected fit is the fit of the table that never had the noise columns: the same
+    // (t, y, z) rows are drawn first, so the thin table is the full-column reference.
+    let (thin, thin_dag, thin_query) = wide_confounded_scm(500, 0, 42);
+    let reference = Study::tabular(thin)
+        .graph(thin_dag)
+        .query(thin_query)
+        .bootstrap_replicates(0)
+        .refute(antecedent::RefuteSuite::None)
+        .build()
+        .unwrap()
+        .run(&ctx)
+        .unwrap();
+    let want = reference.estimate().as_effect().unwrap().ate;
+    let got = result.estimate().as_effect().unwrap().ate;
+    assert!((got - want).abs() < 1e-12, "projected {got} vs full-column {want}");
     assert!(
         result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.project.columns"),
         "expected projection diagnostic on wide table"

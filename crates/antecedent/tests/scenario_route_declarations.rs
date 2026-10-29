@@ -106,7 +106,7 @@ fn the_mediation_bootstrap_refits_independent_subjects_and_refuses_a_declared_de
     let effect = mediation(20, Some(DeclaredSamplingDesign::IndependentSubjectTrajectories))
         .unwrap();
     let effect = effect.estimate().as_effect().unwrap();
-    assert!((effect.ate - 3.0).abs() < 0.01, "{}", effect.ate);
+    assert!((effect.ate - 3.0).abs() < 1e-3, "{}", effect.ate);
     assert!(effect.uncertainty.bootstrap.se.is_some_and(|se| se > 0.0));
     for design in DEPENDENT {
         assert_refused(
@@ -120,7 +120,7 @@ fn the_mediation_bootstrap_refits_independent_subjects_and_refuses_a_declared_de
     for design in DEPENDENT {
         let point = mediation(0, Some(design)).unwrap();
         let point = point.estimate().as_effect().unwrap();
-        assert!((point.ate - 3.0).abs() < 0.01, "{design:?}: {}", point.ate);
+        assert!((point.ate - 3.0).abs() < 1e-3, "{design:?}: {}", point.ate);
         assert!(point.uncertainty.analytic.se.is_nan());
     }
 }
@@ -184,7 +184,7 @@ fn fuzzy(design: Option<DeclaredSamplingDesign>) -> Result<StudyResult, CausalEr
 fn the_fuzzy_ratio_recovers_the_jump_and_refuses_a_declared_clustered_or_serial_design() {
     let ate = |result: StudyResult| result.estimate().as_effect().unwrap().ate;
     // Dose 3, outcome jump 3 over a first-stage jump of 0.75 - 0.25 = 0.5 per unit of dose.
-    assert!((ate(fuzzy(None).unwrap()) - 3.0).abs() < 0.05);
+    assert!((ate(fuzzy(None).unwrap()) - 3.0).abs() < 1e-9);
     assert!(
         (ate(fuzzy(Some(DeclaredSamplingDesign::IndependentSubjectTrajectories)).unwrap()) - 3.0)
             .abs()
@@ -248,7 +248,7 @@ fn the_sharp_discontinuity_recovers_the_jump_and_refuses_a_declared_dependence_w
     for replicates in [0, 20] {
         let result = sharp(replicates, None).unwrap();
         let effect = result.estimate().as_effect().unwrap();
-        assert!((effect.ate - 3.0).abs() < 0.01, "{}", effect.ate);
+        assert!((effect.ate - 3.0).abs() < 1e-3, "{}", effect.ate);
         for design in DEPENDENT {
             assert_refused(
                 &format!("sharp rd {design:?} replicates {replicates}"),
@@ -748,7 +748,7 @@ fn the_quantile_effect_refuses_a_third_level_and_a_declared_dependence_instead_o
     // The median contrast of level 1 against level 0 is the shift 1 (the spread is shared).
     let two = run(2, None, 99).unwrap();
     let effect = two.estimate().as_effect().unwrap();
-    assert!((effect.ate - 1.0).abs() < 0.1, "{}", effect.ate);
+    assert!((effect.ate - 1.0).abs() < 5e-3, "{}", effect.ate);
     let error = run(3, None, 99).err().expect("a three-level treatment was read as a dose");
     assert_eq!(error.reason_code(), Some("treatment_level_undeclared"), "{error}");
     for design in DEPENDENT {

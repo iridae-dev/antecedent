@@ -65,4 +65,4 @@ sha256 = "b30fd6e2684ddf0a414eb77db5087d144b7ef577f36f2164ef884eb194d988c7"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/gcm_bayesian_refit_reference.rs"
-sha256 = "04f777385461cf2cd31694de733a6ca79f6fb5ec94dc7efeb108b51daaf08228"
+sha256 = "01ba692e9fa6e87afe248d4afbdf9eef289d5cbbb34ec2d5885e3ee39dce7e22"

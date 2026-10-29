@@ -1655,11 +1655,20 @@ fn a_retained_identity_refuses_another_evaluation_and_corruption_is_refused() {
     let mut corrupted = bytes.clone();
     let middle = corrupted.len() / 2;
     corrupted[middle] ^= 0x5a;
-    assert!(consume(&corrupted, None, &ctx()).is_err());
+    assert_eq!(
+        consume(&corrupted, None, &ctx()).unwrap_err().to_string(),
+        "checksum mismatch for section `policy_evaluation.body`"
+    );
     // not an artifact at all
-    assert!(consume(b"not an artifact", None, &ctx()).is_err());
+    assert_eq!(
+        consume(b"not an artifact", None, &ctx()).unwrap_err().to_string(),
+        "bad artifact magic"
+    );
     // an edit that was not resealed cannot be written
     let mut unsealed = SequentialEvaluationArtifact::from_bytes(&bytes).unwrap();
     unsealed.body.exact.value_bits ^= 1;
-    assert!(unsealed.to_bytes("unsealed").is_err());
+    assert_eq!(
+        unsealed.to_bytes("unsealed").unwrap_err().to_string(),
+        "reason=route_not_supported: sequential_evaluation.identity_mismatch: body digest changed"
+    );
 }

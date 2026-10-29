@@ -138,7 +138,10 @@ fn actual_checked_joint_posterior_retention_and_independent_replay() {
     };
     let (failure, work) =
         count_bayesian_work(|| execute_joint_bayesian_with_receipt(&mut session, &request, &ctx));
-    assert!(failure.is_err());
+    assert_eq!(
+        format!("{:?}", failure.err().unwrap()),
+        "Execution(Serialization(Refused { code: \"invalid_argument\", message: \"bayesian_transport.prior_data_overlap: observations used to build the prior bank also enter the likelihood; each datum may enter exactly one\" }))"
+    );
     assert_eq!(work.model_fits + work.posterior_draws, 0);
     request.model.priors.varying.provenance = PriorProvenance::Bank {
         bank_id: "oversized-bank".into(),

@@ -46,10 +46,10 @@ impl Cell {
     }
 
     /// A frequentist fit is exact on the noiseless line; a Bayesian point estimate is a mean of
-    /// conjugate draws and is held to the fixture's own band.
+    /// conjugate draws on a noiseless line and agrees to a few times the observed 1e-4.
     fn tolerance(self) -> f64 {
         match (self.horizon, self.bayesian) {
-            (_, true) => 0.1,
+            (_, true) => 1e-3,
             (true, false) => 1e-6,
             (false, false) => 1e-9,
         }
@@ -270,7 +270,11 @@ fn a_refresh_the_schema_refuses_leaves_the_prepared_study_as_it_was() {
         .unwrap();
     let foreign =
         TabularData::try_from_schema_f64(other, [("t", treatment), ("w", outcome)]).unwrap();
-    assert!(rebind_estimate(&mut prepared, foreign, &ctx()).is_err());
+    let e = rebind_estimate(&mut prepared, foreign, &ctx()).unwrap_err();
+    assert_eq!(
+        format!("{e:?}"),
+        "Compile { message: \"prepared analysis refresh requires the same schema (variable names, types, and order) as prepare-time data; next attempt: supply data with the prepare-time schema, or prepare the study again on the new schema\" }"
+    );
 
     assert_eq!(prepared.plan_view().unwrap().identity(), program);
     let again = prepared.estimate_retained(&ctx()).unwrap();
@@ -291,9 +295,11 @@ fn a_result_of_another_handle_is_not_sealed_under_this_one() {
         let second = prepare(cell, treatment, &shifted, gaussian);
         let result = first.estimate_retained(&ctx()).unwrap();
         assert!(first.encode_contracted_result(&result, "own", &ctx()).is_ok(), "{}", cell.label());
-        assert!(
-            second.encode_contracted_result(&result, "foreign", &ctx()).is_err(),
-            "{}: a result of another data snapshot was sealed",
+        let e = second.encode_contracted_result(&result, "foreign", &ctx()).unwrap_err();
+        assert_eq!(
+            format!("{e:?}"),
+            "Conflict { what: \"data_snapshot\", detail: \"result was computed on a different data snapshot than this handle binds\" }",
+            "{}",
             cell.label()
         );
     }

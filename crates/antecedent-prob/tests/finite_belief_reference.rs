@@ -70,15 +70,23 @@ fn linear_functional_equals_the_exact_row_dot_product() {
     }
 }
 
+fn refused<T: std::fmt::Debug, E: std::fmt::Display>(result: Result<T, E>, needle: &str) {
+    let message = result.expect_err("a refusal").to_string();
+    assert!(message.contains(needle), "{message:?} does not name {needle:?}");
+}
+
 #[test]
 fn malformed_updates_are_refused_and_never_reweighted() {
-    assert!(condition(&[], &[]).is_err());
-    assert!(condition(&[0.5, 0.5], &[0.0]).is_err());
-    assert!(condition(&[0.5, -0.1], &[0.0, 0.0]).is_err());
-    assert!(condition(&[0.5, 0.5], &[f64::NAN, 0.0]).is_err());
-    assert!(condition(&[0.5, 0.5], &[f64::INFINITY, 0.0]).is_err());
-    assert!(condition(&[0.5, 0.5], &[f64::NEG_INFINITY, f64::NEG_INFINITY]).is_err());
-    assert!(condition(&[0.0, 0.0], &[0.0, 0.0]).is_err());
+    let aligned = "invalid aligned finite belief/update";
+    let zero_mass = "zero mass under every retained state";
+    refused(condition(&[], &[]), aligned);
+    refused(condition(&[0.5, 0.5], &[0.0]), aligned);
+    refused(condition(&[0.5, -0.1], &[0.0, 0.0]), aligned);
+    refused(condition(&[0.5, f64::NAN], &[0.0, 0.0]), aligned);
+    refused(condition(&[0.5, 0.5], &[f64::NAN, 0.0]), aligned);
+    refused(condition(&[0.5, 0.5], &[f64::INFINITY, 0.0]), aligned);
+    refused(condition(&[0.5, 0.5], &[f64::NEG_INFINITY, f64::NEG_INFINITY]), zero_mass);
+    refused(condition(&[0.0, 0.0], &[0.0, 0.0]), zero_mass);
     // A slot of zero likelihood is dropped without disturbing the rest.
     let got = condition(&[0.25, 0.75], &[f64::NEG_INFINITY, -3.0]).expect("update");
     assert_eq!(got, vec![0.0, 1.0]);
@@ -91,17 +99,26 @@ fn malformed_updates_are_refused_and_never_reweighted() {
         slopes: &[1.0, 1.0],
     };
     assert!(base.condition(&[0.5, 0.5]).is_ok());
-    assert!(base.condition(&[1.0]).is_err());
+    let paired = "invalid paired affine Gaussian experiment";
+    refused(base.condition(&[1.0]), paired);
     for broken in [
         AffineGaussianExperiment { sample_size: 0, ..base },
         AffineGaussianExperiment { observation_variance: 0.0, ..base },
         AffineGaussianExperiment { observation_variance: -1.0, ..base },
+        AffineGaussianExperiment { observation_variance: f64::INFINITY, ..base },
         AffineGaussianExperiment { observed_mean: f64::NAN, ..base },
         AffineGaussianExperiment { slopes: &[1.0, 0.0], ..base },
+        AffineGaussianExperiment { intercepts: &[0.0, f64::NAN], ..base },
+        AffineGaussianExperiment { target_values: &[0.0], ..base },
     ] {
-        assert!(broken.condition(&[0.5, 0.5]).is_err());
+        refused(broken.condition(&[0.5, 0.5]), paired);
     }
-    assert!(linear_functional_rows(&[1.0, 2.0, 3.0], &[1.0, 1.0]).is_err());
-    assert!(linear_functional_rows(&[1.0, 2.0], &[]).is_err());
-    assert!(linear_functional_rows(&[f64::MAX, f64::MAX], &[2.0, 2.0]).is_err());
+    refused(
+        AffineGaussianExperiment { observation_variance: 5e-324, sample_size: 3, ..base }
+            .condition(&[0.5, 0.5]),
+        "variance underflow/overflow",
+    );
+    refused(linear_functional_rows(&[1.0, 2.0, 3.0], &[1.0, 1.0]), "invalid finite-law functional axes");
+    refused(linear_functional_rows(&[1.0, 2.0], &[]), "invalid finite-law functional axes");
+    refused(linear_functional_rows(&[f64::MAX, f64::MAX], &[2.0, 2.0]), "functional overflow");
 }

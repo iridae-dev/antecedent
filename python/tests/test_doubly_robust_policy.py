@@ -121,7 +121,12 @@ def test_retained_finite_class_regret_has_simultaneous_bound_and_artifact():
     regret = result.policy_value.finite_class_regret
     assert regret is not None
     assert regret.target == "best_in_prespecified_candidate_class_minus_selected"
-    assert regret.regret > 0.0
+    # The effect is +2 on even rows and -1 on odd rows (mean 0.5) and treatment costs 0.2, so
+    # treat-all nets 0.3 and treat-even nets 0.5 * 2 - 0.2 * 0.5 = 0.9: the regret of the
+    # selected treat-all policy against the best candidate is 0.6, and the selected policy's
+    # increment over no treatment is 0.3; the 0.01 * (i % 7) term moves each by about 1e-4.
+    assert regret.regret == pytest.approx(0.6, abs=1e-3)
+    assert result.policy_value.incremental_value == pytest.approx(0.3, abs=1e-3)
     assert regret.interval_95[0] <= regret.regret <= regret.interval_95[1]
     assert result.policy_value.support_status == "licensed"
     loaded = require_success(ant.load(bytes(result.export(artifact_id="finite-class-regret"))))
@@ -370,6 +375,7 @@ def test_retained_top_k_uplift_intervals_require_held_out_bin_support():
     for point, truth in zip(bins, (2.0, 0.5), strict=True):
         assert point.interval_95 is not None
         assert point.interval_95[0] < truth < point.interval_95[1]
+        assert point.effect == pytest.approx(truth, abs=1e-9)
     fixed_query = policy.PolicyValue(
         outcome="y",
         assignment=assignment,
@@ -530,6 +536,7 @@ def test_retained_multi_action_cate_interval_and_sparse_refusal():
         assert point.uncertainty == "pointwise_95"
         assert point.standard_error > 0.0
         assert point.interval_95[0] < truth < point.interval_95[1]
+        assert point.effect == pytest.approx(truth, abs=0.1)
     loaded = require_success(ant.load(bytes(result.export(artifact_id="multi-cate-interval"))))
     assert loaded.answer.structured["multi_action_cate"][0]["interval_95"] == pytest.approx(
         points[0].interval_95
@@ -581,6 +588,10 @@ def test_retained_held_out_and_crossfit_policy_intervals_and_constraint_refusal(
         < answer.incremental_value_interval_95[1]
     )
     assert answer.support_status == "licensed"
+    # Treating a third of the rows adds 2 / 3 at cost 0.1 / 3 over the baseline mean 1.2, so the
+    # value is 1.2 + 2 / 3 - 0.1 / 3 and the increment over treating nobody is 2 / 3 - 0.1 / 3.
+    assert answer.policy_value == pytest.approx(1.2 + 2 / 3 - 0.1 / 3, abs=0.02)
+    assert answer.incremental_value == pytest.approx(2 / 3 - 0.1 / 3, abs=0.02)
     artifact = require_success(ant.load(bytes(result.export(artifact_id="policy-interval"))))
     assert artifact.answer.structured["policy_interval_95"] == pytest.approx(
         answer.policy_value_interval_95
@@ -605,6 +616,8 @@ def test_retained_held_out_and_crossfit_policy_intervals_and_constraint_refusal(
         < crossfit_result.policy_value_interval_95[1]
     )
     assert crossfit_result.support_status == "licensed"
+    assert crossfit_result.policy_value == pytest.approx(1.2 + 2 / 3 - 0.1 / 3, abs=0.02)
+    assert crossfit_result.incremental_value == pytest.approx(2 / 3 - 0.1 / 3, abs=0.02)
 
     constrained = policy.PolicyValue(
         **dict(common, policy=policy.BinaryPolicy(actions, costs=0.1, capacity=sum(actions))),
