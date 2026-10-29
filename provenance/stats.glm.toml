@@ -40,7 +40,7 @@ record_sha256 = "cd5e352093a4bc707adc82d77557178bb7b6cd31ce423080b1f403967f1df9e
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/glm.rs"
-sha256 = "de469faef1d5757bac03d7fb7707654b018eef37a50f85ac944626c6955df047"
+sha256 = "16f5e82706406273aaab6c6e8585e2cb30a10fefaf23049dab38665942b3b59a"
 
 [[method_review.artifacts]]
 role = "implementation"

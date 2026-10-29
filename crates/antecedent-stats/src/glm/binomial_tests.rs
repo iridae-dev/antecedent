@@ -177,18 +177,14 @@ fn a_refused_fit_carries_the_facts_it_measured() {
             boundary_margin_bits,
             boundary_count,
         } => {
-            // `require_ok` reports non-convergence before separation.
-            let (expected_kind, expected_message) = if fit.converged {
-                (
-                    GlmRefusalKind::Separated,
-                    "GLM indicates (quasi-)complete separation; refuse propensity/outcome scores",
-                )
-            } else {
-                (
-                    GlmRefusalKind::NonConverged,
-                    "GLM IRLS did not converge; refuse propensity/outcome scores",
-                )
-            };
+            // A saturated fit that is separated, converged or not, is reported as separation:
+            // hitting the iteration limit is the symptom of an absent maximum-likelihood
+            // estimate, not a separate cause.
+            assert!(fit.separated);
+            let (expected_kind, expected_message) = (
+                GlmRefusalKind::Separated,
+                "GLM indicates (quasi-)complete separation; refuse propensity/outcome scores",
+            );
             assert_eq!(kind, expected_kind);
             assert_eq!(message, expected_message);
             assert_eq!(iterations, fit.iterations);

@@ -239,6 +239,10 @@ def test_the_real_aipw_refusal_under_joint_separation_carries_the_fit_facts():
     assert error.reason_code == "glm_fit_refused"
     assert fields["stage"] == "glm_fit"
     assert fields["reason"] in GLM_REASONS
+    # The arms are completely separable in the covariate space (a linear program finds a
+    # hyperplane with every margin at least one), so the registered cause is separation even
+    # though the iteration limit was reached on the way.
+    assert fields["reason"] == "separated"
     assert fields["glm_iterations"] >= 1
     assert fields["boundary_margin"] is not None and fields["boundary_count"] is not None
     assert 0 < fields["boundary_count"] <= n

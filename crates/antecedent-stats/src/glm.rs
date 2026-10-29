@@ -218,16 +218,18 @@ impl GlmFit {
             boundary_margin_bits: self.boundary_margin.map(f64::to_bits),
             boundary_count: self.boundary_count,
         };
-        if !self.converged {
-            return Err(refuse(
-                GlmRefusalKind::NonConverged,
-                "GLM IRLS did not converge; refuse propensity/outcome scores",
-            ));
-        }
+        // Separation first: a saturated fit that hit the iteration limit has no finite
+        // maximum-likelihood estimate, and that is the cause the limit is a symptom of.
         if self.separated {
             return Err(refuse(
                 GlmRefusalKind::Separated,
                 "GLM indicates (quasi-)complete separation; refuse propensity/outcome scores",
+            ));
+        }
+        if !self.converged {
+            return Err(refuse(
+                GlmRefusalKind::NonConverged,
+                "GLM IRLS did not converge; refuse propensity/outcome scores",
             ));
         }
         if self.boundary_saturated {
