@@ -50,6 +50,24 @@ fn shifted_series(seed: u64) -> TimeSeriesData {
     TimeSeriesData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())], 1).unwrap()
 }
 
+/// The difference of the second-half and first-half sample means of `y` for the same draw as
+/// [`shifted_series`], recomputed here from the generating equations alone.
+fn sample_mean_shift(seed: u64) -> f64 {
+    let mut draw = Normals(seed | 1);
+    let mut x = vec![0.0; N];
+    let mut y = vec![0.0; N];
+    for t in 1..N {
+        x[t] = 0.5 * x[t - 1] + draw.next();
+        let intercept = if t < N / 2 { 1.0 } else { 6.0 };
+        y[t] = intercept + 2.0 * x[t - 1] + draw.next();
+    }
+    let mean = |rows: std::ops::Range<usize>| {
+        let n = rows.len() as f64;
+        y[rows].iter().sum::<f64>() / n
+    };
+    mean(N / 2..N) - mean(0..N / 2)
+}
+
 fn chain() -> TemporalDag {
     let mut graph = TemporalDag::empty();
     let parent = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
@@ -86,6 +104,8 @@ fn run(
     builder.build()?.run(ctx)
 }
 
+const SHIFT_TOL: f64 = 0.05;
+
 #[test]
 fn block_bootstrap_recovers_the_known_mean_shift_with_a_row_block_interval() {
     let data = shifted_series(41);
@@ -97,6 +117,10 @@ fn block_bootstrap_recovers_the_known_mean_shift_with_a_row_block_interval() {
     // replicate totals, of the order of a two-sample mean difference (about 0.2 here).
     assert!(se > 0.03 && se < 1.0, "se {se}");
     assert!((total - 5.0).abs() < 5.0 * se + 0.5, "total {total} se {se}");
+    // The attribution total is the change in population means, which the sample means estimate:
+    // it matches the shift recomputed from the draws, far inside the 5 se + 0.5 band above.
+    let sample_shift = sample_mean_shift(41);
+    assert!((total - sample_shift).abs() < SHIFT_TOL, "total {total} vs sample shift {sample_shift}");
     let binding = result.interval().as_ref().expect("an interval binding");
     assert_eq!(binding.method, IntervalMethod::CircularBlockSe);
     assert_eq!(binding.dependence, "circular_block:row_block");

@@ -233,8 +233,9 @@ fn recovers_positive_ate_on_binary_outcome() {
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let mut ws = GlmAdjustmentWorkspace::default();
     let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
-    assert!(effect.ate > 0.0, "ate={}", effect.ate);
-    assert!(effect.ate < 1.0, "ate={}", effect.ate);
+    // logit(P) = -0.5 + 2t + z, z uniform on (-0.5, 0.5): the risk difference is the mean over z
+    // of sigma(1.5 + z) - sigma(-0.5 + z) = 0.43378; the sampling SD at n = 4000 is near 0.01.
+    assert!((effect.ate - 0.43378).abs() < 0.02, "ate={} vs 0.43378", effect.ate);
     crate::prepare::assert_records_preparation(&effect, 4000);
     assert!(effect.se_bootstrap().is_some());
 }
@@ -269,7 +270,8 @@ fn works_with_efficient_backdoor_estimand() {
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let mut ws = GlmAdjustmentWorkspace::default();
     let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
-    assert!(effect.ate > 0.0, "ate={}", effect.ate);
+    // Same logistic law as above (risk difference 0.43378); sampling SD at n = 2000 is near 0.015.
+    assert!((effect.ate - 0.43378).abs() < 0.04, "ate={} vs 0.43378", effect.ate);
 }
 
 #[test]
@@ -365,6 +367,9 @@ fn gaussian_delta_method_se_positive_and_near_bootstrap() {
     let mut ws = GlmAdjustmentWorkspace::default();
     let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
     assert!(effect.se_analytic() > 0.0, "se_analytic={}", effect.se_analytic());
+    // OLS closed form: noise U(-0.5, 0.5) has sd 1/sqrt(12) and T alternates (variance 1/4) and is
+    // nearly orthogonal to Z, so se(beta_T) = sd / sqrt(n * 1/4) = 0.2887 / 10 = 0.0289.
+    assert!((effect.se_analytic() - 0.0289).abs() < 0.004, "se_analytic={}", effect.se_analytic());
     let boot = effect.se_bootstrap().unwrap();
     assert!(
         effect.se_analytic() < 3.0 * boot && effect.se_analytic() > boot / 3.0,
@@ -372,6 +377,9 @@ fn gaussian_delta_method_se_positive_and_near_bootstrap() {
         effect.se_analytic()
     );
 }
+
+const PROBIT_TOL: f64 = 0.07;
+const ATT_TOL: f64 = 0.03;
 
 #[test]
 fn probit_adjustment_fits_binary_outcome() {
@@ -386,7 +394,7 @@ fn probit_adjustment_fits_binary_outcome() {
     // risk difference is the mean over z of sigma(1.5 + z) - sigma(-0.5 + z) = 0.4338
     // (numerical quadrature); the probit fit approximates it to sampling error at n = 200
     // (SD about 0.05). A constant or sign-flipped effect would miss it.
-    assert!((effect.ate - 0.4338).abs() < 0.15, "probit ATE {} vs 0.4338", effect.ate);
+    assert!((effect.ate - 0.4338).abs() < PROBIT_TOL, "probit ATE {} vs 0.4338", effect.ate);
     assert!(effect.se_analytic().is_finite() && effect.se_analytic() > 0.0);
 }
 
@@ -415,7 +423,7 @@ fn recovers_att_via_gcomp() {
     // T alternates independently of Z, so the ATT equals the ATE: the mean over Z ~ U(-0.5, 0.5)
     // of sigmoid(1.5 + z) - sigmoid(-0.5 + z) = 0.43378 (numerical integration). The tolerance is
     // the one the probit ATE check above uses, about four standard errors at n = 800.
-    assert!((effect.ate - 0.43378).abs() < 0.15, "logit ATT {} vs 0.43378", effect.ate);
+    assert!((effect.ate - 0.43378).abs() < ATT_TOL, "logit ATT {} vs 0.43378", effect.ate);
 }
 
 #[test]
@@ -505,7 +513,9 @@ fn negbin_gcomp_accepts_nonnegative_counts() {
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let mut ws = GlmAdjustmentWorkspace::default();
     let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
-    assert!(effect.ate.is_finite() && effect.ate > 0.0);
+    // y is 1 in the control arm and 3 in the treated arm for every row, and the saturated
+    // intercept + T log-link model reproduces the arm means, so the contrast is exactly 3 - 1.
+    assert!((effect.ate - 2.0).abs() < 1e-6, "NB ATE {} vs 2", effect.ate);
 }
 
 #[test]
@@ -571,6 +581,13 @@ fn hc1_sandwich_se_finite_without_bootstrap() {
     let mut ws = GlmAdjustmentWorkspace::default();
     let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
     assert!(effect.se_analytic().is_finite() && effect.se_analytic() > 0.0);
+    // The model is correctly specified, so the sandwich SE sits at the sampling SD of the ATE,
+    // which an independent row bootstrap measures.
+    let boot = est.clone().with_bootstrap_replicates(300);
+    let bprep = boot.prepare(&data, &estimand, &query).unwrap();
+    let bfit = boot.fit(&bprep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+    let ratio = effect.se_analytic() / bfit.se_bootstrap().unwrap();
+    assert!((0.7..1.43).contains(&ratio), "HC1 / bootstrap SE ratio {ratio}");
 }
 
 /// `Φ(eta)` at 60 digits (mpmath `ncdf`), rounded once, for the `etas` of the test below.

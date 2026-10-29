@@ -11,6 +11,7 @@ the invariant that regressed silently because no case exercised it.
 from __future__ import annotations
 
 import json
+import math
 import warnings
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -93,7 +94,8 @@ def _policy_query() -> Any:
 
 
 def _randomized_query() -> Any:
-    a = [bool(v) for v in np.random.default_rng(0).uniform(size=400) < 0.5]
+    # The same assignment draw as `_bernoulli(1)`, so the design describes the data analysed.
+    a = [bool(v) for v in np.random.default_rng(1).uniform(size=400) < 0.5]
     ids = [f"u{i}" for i in range(400)]
     return ant.experiment.RandomizedEffect(
         "y", ant.experiment.ExperimentDesign(BernoulliAssignment(0.5), a, ids, ids)
@@ -121,28 +123,77 @@ class Case:
     kind: str
     refresh: Literal["same", "refused", "skip"] = "same"
     options: dict[str, Any] = field(default_factory=dict)
+    # Known-truth check of the numerical answer, from the generating equations of the case.
+    truth: Callable[[Any], None] | None = None
+
+
+def _near(value: float, expected: float, tolerance: float) -> None:
+    assert abs(value - expected) < tolerance, f"{value} vs {expected} +- {tolerance}"
+
+
+def _randomized_truth(result: Any) -> None:
+    # y = a + N(0, 1) with a ~ Bernoulli(1/2): the effect is 1; the se is about 0.1 at n = 400.
+    _near(result.ate, 1.0, 0.35)
+
+
+def _policy_truth(result: Any) -> None:
+    # The policy treats half the evaluation rows, so its value is E[y(1)] / 2 = 0.5 (se 0.084);
+    # the always-control reference is 0 and the treated-everyone reference 1 sit at least 0.5 away.
+    _near(result.answer.structured["policy_value"], 0.5, 0.25)
+
+
+def _did_truth(result: Any) -> None:
+    # The interaction coefficient of y = 1 + 0.5 g + 0.3 post + 2 g post + N(0, 0.04) is 2.
+    _near(result.answer.structured["effect"], 2.0, 0.2)
+
+
+def _event_truth(result: Any) -> None:
+    # A jump of 5 from the adoption period (cohort 3) and no pre-trend.
+    effects = {
+        (row["cohort"], row["event_time"]): row["estimate"]
+        for row in result.answer.structured["event_time_effects"]
+    }
+    _near(effects[(3, 0)], 5.0, 0.2)
+    _near(effects[(3, -2)], 0.0, 0.2)
+
+
+def _survival_truth(result: Any) -> None:
+    # Exponential durations with mean 2 and no treatment effect: RMST(2) = 2 (1 - exp(-1)).
+    expected = 2.0 * (1.0 - math.exp(-1.0))
+    structured = result.answer.structured
+    _near(structured["rmst_control"], expected, 0.2)
+    _near(structured["rmst_treated"], expected, 0.2)
+
+
+def _longitudinal_truth(result: Any) -> None:
+    # Only subjects with history (1, 1) follow the regime; they have y = 4 and no noise.
+    assert result.answer.structured["value"] == pytest.approx(4.0, abs=1e-9)
+    assert result.answer.structured["matched_observed_fraction"] == pytest.approx(0.25)
 
 
 CASES = [
-    Case("randomized-bernoulli", _bernoulli, _randomized_query(), "point"),
+    Case("randomized-bernoulli", _bernoulli, _randomized_query(), "point", truth=_randomized_truth),
     Case(
         "policy-value",
         lambda s: {"y": _bernoulli(s)["y"]},
         _policy_query(),
         "policy_value",
         refresh="refused",
+        truth=_policy_truth,
     ),
     Case(
         "panel-did",
         _panel,
         quasi.PanelDifferenceInDifferences("y", "id", "g", "post"),
         "structured",
+        truth=_did_truth,
     ),
     Case(
         "staggered-event-study",
         _event,
         quasi.StaggeredAdoption("y", "id", "period", "cohort", event_study=True),
         "structured",
+        truth=_event_truth,
     ),
     Case(
         "survival-rmst",
@@ -157,8 +208,15 @@ CASES = [
         ),
         "structured",
         options={"inference": ant.Frequentist(bootstrap=199)},
+        truth=_survival_truth,
     ),
-    Case("longitudinal-regime", _longitudinal, _longitudinal_query(), "structured"),
+    Case(
+        "longitudinal-regime",
+        _longitudinal,
+        _longitudinal_query(),
+        "structured",
+        truth=_longitudinal_truth,
+    ),
 ]
 
 
@@ -171,8 +229,10 @@ def test_golden_path_structured_queries(case: Case) -> None:
         warnings.simplefilter("error")
         result = require_success(ant.analyze(data, query=case.query, **case.options))
 
-        # 1. answer kind is what the family declares.
+        # 1. answer kind is what the family declares, and its number is the known truth.
         assert result.answer.kind == case.kind
+        assert case.truth is not None
+        case.truth(result)
 
         # 2. inspect().to_dict() is JSON and shares its shape with the loaded report.
         report = result.inspect().to_dict()

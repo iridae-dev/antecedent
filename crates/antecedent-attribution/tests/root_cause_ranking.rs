@@ -57,10 +57,22 @@ fn half_an_ensemble_is_refused_not_silently_ignored() {
     let ctx = ExecutionContext::for_tests(1);
     let graphs = graphs(&[1.0]);
     let draws = draws(&[2.0]);
-    assert!(root_cause_rank(&attribution(2.0), Some(&graphs), None, &ctx).is_err());
-    assert!(root_cause_rank(&attribution(2.0), None, Some(&draws), &ctx).is_err());
-    assert!(root_cause_rank(&attribution(2.0), Some(&graphs), Some(&draws), &ctx).is_ok());
-    assert!(root_cause_rank(&attribution(2.0), None, None, &ctx).is_ok());
+    for (given_graphs, given_draws) in [(Some(&graphs), None), (None, Some(&draws))] {
+        let error =
+            root_cause_rank(&attribution(2.0), given_graphs, given_draws, &ctx).unwrap_err();
+        assert!(
+            error.to_string().contains("graph_samples and contribution_draws must be given together"),
+            "{error}"
+        );
+    }
+    // Both halves give the ensemble ranking: one identified graph with one draw has no spread.
+    let both = root_cause_rank(&attribution(2.0), Some(&graphs), Some(&draws), &ctx).unwrap();
+    assert!((both[0].score - 2.0).abs() < 1e-12);
+    assert!(both[0].graph_std.unwrap().abs() < 1e-12);
+    // Neither half gives the plain ranking: the absolute contribution and no graph uncertainty.
+    let neither = root_cause_rank(&attribution(-2.0), None, None, &ctx).unwrap();
+    assert!((neither[0].score - 2.0).abs() < 1e-12);
+    assert!(neither[0].graph_std.is_none());
 }
 
 #[test]

@@ -313,6 +313,8 @@ fn ppc() {
         .unwrap();
     assert_eq!(post_rep.kind, PredictiveCheckKind::Posterior);
     assert!(post_rep.p_value.is_finite());
+    assert!((0.0..=1.0).contains(&prior_rep.p_value), "prior p = {}", prior_rep.p_value);
+    assert!((0.0..=1.0).contains(&post_rep.p_value), "posterior p = {}", post_rep.p_value);
 
     // Facade attaches both prior and posterior PPC when refute ≠ none.
     let mut dag = Dag::with_variables(3);
@@ -368,6 +370,13 @@ fn prior_sensitivity() {
     if expected["require_finite_effect_means"].as_bool().unwrap() {
         assert!(summary.effect_means.iter().all(|m| m.is_finite()));
     }
+    // Y = 2T + 0.5Z without noise: a weaker prior shrinks the effect less, so the distance to
+    // the generating effect 2 never grows with the scale, and the widest prior recovers it.
+    let dist: Vec<f64> = summary.effect_means.iter().map(|m| (m - 2.0).abs()).collect();
+    for w in dist.windows(2) {
+        assert!(w[1] <= w[0] + 1e-9, "shrinkage must fall as the prior scale grows: {dist:?}");
+    }
+    assert!(*dist.last().unwrap() < 1e-3, "widest prior should recover 2: {dist:?}");
 }
 
 /// The `temporal_pulse` fixture's series and lag-1 `TemporalDag`:
@@ -433,6 +442,10 @@ fn pulse_scm_series(n: usize, true_ate: f64) -> (TimeSeriesData, TemporalDag) {
     (series, g)
 }
 
+/// The pulse series is noise free, so the conjugate posterior mean sits within this of the
+/// generating coefficient (about 40 times tighter than the fixture band).
+const PULSE_EXACT_TOL: f64 = 1e-3;
+
 #[test]
 fn temporal_pulse() {
     let expected = load_expected_json(&fixture_dir("temporal_pulse"));
@@ -460,8 +473,14 @@ fn temporal_pulse() {
     let eq = post.effect_column().unwrap();
     let mean = post.summaries.mean[eq];
     assert!((mean - true_ate).abs() < tol, "mean={mean} expected={true_ate}");
+    // The series is noise free, so the posterior concentrates on the generating coefficient; the
+    // 0.05 band alone is wide enough to admit a mis-lagged or shrunk estimate.
+    assert!((mean - true_ate).abs() < PULSE_EXACT_TOL, "mean={mean} expected={true_ate}");
     if expected["require_finite_p_below_zero"].as_bool().unwrap() {
-        assert!(post.probability_below(0.0).unwrap().is_finite());
+        let p_below = post.probability_below(0.0).unwrap();
+        assert!(p_below.is_finite());
+        // A positive effect 0.9 with a degenerate posterior has essentially no mass below zero.
+        assert!(p_below < 1e-6, "P(effect < 0) = {p_below}");
     }
     if expected["require_artifact_round_trip"].as_bool().unwrap() {
         let bytes = encode_causal_posterior_bytes(post, "temporal-pulse").unwrap();
@@ -518,6 +537,10 @@ fn temporal_pulse_staged_all_structures_and_suites() {
             let post = result.posterior.as_ref().expect("posterior");
             let mean = post.summaries.mean[post.effect_column().unwrap()];
             assert!((mean - true_ate).abs() < tol, "{label}: mean={mean} expected={true_ate}");
+            assert!(
+                (mean - true_ate).abs() < PULSE_EXACT_TOL,
+                "{label}: noise-free mean={mean} expected={true_ate}"
+            );
             let names: Vec<&str> = result.refutations.iter().map(|r| r.refuter.as_ref()).collect();
             let has_check = |kind| result.predictive_checks.iter().any(|c| c.kind == kind);
             if suite == RefuteSuite::None {
@@ -699,7 +722,7 @@ fn temporal_sustained_multi_step_keeps_earlier_causal_time() {
         .build()
         .unwrap();
     let result = analysis.run(&ExecutionContext::for_tests(42)).unwrap();
-    assert!((result.estimate().as_effect().unwrap().ate - 0.7).abs() < 0.1);
+    assert!((result.estimate().as_effect().unwrap().ate - 0.7).abs() < 0.01);
     assert_eq!(result.logical_plan.estimator.as_deref().unwrap(), "temporal.sequential.gcomp");
 }
 
@@ -744,6 +767,9 @@ fn assert_sustained_mean(result: &antecedent::StudyResult) {
     let eq = post.effect_column().unwrap();
     let mean = post.summaries.mean[eq];
     assert!((mean - true_ate).abs() < tol, "mean={mean} expected={true_ate}");
+    // Noise sd 0.05 gives a slope standard error of about 0.0035, so the mean stays within 0.01
+    // of 0.7; the 0.05 fixture band would also admit a lag-1 or shrunk estimate.
+    assert!((mean - true_ate).abs() < 0.01, "mean={mean} expected={true_ate}");
     if expected["require_finite_p_below_zero"].as_bool().unwrap() {
         assert!(post.probability_below(0.0).unwrap().is_finite());
     }

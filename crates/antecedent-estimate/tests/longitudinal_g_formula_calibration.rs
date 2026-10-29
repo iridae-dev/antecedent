@@ -82,5 +82,11 @@ fn fixed_known_q_subject_intervals_cover_two_period_regime_truth() {
         }
     }
     eprintln!("fixed-known-Q g-formula pointwise coverage: {covered}/{TRIALS}");
-    assert!(covered >= 1_800, "fixed-known-Q g-formula coverage {covered}/{TRIALS}");
+    // Nominal 95% over 2000 trials has a binomial SD of 10; the band is about four SDs wide on
+    // each side of 1900 (observed 1897). A 90% interval (1800) or an over-wide one (above 1940)
+    // both fall outside.
+    assert!(
+        (1_860..=1_940).contains(&covered),
+        "fixed-known-Q g-formula coverage {covered}/{TRIALS}"
+    );
 }

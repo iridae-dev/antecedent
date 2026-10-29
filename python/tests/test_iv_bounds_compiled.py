@@ -72,6 +72,9 @@ def test_the_answer_is_an_identified_set_never_a_point() -> None:
     assert answer.kind == "bounds"
     assert answer.bounds is not None
     assert answer.bounds[0] < answer.bounds[1]
+    assert answer.bounds == pytest.approx(
+        (TABLE1["expected"]["lower"], TABLE1["expected"]["upper"]), abs=1e-9
+    )
     assert answer.detail is not None and answer.detail.startswith("unlicensed_iv_bounds")
     assert answer.value is None
     assert "partially identified" in result.claim()
@@ -124,6 +127,10 @@ def test_bayesian_inference_reports_the_endpoint_posterior() -> None:
     assert section is not None and section.posterior is not None
     assert section.posterior.n_draws == 400
     assert section.posterior.lower_mean < section.posterior.upper_mean
+    # Conjugate cell posteriors centre on the empirical cells, so the endpoint posterior means sit
+    # within sampling error (about 0.004 at 2000 per arm) of the frozen Balke-Pearl bounds.
+    assert section.posterior.lower_mean == pytest.approx(TABLE1["expected"]["lower"], abs=0.01)
+    assert section.posterior.upper_mean == pytest.approx(TABLE1["expected"]["upper"], abs=0.01)
     assert result.answer.kind == "bounds"
 
 
@@ -136,6 +143,8 @@ def test_a_weighted_law_is_the_same_as_the_sample_it_describes() -> None:
     assert sample is not None
     assert weighted.lower == pytest.approx(sample.lower, abs=1e-9)
     assert weighted.upper == pytest.approx(sample.upper, abs=1e-9)
+    assert weighted.lower == pytest.approx(TABLE1["expected"]["lower"], abs=1e-9)
+    assert weighted.upper == pytest.approx(TABLE1["expected"]["upper"], abs=1e-9)
 
 
 def test_a_declared_dependent_design_refuses_the_row_level_draw() -> None:
@@ -156,7 +165,7 @@ def test_a_declared_dependent_design_refuses_the_row_level_draw() -> None:
 def test_a_column_that_is_not_coded_zero_one_is_refused() -> None:
     data = _counts_sample(TABLE1["cells"], 1_000)
     data["d"] = data["d"] * 2.0
-    with pytest.raises(CausalError):
+    with pytest.raises(CausalError, match="coded exactly 0 and 1"):
         require_success(ant.analyze(data, query=QUERY, refute="none"))
 
 
@@ -174,7 +183,7 @@ def test_graph_and_refutation_options_do_not_apply() -> None:
 
 def test_the_estimator_follows_the_inference_mode() -> None:
     data = _counts_sample(TABLE1["cells"], 1_000)
-    with pytest.raises(CausalError):
+    with pytest.raises(CausalUnsupportedError, match="selects its identifier and estimator itself"):
         require_success(
             ant.analyze(
                 data, query=QUERY, estimator="bayesian.iv_bounds.endpoint_bootstrap", refute="none"

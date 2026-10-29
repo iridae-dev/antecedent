@@ -142,6 +142,8 @@ def test_same_design_transfer_on_staged_path(pin, source_query, target_query, qu
     result = require_success(antecedent.estimate(prepared))
     assert result.posterior is not None
     assert abs(result.posterior.effect_mean - _TRUTH) < _ATOL
+    # Noise half-width 0.05 over 240 rows: the posterior sits much closer than the fixture band.
+    assert abs(result.posterior.effect_mean - _TRUTH) < 0.02
 
 
 def test_same_design_response_curve_uses_declared_identical_mapping():
@@ -173,6 +175,9 @@ def test_same_design_response_curve_uses_declared_identical_mapping():
     assert result.response is not None
     values = np.asarray([row[0] for row in result.response.values], dtype=float)
     assert np.isfinite(values).all()
+    # The curve at grid [0, 1] has intercept 0 and slope 0.9 (defect_t = 0.9 pressure_{t-1} plus
+    # noise of half-width 0.05), and the source posterior centres on the same law.
+    assert values == pytest.approx([0.0, 0.9], abs=0.02)
 
 
 @pytest.mark.parametrize(
@@ -211,10 +216,30 @@ def test_mapped_effect_transfer_on_staged_path(pin, target_query, edges):
         execution=antecedent.Execution(seed=_SEED),
     )
     result = require_success(antecedent.estimate(prepared))
-    if hasattr(result, "posterior") and result.posterior is not None:
-        assert np.isfinite(result.posterior.effect_mean)
+    baseline = require_success(
+        antecedent.estimate(
+            antecedent.prepare(
+                data,
+                graph=edges,
+                query=target_query,
+                inference=antecedent.Bayesian(n_draws=_DRAWS, backend="conjugate"),
+                refute=False,
+                execution=antecedent.Execution(seed=_SEED),
+            )
+        )
+    )
+    # The target data have effect 0.2 and the source posterior centres on 0.9. A transferred
+    # effect prior pulls the posterior strictly between the two, away from the data-only fit.
+    if getattr(result, "posterior", None) is not None:
+        informed, flat = result.posterior.effect_mean, baseline.posterior.effect_mean
+        assert flat == pytest.approx(0.2, abs=0.05)
+        assert flat + 0.1 < informed < _TRUTH, (flat, informed)
     else:
         assert result.response is not None
+        informed = np.asarray([row[0] for row in result.response.values], dtype=float)
+        flat = np.asarray([row[0] for row in baseline.response.values], dtype=float)
+        assert np.isfinite(informed).all()
+        assert np.abs(informed - flat).max() > 0.1, (flat, informed)
 
 
 def test_incompatible_catalog_fails_closed():

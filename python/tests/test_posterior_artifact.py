@@ -6,6 +6,7 @@ import math
 
 import antecedent
 import numpy as np
+import pytest
 from antecedent.outcomes import require_success
 
 from _scm import confounded_scm
@@ -62,7 +63,13 @@ def test_posterior_artifact_round_trip_opt_in():
         np.testing.assert_array_equal(art2.quantity(name).draws, art.quantity(name).draws)
     assert bytes(again) == bytes(exported)
     assert art2.mean == art.mean
-    assert abs(art2.mean[effect_idx] - 2.0) < 0.5
+    # Structural ATE is 2 with posterior sd about 0.04 at n = 400; the unadjusted contrast is far
+    # above 2, so a 0.5 band hides confounding bias. The artifact summaries must also equal the
+    # moments recomputed from the draws it carries.
+    assert abs(art2.mean[effect_idx] - 2.0) < 0.1
+    ate_draws = np.asarray(art2.quantity("ate").draws)
+    assert art2.mean[effect_idx] == pytest.approx(ate_draws.mean(), abs=1e-12)
+    assert art2.sd[effect_idx] == pytest.approx(ate_draws.std(ddof=1), abs=1e-12)
 
 
 def test_posterior_artifact_payload_size_vs_summaries():
@@ -94,6 +101,7 @@ def test_posterior_artifact_payload_size_vs_summaries():
     assert draws.size == art.n_draws * len(art.quantity_names)
     assert draws.size > 0
     assert len(bytes(full_artifact)) > len(art.mean) * 8
+    assert abs(full.posterior.effect_mean - 2.0) < 0.15
     assert full.posterior.effect_mean == summary.posterior.effect_mean
     assert full.posterior.n_draws == summary.posterior.n_draws
 

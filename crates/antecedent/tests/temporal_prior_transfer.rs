@@ -287,6 +287,7 @@ fn same_design_sustained_and_response_curve_ride_staged_path() {
     let mean = clicked.posterior.as_ref().unwrap().summaries.mean
         [clicked.posterior.as_ref().unwrap().effect_column().unwrap()];
     assert!((mean - truth).abs() < atol, "same-design sustained mean={mean}");
+    assert!((mean - truth).abs() < 0.01, "same-design sustained mean={mean} truth={truth}");
 
     let curve_catalog = catalog_for(
         "match",
@@ -320,6 +321,17 @@ fn same_design_sustained_and_response_curve_ride_staged_path() {
     let prepared = analysis.prepare(&ctx).unwrap();
     let clicked = prepared.estimate_series(&curve_series, &ctx).unwrap();
     assert!(clicked.response().is_some(), "temporal ResponseCurve must estimate under transfer");
+    // The curve is intercept 0 and slope 0.9 over the pinned grid [0, 1] (noise half-width 0.05).
+    match &clicked.response().unwrap().estimate {
+        antecedent_core::ResponseIdentification::PointIdentified(
+            antecedent_core::ResponseValue::Surface { mean, .. },
+        ) => {
+            assert_eq!(mean.len(), 2, "{mean:?}");
+            assert!(mean[0].abs() < 0.02, "curve at 0: {mean:?}");
+            assert!((mean[1] - truth).abs() < 0.02, "curve at 1: {mean:?}");
+        }
+        other => panic!("expected a point-identified response surface, got {other:?}"),
+    }
 }
 
 #[test]
@@ -373,9 +385,11 @@ fn mapped_effect_transfer_and_incompatible_catalog_fail_closed() {
         [baseline.posterior.as_ref().unwrap().effect_column().unwrap()];
     let mapped_mean = clicked.posterior.as_ref().unwrap().summaries.mean
         [clicked.posterior.as_ref().unwrap().effect_column().unwrap()];
+    // The target data carry effect 0.2 while the source posterior centres on 0.9: the transferred
+    // effect prior must pull the posterior measurably toward the source, not leave it unchanged.
     assert!(
-        (mapped_mean - source_truth).abs() < (base - source_truth).abs() + 1e-9,
-        "mapped pulse should not sit farther from the source effect than the weak baseline \
+        (mapped_mean - source_truth).abs() + 0.05 < (base - source_truth).abs(),
+        "mapped pulse should sit closer to the source effect than the weak baseline \
          mapped={mapped_mean} baseline={base}"
     );
 

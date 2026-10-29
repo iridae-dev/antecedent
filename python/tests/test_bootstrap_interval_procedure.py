@@ -70,6 +70,11 @@ def test_never_met_tolerances_reproduce_the_fixed_count_and_early_stop_on_a_wave
     assert report["max_replicates"] == CAP and report["level"] == 0.9
     lower, upper = report["interval"]
     assert lower < upper
+    # A 90% interval from 120 replicates brackets the point estimate, and its width is that of a
+    # normal interval with the reported bootstrap SE: 2 * 1.645 * se, within Monte Carlo error.
+    assert lower < full.estimate.ate < upper
+    width = (upper - lower) / (2 * 1.6449 * full.estimate.se_bootstrap)
+    assert 0.7 < width < 1.3, width
     assert report["se_rel_mc_error"] is not None
     assert full.estimate.se_bootstrap == fixed.estimate.se_bootstrap
     assert full.estimate.ate == fixed.estimate.ate

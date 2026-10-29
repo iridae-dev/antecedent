@@ -166,6 +166,13 @@ fn all_bayesian_temporal_class_effect_coordinates_execute_from_retained_source_p
             "class={}, source={source}, multi_step={multi_step}, suite={suite:?}, truth {true_effect} outside [{lower}, {upper}]",
             graph_class(&graph),
         );
+        if matches!(graph, SourceGraph::Cpdag(_)) {
+            // The two completions are the adjusted law (truth B1) and the unadjusted one, whose
+            // pulse coefficient is the confounded probability limit; the envelope ends sit on them.
+            let [unadjusted, _] = fixtures::cpdag_completion_truths(0.0);
+            assert!((lower - true_effect).abs() < 0.03, "lower {lower} vs adjusted {true_effect}");
+            assert!((upper - unadjusted).abs() < 0.03, "upper {upper} vs unadjusted {unadjusted}");
+        }
         let mixture = result.structural_response.as_ref().unwrap();
         assert!(
             mixture.atoms.iter().any(|atom| atom.posterior.is_some()),
@@ -281,7 +288,7 @@ fn bayesian_temporal_class_effect_retains_a_caller_supplied_class_mass() {
     let [unadjusted, adjusted] = fixtures::cpdag_completion_truths(0.0);
     let mixed_truth = 0.25 * unadjusted + 0.75 * adjusted;
     assert!(
-        (result.estimate().as_effect().unwrap().ate - mixed_truth).abs() < 0.12,
+        (result.estimate().as_effect().unwrap().ate - mixed_truth).abs() < 0.05,
         "class-mass mixture {} far from {mixed_truth}",
         result.estimate().as_effect().unwrap().ate
     );

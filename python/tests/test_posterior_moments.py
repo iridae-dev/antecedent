@@ -257,7 +257,7 @@ def test_functional_validation_uses_table_and_accepted_structure(accepted, suite
     )
     outcome = ac.estimate(prepared)
     result = require_success(outcome)
-    assert result.ate == pytest.approx(0.7, abs=0.05)
+    assert result.ate == pytest.approx(0.7, abs=1e-9)
     query_art = artifacts.loads(bytes(outcome.export(quantity="query")))
     assert (
         artifacts.loads(

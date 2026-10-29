@@ -67,15 +67,15 @@ def test_a_real_trial_refines_an_ambiguous_class_and_replays_every_decision():
 
 def test_a_forged_or_truncated_artifact_does_not_replay():
     artifact = bytes(_estimate().export())
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="UnexpectedEof"):
         tc.verify_trial_compatible_transport_estimate(artifact[:-1])
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="expected map"):
         tc.verify_trial_compatible_transport_estimate(b"not an artifact")
     flipped = bytearray(artifact)
     flipped[len(flipped) // 2] ^= 0xFF
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="checksum mismatch"):
         tc.verify_trial_compatible_transport_estimate(bytes(flipped))
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match="bytes or ExportedArtifact"):
         tc.verify_trial_compatible_transport_estimate("artifact")  # type: ignore[arg-type]
 
 
@@ -95,9 +95,9 @@ def test_a_trial_that_rejects_every_member_of_the_class_is_refused_as_an_estimat
 
 def test_the_test_level_is_declared_in_the_open_interval():
     for alpha in (0.0, 1.0, -0.1, float("nan")):
-        with pytest.raises(CausalValueError):
+        with pytest.raises(CausalValueError, match="strictly between 0 and 1"):
             _estimate(alpha=alpha)
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match="alpha must be a real number"):
         _estimate(alpha="0.01")
 
 
@@ -162,15 +162,15 @@ def test_a_receipt_does_not_replay_against_other_inputs():
     receipt = tc.estimate_trial_compatible_transport_confidence_set(
         CONTRACT, SOURCE, SOURCE, **arguments
     ).export()
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="does not replay against supplied inputs"):
         tc.verify_trial_compatible_transport_confidence_set_against(
             receipt, CONTRACT, SOURCE, SOURCE, **{**arguments, "support_upper": 4.0}
         )
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="does not replay against supplied inputs"):
         tc.verify_trial_compatible_transport_confidence_set_against(
             receipt, CONTRACT, SOURCE, SOURCE, **{**arguments, "alpha": 0.05}
         )
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="UnexpectedEof"):
         tc.verify_trial_compatible_transport_confidence_set_against(
             bytes(receipt)[:-1], CONTRACT, SOURCE, SOURCE, **arguments
         )
@@ -178,11 +178,11 @@ def test_a_receipt_does_not_replay_against_other_inputs():
 
 def test_an_empty_or_inverted_support_is_refused_before_any_work():
     arguments = {**COMMON, "alpha": 0.01}
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="support_lower must be below support_upper"):
         tc.estimate_trial_compatible_transport_confidence_set(
             CONTRACT, SOURCE, SOURCE, support_lower=1.0, support_upper=1.0, **arguments
         )
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match="support_lower must be a real number"):
         tc.estimate_trial_compatible_transport_confidence_set(
             CONTRACT,
             SOURCE,

@@ -458,29 +458,38 @@ fn refusals_are_typed_for_unobserved_features_invalid_problems_budget_and_cancel
             o,
         )
     };
-    assert!(compile(vec![], options(1)).is_err());
-    assert!(compile(vec![threshold_family("a"), threshold_family("a")], options(1)).is_err());
-    assert!(compile(
+    // Each invalid problem is the operational `Invalid` refusal (no scientific reason code).
+    let invalid = |r: Result<PreparedAdaptivePolicySearch, AdaptivePolicySearchError>| match r {
+        Err(AdaptivePolicySearchError::Invalid(message)) => message,
+        Err(other) => panic!("expected Invalid, got {other:?}"),
+        Ok(_) => panic!("expected Invalid, compiled"),
+    };
+    assert!(!invalid(compile(vec![], options(1))).is_empty());
+    let duplicate = invalid(compile(
+        vec![threshold_family("a"), threshold_family("a")],
+        options(1),
+    ));
+    assert!(!duplicate.is_empty(), "{duplicate}");
+    let elite = invalid(compile(
         vec![threshold_family("a")],
-        PolicySearchOptions { elite_fraction: 0.9, ..options(1) }
-    )
-    .is_err());
-    assert!(PreparedAdaptivePolicySearch::compile(
+        PolicySearchOptions { elite_fraction: 0.9, ..options(1) },
+    ));
+    assert_eq!(elite, "invalid bounded search policy");
+    let _ = invalid(PreparedAdaptivePolicySearch::compile(
         vec![threshold_family("a")],
         Some(3),
         PolicyConstraints::default(),
         PolicyObjective::ExpectedUtility,
-        options(1)
-    )
-    .is_err());
-    assert!(PreparedAdaptivePolicySearch::compile(
+        options(1),
+    ));
+    let alpha = invalid(PreparedAdaptivePolicySearch::compile(
         vec![threshold_family("a")],
         None,
         PolicyConstraints::default(),
         PolicyObjective::LowerTailMean { alpha: 0.0 },
-        options(1)
-    )
-    .is_err());
+        options(1),
+    ));
+    assert!(!alpha.is_empty(), "{alpha}");
 
     let budget = run(
         vec![threshold_family("t")],

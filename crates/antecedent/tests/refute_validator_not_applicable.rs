@@ -70,7 +70,10 @@ fn conditional_effect_placebo_and_rcc_run_on_interaction_scalar() {
         .build()
         .unwrap();
     let result = analysis.run(&ExecutionContext::for_tests(1)).unwrap();
-    assert!(result.estimate().as_effect().unwrap().ate.is_finite());
+    // y = 1 + 2 t + 0.5 t w has no noise and w = i mod 5 averages 2 over the 120 rows, so the
+    // interaction-model scalar at the mean modifier is exactly 2 + 0.5 * 2 = 3.
+    let ate = result.estimate().as_effect().unwrap().ate;
+    assert!((ate - 3.0).abs() < 1e-8, "conditional ATE {ate} vs 3");
     let names: Vec<&str> = result.refutations.iter().map(|r| r.refuter.as_ref()).collect();
     assert!(
         names.iter().any(|n| n.contains("placebo")),
