@@ -73,7 +73,7 @@ def test_from_discovery_estimates_without_rediscover(monkeypatch):
     assert estimate_handle.version == 1
     assert math.isfinite(first.ate)
     assert math.isfinite(second.ate)
-    assert abs(first.ate - 2.0) < 0.75
+    assert abs(first.ate - 2.0) < 4.0 * first.estimate.se_analytic
     assert first.identification.status == second.identification.status
 
 
@@ -253,7 +253,7 @@ def test_prepare_on_accepted_graph():
     assert prepared.inspect().stage == "prepared"
     assert accepted.version == 1
     assert abs(first.ate - second.ate) < 1e-12
-    assert abs(first.ate - 2.0) < 0.6
+    assert abs(first.ate - 2.0) < 4.0 * first.estimate.se_analytic
 
 
 def _lag1_series(n: int = 300, seed: int = 9):
@@ -315,8 +315,10 @@ def test_temporal_accepted_graph_estimates_without_rediscover(monkeypatch):
     )
     assert calls["n"] == 1, "temporal estimate clicks must not re-enter discovery"
     assert estimate_handle.version == 1
-    assert math.isfinite(first.ate)
-    assert math.isfinite(second.ate)
+    # The generating law is y_t = 0.8 x_{t-1} + noise(0.05), so a unit pulse at lag 1 moves y
+    # by 0.8 one step on (observed deviation 0.005).
+    assert abs(first.ate - 0.8) < 0.02
+    assert abs(second.ate - 0.8) < 0.02
 
 
 def test_temporal_rediscover_bumps_version(monkeypatch):
@@ -507,7 +509,7 @@ def test_convenience_preparation_is_fit_free_and_matches_canonical_lifecycle():
     )
     assert all(isinstance(outcome, Outcome) for outcome in outcomes)
     results = [require_success(outcome) for outcome in outcomes]
-    assert abs(results[0].ate - 2.0) < 0.6
+    assert abs(results[0].ate - 2.0) < 4.0 * results[0].estimate.se_analytic
     for outcome, result in zip(outcomes, results, strict=True):
         assert result.ate == results[0].ate
         assert result.identification.status == results[0].identification.status
@@ -555,7 +557,7 @@ def test_explicit_inference_profile_and_budget_override_click_defaults(profile):
     result = require_success(study.estimate())
     assert result.performance.latency_mode == profile
     assert result.performance.bootstrap_replicates_requested == 3
-    assert abs(result.ate - 2.0) < 0.75
+    assert abs(result.ate - 2.0) < 4.0 * result.estimate.se_analytic
 
 
 @pytest.mark.parametrize(

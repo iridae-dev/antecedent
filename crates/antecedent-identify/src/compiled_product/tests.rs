@@ -244,7 +244,14 @@ fn target_validation_never_promotes_feasible_unsupported_or_conditional_worlds()
             product.outcome = IdentificationOutcome::Unidentified;
             product.claim_class = IdentificationClaimClass::ModelConditional;
             assert!(product.assembled_is_identified_claim());
-            assert!(product.validate_target(&target).is_err());
+            // A product that no longer states an identified claim but whose assembled functional
+            // still does is refused for the same unsupported world, not accepted.
+            assert_eq!(
+                product.validate_target(&target),
+                Err(ProductRefusal::IdentifiedWithoutWorldSupport {
+                    world: ScientificWorldId::from_raw(2),
+                })
+            );
             product.assembled.as_mut().unwrap().claim_class =
                 IdentificationClaimClass::ModelConditional;
             assert_eq!(product.validate_target(&target), Ok(()));

@@ -110,5 +110,9 @@ fn the_weak_instrument_screen_refuses_exactly_above_the_reference_statistic() {
         )
     };
     assert!(run(f * 0.999).is_ok());
-    assert!(run(f * 1.001).is_err());
+    let refusal = run(f * 1.001).expect_err("a threshold above the reference F must refuse");
+    assert!(
+        refusal.to_string().contains("weak_instrument"),
+        "the refusal must be the weak-instrument one, not another validation failure: {refusal}"
+    );
 }

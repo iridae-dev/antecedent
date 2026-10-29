@@ -174,6 +174,18 @@ fn mnar_excludes_null_tips_between_the_grid_points_where_the_interval_flips() {
         assert!(side.bracket_lower.abs() < side.parameter.abs());
     }
     assert!(null.negative.is_some() || null.positive.is_some());
+    // Closed form: with the treated arm loaded, effect(d) = 1.5 + 0.4 d and
+    // Var(d) = 3.5/6 + 0.24/10 d^2 + 2.5/5. The 95% interval first excludes zero where
+    // (1.5 + 0.4 d)^2 = z^2 Var(d), the positive root of a quadratic; the other root (about
+    // -19.2) lies outside the grid, so there is no negative tipping point.
+    let z2 = 1.959_963_984_540_054_f64.powi(2);
+    let a = 0.16 - z2 * 0.024;
+    let b = 1.2;
+    let c = 2.25 - z2 * (3.5 / 6.0 + 0.5);
+    let root = (-b + (b * b - 4.0 * a * c).sqrt()) / (2.0 * a);
+    assert!(root > 1.0 && root < 2.0, "{root}");
+    assert!(null.negative.is_none());
+    close(null.positive.unwrap().parameter, root, 1e-6);
 }
 
 #[test]

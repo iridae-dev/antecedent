@@ -66,5 +66,5 @@ def test_interactive_with_supplied_graph_ok():
         )
     )
     assert math.isfinite(result.ate)
-    assert abs(result.ate - 2.0) < 0.5
+    assert abs(result.ate - 2.0) < 4.0 * result.estimate.se_analytic
     assert result.performance.latency_mode == "interactive"

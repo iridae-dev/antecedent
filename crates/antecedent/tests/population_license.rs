@@ -147,6 +147,16 @@ fn average_effect_keeps_its_licensed_populations() {
     };
     let (all, treated) = (run(TargetPopulation::AllObserved), run(TargetPopulation::Treated));
     assert!((all - treated).abs() > 0.1, "ATE {all} and ATT {treated} must differ here");
+    // The unit effect is 1 + 2 z, so the truths are 1 + 2 E[z] over all rows (ATE) and over the
+    // treated rows (ATT), computed from the generating columns rather than from the product.
+    let n = 400_usize;
+    let z: Vec<f64> = (0..n).map(|i| (i as f64 / 7.0).sin() * 1.5).collect();
+    let treated_z: Vec<f64> =
+        (0..n).filter(|&i| z[i] + (i as f64 / 3.0).cos() > 0.0).map(|i| z[i]).collect();
+    let mean = |v: &[f64]| v.iter().sum::<f64>() / v.len() as f64;
+    let (ate_truth, att_truth) = (1.0 + 2.0 * mean(&z), 1.0 + 2.0 * mean(&treated_z));
+    assert!((all - ate_truth).abs() < 0.05, "ATE {all} vs truth {ate_truth}");
+    assert!((treated - att_truth).abs() < 0.05, "ATT {treated} vs truth {att_truth}");
 }
 
 #[test]

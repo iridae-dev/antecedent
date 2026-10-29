@@ -521,10 +521,16 @@ fn vector_summary_is_bound_to_its_rows_by_a_digest() {
         );
         let mut renamed = request.clone();
         renamed.treatments[0].name = "u1".into();
-        assert!(artifact.verify_data(&renamed).is_err());
+        assert_eq!(
+            artifact.verify_data(&renamed),
+            Err(VectorTreatmentArtifactError::IdentityMismatch { field: "data" })
+        );
         let mut reordered = request.clone();
         reordered.outcome.swap(0, 1);
-        assert!(artifact.verify_data(&reordered).is_err());
+        assert_eq!(
+            artifact.verify_data(&reordered),
+            Err(VectorTreatmentArtifactError::IdentityMismatch { field: "data" })
+        );
         // The digest is part of the design identity: a forged one under the stored identity refuses.
         let (meta, numbers) = decode_parts(&artifact.to_bytes("t").unwrap()).unwrap();
         let mut forged = meta;
@@ -802,9 +808,19 @@ fn vector_artifact_unknown_major_version_and_corrupt_bytes_refuse() {
     let mut corrupt = bytes.clone();
     let middle = corrupt.len() / 2;
     corrupt[middle] ^= 0xff;
-    assert!(VectorTreatmentArtifact::from_bytes(&corrupt, None).is_err());
-    assert!(VectorTreatmentArtifact::from_bytes(&bytes[..bytes.len() - 5], None).is_err());
-    assert!(VectorTreatmentArtifact::from_bytes(&[], None).is_err());
+    assert_eq!(
+        format!("{:?}", VectorTreatmentArtifact::from_bytes(&corrupt, None).unwrap_err()),
+        r#"Container(ChecksumMismatch { section: "vector_treatment_meta" })"#
+    );
+    for short in [&bytes[..bytes.len() - 5], &[][..]] {
+        assert!(
+            matches!(
+                VectorTreatmentArtifact::from_bytes(short, None),
+                Err(VectorTreatmentArtifactError::Decode(_))
+            ),
+            "a truncated or empty artifact is a decode refusal"
+        );
+    }
 }
 
 /// The shared shape of the budgeted treatment artifacts: sealed, exported under a byte budget
@@ -817,7 +833,13 @@ where
     let artifact = A::seal(request).unwrap();
     let bytes = artifact.to_bytes("vector-test").unwrap();
     assert_eq!(artifact.to_bytes_within("vector-test", A::MAX_BYTES).unwrap(), bytes);
-    assert!(artifact.to_bytes_within("vector-test", bytes.len() - 1).is_err());
+    let over_budget = artifact.to_bytes_within("vector-test", bytes.len() - 1).unwrap_err();
+    let shown = format!("{over_budget:?}");
+    assert!(
+        shown.contains("route_not_supported")
+            && shown.contains("vector_treatment.export_budget_exceeded"),
+        "{shown}"
+    );
     A::from_bytes(&bytes, None).unwrap();
     bytes
 }

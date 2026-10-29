@@ -1242,11 +1242,16 @@ fn a_result_resumes_with_a_compatible_provider_and_is_unavailable_without_one() 
     assert_eq!(error.refusal.code, antecedent_core::reason_code!("external_binding_mismatch"));
     assert_eq!(counter.get(), 0);
     // A retained identity of another result refuses; a flipped byte refuses.
-    assert!(consume_callback_result(&bytes, Some(&"0".repeat(64))).is_err());
+    let wrong_identity = consume_callback_result(&bytes, Some(&"0".repeat(64))).unwrap_err();
+    assert_eq!(format!("{wrong_identity:?}"), r#"IdentityMismatch { field: "retained_identity" }"#);
     let mut corrupt = bytes.clone();
     let middle = corrupt.len() / 2;
     corrupt[middle] ^= 0x40;
-    assert!(consume_callback_result(&corrupt, None).is_err());
+    let flipped = consume_callback_result(&corrupt, None).unwrap_err();
+    assert_eq!(
+        format!("{flipped:?}"),
+        r#"Container(ChecksumMismatch { section: "callback_result_meta" })"#
+    );
 }
 
 // -- the predictive assessment consumes a callback law as a provider law ----------------------------
@@ -1261,12 +1266,21 @@ fn a_callback_law_reaches_the_predictive_assessment_only_as_a_replayable_provide
     // its declaration: it is not offered to the assessment.
     let mut opaque = seeded();
     opaque.dependencies = DependencyDeclaration::Opaque;
-    assert!(predictive_law_source(&opaque, false).is_err());
+    let refusal = predictive_law_source(&opaque, false).unwrap_err();
+    assert_eq!(refusal.code, "callback_reuse_ineligible");
+    assert_eq!(refusal.detail, "callback_protocol.diagnostic_only");
+    assert_eq!(refusal.offending.as_deref(), Some("opaque_dependencies"));
     let mut unverified = seeded();
     unverified.trust = CallbackTrust::Unverified;
-    assert!(predictive_law_source(&unverified, false).is_err());
+    let refusal = predictive_law_source(&unverified, false).unwrap_err();
+    assert_eq!(refusal.code, "callback_reuse_ineligible");
+    assert_eq!(refusal.detail, "callback_protocol.diagnostic_only");
+    assert_eq!(refusal.offending.as_deref(), Some("unverified"));
     let stateful = mean_only(ReplayContract::Stateful { exposes_state_identity: true });
-    assert!(predictive_law_source(&stateful, false).is_err());
+    let refusal = predictive_law_source(&stateful, false).unwrap_err();
+    assert_eq!(refusal.code, "callback_reuse_ineligible");
+    assert_eq!(refusal.detail, "callback_protocol.diagnostic_only");
+    assert_eq!(refusal.offending.as_deref(), Some("stateful"));
     // An accepted sample becomes its empirical law.
     let calls = Rc::new(Cell::new(0));
     let mut provider = gaussian_provider("1.0", MU, calls);
@@ -1284,7 +1298,9 @@ fn a_callback_law_reaches_the_predictive_assessment_only_as_a_replayable_provide
     let mean =
         run(&mut session, &mut provider, &seeded(), &CallbackRequest::new(CallbackQuery::Mean, 2))
             .expect("mean");
-    assert!(forecast_law_from_sample(&mean.output).is_err());
+    let not_a_sample = forecast_law_from_sample(&mean.output).unwrap_err();
+    assert_eq!(not_a_sample.code, "external_binding_mismatch");
+    assert_eq!(not_a_sample.detail, "callback_protocol.request_mismatch");
 }
 
 #[test]
@@ -1321,15 +1337,15 @@ fn a_connected_result_exports_and_is_consumed_against_its_retained_identity() {
         )
         .is_ok()
     );
-    assert!(
-        antecedent_contract::interface_contract::check_connection(
-            &contract,
-            CALLBACK_OUTPUT_PORT,
-            &transport_consumer("target"),
-            "source_law"
-        )
-        .is_err()
-    );
+    let refusals = antecedent_contract::interface_contract::check_connection(
+        &contract,
+        CALLBACK_OUTPUT_PORT,
+        &transport_consumer("target"),
+        "source_law",
+    )
+    .map(|_| ())
+    .unwrap_err();
+    assert!(refusals.iter().any(|r| r.detail == "interface_contract.population_mismatch"));
     assert_eq!(artifact.record(), &session.history()[0]);
 }
 
