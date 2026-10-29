@@ -393,7 +393,7 @@ fn ridge_propensity_recovers_the_effect_where_the_unpenalized_fit_is_refused() {
     let refused = run(&plain(), &raw, 7).unwrap_err();
     assert!(matches!(refused, EstimationError::Stats(_)), "{refused}");
     let estimate = run(&ridge(&[1.0, 10.0, 100.0, 1000.0], 4), &raw, 7).unwrap();
-    assert!((estimate.ate - 2.0).abs() < 0.4, "ate = {}", estimate.ate);
+    assert!((estimate.ate - 2.0).abs() < 0.2, "ate = {}", estimate.ate);
     assert!(selected_lambdas(&estimate).iter().all(|l| [1.0, 10.0, 100.0, 1000.0].contains(l)));
 }
 
@@ -757,7 +757,7 @@ fn a_lasso_propensity_recovers_the_support_and_the_effect_and_records_it_per_fol
     let raw = draw(600, 10, 61, Regime::Moderate);
     let est = lasso(&[3.0, 10.0, 30.0, 100.0], 4);
     let estimate = run(&est, &raw, 13).unwrap();
-    assert!((estimate.ate - 2.0).abs() < 0.35, "ate = {}", estimate.ate);
+    assert!((estimate.ate - 2.0).abs() < 0.2, "ate = {}", estimate.ate);
     let report =
         estimate.diagnostics.penalized.as_ref().expect("a lasso records its selected support");
     assert!(report.fallback.is_none() && report.variance.is_none());
@@ -845,7 +845,7 @@ fn a_lasso_propensity_fits_where_the_plain_logistic_is_refused() {
     let raw = draw(400, 8, 31, Regime::Separated);
     assert!(matches!(run(&plain(), &raw, 7).unwrap_err(), EstimationError::Stats(_)));
     let estimate = run(&lasso(&[5.0, 20.0, 80.0], 4), &raw, 7).unwrap();
-    assert!((estimate.ate - 2.0).abs() < 0.5, "ate = {}", estimate.ate);
+    assert!((estimate.ate - 2.0).abs() < 0.2, "ate = {}", estimate.ate);
     assert!(estimate.se_analytic().is_finite() && estimate.se_analytic() > 0.0);
 }
 
@@ -895,7 +895,7 @@ fn a_failed_glm_fit_runs_the_declared_ridge_fallback_and_records_both() {
     let fallback = glm_with_fallback(NuisanceFallback::RidgeLogistic(tuning.clone()));
     let separated = draw(300, 3, 8, Regime::Separated);
     let estimate = run(&fallback, &separated, 2).unwrap();
-    assert!((estimate.ate - 2.0).abs() < 0.5, "ate = {}", estimate.ate);
+    assert!((estimate.ate - 2.0).abs() < 0.2, "ate = {}", estimate.ate);
 
     let record = estimate
         .diagnostics

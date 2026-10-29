@@ -146,9 +146,9 @@ fn the_bayesian_augmented_panel_posterior_matches_the_arm_regression_reference_a
     let (mean, sd) = (posterior.summaries.mean[column], posterior.summaries.sd[column]);
     let (lower, upper) = (posterior.summaries.q025[column], posterior.summaries.q975[column]);
     let expected = reference(&p);
-    assert!((mean - expected).abs() < 0.02, "posterior mean {mean} vs reference {expected}");
-    assert!((mean - EFFECT).abs() < 0.15, "posterior mean {mean} vs truth {EFFECT}");
-    assert!(sd > 0.0 && sd < 0.2, "posterior sd {sd}");
+    assert!((mean - expected).abs() < 0.002, "posterior mean {mean} vs reference {expected}");
+    assert!((mean - EFFECT).abs() < 0.05, "posterior mean {mean} vs truth {EFFECT}");
+    assert!(sd > 0.015 && sd < 0.04, "posterior sd {sd}");
     assert!(lower < EFFECT && EFFECT < upper, "[{lower}, {upper}]");
     assert_eq!(result.support_status(), None, "the Bayesian design route is unlicensed");
 }

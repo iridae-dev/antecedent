@@ -94,7 +94,7 @@ fn mean_curve_explicit_and_accepted_keep_ordered_grid_through_refresh_and_export
         }
         for (&dose, &estimate) in [-0.5, 0.0, 0.5].iter().zip(&got) {
             let truth = 0.4 + 1.7 * dose;
-            assert!((estimate - truth).abs() < 0.12, "dose {dose}: {estimate} != {truth}");
+            assert!((estimate - truth).abs() < 0.005, "dose {dose}: {estimate} != {truth}");
         }
 
         let refreshed_data = data(0.3);
@@ -102,7 +102,7 @@ fn mean_curve_explicit_and_accepted_keep_ordered_grid_through_refresh_and_export
         let refreshed_values = values(refreshed.response().unwrap());
         for (&dose, &estimate) in [-0.5, 0.0, 0.5].iter().zip(&refreshed_values) {
             let truth = 0.7 + 1.7 * dose;
-            assert!((estimate - truth).abs() < 0.12, "refreshed dose {dose}: {estimate}");
+            assert!((estimate - truth).abs() < 0.005, "refreshed dose {dose}: {estimate}");
         }
 
         let artifact = prepared
@@ -152,12 +152,12 @@ fn intervention_gcomp_explicit_and_accepted_cover_each_validation_suite() {
             assert_eq!(first.refutations.is_empty(), suite == RefuteSuite::None);
             let got = prepared_value;
             let truth = 0.4 + 1.7 * 0.25;
-            assert!((got - truth).abs() < 0.12, "{suite:?}: {got} != {truth}");
+            assert!((got - truth).abs() < 0.005, "{suite:?}: {got} != {truth}");
 
             let refreshed_data = data(0.3);
             let refreshed = rebind_estimate(&mut prepared, refreshed_data, &context).unwrap();
             let refreshed_value = values(refreshed.response().unwrap())[0];
-            assert!((refreshed_value - truth - 0.3).abs() < 0.12, "{suite:?} refresh");
+            assert!((refreshed_value - truth - 0.3).abs() < 0.005, "{suite:?} refresh");
 
             let artifact = prepared
                 .encode_contracted_result(&refreshed, "checked-dag-intervention", &context)

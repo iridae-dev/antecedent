@@ -203,10 +203,19 @@ fn repeated_static_atom_bayesian_ate_is_the_mass_weighted_mixture() {
     assert!((post.summaries.mean[0] - ref_post.summaries.mean[0]).abs() < 1e-12);
     assert!((post.summaries.sd[0] - ref_post.summaries.sd[0]).abs() < 1e-12);
     assert!((post.unidentified_mass - 0.25).abs() < 1e-12);
-    let expected = (2.0 * 3.0 + 2.0) / 3.0;
+    // The mixture is 2/3 of the unadjusted atom and 1/3 of the adjusted one, each fitted
+    // alone (about 2.93 and 2.05 on this sample, near the population 3 and 2); counting the
+    // repeated atom once instead (1/2 each) would move the mean by 0.15.
+    let alone = |mask: u64| {
+        let single = run(&data, posterior(&[mask], &[1.0]), ate_query(), bayesian());
+        single.posterior.as_ref().unwrap().summaries.mean[0]
+    };
+    let (mean_a, mean_b) = (alone(direct()), alone(adjusted()));
+    assert!((mean_a - 3.0).abs() < 0.15 && (mean_b - 2.0).abs() < 0.15, "{mean_a} {mean_b}");
+    let expected = (2.0 * mean_a + mean_b) / 3.0;
     assert!(
-        (post.summaries.mean[0] - expected).abs() < 0.2,
-        "Bayesian mixture mean {} vs population mixture {expected}",
+        (post.summaries.mean[0] - expected).abs() < 1e-9,
+        "Bayesian mixture mean {} vs mass-weighted mixture {expected}",
         post.summaries.mean[0]
     );
 }

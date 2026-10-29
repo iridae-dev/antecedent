@@ -97,9 +97,11 @@ fn frequentist_counterfactual_bootstrap_is_an_unlicensed_interval() {
     assert_eq!(result.support_status(), Some(CellStatus::Refused));
     let effect = result.estimate().as_effect().unwrap();
     // The linear law's unit contrast is the slope.
-    assert!((effect.ate - 2.0).abs() < 0.2, "mean ITE {}", effect.ate);
+    assert!((effect.ate - 2.0).abs() < 0.1, "mean ITE {}", effect.ate);
     let se = bootstrap_se(&result).expect("bootstrap standard error");
-    assert!(se > 0.0 && se < 0.5, "bootstrap SE {se}");
+    // The slope of t has sampling sd sigma / (sd(t | z) sqrt(n)) = 0.5 / sqrt(600) = 0.0204; the
+    // 40-replicate bootstrap sd is within about 11% of it, so (0.012, 0.035) is a wide margin.
+    assert!(se > 0.012 && se < 0.035, "bootstrap SE {se} vs 0.0204");
     assert_eq!(effect.uncertainty.bootstrap.replicates_ok, Some(40));
     assert_eq!(effect.uncertainty.bootstrap.replicates_failed, Some(0));
     assert!(has_diagnostic(&result, "gcm.frequentist_bootstrap"));
@@ -180,7 +182,7 @@ fn frequentist_attribution_bootstraps_publish_unlicensed_standard_errors() {
         .unwrap();
     assert_eq!(change.support_status(), Some(CellStatus::Refused));
     let total = change.estimate().as_effect().unwrap().ate;
-    assert!((total - 3.0).abs() < 0.6, "total change {total}");
+    assert!((total - 3.0).abs() < 0.3, "total change {total}");
     assert!(bootstrap_se(&change).is_some_and(|se| se > 0.0));
 }
 
@@ -310,7 +312,7 @@ fn codetermined_bayesian_joint_level_executes_unlicensed() {
         other => panic!("expected a scalar joint level, got {other:?}"),
     };
     let truth = 4.0 + 1.5 * mean_z;
-    assert!((level - truth).abs() < 0.2, "joint level {level} vs {truth}");
+    assert!((level - truth).abs() < 0.08, "joint level {level} vs {truth}");
     assert!(has_diagnostic(&result, "estimate.codetermined.bayesian_joint"));
 }
 
@@ -408,7 +410,7 @@ fn temporal_derivative_runs_its_refuter_state_on_dag_and_class() {
             .iter()
             .find(|report| report.refuter.as_ref() == "derivative.finite_difference")
             .unwrap_or_else(|| panic!("{label}: finite-difference check"));
-        assert!((fd.refuted_ate - 0.8).abs() < 0.15, "{label}: {}", fd.refuted_ate);
+        assert!((fd.refuted_ate - 0.8).abs() < 0.08, "{label}: {}", fd.refuted_ate);
         assert!(has_diagnostic(&result, "refute.temporal_response.pulse_witness_state"), "{label}");
     }
 }

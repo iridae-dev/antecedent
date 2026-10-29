@@ -136,7 +136,7 @@ fn codetermined_joint_cell_aipw_response_body() {
         assert_eq!(result.logical_plan.estimator.as_deref(), Some("cell.aipw"));
         assert!(result.refutations.is_empty());
         let got = value(result);
-        assert!((got - truth(0.0)).abs() < 0.05, "cell (1, 1) {got} vs truth {}", truth(0.0));
+        assert!((got - truth(0.0)).abs() < 0.002, "cell (1, 1) {got} vs truth {}", truth(0.0));
     }
     assert!((value(&click) - value(&one_shot)).abs() < 1e-12);
     assert!(
@@ -148,7 +148,7 @@ fn codetermined_joint_cell_aipw_response_body() {
     );
 
     let refreshed = rebind_estimate(&mut prepared, data(0.4), &context).unwrap();
-    assert!((value(&refreshed) - truth(0.4)).abs() < 0.05, "refreshed {}", value(&refreshed));
+    assert!((value(&refreshed) - truth(0.4)).abs() < 0.002, "refreshed {}", value(&refreshed));
     let RetainedOperation::CellAipwResponse(retained) = prepared.retained_operation() else {
         panic!("refresh retains the checked CoDetermined joint cell route")
     };

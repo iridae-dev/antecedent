@@ -109,7 +109,17 @@ fn knn_matching_replicates_are_finite_and_centred_on_the_effect() {
     let fits: Vec<(f64, f64)> =
         (0..24).map(|r| replicate(2_000, SEED + r).expect("a fit")).collect();
     let mean = fits.iter().map(|&(ate, _)| ate).sum::<f64>() / fits.len() as f64;
-    assert!((mean - EFFECT).abs() < 0.1, "mean ATT {mean}");
+    // Observed: mean 0.522 (matching bias about 0.02), sd 0.064, root-mean-square se 0.060, 22 of 24
+    // intervals cover. The mean has sampling sd 0.013, so 0.08 is a wide margin; the analytic se
+    // must track the replicate sd (ratio 0.93) and nearly all intervals must cover the effect.
+    let sd = (fits.iter().map(|&(a, _)| (a - mean).powi(2)).sum::<f64>()
+        / (fits.len() as f64 - 1.0))
+        .sqrt();
+    let rms_se = (fits.iter().map(|&(_, s)| s * s).sum::<f64>() / fits.len() as f64).sqrt();
+    assert!((0.7..1.4).contains(&(rms_se / sd)), "rms se {rms_se} vs replicate sd {sd}");
+    let covered = fits.iter().filter(|&&(a, s)| (a - EFFECT).abs() <= Z95 * s).count();
+    assert!(covered >= 18, "{covered} of 24 intervals cover the effect");
+    assert!((mean - EFFECT).abs() < 0.08, "mean ATT {mean}");
     for fit in fits {
         let (lo, hi) = interval(fit).expect("a finite interval");
         assert!(lo < hi && hi - lo < 1.0, "[{lo}, {hi}]");

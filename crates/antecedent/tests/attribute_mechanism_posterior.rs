@@ -165,8 +165,15 @@ fn a_change_attribution_has_a_posterior_over_the_mechanisms() {
             assert!(posterior.draws.schema.n_quantities() >= 2);
             let total = posterior.summaries.mean[0];
             assert!(
-                (total - 5.0).abs() < 1.0,
+                (total - 5.0).abs() < 0.5,
                 "the shifted intercept explains the change: {total}"
+            );
+            // The change is carried by the mechanism of y (intercept +5) and not by x's.
+            assert!(
+                (posterior.summaries.mean[2] - 5.0).abs() < 0.5
+                    && posterior.summaries.mean[1].abs() < 0.6,
+                "components: {:?}",
+                posterior.summaries.mean
             );
             assert!(posterior.summaries.sd[0] > 0.0, "the refits differ from draw to draw");
             let components: f64 = posterior.summaries.mean[1..].iter().sum();
@@ -202,7 +209,7 @@ fn a_change_attribution_has_a_bootstrap_beside_its_posterior() {
         let se = accounting.se.expect("a bootstrap standard error");
         assert!(se > 0.0);
         assert!(
-            (estimate.ate - 5.0).abs() < 1.0,
+            (estimate.ate - 5.0).abs() < 0.5,
             "the fitted model's total change: {}",
             estimate.ate
         );
@@ -215,7 +222,9 @@ fn a_change_attribution_has_a_bootstrap_beside_its_posterior() {
         let bayesian = CompiledExecution::run(&change_study(false, bayesian(60), 0), &ctx).unwrap();
         let posterior = bayesian.result().posterior.as_ref().unwrap();
         let ratio = posterior.summaries.sd[0] / se;
-        assert!((0.4..2.5).contains(&ratio), "posterior sd over bootstrap se: {ratio}");
+        // Observed 0.98; the ratio of two Monte Carlo sds (60 draws, 40 replicates) has sd near
+        // 14%, so (0.6, 1.6) is about 3.5 sd either side of 1.
+        assert!((0.6..1.6).contains(&ratio), "posterior sd over bootstrap se: {ratio}");
     });
 }
 
@@ -245,10 +254,18 @@ fn an_intrinsic_influence_has_a_posterior_over_the_mechanisms() {
             }
             other => panic!("intrinsic influence returns its attribution: {other:?}"),
         };
+        // Linear-Gaussian chain z -> t -> y: the noise of z reaches y with total effect
+        // 0.6 + 1.5 * 0.8 = 1.8, that of t with 1.5 and that of y with 1, so the variance shares
+        // are 3.24, 2.25 and 1 of 6.49 (0.499, 0.347, 0.154), and they add up to the variance.
         assert!(
-            shares > 0.0 && shares < 2.0 * total,
+            (shares - total).abs() < 0.05 * total,
             "the shares account for the target variance: {shares} against {total}"
         );
+        for (mean, expected) in
+            posterior.summaries.mean.iter().zip([3.24 / 6.49, 2.25 / 6.49, 1.0 / 6.49])
+        {
+            assert!((mean / shares - expected).abs() < 0.04, "{:?}", posterior.summaries.mean);
+        }
         assert!(
             result.diagnostics.iter().any(|d| d.code.as_ref() == "gcm.attribution.bayesian"),
             "the posterior says what it conditions on"

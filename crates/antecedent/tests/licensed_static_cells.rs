@@ -272,7 +272,7 @@ fn average_effect_dag_bayesian_known_truth_all_structures_and_suites() {
             assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.gcomp"), "{label}");
             let posterior = result.posterior.as_ref().expect("Bayesian posterior");
             let mean = posterior.summaries.mean[posterior.effect_column().unwrap()];
-            assert!((mean - truth).abs() < tolerance, "{label}: posterior mean {mean}");
+            assert!((mean - truth).abs() < tolerance.min(1e-3), "{label}: posterior mean {mean}");
             assert!((result.estimate().as_effect().unwrap().ate - mean).abs() < 1e-12, "{label}");
             assert_bayesian_validation(&result, suite, &label);
         }
@@ -452,7 +452,7 @@ fn conditional_effect_graph_posterior_known_truth_all_inferences_and_suites() {
                 .collect();
             assert_eq!(values.len(), 2, "{label}");
             for value in values {
-                assert!((value - 2.0).abs() < tolerance, "{label}: atom effect {value}");
+                assert!((value - 2.0).abs() < tolerance.min(0.01), "{label}: atom effect {value}");
             }
             if bayesian {
                 let posterior = result.posterior.as_ref().expect("Bayesian mixture posterior");
@@ -549,7 +549,7 @@ fn mediation_bayesian_known_truth_all_structures_and_suites() {
                 let posterior = result.posterior.as_ref().expect("Bayesian mediation posterior");
                 assert!(
                     (result.estimate().as_effect().unwrap().ate - truth).abs()
-                        < pin["tolerance"].as_f64().unwrap(),
+                        < pin["tolerance"].as_f64().unwrap().min(0.01),
                     "{label}: posterior mean {}",
                     result.estimate().as_effect().unwrap().ate
                 );
@@ -630,7 +630,7 @@ fn distribution_bayesian_known_truth_all_structures_and_suites() {
             );
             assert!(result.posterior.is_some(), "{label}: Bayesian atoms carry draws");
             let dist = result.distribution().unwrap();
-            assert!((dist.mean - truth).abs() < 0.08, "{label}: posterior mean {}", dist.mean);
+            assert!((dist.mean - truth).abs() < 0.01, "{label}: posterior mean {}", dist.mean);
             let mass: f64 = dist.atoms.iter().map(|a| a.probability).sum();
             assert!((mass - 1.0).abs() < 1e-9, "{label}: atoms must be a law, mass={mass}");
             let expected_reports = match suite {

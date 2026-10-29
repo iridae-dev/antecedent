@@ -226,8 +226,8 @@ fn lag_distinct_dbn_atoms_with_the_same_contemporaneous_key_keep_distinct_effect
         study(&series, &query, dbn_posterior(&[adjusted], &[1.0])).run(&ctx).unwrap();
     let unadjusted_mean = posterior_mean(&unadjusted_result);
     let adjusted_mean = posterior_mean(&adjusted_result);
-    assert!((unadjusted_mean - 3.0).abs() < 0.05, "unadjusted mean={unadjusted_mean}");
-    assert!((adjusted_mean - 2.0).abs() < 0.05, "adjusted mean={adjusted_mean}");
+    assert!((unadjusted_mean - 3.0).abs() < 0.03, "unadjusted mean={unadjusted_mean}");
+    assert!((adjusted_mean - 2.0).abs() < 0.03, "adjusted mean={adjusted_mean}");
 
     for (lag_masks, atom_weights) in [
         (vec![unadjusted, adjusted], weights.to_vec()),
@@ -250,7 +250,7 @@ fn lag_distinct_dbn_atoms_with_the_same_contemporaneous_key_keep_distinct_effect
         let fresh_mean = posterior_mean(&fresh);
         let click_mean = posterior_mean(&click);
         assert!(
-            (fresh_mean - expected).abs() < 0.05,
+            (fresh_mean - expected).abs() < 1e-9,
             "mixture mean={fresh_mean}, expected={expected}"
         );
         assert!((click_mean - fresh_mean).abs() < 1e-12);
@@ -438,6 +438,6 @@ fn repeated_dbn_atoms_contribute_their_combined_mass_once() {
         &study(&series, &query, dbn_posterior(&[adjusted], &[1.0])).run(&ctx).unwrap(),
     );
     let expected = (2.0 * unadjusted_mean + adjusted_mean) / 3.0;
-    assert!((mean - expected).abs() < 0.05, "mixture mean={mean}, expected={expected}");
+    assert!((mean - expected).abs() < 1e-9, "mixture mean={mean}, expected={expected}");
     assert!(bayesian.posterior.as_ref().unwrap().unidentified_mass.abs() < f64::EPSILON);
 }
