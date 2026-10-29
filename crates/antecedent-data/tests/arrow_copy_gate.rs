@@ -47,6 +47,25 @@ fn rust_arrow_load_reports_measured_copy() {
     assert_eq!(loaded.data.row_count(), expected_rows);
     assert_eq!(loaded.data.schema().len(), 3);
     assert!(loaded.bytes_copied > 0);
+    // The values that arrive are the fixture's, column by column (read straight from the JSON,
+    // not from the batch the loader consumed).
+    let raw = fs::read_to_string(fixture_path()).expect("arrow_copy_fixture.json");
+    let v: Value = serde_json::from_str(&raw).expect("parse fixture");
+    for (index, name) in v["column_names"].as_array().unwrap().iter().enumerate() {
+        let want: Vec<f64> = v["columns"][name.as_str().unwrap()]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x.as_f64().unwrap())
+            .collect();
+        let got = loaded
+            .data
+            .float64_values(antecedent_core::VariableId::from_raw(index as u32))
+            .unwrap();
+        assert_eq!(got, want, "column {name}");
+    }
+    // Three Float64 columns of eight rows: 3 * 8 * 8 payload bytes plus one validity byte each.
+    assert_eq!(loaded.bytes_copied, 3 * (8 * 8 + 1));
     assert!(!loaded.diagnostics.is_empty());
     assert!(
         loaded.diagnostics.entries.iter().any(|d| d.code.contains("materialize")),

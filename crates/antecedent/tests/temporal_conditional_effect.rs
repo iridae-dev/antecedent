@@ -58,7 +58,10 @@ fn temporal_dag_conditional_pulse_and_sustained_publish_the_marginal_point() {
     let data = series();
     let graph = graph();
     let ctx = ExecutionContext::for_tests(11);
-    let truth = pin["marginal_effect"].as_f64().unwrap();
+    // The structural population value is pinned at 1.9; the finite series weights the modifier by
+    // its sample mean over the rows the regression uses (t >= 1), 1.5 + 0.8 * 40 / 79.
+    assert!((pin["marginal_effect"].as_f64().unwrap() - 1.9).abs() < 1e-12);
+    let truth = 1.5 + 0.8 * 40.0 / 79.0;
     for sustained in [false, true] {
         for accepted in [false, true] {
             for bayesian in [false, true] {
@@ -84,7 +87,8 @@ fn temporal_dag_conditional_pulse_and_sustained_publish_the_marginal_point() {
                 drop(study);
                 let result = prepared.estimate_retained(&ctx).unwrap();
                 assert!(
-                    (result.estimate().as_effect().unwrap().ate - truth).abs() < 0.05,
+                    (result.estimate().as_effect().unwrap().ate - truth).abs()
+                        < if bayesian { 5e-3 } else { 1e-8 },
                     "sustained={sustained} accepted={accepted} bayesian={bayesian} ate={}",
                     result.estimate().as_effect().unwrap().ate
                 );
@@ -193,8 +197,8 @@ fn multi_step_sustained_effect_uses_a_named_modifier() {
     };
     let (fresh, retained) = run(modified);
     let (plain_fresh, plain_retained) = run(base);
-    assert!((fresh - expected).abs() < 0.05, "fresh {fresh} expected {expected}");
-    assert!((retained - expected).abs() < 0.05, "retained {retained} expected {expected}");
+    assert!((fresh - expected).abs() < 1e-8, "fresh {fresh} expected {expected}");
+    assert!((retained - expected).abs() < 1e-8, "retained {retained} expected {expected}");
     assert!((fresh - plain_fresh).abs() > 0.5, "fresh {fresh} plain {plain_fresh}");
     assert!((retained - plain_retained).abs() > 0.5, "retained {retained} plain {plain_retained}");
 }

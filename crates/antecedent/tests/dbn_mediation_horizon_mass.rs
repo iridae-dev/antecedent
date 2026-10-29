@@ -16,7 +16,7 @@ fn three_variable_lag_one_templates_share_horizon_certifiability() {
         allow_natural_controlled_alias: true,
         ..TemporalMediationIdentifier::new()
     };
-    let mut both = 0;
+    let (mut both, mut neither) = (0, 0);
     for contemporaneous in 0..64 {
         if contemporaneous & 8 == 0 || !mask_is_dag(contemporaneous, 3) {
             continue;
@@ -36,7 +36,10 @@ fn three_variable_lag_one_templates_share_horizon_certifiability() {
             // the general cache-isolation contract in prepared unit tests.
             assert_eq!(one.is_ok(), two.is_ok(), "c={contemporaneous}, l={lagged}");
             both += usize::from(one.is_ok());
+            neither += usize::from(one.is_err());
         }
     }
     assert!(both > 0, "the enumeration must contain identified templates");
+    // The agreement is not vacuous: the same family also contains templates both horizons refuse.
+    assert!(neither > 0, "the enumeration must contain refused templates");
 }

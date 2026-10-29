@@ -381,6 +381,9 @@ def test_monte_carlo_value_reports_error_and_makes_no_coverage_claim() -> None:
     assert value.evpi == pytest.approx(1.0 / 12.0, abs=1e-12)
     slack = 4.0 * value.integration.stderr + 1e-9
     assert -slack <= value.evsi <= value.evpi + slack
+    # Independent truth: numerical quadrature over xbar ~ N(theta, 0.25 / 4) of
+    # E[max(0, posterior bet utility)] minus the prior value 0.05 is 0.0538383.
+    assert abs(value.evsi - 0.05383827316648051) <= 4.0 * value.integration.stderr
     assert value.claim == "monte_carlo_estimate"
     assert not value.natively_replayed and value.replay == "monte_carlo_not_replayed"
     assert ranking.calibration == "unmeasured"

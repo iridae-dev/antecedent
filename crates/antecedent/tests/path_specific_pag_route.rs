@@ -221,6 +221,12 @@ fn a_bootstrap_interval_accompanies_the_pag_point() {
         "{:?}",
         effect.uncertainty
     );
+    // The interval accompanies the right point: the structural effect, with a finite positive
+    // bootstrap spread of the size 100 000 rows allow (about 0.002).
+    let truth = parented_routes::effect_through_a();
+    assert!((effect.ate - truth).abs() < 2e-3, "point {} against {truth}", effect.ate);
+    let se = effect.uncertainty.bootstrap.se.expect("a bootstrap standard error");
+    assert!(se.is_finite() && se > 1e-4 && se < 1e-2, "bootstrap se {se}");
 }
 
 #[test]

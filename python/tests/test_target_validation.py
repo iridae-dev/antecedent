@@ -57,7 +57,12 @@ def test_omitted_variable_bias_from_data_benchmarks_every_covariate():
     )
     names = [b["covariate"] for b in result.summary["benchmarks"]]
     assert names == ["x1", "x2"]
-    assert result.summary["estimate"] == pytest.approx(0.5, abs=0.15)
+    design = np.column_stack([np.ones(n), t, x1, x2])
+    beta, *_ = np.linalg.lstsq(design, y, rcond=None)
+    assert result.summary["estimate"] == pytest.approx(beta[1], abs=1e-9)  # adjusted OLS slope
+    resid = y - design @ beta
+    se = math.sqrt(float(resid @ resid) / (n - 4) * np.linalg.inv(design.T @ design)[1, 1])
+    assert result.summary["standard_error"] == pytest.approx(se, rel=1e-9)
 
 
 def test_rosenbaum_bounds_and_amplification():
@@ -448,7 +453,7 @@ def test_msm_weight_refit_standard_error_carries_the_weight_estimation():
         y.tolist(), [a.tolist()], [a.tolist()], [[]], [[history.tolist()]], ["a"], replicates=99
     )
     assert refit.range.assumption == "sequential_exchangeability_partial_r2"
-    assert refit.summary["estimate"][0] == pytest.approx(2.0, abs=0.5)
+    assert refit.summary["estimate"][0] == pytest.approx(2.0, abs=0.3)  # truth 2, se 0.1
     assert refit.summary["standard_error"][0] > 0
     assert refit.summary["standard_error"][0] != pytest.approx(
         refit.summary["fixed_weight_standard_error"][0], abs=1e-6

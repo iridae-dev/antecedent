@@ -114,7 +114,10 @@ fn the_scored_intervals_are_ordered_and_centred_near_the_truth() {
         let ((lo, hi), rows) = replicate(4_000, 71_001, mechanism).expect("a responder fit");
         assert_eq!(rows, 4_000);
         assert!(lo.is_finite() && hi.is_finite() && lo < hi);
-        assert!(((lo + hi) / 2.0 - TRUTH).abs() < 0.2);
+        let centre = (lo + hi) / 2.0;
+        // The half-width is about 1.96 se with se near 0.04 at 4000 rows; the centre is the effect.
+        assert!((centre - TRUTH).abs() < 0.1, "centre {centre}");
+        assert!(hi - lo > 0.05 && hi - lo < 0.4, "width {}", hi - lo);
     }
 }
 

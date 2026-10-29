@@ -92,6 +92,14 @@ def test_temporal_class_bayesian_pulse_with_class_prior_mixes() -> None:
         )
     )
     assert result.ate is not None and np.isfinite(result.ate)
+    # Independent truth: the two completions are the z-adjusted pulse effect (OLS coefficient 2
+    # of y[t+1] on t[t], z[t]) and the unadjusted one (simple-regression slope), mixed 0.3/0.7.
+    yy, tt = data["y"][1:], data["t"][:-1]
+    design = np.column_stack([np.ones(len(yy)), tt, data["z"][:-1]])
+    adjusted = float(np.linalg.lstsq(design, yy, rcond=None)[0][1])
+    unadjusted = float(np.polyfit(tt, yy, 1)[0])
+    assert adjusted == pytest.approx(2.0, abs=1e-9)
+    assert result.ate == pytest.approx(0.3 * adjusted + 0.7 * unadjusted, abs=0.03)
     assert result.structural_weight_basis == "caller_supplied_class_prior"
     assert result.structural_unidentified_mass == pytest.approx(0.0, abs=1e-9)
     prepared = antecedent.prepare(
@@ -329,6 +337,9 @@ def test_class_mediation_preserves_functional_and_atom_posterior() -> None:
     # Re-baseline it on such a change, and rely on the large-n_draws reference below
     # for the estimand.
     assert result.ate == pytest.approx(0.4378822213934731, abs=1e-9)
+    # Closed-form truth: mediator = 0.8 t[-1] + noise, outcome = 0.25 t[-1] + 0.55 m + noise, so
+    # the indirect effect per unit of treatment is 0.8 * 0.55 = 0.44 (noise terms move it < 2e-3).
+    assert result.ate == pytest.approx(0.8 * 0.55, abs=3e-3)
     # Stream-independent reference: the 8192-draw posterior mean is ~0.43873 (0.43875 at
     # 65536 draws), so the estimand is pinned loosely, independent of RNG streams.
     large = antecedent.prepare(
@@ -339,7 +350,9 @@ def test_class_mediation_preserves_functional_and_atom_posterior() -> None:
         class_prior=antecedent.ClassPrior.from_ordered([1.0]),
         refute=False,
     )
-    assert require_success(antecedent.estimate(large)).ate == pytest.approx(0.43875, abs=1e-3)
+    large_ate = require_success(antecedent.estimate(large)).ate
+    assert large_ate == pytest.approx(0.43875, abs=1e-3)
+    assert large_ate == pytest.approx(0.8 * 0.55, abs=3e-3)
     payload = artifacts.loads(bytes(outcome.export())).payload
     atom = payload["structural_response"]["atoms"][0]
     assert atom["posterior_artifact"]
