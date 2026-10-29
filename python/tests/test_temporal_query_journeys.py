@@ -64,7 +64,9 @@ def test_each_temporal_derivative_matches_its_structural_target_and_independent_
     plan = study.plan_view()
     assert study.inspect().stage == "prepared"
     result = require_success(study.estimate())
-    np.testing.assert_allclose(np.asarray(result.estimate).reshape(-1), expected, atol=0.05, rtol=0)
+    # The data are exactly linear, so the fit reproduces the target to about 7e-3 at worst
+    # (the semi-elasticity, which scales the slope by 2); 0.015 admits no mis-specified target.
+    np.testing.assert_allclose(np.asarray(result.estimate).reshape(-1), expected, atol=0.015, rtol=0)
     assert result.program_id
     assert result.data_snapshot_id
     assert study.plan_view().identity == plan.identity
@@ -128,7 +130,9 @@ def test_unfolded_cross_world_targets_keep_their_own_mechanism_and_consumer(
     )
     assert study.inspect().stage == "prepared"
     result = require_success(study.estimate())
-    assert result.estimate.ate == pytest.approx(expected, abs=0.05)
+    # Exactly linear data: observed error is 7e-3 (4e-2 for the Bayesian counterfactual, whose
+    # posterior mean carries the weak prior); the bands are a few times those.
+    assert result.estimate.ate == pytest.approx(expected, abs=0.1 if bayesian else 0.02)
     loaded = require_success(ant.load(result.export()))
     assert loaded.program_id == result.program_id
     assert loaded.claim_id == result.claim_id

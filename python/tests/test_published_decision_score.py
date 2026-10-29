@@ -50,11 +50,11 @@ def test_a_mean_cannot_carry_a_nonlinear_utility_or_an_outcome_risk(demand):
 
 
 def test_malformed_demands_are_refused():
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match='unknown decision demand "quadratic"'):
         require_success(decision.score_published_answer("quadratic", mean=0.1))  # type: ignore[arg-type]
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="needs a finite slope and a finite intercept"):
         require_success(decision.score_published_answer("affine_mean", mean=0.1, slope=1.0))
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="mean must be a finite number"):
         require_success(
             decision.score_published_answer(
                 "affine_mean", mean=float("nan"), slope=1.0, intercept=0.0

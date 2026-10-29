@@ -760,11 +760,17 @@ fn the_scored_intervals_are_ordered_and_centred_near_the_population_effect() {
     for fit in fits {
         let ((lo, hi), _) = fit.expect("a weighted fit");
         assert!(lo.is_finite() && hi.is_finite() && lo < hi);
-        assert!(((lo + hi) / 2.0 - TRUTH).abs() < 0.4, "centre {}", (lo + hi) / 2.0);
+        // At these seeds every centre is within 0.08 of the population effect and every
+        // interval holds it. Ignoring the weights speaks for the over-sampled high-z units and
+        // lands near 1.2, outside this band.
+        let centre = (lo + hi) / 2.0;
+        assert!((centre - TRUTH).abs() < 0.12, "centre {centre}");
+        assert!(lo < TRUTH && TRUTH < hi, "interval [{lo}, {hi}] misses the population effect");
     }
     let ((lo, hi), rows) = panel(40, 91_005).expect("a weighted panel fit");
     assert!(rows > 320 && rows % 2 == 0);
-    assert!(lo < hi && ((lo + hi) / 2.0 - TRUTH).abs() < 0.6);
+    assert!(lo < hi && ((lo + hi) / 2.0 - TRUTH).abs() < 0.15);
+    assert!(lo < TRUTH && TRUTH < hi, "panel interval [{lo}, {hi}] misses the population effect");
 }
 
 #[test]

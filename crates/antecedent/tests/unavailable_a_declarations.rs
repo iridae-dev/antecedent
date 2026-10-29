@@ -277,6 +277,14 @@ fn the_smoothed_dose_input_has_no_weight_cluster_or_lag_field() {
     let prepared = prepare_smoothed(weighted, 31);
     assert_eq!(prepared.zero_weight_rows(), (0..n).filter(|i| i % 97 == 5).count() as u64);
     let result = prepared.estimate(&ctx).unwrap();
+    // Weights independent of the outcome leave the target alone: the weighted grid sits within
+    // 0.08 of the closed-form smoothed target psi_h(a) = a^2 + h^2/5 + m(1 + a/2) (observed
+    // 0.02 and 0.07 against 1.5 and 4.65), as the unweighted grid does.
+    for (w, p) in result.estimate().grid.iter().zip(&plain.estimate().grid) {
+        let truth = dgp::Scenario::Good.truth(w.dose, 0.5);
+        assert!((w.estimate - truth).abs() < 0.15, "weighted {} vs {truth}", w.estimate);
+        assert!((p.estimate - truth).abs() < 0.15, "plain {} vs {truth}", p.estimate);
+    }
     assert!(result.estimate().grid.iter().zip(&plain.estimate().grid).all(|(w, p)| {
         w.estimate.is_finite() && w.estimate.to_bits() != p.estimate.to_bits()
     }));

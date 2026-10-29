@@ -668,10 +668,25 @@ mod with_providers {
             let mean = draws.iter().sum::<f64>() / m as f64;
             assert!((mean - level).abs() < 0.12, "x = {at}: mean {mean} vs {level}");
         }
-        // The density integrates the Gaussian around the ensemble mean.
+        // The density is the Gaussian around the ensemble mean (the draw at zero noise) with the
+        // fitted scale: -ln(sigma) - ln(2 pi) / 2 - (y - mean)^2 / (2 sigma^2) at every row.
         let mut lp = vec![0.0; n];
         log_prob_column(slot, &y, batch, &mut lp).unwrap();
-        assert!(lp.iter().all(|v| v.is_finite()));
+        let mut ensemble_mean = vec![0.0; n];
+        evaluate_column(
+            slot,
+            batch,
+            &vec![0.0; n],
+            &mut ensemble_mean,
+            &mut MechanismWorkspace::default(),
+        )
+        .unwrap();
+        for ((got, y), mean) in lp.iter().zip(&y).zip(&ensemble_mean) {
+            let want = -sigma.ln()
+                - 0.5 * (2.0 * std::f64::consts::PI).ln()
+                - (y - mean).powi(2) / (2.0 * sigma * sigma);
+            assert!((got - want).abs() < 1e-9, "log density {got} vs {want}");
+        }
     }
 
     #[test]

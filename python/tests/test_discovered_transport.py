@@ -375,7 +375,8 @@ def test_a_temporal_estimate_recovers_the_stationary_target_response_of_a_discov
         estimate.answer.levels, (truth(0.0), truth(1.0)), strict=True
     ):
         assert low == pytest.approx(high)
-        assert low == pytest.approx(expected, abs=0.04), level
+        # Monte Carlo error of 30000 rows is about 3e-3 (observed 2.7e-3); 0.012 is four of them.
+        assert low == pytest.approx(expected, abs=0.012), level
     verified = discovered.verify_discovered_transport_estimate(bytes(estimate.export()))
     assert verified.answer.kind == "point"
     assert verified.report_identity == estimate.report_identity
@@ -481,9 +482,10 @@ def test_an_estimate_standardizes_the_source_response_over_the_target_mechanism_
     assert len(estimate.members) == 1 and estimate.members[0].status == "estimated"
     assert estimate.answer.interval is None
     for (level, low, high), expected in zip(estimate.answer.levels, truth, strict=True):
-        assert low == pytest.approx(expected, abs=0.03), level
+        # 20000 rows per side: standard error about 5e-3 (observed 5e-3); four of them.
+        assert low == pytest.approx(expected, abs=0.02), level
         assert high == pytest.approx(low, abs=1e-9)
-    assert estimate.answer.contrast == pytest.approx((truth[1] - truth[0],) * 2, abs=0.04)
+    assert estimate.answer.contrast == pytest.approx((truth[1] - truth[0],) * 2, abs=0.03)
     # Another target mechanism is another answer: the source response is not the target's.
     same_mechanism = discovered.estimate_discovered_transport(
         declared,
@@ -497,7 +499,7 @@ def test_an_estimate_standardizes_the_source_response_over_the_target_mechanism_
         target_population="clinic",
     )
     assert same_mechanism.identity != estimate.identity
-    assert same_mechanism.answer.levels[0][1] == pytest.approx(response(0.0, 0.3), abs=0.03)
+    assert same_mechanism.answer.levels[0][1] == pytest.approx(response(0.0, 0.3), abs=0.02)
 
     artifact = bytes(estimate.export())
     verified = discovered.verify_discovered_transport_estimate(artifact)

@@ -355,7 +355,9 @@ fn a_recovered_law_is_fitted_at_execution_and_replayed_from_its_draws() {
     assert_eq!(report.law.draws.len(), 64);
     assert_eq!(report.worlds.iter().map(|w| w.world).collect::<Vec<_>>(), [1, 2]);
     let clamped = &report.worlds[1].answer;
-    close(clamped.mixture_mean.unwrap(), 1.0, 0.2);
+    // do(A = 2) gives B = 0.5 * 2 = 1 in the generating system; 400 rows per regime put the
+    // mixture within about 0.04 (observed 0.035).
+    close(clamped.mixture_mean.unwrap(), 1.0, 0.1);
     assert!(clamped.between_draw_variance.unwrap() > 0.0);
     // The same seed gives the same law on another context.
     let other = CompiledCyclicFamilyProgram::compile(&request, &ExecutionContext::for_tests(8))
@@ -380,7 +382,7 @@ fn a_recovered_law_is_fitted_at_execution_and_replayed_from_its_draws() {
     let reused = reused.result.unwrap();
     let CyclicFamilyAnswer::ExperimentalRecovery(again) = &reused.answer else { panic!() };
     assert_eq!(again.law, report.law);
-    close(again.worlds[0].answer.mixture_mean.unwrap(), -0.5, 0.2);
+    close(again.worlds[0].answer.mixture_mean.unwrap(), -0.5, 0.1);
 }
 
 #[test]
@@ -547,7 +549,8 @@ fn dynamic_inference_shares_its_fit_across_methods_and_replays() {
     let DynamicInferenceAnswer::Information(observed) = inference.as_ref() else {
         panic!("observed information");
     };
-    close(observed.quantity_estimates[0].unwrap(), 0.5, 0.25);
+    // The stationary mean is the generating centre 0.5; its standard error is 0.058 (300 rows).
+    close(observed.quantity_estimates[0].unwrap(), 0.5, 0.12);
     assert!(observed.quantity_standard_errors[0].is_some());
 
     let bootstrap = CyclicFamilyRequest::DynamicInference {

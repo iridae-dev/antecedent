@@ -13,6 +13,27 @@ def _balanced_fixture() -> tuple[dict[str, np.ndarray], list[bool], list[bool]]:
     return {"y": outcome}, a, b
 
 
+def _young_bounds(
+    y: np.ndarray, a: list[bool], b: list[bool], probability_a: list[float], probability_b: float
+) -> dict[str, float]:
+    """Young's-inequality bounds 4 * sum_j w_j^2 V_j, from the definition: cell j has mean
+    sum_i 1[cell_i = j] y_i / q_i / n and the Horvitz-Thompson variance estimate for independent
+    Bernoulli assignment, V_j = sum_{i in j} (1 - q_i) y_i^2 / q_i^2 / n^2."""
+    n = len(y)
+    variance = {"00": 0.0, "01": 0.0, "10": 0.0, "11": 0.0}
+    for i in range(n):
+        qa = probability_a[i] if a[i] else 1.0 - probability_a[i]
+        qb = probability_b if b[i] else 1.0 - probability_b
+        q = qa * qb
+        variance[f"{int(a[i])}{int(b[i])}"] += (1.0 - q) * y[i] ** 2 / q**2 / n**2
+    weights = {
+        "a": {"00": -0.5, "01": -0.5, "10": 0.5, "11": 0.5},
+        "b": {"00": -0.5, "01": 0.5, "10": -0.5, "11": 0.5},
+        "ab": {"00": 1.0, "01": -1.0, "10": -1.0, "11": 1.0},
+    }
+    return {k: 4.0 * sum(w[c] ** 2 * variance[c] for c in variance) for k, w in weights.items()}
+
+
 def test_factorial_2x2_recovers_known_cell_means_and_contrasts() -> None:
     data, a, b = _balanced_fixture()
     result = require_success(
@@ -30,9 +51,10 @@ def test_factorial_2x2_recovers_known_cell_means_and_contrasts() -> None:
     assert result.factor_a_effect == pytest.approx(4.0)
     assert result.factor_b_effect == pytest.approx(5.0)
     assert result.interaction_effect == pytest.approx(4.0)
-    assert result.factor_a_variance_bound > 0.0
-    assert result.factor_b_variance_bound > 0.0
-    assert result.interaction_variance_bound > 0.0
+    bounds = _young_bounds(data["y"], a, b, [0.5] * 8, 0.5)
+    assert result.factor_a_variance_bound == pytest.approx(bounds["a"], rel=1e-12)
+    assert result.factor_b_variance_bound == pytest.approx(bounds["b"], rel=1e-12)
+    assert result.interaction_variance_bound == pytest.approx(bounds["ab"], rel=1e-12)
     assert "independently Bernoulli randomized" in result.assumptions[0]
     assert "no confidence interval" in result.uncertainty_semantics
 
@@ -113,8 +135,8 @@ def test_bayesian_factorial_main_effect_matches_the_exact_beta_moments() -> None
     main_effect_a = 0.5 * (theta[1] + theta[3] - theta[0] - theta[2])
     sd_a = 0.5 * sum(variance) ** 0.5
     assert result.estimate.estimator_id == "bayesian.randomized_superpopulation"
-    assert result.posterior.effect_mean == pytest.approx(main_effect_a, abs=5e-3)
-    assert result.posterior.effect_sd == pytest.approx(sd_a, abs=6e-3)
+    assert result.posterior.effect_mean == pytest.approx(main_effect_a, abs=1e-4)
+    assert result.posterior.effect_sd == pytest.approx(sd_a, abs=1e-3)
 
 
 def test_factorial_2x2_runs_through_the_compiled_randomized_route() -> None:
@@ -139,4 +161,7 @@ def test_factorial_2x2_runs_through_the_compiled_randomized_route() -> None:
     assert result.interaction_effect == pytest.approx(
         expected["11"] - expected["10"] - expected["01"] + expected["00"]
     )
-    assert result.interaction_variance_bound > 0.0
+    bounds = _young_bounds(y, a, b, probability_a, 0.5)
+    assert result.factor_a_variance_bound == pytest.approx(bounds["a"], rel=1e-12)
+    assert result.factor_b_variance_bound == pytest.approx(bounds["b"], rel=1e-12)
+    assert result.interaction_variance_bound == pytest.approx(bounds["ab"], rel=1e-12)
