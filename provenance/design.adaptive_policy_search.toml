@@ -51,7 +51,7 @@ sha256 = "b6ed545b87d9fed1d017e3d034db37e7d5314b934a0e3ddc92e9bee7d7856bef"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/adaptive_policy_search.rs"
-sha256 = "e6715712ce6615057058fb09e75db9709e9ab38fd84777192e35e3ff2be26c88"
+sha256 = "5e87c508d00b5ece747bc2fde138b8feaff6c75131639f1c873bfb093b1c88f6"
 
 [[method_review.artifacts]]
 role = "reference"

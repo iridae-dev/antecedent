@@ -40,4 +40,4 @@ sha256 = "d3094cdc5169502b9fe681c8177005de6ac93c83609af8c9f35c0bba7d738765"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/penalized_aipw.rs"
-sha256 = "4c33cf24eb9df9b8b7de23d7d125ec29b5c944af3c9c403896fdbd0578f13d59"
+sha256 = "527a73137e33d3c1fb4baddd2170ec80b3038ab6f5e7c73dbbb1953dfe7eee75"

@@ -42,7 +42,7 @@ sha256 = "f270176bf6714e8bcfa364d2dae4734db2bc30c1e7893e10aa38cbae118a7a1b"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs"
-sha256 = "8adff3628f983dcdba03ac49b6d24d8cc578dd5c0409b81dc94b4b423cf6fc32"
+sha256 = "f31c3ab3c45e199253371a296a9444fce8678513f0e28ce3ea1b88d06650fd60"
 
 [[method_review.artifacts]]
 role = "reference"

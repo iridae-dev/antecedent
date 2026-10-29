@@ -42,4 +42,4 @@ sha256 = "9918dadc1ba0df7aaab50019ba02568ae8782a82cd2f50e8a0b47ca2e600c245"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-io/tests/distribution_artifact.rs"
-sha256 = "0a8338aa377410bcc944e319eda27a55d38d8128ece6cbd1a525dfa6ec6d318d"
+sha256 = "ae09c09c9ca7df596ea178dbf66881532a9e9dfcbcab5dd6634a501795a58124"

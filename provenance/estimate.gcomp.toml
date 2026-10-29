@@ -48,7 +48,7 @@ sha256 = "eae5d4257a9ead8ea0d1885d02ee59c916c883b38f368419cb8e747bd3afc83c"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/glm.rs"
-sha256 = "de469faef1d5757bac03d7fb7707654b018eef37a50f85ac944626c6955df047"
+sha256 = "16f5e82706406273aaab6c6e8585e2cb30a10fefaf23049dab38665942b3b59a"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -58,7 +58,7 @@ sha256 = "c17444482d21c072e7c4b92e3be0379cc2089f5c9c616652964ef2b18da42afa"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/src/glm_adjustment/tests.rs"
-sha256 = "245d1b471677b65ff36c4674e9795fb8f0ddfd152916bc35ee80f8c458fd251a"
+sha256 = "2bc7a0529a8d9d8c6ea93331ce911b888887e31d299b13efa0e1846310640785"
 
 [[method_review.artifacts]]
 role = "fixture"

@@ -36,4 +36,4 @@ sha256 = "743a30c4cc7de7d7869094aed8f43d38fffec2b68693d3117eb26bf6bc5a383a"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/portable_predictor_resume.rs"
-sha256 = "3863c3a002c91c61b8061151f6852e49063554785f5b2eb0a74ce991d20fb9ec"
+sha256 = "0e7a387833e86fe8b0c383c322f63e38b90e0a8fed052f718a13b8f121888a11"
