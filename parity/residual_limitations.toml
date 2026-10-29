@@ -5,7 +5,7 @@
 # self-ownership, closed or absent owners and a decision without a rationale.
 
 schema = 1
-count = 146
+count = 144
 
 [[limitation]]
 id = "phrase.declaration.0aa33e3f48"
@@ -402,30 +402,6 @@ owner = "Q08"
 decision = ""
 rationale = ""
 rule = "evidence_row_coverage_measurement"
-
-[[limitation]]
-id = "counterpart.P02.penalized_propensity.temporal.frequentist"
-kind = "narrowed_promise"
-source = "parity/counterparts.toml"
-locator = "P02.penalized_propensity.temporal.frequentist"
-text = "the lagged-history penalized propensity product publishes scores and no interval for the frequentist side; the dependence-aware influence-function interval over repeated decision times is the next attempt Next attempt: derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin"
-item = "P02"
-owner = "P20"
-decision = ""
-rationale = ""
-rule = "interval_derivation_without_independent_owner"
-
-[[limitation]]
-id = "counterpart.P04.temporal.frequentist"
-kind = "narrowed_promise"
-source = "parity/counterparts.toml"
-locator = "P04.temporal.frequentist"
-text = "the period-history matching contrast reports the Abadie-Imbens standard error and no interval; the dependence-aware interval over repeated periods is the next attempt Next attempt: derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin"
-item = "P04"
-owner = "P20"
-decision = ""
-rationale = ""
-rule = "interval_derivation_without_independent_owner"
 
 [[limitation]]
 id = "counterpart.P07.derivative.temporal.bayesian"

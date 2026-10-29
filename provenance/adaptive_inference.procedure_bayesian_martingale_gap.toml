@@ -44,7 +44,7 @@ sha256 = "ba9993956dd5542f88a9a4d554c52d4fa9b32b8483a5e7a7ef0e94806390feb2"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/adaptive_bayesian_martingale_gap_reference.rs"
-sha256 = "54a76625c8a228ec6741ef819744f86278a143aeaa4ea5813ef6d02a83df367b"
+sha256 = "cdd90c7c6689c09df00e1428e5b4cd07e8053bb9c68ebcbc8e56163eb902b6b1"
 
 [[method_review.artifacts]]
 role = "assertion"

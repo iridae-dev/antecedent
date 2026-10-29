@@ -43,4 +43,4 @@ sha256 = "f48f69c9d35cd1941044795dcac110d084ebd97d6707b41bcce393c02b03ab96"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/transported_bridge.rs"
-sha256 = "81db256296c5eb9d9eeae8643ad1e253b024917de3c2236848a51e106079703f"
+sha256 = "e559780329b4191deda0941186a369a7dafe255b9a82d4cb8a7dad48218e8cbc"

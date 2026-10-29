@@ -61,4 +61,4 @@ sha256 = "04a5457d3b0bc542be1329b588146e5ac43879e2d77ba5c0c8fb80c8e3f07811"
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/design/adaptive_policy_search/expected.json"
-sha256 = "cf87f7fd3a01db36073e8da60f7b5803253e7e3d71ba7abe10dbacf1088304c4"
+sha256 = "c0af35d18012fcf66082faf447191815a9a2093b6414a8aeded33818df87985c"

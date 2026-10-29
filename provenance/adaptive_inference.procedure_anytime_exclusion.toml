@@ -40,7 +40,7 @@ sha256 = "ba9993956dd5542f88a9a4d554c52d4fa9b32b8483a5e7a7ef0e94806390feb2"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/adaptive_anytime_exclusion_reference.rs"
-sha256 = "7f6f733f44d42e5432b9fbb44936369e779506b198bbc5d84d8763ea2c226e7e"
+sha256 = "2656184131fb351248fd8c85e0d300f5fd4af919345a51db8342cd613dd5e918"
 
 [[method_review.artifacts]]
 role = "assertion"

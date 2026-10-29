@@ -47,7 +47,7 @@ sha256 = "70fa36f8e8ed0b6b09e0d39e152fbfddaf7f64af0c367115aa7e36fcae534992"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/history_outcome_model_reference.rs"
-sha256 = "aa3bdc29136ffd417f3e7bcd45f0a31cdea9de8c9f3ef8e139ff6d2512c0df37"
+sha256 = "9b36285f61e3efa34d8d309e027bd3627ec82d086cf850dd334ce446fffef9c1"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -52,7 +52,7 @@ sha256 = "15e317a98a7f8a6158531b7ff0a373c8c390f3e3d2affc333b285ae6a97d7b0c"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/generalized_propensity_aipw_reference.rs"
-sha256 = "8b092fe06d7cbd97038edbf2c3afa49d5389847f8efefc8fc0f0b711069326c9"
+sha256 = "e6fa274c7deb77c14c37faa43ee7fde758e38776dae42edbce0dc80fc440b392"
 
 [[method_review.artifacts]]
 role = "reference"

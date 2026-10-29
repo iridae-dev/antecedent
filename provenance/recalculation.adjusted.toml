@@ -45,7 +45,7 @@ sha256 = "ee0075b670facec6a05cf2322b3d731163fdeb76b648356cc05f3540c15ff655"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/adjusted_contrast_reference.rs"
-sha256 = "67648237eff2b57c15fa780d5612b25c187ffff126bd4ac667a8a681f04d3ec8"
+sha256 = "2d095d3759c8bc84d4898e462c165709a0eb597c55b9b91e7e9cb3fd6c578336"
 
 [[method_review.artifacts]]
 role = "reference"

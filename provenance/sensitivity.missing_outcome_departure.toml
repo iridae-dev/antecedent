@@ -57,9 +57,9 @@ sha256 = "2c688fe4d2080c9d40d8caaf466eb8ce17ef582f1a4daeec207ab7b4e2f5408d"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/mnar_sensitivity.rs"
-sha256 = "12608ed35cc712d6515cbb6e8cda6f683167e52f84fd25425a8843e7ce2d4beb"
+sha256 = "a98281efbbfaf349f73b6c1f0598063d88f618c5d081f20dcf843d166e904c17"
 
 [[method_review.artifacts]]
 role = "reference"
 path = "conformance/validate/mnar_sensitivity/expected.json"
-sha256 = "0bac02461a7e2a25f502732c4f8da36e3d63da84982f5f13416afa4bd6a389db"
+sha256 = "12dbeff6cf5d8ed3cfa946c58b99e574d316d6b2ca7eccda12a87737683c7df2"

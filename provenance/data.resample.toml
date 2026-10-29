@@ -51,4 +51,4 @@ sha256 = "bacb6121bd531b577363771d8bbf05b3cfba64553adb8ef0a7761166539f16c7"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-data/tests/resample_law_reference.rs"
-sha256 = "024bf4bcf8d2203fc0eb87bdab179fb36aecbe9eadb7b79bd746a0faaf95b5bc"
+sha256 = "02f37b85d275822fae74ca8c4b4a100e8ce3fa35177eeb1f97dea9f93e1ae4bc"

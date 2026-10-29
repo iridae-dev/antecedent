@@ -63,4 +63,4 @@ sha256 = "2bc7a0529a8d9d8c6ea93331ce911b888887e31d299b13efa0e1846310640785"
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/estimate/glm_adjustment_grid/expected.json"
-sha256 = "4e7a10bdd6004ef50fcc05016bdad21fde480854e383d90712c1304c7d81b29a"
+sha256 = "a1b765a2f2d66f77f8011c781bcb2907645b61ac51adcbdcf33ecf0102abb17e"

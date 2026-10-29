@@ -36,7 +36,7 @@ sha256 = "e44f70cf91cc03751b47c9497ad1d703517f39725b6f48667551329b4234b0b4"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/cox_ipcw_reference.rs"
-sha256 = "de72053c5132b6fad6bd4d1ea20cedb353499f1c5f8994ca7116b32883a3555c"
+sha256 = "768a6319c2ebb4f8d844b20589a835aacf6efec94a1d6d66049fcd9fbeca9ca1"
 
 [[method_review.artifacts]]
 role = "reference"

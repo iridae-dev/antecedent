@@ -33,4 +33,4 @@ sha256 = "6a6d5d8f0395eec7eeb167dc57fec8e674fb4f34942dc807597aca946e7a3fa3"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/adaptive_inference_facade.rs"
-sha256 = "241fb82b880cccd6ce053cda6e03e3141c51aa75fce129bf1662b59890d40818"
+sha256 = "468921f3dab8b80138da33551385052736cfe1a49feb7b6820b9ee136d4754ae"

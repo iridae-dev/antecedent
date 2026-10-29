@@ -6,7 +6,7 @@
 # method families; 2 = linked by an admitted specification; 3 = numerical, unlinked;
 # 4 = contract, closed variant, bookkeeping or unclassified; 0 = reviewed or justified_non_algorithm
 # (a digest-bound mapping to the records and modules that carry the numerics; not a source review).
-# Summary: justified_non_algorithm=144, reviewed=356
+# Summary: justified_non_algorithm=141, reviewed=356, unclassified=1, wrapper_contract=2
 
 [[record]]
 id = "adaptive_inference.adaptive_weighting"
@@ -70,13 +70,13 @@ basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "adaptive_inference.guarantees_closed"
-class = "justified_non_algorithm"
-priority = 0
+class = "wrapper_contract"
+priority = 4
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "non_algorithm_review (closed_variant; covered by: none) is digest-bound to the mapped modules"
+basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
 
 [[record]]
 id = "adaptive_inference.participant_family"
@@ -4040,13 +4040,13 @@ basis = "non_algorithm_review (contract; covered by: none) is digest-bound to th
 
 [[record]]
 id = "recalculation.design_specific"
-class = "justified_non_algorithm"
-priority = 0
+class = "wrapper_contract"
+priority = 4
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "non_algorithm_review (wrapper; covered by: estimate.iv_2sls, estimate.rd, estimate.frontdoor_two_stage) is digest-bound to the mapped modules"
+basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
 
 [[record]]
 id = "recalculation.doubly_robust"
@@ -4800,13 +4800,13 @@ basis = "non_algorithm_review (derivation; covered by: estimate.posterior_mean_k
 
 [[record]]
 id = "transport.surrogate_bridge_premise"
-class = "justified_non_algorithm"
-priority = 0
+class = "unclassified"
+priority = 4
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "non_algorithm_review (contract; covered by: scientific_bridge.typed_bridges) is digest-bound to the mapped modules"
+basis = "no-paper record not covered by any rule; needs a reading"
 
 [[record]]
 id = "transport.synthesis"

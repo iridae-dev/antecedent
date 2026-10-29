@@ -60,12 +60,6 @@ locator = "^(P16|X04\\.1|X04\\.2|X05|X06)\\."
 owner = "E14"
 
 [[owner]]
-name = "interval_derivation_without_independent_owner"
-kind = "^narrowed_promise$"
-locator = "^(P02|P04)\\."
-owner = "P20"
-
-[[owner]]
 name = "attribution_prior_grid_without_independent_owner"
 kind = "^narrowed_promise$"
 locator = "^P13\\.attribution\\.static\\.bayesian$"

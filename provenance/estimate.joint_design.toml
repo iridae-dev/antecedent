@@ -61,7 +61,7 @@ sha256 = "3907c68c225c728d9c77b640580809891f2153c5e29c677124b3fb61729f86bb"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/joint_design_reference.rs"
-sha256 = "cce74a57702956d883a080a8c608558d7ff26a5369028d158feaf173d4cf938e"
+sha256 = "a2a0ca1cdbc3b78067d1f482d1d0451b89e2e4eae6824ff4989e5e3fa99f0fc5"
 
 [[method_review.artifacts]]
 role = "reference"

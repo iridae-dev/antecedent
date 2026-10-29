@@ -2478,7 +2478,7 @@ inference = "Delta_AB = E[Y(a,b)] - E[Y(a,0)] - E[Y(0,b)] + E[Y(0,0)]"
 gap = "none"
 missing = "none"
 owner = "crates/antecedent"
-fixtures = "crates/antecedent/tests/numeric_pins.rs::batch_family_contrasts_retain_checked_worlds_after_builder_disposal; crates/antecedent/tests/numeric_pins.rs::three_factor_interaction_batch_withholds_instead_of_using_first_four_cells"
+fixtures = "crates/antecedent/tests/numeric_pins.rs::batch_family_contrasts_retain_checked_worlds_after_builder_disposal; crates/antecedent/tests/numeric_pins.rs::three_factor_interaction_batch_publishes_the_three_way_contrast"
 consumer = "crates/antecedent/src/analysis/batch.rs::prepare_cells"
 notes = "Core. Not a promotion candidate. Single-world InterventionResponse is not the assembled contrast. Mediation keeps its own cross-world premises."
 

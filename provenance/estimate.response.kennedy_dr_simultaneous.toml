@@ -55,7 +55,7 @@ sha256 = "89fe5fca07635b8f8f54eb2662875156b0e942796baa5d6edad68e35065fa847"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/estimate_response_kennedy_dr_simultaneous_reference.rs"
-sha256 = "245a95ec2fd8699eb43c4afe921a19c6de4e69a233ce4957f70063e72f87e1bc"
+sha256 = "e8a8ffbb6c53d5a200d77103991726510f60ad7f031cbb0ab15ffd4cd0087baf"
 
 [[method_review.artifacts]]
 role = "reference"

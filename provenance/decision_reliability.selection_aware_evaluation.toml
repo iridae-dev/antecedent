@@ -39,7 +39,7 @@ sha256 = "cc6d91296ed539d49f6cb32c04843c218e75bd75b3dd159bfed340be2267b18a"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/winners_curse_reference.rs"
-sha256 = "d98e87db8bc26ad6da0b6c90c8f7ecb30592346fa0b4eb0c100293f1764ed659"
+sha256 = "0a43f1025a3f95ccdf81629cb6901f731f3b9a6c982a5cb3b4def22ede589690"
 
 [[method_review.artifacts]]
 role = "reference"

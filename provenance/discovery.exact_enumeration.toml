@@ -70,4 +70,4 @@ sha256 = "64d50b0e20a40fe50bbec2baf8f855a8015a94b4d9fee467e9fe99fc48f9972b"
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/discovery/graph_mcmc_exact/expected.json"
-sha256 = "6c3f3a83578ee5f0a25e07cf814b258386e1c74fcb62666aa5f50e1cece9e7c3"
+sha256 = "a033a250de6ea08cebb18ef6a7e2c8531001cd49973e1d811bbd6f4bbf4a24ed"

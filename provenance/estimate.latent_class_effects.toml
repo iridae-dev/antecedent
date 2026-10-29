@@ -51,7 +51,7 @@ sha256 = "14ee610e627cd573604aff6616482b3ce4b41717ee3316918ca69847db9d8c1a"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/latent_class_reference.rs"
-sha256 = "d8422ca81c7071d43c4c4b20ec1f0d9d4ae88f7239daf61bf2198d1ee57487fd"
+sha256 = "5692c8b32c6fba027c11f85bc373e49316f5eb260045519f9275dbd32482765b"
 
 [[method_review.artifacts]]
 role = "reference"
