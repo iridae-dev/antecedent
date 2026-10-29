@@ -270,6 +270,10 @@ DECLARED_UNMEASURED = {
 T = "crates/antecedent/tests/"
 # Executing routes whose evidence the literal search cannot find: the tests that run them.
 EVIDENCE_OVERRIDE = {
+    "bayesian.dose_grid": [
+        T
+        + "bayesian_randomized_routes.rs::the_bayesian_dose_grid_route_replays_to_the_conjugate_reference_through_a_fresh_consumer"
+    ],
     "gcm.model.mechanism_selection": [
         T + "structure_compiler_routes.rs::wrapped_mechanisms_name_themselves_in_the_program"
     ],
@@ -444,6 +448,11 @@ CONSUMER_OVERRIDE = {
     "composition.temporal.bayesian": [
         "crates/antecedent/src/analysis/composition.rs",
         T + "cross_surface_horizon.rs",
+    ],
+    "bayesian.dose_grid": [
+        "crates/antecedent-io/src/bayesian_posterior_row_artifact.rs::consume_typed",
+        T
+        + "bayesian_randomized_routes.rs::a_tampered_bayesian_dose_grid_artifact_is_refused_with_its_exact_typed_error",
     ],
     "graphless.dose_grid.randomized_dose.local_quadratic": [
         "crates/antecedent-io/src/dose_grid_functional_artifact.rs::consume_typed",

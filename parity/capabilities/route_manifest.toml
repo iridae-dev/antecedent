@@ -14728,8 +14728,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent-estimate/src/dose_grid_posterior.rs"
 implementation = ["crates/antecedent-estimate/src/dose_grid_posterior.rs"]
 provenance = []
-evidence = ["crates/antecedent-estimate/src/dose_grid_posterior.rs::level_posterior_matches_the_conjugate_reference_and_keeps_the_covariance"]
-artifact_consumer = []
+evidence = ["crates/antecedent-estimate/src/dose_grid_posterior.rs::level_posterior_matches_the_conjugate_reference_and_keeps_the_covariance", "crates/antecedent/tests/bayesian_randomized_routes.rs::the_bayesian_dose_grid_route_replays_to_the_conjugate_reference_through_a_fresh_consumer"]
+artifact_consumer = ["crates/antecedent-io/src/bayesian_posterior_row_artifact.rs::consume_typed", "crates/antecedent/tests/bayesian_randomized_routes.rs::a_tampered_bayesian_dose_grid_artifact_is_refused_with_its_exact_typed_error"]
 
 [[method]]
 id = "method.closed.AverageEffect.TemporalDag"

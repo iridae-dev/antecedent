@@ -495,3 +495,186 @@ fn the_complier_posterior_refuses_an_arm_contrast_estimator() {
     .to_string();
     assert!(error.contains("Next attempt"), "{error}");
 }
+
+mod dose_grid_route {
+    //! The standalone Bayesian randomized dose-grid route (`bayesian.dose_grid`) through the
+    //! facade: evaluated, exported, and consumed by a fresh reader that recomputes the
+    //! posterior from the embedded table. The route has no `Study` query, so its retained
+    //! artifact is the posterior-row artifact rather than an analysis-result body. The
+    //! reference is the conjugate ridge posterior of the polynomial dose curve computed with
+    //! numpy from the normal equations on the rescaled design, outside the library.
+    #![allow(
+        clippy::float_cmp,
+        reason = "bit-identical replay of the stored posterior is the property under test"
+    )]
+
+    use antecedent::analysis::bayesian_posterior_row::{
+        BayesianPosteriorRow, DOSE_GRID_POSTERIOR_ESTIMATOR, DoseGridPosteriorWire,
+        PosteriorRowArtifactError, PosteriorRowConsumeLimits, PosteriorRowRequestWire,
+        ResidualPriorWire,
+    };
+    use antecedent::prelude::ExecutionContext;
+    use antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire;
+    use antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire;
+
+    const ROUTE: &str = "bayesian.dose_grid";
+    const DOSE: [f64; 10] = [0.1, 0.5, 0.9, 1.4, 1.8, 2.2, 2.7, 3.1, 3.5, 3.9];
+    const OUTCOME: [f64; 10] = [1.2, 1.9, 2.1, 3.0, 3.2, 3.1, 3.0, 2.6, 2.2, 1.5];
+
+    fn close(actual: f64, expected: f64, tolerance: f64, what: &str) {
+        assert!((actual - expected).abs() <= tolerance, "{what}: {actual} vs {expected}");
+    }
+
+    fn request(kind: &str) -> PosteriorRowRequestWire {
+        let contrast = kind == "contrast";
+        PosteriorRowRequestWire::DoseGrid(DoseGridPosteriorWire {
+            design: "randomized_dose".into(),
+            functional: DoseFunctionalWire {
+                kind: kind.into(),
+                from: contrast.then_some(1.0),
+                to: contrast.then_some(3.0),
+            },
+            grid: if contrast { Vec::new() } else { vec![0.5, 2.0, 3.5] },
+            support: (0.0, 4.0),
+            coefficient_scales: vec![3.0, 2.0, 1.0],
+            residual: ResidualPriorWire::KnownVariance(0.25),
+            draws: 40_000,
+            seed: 21,
+            dose: DOSE.to_vec(),
+            outcome: OUTCOME.to_vec(),
+        })
+    }
+
+    fn live(kind: &str) -> BayesianPosteriorRow {
+        let ctx = ExecutionContext::for_tests(0xD05E);
+        BayesianPosteriorRow::evaluate_with_context(request(kind), &ctx).unwrap()
+    }
+
+    fn consume(bytes: &[u8]) -> Result<BayesianPosteriorRow, PosteriorRowArtifactError> {
+        BayesianPosteriorRow::consume(bytes, PosteriorRowConsumeLimits::default())
+    }
+
+    #[test]
+    fn the_bayesian_dose_grid_route_replays_to_the_conjugate_reference_through_a_fresh_consumer() {
+        assert_eq!(ROUTE, DOSE_GRID_POSTERIOR_ESTIMATOR);
+        let references: [(&str, &[&str], &[f64], &[f64]); 3] = [
+            (
+                "level",
+                &["level(0.5)", "level(2)", "level(3.5)"],
+                &[2.018_449_65, 2.714_270_59, 2.318_891_91],
+                &[
+                    0.064_536_70,
+                    0.016_412_15,
+                    -0.005_911_84,
+                    0.016_412_15,
+                    0.041_541_01,
+                    0.015_904_12,
+                    -0.005_911_84,
+                    0.015_904_12,
+                    0.063_660_80,
+                ],
+            ),
+            (
+                "derivative",
+                &["derivative(0.5)", "derivative(2)", "derivative(3.5)"],
+                &[0.827_613_84, 0.100_147_42, -0.627_319_00],
+                &[],
+            ),
+            ("contrast", &["contrast(1->3)"], &[0.200_294_84], &[0.062_231_64]),
+        ];
+        for (kind, coordinates, mean, covariance) in references {
+            let row = live(kind);
+            assert_eq!(row.estimator(), ROUTE);
+            let consumed = consume(&row.export().unwrap()).unwrap();
+            // The consumed summaries are the live ones, bit for bit.
+            assert_eq!(consumed.result(), row.result(), "{kind}: consumed equals live");
+            assert_eq!(consumed.digests(), row.digests());
+            let result = consumed.result();
+            assert_eq!(result.coordinates, coordinates, "{kind}");
+            assert!(!result.licensed);
+            assert_eq!(result.calibration, "unmeasured");
+            // And both equal the independent closed form.
+            let exact = result.exact_mean.as_ref().unwrap();
+            for (got, want) in exact.iter().zip(mean) {
+                close(*got, *want, 1e-7, kind);
+            }
+            for (got, want) in result.mean.iter().zip(mean) {
+                close(*got, *want, 0.01, kind);
+            }
+            if !covariance.is_empty() {
+                let exact_covariance = result.exact_covariance.as_ref().unwrap();
+                for (got, want) in exact_covariance.iter().zip(covariance) {
+                    close(*got, *want, 1e-7, kind);
+                }
+                let width = coordinates.len();
+                let joint = result.covariance.as_ref().unwrap();
+                for g in 0..width {
+                    for h in 0..width {
+                        let scale = (covariance[g * width + g] * covariance[h * width + h]).sqrt();
+                        close(
+                            joint[g * width + h],
+                            covariance[g * width + h],
+                            0.05 * scale,
+                            "joint covariance",
+                        );
+                    }
+                }
+            }
+            for g in 0..coordinates.len() {
+                assert!(result.lower[g] < result.mean[g] && result.mean[g] < result.upper[g]);
+            }
+        }
+    }
+
+    #[test]
+    fn a_tampered_bayesian_dose_grid_artifact_is_refused_with_its_exact_typed_error() {
+        let bytes = live("level").export().unwrap();
+        let sealed = PosteriorRowArtifactWire::decode(&bytes).unwrap();
+        let reseal = |mut wire: PosteriorRowArtifactWire| {
+            wire.premises_digest = wire.expected_premises_digest().unwrap();
+            wire.data_digest = wire.expected_data_digest().unwrap();
+            wire.export().unwrap()
+        };
+
+        // An edited table entry without fresh digests breaks the data identity ...
+        let mut edited = sealed.clone();
+        let PosteriorRowRequestWire::DoseGrid(w) = &mut edited.request;
+        w.outcome[3] += 0.5;
+        assert_eq!(
+            consume(&edited.export().unwrap()).unwrap_err(),
+            PosteriorRowArtifactError::DataMismatch
+        );
+        // ... and the same edit resealed is caught by the replay.
+        assert_eq!(
+            consume(&reseal(edited)).unwrap_err(),
+            PosteriorRowArtifactError::ResultMismatch
+        );
+
+        // A changed prior scale breaks the premises identity, and resealed the replay.
+        let mut prior = sealed.clone();
+        let PosteriorRowRequestWire::DoseGrid(w) = &mut prior.request;
+        w.coefficient_scales[2] = 0.5;
+        assert_eq!(
+            consume(&prior.export().unwrap()).unwrap_err(),
+            PosteriorRowArtifactError::PremisesMismatch
+        );
+        assert_eq!(consume(&reseal(prior)).unwrap_err(), PosteriorRowArtifactError::ResultMismatch);
+
+        // A forged stored posterior mean, resealed.
+        let mut forged = sealed.clone();
+        forged.result.mean[0] += 0.001;
+        assert_eq!(
+            consume(&reseal(forged)).unwrap_err(),
+            PosteriorRowArtifactError::ResultMismatch
+        );
+
+        // A claimed licence is refused as unsupported semantics before any replay.
+        let mut licensed = sealed;
+        licensed.result.licensed = true;
+        assert!(matches!(
+            consume(&reseal(licensed)).unwrap_err(),
+            PosteriorRowArtifactError::UnsupportedSemantics(_)
+        ));
+        assert!(matches!(consume(b"not cbor"), Err(PosteriorRowArtifactError::Undecodable(_))));
+    }
+}
