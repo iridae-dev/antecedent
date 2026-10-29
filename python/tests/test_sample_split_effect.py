@@ -115,7 +115,7 @@ def test_a_table_outside_five_to_seven_variables_is_refused() -> None:
 
 
 def test_unknown_roles_are_rejected_before_any_native_work() -> None:
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=r"treatment 'missing' is not a column of data"):
         sd.sample_split_effect(
             collider_table(6),
             treatment="missing",

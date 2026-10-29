@@ -321,9 +321,9 @@ fn collections_and_versions_are_bounded_and_checked_before_use() {
     assert!(matches!(error, CallbackResultArtifactError::UnsupportedSemantics(_)));
     // Bytes beyond the artifact bound are not decoded; arbitrary bytes are not an artifact.
     let oversized = vec![0_u8; MAX_CALLBACK_RESULT_ARTIFACT_BYTES + 1];
-    assert!(CallbackResultArtifact::from_bytes(&oversized, None).is_err());
-    assert!(CallbackResultArtifact::from_bytes(b"not an artifact", None).is_err());
-    assert!(CallbackResultArtifact::inspect(b"\x00\x01\x02").is_err());
+    assert_eq!(CallbackResultArtifact::from_bytes(&oversized, None).err().unwrap().to_string(), "callback result consumer limit exceeded: artifact bytes");
+    assert_eq!(CallbackResultArtifact::from_bytes(b"not an artifact", None).err().unwrap().to_string(), "callback result artifact does not decode: bad artifact magic");
+    assert_eq!(CallbackResultArtifact::inspect(b"\x00\x01\x02").err().unwrap().to_string(), "callback result artifact does not decode: io error: failed to fill whole buffer");
 }
 
 #[test]
@@ -332,13 +332,17 @@ fn a_corrupted_container_is_refused() {
     for offset in [bytes.len() / 3, bytes.len() / 2, bytes.len() - 5] {
         let mut corrupt = bytes.clone();
         corrupt[offset] ^= 0x01;
+        let message =
+            CallbackResultArtifact::from_bytes(&corrupt, None).err().unwrap().to_string();
         assert!(
-            CallbackResultArtifact::from_bytes(&corrupt, None).is_err(),
-            "flipping byte {offset} must be detected"
+            message.starts_with(
+                "callback result artifact does not decode: checksum mismatch for section `callback_result_"
+            ),
+            "flipping byte {offset} must be a section checksum mismatch: {message}"
         );
     }
     let truncated = &bytes[..bytes.len() - 17];
-    assert!(CallbackResultArtifact::from_bytes(truncated, None).is_err());
+    assert_eq!(CallbackResultArtifact::from_bytes(truncated, None).err().unwrap().to_string(), "callback result artifact does not decode: io error: failed to fill whole buffer");
 }
 
 #[test]

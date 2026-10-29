@@ -55,5 +55,5 @@ def test_duckdb_results_request_the_batch_size_from_the_engine() -> None:
 
 
 def test_a_zero_row_bound_is_refused() -> None:
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=r"max_rows must be at least one row"):
         bounded_arrow_reader(_table(), 0)

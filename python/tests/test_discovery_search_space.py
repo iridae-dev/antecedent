@@ -134,7 +134,7 @@ def test_conditional_independence_resolves_by_name_and_refuses_unknown_or_misuse
     )
     assert weighted.ci_name == "weighted_parcorr"
 
-    with pytest.raises(CausalCompileError):
+    with pytest.raises(CausalCompileError, match=r"backend error: unknown CI test name: no_such_test"):
         DISCOVERY.PCMCI(max_lag=1, ci="no_such_test").run(
             (names, cols), execution=antecedent.Execution(seed=1)
         )

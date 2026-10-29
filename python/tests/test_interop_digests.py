@@ -198,5 +198,5 @@ def test_a_provider_result_loads_through_artifacts_as_its_declared_header() -> N
     assert result.host_artifact.startswith(b"CAUSAL\0\0"), "new results use the shared container"
     tampered = bytearray(result.host_artifact)
     tampered[-1] ^= 1
-    with pytest.raises(CausalSerializationError):
+    with pytest.raises(CausalSerializationError, match=r"checksum mismatch for section `provider_result\.artifact`"):
         artifacts.loads(bytes(tampered))

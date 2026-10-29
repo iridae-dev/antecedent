@@ -419,5 +419,5 @@ fn covariance_artifact_consumer_row_bound_is_configurable_on_the_producer_too() 
     let (code, message) = refused(declared.compute_within(&ctx(), &tight));
     assert_eq!(code, "cell_not_licensed");
     assert!(message.starts_with("scenario_covariance.table_too_large"), "{message}");
-    assert!(declared.estimators_within(&tight).is_err());
+    assert_eq!(declared.estimators_within(&tight).err().unwrap().to_string(), "reason=cell_not_licensed: scenario_covariance.table_too_large: at most 5 rows");
 }

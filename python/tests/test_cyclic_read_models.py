@@ -134,7 +134,7 @@ def test_typed_world_read_models_preserve_law_and_declared_evidence_coordinates(
     assert len(repr(world)) < 300
     with pytest.raises(TypeError, match="read.only"):
         world.outcome["mean"][0] = 9.0
-    with pytest.raises(FrozenInstanceError):
+    with pytest.raises(FrozenInstanceError, match=r"cannot assign to field 'world'"):
         world.world = 9
     inspection = world.inspect()
     assert inspection.support.payload["certificate"] == world.certificate

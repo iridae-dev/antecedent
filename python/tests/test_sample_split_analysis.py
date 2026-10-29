@@ -132,9 +132,9 @@ def test_malformed_rules_are_refused_with_registered_details(
 
 
 def test_an_undeclared_rule_is_a_value_error() -> None:
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=r"declare discovery_rows, or discovery_fraction with split_seed"):
         sd.discover_on_split(CONTRACT, table(8))
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=r"declare discovery_rows or discovery_fraction with split_seed, not both"):
         sd.discover_on_split(
             CONTRACT, table(8), discovery_rows=[1], discovery_fraction=0.5, split_seed=1
         )

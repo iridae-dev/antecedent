@@ -50,4 +50,4 @@ sha256 = "303162f68aecca8e7d5286854172d2433c43e60bf6d9bed9607765e6fef93fc4"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/evidence_obligation.rs"
-sha256 = "6be648a26dd1f047db8fce78d754cd166620cc581067e68373a8d7869868fb3f"
+sha256 = "9113724f4f807fecc3a5619d956861ba4e75eebd09e14ad8bc0c9e768612bf1f"

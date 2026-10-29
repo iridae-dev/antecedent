@@ -28,4 +28,4 @@ sha256 = "743682c5b99cce54483dccf99b2a73afb3e7e3640f8970f3efa7c459de41adab"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "python/tests/test_measured_inference.py"
-sha256 = "8a07ffd98080d75a946c66e18944bf38f47ba9874d146ebb2a3fe2f0565edf20"
+sha256 = "d99f369b23760657454852e0b7e5b218def68d15babdfcec93c29bd250e00d55"

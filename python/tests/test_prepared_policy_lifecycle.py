@@ -87,7 +87,7 @@ def test_policy_fit_resource_limit_remains_an_operational_exception():
     study = ac.prepare(observations(), query=question(), graph=[("x", "y")])
     # Bind a strict run context after input admission, so the fit itself is checked.
     branch = study._engine._branch(Execution(limits=ResourceLimits(memory_bytes=0)))
-    with pytest.raises(CausalResourceError):
+    with pytest.raises(CausalResourceError, match=r"admission wait of 0ns ended before the budget had room"):
         branch.estimate()
 
 
@@ -95,7 +95,7 @@ def test_policy_program_export_does_not_claim_a_saved_value():
     result = ac.estimate(ac.prepare(observations(), query=question(), graph=[("x", "y")]))
     artifact = result.export(quantity="program")
     assert bytes(artifact).startswith(b"ANTPOLICYPROG")
-    with pytest.raises(CausalUnsupportedError):
+    with pytest.raises(CausalUnsupportedError, match=r"reason=route_not_supported: this policy result exports only its retained program with quantity='prog"):
         result.export(quantity="value")
 
 

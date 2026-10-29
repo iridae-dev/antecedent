@@ -24,4 +24,4 @@ sha256 = "90584bacd6a983c7eec462528a9a160b671584dec6ebd40a8db8c8048dcaf31e"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/recalc_external.rs"
-sha256 = "412e4fe4159a862690d2299125f5f0f18149ff7d3f6c4b22898bd297d7832a0b"
+sha256 = "97ed5f9ae28b9af73a0b5e44004fac4a9f1952228d64d033f89f2d07f74c308d"

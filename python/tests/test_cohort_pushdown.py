@@ -44,13 +44,13 @@ def test_a_projection_that_keeps_every_required_column_delivers_the_cohort():
 
 
 def test_a_projection_that_drops_a_required_column_is_refused():
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=r"pushdown refused: column 'w' must be retained"):
         cp.checked_projection(SOURCE, CLOSURE, ["y", "x"])
 
 
 def test_a_projection_that_keeps_an_extra_column_changes_the_cohort_and_is_refused():
     # Completing cases on the extra column as well would drop row 0: [3, 5] is not [0, 3, 5].
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=r"pushdown rewrite: rewrite_legality\.sample_selection: column_filter_pushdown would alter sample selec"):
         cp.checked_projection(SOURCE, CLOSURE, ["y", "w", "x", "extra"])
 
 
@@ -60,12 +60,12 @@ def test_a_filter_that_drops_only_rows_outside_the_cohort_is_admitted():
 
 
 def test_a_filter_that_drops_a_cohort_row_is_refused():
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=r"pushdown refused: column 'extra' must be retained"):
         cp.checked_push_filter(SOURCE, CLOSURE, "extra", [False, False, False, True, False, False])
 
 
 def test_a_filter_mask_of_the_wrong_length_is_refused():
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=r"extra: expected length 6, got 2"):
         cp.checked_push_filter(SOURCE, CLOSURE, "extra", [False, True])
 
 
@@ -80,9 +80,9 @@ def test_missing_cells_are_read_from_nan_none_and_nat():
 
 
 def test_unknown_columns_and_bad_declarations_are_refused():
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=r"source has no column 'w'"):
         cp.checked_projection({"y": SOURCE["y"]}, CLOSURE, ["y", "w", "x"])
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"keep must be a sequence of column names, not one string"):
         cp.checked_projection(SOURCE, CLOSURE, "yw")
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"closure must be a ColumnClosure"):
         cp.checked_push_filter(SOURCE, ("y",), "extra", [False] * 6)  # type: ignore[arg-type]

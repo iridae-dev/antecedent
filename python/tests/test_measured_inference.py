@@ -26,13 +26,19 @@ def identity():
     )
 
 
+CONSTRUCTOR_REFUSAL = {
+    MeasuredInference: "use a measured native producer or load with retained identity",
+    MeasuredScalar: r"obtain measured scalars from an original MeasuredInference",
+}
+
+
 @pytest.mark.parametrize("kind", [MeasuredInference, MeasuredScalar])
 def test_public_constructors_cannot_mint_authority(kind):
     for arguments in [
         {},
         {"calibration": "calibrated", "record_id": "fake", "basis": {}},
     ]:
-        with pytest.raises(CausalTypeError):
+        with pytest.raises(CausalTypeError, match=CONSTRUCTOR_REFUSAL[kind]):
             kind(**arguments)
 
 
@@ -47,21 +53,21 @@ def test_foreign_payload_callback_is_not_invoked():
 
 
 @pytest.mark.parametrize(
-    "changed",
+    ("changed", "refusal"),
     [
-        {"route": ""},
-        {"candidate_digest": "f" * 63},
-        {"premises_digest": "F" * 64},
-        {"level": 0},
-        {"level": float("nan")},
-        {"level": 10**1000},
-        {"scalars": ()},
-        {"scalars": ("target_effect", "target_effect")},
-        {"seal": "z" * 64},
+        ({"route": ""}, "route must be a nonempty bounded string"),
+        ({"candidate_digest": "f" * 63}, "candidate_digest requires 64 lowercase hexadecimal digits"),
+        ({"premises_digest": "F" * 64}, "premises_digest requires 64 lowercase hexadecimal digits"),
+        ({"level": 0}, "level must be finite and strictly between zero and one"),
+        ({"level": float("nan")}, "level must be finite and strictly between zero and one"),
+        ({"level": 10**1000}, "level must be finite and strictly between zero and one"),
+        ({"scalars": ()}, r"scalars must declare 1\.\.=32 outputs"),
+        ({"scalars": ("target_effect", "target_effect")}, "scalar names must be unique"),
+        ({"seal": "z" * 64}, "seal requires 64 lowercase hexadecimal digits"),
     ],
 )
-def test_expected_identity_domain_guards(changed):
-    with pytest.raises(CausalValueError):
+def test_expected_identity_domain_guards(changed, refusal):
+    with pytest.raises(CausalValueError, match=refusal):
         replace(identity(), **changed)
 
 
@@ -69,11 +75,11 @@ def test_expectation_immutable_and_independent_declaration():
     original = identity()
     copy = MeasuredInferenceIdentity._from_wire(original._wire())
     assert copy == original
-    with pytest.raises(FrozenInstanceError):
+    with pytest.raises(FrozenInstanceError, match=r"cannot assign to field 'seal'"):
         original.seal = "e" * 64
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"level must be real"):
         replace(original, level=True)
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"scalars must be a sequence of names"):
         replace(original, scalars="target_effect")
 
 
@@ -81,14 +87,14 @@ def test_bounds_and_missing_native_cannot_be_overridden_by_basis(monkeypatch):
     import antecedent._measured_inference as module
 
     monkeypatch.delattr(module._native, "consume_measured_inference", raising=False)
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=r"measured inference artifact exceeds the byte bound"):
         MeasuredInference.load(b"\0" * (64 * 1024 * 1024 + 1), expected=identity())
     for kwargs in [{"max_bytes": 0}, {"memory_limit_bytes": 0}, {"cancel": None}]:
         with pytest.raises(TypeError, match="unexpected keyword"):
             MeasuredInference.load(b"", expected=identity(), **kwargs)
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"execution must be an antecedent\.Execution"):
         MeasuredInference.load(b"", expected=identity(), execution=object())
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"expected must be a retained MeasuredInferenceIdentity"):
         MeasuredInference.load(b"", expected=identity()._wire())
     with pytest.raises(CausalUnsupportedError) as caught:
         MeasuredInference.load(b"", expected=identity())

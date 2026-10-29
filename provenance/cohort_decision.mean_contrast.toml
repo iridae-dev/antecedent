@@ -39,7 +39,7 @@ sha256 = "f03b21b476fd4800d9d1347e8a57f5388dc63deec053d55ad9ed8609dbe5d3ab"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/cohort_linear_effect.rs"
-sha256 = "fa82124c6acd3a37c83e3483d900644ef6e94569cefdaa1f67e14cd359b3de2a"
+sha256 = "17bb8ade4f05b967ac27e5043cff3050034fc5043db0e85c959bc1530be2805e"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

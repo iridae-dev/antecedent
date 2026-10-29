@@ -113,9 +113,9 @@ def test_expressions_use_ordinary_operators_and_refuse_nonsense():
     expr = decision.maximum(decision.x(0) * decision.x(1) - 1.0, 0.0)
     assert isinstance(expr, decision.Expr)
     assert isinstance(-decision.x(0) + 2 * decision.x(1), decision.Expr)
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=r"an input index is a non-negative integer"):
         decision.x(-1)
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=r"a utility expression combines Expr values and numbers"):
         decision.x(0) + "a"  # type: ignore[operator]
 
 
@@ -254,7 +254,7 @@ def test_contract_and_result_round_trip_and_replay_in_a_fresh_process(tmp_path: 
     with pytest.raises(decision.DecisionRefusal) as wrong_contract:
         require_success(decision.replay(result_bytes, contract=other, source=source))
     assert wrong_contract.value.reason_code == "decision_contract_unsatisfied"
-    with pytest.raises(decision.DecisionRefusal):
+    with pytest.raises(decision.DecisionRefusal, match=r"reason=decision_contract_unsatisfied: decision_artifact\.source_expected"):
         require_success(
             decision.replay(result_bytes, contract=contract, source=_source(q=[0.0, 6.0, 2.0, 4.0]))
         )

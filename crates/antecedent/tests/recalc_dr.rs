@@ -239,8 +239,20 @@ fn dr_cate_predictions_reuse_portable_final_model_and_validate_feature_schema() 
     });
     assert_eq!(actual_fits, 0);
     assert_eq!(replayed, predicted);
-    assert!(session.predict(&[VariableId::from_raw(0)], &[&[-1.0, 1.0]], 2, &ctx()).is_err());
-    assert!(session.predict(&[VariableId::from_raw(2)], &[&[f64::NAN]], 1, &ctx()).is_err());
+    assert_eq!(
+        session
+            .predict(&[VariableId::from_raw(0)], &[&[-1.0, 1.0]], 2, &ctx())
+            .unwrap_err()
+            .to_string(),
+        "recalc.dr_prediction_schema_mismatch"
+    );
+    assert_eq!(
+        session
+            .predict(&[VariableId::from_raw(2)], &[&[f64::NAN]], 1, &ctx())
+            .unwrap_err()
+            .to_string(),
+        "recalc.dr_prediction_schema_mismatch"
+    );
     assert!(matches!(
         session.predict(&[VariableId::from_raw(2)], &[&[2.0]], 1, &ctx()),
         Err(antecedent::analysis::recalc_receipt::RecalcRunError::Request(
@@ -250,7 +262,10 @@ fn dr_cate_predictions_reuse_portable_final_model_and_validate_feature_schema() 
     assert_eq!(run(&mut session, &request(true)).receipt.totals().total(), 0);
     let mut dml = DrSession::new();
     run(&mut dml, &request(false));
-    assert!(dml.predict(&[VariableId::from_raw(2)], &[&[0.0]], 1, &ctx()).is_err());
+    assert_eq!(
+        dml.predict(&[VariableId::from_raw(2)], &[&[0.0]], 1, &ctx()).unwrap_err().to_string(),
+        "recalc.dr_predictor_unavailable"
+    );
 }
 
 fn check_portable_retarget(
@@ -349,13 +364,15 @@ fn dr_complete_case_rows_frozen_scores_and_fresh_refit_are_bound_to_real_data() 
             },
         );
         assert!(!unavailable.is_live());
-        assert!(
+        assert_eq!(
             antecedent::analysis::recalc_dr::execute_dr_with_receipt(
                 &mut unavailable,
                 &request,
                 &ctx()
             )
-            .is_err()
+            .unwrap_err()
+            .to_string(),
+            "recalculation refused at data_snapshot: recalc.unavailable_data"
         );
         let mut raw = DrSession::resume(
             session.identities().clone(),

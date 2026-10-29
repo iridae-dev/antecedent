@@ -238,5 +238,5 @@ fn artifact_refuses_a_reference_in_another_population_and_a_non_finite_reference
         TransportSensitivityRefusal::NonFinitePoint
     );
     // the reference may not reuse the transported quantity's id
-    assert!(range.to_artifact(&quantity("effect", "target"), 0.0).is_err());
+    assert_eq!(range.to_artifact(&quantity("effect", "target"), 0.0).err().unwrap().to_string(), "transport_sensitivity.surface_refused: sensitivity_decision_composition.invalid_surface: two surface quantities share a variable id");
 }

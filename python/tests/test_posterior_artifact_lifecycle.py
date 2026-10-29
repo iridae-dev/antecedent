@@ -74,7 +74,7 @@ def test_explicit_encoding_digest_binds_only_bytes():
         ac.load(data, expected={"expected_encoding_sha256": "0" * 64})
     with pytest.raises(CausalValueError, match="hexadecimal"):
         consume_posterior(data, expected_encoding_sha256="not a digest")
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"expected_encoding_sha256 must be a hexadecimal string"):
         consume_posterior(data, expected_encoding_sha256=12)
 
 
@@ -115,7 +115,7 @@ def test_quantity_selection_is_explicit_and_retains_native_owner():
         draws[0] = -10
     with pytest.raises(ValueError, match="WRITEABLE"):
         draws.setflags(write=True)
-    with pytest.raises(FrozenInstanceError):
+    with pytest.raises(FrozenInstanceError, match=r"cannot assign to field '_index'"):
         first._index = 1
 
 

@@ -185,19 +185,19 @@ fn an_independent_consumer_recomputes_the_section_and_refuses_edits() {
     let (mut meta, numbers) = decode_parts(&bytes).unwrap();
     meta.posterior.as_mut().unwrap().level_contrasts[0].location += 0.5;
     let forged = encode_parts(&meta, &numbers, "forged").unwrap();
-    assert!(CategoricalTreatment::consume(&forged, None).is_err());
+    assert_eq!(CategoricalTreatment::consume(&forged, None).err().unwrap().to_string(), "stored categorical treatment result does not replay: posterior contrasts, moments or monotonicity bounds");
 
     // So is a changed prior that no longer replays to the stored contrasts.
     let (mut meta, numbers) = decode_parts(&bytes).unwrap();
     meta.posterior.as_mut().unwrap().declaration.level_precision = 4.0;
     let forged = encode_parts(&meta, &numbers, "forged-prior").unwrap();
-    assert!(CategoricalTreatment::consume(&forged, None).is_err());
+    assert_eq!(CategoricalTreatment::consume(&forged, None).err().unwrap().to_string(), "stored categorical treatment result does not replay: posterior contrasts, moments or monotonicity bounds");
 
     // And a claimed license.
     let (mut meta, numbers) = decode_parts(&bytes).unwrap();
     meta.posterior.as_mut().unwrap().licensed = true;
     let forged = encode_parts(&meta, &numbers, "forged-license").unwrap();
-    assert!(CategoricalTreatment::consume(&forged, None).is_err());
+    assert_eq!(CategoricalTreatment::consume(&forged, None).err().unwrap().to_string(), "stored categorical treatment result does not replay: posterior contrasts, moments or monotonicity bounds");
 
     // An artifact sealed without the section stays readable and carries none.
     let plain = CategoricalTreatment::evaluate(&abc_request()).unwrap().export("plain").unwrap();

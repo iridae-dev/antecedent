@@ -535,7 +535,7 @@ fn adjusted_receipt_artifact_roundtrip_and_fresh_boundary_never_fake_a_fit() {
     ));
     let (result, fits) =
         count_adjusted_model_fits(|| execute_adjusted_with_receipt(&mut fresh, &request, &ctx()));
-    assert!(result.is_err());
+    assert_eq!(result.as_ref().err().map(|e| e.to_string()).unwrap_or_default(), "recalculation refused at data_snapshot: recalc.unavailable_data");
     assert_eq!(fits, 0);
     // Explicitly supplying the raw request to a new session does a complete fresh fit.
     let mut raw_resume = AdjustedSession::resume(
@@ -557,17 +557,26 @@ fn adjusted_sparse_categories_and_invalid_predictions_do_no_model_work() {
     }
     let (result, fits) =
         count_adjusted_model_fits(|| execute_adjusted_with_receipt(&mut session, &request, &ctx()));
-    assert!(result.is_err());
+    assert_eq!(result.as_ref().err().map(|e| e.to_string()).unwrap_or_default(), "reason=arm_not_populated: categorical_treatment.sparse_level: declared level `a` has 3 rows, fewer than the declared minimum 4");
     assert_eq!(fits, 0, "sparse levels refuse before a numerical fit");
     assert_eq!(run(&mut session, &categorical()).receipt.totals().model_fits, 0);
     let (result, fits) = count_adjusted_model_fits(|| session.predict(&[vec![1.0, 1.0]]));
-    assert!(result.is_err(), "two active dummy levels are not a categorical regime");
+    assert_eq!(result.as_ref().err().map(|e| e.to_string()).unwrap_or_default(), "recalc.adjusted_prediction_out_of_support", "two active dummy levels are not a categorical regime");
     assert_eq!(fits, 0);
     let mut numeric_session = AdjustedSession::new();
     run(&mut numeric_session, &linear());
-    for row in [vec![0.0], vec![0.0, f64::NAN], vec![0.0, 0.5], vec![0.0, 2.0]] {
+    for (row, code) in [
+        (vec![0.0], "recalc.adjusted_prediction_schema_mismatch"),
+        (vec![0.0, f64::NAN], "recalc.adjusted_prediction_schema_mismatch"),
+        (vec![0.0, 0.5], "recalc.adjusted_prediction_out_of_support"),
+        (vec![0.0, 2.0], "recalc.adjusted_prediction_out_of_support"),
+    ] {
         let (result, fits) = count_adjusted_model_fits(|| numeric_session.predict(&[row]));
-        assert!(result.is_err(), "schema, finite and binary treatment support checked");
+        assert_eq!(
+            result.as_ref().err().map(|e| e.to_string()).unwrap_or_default(),
+            code,
+            "schema, finite and binary treatment support checked"
+        );
         assert_eq!(fits, 0);
     }
 }
@@ -618,7 +627,7 @@ fn adjusted_cancel_memory_and_numerical_refit_failures_are_transactional() {
     changed.columns[2].1 = changed.columns[0].1.clone();
     let (result, fits) =
         count_adjusted_model_fits(|| execute_adjusted_with_receipt(&mut session, &changed, &ctx()));
-    assert!(result.is_err());
+    assert_eq!(result.as_ref().err().map(|e| e.to_string()).unwrap_or_default(), "reason=design_rank_deficient: vector_treatment.collinear_treatments: treatment `t` is a linear combination of the intercept, the adjustment columns and the earlier treatments");
     assert_eq!(fits, 0, "only successful numerical fits are counted");
     assert_eq!(session.identities(), &identities);
     assert_eq!(session.covariance().unwrap().as_ptr(), covariance);

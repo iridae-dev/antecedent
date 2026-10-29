@@ -51,7 +51,7 @@ def test_public_prepared_identification_is_bounded_and_never_uses_legacy_convers
         assert len(repr(view)) < 400
         assert len(view._repr_html_()) < 600
         assert study.inspect().stage == "prepared"
-        with pytest.raises(FrozenInstanceError):
+        with pytest.raises(FrozenInstanceError, match=r"cannot assign to field 'execution'"):
             view.execution = Execution()
         return summary
 
@@ -146,7 +146,7 @@ def test_composite_summary_preserves_native_mass_and_horizon_without_single_verd
     assert view.child(0).summary.metadata["horizon"] == 1
     assert native.materializations == first.materializations == second.materializations == 0
     assert view.children(offset=2) == ()
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"read status and status_unavailable; identification has no boolean verdict"):
         bool(view)
     with pytest.raises(TypeError, match="does not support item assignment"):
         view.summary.metadata["identified_weight"] = 1.0
@@ -161,7 +161,7 @@ def test_explicit_materialization_uses_execution_without_changing_retained_polic
     assert converted["names"] == ["z", "t", "y"]
     assert native.materializations == 1
     assert view.execution is policy
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"execution must be an Execution declaration"):
         view.to_dict(execution={})
 
 
@@ -183,7 +183,7 @@ def test_explicit_unavailable_identification_preserves_original_refusal():
     assert view.to_dict()["details"]["provider_requirements"] == ["declared-only"]
     assert view.children() == ()
     assert view.to_dict()["children"] == []
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=r"unavailable identification has no retained children"):
         view.child(0)
 
 

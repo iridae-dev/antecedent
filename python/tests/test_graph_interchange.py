@@ -177,7 +177,7 @@ def test_pag_completions_resolve_every_circle_and_keep_the_unshielded_collider()
     assert len(capped.graphs) == 2 and capped.capped
     assert capped.audit["represented_completions"] == 4
 
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=r"max_completions must be at least 1"):
         pag_completions(pag, max_completions=0)
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"pag must be a Pag"):
         pag_completions("not a pag")  # type: ignore[arg-type]

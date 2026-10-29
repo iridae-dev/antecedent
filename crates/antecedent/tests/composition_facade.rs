@@ -402,7 +402,7 @@ fn facade_refusals_name_their_stage_and_a_retained_identity_is_required() {
     let mut flipped = bytes.clone();
     let middle = flipped.len() / 2;
     flipped[middle] ^= 0xff;
-    assert!(consume(&flipped, bundle.identity(), &SuppliedSources::default()).is_err());
+    assert_eq!(consume(&flipped, bundle.identity(), &SuppliedSources::default()).err().unwrap().to_string(), "composition bundle container: checksum mismatch for section `embedded.distribution`");
 
     // A reference that must answer one exact request refuses another.
     let mut builder = BundleBuilder::new();
@@ -441,7 +441,7 @@ fn facade_evidence_relationships_are_checked_against_the_studies_they_name() {
         builder.add_detected_artifact(Some("b"), &second.to_bytes("b").unwrap()).unwrap();
         let id = builder.relate("b", "a", EvidenceRelationship::Independent).unwrap();
         assert_eq!(id, "relation:a:b");
-        assert!(builder.relate("a", "b", EvidenceRelationship::SharedData).is_err());
+        assert_eq!(builder.relate("a", "b", EvidenceRelationship::SharedData).err().unwrap().to_string(), "composition_bundle.edge_digest_mismatch: a node id is repeated (node `relation:a:b`)");
         let bundle = builder.build().unwrap();
         let bytes = export_bundle(&bundle, "studies").unwrap();
         consume(&bytes, bundle.identity(), &SuppliedSources::default()).unwrap()

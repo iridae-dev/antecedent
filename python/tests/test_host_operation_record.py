@@ -87,9 +87,9 @@ def test_an_unlicensed_operation_is_never_supported_and_a_missing_readiness_is_n
 
 
 def test_a_report_that_is_not_a_mapping_of_the_capability_fields_is_refused():
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"report must be a mapping of the capability report's fields"):
         host.operation_record(["estimate"])  # type: ignore[arg-type]
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=r"report needs the text field 'applicability'"):
         host.operation_record({"operation": "estimate"})
 
 
@@ -184,9 +184,9 @@ def test_an_unlicensed_cell_reports_its_blocker_and_same_class_changed_premise_n
 
 
 def test_a_malformed_or_off_matrix_coordinate_is_refused():
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=r'support cell "static:dag" is not a query:graph:structure:inference:validation coordinate over the ma'):
         host.support_cell_report("static:dag")
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=r'support cell "no:such:axis:value:here" is not a query:graph:structure:inference:validation coordinat'):
         host.support_cell_report("no:such:axis:value:here")
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"coordinate must be a text coordinate"):
         host.support_cell_report(None)  # type: ignore[arg-type]

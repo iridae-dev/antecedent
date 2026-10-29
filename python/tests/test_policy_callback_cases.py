@@ -176,7 +176,7 @@ def test_a_callback_with_an_unpinned_dependency_is_refused_for_export_naming_it(
         encode_policy_program(NAMES, [program])
     assert raised.value.reason_code == "policy_callback_not_portable"
     assert "packaging" in str(raised.value) and "pinned" in str(raised.value)
-    with pytest.raises(CausalUnsupportedError):
+    with pytest.raises(CausalUnsupportedError, match=r"reason=policy_callback_not_portable: callback discounted depends on packaging with no pinned version"):
         callback.recovery_record()
 
 
@@ -255,7 +255,7 @@ def test_a_portable_callback_artifact_replays_bit_for_bit_in_a_fresh_process(tmp
         decode_policy_program(NAMES, artifact)
     assert unsupplied.value.reason_code == "policy_callback_unrecoverable"
     forged = artifact.replace(digest.encode(), ("0" * 64).encode())
-    with pytest.raises(CausalError):
+    with pytest.raises(CausalError, match=r"manifest mismatch: policy program identity does not match its expressions"):
         decode_programs(NAMES, forged, [callback])
 
 

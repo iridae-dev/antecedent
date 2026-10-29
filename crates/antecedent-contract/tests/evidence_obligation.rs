@@ -311,18 +311,18 @@ fn malformed_obligations_are_refused_with_registered_codes() {
 
     let mut blank = spec(EvidenceObligationKind::Measure);
     blank.reason = Arc::from("  ");
-    assert!(EvidenceObligation::try_new(blank).is_err());
+    assert_eq!(EvidenceObligation::try_new(blank).err().unwrap().to_string(), "evidence_obligations.invalid_obligation: an obligation needs a reason and a provenance family and source");
 
     let mut duplicate = spec(EvidenceObligationKind::Measure);
     duplicate.variables = vars(&[Y, Y]).into();
-    assert!(EvidenceObligation::try_new(duplicate).is_err());
+    assert_eq!(EvidenceObligation::try_new(duplicate).err().unwrap().to_string(), "evidence_obligations.invalid_obligation: obligation variables must be distinct");
 
     let no_rows = spec(EvidenceObligationKind::IncreaseSample);
-    assert!(EvidenceObligation::try_new(no_rows).is_err());
+    assert_eq!(EvidenceObligation::try_new(no_rows).err().unwrap().to_string(), "evidence_obligations.invalid_obligation: an increase-sample obligation names a positive row count");
 
     let mut no_population = spec(EvidenceObligationKind::Measure);
     no_population.population = None;
-    assert!(EvidenceObligation::try_new(no_population).is_err());
+    assert_eq!(EvidenceObligation::try_new(no_population).err().unwrap().to_string(), "evidence_obligations.invalid_obligation: a study obligation names the population it needs evidence in");
 }
 
 #[test]
@@ -401,10 +401,10 @@ fn scientific_obligations_bind_every_semantic_dimension_and_ignore_display_label
     }
     let mut wrong_population = scientific_coordinates();
     wrong_population.get_mut(&VariableId::from_raw(Y)).unwrap().population_id = "target".into();
-    assert!(base.clone().with_quantities(wrong_population).is_err());
+    assert_eq!(base.clone().with_quantities(wrong_population).err().unwrap().to_string(), "evidence_obligations.invalid_obligation: scientific coordinates must be valid and match obligation variables, population and horizon");
     let mut incomplete = scientific_coordinates();
     incomplete.remove(&VariableId::from_raw(Y));
-    assert!(base.with_quantities(incomplete).is_err());
+    assert_eq!(base.with_quantities(incomplete).err().unwrap().to_string(), "evidence_obligations.invalid_obligation: declared scientific coordinates must cover every requested variable");
 }
 
 #[test]

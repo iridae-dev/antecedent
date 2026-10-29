@@ -189,7 +189,7 @@ def test_missing_evidence_is_counted_not_redistributed():
     backward = result.completion(sorted(BACKWARD))
     assert backward.point is None and backward.detail
     assert backward.evidence_identity == "ev-backward"
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=r"completion [0-9a-f]{64} produced no point \(missi"):
         backward.mean("c")
     # The envelope ranges over the two identified completions only: 0.38 is absent.
     assert result.envelope.mean_range("c") == pytest.approx((0.8, 0.8))
@@ -350,17 +350,17 @@ def test_tampered_artifacts_refuse_with_typed_details():
         transport.consume_cpdag_scenarios_artifact(premises)
     assert refused.value.detail == "cpdag_scenarios.premises_mismatch"
     # Damaged or foreign bytes are serialization failures, not refusals.
-    with pytest.raises(CausalSerializationError):
+    with pytest.raises(CausalSerializationError, match=r"cbor error: 2 trailing bytes after the CBOR item"):
         transport.consume_cpdag_scenarios_artifact(artifact[:-4] + b"\x00\x00\x00\x00")
-    with pytest.raises(CausalSerializationError):
+    with pytest.raises(CausalSerializationError, match=r"invalid cpdag scenario artifact format"):
         transport.consume_cpdag_scenarios_artifact(b"not an artifact")
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"an artifact is bytes or ExportedArtifact; read paths with Path\.read_bytes\(\)"):
         transport.consume_cpdag_scenarios_artifact("text")
     # The names the report is read with are bound by the coordinate schema.
     with pytest.raises(CausalSerializationError, match="coordinate schema"):
         transport.consume_cpdag_scenarios_artifact(_frame(["c", "b", "a"], inner))
     # The consumer's own limits bound the replay: the artifact cannot raise them.
-    with pytest.raises(CausalResourceError):
+    with pytest.raises(CausalResourceError, match=r"cpdag_scenarios\.consumer_limit_exceeded: consumer limit exceeded \(budget\): completion search budget"):
         transport.consume_cpdag_scenarios_artifact(artifact, max_steps=1)
 
 
@@ -393,14 +393,14 @@ def test_inputs_are_checked_before_any_search():
     with pytest.raises(CausalUnsupportedError, match="cpdag_scenarios.selection_or_latent") as e:
         run(graph)
     assert e.value.reason_code == "route_not_supported"
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"cpdag must be a Cpdag \(or a discovery result holding one\)"):
         run("a - b - c")
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"evidence must be CompletionEvidence values"):
         run(evidence="ev")
     # One shared declaration names no completion; per-completion evidence must name one.
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=r"a single evidence declaration is shared by every completion; pass a sequence to bind evidence per co"):
         run(evidence=bind(sorted(FORWARD), "ev"))
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=r"per-completion evidence must name its completion"):
         run(evidence=[shared()])
     # A coordinate schema naming an unknown variable is a schema mismatch.
     bad = [*coordinates(), transport.VariableCoordinate("q", "binary")]

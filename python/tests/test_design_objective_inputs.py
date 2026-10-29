@@ -22,7 +22,7 @@ def test_real_numpy_inputs_retain_native_objective_values():
 
 @pytest.mark.parametrize("invalid", [True, np.bool_(False), 1 + 2j, np.complex64(1)])
 def test_numeric_vectors_do_not_coerce_booleans_or_complex_numbers(invalid):
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"xtx must contain numbers"):
         design.EffectWidth([invalid], 1.0, 0, 1)
 
 

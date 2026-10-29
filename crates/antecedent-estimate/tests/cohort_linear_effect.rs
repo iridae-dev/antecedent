@@ -99,9 +99,9 @@ fn noiseless_data_recover_the_effect_coefficients_exactly() {
 #[test]
 fn a_fit_with_too_few_rows_or_a_singular_design_is_refused() {
     let (x, t, y) = one_modifier(60, 0.1);
-    assert!(fit_cohort_linear_effect(&y[..4], &t[..4], &[&x[..4]]).is_err());
+    assert_eq!(fit_cohort_linear_effect(&y[..4], &t[..4], &[&x[..4]]).err().unwrap().to_string(), "cohort linear effect: the fit needs more rows than design columns");
     let constant = vec![1.0; 60];
-    assert!(fit_cohort_linear_effect(&y, &t, &[&constant]).is_err());
+    assert_eq!(fit_cohort_linear_effect(&y, &t, &[&constant]).err().unwrap().to_string(), "cohort linear effect: the design is singular");
 }
 
 fn native_of(x: &[f64], t: &[f64], y: &[f64]) -> NativeCohortFit {
@@ -143,7 +143,7 @@ fn the_native_interval_is_a_symmetric_student_t_band_over_the_recomputed_standar
     // Wider at 0.95 than at 0.90.
     let narrow = native_cohort_interval(&native, &source, 0.90).unwrap();
     assert!(narrow.upper - narrow.lower < interval.upper - interval.lower);
-    assert!(native_cohort_interval(&native, &source, 1.0).is_err());
+    assert_eq!(native_cohort_interval(&native, &source, 1.0).err().unwrap().to_string(), "cell_not_licensed: cohort_decision.interval_level_invalid (level)");
 }
 
 #[test]
@@ -174,7 +174,7 @@ fn a_declared_export_cannot_claim_a_native_fit() {
         features: vec![x.clone()],
         feature_ids: vec!["x".into()],
     };
-    assert!(NativeCohortFit::replay(rows.clone(), &declared).is_err());
+    assert_eq!(NativeCohortFit::replay(rows.clone(), &declared).err().unwrap().to_string(), "cohort linear effect: the retained rows do not reproduce the export");
     // A forged marker over declared numbers is refused: the replay recomputes it.
     let mut forged = response();
     forged.conditioning = native.export().body().response.conditioning.clone();
@@ -190,7 +190,7 @@ fn a_declared_export_cannot_claim_a_native_fit() {
         mask: vec![],
     })
     .unwrap();
-    assert!(NativeCohortFit::replay(rows.clone(), &forged_export).is_err());
+    assert_eq!(NativeCohortFit::replay(rows.clone(), &forged_export).err().unwrap().to_string(), "cohort linear effect: the retained rows do not reproduce the export");
     // The genuine export replays to itself.
     let replayed = NativeCohortFit::replay(rows, native.export()).unwrap();
     assert_eq!(replayed.export().identity(), native.export().identity());

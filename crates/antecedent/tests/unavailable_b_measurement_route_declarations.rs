@@ -439,7 +439,7 @@ fn unavailable_b_weights_and_policies_the_design_cannot_read_stay_refused() {
     // A table whose weights leave no decision, or a negative one, is invalid rather than ignored.
     let rows = p.arm.len();
     let zero = table(&p.recorded).with_weights(Arc::from(vec![0.0; rows]));
-    assert!(zero.is_err(), "an all-zero weight vector is refused by the table");
+    assert_eq!(zero.err().unwrap().to_string(), "invalid weights: total weight over the analysis rows is not positive and finite", "an all-zero weight vector is refused by the table");
     // A dependent series has no posterior: the Bayesian bootstrap reweights independent units.
     let error = run(builder(table(&p.recorded), query(&p, false))
         .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(50)))

@@ -283,9 +283,9 @@ def test_a_law_carries_its_receipt_and_a_native_label_is_refused() -> None:
 
 
 def test_only_a_transported_response_is_a_decision_source_of_this_route(prepared) -> None:
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"response must be a TransportedResponse"):
         require_success(contract().evaluate_transported(object(), analysis=prepared))  # type: ignore[arg-type]
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"Contract\.evaluate needs a JointDistributionArtifact \(aligned draws\), a BoundExternalClaim or MeanSou"):
         require_success(contract().evaluate(point(2.0)))  # type: ignore[arg-type]
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"analysis must be a prepared analysis or an analysis result that retains one"):
         require_success(contract().evaluate_transported(point(2.0), analysis=object()))

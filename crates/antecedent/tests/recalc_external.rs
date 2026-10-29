@@ -94,8 +94,9 @@ fn callback_request_identity_changes_when_planner_branch_changes() {
         other.requested.own(Stage::ExternalStudy(other_branch.branch)),
     );
     let artifact = session.export_output().unwrap();
-    assert!(
-        ExternalCallbackSession::resume(&artifact, &other_branch).is_err(),
+    assert_eq!(
+        ExternalCallbackSession::resume(&artifact, &other_branch).err().unwrap().to_string(),
+        "Artifact(\"convert error: callback artifact execution identity mismatch\")",
         "an attested result for one callback branch cannot be resumed for another"
     );
 }
@@ -141,7 +142,14 @@ fn seeded_callback_rng_mutations_and_actual_fresh_replay() {
     assert!(fresh.issued_claim().is_none());
     assert!(!fresh.plan(&request).is_executable());
     let before = provider.calls;
-    assert!(fresh.execute(&request, None, &ExecutionContext::for_tests(1)).is_err());
+    let refusal = format!(
+        "{:?}",
+        fresh.execute(&request, None, &ExecutionContext::for_tests(1)).err().unwrap()
+    );
+    assert!(
+        refusal.starts_with("Refused(") && refusal.contains("stage: ProviderRequest(Branch(0)), status: Refused { reason: Unavailable { missing: Provider } }"),
+        "{refusal}"
+    );
     assert_eq!(provider.calls, before);
     let replayed = execute(&mut fresh, &request, &mut provider);
     assert_eq!(replayed.claim.values(), changed.claim.values());
@@ -184,7 +192,7 @@ fn portable_output_is_a_container_and_an_original_frame_still_resumes() {
     let mut corrupt = bytes;
     let last = corrupt.len() - 1;
     corrupt[last] ^= 1;
-    assert!(ExternalCallbackSession::resume(&corrupt, &request).is_err());
+    assert_eq!(ExternalCallbackSession::resume(&corrupt, &request).err().unwrap().to_string(), "Artifact(\"checksum mismatch for section `external_callback.claim`\")");
 }
 
 #[test]
@@ -227,13 +235,17 @@ fn stateful_recomputes_and_side_effect_failure_never_silently_retries() {
     let changed = execute(&mut session, &request, &mut provider);
     assert_eq!(changed.receipt.totals().external_invocations, 1);
     assert_eq!(changed.claim.values().unwrap(), [3.5, 4.0, 4.5]);
-    assert!(ExternalCallbackSession::resume(&session.export_output().unwrap(), &request).is_err());
+    assert_eq!(ExternalCallbackSession::resume(&session.export_output().unwrap(), &request).err().unwrap().to_string(), "Request(\"external_recalc.replay_unsupported\")");
     let mut effects = request.clone();
     effects.descriptor.policy = CallbackPolicy::SideEffecting;
     let mut provider = Provider::new(&effects);
     provider.fail = true;
+    let failure =
+        session.execute(&effects, Some(&mut provider), &ExecutionContext::for_tests(1)).err().unwrap();
     assert!(
-        session.execute(&effects, Some(&mut provider), &ExecutionContext::for_tests(1)).is_err()
+        failure.to_string().starts_with("Attempt { detail: \"external_recalc.callback_failed\"")
+            && failure.to_string().contains("message: \"foreign failure after entering callback\""),
+        "{failure}"
     );
     let before = provider.calls;
     assert!(matches!(

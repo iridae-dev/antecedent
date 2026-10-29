@@ -37,6 +37,14 @@ fn prior_two() -> ConjugateOlsPrior {
     ConjugateOlsPrior::new(vec![1.0, 1.0], vec![2.0, 0.3, 0.3, 1.5], 2.5, 1.2).unwrap()
 }
 
+fn refused<T: std::fmt::Debug>(result: Result<T, StateError>, expected: &StateError) {
+    assert_eq!(&result.unwrap_err(), expected);
+}
+
+fn invalid(text: &str) -> StateError {
+    StateError::InvalidEvent(text.to_string())
+}
+
 fn close(actual: f64, expected: f64, label: &str) {
     assert!((actual - expected).abs() <= 1e-9, "{label}: {actual:.17e} vs {expected:.17e}");
 }
@@ -131,7 +139,7 @@ fn the_same_observations_twice_are_refused_and_change_nothing() {
     let before = posterior.summary(&prior).unwrap();
     assert!(matches!(posterior.update(&prior, "b", &b()), Err(StateError::InvalidEvent(_))));
     // A different block under a used label is a relabelled source, also refused.
-    assert!(posterior.update(&prior, "b", &c()).is_err());
+    refused(posterior.update(&prior, "b", &c()), &invalid("block b was already used: the label was used for different observations; drop the duplicate block, or rebuild from the distinct blocks"));
     assert_eq!(posterior.summary(&prior).unwrap(), before);
 }
 
@@ -157,10 +165,10 @@ fn an_invalidated_or_empty_or_wrong_width_block_is_refused() {
     let mut posterior = ConjugateOlsPosterior::new(&prior);
     let mut stale = a();
     let _ = stale.apply_delta(antecedent_state::LinearOlsDelta::MaskChanged);
-    assert!(posterior.update(&prior, "stale", &stale).is_err());
+    refused(posterior.update(&prior, "stale", &stale), &invalid("block summary is invalidated; recompute it from the retained rows"));
     let empty = LinearOlsSuffStats::new(2).expect("dimension");
-    assert!(posterior.update(&prior, "empty", &empty).is_err());
-    assert!(posterior.update(&prior, "wide", &a_wide()).is_err());
+    refused(posterior.update(&prior, "empty", &empty), &invalid("block holds no observations"));
+    refused(posterior.update(&prior, "wide", &a_wide()), &StateError::Shape("block ncols 3 != 2".into()));
     assert_eq!(posterior.summary(&prior).unwrap().n, 0);
 }
 
@@ -191,9 +199,10 @@ fn a_prior_change_is_refused_and_reprior_rebuilds_from_every_block() {
         1.706_260_880_175_709_5,
     );
     // Missing, extra or altered blocks are refused.
-    assert!(posterior.reprior(&two, &[("a", &a())]).is_err());
-    assert!(posterior.reprior(&two, &[("a", &a()), ("b", &b()), ("c", &c())]).is_err());
-    assert!(posterior.reprior(&two, &[("a", &a()), ("b", &c())]).is_err());
+    let not_exact = invalid("the blocks are not exactly the ones this posterior used; supply every retained block, or fit the new prior from the observations");
+    refused(posterior.reprior(&two, &[("a", &a())]), &not_exact);
+    refused(posterior.reprior(&two, &[("a", &a()), ("b", &b()), ("c", &c())]), &not_exact);
+    refused(posterior.reprior(&two, &[("a", &a()), ("b", &c())]), &not_exact);
 }
 
 #[test]
@@ -204,17 +213,18 @@ fn a_prior_that_already_used_a_block_cannot_be_the_rebuild_prior() {
     let carried = over_a.to_prior().unwrap();
     let mut posterior = ConjugateOlsPosterior::new(&one);
     posterior.update(&one, "a", &a()).unwrap();
-    assert!(posterior.reprior(&carried, &[("a", &a())]).is_err());
+    refused(posterior.reprior(&carried, &[("a", &a())]), &invalid("block a was already used: the same observations would enter the likelihood twice; drop the duplicate block, or rebuild from the distinct blocks"));
 }
 
 #[test]
 fn priors_are_validated() {
-    assert!(ConjugateOlsPrior::new(vec![0.0, 0.0], vec![1.0, 0.5, 0.0, 1.0], 1.0, 1.0).is_err());
-    assert!(ConjugateOlsPrior::new(vec![0.0, 0.0], vec![1.0, 1.0, 1.0, 1.0], 1.0, 1.0).is_err());
-    assert!(ConjugateOlsPrior::new(vec![0.0], vec![1.0], 0.0, 1.0).is_err());
-    assert!(ConjugateOlsPrior::new(vec![0.0], vec![1.0], 1.0, f64::NAN).is_err());
-    assert!(ConjugateOlsPrior::new(vec![0.0, 1.0], vec![1.0], 1.0, 1.0).is_err());
-    assert!(ConjugateOlsPrior::isotropic(2, -1.0, 1.0, 1.0).is_err());
+    refused(ConjugateOlsPrior::new(vec![0.0, 0.0], vec![1.0, 0.5, 0.0, 1.0], 1.0, 1.0), &invalid("prior precision is not symmetric"));
+    refused(ConjugateOlsPrior::new(vec![0.0, 0.0], vec![1.0, 1.0, 1.0, 1.0], 1.0, 1.0), &invalid("prior precision is singular"));
+    let positive = invalid("prior needs finite entries and positive shape and rate");
+    refused(ConjugateOlsPrior::new(vec![0.0], vec![1.0], 0.0, 1.0), &positive);
+    refused(ConjugateOlsPrior::new(vec![0.0], vec![1.0], 1.0, f64::NAN), &positive);
+    refused(ConjugateOlsPrior::new(vec![0.0, 1.0], vec![1.0], 1.0, 1.0), &StateError::Shape("prior mean and precision disagree".into()));
+    refused(ConjugateOlsPrior::isotropic(2, -1.0, 1.0, 1.0), &invalid("prior variance must be positive"));
     let iso = ConjugateOlsPrior::isotropic(2, 4.0, 3.0, 2.0).unwrap();
     assert_ne!(iso.digest(), prior_one().digest());
 }

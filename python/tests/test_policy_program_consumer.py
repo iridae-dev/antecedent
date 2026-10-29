@@ -45,30 +45,30 @@ def test_policy_consumer_verifies_declaration_and_preserves_exact_bytes():
     assert consumed.inspect().stage == "consumed"
     assert bytes(consumed.export()) == artifact
     assert not hasattr(consumed, "_prepared")
-    with pytest.raises(FrozenInstanceError):
+    with pytest.raises(FrozenInstanceError, match=r"cannot assign to field 'names'"):
         consumed.names = ("edited",)
 
 
 def test_policy_consumer_requires_explicit_unique_ordered_names():
     _, _, artifact, _ = artifact_and_identity()
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"policy program consumption needs supplied ordered variable names"):
         consume_policy_program(artifact)
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"policy program consumption needs supplied ordered variable names"):
         consume_policy_program(artifact, supplied={"x", "y"})
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=r"supplied variable names must be unique"):
         consume_policy_program(artifact, supplied=("x", "x"))
 
 
 def test_policy_consumer_rejects_an_independent_identity_mismatch():
     names, _, artifact, identity = artifact_and_identity()
     other = ("0" if identity[0] != "0" else "1") + identity[1:]
-    with pytest.raises(CausalSerializationError):
+    with pytest.raises(CausalSerializationError, match=r"policy program does not match the expected identity"):
         consume_policy_program(artifact, expected_identity=other, supplied=names)
 
 
 def test_policy_consumer_native_verification_rejects_truncation():
     names, _, artifact, _ = artifact_and_identity()
-    with pytest.raises(CausalError):
+    with pytest.raises(CausalError, match=r'cbor error: Io\(Error \{ kind: UnexpectedEof, message: "failed to fill whole buffer" \}\)'):
         consume_policy_program(artifact[:-1], supplied=names)
 
 
