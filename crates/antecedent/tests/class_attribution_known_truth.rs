@@ -21,7 +21,8 @@ use antecedent::{
 use antecedent_attribution::HEDGE_WITNESS_ID;
 use antecedent_core::{
     AnomalyAttributionQuery, AnomalyReference, CausalQuery, ChangeAttributionQuery, ComponentId,
-    ExecutionContext, IdentificationStatus, Lag, OrderedFloatBits, PopulationSelector, VariableId,
+    ExecutionContext, IdentificationStatus, IntervalMethod, Lag, OrderedFloatBits,
+    PopulationSelector, VariableId,
 };
 use antecedent_data::{TabularData, TimeSeriesData};
 use antecedent_discovery::{
@@ -888,6 +889,13 @@ fn verify_posterior(case: &Case<'_>, posterior: &CausalPosterior, draws: usize) 
 fn verify_class_posterior(case: &Case<'_>, result: &StudyResult, draws: usize) {
     if let Some(posterior) = result.posterior.as_ref() {
         verify_posterior(case, posterior, draws);
+        // The credible interval of a published posterior is its quantile interval.
+        assert_eq!(
+            result.interval().as_ref().map(|binding| binding.method),
+            Some(IntervalMethod::PosteriorQuantile),
+            "{}",
+            case.name
+        );
         return;
     }
     let mixture = result.structural_response.as_ref().expect("atoms keep their posteriors");
@@ -1048,6 +1056,13 @@ fn class_attribution_executes_from_retained_plan_after_builder_is_dropped() {
             let result = retained_run(&case, false, &bayesian(24));
             assert_licensed(result.support_status(), name);
             verify_payload(&case, &result);
+            // A frequentist class attribution is a point value: it reports no interval.
+            let point = retained_run(&case, false, &frequentist());
+            assert_eq!(
+                point.interval().as_ref().map(|binding| binding.method),
+                Some(IntervalMethod::None),
+                "{name}"
+            );
         }
     });
 }

@@ -31,6 +31,13 @@ Definitions used (each case states its members, their parents and their players 
   in the means and exact; the contribution is the Shapley value of the mechanism swap. The product
   evaluates the value by Monte Carlo (2000 noise draws, common to every coalition), so the
   tolerance of each published number is 5 standard errors of that draw, derived here.
+* A temporal template is the template unrolled over a window of the longest lag plus one periods:
+  an edge between periods repeats into the window as the template states it, and a contemporaneous
+  edge (directed, undirected or bidirected) repeats in every period of the window, so a temporal
+  CPDAG whose contemporaneous edge x - y is undirected has the members "x -> y in every period" and
+  "y -> x in every period". A member's mechanisms are fitted on the columns of its window.
+* An unfitted member (a parent that is constant leaves the regression rank deficient) is
+  unevaluable mass: it is neither a hedge nor redistributed.
 * A series is analysed on its lag-aligned design: the column of lag L at row t reads the series at
   row max(t - L, 0), so the first rows repeat the first period. That convention is the route's
   stated alignment and the one object this reference shares with it.

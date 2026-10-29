@@ -211,42 +211,28 @@ fn frequentist_body() {
         .inference(InferenceMode::Frequentist)
         .refute(RefuteSuite::None)
         .build();
-    // An accepted TemporalDag is attributed as a supplied one and stays unlicensed.
+    // An accepted TemporalDag is attributed as a supplied one.
     assert!(accepted.is_ok(), "{:?}", accepted.err());
-    refuse(
-        SupportCell::from_labels(
-            "AnomalyAttribution",
-            "TemporalCpdag",
-            "explicit",
-            "Frequentist",
-            "none",
-        )
-        .expect("support axis"),
-        "every temporal DAG of its class",
-    );
+    // The class and posterior cells are licensed by their own known-truth evidence
+    // (class_attribution_known_truth); only a change attribution's validation is refused.
+    let licensed = |query, graph, structure, inference, validation| {
+        let cell = SupportCell::from_labels(query, graph, structure, inference, validation)
+            .expect("support axis");
+        assert!(matches!(classify(cell), CellStatus::Licensed), "{cell:?}");
+    };
+    licensed("AnomalyAttribution", "TemporalCpdag", "explicit", "Frequentist", "none");
+    licensed("ChangeAttribution", "TemporalPag", "explicit", "Bayesian", "none");
+    licensed("AnomalyAttribution", "TemporalCpdag", "graph_posterior", "Frequentist", "none");
     refuse(
         SupportCell::from_labels(
             "ChangeAttribution",
             "TemporalPag",
             "explicit",
             "Bayesian",
-            "none",
+            "cheap",
         )
         .expect("support axis"),
-        "every temporal MAG completion",
-    );
-    // A posterior over structures attributes every atom as a supplied structure of its kind and
-    // mixes them by posterior probability: the cell executes, and stays unlicensed.
-    refuse(
-        SupportCell::from_labels(
-            "AnomalyAttribution",
-            "TemporalCpdag",
-            "graph_posterior",
-            "Frequentist",
-            "none",
-        )
-        .expect("support axis"),
-        "attributes every atom as a supplied structure",
+        "Cheap and full validation of a change attribution",
     );
 }
 

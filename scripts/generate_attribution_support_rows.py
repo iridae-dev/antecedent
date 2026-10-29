@@ -143,9 +143,10 @@ CLASS_NOUN = {
 
 
 def class_calibration_reason(graph_class: str, inference: str) -> str:
-    # A frequentist static class attribution reports a point (no interval); every other cell
-    # reports a posterior or a block-bootstrap interval whose coverage is not measured.
-    if inference == "Frequentist" and graph_class not in TEMPORAL:
+    # A frequentist class or posterior attribution is a point value (a requested mechanism-refit
+    # interval is a separate, unlicensed construction); a Bayesian one reports a posterior
+    # interval whose coverage is not measured.
+    if inference == "Frequentist":
         return "no_interval_reported"
     return "estimator_grid_not_measured"
 
