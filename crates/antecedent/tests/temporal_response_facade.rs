@@ -464,30 +464,49 @@ fn an_unstable_declared_autoregression_publishes_the_finite_horizon() {
     let ctx = ExecutionContext::for_tests(23);
     let unstable = FeedbackDeclaration { autoregression: 1.5, ..declared_feedback() };
     let result = feedback_response(TemporalPolicy::pulse(-1), Some(unstable), &ctx).unwrap();
-    assert_eq!(
-        result.response().unwrap().provenance_id.as_ref(),
-        "model.delayed_feedback.finite_horizon"
-    );
+    let response = result.response().unwrap();
+    assert_eq!(response.provenance_id.as_ref(), "model.delayed_feedback.finite_horizon");
+    // One delayed tick: the unstable autoregression never acts, so the rollout is still the
+    // declared input gain 2.0 at the origin.
+    let ResponseIdentification::PointIdentified(ResponseValue::Scalar(level)) = &response.estimate
+    else {
+        panic!("a single horizon publishes its scalar rollout");
+    };
+    assert_eq!(level.to_bits(), 2.0f64.to_bits());
 }
 
 #[test]
 fn feedback_arriving_after_the_horizon_refuses_end_to_end() {
     let ctx = ExecutionContext::for_tests(23);
     let late = FeedbackDeclaration { delay_ticks: 3, ..declared_feedback() };
-    assert!(feedback_response(TemporalPolicy::pulse(-1), Some(late), &ctx).is_err());
+    let error = feedback_response(TemporalPolicy::pulse(-1), Some(late), &ctx).unwrap_err();
+    // The declared delay of three ticks puts the first input at tick 2 of a one-step horizon.
+    assert!(
+        error.to_string().contains("delayed feedback is not available: prospective tick 2 follows decision 0"),
+        "{error}"
+    );
 }
 
 #[test]
 fn a_dynamic_policy_and_an_invalid_declaration_are_refused_when_the_spec_is_built() {
     let dynamic = TemporalPolicy::dynamic(antecedent_core::DynamicRuleId::from_raw(1), [0]);
-    assert!(TemporalResponseSpec::new(vec![1], dynamic, None).is_err());
+    assert_eq!(
+        format!("{:?}", TemporalResponseSpec::new(vec![1], dynamic, None).unwrap_err()),
+        "InvalidResponse(DynamicPolicyNotACell)"
+    );
     let spec = TemporalResponseSpec::new(vec![1], TemporalPolicy::pulse(-1), None).unwrap();
-    for invalid in [
-        FeedbackDeclaration { delay_ticks: 0, ..declared_feedback() },
-        FeedbackDeclaration { innovation_variance: -1.0, ..declared_feedback() },
-        FeedbackDeclaration { input_gain: f64::NAN, ..declared_feedback() },
+    for (invalid, fault) in [
+        (FeedbackDeclaration { delay_ticks: 0, ..declared_feedback() }, "FeedbackDelay"),
+        (
+            FeedbackDeclaration { innovation_variance: -1.0, ..declared_feedback() },
+            "FeedbackNegativeVariance",
+        ),
+        (FeedbackDeclaration { input_gain: f64::NAN, ..declared_feedback() }, "FeedbackNotFinite"),
     ] {
-        assert!(spec.clone().with_feedback(invalid).is_err());
+        assert_eq!(
+            format!("{:?}", spec.clone().with_feedback(invalid).unwrap_err()),
+            format!("InvalidResponse({fault})")
+        );
     }
 }
 
@@ -635,11 +654,19 @@ fn pulse_sustained_and_surface_share_study_bootstrap_ses() {
         .se_bootstrap()
         .expect("sustained bootstrap SE");
     assert!(se_sustained_b.is_finite() && se_sustained_b > 0.0);
-    let pulse_sustained_ratio = se_pulse_b / se_sustained_b;
-    assert!(
-        (0.25..=4.0).contains(&pulse_sustained_ratio),
-        "Pulse and single-step Sustained SEs must be comparable (pulse={se_pulse_b}, sustained={se_sustained_b})"
-    );
+    // y = 0.8 t[-1] + 0.35 e with sd(t) = 0.4 and 199 aligned rows: the sampling SE of the lag
+    // coefficient is 0.35 / (0.4 sqrt(199)) = 0.062. A 40-replicate block bootstrap scatters by
+    // about a tenth of that, so a factor of 0.7..1.4 holds the SE to the truth, not just to
+    // "finite and positive".
+    let reference_se = 0.35 / (0.4 * 199.0_f64.sqrt());
+    for (label, se) in [("pulse", se_pulse_b), ("sustained", se_sustained_b)] {
+        assert!(
+            (0.7 * reference_se..=1.4 * reference_se).contains(&se),
+            "{label} bootstrap SE {se} vs sampling SE {reference_se}"
+        );
+    }
+    let pulse_ate = pulse_boot.estimate().as_effect().unwrap().ate;
+    assert!((pulse_ate - 0.8).abs() < 4.0 * reference_se, "pulse effect {pulse_ate} vs 0.8");
 
     // The surface follows the same rule: no replicates, no band.
     let surface_analytic = run_surface(0);
@@ -654,10 +681,9 @@ fn pulse_sustained_and_surface_share_study_bootstrap_ses() {
     assert!(hw_b.iter().all(|w| w.is_finite() && *w > 0.0), "bootstrap surface bands={hw_b:?}");
     let z = 1.959_963_984_540_054;
     let surface_se = hw_b.iter().copied().fold(0.0_f64, f64::max) / z;
-    let ratio = se_pulse_b / surface_se;
     assert!(
-        (0.25..=4.0).contains(&ratio),
-        "Pulse SE and dose×horizon surface SE must be comparable (pulse={se_pulse_b}, surface={surface_se})"
+        (0.7 * reference_se..=1.4 * reference_se).contains(&surface_se),
+        "dose×horizon surface SE {surface_se} vs sampling SE {reference_se}"
     );
 }
 
@@ -1196,9 +1222,7 @@ fn joint_sequence_refuses_when_a_coordinate_is_not_on_the_graph() {
         .unwrap_err();
     let msg = err.to_string();
     assert!(
-        msg.contains("not in temporal graph")
-            || msg.contains("UnknownVariable")
-            || msg.contains("unknown"),
+        msg.contains("query variables not in temporal graph (treatment present=false, outcome present=true)"),
         "unexpected error content: {msg}"
     );
 }
@@ -1569,6 +1593,16 @@ fn bayesian_sequence_band_matches_posterior_quantiles() {
     else {
         panic!("missing band")
     };
+    let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
+        &result.response().unwrap().estimate
+    else {
+        panic!("expected a point-identified surface");
+    };
+    // The structural truth at horizon 2 with both steps set to 1 is 4 (the noiseless period-4
+    // fixture); the credible band must bracket it and stay tight around it.
+    assert!((mean[0] - 4.0).abs() < 0.05, "posterior surface {mean:?}");
+    assert!(lower[0] < 4.0 && 4.0 < upper[0], "band [{}, {}] must bracket 4", lower[0], upper[0]);
+    assert!(upper[0] - lower[0] < 0.6, "band [{}, {}] too wide", lower[0], upper[0]);
     assert_eq!(lower[0].to_bits(), posterior.summaries.q025[0].to_bits());
     assert_eq!(upper[0].to_bits(), posterior.summaries.q975[0].to_bits());
 }

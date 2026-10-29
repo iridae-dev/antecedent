@@ -102,18 +102,23 @@ def test_native_sampling_design_refusal_retains_declarations_for_correction():
 
 
 @pytest.mark.parametrize(
-    "declare",
+    ("declare", "message"),
     [
-        lambda: [World(1), World(1)],
-        lambda: [World(1, Set("undeclared", 2.0))],
-        lambda: [World(1, Soft("A", "linear_mechanism", parameters=[1.0]))],
+        (lambda: [World(1), World(1)], "a world id is requested twice"),
+        (lambda: [World(1, Set("undeclared", 2.0))], "variable 'undeclared' is not declared"),
+        (
+            lambda: [World(1, Soft("A", "linear_mechanism", parameters=[1.0]))],
+            "soft family `linear_mechanism` takes 3 parameters and 1 were supplied",
+        ),
         # World validates its own interventions, so the invalid declaration raises as built.
-        lambda: [World(1, object())],
+        (lambda: [World(1, object())], "interventions must be Set, Shift or Soft values"),
     ],
     ids=["duplicate-id", "undeclared-variable", "wrong-soft-parameters", "foreign-intervention"],
 )
-def test_invalid_world_declarations_raise_argument_errors_even_with_next_attempt_text(declare):
-    with pytest.raises(CausalValueError):
+def test_invalid_world_declarations_raise_argument_errors_even_with_next_attempt_text(
+    declare, message
+):
+    with pytest.raises(CausalValueError, match=message):
         _worlds(declare())
 
 

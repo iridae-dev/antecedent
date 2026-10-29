@@ -36,10 +36,19 @@ def test_statement_lines_nonempty_when_assumptions_exist():
         query=ant.AverageEffect("t", "y"),
         names=["t", "y", "z"],
     )
-    assert identification.statement
+    # z is the common parent of t and y, so the backdoor adjustment on z identifies the effect
+    # nonparametrically; the renderer must say so rather than hedge.
+    assert identification.status == "NonparametricallyIdentified"
+    assert identification.verdict == "identified"
     assert identification.verdict == verdict_for(identification.status)
-    if identification.assumption_count:
-        assert identification.assumption_statements
+    assert identification.statement == (
+        "AverageEffect of y from t is identified by backdoor.adjustment, adjusting for z."
+    )
+    # A partial or unidentified status never renders as an identified claim.
+    assert verdict_for("NotIdentified") == "not identified"
+    assert verdict_for("PartiallyIdentified") == "partially identified"
+    assert verdict_for("GraphDependent") == "graph-dependent"
+    assert verdict_for("NotClaimed") == "not claimed"
 
 
 def test_certificate_matches_schema():
@@ -102,7 +111,26 @@ def test_certificate_matches_schema():
             refute="none",
         )
     )
-    for result in (dag, admg, cpdag, pag):
+    expected = [
+        (dag, "point", "NonparametricallyIdentified", "backdoor.adjustment", "Dag"),
+        (admg, "point", "NonparametricallyIdentified", "backdoor.adjustment", "Admg"),
+        (cpdag, "cpdag_envelope", "NonparametricallyIdentified", "generalized.adjustment", "Cpdag"),
+        (pag, "temporal_envelope", pin["identification"]["status"], pin["identification"]["identifier"], "TemporalPag"),
+    ]
+    for result, kind, status, method, graph_class in expected:
         certificate = result.to_dict()["certificate"]
         assert isinstance(certificate, dict), type(result)
         _assert_schema(certificate)
+        assert (certificate["kind"], certificate["status"], certificate["method"]) == (
+            kind,
+            status,
+            method,
+        )
+        assert certificate["graph_class"] == graph_class
+        assert certificate["outcome"]["name"] == "y"
+        assert [t["name"] for t in certificate["treatments"]] == ["t"]
+    # The pinned multi-completion PAG: seven completions, six identified and one not.
+    certificate = pag.to_dict()["certificate"]
+    assert len(certificate["cases"]) == pin["identification"]["completion_count"]
+    assert certificate["identified_weight"] == pin["identification"]["identified_mass"]
+    assert certificate["unidentified_weight"] == pin["identification"]["unidentified_mass"]

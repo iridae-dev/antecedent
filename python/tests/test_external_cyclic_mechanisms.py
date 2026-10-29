@@ -251,12 +251,12 @@ def test_artifact_bytes_contain_no_executable_code_and_inspection_needs_no_resol
 
 def test_a_resealed_request_is_refused_against_the_retained_identity():
     artifact = export(make_registry())
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="identity/replay mismatch"):
         em.consume_artifact(artifact.data, "0" * 64, resolver=make_registry())
 
 
 def test_an_analytic_declaration_requires_a_gradient_and_malformed_specs_are_refused():
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="analytic derivative declaration needs input_gradient"):
         em.register_mechanism(
             "lab/x",
             "1",
@@ -266,7 +266,7 @@ def test_an_analytic_declaration_requires_a_gradient_and_malformed_specs_are_ref
             derivative="analytic",
             registry=em.MechanismRegistry(),
         )
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError) as duplicate_read:
         em.register_mechanism(
             "lab/x",
             "1",
@@ -275,11 +275,12 @@ def test_an_analytic_declaration_requires_a_gradient_and_malformed_specs_are_ref
             content="x",
             registry=em.MechanismRegistry(),
         )
+    assert duplicate_read.value.reason_code == "mechanism_declaration_invalid"
 
 
 def test_registering_the_same_id_and_version_twice_is_refused():
     registry = make_registry()
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="version '1.0' is already registered"):
         em.register_mechanism(
             "lab/saturating_gain",
             "1.0",

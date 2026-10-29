@@ -65,6 +65,9 @@ fn weighting(replications: u32) -> SimulationRequest {
 
 #[test]
 fn planned_single_outcome_procedures_run_with_a_receipt() {
+    // The contrast of arm 1 over arm 0 is 0.45 - 0.3 = 0.15; replicate estimates scatter by
+    // about 0.07 at 600 participants and by 0.005 at 2,400, and their pooled mean must sit on it.
+    let mut estimates = Vec::new();
     for units in PLANNED {
         let spec = thompson(units, 12);
         let law = simulate_procedure(&spec, &[0.3, 0.45, 0.6], &weighting(3), &never)
@@ -73,7 +76,12 @@ fn planned_single_outcome_procedures_run_with_a_receipt() {
         for replicate in &law.replicates {
             assert_eq!(replicate.enrolled, units);
             assert_eq!(replicate.analysed_units, units as usize);
-            assert!(replicate.estimate.is_some());
+            let estimate = replicate.estimate.expect("an estimate");
+            assert!((estimate - 0.15).abs() < 0.2, "{units} participants: {estimate}");
+            estimates.push(estimate);
+            if units == 2_400 {
+                assert!((estimate - 0.15).abs() < 0.03, "{units} participants: {estimate}");
+            }
         }
         let receipt = law.receipt;
         assert_eq!(receipt.replications, 3);
@@ -82,6 +90,8 @@ fn planned_single_outcome_procedures_run_with_a_receipt() {
         assert_eq!(receipt.peak_units, units);
         assert!(receipt.estimated_peak_bytes > 0);
     }
+    let pooled = estimates.iter().sum::<f64>() / estimates.len() as f64;
+    assert!((pooled - 0.15).abs() < 0.07, "pooled contrast {pooled}");
 }
 
 // -- repeated measures ----------------------------------------------------------------------------
@@ -117,6 +127,8 @@ fn repeated(units: u32, batches: u32, measurements: u32) -> RepeatedMeasuresSpec
 
 #[test]
 fn planned_repeated_measures_procedures_run_with_a_receipt() {
+    // Arm means 0.0 and 0.3: the contrast is 0.3.
+    let mut estimates = Vec::new();
     for units in PLANNED {
         let spec = repeated(units, 12, 3);
         let request = RepeatedMeasuresRequest { replications: 3, seed: 5 };
@@ -124,6 +136,11 @@ fn planned_repeated_measures_procedures_run_with_a_receipt() {
             .unwrap_or_else(|e| panic!("{units} participants: {e}"));
         assert_eq!(law.replicates.len(), 3);
         assert!(law.replicates.iter().all(|r| r.enrolled == units && r.estimate.is_some()));
+        for replicate in &law.replicates {
+            let estimate = replicate.estimate.expect("an estimate");
+            assert!((estimate - 0.3).abs() < 0.2, "{units} participants: {estimate}");
+            estimates.push(estimate);
+        }
         // One batch of follow-up has not completed when the analysis is made.
         assert!(law.replicates.iter().all(|r| r.analysed_units == (units / 12 * 11) as usize));
         let receipt = law.receipt;
@@ -132,6 +149,8 @@ fn planned_repeated_measures_procedures_run_with_a_receipt() {
         assert_eq!(receipt.work_done, receipt.work_planned);
         assert_eq!(receipt.peak_units, units);
     }
+    let pooled = estimates.iter().sum::<f64>() / estimates.len() as f64;
+    assert!((pooled - 0.3).abs() < 0.07, "pooled contrast {pooled}");
 }
 
 #[test]

@@ -200,8 +200,8 @@ fn a_class_posterior_collapses_the_dag_posterior_it_wraps() {
         let bits = |weights: &[f64]| weights.iter().map(|w| w.to_bits()).collect::<Vec<_>>();
         assert_eq!(bits(&classes.weights()[..]), bits(&expected.weights()[..]));
         // Three variables have 25 DAGs in 11 classes; the collapse never splits a class.
-        assert!(classes.n_graphs() <= 11);
-        assert!(classes.n_graphs() < direct.n_graphs());
+        assert_eq!(direct.n_graphs(), 25, "the exact posterior lists every DAG on three variables");
+        assert_eq!(classes.n_graphs(), 11, "and the collapse leaves every equivalence class");
         let mass: f64 = classes.weights().iter().sum();
         assert!((mass - 1.0).abs() < 1e-9);
         assert_eq!(
@@ -212,14 +212,18 @@ fn a_class_posterior_collapses_the_dag_posterior_it_wraps() {
         // The accepted class posterior is a posterior, never one DAG.
         let (_, claim) = execution.contract_and_claim(&ctx()).unwrap();
         let accepted = antecedent::accept_discovered_posterior(execution.result(), &claim).unwrap();
-        assert!(accepted.map_dag().is_err());
+        let error = accepted.map_dag().unwrap_err();
+        assert_eq!(error.reason_code(), Some("route_not_supported"), "{error}");
+        assert!(error.to_string().contains("the posterior's atoms are not DAGs"), "{error}");
 
         // A search that lists no static graphs is refused when the study compiles.
         let refused = Study::tabular(data)
             .discovery(DiscoverySpec::pc(static_params(), "parcorr").equivalence_classes(), three())
             .build()
             .and_then(|study| study.compile(&ctx()));
-        assert!(refused.is_err());
+        let error = refused.unwrap_err();
+        assert_eq!(error.reason_code(), Some("invalid_argument"), "{error}");
+        assert!(error.to_string().contains("the exact edge marginals list no graphs"), "{error}");
     });
 }
 
@@ -285,7 +289,9 @@ fn a_stability_search_tabulates_the_resamples_of_its_engine() {
 
         // A stability table is not a structure: it has no review gate.
         let (_, claim) = execution.contract_and_claim(&ctx()).unwrap();
-        assert!(antecedent::accept_discovered(execution.result(), &claim, true).is_err());
+        let error = antecedent::accept_discovered(execution.result(), &claim, true).unwrap_err();
+        assert_eq!(error.reason_code(), Some("route_not_supported"), "{error}");
+        assert!(error.to_string().contains("is the sampling distribution of a search"), "{error}");
 
         // A design that does not sample independent rows refuses the row resample.
         let refused = Study::tabular(data)
@@ -293,7 +299,9 @@ fn a_stability_search_tabulates_the_resamples_of_its_engine() {
             .sampling_design(DeclaredSamplingDesign::DependentTimeSeries)
             .build()
             .and_then(|study| CompiledExecution::run(&study, &ctx()).map(|_| ()));
-        assert!(refused.is_err());
+        let error = refused.unwrap_err();
+        assert_eq!(error.reason_code(), Some("option_not_applicable"), "{error}");
+        assert!(error.to_string().contains("does not allow this resample"), "{error}");
 
         // Only the supported searches are re-run.
         let posterior = Study::tabular(chain_table(60, 1))
@@ -304,7 +312,9 @@ fn a_stability_search_tabulates_the_resamples_of_its_engine() {
             )
             .build()
             .and_then(|study| study.compile(&ctx()));
-        assert!(posterior.is_err());
+        let error = posterior.unwrap_err();
+        assert_eq!(error.reason_code(), Some("invalid_argument"), "{error}");
+        assert!(error.to_string().contains("a posterior has its own sampling error"), "{error}");
     });
 }
 
@@ -351,7 +361,9 @@ fn a_series_stability_search_resamples_circular_blocks() {
             .sampling_design(DeclaredSamplingDesign::IndependentSubjectTrajectories)
             .build()
             .and_then(|study| CompiledExecution::run(&study, &ctx()).map(|_| ()));
-        assert!(refused.is_err());
+        let error = refused.unwrap_err();
+        assert_eq!(error.reason_code(), Some("option_not_applicable"), "{error}");
+        assert!(error.to_string().contains("does not allow this resample"), "{error}");
     });
 }
 
@@ -492,7 +504,9 @@ fn an_order_posterior_under_laplace_noise_orients_what_the_gaussian_posterior_ca
         };
         let forward = posterior.edge_marginals()[1];
         let backward = posterior.edge_marginals()[2];
-        assert!(forward > backward + 0.3, "x -> y {forward}, y -> x {backward}");
+        // Laplace noise identifies the direction: the posterior puts essentially all its mass
+        // on x -> y (observed 1.00 against 0.00).
+        assert!(forward > 0.95 && backward < 0.05, "x -> y {forward}, y -> x {backward}");
     });
 }
 
@@ -641,7 +655,8 @@ fn a_pag_sampler_is_a_compiled_bayesian_route_beyond_four_variables() {
             )
             .build()
             .and_then(|study| CompiledExecution::run(&study, &ctx()).map(|_| ()));
-        assert!(refused.is_err());
+        let error = refused.unwrap_err();
+        assert!(error.to_string().contains("over its budget of 68719476736"), "{error}");
     });
 }
 

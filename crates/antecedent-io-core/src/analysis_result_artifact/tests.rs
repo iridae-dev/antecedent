@@ -51,6 +51,12 @@ fn distribution_fixture() -> AnalysisResultWire {
     result
 }
 
+/// The refusal text of a rejected value; the call must fail and name `detail`.
+fn refused<T: std::fmt::Debug>(result: Result<T, impl std::fmt::Display>, detail: &str) {
+    let error = result.expect_err("the value must be refused").to_string();
+    assert!(error.contains(detail), "expected `{detail}` in `{error}`");
+}
+
 #[test]
 fn panel_did_result_artifact_round_trips_design_uncertainty_semantics() {
     let domain = antecedent_core::PanelDidQuery::new(
@@ -132,13 +138,13 @@ fn repeated_cross_section_did_result_round_trips_without_interval() {
     let (_, _, decoded) = decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(decoded, result);
     result.interval_lower = Some(0.0);
-    assert!(
+    refused(
         encode_analysis_result_artifact(
             &result,
             vec!["treatment".into(), "outcome".into()],
-            "rcs-invalid-interval"
-        )
-        .is_err()
+            "rcs-invalid-interval",
+        ),
+        "invalid panel DiD payload or fabricated interval",
     );
 }
 
@@ -210,19 +216,31 @@ fn distribution_atoms_are_bound_to_query_and_reported_mean() {
     validate_interventional_distribution(&result).unwrap();
 
     result.interventional_distribution.as_mut().unwrap().atoms[0].probability = 0.2;
-    assert!(validate_interventional_distribution(&result).is_err());
+    refused(
+        validate_interventional_distribution(&result),
+        "atom masses must sum to one per conditioning assignment",
+    );
 
     let mut result = distribution_fixture();
     result.interventional_distribution.as_mut().unwrap().atoms[1].outcomes[0].0 = 0;
-    assert!(validate_interventional_distribution(&result).is_err());
+    refused(
+        validate_interventional_distribution(&result),
+        "atom does not match its query or has invalid mass",
+    );
 
     let mut result = distribution_fixture();
     result.estimate = Some(0.6);
-    assert!(validate_interventional_distribution(&result).is_err());
+    refused(
+        validate_interventional_distribution(&result),
+        "atoms disagree with the reported mean",
+    );
 
     let mut result = distribution_fixture();
     result.interventional_distribution.as_mut().unwrap().atoms[1].probability = f64::NAN;
-    assert!(validate_interventional_distribution(&result).is_err());
+    refused(
+        validate_interventional_distribution(&result),
+        "atom does not match its query or has invalid mass",
+    );
 }
 
 #[test]
@@ -235,13 +253,17 @@ fn composite_roundtrip_validates_names_ids_and_nested_posterior() {
     let (_, header, decoded) = decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(decoded, result);
     assert_eq!(header.variable_names, names);
-    assert!(encode_analysis_result_artifact(&result, vec!["a".into()], "review").is_err());
-    assert!(
-        encode_analysis_result_artifact(&result, vec!["a".into(), "a".into()], "review").is_err()
+    refused(
+        encode_analysis_result_artifact(&result, vec!["a".into()], "review"),
+        "variable id 1 is outside causal payload header bounds (len=1)",
+    );
+    refused(
+        encode_analysis_result_artifact(&result, vec!["a".into(), "a".into()], "review"),
+        "duplicate causal payload variable name `a`",
     );
     let mut invalid = result;
     invalid.posterior_artifact = Some(vec![1, 2, 3]);
-    assert!(encode_analysis_result_artifact(&invalid, names, "review").is_err());
+    refused(encode_analysis_result_artifact(&invalid, names, "review"), "io error");
 }
 #[test]
 fn temporal_identification_uses_its_own_namespace_and_preserves_offsets() {
@@ -269,9 +291,15 @@ fn temporal_identification_uses_its_own_namespace_and_preserves_offsets() {
     let (_, _, decoded) = decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(decoded, result);
     result.identification_variables.as_mut().unwrap()[5].variable = 2;
-    assert!(encode_analysis_result_artifact(&result, names.clone(), "invalid").is_err());
+    refused(
+        encode_analysis_result_artifact(&result, names.clone(), "invalid"),
+        "temporal namespace contains an unknown base variable or duplicate node",
+    );
     result.identification_variables = None;
-    assert!(encode_analysis_result_artifact(&result, names, "missing").is_err());
+    refused(
+        encode_analysis_result_artifact(&result, names, "missing"),
+        "variable id 5 is outside causal payload header bounds (len=2)",
+    );
 }
 fn interval() -> antecedent_stats::IdentifiedSetInterval {
     antecedent_stats::IdentifiedSetInterval {
@@ -362,7 +390,10 @@ fn subsampled_out_mass_is_optional_on_the_wire_and_round_trips() {
     if let Some(structural) = result.structural_response.as_mut() {
         structural.subsampled_out_mass = 1.5;
     }
-    assert!(encode_analysis_result_artifact(&result, names, "bad").is_err());
+    refused(
+        encode_analysis_result_artifact(&result, names, "bad"),
+        "mixture masses must be finite and inside [0, 1]",
+    );
 }
 
 #[test]
@@ -394,10 +425,11 @@ fn identified_set_interval_round_trips_and_validates() {
         IdentifiedSetIntervalWire { replicates: 1, ..wire.clone() },
         IdentifiedSetIntervalWire { completions: 0, ..wire.clone() },
     ] {
-        assert!(identified_set_interval_from_wire(&corrupt).is_err());
-        assert!(
-            encode_analysis_result_artifact(&with_structural(Some(corrupt)), names.clone(), "bad")
-                .is_err()
+        let detail = "identified-set interval must be finite with level in (0, 1), ordered endpoints and bounds, nonnegative SDs, at least one completion and two replicates";
+        refused(identified_set_interval_from_wire(&corrupt), detail);
+        refused(
+            encode_analysis_result_artifact(&with_structural(Some(corrupt)), names.clone(), "bad"),
+            detail,
         );
     }
 }
@@ -436,8 +468,9 @@ fn function_valued_result_has_no_scalar_and_survives_json_bridge() {
     artifact.write_to(&mut bytes).unwrap();
     assert_eq!(decode_analysis_result_artifact(&bytes).unwrap().2, result);
     result.estimate = Some(f64::NAN);
-    assert!(
-        encode_analysis_result_artifact(&result, vec!["x".into(), "y".into()], "invalid").is_err()
+    refused(
+        encode_analysis_result_artifact(&result, vec!["x".into(), "y".into()], "invalid"),
+        "analysis scalar estimate must be finite when present",
     );
 }
 
@@ -663,15 +696,16 @@ fn malformed_portable_family_covariance_and_bands_are_refused() {
     }
     let mut missing_covariance = fixture();
     missing_covariance.simultaneous_interval = Some((0.0, 2.0, 0.95));
-    assert!(
-        encode_analysis_result_artifact(&missing_covariance, names.clone(), "band-without-family")
-            .is_err()
+    refused(
+        encode_analysis_result_artifact(&missing_covariance, names.clone(), "band-without-family"),
+        "simultaneous interval requires valid covariance and bounds",
     );
     let mut missing_contrast = fixture();
     missing_contrast.joint_covariance =
         Some(crate::JointCovarianceWire { dim: 1, values: vec![1.0] });
     missing_contrast.family_contrast_interval = Some((0.0, 2.0, 0.95));
-    assert!(
-        encode_analysis_result_artifact(&missing_contrast, names, "band-without-contrast").is_err()
+    refused(
+        encode_analysis_result_artifact(&missing_contrast, names, "band-without-contrast"),
+        "contrast interval requires its contrast and covariance",
     );
 }

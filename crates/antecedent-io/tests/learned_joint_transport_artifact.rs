@@ -460,13 +460,22 @@ fn learned_joint_artifact_refuses_an_unknown_version_foreign_feature_and_claim()
     ));
     let mut foreign = wire.clone();
     foreign.required_features = vec!["joint_bayesian_transport_conjugate_v1".into()];
-    assert!(LearnedJointArtifactWire::decode(&foreign.export().expect("export")).is_err());
+    let error = LearnedJointArtifactWire::decode(&foreign.export().expect("export"))
+        .expect_err("a declaration outside the supported semantics is refused")
+        .to_string();
+    assert!(error.contains("unsupported semantics: required features"), "{error}");
     let mut calibrated = wire.clone();
     calibrated.calibration = "calibrated".into();
-    assert!(LearnedJointArtifactWire::decode(&calibrated.export().expect("export")).is_err());
+    let error = LearnedJointArtifactWire::decode(&calibrated.export().expect("export"))
+        .expect_err("a declaration outside the supported semantics is refused")
+        .to_string();
+    assert!(error.contains("unsupported semantics: calibration is unmeasured"), "{error}");
     let mut marginals = wire;
     marginals.result.draws.alignment = "independent_marginals".into();
-    assert!(LearnedJointArtifactWire::decode(&marginals.export().expect("export")).is_err());
+    let error = LearnedJointArtifactWire::decode(&marginals.export().expect("export"))
+        .expect_err("a declaration outside the supported semantics is refused")
+        .to_string();
+    assert!(error.contains("unsupported semantics: draws must be aligned joint draws"), "{error}");
 }
 
 #[test]

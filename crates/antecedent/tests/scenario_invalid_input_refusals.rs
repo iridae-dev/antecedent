@@ -72,6 +72,7 @@ fn the_local_ratio_recovers_its_effect_and_refuses_an_invalid_bandwidth_cutoff_o
         ("non-finite cutoff", f64::NAN, 1.0),
     ] {
         let error = refusal(ratio_run(cutoff, bandwidth), label);
+        assert_eq!(error.reason_code(), Some("invalid_argument"), "{label}: {error}");
         assert!(
             error.to_string().contains("cutoff must be finite and bandwidth positive"),
             "{label}: {error}"
@@ -125,9 +126,11 @@ fn the_mean_curve_rises_by_its_slope_and_refuses_an_invalid_grid() {
     // y = 3 a + z with z adjusted: one unit of treatment moves the curve by 3.
     assert!((mean[1] - mean[0] - 3.0).abs() < 0.05, "{mean:?}");
     let error = refusal(curve_run(vec![]), "an empty grid");
+    assert_eq!(error.reason_code(), Some("invalid_argument"), "{error}");
     assert!(error.to_string().contains("a response grid requires at least two points"), "{error}");
     for (label, grid) in [("non-finite", vec![0.0, f64::NAN]), ("repeated", vec![0.5, 0.5])] {
         let error = refusal(curve_run(grid), label);
+        assert_eq!(error.reason_code(), Some("invalid_argument"), "{label}: {error}");
         assert!(
             error.to_string().contains("response-grid values must be finite and strictly increasing"),
             "{label}: {error}"
