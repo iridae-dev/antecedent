@@ -40,4 +40,4 @@ sha256 = "d3094cdc5169502b9fe681c8177005de6ac93c83609af8c9f35c0bba7d738765"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/nonlinear_mediation.rs"
-sha256 = "b6983db64c29f3a220b45dab0be74148efbe022d063f565f16f6175cf79015db"
+sha256 = "f38484b8d0cd66c87f89695e90c9c8bb252508e9c4819c813a393da2e793fe76"

@@ -372,7 +372,7 @@ fn edge_answer_differs_from_the_node_level_intervention() {
     let all_edges = effect(&edge_query(control, active, &EDGES), &data, options);
     let nde = effect(&edge_query(control, active, &[(X, Y)]), &data, options);
     let nie = effect(&edge_query(control, active, &[(X, M), (M, Y)]), &data, options);
-    assert!((all_edges - total_truth).abs() < 0.3, "{all_edges} vs total {total_truth}");
+    assert!((all_edges - total_truth).abs() < 0.12, "{all_edges} vs total {total_truth}");
     assert!((nde - total_truth).abs() > 1.0, "NDE {nde} vs total {total_truth}");
     assert!((nie - total_truth).abs() > 1.0, "NIE {nie} vs total {total_truth}");
     assert!((nde + nie - all_edges).abs() > 0.5, "NDE {nde} + NIE {nie} vs total {all_edges}");
@@ -456,7 +456,7 @@ fn the_outcome_noise_is_shared_per_unit_under_the_non_separable_mechanism() {
     // an unshared outcome disturbance is off by about |U_Y(i) - U_Y(j)|.
     let rotated =
         (0..n).map(|i| (fixture.uy[(i + 1) % n] - fixture.uy[i]).abs()).sum::<f64>() / n as f64;
-    assert!(mean_error < 0.2, "mean per-unit contrast error {mean_error}");
+    assert!(mean_error < 0.15, "mean per-unit contrast error {mean_error}");
     assert!(rotated > 4.0 * mean_error, "fixture cannot tell shared from unshared: {rotated}");
 }
 
@@ -496,6 +496,43 @@ fn natural_direct_effect_regression_on_noisy_and_non_separable_fixtures() {
     let (existing, mine) =
         (study_ate(&non_separable), effect(&direct, &non_separable, CrossWorldOptions::default()));
     assert!((mine - existing).abs() < 1e-9, "non-separable, linear family: {mine} vs {existing}");
+    // Independent anchor: in the linear-Gaussian family the natural direct effect is
+    // the treatment coefficient of the ordinary least squares fit of Y on (1, X, M)
+    // times the contrast, solved here from the normal equations.
+    let fixture = NonSeparable::with_outcome_noise(500, 1.0);
+    let coefficient = ols_x_coefficient(&fixture.x, &fixture.m, &fixture.y);
+    assert!(
+        (mine - coefficient * (active - control)).abs() < 1e-9,
+        "NDE {mine} vs OLS {coefficient} * delta"
+    );
+}
+
+/// Coefficient of `x` in the least squares fit of `y` on `(1, x, m)` by Gaussian
+/// elimination on the 3x3 normal equations.
+fn ols_x_coefficient(x: &[f64], m: &[f64], y: &[f64]) -> f64 {
+    let rows: Vec<[f64; 3]> = x.iter().zip(m).map(|(a, b)| [1.0, *a, *b]).collect();
+    let mut a = [[0.0_f64; 4]; 3];
+    for (row, target) in rows.iter().zip(y) {
+        for i in 0..3 {
+            for j in 0..3 {
+                a[i][j] += row[i] * row[j];
+            }
+            a[i][3] += row[i] * target;
+        }
+    }
+    for col in 0..3 {
+        let pivot = (col..3).max_by(|&p, &q| a[p][col].abs().total_cmp(&a[q][col].abs())).unwrap();
+        a.swap(col, pivot);
+        for r in 0..3 {
+            if r != col {
+                let factor = a[r][col] / a[col][col];
+                for c in col..4 {
+                    a[r][c] -= factor * a[col][c];
+                }
+            }
+        }
+    }
+    a[1][3] / a[1][1]
 }
 
 /// The check is its own stage: it names the assumptions, the rerouted edges and
@@ -687,7 +724,33 @@ fn structures_and_inference_outside_the_cell_are_refused() {
         &ctx,
     )
     .unwrap();
-    assert!(wide.point.is_finite());
+    // Nine variables evaluate like three: the answer is the natural direct effect of
+    // the chain 0 -> 1 -> 2 with no 0 -> 2 edge, which is zero; the effect through both
+    // chain edges equals the product of the two simple-regression slopes times the contrast.
+    assert!(wide.point.abs() < 1e-9, "{}", wide.point);
+    let slope = |a: &[f64], b: &[f64]| {
+        let n = a.len() as f64;
+        let (ma, mb) = (a.iter().sum::<f64>() / n, b.iter().sum::<f64>() / n);
+        a.iter().zip(b).map(|(p, q)| (p - ma) * (q - mb)).sum::<f64>()
+            / a.iter().map(|p| (p - ma).powi(2)).sum::<f64>()
+    };
+    let chain = [(v(0), v(1)), (v(1), v(2))];
+    let big_indirect =
+        CrossWorldQuery::path_specific(v(0), v(2), 0.0, 1.0, &chain, &chain).unwrap();
+    let wide_indirect = evaluate_cross_world_effect(
+        dag(9, &[(0, 1), (1, 2)]),
+        &big,
+        &big_indirect,
+        CrossWorldOptions::default(),
+        &ctx,
+    )
+    .unwrap();
+    let expected = slope(&nine[0], &nine[1]) * slope(&nine[1], &nine[2]);
+    assert!(
+        (wide_indirect.point - expected).abs() < 1e-9,
+        "{} vs slope product {expected}",
+        wide_indirect.point
+    );
     // Malformed: table width disagrees with the graph.
     let two =
         TabularData::from_f64_columns([("x", &[0.0, 1.0, 2.0][..]), ("y", &[1.0, 2.0, 3.0][..])])

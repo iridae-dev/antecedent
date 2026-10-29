@@ -269,6 +269,17 @@ def test_a_regime_changes_what_the_study_observes_and_carries_its_own_identity()
         "tripled", "halved"
     )
 
+    # Closed form for a normal observation of theta / slope with noise variance v = 1 / 4 on
+    # the 4 units, far above the posterior variance of the contrast: the posterior mean of
+    # theta moves by a normal of sd S = Cov(theta, y) / sd(y) ~ tau^2 / (slope * sqrt(v)), and
+    # EVSI = S / sqrt(2 pi) for a break-even decision centred at the posterior mean. So EVSI
+    # is inversely proportional to the slope. The replicates share their draws, and the
+    # observed ratios are 0.4987 and 0.3322 against 1/2 and 1/3; a regime that is ignored
+    # (ratio 1) or applied squared (1/4, 1/9) is far outside the band.
+    for name, slope in (("halved", 2.0), ("tripled", 3.0)):
+        ratio = rows[name]["gross_evsi"] / rows["same"]["gross_evsi"]
+        assert abs(ratio - 1.0 / slope) <= 0.02, f"{name}: EVSI ratio {ratio} vs {1.0 / slope}"
+
 
 def test_a_regime_whose_mapping_evidence_is_withdrawn_is_refused():
     updated, ledger, bridge, dependency, actions, slots = _updated()
@@ -278,7 +289,9 @@ def test_a_regime_whose_mapping_evidence_is_withdrawn_is_refused():
             require_success(SourceRevision.withdraw(regime.mapping_evidence, "withdrawn mapping"))
         )
     )
-    with pytest.raises((ValueError, CausalUnsupportedError), match="withdrawn|missing|superseded"):
+    with pytest.raises(
+        (ValueError, CausalUnsupportedError), match="missing, withdrawn or superseded"
+    ):
         updated.rank_next_studies(
             actions=actions,
             studies=[jp.PanelFutureStudy("halved", 4, 1.0, 0.01, regime=regime)],
@@ -290,7 +303,10 @@ def test_a_regime_whose_mapping_evidence_is_withdrawn_is_refused():
 def test_a_regime_mapped_over_another_fitted_source_is_refused():
     updated, ledger, bridge, _dependency, actions, slots = _updated()
     regime = _regime(bridge, ledger, "0" * 64, slots, 2.0, "future-mapping-2")
-    with pytest.raises((ValueError, CausalUnsupportedError)):
+    with pytest.raises(
+        (ValueError, CausalUnsupportedError),
+        match="another fitted source or numerical dependency",
+    ):
         updated.rank_next_studies(
             actions=actions,
             studies=[jp.PanelFutureStudy("elsewhere", 4, 1.0, 0.01, regime=regime)],

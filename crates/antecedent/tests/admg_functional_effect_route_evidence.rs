@@ -23,18 +23,20 @@ fn functional_admg_fixture() -> (TabularData, Admg, AverageEffectQuery) {
     let mut confounder = Vec::new();
     let mut latent_left = Vec::new();
     let mut latent_right = Vec::new();
-    // P(z=1)=1/2. The outcome risks are .2/.8 when z=0 and
-    // .4/.6 when z=1 for t=0/1 respectively, so the independent
-    // adjustment formula gives E[Y|do(t=1)] - E[Y|do(t=0)] = .4.
+    // The confounder z drives treatment (t=1 for 3/4 of the z=1 rows, 1/4 of the z=0 rows)
+    // and the outcome. Outcome risks by (z, t): z=0 has .1 and .5, z=1 has .5 and .9 for
+    // t=0 and t=1, so the effect is .4 within each stratum and P(z=1)=1/2: the adjustment
+    // formula gives E[Y|do(t=1)] - E[Y|do(t=0)] = .4, while the unadjusted contrast
+    // E[Y|t=1] - E[Y|t=0] = (25+135)/200 - (15+25)/200 = .8 - .2 = .6 is confounded.
     for (z, t, y, count) in [
-        (0.0, 0.0, 0.0, 80),
-        (0.0, 0.0, 1.0, 20),
-        (0.0, 1.0, 0.0, 20),
-        (0.0, 1.0, 1.0, 80),
-        (1.0, 0.0, 0.0, 60),
-        (1.0, 0.0, 1.0, 40),
-        (1.0, 1.0, 0.0, 40),
-        (1.0, 1.0, 1.0, 60),
+        (0.0, 0.0, 0.0, 135),
+        (0.0, 0.0, 1.0, 15),
+        (0.0, 1.0, 0.0, 25),
+        (0.0, 1.0, 1.0, 25),
+        (1.0, 0.0, 0.0, 25),
+        (1.0, 0.0, 1.0, 25),
+        (1.0, 1.0, 0.0, 15),
+        (1.0, 1.0, 1.0, 135),
     ] {
         for _ in 0..count {
             for latent in [0.0, 1.0] {
@@ -142,7 +144,7 @@ fn verify_functional_effect_coordinate(
     let result =
         prepared.estimate(&data, &ctx).unwrap_or_else(|error| panic!("{coordinate}: {error}"));
     assert!(
-        (result.effect() - 0.4).abs() < if bayesian { 0.08 } else { 1e-12 },
+        (result.effect() - 0.4).abs() < if bayesian { 0.01 } else { 1e-12 },
         "{coordinate}: {}",
         result.effect()
     );

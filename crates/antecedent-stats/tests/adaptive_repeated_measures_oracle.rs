@@ -308,7 +308,7 @@ fn simulated_cluster_robust_contrast_matches_the_exact_mixture_under_compound_sy
     let exact = exact_fixed_contrast_law(&spec, &means).unwrap();
     let law = simulate_repeated_measures(&spec, &means, &request(20_000, 11), &never).unwrap();
     let summary = law.summarize(0.4, 1.96).unwrap();
-    close(summary.undefined_fraction, exact.undefined_mass, 0.012, "undefined fraction");
+    close(summary.undefined_fraction, exact.undefined_mass, 0.008, "undefined fraction");
     assert!(
         summary.bias.abs() <= 5.0 * summary.monte_carlo_standard_error,
         "mean estimate is unbiased within 5 Monte Carlo standard errors: bias {} mcse {}",
@@ -317,7 +317,7 @@ fn simulated_cluster_robust_contrast_matches_the_exact_mixture_under_compound_sy
     );
     let expected = exact.variance();
     assert!(
-        (summary.variance / expected - 1.0).abs() < 0.07,
+        (summary.variance / expected - 1.0).abs() < 0.01,
         "simulated variance {} against exact {expected}",
         summary.variance
     );
@@ -342,7 +342,7 @@ fn simulated_variance_scales_with_the_design_effect() {
         let law = simulate_repeated_measures(spec, &means, &request(12_000, 5), &never).unwrap();
         let summary = law.summarize(0.0, 1.96).unwrap();
         assert!(
-            (summary.variance / exact.variance() - 1.0).abs() < 0.08,
+            (summary.variance / exact.variance() - 1.0).abs() < 0.01,
             "simulated variance {} against exact {}",
             summary.variance,
             exact.variance()
@@ -371,7 +371,7 @@ fn simulated_gls_summary_under_ar1_matches_the_closed_form_variance() {
     let summary = law.summarize(0.3, 1.96).unwrap();
     assert!(summary.bias.abs() <= 5.0 * summary.monte_carlo_standard_error);
     assert!(
-        (summary.variance / exact.variance() - 1.0).abs() < 0.07,
+        (summary.variance / exact.variance() - 1.0).abs() < 0.03,
         "simulated variance {} against exact {}",
         summary.variance,
         exact.variance()
@@ -397,7 +397,7 @@ fn a_clustered_outcome_simulates_to_the_random_effect_variance() {
     let summary = law.summarize(0.0, 1.96).unwrap();
     assert!(summary.bias.abs() <= 5.0 * summary.monte_carlo_standard_error);
     assert!(
-        (summary.variance / exact.variance() - 1.0).abs() < 0.08,
+        (summary.variance / exact.variance() - 1.0).abs() < 0.01,
         "simulated variance {} against exact {}",
         summary.variance,
         exact.variance()
@@ -797,7 +797,7 @@ fn the_independence_assumption_is_refused_for_dependent_measurements() {
     // variance of the contrast under independence.
     let exact = exact_fixed_contrast_law(&independent, &[0.0, 0.0]).unwrap();
     assert!(
-        (summary.mean_reported_variance / exact.variance() - 1.0).abs() < 0.15,
+        (summary.mean_reported_variance / exact.variance() - 1.0).abs() < 0.02,
         "reported {} against exact {}",
         summary.mean_reported_variance,
         exact.variance()

@@ -208,7 +208,11 @@ fn an_inherited_design_ranking_decodes_but_is_not_consumed() {
     assert_eq!(wire.candidates.len(), 2);
     // Recomputation refuses it: the signal identities it stored are not the ones the
     // current derivation produces.
-    assert!(consume(&bytes, &ConsumeExpectation::default()).is_err());
+    let error = consume(&bytes, &ConsumeExpectation::default()).unwrap_err();
+    assert!(
+        matches!(error, antecedent_design::design_ranking_artifact::DesignRankingArtifactError::DigestMismatch),
+        "{error:?}"
+    );
 }
 
 #[test]
@@ -220,11 +224,9 @@ fn an_inherited_composition_bundle_never_verifies() {
         OLD_BUNDLE_IDENTITY,
         &SuppliedSources::default(),
     );
-    match outcome {
-        Err(_) => {}
-        Ok(consumed) => assert!(
-            !consumed.all_verified(),
-            "no node of an inherited bundle may verify under the current derivation"
-        ),
-    }
+    // The edge digests of the inherited bundle were derived from embedded artifacts whose
+    // identities moved, so the consumer refuses at the edge-digest stage, before any node
+    // could verify.
+    let error = outcome.expect_err("an inherited bundle never consumes");
+    assert_eq!(error.stage(), Some(antecedent_design::composition_bundle::BundleStage::EdgeDigestMismatch));
 }

@@ -224,12 +224,16 @@ fn mediation_quadrature_error_check_reports_and_refuses() {
     // the error reported.
     let strict = NonlinearMediationConfig { integration_tolerance: f64::MIN_POSITIVE, ..cubic(1) };
     match run(&g, &ignorable, &strict) {
-        Err(_) => assert!(
-            refusal_message(run(&g, &ignorable, &strict))
-                .contains("nonlinear_mediation.integration_error")
-        ),
-        Ok(est) => assert!(est.integration_error <= f64::MIN_POSITIVE),
+        Err(EstimationError::Refused { code, message }) => {
+            assert_eq!(code, "mechanism_fit_not_converged");
+            assert!(message.contains("nonlinear_mediation.integration_error"), "{message}");
+        }
+        other => panic!("a tolerance below the rounding disagreement must refuse, got {other:?}"),
     }
+    let loose = NonlinearMediationConfig { integration_tolerance: 1e-6, ..cubic(1) };
+    let est = run(&g, &ignorable, &loose).expect("tolerance above the rounding disagreement");
+    assert!(est.integration_error > 0.0 && est.integration_error < 1e-6);
+    assert!((est.natural_indirect - nie).abs() < 1e-8);
 }
 
 #[test]

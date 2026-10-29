@@ -15,6 +15,7 @@ functional refuter state and stay unlicensed.
 from __future__ import annotations
 
 import json
+import math
 import warnings
 
 import antecedent as ant
@@ -32,6 +33,8 @@ PIN = json.loads(
     read_text(ROOT / "conformance" / "estimate" / "staged_attribution" / "expected.json")
 )
 
+
+EXACT_CHANGE_TOLERANCE = 1e-6
 
 _NOISE = np.sin(np.arange(200, dtype=np.float64) * 1.7) * 0.5
 
@@ -55,6 +58,14 @@ def _two_period_chain(n: int = 80, comparison_intercept: float = 6.0) -> dict[st
         dtype=np.float64,
     )
     return {"x": x, "y": y}
+
+
+def _it_scores(values: np.ndarray, center: float, scale: float) -> list[float]:
+    """Information-theoretic outlier score -log P(|Z| >= |z|), z = (y - center) / scale.
+
+    The two-sided Gaussian tail is erfc(|z| / sqrt(2)); written out here from the definition.
+    """
+    return [-math.log(math.erfc(abs(v - center) / scale / math.sqrt(2.0))) for v in values]
 
 
 def _dag() -> ant.Dag:
@@ -128,6 +139,7 @@ def test_route_anomaly_tabular_explicit():
     assert scores[0].top_row == PIN["anomaly"]["top_row"]
     assert max(scores[0].scores) >= PIN["anomaly"]["score_min"]
     assert updated.anomaly[0].top_row == fresh.anomaly[0].top_row
+    assert updated.anomaly[0].top_row == 0, "the outlier moved to row 0 in the rebound data"
     assert result.identification.method.startswith("gcm.parametric")
     assert result.estimate.estimator_id == "gcm.fit"
 
@@ -148,9 +160,13 @@ def test_route_change_tabular_explicit():
     assert result.answer.kind == "point"
     change = result.change_attribution
     assert change is not None
-    assert abs(change.total_change - PIN["change"]["total_change"]) <= PIN["change"]["tolerance"]
+    # Exact: the total change is the period mean difference (5 here, 10 - 1 = 9 after the
+    # rebind), observed to 2.4e-9 and 4.4e-9; the pin's 0.25 tolerance would admit a wrong
+    # attribution by several percent.
+    assert abs(change.total_change - PIN["change"]["total_change"]) <= EXACT_CHANGE_TOLERANCE
     assert change.total_change >= PIN["change"]["total_change_min"]
     assert result.estimate.ate == change.total_change
+    assert abs(updated.change_attribution.total_change - 9.0) <= EXACT_CHANGE_TOLERANCE
     assert updated.change_attribution.total_change == fresh.change_attribution.total_change
     assert updated.estimate.ate != result.estimate.ate
     assert result.identification.method.startswith("gcm.parametric")
@@ -162,13 +178,22 @@ def test_anomaly_analyze_reproduces_the_conformance_pin():
     scores = result.anomaly[0]
     assert scores.top_row == PIN["anomaly"]["top_row"]
     assert max(scores.scores) >= PIN["anomaly"]["score_min"]
+    # Every row's score is the Gaussian two-sided tail at the robust (median, 1.4826 MAD)
+    # reference of the observed outcome: the pin's row identity alone would pass a wrong score.
+    y = _outlier_chain()["y"]
+    median = float(np.median(y))
+    scale = 1.482602218505602 * float(np.median(np.abs(y - median)))
+    np.testing.assert_allclose(
+        scores.scores, _it_scores(y, median, scale), rtol=0, atol=1e-9
+    )
 
 
 def test_change_analyze_reproduces_the_conformance_pin():
     result = require_success(ant.analyze(_two_period_chain(), graph=_dag(), query=_change_query()))
     change = result.change_attribution
-    assert abs(change.total_change - PIN["change"]["total_change"]) <= PIN["change"]["tolerance"]
+    assert abs(change.total_change - PIN["change"]["total_change"]) <= EXACT_CHANGE_TOLERANCE
     assert change.total_change >= PIN["change"]["total_change_min"]
+    assert abs(change.total_change - 5.0) <= EXACT_CHANGE_TOLERANCE
 
 
 def test_edge_list_graph_is_accepted():
@@ -262,6 +287,10 @@ def test_fixed_anomaly_reference_runs_through_analyze_and_artifact():
         ant.analyze(data, graph=_dag(), query=_anomaly_query(), inference=ant.Bayesian(n_draws=32))
     )
     assert result.anomaly[0].scores != empirical.anomaly[0].scores
+    # The fixed reference replaces the sample median/MAD: scores are the tail at (0, 10).
+    np.testing.assert_allclose(
+        result.anomaly[0].scores, _it_scores(data["y"], 0.0, 10.0), rtol=0, atol=1e-9
+    )
     assert result.posterior is not None
     posterior = require_success(ant.load(result.export(quantity="posterior")))
     assert posterior.quantity_names == ("mean_anomaly_score[1]",)

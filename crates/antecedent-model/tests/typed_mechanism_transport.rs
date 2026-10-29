@@ -23,7 +23,7 @@ use antecedent_model::typed_mechanism_transport::{
     MechanismRole, MechanismSpec, ParameterDependence, ResponseFamily, TypedFitError,
     TypedTransportRequest, DETAIL_DEPENDENCE_UNKNOWN, DETAIL_DESIGN_NOT_SHARED,
     DETAIL_INVARIANCE_CONTRADICTED, DETAIL_SELECTION_TARGET_UNKNOWN,
-    DETAIL_SHIFTED_WITHOUT_TARGET_EVIDENCE,
+    DETAIL_INVARIANCE_LEVEL, DETAIL_SHIFTED_WITHOUT_TARGET_EVIDENCE,
 };
 
 const OUTCOMES: [&str; 6] = ["demand", "orders", "buys", "spend", "basket", "noise_h"];
@@ -452,7 +452,12 @@ fn joint_dependence_changes_the_variance_it_is_given() {
         .mean_contrast_uncertainty(&contrast, 100_000, &ctx)
         .unwrap()
         .variance;
-    assert!((coupled - independent_variance).abs() > 1e-12);
+    // Var(g'theta) changes by 2 rho g_i g_d sigma_i sigma_d = 2 rho sqrt(V_i V_d), and
+    // sqrt(V_i V_d) <= (V_i + V_d) / 2 <= the total variance, so the relative change
+    // is at most rho = 0.3 in magnitude; the coupling is real, so it is not zero
+    // (observed relative change 0.097, positive).
+    let relative = (coupled - independent_variance) / independent_variance;
+    assert!(relative > 0.01 && relative <= rho + 1e-6, "relative change {relative}");
 }
 
 #[test]
@@ -488,9 +493,12 @@ fn populations_must_match_the_diagram() {
     assert!(details(&error)
         .contains(&antecedent_model::mechanism_transport::DETAIL_DIAGRAM_SOURCE_MISMATCH));
 
-    let mut request = w.full();
-    request.invariance_level = 0.7;
-    assert!(transport_typed(&request).is_err());
+    for bad in [0.7, 0.5, 0.0, -0.01, f64::NAN] {
+        let mut request = w.full();
+        request.invariance_level = bad;
+        let error = transport_typed(&request).unwrap_err();
+        assert!(details(&error).contains(&DETAIL_INVARIANCE_LEVEL), "level {bad}");
+    }
 }
 
 #[test]

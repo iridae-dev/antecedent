@@ -508,7 +508,10 @@ fn the_view_reports_lineage_boundaries_versions_and_unsupported_coordinates() {
     let reported = CompositionView::of(&g, &r, "reported_effect", &[]).expect("view");
     assert_eq!(reported.claim.calibration.state, CalibrationState::Inherited);
     assert_eq!(reported.claim.calibration.from.as_deref(), Some("result"));
-    assert!(CompositionView::of(&g, &r, "absent", &[]).is_err());
+    assert!(matches!(
+        CompositionView::of(&g, &r, "absent", &[]),
+        Err(ViewError::Graph(GraphError::UnknownNode(key))) if key == "absent"
+    ));
 }
 
 #[test]

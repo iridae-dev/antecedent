@@ -326,6 +326,18 @@ fn a_seeded_split_has_the_declared_sizes_and_a_seed_changes_the_partition() {
     assert_eq!(a.discovery.row_count(), 30);
     assert_eq!(a.analysis.row_count(), 70);
     a.receipt.verify().unwrap();
+    // The parts partition the rows: every original row appears in exactly one part,
+    // and each part's values are the original rows named by its row ids.
+    let mut ids: Vec<usize> =
+        a.discovery_row_ids.iter().chain(a.analysis_row_ids.iter()).copied().collect();
+    ids.sort_unstable();
+    assert_eq!(ids, (0..100).collect::<Vec<_>>());
+    for index in 0..4 {
+        let whole = column(&data, index);
+        let from_ids = |rows: &[usize]| rows.iter().map(|&r| whole[r]).collect::<Vec<f64>>();
+        assert_eq!(column(&a.discovery, index), from_ids(&a.discovery_row_ids), "column {index}");
+        assert_eq!(column(&a.analysis, index), from_ids(&a.analysis_row_ids), "column {index}");
+    }
 
     let b = split_rows(
         &data,

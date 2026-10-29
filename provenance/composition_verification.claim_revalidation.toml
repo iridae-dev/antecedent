@@ -49,4 +49,4 @@ sha256 = "1c362909789e331233bac463bbb65644412bd7985916273fe482f830bf1dc80f"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/composition_verification.rs"
-sha256 = "aa5ccea15516ae7f6adb5c1d4824d1b05e8ef1c2d466c900b3383b823faecce9"
+sha256 = "9c5689458a8776adae2135d34f894caf3382a57ce92fd0cd0c81aefa3f71e94c"
