@@ -398,7 +398,7 @@ def test_artifact_round_trip_mutation_and_fresh_process(tmp_path) -> None:  # ty
 def test_inputs_are_typed() -> None:
     with pytest.raises(CausalTypeError):
         jl.PropagationDraws.from_artifact_column("x", "not an artifact", 0)  # type: ignore[arg-type]
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="functional must be one of"):
         jl.EnvelopeQuery.of_functional("bogus")
     with pytest.raises(CausalValueError):
         require_success(

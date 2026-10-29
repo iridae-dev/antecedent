@@ -69,10 +69,16 @@ fn a_posterior_rule_decides_from_the_history_and_claims_no_error_rate() {
     assert!(!loss.stop, "the expected loss of the best arm is not below one in a million");
     assert_eq!(stop.guarantee.detail, "adaptive_inference.stopping_reliability_closed");
     assert_eq!(stop.guarantee.code, "cell_not_licensed");
-    assert!(
-        expected_loss_stopping(&posterior, PosteriorRule::ProbabilityBest { threshold: 0.4 })
-            .is_err()
-    );
+    {
+        let error =
+            expected_loss_stopping(&posterior, PosteriorRule::ProbabilityBest { threshold: 0.4 })
+                .unwrap_err();
+        assert_eq!(
+            (error.code, error.detail),
+            ("invalid_argument", "adaptive_inference.input_invalid")
+        );
+        assert!(error.message.contains("probability threshold in (0.5, 1)"), "{}", error.message);
+    }
 }
 
 #[test]
@@ -205,16 +211,44 @@ fn group_sequential_boundaries_and_decisions_follow_the_published_values() {
     assert_eq!(last.guarantee.detail, "adaptive_inference.stagewise_adjustment_closed");
     assert_eq!(last.guarantee.code, "cell_not_licensed");
     // More looks than planned, and a non-finite statistic.
-    assert!(group_sequential_decision(&plan(), &[0.0; 4], &ctx()).is_err());
-    assert!(group_sequential_decision(&plan(), &[f64::NAN], &ctx()).is_err());
+    {
+        let error = group_sequential_decision(&plan(), &[0.0; 4], &ctx()).unwrap_err();
+        assert_eq!(
+            (error.code, error.detail),
+            ("invalid_argument", "adaptive_inference.input_invalid")
+        );
+        assert!(error.message.contains("at most the planned looks"), "{}", error.message);
+    }
+    {
+        let error = group_sequential_decision(&plan(), &[f64::NAN], &ctx()).unwrap_err();
+        assert_eq!(
+            (error.code, error.detail),
+            ("invalid_argument", "adaptive_inference.input_invalid")
+        );
+        assert!(error.message.contains("one finite standardized statistic"), "{}", error.message);
+    }
 }
 
 #[test]
 fn the_standardized_difference_matches_a_hand_calculation() {
     let z = standardized_difference(&[1.0, 2.0, 3.0], &[2.0, 4.0, 6.0]).unwrap();
     close(z, 2.0 / (5.0_f64 / 3.0).sqrt(), 1e-14, "welch");
-    assert!(standardized_difference(&[1.0], &[1.0, 2.0]).is_err());
-    assert!(standardized_difference(&[1.0, 1.0], &[2.0, 2.0]).is_err());
+    {
+        let error = standardized_difference(&[1.0], &[1.0, 2.0]).unwrap_err();
+        assert_eq!(
+            (error.code, error.detail),
+            ("invalid_argument", "adaptive_inference.input_invalid")
+        );
+        assert!(error.message.contains("at least two observed outcomes"), "{}", error.message);
+    }
+    {
+        let error = standardized_difference(&[1.0, 1.0], &[2.0, 2.0]).unwrap_err();
+        assert_eq!(
+            (error.code, error.detail),
+            ("invalid_argument", "adaptive_inference.input_invalid")
+        );
+        assert!(error.message.contains("zero sample variance"), "{}", error.message);
+    }
 }
 
 #[test]

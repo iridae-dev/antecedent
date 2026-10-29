@@ -70,7 +70,10 @@ fn evicting_a_row_recomputes_and_equals_the_reference_on_the_rest() {
         53.54,
     );
     assert_eq!(fit.ledger().rows, 11);
-    assert!(fit.evict_row(3).is_err(), "the row is gone");
+    assert!(
+        matches!(fit.evict_row(3), Err(StateError::UnknownId(ref id)) if id == "row 3"),
+        "the row is gone"
+    );
 }
 
 #[test]
@@ -150,9 +153,15 @@ fn replacing_the_source_keeps_nothing_of_the_old_one() {
 fn a_repeated_observation_is_refused_whether_single_or_in_a_window() {
     let mut fit = OlsRefresh::from_rows("series_a", 2, rows(0..5)).unwrap();
     let before = fit.snapshot();
-    assert!(fit.append_row("series_a", &row(2)).is_err());
-    assert!(fit.append_window("series_a", &rows(4..8)).is_err());
-    assert!(fit.append_window("series_a", &[row(8), row(8)]).is_err());
+    assert!(
+        matches!(fit.append_row("series_a", &row(2)), Err(StateError::InvalidEvent(ref m)) if m.contains("is already in the summary"))
+    );
+    assert!(
+        matches!(fit.append_window("series_a", &rows(4..8)), Err(StateError::InvalidEvent(ref m)) if m.contains("is already in the summary"))
+    );
+    assert!(
+        matches!(fit.append_window("series_a", &[row(8), row(8)]), Err(StateError::InvalidEvent(ref m)) if m.contains("is already in the summary"))
+    );
     assert_eq!(fit.snapshot(), before);
 }
 
@@ -160,8 +169,14 @@ fn a_repeated_observation_is_refused_whether_single_or_in_a_window() {
 fn a_malformed_row_is_refused_before_anything_is_touched() {
     let mut fit = OlsRefresh::from_rows("series_a", 2, rows(0..5)).unwrap();
     let before = fit.snapshot();
-    assert!(fit.append_row("series_a", &RefreshRow::new(9, vec![1.0], 1.0)).is_err());
-    assert!(fit.append_row("series_a", &RefreshRow::new(9, vec![1.0, f64::NAN], 1.0)).is_err());
+    assert!(matches!(
+        fit.append_row("series_a", &RefreshRow::new(9, vec![1.0], 1.0)),
+        Err(StateError::Shape(ref m)) if m == "row len 1 != ncols 2"
+    ));
+    assert!(matches!(
+        fit.append_row("series_a", &RefreshRow::new(9, vec![1.0, f64::NAN], 1.0)),
+        Err(StateError::Numerical(ref m)) if m.contains("must be finite")
+    ));
     assert_eq!(fit.snapshot(), before);
     assert!(matches!(fit.insert_column(), Err(StateError::InvalidEvent(_))));
 }
@@ -173,11 +188,26 @@ fn summary_only_appends_but_refuses_every_change_that_needs_rows() {
     fit.append_window("series_a", &rows(5..12)).unwrap();
     close(fit.snapshot().beta.unwrap()[1], 1.612_687_813_021_702_4, "slope");
     let before = fit.snapshot();
-    assert!(fit.evict_row(1).is_err());
-    assert!(fit.set_mask(1, true).is_err());
-    assert!(fit.set_count(1, 2).is_err());
-    assert!(fit.fresh_snapshot().is_err());
-    assert!(fit.check_against_fresh().is_err());
+    assert!(
+        matches!(fit.evict_row(1), Err(StateError::InvalidEvent(ref m)) if m.contains("summary-only cannot serve")),
+        "summary-only keeps no rows"
+    );
+    assert!(
+        matches!(fit.set_mask(1, true), Err(StateError::InvalidEvent(ref m)) if m.contains("summary-only cannot serve")),
+        "summary-only keeps no rows"
+    );
+    assert!(
+        matches!(fit.set_count(1, 2), Err(StateError::InvalidEvent(ref m)) if m.contains("summary-only cannot serve")),
+        "summary-only keeps no rows"
+    );
+    assert!(
+        matches!(fit.fresh_snapshot(), Err(StateError::InvalidEvent(ref m)) if m.contains("summary-only cannot serve")),
+        "summary-only keeps no rows"
+    );
+    assert!(
+        matches!(fit.check_against_fresh(), Err(StateError::InvalidEvent(ref m)) if m.contains("summary-only cannot serve")),
+        "summary-only keeps no rows"
+    );
     assert_eq!(fit.snapshot(), before);
 }
 
@@ -194,7 +224,10 @@ fn the_summary_type_agrees_with_the_route_contract_table() {
     assert_eq!(stats.n(), 6);
     // Evict is not applied in place, and the table says recompute.
     let mut evicted = kept.clone();
-    assert!(evicted.apply_delta(LinearOlsDelta::EvictRow { row: &[1.0, X[0]], y: Y[0] }).is_err());
+    assert!(matches!(
+        evicted.apply_delta(LinearOlsDelta::EvictRow { row: &[1.0, X[0]], y: Y[0] }),
+        Err(StateError::Numerical(ref m)) if m.contains("cannot evict a summarized row")
+    ));
     assert_eq!(evicted, kept);
     assert!(matches!(
         table(RefreshChange::EvictRow),
@@ -205,7 +238,10 @@ fn the_summary_type_agrees_with_the_route_contract_table() {
         (LinearOlsDelta::MaskChanged, RefreshChange::MaskChange),
     ] {
         let mut weighted = kept.clone();
-        assert!(weighted.apply_delta(delta).is_err());
+        assert!(matches!(
+            weighted.apply_delta(delta),
+            Err(StateError::Numerical(ref m)) if m.contains("invalidates the summary")
+        ));
         assert!(weighted.is_invalidated(), "{change:?} must not leave a stale summary");
         assert!(matches!(table(change), RefreshDisposition::InvalidateAndRecompute { .. }));
     }

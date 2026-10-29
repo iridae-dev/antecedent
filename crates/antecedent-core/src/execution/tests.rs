@@ -285,7 +285,10 @@ fn cancelled_parent_and_child_hold_live_memory_until_cleanup() {
     owner.cancellation.cancel();
     assert_eq!(pool.available(), AdmissionRemainder::zero());
     assert!(matches!(parent.acquire_child(0, 1), Err(AdmissionError::Cancelled)));
-    assert!(other.acquire_admission(1, 1).is_err());
+    assert!(
+        matches!(other.acquire_admission(1, 1), Err(AdmissionError::ExceedsRemainder { .. })),
+        "a spent pool refuses with the typed remainder error"
+    );
     drop(parent);
     assert_eq!(pool.available(), AdmissionRemainder::new(1, 60));
     let _replacement = other.acquire_admission(1, 60).unwrap();
@@ -486,7 +489,10 @@ fn cloned_context_shares_the_admission_decrement() {
     let study = ExecutionContext::for_tests(1).with_admission(AdmissionPool::fixed(2, 10));
     let clone = study.clone();
     let lease = study.acquire_admission(2, 10).unwrap();
-    assert!(clone.acquire_admission(1, 0).is_err());
+    assert!(
+        matches!(clone.acquire_admission(1, 0), Err(AdmissionError::ExceedsRemainder { .. })),
+        "a spent pool refuses with the typed remainder error"
+    );
     assert_eq!(clone.admission().available().threads(), 0);
     assert_eq!(lease.release().threads(), 2);
     assert_eq!(clone.admission().available().threads(), 2);
@@ -531,7 +537,10 @@ fn cancellation_keeps_admission_until_the_owner_releases() {
     let lease = study_a.acquire_admission(4, 80).unwrap();
     study_a.cancellation.cancel();
     assert_eq!(shared.available(), AdmissionRemainder::zero());
-    assert!(study_b.acquire_admission(4, 80).is_err());
+    assert!(
+        matches!(study_b.acquire_admission(4, 80), Err(AdmissionError::ExceedsRemainder { .. })),
+        "a spent pool refuses with the typed remainder error"
+    );
     assert_eq!(lease.release(), AdmissionRemainder::new(4, 80));
     let taken = study_b.acquire_admission(4, 80).unwrap();
     assert_eq!(shared.available().threads(), 0);
@@ -758,7 +767,10 @@ fn cancelled_map_indexed_leaves_no_lease() {
     ctx.cancellation.cancel();
     assert_eq!(shared.available(), AdmissionRemainder::zero());
     let competing = ExecutionContext::for_tests(2).with_admission(shared.clone());
-    assert!(competing.acquire_admission(1, 1).is_err());
+    assert!(
+        matches!(competing.acquire_admission(1, 1), Err(AdmissionError::ExceedsRemainder { .. })),
+        "a spent pool refuses with the typed remainder error"
+    );
     finish.wait();
     assert_eq!(handle.join().unwrap().unwrap(), vec![0, 1]);
     assert_eq!(shared.available(), AdmissionRemainder::new(2, 64));

@@ -150,9 +150,9 @@ def test_declared_weights_keep_unidentified_and_residual_mass():
     assert weighted["identified_weighted_sums"]["y"] == pytest.approx(total)
     rng = weighted["ranges"][0]
     assert (rng["lower"], rng["upper"]) == pytest.approx((total, total + 0.5))
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="scenarios.invalid_weights"):
         scenarios((0.3, None, 0.4))
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="scenarios.invalid_weights"):
         scenarios((0.6, 0.3, 0.4))
 
 

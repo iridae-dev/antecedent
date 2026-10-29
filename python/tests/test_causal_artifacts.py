@@ -11,7 +11,7 @@ from antecedent._native import (
     decode_causal_artifact,
     encode_causal_artifact,
 )
-from antecedent.errors import CausalError
+from antecedent.errors import CausalSerializationError
 from antecedent.outcomes import require_success
 
 
@@ -950,16 +950,16 @@ def test_a_model_bundle_round_trips_its_names_edges_and_mechanism_slots() -> Non
 
 
 def test_a_model_bundle_refuses_a_bad_edge_and_bytes_that_are_not_a_bundle() -> None:
-    with pytest.raises(CausalError):
+    with pytest.raises(CausalSerializationError, match="unknown dense node 5"):
         model.encode_model_bundle(["x", "y"], [(0, 5)], [("constant", 0.0, None, None)] * 2)
     encoded = bytes(
         model.encode_model_bundle(["x", "y"], [(0, 1)], [("constant", 0.0, None, None)] * 2)
     )
-    with pytest.raises(CausalError):
+    with pytest.raises(CausalSerializationError, match="bad artifact magic"):
         model.decode_model_bundle(b"not a model bundle")
     damaged = bytearray(encoded)
     damaged[len(damaged) // 2] ^= 0x55
-    with pytest.raises(CausalError):
+    with pytest.raises(CausalSerializationError):
         model.decode_model_bundle(bytes(damaged))
-    with pytest.raises(CausalError):
+    with pytest.raises(CausalSerializationError, match="failed to fill whole buffer"):
         model.decode_model_bundle(encoded[:20])

@@ -277,7 +277,10 @@ fn refusal_is_transactional_and_receipts_do_not_grant_live_factors() {
     request.columns[2].1[0] = 1.0;
     let (failed, work) =
         count_static_work(|| execute_static_response_with_receipt(&mut session, &request, &budget));
-    assert!(failed.is_err());
+    assert!(
+        matches!(failed, Err(RecalcRunError::Request(RecalcRequestCode::MemoryBudgetExceeded))),
+        "a one-byte memory budget is refused before any factor is built"
+    );
     assert_eq!(work.factor_builds, 0);
     request = response();
     assert_eq!(
@@ -418,7 +421,13 @@ fn graph_and_query_substitution_recheck_identification() {
     let mut session = StaticResponseSession::new();
     execute_static_response_with_receipt(&mut session, &request, &ctx).unwrap();
     request.graph.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    assert!(execute_static_response_with_receipt(&mut session, &request, &ctx).is_err());
+    assert!(
+        matches!(
+            execute_static_response_with_receipt(&mut session, &request, &ctx),
+            Err(RecalcRunError::Execution(antecedent::CausalError::NotIdentified { .. }))
+        ),
+        "a bidirected X-Y edge makes the effect not identified"
+    );
     assert_eq!(
         execute_static_response_with_receipt(&mut session, &original, &ctx)
             .unwrap()

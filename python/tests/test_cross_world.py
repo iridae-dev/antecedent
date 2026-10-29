@@ -159,9 +159,9 @@ def test_structures_and_inference_outside_the_cell_are_refused():
             path_specific_effect(mediation_dag(), data, query, uncertainty=uncertainty)
         assert raised.value.reason_code == "estimator_inference_mismatch"
         assert "cross_world.interval_requested" in str(raised.value)
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="treatment and outcome must be distinct"):
         EdgeIntervention("x", "x", 0.0, 1.0, ())
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="treatment levels must be finite and distinct"):
         EdgeIntervention("x", "y", 1.0, 1.0, ())
     with pytest.raises(CausalValueError):
         path_specific_effect(mediation_dag(), data, query, mechanism="gaussian_process")

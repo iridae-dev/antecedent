@@ -290,9 +290,18 @@ fn source_state_only_refuses_support_gaps_bounds_and_malformed_laws() {
         vec![(0, 1.5), (1, -0.5)],
         vec![(0, f64::NAN), (1, 1.0)],
     ] {
-        assert!(InitialStateLaw::new(InitialStatePopulation::Target, "s", bad).is_err());
+        let error =
+            InitialStateLaw::new(InitialStatePopulation::Target, "s", bad.clone()).unwrap_err();
+        let expected = if bad.is_empty() {
+            "at least one state"
+        } else {
+            "distinct states and finite non-negative masses summing to one"
+        };
+        assert!(format!("{error:?}").contains(expected), "{bad:?}: {error:?}");
     }
-    assert!(InitialStateLaw::new(InitialStatePopulation::Target, "", vec![(0, 1.0)]).is_err());
+    let error =
+        InitialStateLaw::new(InitialStatePopulation::Target, "", vec![(0, 1.0)]).unwrap_err();
+    assert!(format!("{error:?}").contains("needs a snapshot id"), "{error:?}");
 
     let (code, message) = refused(route_frozen_refusal());
     assert_eq!(code, "cell_not_licensed");

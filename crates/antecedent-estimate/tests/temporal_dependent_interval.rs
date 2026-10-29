@@ -161,7 +161,7 @@ fn dynamic_scm_studentized_interval_covers_independent_truth() {
     // Analytic direction: the unit effect moves the whole value by +-0.2, so the
     // replicate sd across 30 whole units is about 0.2 * 2 * sqrt(0.25 / 30) = 0.037
     // (95% width about 0.14).
-    assert!(by_unit.width() > 0.08 && by_unit.width() < 0.25, "width {}", by_unit.width());
+    assert!(by_unit.width() > 0.12 && by_unit.width() < 0.16, "width {}", by_unit.width());
     assert!(by_unit.contains(truth), "[{}, {}] misses {truth}", by_unit.lower, by_unit.upper);
     assert_eq!(by_unit.claim, INTERVAL_CLAIM);
     assert_eq!(by_unit.calibration, INTERVAL_CALIBRATION_STATUS);
@@ -330,7 +330,9 @@ fn unknown_unit_dependence_refuses_an_absent_map_and_incompatible_units() {
     assert!(message.contains("temporal_interval.unknown_units"), "{message}");
 
     let nan = UnitHistories { unit_id: 1, histories: vec![history(0, (0, 0, 0, 0, f64::NAN))] };
-    assert!(TemporalUnitPanel::new("s", Some(vec![nan])).is_err());
+    let (code, message) = refused(TemporalUnitPanel::new("s", Some(vec![nan])).unwrap_err());
+    assert_eq!(code, "route_not_supported");
+    assert!(message.contains("unit 1 has a non-finite outcome"), "{message}");
 }
 
 #[test]
