@@ -24,22 +24,23 @@ test_sources = [
   "crates/antecedent-io-core/tests/cross_world_execution_artifact.rs",
   "crates/antecedent/tests/cross_world_execution_facade.rs",
   "crates/antecedent-counterfactual/tests/cross_world_execution_sampled_and_interval_readings.rs",
+  "crates/antecedent-counterfactual/tests/finite_scm_readings_reference.rs",
 ]
 
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "closed_variant"
-rationale = "The closed readings of the finite cross-world executor: a sampled exogenous posterior and interval or posterior readings are refused with registered codes before any abduction, prediction or sampling work."
-no_independent_algorithm = "finite_executor.rs static_checks refuses PosteriorSampling and the joint-law propagation rule refuses Interval and Posterior readings; the module takes no draw (shared_draws stays zero) and computes no interval, posterior or spread. The exact enumeration or elimination that produces the open point value is covered by cross_world_execution.finite_markovian_scm."
+rationale = "The closed readings of the finite cross-world executor: a sampled exogenous posterior and interval or posterior readings are refused (the spread and declared-set envelope readings are computed exactly) with registered codes before any abduction, prediction or sampling work."
+no_independent_algorithm = "finite_executor.rs static_checks refuses PosteriorSampling and the joint-law propagation rule refuses Interval and Posterior readings; the module takes no draw (shared_draws stays zero) and computes no interval or posterior. The spread reading is the exact posterior variance over the enumerated exogenous noise and the envelope reading is the range of the point value over a declared parameter set, both checked against definition-level Fraction enumeration in cross_world_execution.finite_markovian_scm's sibling test finite_scm_readings_reference.rs; an envelope without a declared set is refused. The exact enumeration or elimination that produces the open point value is covered by cross_world_execution.finite_markovian_scm."
 covered_by = ["cross_world_execution.finite_markovian_scm"]
-record_sha256 = "0e659d67f94c598750c05325d677a214d7c37de20f87dd623ea358e3328fade3"
+record_sha256 = "1ff97121ab59b859614dd45eee7926a0b72fe7136532908d676299e86ef61fcc"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-counterfactual/src/selective/finite_executor.rs"
-sha256 = "d84041eb5c1d64d33e2dea76ea41c2a1e343fca9cad9dcdb80bc000799bc4e23"
+sha256 = "4ae9cf9abe3dcdcd289b8a222dbcdf601d9aaf06340415a9ee4f3e0295fc6441"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-counterfactual/tests/cross_world_execution_sampled_and_interval_readings.rs"
-sha256 = "235215fc864838330cc0a8ecd8b3c38fcf73179cb173a2f3930f530cabae1363"
+sha256 = "9f6047150e5b57de294a32229aa341775701dd9d0cb68d57566980a2e056326f"

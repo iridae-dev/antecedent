@@ -202,6 +202,7 @@ mod mag_id_bruteforce;
 #[cfg(any(test, feature = "test-util"))]
 #[doc(hidden)]
 pub mod oracle_dot;
+pub mod panel_unrolled;
 
 pub use admg_adjustment::{
     FrontDoorSearch, TemporalAdmgAdjustment, default_front_door_limits,

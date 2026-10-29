@@ -42,7 +42,7 @@ sha256 = "c949ee4c3f80a036c41a0c925088321c6380cc4512e124e91917f1c8ba632e3c"
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-counterfactual/src/selective/finite_executor.rs"
-sha256 = "d84041eb5c1d64d33e2dea76ea41c2a1e343fca9cad9dcdb80bc000799bc4e23"
+sha256 = "4ae9cf9abe3dcdcd289b8a222dbcdf601d9aaf06340415a9ee4f3e0295fc6441"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

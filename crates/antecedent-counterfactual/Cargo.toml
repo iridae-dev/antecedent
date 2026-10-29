@@ -64,3 +64,7 @@ path = "tests/cross_world_execution_sampled_and_interval_readings.rs"
 [[test]]
 name = "cross_world_execution_transported_row"
 path = "tests/cross_world_execution_transported_row.rs"
+
+[[test]]
+name = "finite_scm_readings_reference"
+path = "tests/finite_scm_readings_reference.rs"

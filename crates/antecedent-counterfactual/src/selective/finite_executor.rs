@@ -217,6 +217,82 @@ pub struct FiniteExecutionResult {
     pub method: ExogenousMethod,
     /// The elimination plan and work, when [`Self::method`] is variable elimination.
     pub elimination: Option<EliminationReceipt>,
+    /// The exact spread of the quantity over the exogenous noise, present exactly when the
+    /// spread reading was requested.
+    pub spread: Option<NoiseSpread>,
+}
+
+/// The exact distribution of one unit's counterfactual quantity over its exogenous posterior.
+#[derive(Clone, Debug, PartialEq)]
+pub struct UnitSpread {
+    /// The unit.
+    pub unit: String,
+    /// `(value, posterior probability)` pairs, ascending in value, one per distinct value.
+    pub distribution: Vec<(f64, f64)>,
+    /// Posterior variance of the quantity over the unit's exogenous noise.
+    pub variance: f64,
+}
+
+/// The exact noise spread of an execution: not a sampling uncertainty of an estimate and
+/// carrying no coverage statement. The mechanisms are declared, so the only randomness left is
+/// the exogenous posterior, which is enumerated.
+#[derive(Clone, Debug, PartialEq)]
+pub struct NoiseSpread {
+    /// Per-unit distributions, sorted by unit id.
+    pub units: Vec<UnitSpread>,
+    /// Variance of the unit mean `value` over the exogenous noise, with the units' exogenous
+    /// terms independent given their own evidence: the sum of the unit variances over the
+    /// squared unit count.
+    pub mean_variance: f64,
+    /// The label of this reading.
+    pub label: &'static str,
+}
+
+/// The label of the exact noise spread.
+pub const SPREAD_LABEL: &str = "exact_noise_spread";
+/// The label of the envelope over a declared parameter set.
+pub const ENVELOPE_LABEL: &str = "declared_set_envelope";
+
+/// One member's contribution to an envelope.
+#[derive(Clone, Debug, PartialEq)]
+pub struct EnvelopeMember {
+    /// Position in the declared set (0 is the request's own mechanisms).
+    pub index: usize,
+    /// The member's point value (the mean of its unit values).
+    pub value: f64,
+}
+
+/// One unit's range over the declared set.
+#[derive(Clone, Debug, PartialEq)]
+pub struct UnitEnvelope {
+    /// The unit.
+    pub unit: String,
+    /// Smallest value over the set.
+    pub lower: f64,
+    /// Largest value over the set.
+    pub upper: f64,
+}
+
+/// The minimum and maximum of the point value over a finite declared parameter set.
+///
+/// It is exactly the range over the declared members, each executed by the exact point row; it
+/// says nothing about parameter values between or beyond the members.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FiniteEnvelopeResult {
+    /// Smallest mean value over the set.
+    pub lower: f64,
+    /// Largest mean value over the set.
+    pub upper: f64,
+    /// Index of the member attaining `lower` (the first on ties).
+    pub lower_member: usize,
+    /// Index of the member attaining `upper` (the first on ties).
+    pub upper_member: usize,
+    /// Every member's value in declaration order.
+    pub members: Vec<EnvelopeMember>,
+    /// Per-unit ranges, sorted by unit id.
+    pub units: Vec<UnitEnvelope>,
+    /// `declared_set_envelope`.
+    pub label: &'static str,
 }
 
 /// A selective executor over the fully declared finite SCM rows.
@@ -269,6 +345,29 @@ fn draws_digest(identity: &str, scm: &FiniteScm, unit: &str, posterior: &Posteri
     w.finish_hex()
 }
 
+fn unit_spread(unit: &str, mut distribution: Vec<(f64, f64)>) -> UnitSpread {
+    distribution.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let mut mean = CompensatedSum::default();
+    for (v, w) in &distribution {
+        mean.add(v * w);
+    }
+    let mean = mean.total();
+    let mut var = CompensatedSum::default();
+    for (v, w) in &distribution {
+        var.add(w * (v - mean) * (v - mean));
+    }
+    UnitSpread { unit: unit.to_owned(), distribution, variance: var.total() }
+}
+
+fn noise_spread(units: Vec<UnitSpread>) -> NoiseSpread {
+    let mut sum = CompensatedSum::default();
+    for u in &units {
+        sum.add(u.variance);
+    }
+    let n = units.len() as f64;
+    NoiseSpread { mean_variance: sum.total() / (n * n), units, label: SPREAD_LABEL }
+}
+
 fn classify(request: &FiniteExecutionRequest, involved: &[usize]) -> QuantityClass {
     let routed = involved.iter().any(|w| !request.worlds[*w].routes.is_empty());
     if routed {
@@ -279,6 +378,24 @@ fn classify(request: &FiniteExecutionRequest, involved: &[usize]) -> QuantityCla
     } else {
         QuantityClass::CounterfactualMarginal
     }
+}
+
+fn same_structure(a: &FiniteScm, b: &FiniteScm) -> bool {
+    a.population == b.population
+        && a.history == b.history
+        && a.exogenous.len() == b.exogenous.len()
+        && a.exogenous
+            .iter()
+            .zip(&b.exogenous)
+            .all(|(x, y)| x.name == y.name && x.pmf.len() == y.pmf.len())
+        && a.variables.len() == b.variables.len()
+        && a.variables.iter().zip(&b.variables).all(|(x, y)| {
+            x.name == y.name
+                && x.levels == y.levels
+                && x.parents == y.parents
+                && x.exogenous == y.exogenous
+                && x.table.len() == y.table.len()
+        })
 }
 
 fn matrix_error(refusal: MatrixRefusal) -> CrossWorldExecutionError {
@@ -351,13 +468,13 @@ impl FiniteScmExecutor {
                  so request exact enumeration",
             ));
         }
-        if matches!(request.reading, RequestedReading::Spread | RequestedReading::Envelope) {
+        if request.reading == RequestedReading::Envelope {
             return Err(refuse(
                 antecedent_core::reason_code!("cell_not_licensed"),
-                "cross_world_execution.reading_not_licensed",
-                Some(format!("{:?}", request.reading).to_lowercase()),
-                "this row returns an exact point value only and computes no spread or \
-                 envelope; request the point reading",
+                "cross_world_execution.envelope_needs_parameter_set",
+                Some("envelope".to_owned()),
+                "an envelope is the range over a declared set of parameterisations; declare the \
+                 set and call execute_envelope, or request the point or spread reading",
             ));
         }
         if let Some(target) = &request.target_population {
@@ -436,7 +553,14 @@ impl FiniteScmExecutor {
             operation,
             inputs,
             dependence,
-            reading: request.reading,
+            // The noise spread is a property of the exactly enumerated exogenous law, not a
+            // composition of estimates, so the pairing it needs is the point reading's: the
+            // same aligned joint law, or the same refusal.
+            reading: if request.reading == RequestedReading::Spread {
+                RequestedReading::Point
+            } else {
+                request.reading
+            },
         })
         .map(|_| ())
         .map_err(from_external)
@@ -599,6 +723,25 @@ impl FiniteScmExecutor {
         }
         counters.summaries += 1;
         let mean = total.total() / answers.len() as f64;
+        let spread = if request.reading == RequestedReading::Spread {
+            let mut spreads = Vec::with_capacity(units.len());
+            for (unit, retained) in units.iter().zip(&resolved) {
+                poll(ctx)?;
+                let mut distribution: Vec<(f64, f64)> = Vec::new();
+                for (state, weight) in &retained.posterior.states {
+                    evaluate_worlds(&compiled, &plans, *state as usize, &mut values);
+                    let v = request.quantity.at_state(&values);
+                    match distribution.iter_mut().find(|(x, _)| *x == v) {
+                        Some(entry) => entry.1 += weight,
+                        None => distribution.push((v, *weight)),
+                    }
+                }
+                spreads.push(unit_spread(&unit.unit, distribution));
+            }
+            Some(noise_spread(spreads))
+        } else {
+            None
+        };
 
         let (receipt, stages) =
             Self::receipts(request, &mechanism, &resolved, computed, &abduction_set);
@@ -622,6 +765,7 @@ impl FiniteScmExecutor {
             label: INFERENCE_LABEL,
             method,
             elimination: None,
+            spread,
         })
     }
 
@@ -644,6 +788,19 @@ impl FiniteScmExecutor {
         identities: &[(String, String)],
         ctx: &ExecutionContext,
     ) -> Result<FiniteExecutionResult, CrossWorldExecutionError> {
+        let spread_requested = request.reading == RequestedReading::Spread;
+        if spread_requested && matches!(request.quantity, FiniteQuantity::MeanContrast { .. }) {
+            return Err(refuse(
+                antecedent_core::reason_code!("cell_not_licensed"),
+                "cross_world_execution.spread_needs_enumeration",
+                Some("variable_elimination".to_owned()),
+                "elimination computes the first moment of the quantity only; the spread of a \
+                 mean contrast needs its second moment, so reduce the exogenous space below \
+                 the enumeration bound or request a probability quantity (an indicator's \
+                 variance is p(1-p))",
+            ));
+        }
+        let mut spreads = Vec::new();
         let before = self.counters;
         let mut counters = self.counters;
         // The factual world is one more world, with no interventions and no routes.
@@ -701,6 +858,17 @@ impl FiniteScmExecutor {
                 draws_digest: draws.finish_hex(),
             }));
             total.add(inferred.value);
+            if spread_requested {
+                let p = inferred.value;
+                let mut distribution = Vec::new();
+                if p < 1.0 {
+                    distribution.push((0.0, 1.0 - p));
+                }
+                if p > 0.0 {
+                    distribution.push((1.0, p));
+                }
+                spreads.push(unit_spread(&unit.unit, distribution));
+            }
             answers.push(UnitAnswer {
                 unit: unit.unit.clone(),
                 value: inferred.value,
@@ -708,6 +876,7 @@ impl FiniteScmExecutor {
             });
         }
         elimination.plan_digest = plan_digests.finish_hex();
+        let spread = spread_requested.then(|| noise_spread(spreads));
         counters.summaries += 1;
         let mean = total.total() / answers.len() as f64;
         let (receipt, stages) =
@@ -723,6 +892,99 @@ impl FiniteScmExecutor {
             label: INFERENCE_LABEL,
             method: ExogenousMethod::VariableElimination,
             elimination: Some(elimination),
+            spread,
+        })
+    }
+
+    /// The range of the exact point value over a finite declared parameter set: the request's
+    /// own mechanisms (member 0) and every entry of `alternatives`.
+    ///
+    /// Every member must share the request's structure (population, history, exogenous names
+    /// and cardinalities, variable names, levels, parents and exogenous assignments) and may
+    /// differ in its exogenous laws and mechanism tables. Each member is executed by the exact
+    /// point row; evidence outside a member's support refuses the whole envelope. The request's
+    /// reading must be `Envelope`.
+    ///
+    /// # Errors
+    /// A typed refusal for an empty set, a member of different structure, a reading other than
+    /// the envelope, or any refusal of the member executions.
+    pub fn execute_envelope(
+        &mut self,
+        request: &FiniteExecutionRequest,
+        alternatives: &[FiniteScm],
+        ctx: &ExecutionContext,
+    ) -> Result<FiniteEnvelopeResult, CrossWorldExecutionError> {
+        poll(ctx)?;
+        if request.reading != RequestedReading::Envelope {
+            return Err(refuse(
+                antecedent_core::reason_code!("invalid_argument"),
+                "cross_world_execution.envelope_reading_required",
+                Some(request.reading.as_str().to_owned()),
+                "execute_envelope answers the envelope reading only; set the request's reading \
+                 to the envelope",
+            ));
+        }
+        if alternatives.is_empty() {
+            return Err(refuse(
+                antecedent_core::reason_code!("invalid_argument"),
+                "cross_world_execution.envelope_parameter_set_empty",
+                None,
+                "an envelope over the request's single parameterisation is its point value; \
+                 declare at least one alternative parameterisation or request the point reading",
+            ));
+        }
+        for (i, alt) in alternatives.iter().enumerate() {
+            if !same_structure(&request.scm, alt) {
+                return Err(refuse(
+                    antecedent_core::reason_code!("invalid_argument"),
+                    "cross_world_execution.envelope_member_structure_differs",
+                    Some(format!("member_{}", i + 1)),
+                    "every member of the declared set must share the request's population, \
+                     history, variables, parents and exogenous assignments, and differ only \
+                     in exogenous laws and mechanism tables",
+                ));
+            }
+        }
+        let mut members = Vec::with_capacity(alternatives.len() + 1);
+        let mut unit_ranges: Vec<UnitEnvelope> = Vec::new();
+        for (index, scm) in std::iter::once(&request.scm).chain(alternatives).enumerate() {
+            poll(ctx)?;
+            let mut member = request.clone();
+            member.scm = scm.clone();
+            member.reading = RequestedReading::Point;
+            let out = self.execute(&member, ctx)?;
+            if index == 0 {
+                unit_ranges = out
+                    .units
+                    .iter()
+                    .map(|u| UnitEnvelope { unit: u.unit.clone(), lower: u.value, upper: u.value })
+                    .collect();
+            } else {
+                for (range, u) in unit_ranges.iter_mut().zip(&out.units) {
+                    range.lower = range.lower.min(u.value);
+                    range.upper = range.upper.max(u.value);
+                }
+            }
+            members.push(EnvelopeMember { index, value: out.value });
+        }
+        let mut lower_member = 0;
+        let mut upper_member = 0;
+        for m in &members {
+            if m.value < members[lower_member].value {
+                lower_member = m.index;
+            }
+            if m.value > members[upper_member].value {
+                upper_member = m.index;
+            }
+        }
+        Ok(FiniteEnvelopeResult {
+            lower: members[lower_member].value,
+            upper: members[upper_member].value,
+            lower_member,
+            upper_member,
+            members,
+            units: unit_ranges,
+            label: ENVELOPE_LABEL,
         })
     }
 

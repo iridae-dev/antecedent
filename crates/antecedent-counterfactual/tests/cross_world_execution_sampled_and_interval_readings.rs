@@ -185,34 +185,48 @@ fn the_point_reading_of_the_exact_row_is_the_enumerated_value_with_no_draws() {
     }
 }
 
-/// The point-only executor computes no spread and no envelope: asking for either is a typed
-/// refusal that did no work, never the point value under another name.
+/// `execute` has no declared parameter set to range over, so the envelope reading is a typed
+/// refusal that did no work (the range is `execute_envelope`'s); the spread reading is the exact
+/// noise variance of the same quantity, which sits on the point value.
 #[test]
-fn spread_and_envelope_readings_are_refused_before_any_work() {
-    for (name, quantity, _) in quantities() {
-        for reading in [RequestedReading::Spread, RequestedReading::Envelope] {
-            let mut exec = FiniteScmExecutor::new();
-            let r = request(
-                quantity.clone(),
-                NoiseCoupling::SharedAbducedExogenous,
-                ExogenousInference::ExactEnumeration,
-                reading,
-            );
-            let err = exec.execute(&r, &ctx()).expect_err(name);
-            assert_eq!(
-                detail(&err),
-                (
-                    "cell_not_licensed".to_owned(),
-                    "cross_world_execution.reading_not_licensed".to_owned()
-                ),
-                "{name} {reading:?}"
-            );
-            let c = exec.counters();
-            assert_eq!(
-                (c.abductions, c.shared_draws, c.world_predictions, c.mechanism_fits),
-                (0, 0, 0, 0)
-            );
-            assert_eq!(exec.retained_len(), 0);
-        }
+fn envelope_reading_is_refused_before_any_work_and_spread_is_the_exact_noise_variance() {
+    for (name, quantity, expected) in quantities() {
+        let mut exec = FiniteScmExecutor::new();
+        let r = request(
+            quantity.clone(),
+            NoiseCoupling::SharedAbducedExogenous,
+            ExogenousInference::ExactEnumeration,
+            RequestedReading::Envelope,
+        );
+        let err = exec.execute(&r, &ctx()).expect_err(name);
+        assert_eq!(
+            detail(&err),
+            (
+                "cell_not_licensed".to_owned(),
+                "cross_world_execution.envelope_needs_parameter_set".to_owned()
+            ),
+            "{name}"
+        );
+        let c = exec.counters();
+        assert_eq!(
+            (c.abductions, c.shared_draws, c.world_predictions, c.mechanism_fits),
+            (0, 0, 0, 0)
+        );
+        assert_eq!(exec.retained_len(), 0);
+
+        // Posterior {complier 2/3, always 1/3}: every quantity takes the two values {0, 1} (or
+        // {1, 0} for the contrast) with masses 1/3 and 2/3, so the variance is 2/9.
+        let mut exec = FiniteScmExecutor::new();
+        let r = request(
+            quantity,
+            NoiseCoupling::SharedAbducedExogenous,
+            ExogenousInference::ExactEnumeration,
+            RequestedReading::Spread,
+        );
+        let out = exec.execute(&r, &ctx()).expect(name);
+        assert!((out.value - expected).abs() < 1e-14);
+        let spread = out.spread.expect("spread");
+        assert!((spread.units[0].variance - 2.0 / 9.0).abs() < 1e-14, "{name}");
+        assert!((spread.mean_variance - 2.0 / 9.0).abs() < 1e-14, "{name}");
     }
 }

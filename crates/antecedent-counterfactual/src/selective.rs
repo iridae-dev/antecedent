@@ -40,9 +40,10 @@ pub use crate::temporal_cross_world::staged::{
     GeneralTemporalExecution, GeneralTemporalExecutor, TemporalExecution, TemporalExecutor,
 };
 pub use finite_executor::{
-    EliminationReceipt, ExecutionReceipt, ExogenousInference, ExogenousMethod,
-    FiniteExecutionRequest, FiniteExecutionResult, FiniteScmExecutor, NoiseCoupling,
-    RetainedAbduction, UnitAnswer,
+    ENVELOPE_LABEL, EliminationReceipt, EnvelopeMember, ExecutionReceipt, ExogenousInference,
+    ExogenousMethod, FiniteEnvelopeResult, FiniteExecutionRequest, FiniteExecutionResult,
+    FiniteScmExecutor, NoiseCoupling, NoiseSpread, RetainedAbduction, SPREAD_LABEL, UnitAnswer,
+    UnitEnvelope, UnitSpread,
 };
 pub use finite_scm::{
     ExogenousVariable, FactualUnit, FiniteQuantity, FiniteScm, FiniteVariable, FiniteWorld,
