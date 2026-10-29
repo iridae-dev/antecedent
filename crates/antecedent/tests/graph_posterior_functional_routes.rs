@@ -612,7 +612,7 @@ fn a_derivative_mixture_is_the_weighted_sum_of_the_explicit_atoms() {
             point_derivative(),
             InferenceMode::Frequentist,
         );
-        assert_eq!(study.support_status(), Some(CellStatus::Refused));
+        assert_eq!(study.support_status(), Some(CellStatus::Licensed));
         let result = study.run(&ctx).unwrap();
         let mixture = result.structural_response.as_ref().expect("a structural mixture");
         assert!((mixture.identified_mass - 0.8).abs() < 1e-9, "{}", mixture.identified_mass);
@@ -876,7 +876,7 @@ fn a_counterfactual_mixture_weights_the_enumerated_atoms_and_states_the_lost_mas
             .refute(RefuteSuite::None)
             .build()
             .unwrap();
-        assert_eq!(study.support_status(), Some(CellStatus::Refused));
+        assert_eq!(study.support_status(), Some(CellStatus::Licensed));
         let result = study.run(&ExecutionContext::for_tests(8_301)).unwrap();
         assert!((result.effect() - expected).abs() < 1e-3, "{} vs {expected}", result.effect());
         match value_of(&result, keys[0]) {
@@ -1290,7 +1290,7 @@ fn a_static_derivative_mixture_mixes_the_atoms_refuter_reports_by_weight() {
             .unwrap()
             .run(&ExecutionContext::for_tests(8_502))
             .unwrap();
-        assert_eq!(result.support_status(), Some(CellStatus::Refused));
+        assert_eq!(result.support_status(), Some(CellStatus::Licensed));
         assert!(has(&result, "refute.graph_posterior.per_atom"));
         assert!(!result.refutations.is_empty());
         // One report per refuter, not one per atom and refuter.
@@ -1344,7 +1344,7 @@ fn a_dynamic_derivative_is_refuted_atom_by_atom_and_mixed() {
                 .unwrap()
                 .run(&ExecutionContext::for_tests(8_503))
                 .unwrap();
-            assert_eq!(result.support_status(), Some(CellStatus::Refused), "{suite:?}");
+            assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{suite:?}");
             assert!(has(&result, "refute.graph_posterior.per_atom"), "{suite:?}");
             assert!(!result.refutations.is_empty(), "{suite:?}");
             let mut ids: Vec<&str> =

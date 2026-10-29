@@ -921,7 +921,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/cross_world_posterior_truth.rs",
-          "sha256": "5a9b44554ee853ff6536f1b48e44fefb335095dba19bb2414d35db166fec05cf"
+          "sha256": "2102d617b4445d17f4a707bc74ea0780c81294ed2bd8b6d14cded68c7b121153"
         }
       ],
       "fixture_payload_sha256": "26d5ee8dbbb3d74eae56438b5dfba36779307f0032990070c3515fc07d40af9f"

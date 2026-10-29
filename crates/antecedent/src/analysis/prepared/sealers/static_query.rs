@@ -122,6 +122,11 @@ pub(super) fn counterfactual(cx: &SealContext<'_>) -> SealOutcome {
     let Some(operation) = counterfactual else {
         return Ok(None);
     };
+    // A graph posterior has no single structure to retain: each atom is answered by the executor
+    // its kind has, and the posterior sealer owns the route.
+    if analysis.graph_posterior.is_some() {
+        return Ok(None);
+    }
     let cache = analysis.static_cache().ok_or_else(|| CausalError::Compile {
         message: "counterfactual preparation lost its identification product".into(),
     })?;

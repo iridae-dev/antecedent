@@ -1,0 +1,368 @@
+{
+  "fixture_id": "estimate.cross_world_counterfactual_posterior",
+  "tables": {
+    "front_door": {
+      "columns": [
+        "t",
+        "m",
+        "y"
+      ],
+      "counts": [
+        {
+          "levels": [
+            0,
+            0,
+            0
+          ],
+          "count": 1008
+        },
+        {
+          "levels": [
+            0,
+            0,
+            1
+          ],
+          "count": 112
+        },
+        {
+          "levels": [
+            0,
+            1,
+            0
+          ],
+          "count": 112
+        },
+        {
+          "levels": [
+            0,
+            1,
+            1
+          ],
+          "count": 168
+        },
+        {
+          "levels": [
+            1,
+            0,
+            0
+          ],
+          "count": 60
+        },
+        {
+          "levels": [
+            1,
+            0,
+            1
+          ],
+          "count": 60
+        },
+        {
+          "levels": [
+            1,
+            1,
+            0
+          ],
+          "count": 48
+        },
+        {
+          "levels": [
+            1,
+            1,
+            1
+          ],
+          "count": 432
+        }
+      ]
+    },
+    "side_path_chain": {
+      "columns": [
+        "w",
+        "x",
+        "z",
+        "y"
+      ],
+      "counts": [
+        {
+          "levels": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "count": 864
+        },
+        {
+          "levels": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "count": 96
+        },
+        {
+          "levels": [
+            0,
+            0,
+            1,
+            0
+          ],
+          "count": 120
+        },
+        {
+          "levels": [
+            0,
+            0,
+            1,
+            1
+          ],
+          "count": 120
+        },
+        {
+          "levels": [
+            0,
+            1,
+            0,
+            0
+          ],
+          "count": 192
+        },
+        {
+          "levels": [
+            0,
+            1,
+            0,
+            1
+          ],
+          "count": 128
+        },
+        {
+          "levels": [
+            0,
+            1,
+            1,
+            0
+          ],
+          "count": 16
+        },
+        {
+          "levels": [
+            0,
+            1,
+            1,
+            1
+          ],
+          "count": 64
+        },
+        {
+          "levels": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "count": 72
+        },
+        {
+          "levels": [
+            1,
+            0,
+            0,
+            1
+          ],
+          "count": 8
+        },
+        {
+          "levels": [
+            1,
+            0,
+            1,
+            0
+          ],
+          "count": 160
+        },
+        {
+          "levels": [
+            1,
+            0,
+            1,
+            1
+          ],
+          "count": 160
+        },
+        {
+          "levels": [
+            1,
+            1,
+            0,
+            0
+          ],
+          "count": 144
+        },
+        {
+          "levels": [
+            1,
+            1,
+            0,
+            1
+          ],
+          "count": 96
+        },
+        {
+          "levels": [
+            1,
+            1,
+            1,
+            0
+          ],
+          "count": 192
+        },
+        {
+          "levels": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "count": 768
+        }
+      ]
+    }
+  },
+  "line": {
+    "rows": 80,
+    "intercept": 1,
+    "slope": 2,
+    "completion_slopes": [
+      2.0,
+      0.0
+    ],
+    "mean": 1.0,
+    "identified_set": [
+      0.0,
+      2.0
+    ]
+  },
+  "gaussian": {
+    "coefficient": 2.0,
+    "active": 1.5,
+    "control": 0.0,
+    "expected": 3.0,
+    "tolerance": 0.05
+  },
+  "cases": {
+    "admg_counterfactual": {
+      "formula": "ett_front_door",
+      "table": "front_door",
+      "treatment": "t",
+      "mediator": "m",
+      "outcome": "y",
+      "active": 1,
+      "control": 0,
+      "expected": 0.3
+    },
+    "pag_counterfactual": {
+      "formula": "ett_adjust_one",
+      "table": "side_path_chain",
+      "treatment": "x",
+      "adjust": "z",
+      "outcome": "y",
+      "active": 1,
+      "control": 0,
+      "expected": 0.3
+    },
+    "admg_unconfounded": {
+      "formula": "ett_unconfounded",
+      "table": "front_door",
+      "treatment": "t",
+      "outcome": "y",
+      "active": 1,
+      "control": 0,
+      "expected": 0.62
+    }
+  },
+  "posterior": {
+    "query": "effect on the treated of t on y",
+    "atoms": [
+      {
+        "name": "front_door",
+        "weight": "1/2",
+        "formula": "ett_front_door",
+        "case": {
+          "formula": "ett_front_door",
+          "table": "front_door",
+          "treatment": "t",
+          "mediator": "m",
+          "outcome": "y",
+          "active": 1,
+          "control": 0,
+          "expected": 0.3
+        }
+      },
+      {
+        "name": "unconfounded",
+        "weight": "3/10",
+        "formula": "ett_unconfounded",
+        "case": {
+          "formula": "ett_unconfounded",
+          "table": "front_door",
+          "treatment": "t",
+          "outcome": "y",
+          "active": 1,
+          "control": 0,
+          "expected": 0.62
+        }
+      },
+      {
+        "name": "unidentified",
+        "weight": "1/5",
+        "formula": null,
+        "case": null
+      }
+    ],
+    "expected": 0.42,
+    "unidentified_mass": 0.2
+  },
+  "oracle": {
+    "kind": "closed_form",
+    "method": "the effect on the treated is a rational function of the enumerated cell counts (front-door functional on the latent-confounded ADMG, the observed contrast with no latent cause, adjustment by the one non-descendant parent on the PAG), evaluated in exact rational arithmetic; the graph-posterior value is the hand-weighted mean over the identified atoms and the unidentified mass is the weight of the atom with no identification",
+    "generator": "conformance/estimate/cross_world_counterfactual_posterior/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/cross_world_counterfactual_posterior/reference.py --check",
+    "environment_lock": "conformance/estimate/cross_world_counterfactual_posterior/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "posterior.expected, posterior.unidentified_mass, cases.pag_counterfactual, line.mean, gaussian.expected"
+    ],
+    "context_only_outputs": [
+      "gaussian.tolerance and the Bayesian tolerances (declared estimation bands)"
+    ],
+    "independence_basis": "The generator evaluates the front-door, adjustment and contrast functionals from the declared cell counts in exact rational arithmetic and weights them by hand; it imports no Antecedent code and no statistics package. The shared object is the count tables.",
+    "historical_exposure": "Written for this fixture; the count tables are copied from the cross-world class fixture and the Gaussian coefficient from the cross-world DAG validation fixture, whose own references derive their values independently.",
+    "reference_review": {
+      "scope": "Effect-on-the-treated functionals of enumerated count tables, their posterior-weighted mixture and unidentified mass, the line completions mean and the Gaussian coefficient effect.",
+      "independence_basis": "The generator evaluates the front-door, adjustment and contrast functionals from the declared cell counts in exact rational arithmetic and weights them by hand; it imports no Antecedent code and no statistics package. The shared object is the count tables.",
+      "historical_exposure": "Written for this fixture; the count tables are copied from the cross-world class fixture and the Gaussian coefficient from the cross-world DAG validation fixture, whose own references derive their values independently.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The atoms of one posterior are tied to one data table. A CPDAG case is a single noiseless-line atom, so it checks the identified-set mean and carries no lost mass. The Gaussian value is the population effect; the tolerances are declared estimation bands. No uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/cross_world_counterfactual_posterior/reference.py",
+          "sha256": "d9b615d014b4210ee31a698111d3d5a741dbf1ebe5c7abffdac5364c7ab7a22b"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/cross_world_counterfactual_posterior/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/cross_world_counterfactual_posterior_truth.rs",
+          "sha256": "067e91a19dd96f36c0d6a8c395b15660df5a3abd9eb1a795606149ad45b56531"
+        }
+      ],
+      "fixture_payload_sha256": "56a086db8f05edaf02cbafc8ac65a3ad5cf7317c9e52d4f9f17a420fd5c91797"
+    }
+  }
+}
