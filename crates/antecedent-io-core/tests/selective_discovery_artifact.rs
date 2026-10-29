@@ -195,12 +195,19 @@ fn incomplete_declarations_and_corruption_are_refused() {
     let mut missing = meta.clone();
     missing.components.pop();
     SelectiveDiscoveryArtifact::reseal_identity(&mut missing);
-    assert!(SelectiveDiscoveryArtifact::from_meta(&missing, None).is_err());
+    assert!(matches!(
+        SelectiveDiscoveryArtifact::from_meta(&missing, None),
+        Err(SelectiveDiscoveryArtifactError::Refused { detail, .. })
+            if detail == "selective_discovery.contract_identity"
+    ));
 
     let mut bytes = bytes_of(&state);
     let last = bytes.len() - 1;
     bytes[last] ^= 0xff;
-    assert!(SelectiveDiscoveryArtifact::from_bytes(&bytes, None).is_err());
+    assert!(matches!(
+        SelectiveDiscoveryArtifact::from_bytes(&bytes, None),
+        Err(SelectiveDiscoveryArtifactError::Container(antecedent_io_core::IoError::ChecksumMismatch { section })) if section == "selective_discovery_meta"
+    ));
     assert!(matches!(
         SelectiveDiscoveryArtifact::to_bytes(&state, "  "),
         Err(SelectiveDiscoveryArtifactError::Encode(_))
@@ -237,22 +244,27 @@ fn caller_intake_limits_refuse_what_the_defaults_admit() {
     SelectiveDiscoveryArtifact::from_bytes_with_limits(&bytes, None, &defaults).unwrap();
 
     let few_receipts = SelectiveDiscoveryIntakeLimits { max_receipts: 2, ..defaults };
-    assert!(
-        SelectiveDiscoveryArtifact::from_bytes_with_limits(&bytes, None, &few_receipts).is_err()
-    );
-    assert!(
-        SelectiveDiscoveryArtifact::to_bytes_with_limits(&state, "selective-1", &few_receipts)
-            .is_err()
-    );
+    assert!(matches!(
+        SelectiveDiscoveryArtifact::from_bytes_with_limits(&bytes, None, &few_receipts),
+        Err(SelectiveDiscoveryArtifactError::LimitsExceeded("receipts"))
+    ));
+    assert!(matches!(
+        SelectiveDiscoveryArtifact::to_bytes_with_limits(&state, "selective-1", &few_receipts),
+        Err(SelectiveDiscoveryArtifactError::Refused { detail, .. })
+            if detail == "selective_discovery.receipt_limit"
+    ));
     let few_items = SelectiveDiscoveryIntakeLimits { max_structure_items: 1, ..defaults };
     assert!(matches!(
         SelectiveDiscoveryArtifact::from_bytes_with_limits(&bytes, None, &few_items),
         Err(SelectiveDiscoveryArtifactError::LimitsExceeded("structure"))
     ));
     let few_bytes = SelectiveDiscoveryIntakeLimits { max_bytes: bytes.len() - 1, ..defaults };
-    assert!(SelectiveDiscoveryArtifact::from_bytes_with_limits(&bytes, None, &few_bytes).is_err());
-    assert!(
-        SelectiveDiscoveryArtifact::to_bytes_with_limits(&state, "selective-1", &few_bytes)
-            .is_err()
-    );
+    assert!(matches!(
+        SelectiveDiscoveryArtifact::from_bytes_with_limits(&bytes, None, &few_bytes),
+        Err(SelectiveDiscoveryArtifactError::LimitsExceeded("artifact bytes"))
+    ));
+    assert!(matches!(
+        SelectiveDiscoveryArtifact::to_bytes_with_limits(&state, "selective-1", &few_bytes),
+        Err(SelectiveDiscoveryArtifactError::LimitsExceeded("artifact bytes"))
+    ));
 }

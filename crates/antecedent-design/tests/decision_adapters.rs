@@ -319,7 +319,10 @@ fn adapter_identified_set_refusals() {
     assert_eq!(error, AdapterError::InvalidInterval("A".into()));
     assert_eq!(error.to_refusal().detail, "decision_adapters.invalid_interval");
     inverted[0].utility = IdentifiedSet { lower: f64::NAN, upper: 1.0 };
-    assert!(evaluate_identified_sets(&c, &inverted).is_err());
+    assert_eq!(
+        evaluate_identified_sets(&c, &inverted).unwrap_err(),
+        AdapterError::InvalidInterval("A".into())
+    );
 
     // A contract that is invalid refuses before any interval is read.
     let mut bad = c;

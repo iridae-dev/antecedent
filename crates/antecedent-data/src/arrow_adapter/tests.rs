@@ -228,7 +228,10 @@ fn row_total_is_not_capped_at_u32_max() {
     let wide = max_u32 + 2;
     assert_eq!(checked_row_total([wide]).unwrap(), wide);
     assert_eq!(checked_row_total([max_u32, 2]).unwrap(), wide);
-    assert!(checked_row_total([usize::MAX, 1]).is_err());
+    assert!(matches!(
+        checked_row_total([usize::MAX, 1]),
+        Err(DataError::Overflow { what: "Arrow chunk row counts" })
+    ));
 }
 
 #[test]
@@ -389,7 +392,11 @@ fn stream_error_releases_the_reader() {
     let reader = Flaky { schema, step: 0, _guard: ReleaseOnDrop(Arc::clone(&released)) };
     let loaded =
         ArrowFrameView::from_stream(crate::arrow_ffi::ArrowCStream::from_reader(Box::new(reader)));
-    assert!(loaded.is_err());
+    assert!(matches!(
+        loaded,
+        Err(DataError::External { library: "Arrow stream batch import", detail })
+            if detail.ends_with("batch failed")
+    ));
     assert!(released.load(Ordering::SeqCst));
 }
 
@@ -403,7 +410,7 @@ fn second_column_failure_drops_the_first_import() {
         ArrowCColumn::from_arrow_array("x", &good).unwrap(),
         ArrowCColumn::from_arrow_array("s", &bad).unwrap(),
     ]);
-    assert!(loaded.is_err());
+    assert!(matches!(loaded, Err(DataError::TypeMismatch { id, .. }) if id == VariableId::from_raw(1)));
 }
 
 #[test]
@@ -438,8 +445,12 @@ fn categorical_chunks_keep_the_reference_and_the_domain_id() {
         panic!("categorical");
     };
     assert_eq!(column.domain.reference, Some(CategoryCode::from_raw(0)));
-    assert!(concat_chunks(&[chunk(7, 0), chunk(7, 1)]).is_err());
-    assert!(concat_chunks(&[chunk(7, 0), chunk(8, 0)]).is_err());
+    for other in [chunk(7, 1), chunk(8, 0)] {
+        assert!(matches!(
+            concat_chunks(&[chunk(7, 0), other]),
+            Err(DataError::Mismatch { what: "Arrow chunks of one column (type or category domain)" })
+        ));
+    }
 }
 
 fn two_chunk_frame() -> ArrowFrameView {

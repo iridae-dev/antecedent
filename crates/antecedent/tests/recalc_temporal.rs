@@ -211,11 +211,19 @@ fn temporal_history_empirical_artifact_is_independently_checked_from_raw_units()
     close(result.recalc.law.ate, expected.recalc.law.ate);
     assert_eq!(measured.factor_builds, 3);
     assert_eq!(result.recalc.receipt.totals().factor_builds, measured.factor_builds);
-    assert!(consume_temporal_recalc_artifact(&bytes[..bytes.len() / 2], &ctx()).is_err());
+    assert!(matches!(
+        consume_temporal_recalc_artifact(&bytes[..bytes.len() / 2], &ctx()),
+        Err(TemporalRunError::Io(_))
+    ));
     let (wrong_seed, measured) = count_static_work(|| {
         consume_temporal_recalc_artifact(&bytes, &ExecutionContext::for_tests(732))
     });
-    assert!(wrong_seed.is_err());
+    assert!(matches!(
+        wrong_seed,
+        Err(TemporalRunError::Recalc(RecalcRunError::Request(
+            RecalcRequestCode::TemporalArtifactSeedMismatch
+        )))
+    ));
     assert_eq!(measured.factor_builds, 0);
 }
 
@@ -240,7 +248,12 @@ fn temporal_history_resource_window_and_support_refusals_preserve_previous_fit()
     small.set_memory_limit(Some(1));
     let (result, work) =
         count_static_work(|| execute_temporal_with_receipt(&mut session, &changed, &small));
-    assert!(result.is_err());
+    assert!(matches!(
+        result,
+        Err(TemporalRunError::Recalc(RecalcRunError::Request(
+            RecalcRequestCode::MemoryBudgetExceeded
+        )))
+    ));
     assert_eq!(work.factor_builds, 0);
     let mut horizon = r.clone();
     horizon.horizon = 3;
@@ -256,16 +269,19 @@ fn temporal_history_resource_window_and_support_refusals_preserve_previous_fit()
     missing_state.units.retain(|u| u.histories[0].s0 == 0);
     let mut wrong_selection = r.clone();
     wrong_selection.selection_targets = vec![2];
-    for invalid in [
-        horizon,
-        lag,
-        incomplete_window,
-        missing_units,
-        unsupported,
-        missing_state,
-        wrong_selection,
+    for (invalid, refusal) in [
+        (horizon, "temporal_refresh.lag_alignment_changed"),
+        (lag, "temporal_refresh.lag_alignment_changed"),
+        (incomplete_window, "InvalidTemporalWindow"),
+        (missing_units, "InvalidTemporalWindow"),
+        (unsupported, "temporal_recalc.binary_history_scope"),
+        (missing_state, "initial_state.support_gap"),
+        (wrong_selection, "temporal_initial_shift.source_scope"),
     ] {
-        assert!(execute_temporal_with_receipt(&mut session, &invalid, &ctx()).is_err());
+        let error = execute_temporal_with_receipt(&mut session, &invalid, &ctx())
+            .err()
+            .expect("an invalid request is refused");
+        assert!(format!("{error:?}").contains(refusal), "{refusal}: {error:?}");
         assert_eq!(source, std::ptr::from_ref(session.source_factor().unwrap()));
         assert_eq!(run(&mut session, &r).recalc.receipt.totals().total(), 0);
     }
@@ -279,7 +295,14 @@ fn temporal_history_artifact_rechecks_resealed_data_and_binds_unit_ownership() {
     let wire = TemporalRecalcArtifactWire::decode(&session.export_result().unwrap()).unwrap();
     let mut ownership = wire.clone();
     ownership.request.units[0].unit_id = 10000;
-    assert!(ownership.export().is_err(), "unit ownership is bound by the data digest");
+    assert!(
+        matches!(
+            ownership.export(),
+            Err(antecedent_io_core::IoError::Refused { code: "invalid_argument", message })
+                if message == "temporal_recalc.artifact_invalid: premise/data identity mismatch"
+        ),
+        "unit ownership is bound by the data digest"
+    );
     let mut changed = wire.request.clone();
     for history in &mut changed.units[0].histories {
         history.y = 0.;
@@ -307,13 +330,28 @@ fn temporal_history_artifact_rechecks_resealed_data_and_binds_unit_ownership() {
             .unwrap()
             .export()
             .unwrap();
-    assert!(consume_temporal_recalc_artifact(&graph_forgery, &ctx()).is_err());
+    assert!(matches!(
+        consume_temporal_recalc_artifact(&graph_forgery, &ctx()),
+        Err(TemporalRunError::Recalc(RecalcRunError::Request(
+            RecalcRequestCode::TemporalArtifactMismatch
+        )))
+    ));
     let mut wrong_program = wire.clone();
     wrong_program.reports[0].source_proof.executable_root = 0;
-    assert!(consume_temporal_recalc_artifact(&wrong_program.export().unwrap(), &ctx()).is_err());
+    assert!(matches!(
+        consume_temporal_recalc_artifact(&wrong_program.export().unwrap(), &ctx()),
+        Err(TemporalRunError::Recalc(RecalcRunError::Request(
+            RecalcRequestCode::TemporalArtifactMismatch
+        )))
+    ));
     let mut wrong_trace = wire.clone();
     wrong_trace.reports[0].source_proof.derivation.clear();
-    assert!(consume_temporal_recalc_artifact(&wrong_trace.export().unwrap(), &ctx()).is_err());
+    assert!(matches!(
+        consume_temporal_recalc_artifact(&wrong_trace.export().unwrap(), &ctx()),
+        Err(TemporalRunError::Recalc(RecalcRunError::Request(
+            RecalcRequestCode::TemporalArtifactMismatch
+        )))
+    ));
 }
 
 #[test]
@@ -381,8 +419,10 @@ fn temporal_history_uncertainty_rejects_unmeasured_scope_and_checks_graph() {
     let (result, work) =
         count_static_work(|| execute_temporal_with_receipt(&mut session, &confounded, &ctx()));
     assert!(
-        result.is_err(),
-        "the actual checked whole-sequence proof must reject latent action/outcome confounding"
+        format!("{:?}", result.as_ref().err())
+            .contains("temporal_initial_shift.source_scope: requires a DAG with selection only at root S0"),
+        "the actual checked whole-sequence proof must reject latent action/outcome confounding: {:?}",
+        result.as_ref().err()
     );
     assert_eq!(
         work.factor_builds, 0,

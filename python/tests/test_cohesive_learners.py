@@ -113,8 +113,10 @@ def test_explicit_learner_roles_refuse_task_mismatch(estimator):
 
 
 def test_shared_learner_convenience_adapts_at_configuration():
-    # Population ATE of the fixture is E[2 + z] = 2; the sample mean of z moves it by about 0.1.
-    assert abs(analyze(DML(learner=Ridge(2.0))).effect - 2.0) < 0.5
+    # The effect of t is 2 + z for each unit, so the sample ATE is 2 + mean(z) (1.989 here); the
+    # shared ridge learner recovers it within 0.05 (observed deviation 0.008).
+    sample_ate = 2.0 + float(data_fixture()["z"].mean())
+    assert analyze(DML(learner=Ridge(2.0))).effect == pytest.approx(sample_ate, abs=0.05)
 
 
 def test_neural_nuisance_executes_in_standard_python_wheel():

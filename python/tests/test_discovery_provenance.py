@@ -245,7 +245,9 @@ def test_max_cond_size_reaches_analyze_temporal_discover_path():
             execution=antecedent.Execution(seed=1, threads=1),
         )
     )
-    assert np.isfinite(capped_result.estimate.ate)
+    # DGP: v2[t] = 0.5 v1[t-1] + ..., so a unit pulse of v1 at lag 1 moves v2 one step later by
+    # 0.5; n=300 with noise 0.3 gives a standard error near 0.03 (observed deviation 0.051).
+    assert capped_result.estimate.ate == pytest.approx(0.5, abs=0.1)
 
     # The library default (max_cond_size=2) must behave identically to an explicit 2 —
     # this is a plumbing fix, not a behavior change for existing callers.

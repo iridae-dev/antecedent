@@ -41,7 +41,7 @@ sha256 = "f03b21b476fd4800d9d1347e8a57f5388dc63deec053d55ad9ed8609dbe5d3ab"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-io-core/src/cohort_decision/tests.rs"
-sha256 = "35285a5769ea8238cacb3802bdaac1e5ae9590577c89de691b02647227c57d85"
+sha256 = "981100bcc79ebc029ec0636fd9b9519c8aad1f90d6db09fe13b2e547d7df7f65"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

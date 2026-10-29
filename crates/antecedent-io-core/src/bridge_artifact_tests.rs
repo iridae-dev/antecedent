@@ -326,12 +326,18 @@ fn a_resealed_edit_of_the_propagation_does_not_replay() {
     // A nonlinear map no consumer propagates is malformed, not a silent plug-in.
     let mut unknown = meta.clone();
     unknown.propagation.as_mut().unwrap().nonlinear = Some("cube".into());
-    assert!(ScientificBridgeArtifact::from_meta(&reseal(unknown), None).is_err());
+    assert!(matches!(
+        ScientificBridgeArtifact::from_meta(&reseal(unknown), None),
+        Err(ScientificBridgeArtifactError::Malformed(t)) if t == "nonlinear map is not one the bridge propagates"
+    ));
     // A propagation under the version-1 marker is another version.
     let mut downgraded = meta.clone();
     downgraded.version = SCIENTIFIC_BRIDGE_ARTIFACT_VERSION;
     downgraded.feature = SCIENTIFIC_BRIDGE_ARTIFACT_FEATURE.to_owned();
-    assert!(ScientificBridgeArtifact::from_meta(&reseal(downgraded), None).is_err());
+    assert!(matches!(
+        ScientificBridgeArtifact::from_meta(&reseal(downgraded), None),
+        Err(ScientificBridgeArtifactError::UnsupportedSemantics("extended declarations in a version-1 artifact"))
+    ));
     // The plug-in derivation of the same source carries no propagation and another identity.
     let (_, plain, _) = sealed(&declared);
     assert!(plain.propagation.is_none());
@@ -426,7 +432,10 @@ fn a_bridge_of_draws_is_replayed_bit_for_bit_from_its_stored_table() {
         ScientificBridgeAny::Draws(_)
     ));
     // The reader of a bridged mean does not read a bridge of draws.
-    assert!(ScientificBridgeArtifact::from_bytes(&bytes, None).is_err());
+    assert!(matches!(
+        ScientificBridgeArtifact::from_bytes(&bytes, None),
+        Err(ScientificBridgeArtifactError::UnsupportedSemantics("a bridge of draws is consumed with its draws"))
+    ));
     // A consumer that retained another identity refuses it.
     assert!(matches!(
         ScientificBridgeDrawsArtifact::from_bytes(&bytes, Some(&"0".repeat(64))),
@@ -475,10 +484,10 @@ fn a_bridge_of_draws_is_replayed_bit_for_bit_from_its_stored_table() {
         draws.source_identity = foreign.metadata().identity.clone();
         draws.source_digest = CanonicalWriter::digest_bytes_hex(TAG_BODY, &foreign_bytes);
     }
-    assert!(
-        ScientificBridgeDrawsArtifact::from_meta(&reseal_draws(other), &foreign_bytes, None)
-            .is_err()
-    );
+assert!(matches!(
+        ScientificBridgeDrawsArtifact::from_meta(&reseal_draws(other), &foreign_bytes, None),
+        Err(ScientificBridgeArtifactError::ReplayMismatch("claim identity"))
+    ));
 }
 
 #[test]
@@ -493,27 +502,31 @@ fn a_caller_byte_bound_and_draw_limits_refuse_what_the_defaults_admit() {
         &defaults,
     )
     .expect("default bounds");
-    assert!(ScientificBridgeAny::shape_within(&bytes, bytes.len() - 1).is_err());
-    assert!(
-        ScientificBridgeDrawsArtifact::from_bytes_within(&bytes, None, bytes.len() - 1, &defaults)
-            .is_err()
-    );
-    assert!(
+    assert!(matches!(
+        ScientificBridgeAny::shape_within(&bytes, bytes.len() - 1),
+        Err(ScientificBridgeArtifactError::LimitsExceeded("artifact bytes"))
+    ));
+assert!(matches!(
+        ScientificBridgeDrawsArtifact::from_bytes_within(&bytes, None, bytes.len() - 1, &defaults),
+        Err(ScientificBridgeArtifactError::LimitsExceeded("artifact bytes"))
+    ));
+    assert!(matches!(
         ScientificBridgeDrawsArtifact::from_bytes_within(
             &bytes,
             None,
             MAX_SCIENTIFIC_BRIDGE_ARTIFACT_BYTES,
             &DistributionIntakeLimits { max_draws: 1, ..defaults }
-        )
-        .is_err()
-    );
-    assert!(
-        ScientificBridgeAny::from_bytes_within(&bytes, None, bytes.len() - 1, &defaults).is_err()
-    );
-    assert!(
-        ScientificBridgeDrawsArtifact::to_bytes_within(&bridged, "draws-bridge", bytes.len() - 1)
-            .is_err()
-    );
+        ),
+        Err(ScientificBridgeArtifactError::Malformed(_))
+    ));
+assert!(matches!(
+        ScientificBridgeAny::from_bytes_within(&bytes, None, bytes.len() - 1, &defaults),
+        Err(ScientificBridgeArtifactError::LimitsExceeded("artifact bytes"))
+    ));
+assert!(matches!(
+        ScientificBridgeDrawsArtifact::to_bytes_within(&bridged, "draws-bridge", bytes.len() - 1),
+        Err(ScientificBridgeArtifactError::LimitsExceeded("artifact bytes"))
+    ));
 }
 
 #[test]
@@ -525,9 +538,12 @@ fn a_caller_byte_bound_refuses_a_point_bridge_over_it() {
     let bridged = derive_bridged_claim(&contract, &source).expect("licensed bridge");
     let bytes = ScientificBridgeArtifact::to_bytes(&bridged, &source, "point").expect("bytes");
     assert!(ScientificBridgeArtifact::from_bytes_within(&bytes, None, bytes.len()).is_ok());
-    assert!(ScientificBridgeArtifact::from_bytes_within(&bytes, None, bytes.len() - 1).is_err());
-    assert!(
-        ScientificBridgeArtifact::to_bytes_within(&bridged, &source, "point", bytes.len() - 1)
-            .is_err()
-    );
+    assert!(matches!(
+        ScientificBridgeArtifact::from_bytes_within(&bytes, None, bytes.len() - 1),
+        Err(ScientificBridgeArtifactError::LimitsExceeded("artifact bytes"))
+    ));
+assert!(matches!(
+        ScientificBridgeArtifact::to_bytes_within(&bridged, &source, "point", bytes.len() - 1),
+        Err(ScientificBridgeArtifactError::LimitsExceeded("artifact bytes"))
+    ));
 }

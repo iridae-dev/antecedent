@@ -727,7 +727,7 @@ fn caller_intake_limits_refuse_what_the_defaults_admit() {
     assert_eq!(bind(&small).unwrap_err().detail, "cohort_decision.cohort_too_large");
 
     let model = portable(Some(box_support()), "claim-a");
-    assert!(
+    assert_eq!(
         CohortDecisionSource::build_within(
             &model,
             &cohort(),
@@ -736,14 +736,19 @@ fn caller_intake_limits_refuse_what_the_defaults_admit() {
             &ctx(),
             &small
         )
-        .is_err()
+        .unwrap_err()
+        .detail,
+        "cohort_decision.cohort_too_large"
     );
 
     let source = build(&model, &cohort()).unwrap();
     let bytes = source.to_bytes("limits").unwrap();
     let expectation = CohortExpectation::for_identity(source.identity());
     CohortDecisionSource::consume_within(&bytes, &expectation, &defaults).unwrap();
-    assert!(CohortDecisionSource::consume_within(&bytes, &expectation, &small).is_err());
+    assert_eq!(
+        CohortDecisionSource::consume_within(&bytes, &expectation, &small).unwrap_err().detail,
+        "cohort_decision.cohort_too_large"
+    );
     let tight = CohortIntakeLimits { max_bytes: bytes.len() - 1, ..defaults };
     assert_eq!(
         CohortDecisionSource::consume_within(&bytes, &expectation, &tight).unwrap_err().detail,

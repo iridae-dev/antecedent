@@ -424,9 +424,18 @@ fn versions_markers_and_corruption_are_refused() {
         .expect("bytes");
     let middle = bytes.len() / 2;
     bytes[middle] ^= 0xff;
-    assert!(EvidenceLedgerArtifact::from_bytes(&bytes, None).is_err());
-    assert!(EvidenceLedgerArtifact::from_bytes(&bytes[..bytes.len() / 3], None).is_err());
-    assert!(EvidenceLedgerArtifact::to_bytes(&f.ledger, &f.records, "  ").is_err());
+    assert!(matches!(
+        EvidenceLedgerArtifact::from_bytes(&bytes, None),
+        Err(EvidenceLedgerArtifactError::Container(antecedent_io_core::IoError::ChecksumMismatch { section })) if section == "evidence_ledger_meta"
+    ));
+    assert!(matches!(
+        EvidenceLedgerArtifact::from_bytes(&bytes[..bytes.len() / 3], None),
+        Err(EvidenceLedgerArtifactError::Decode(m)) if m.contains("failed to fill whole buffer")
+    ));
+    assert!(matches!(
+        EvidenceLedgerArtifact::to_bytes(&f.ledger, &f.records, "  "),
+        Err(EvidenceLedgerArtifactError::Encode(m)) if m == "missing artifact id"
+    ));
 }
 
 #[test]

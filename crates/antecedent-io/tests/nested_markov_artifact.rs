@@ -306,13 +306,22 @@ fn nested_fit_replay_refuses_an_unknown_version_foreign_feature_and_claim() {
     ));
     let mut foreign = wire.clone();
     foreign.required_features = vec!["something_else".into()];
-    assert!(NestedMarkovArtifactWire::decode(&foreign.export().expect("export")).is_err());
+    assert!(matches!(
+        NestedMarkovArtifactWire::decode(&foreign.export().expect("export")),
+        Err(IoError::Refused { code: "invalid_argument", message }) if message == "nested markov artifact: unsupported semantics: required features"
+    ));
     let mut calibrated = wire.clone();
     calibrated.calibration = "calibrated".into();
-    assert!(NestedMarkovArtifactWire::decode(&calibrated.export().expect("export")).is_err());
+    assert!(matches!(
+        NestedMarkovArtifactWire::decode(&calibrated.export().expect("export")),
+        Err(IoError::Refused { code: "invalid_argument", message }) if message == "nested markov artifact: unsupported semantics: calibration is unmeasured"
+    ));
     let mut interval = wire;
     interval.receipt.status.inference = "interval_published".into();
-    assert!(NestedMarkovArtifactWire::decode(&interval.export().expect("export")).is_err());
+    assert!(matches!(
+        NestedMarkovArtifactWire::decode(&interval.export().expect("export")),
+        Err(IoError::Refused { code: "invalid_argument", message }) if message == "nested markov artifact: unsupported semantics: this pilot publishes no interval"
+    ));
 }
 
 #[test]

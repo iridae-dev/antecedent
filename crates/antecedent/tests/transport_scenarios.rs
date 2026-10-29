@@ -254,8 +254,11 @@ fn declared_weights_are_never_renormalized_over_survivors() {
     // Weights must be declared for all scenarios or none, and sum to at most one.
     let mut partial = three(Some([0.3, 0.2, 0.4]));
     partial[0].weight = None;
-    assert!(TransportScenarioSet::try_new(partial).is_err());
-    assert!(TransportScenarioSet::try_new(three(Some([0.6, 0.3, 0.4]))).is_err());
+    assert_eq!(TransportScenarioSet::try_new(partial).unwrap_err().detail, "scenarios.invalid_weights");
+    assert_eq!(
+        TransportScenarioSet::try_new(three(Some([0.6, 0.3, 0.4]))).unwrap_err().detail,
+        "scenarios.invalid_weights"
+    );
 }
 
 #[test]

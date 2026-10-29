@@ -311,7 +311,11 @@ fn artifact_unresealed_tampering_does_not_replay() {
     let last = changed.len() - 8;
     changed[last..].copy_from_slice(&0.5_f64.to_le_bytes());
     let reencoded = encode_parts(&meta, &changed, "forged").unwrap();
-    assert!(EffectConstancyArtifact::from_bytes(&reencoded, None).is_err());
+    assert!(matches!(
+        EffectConstancyArtifact::from_bytes(&reencoded, None),
+        Err(EffectConstancyArtifactError::Refused { code, detail, .. })
+            if code == "invalid_argument" && detail == "effect_constancy.invalid_covariance"
+    ));
 
     // A changed stored multiplicity family.
     let mut forged = meta.clone();
@@ -377,7 +381,16 @@ fn artifact_corrupt_and_truncated_bytes_refuse() {
     let mut corrupt = bytes.clone();
     let middle = corrupt.len() / 2;
     corrupt[middle] ^= 0xff;
-    assert!(EffectConstancyArtifact::from_bytes(&corrupt, None).is_err());
-    assert!(EffectConstancyArtifact::from_bytes(&bytes[..bytes.len() - 5], None).is_err());
-    assert!(EffectConstancyArtifact::from_bytes(&[], None).is_err());
+    assert!(matches!(
+        EffectConstancyArtifact::from_bytes(&corrupt, None),
+        Err(EffectConstancyArtifactError::Container(antecedent_io_core::IoError::ChecksumMismatch { section })) if section == "effect_constancy_meta"
+    ));
+    assert!(matches!(
+        EffectConstancyArtifact::from_bytes(&bytes[..bytes.len() - 5], None),
+        Err(EffectConstancyArtifactError::Decode(m)) if m.contains("failed to fill whole buffer")
+    ));
+    assert!(matches!(
+        EffectConstancyArtifact::from_bytes(&[], None),
+        Err(EffectConstancyArtifactError::Decode(m)) if m.contains("failed to fill whole buffer")
+    ));
 }

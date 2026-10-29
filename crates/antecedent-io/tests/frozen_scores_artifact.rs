@@ -306,14 +306,34 @@ fn scores_decode_is_bounded_and_versioned() {
 fn scores_corrupt_or_truncated_bytes_are_refused() {
     let artifact = sealed();
     let bytes = artifact.to_bytes(ID).unwrap();
-    assert!(FrozenScoreTable::from_bytes(&bytes[..bytes.len() / 2], None).is_err());
-    assert!(FrozenScoreTable::from_bytes(&[], None).is_err());
-    assert!(FrozenScoreTable::from_bytes(b"not an artifact at all", None).is_err());
+    assert!(matches!(
+        FrozenScoreTable::from_bytes(&bytes[..bytes.len() / 2], None),
+        Err(FrozenScoresArtifactError::Decode(m)) if m.contains("failed to fill whole buffer")
+    ));
+    assert!(matches!(
+        FrozenScoreTable::from_bytes(&[], None),
+        Err(FrozenScoresArtifactError::Decode(m)) if m.contains("failed to fill whole buffer")
+    ));
+    assert!(matches!(
+        FrozenScoreTable::from_bytes(b"not an artifact at all", None),
+        Err(FrozenScoresArtifactError::Container(antecedent_io_core::IoError::BadMagic))
+    ));
     let mut flipped = bytes.clone();
     let middle = flipped.len() / 2;
     flipped[middle] ^= 0xFF;
-    assert!(FrozenScoreTable::from_bytes(&flipped, None).is_err());
-    assert!(encode_parts(artifact.meta(), "  ").is_err(), "an artifact needs an id");
+    assert!(matches!(
+        FrozenScoreTable::from_bytes(&flipped, None),
+        Err(FrozenScoresArtifactError::Container(
+            antecedent_io_core::IoError::ChecksumMismatch { section }
+        )) if section == "frozen_scores_meta"
+    ));
+    assert!(
+        matches!(
+            encode_parts(artifact.meta(), "  "),
+            Err(FrozenScoresArtifactError::Encode(m)) if m == "missing artifact id"
+        ),
+        "an artifact needs an id"
+    );
     // The decoded metadata is exactly what was stored.
     assert_eq!(&decode_parts(&bytes).unwrap(), artifact.meta());
 }

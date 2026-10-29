@@ -167,10 +167,14 @@ fn corrupted_bytes_and_cancellation_are_refused() {
     let mut bytes = sealed.to_bytes("necessity").unwrap();
     let last = bytes.len() - 1;
     bytes[last] ^= 0x5a;
-    assert!(CrossWorldExecutionArtifact::from_bytes(&bytes, None, &ctx()).is_err());
-    assert!(
-        CrossWorldExecutionArtifact::from_bytes(&bytes[..bytes.len() / 2], None, &ctx()).is_err()
-    );
+    assert!(matches!(
+        CrossWorldExecutionArtifact::from_bytes(&bytes, None, &ctx()),
+        Err(CrossWorldExecutionArtifactError::Container(antecedent_io_core::IoError::ChecksumMismatch { section })) if section == "cross_world_execution_values"
+    ));
+assert!(matches!(
+        CrossWorldExecutionArtifact::from_bytes(&bytes[..bytes.len() / 2], None, &ctx()),
+        Err(CrossWorldExecutionArtifactError::Decode(m)) if m.contains("failed to fill whole buffer")
+    ));
     let cancelled = ExecutionContext::for_tests(1);
     cancelled.cancellation.cancel();
     let good = sealed.to_bytes("necessity").unwrap();

@@ -46,6 +46,9 @@ def test_randomized_effect_column_names_match_inline_arrays():
         )
     )
     assert named.answer.value == pytest.approx(inline.answer.value)
+    # Independent value: Horvitz-Thompson contrast under Bernoulli(0.5) assignment.
+    ht = float(np.mean(outcome * assign / 0.5) - np.mean(outcome * ~assign / 0.5))
+    assert named.answer.value == pytest.approx(ht, abs=1e-9)
     # The string unit column is dropped before the numeric ingest, not rejected.
     assert named.answer.kind == "point"
 

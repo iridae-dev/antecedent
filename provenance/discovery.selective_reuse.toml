@@ -44,4 +44,4 @@ sha256 = "44c4c4e4450cf683bbe951782754f81536c48763ae2ca0d6706c8e92581b83a5"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/tests/selective_discovery.rs"
-sha256 = "9b322b021ebe142490c435cfd9c45a6d716a01346a45448f8457295465411a65"
+sha256 = "c25b1f2a605aa6aabd77ee06c7d7fbc8800ac09037cabd55dd329a84bbcd391d"

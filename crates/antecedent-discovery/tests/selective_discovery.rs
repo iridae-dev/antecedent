@@ -471,7 +471,12 @@ fn failed_or_cancelled_update_leaves_the_retained_state_untouched() {
     changed.constraints.alpha = 0.001;
     let mut cancelled = ctx();
     cancelled.cancellation = CancellationToken::cancel_after_checks(1);
-    assert!(adapter.run(&changed, &data, &cancelled).is_err());
+    assert!(matches!(
+        adapter.run(&changed, &data, &cancelled),
+        Err(antecedent_discovery::selective::SelectiveDiscoveryError::Discovery(
+            antecedent_discovery::DiscoveryError::Cancelled
+        ))
+    ));
     // A refusal before any work: the context's seed is not the contract's.
     let wrong_seed = ExecutionContext::for_tests(SEED + 1);
     let refusal = adapter.run(&contract, &data, &wrong_seed).unwrap_err();

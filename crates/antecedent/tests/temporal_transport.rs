@@ -558,5 +558,13 @@ fn resealed_data_identity_mutations_fail_replay() {
     let moved = consume(&resealed(&|w| {
         w.laws.iter_mut().find(|l| l.population == "target").unwrap().snapshot = "elsewhere".into();
     }));
-    assert!(moved.is_err(), "a law outside its catalog binding must not replay");
+    assert!(
+        matches!(
+            &moved,
+            Err(IoError::Refused { code, message })
+                if *code == "transport_missing_provider"
+                    && message == "exact provider snapshot does not match catalog binding"
+        ),
+        "a law outside its catalog binding must not replay"
+    );
 }

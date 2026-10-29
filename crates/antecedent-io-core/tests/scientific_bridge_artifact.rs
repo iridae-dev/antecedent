@@ -464,9 +464,18 @@ fn versions_markers_layouts_and_corruption_are_refused() {
         .expect("bytes");
     let middle = bytes.len() / 2;
     bytes[middle] ^= 0xff;
-    assert!(ScientificBridgeArtifact::from_bytes(&bytes, None).is_err());
-    assert!(ScientificBridgeArtifact::from_bytes(&bytes[..bytes.len() / 3], None).is_err());
-    assert!(ScientificBridgeArtifact::to_bytes(&s.bridged, &source, "  ").is_err());
+    assert!(matches!(
+        ScientificBridgeArtifact::from_bytes(&bytes, None),
+        Err(ScientificBridgeArtifactError::Container(antecedent_io_core::IoError::ChecksumMismatch { section })) if section == "scientific_bridge_meta"
+    ));
+    assert!(matches!(
+        ScientificBridgeArtifact::from_bytes(&bytes[..bytes.len() / 3], None),
+        Err(ScientificBridgeArtifactError::Decode(m)) if m.contains("failed to fill whole buffer")
+    ));
+    assert!(matches!(
+        ScientificBridgeArtifact::to_bytes(&s.bridged, &source, "  "),
+        Err(ScientificBridgeArtifactError::Encode(m)) if m == "missing artifact id"
+    ));
 
     // A container of another artifact kind is not a bridge.
     let other_kind = antecedent_io_core::encode_container(
@@ -480,7 +489,10 @@ fn versions_markers_layouts_and_corruption_are_refused() {
         &[OutSection { id: "scientific_bridge_meta", content_type: CONTENT_CBOR, bytes: &[0xa0] }],
     )
     .expect("container");
-    assert!(ScientificBridgeArtifact::from_bytes(&other_kind, None).is_err());
+    assert!(matches!(
+        ScientificBridgeArtifact::from_bytes(&other_kind, None),
+        Err(ScientificBridgeArtifactError::Malformed(m)) if m == "unsupported container layout"
+    ));
 }
 
 #[test]
