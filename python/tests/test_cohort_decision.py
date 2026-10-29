@@ -108,7 +108,7 @@ def test_producer_to_cohort_to_affine_contract_matches_the_hand_calculation(mode
     assert source.row_contrasts == pytest.approx(tuple(points), abs=ROW_TOLERANCE)
     # ... and, within the estimator's tolerance, the structural truth 2 + 0.4 * 0.0 + ...
     truth = 2.0 + 0.4 * float(np.dot(W, Z))
-    assert source.mean_contrast == pytest.approx(truth, abs=0.12)
+    assert source.mean_contrast == pytest.approx(truth, abs=1e-4), source.mean_contrast
     assert source.support["rows_outside"] == 0
     assert source.support_status == "supported"
     assert source.quantity.functional_id == "mean_difference"
@@ -570,18 +570,23 @@ def test_a_native_fit_issues_a_measured_interval_or_a_typed_refusal() -> None:
         weights=[1.0 / 80.0] * 80,
     )
     source = cd.decision_source_from_native_fit(fit, cohort=binding, outcome_units="mmHg")
-    try:
-        measured = source.interval(level=0.95)
-    except cd.CohortDecisionRefusal as refusal:
-        # No attesting coverage record yet: the typed refusal, never an unmeasured interval.
-        assert refusal.reason_code == "cell_not_licensed"
-        assert refusal.detail == "measured_inference.record_not_attesting"
-    else:
-        scalar = measured.scalars[0]
-        assert measured.route == "cohort_interval"
-        assert scalar.interval[0] <= scalar.point <= scalar.interval[1]
-    # The point route is unchanged and never carries an interval by itself.
-    assert abs(source.mean_contrast - (1.0 + 0.5 * float(np.mean(x[:80])))) < 0.2
+    # No attesting coverage record exists (calibration is pending): the typed refusal, never an
+    # unmeasured interval.
+    with pytest.raises(cd.CohortDecisionRefusal) as refusal:
+        source.interval(level=0.95)
+    assert refusal.value.reason_code == "cell_not_licensed"
+    assert refusal.value.detail == "measured_inference.record_not_attesting"
+    # The point route is unchanged and never carries an interval by itself. Oracle: the cohort
+    # mean of the interaction model's contrast, from an independent least-squares fit.
+    n = len(x)
+    t = (np.arange(n) % 2).astype(float)
+    rng = np.random.default_rng(23)
+    rng.uniform(-2.0, 2.0, n)
+    y = 2.0 + x + t * (1.0 + 0.5 * x) + rng.normal(0.0, 0.5, n)
+    beta = np.linalg.lstsq(np.column_stack([np.ones(n), x, t, t * x]), y, rcond=None)[0]
+    assert source.mean_contrast == pytest.approx(
+        beta[2] + beta[3] * float(np.mean(x[:80])), abs=1e-8
+    )
     with pytest.raises(CausalValueError):
         source.interval(level=1.0)
 

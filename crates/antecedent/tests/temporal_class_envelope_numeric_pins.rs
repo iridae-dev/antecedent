@@ -560,11 +560,11 @@ fn temporal_class_response_identified_set_contains_the_structural_level() {
         // Cell 0 is horizon 1 (cells are dose-major, horizons 1 and 2 within a dose).
         let (lower, upper) = (envelope.lower[0], envelope.upper[0]);
         assert!(
-            lower - 0.2 <= truth && truth <= upper + 0.2,
+            lower - 0.08 <= truth && truth <= upper + 0.08,
             "{class}: identified set [{lower:.4}, {upper:.4}] misses the structural level {truth:.4}"
         );
         assert!(
-            (lower - truth).abs() < 0.2,
+            (lower - truth).abs() < 0.08,
             "{class}: the z-adjusting completion must estimate the level: {lower:.4} vs {truth:.4}"
         );
         assert!(upper >= lower);

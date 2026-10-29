@@ -152,14 +152,14 @@ fn bayesian_static_dag_responses_body() {
             );
             for (&dose, &estimate) in doses.iter().zip(&got) {
                 let truth = 0.4 + 1.7 * dose;
-                assert!((estimate - truth).abs() < 0.12, "{label}: dose {dose}: {estimate}");
+                assert!((estimate - truth).abs() < 0.005, "{label}: dose {dose}: {estimate} vs {truth}");
             }
 
             let refreshed = rebind_estimate(&mut prepared, data(0.3), &context).unwrap();
             let refreshed_values = values(&refreshed);
             for (&dose, &estimate) in doses.iter().zip(&refreshed_values) {
                 let truth = 0.7 + 1.7 * dose;
-                assert!((estimate - truth).abs() < 0.12, "{label}: refreshed dose {dose}");
+                assert!((estimate - truth).abs() < 0.005, "{label}: refreshed dose {dose}: {estimate} vs {truth}");
             }
             assert!(
                 matches!(prepared.retained_operation(), RetainedOperation::StaticDagResponse(..)),

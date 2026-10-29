@@ -86,7 +86,7 @@ def test_the_fitted_handle_reaches_expression_policies_selection_influence_and_n
     assert one_shot.draws[fitted.names.index("b")].min() >= 0.0
     # A hard level has the closed-form answer: do(a = 1) puts c at 1.5 * 2 = 3.
     level = fitted.sample_do({"a": 1.0}, 4000, execution=antecedent.Execution(seed=2))
-    assert abs(level.draws[fitted.names.index("c")].mean() - 3.0) < 0.1
+    assert abs(level.draws[fitted.names.index("c")].mean() - 3.0) < 0.05  # observed 0.010
 
     # Mechanism selection: a candidate set and a constraint reach the fit, and the record says so.
     constrained = fit(
@@ -101,11 +101,9 @@ def test_the_fitted_handle_reaches_expression_policies_selection_influence_and_n
     assert record["constraint"]["required"] == "linear_gaussian"
     # The named families in order, then `constant` (admissible only for a degenerate column).
     assert record["candidate_set"] == ["linear_gaussian", "linear_spline", "constant"]
-    assert "linear_gaussian" in {c["family"] for c in record["candidates"]}
+    assert {c["family"] for c in record["candidates"]} == {"linear_gaussian"}
     # The spline-interaction family needs two parents; with one it is a recorded failure.
-    assert "linear_spline" in {f["family"] for f in record["failed"]} | {
-        c["family"] for c in record["candidates"]
-    }
+    assert "linear_spline" in {f["family"] for f in record["failed"]}
     assert record["provenance_id"] == "estimate.gcm.fit"
 
     # Intrinsic influence from the handle equals the standalone call on the same data and seed.
@@ -122,8 +120,10 @@ def test_the_fitted_handle_reaches_expression_policies_selection_influence_and_n
     ]
     by_source = {s.source: s.contribution for s in from_handle.sources}
     # Closed form: the noise terms of a, b and c reach c with coefficients 3, 2 and 0.5.
-    for source, truth in {"a": 9.0, "b": 4.0, "c": 0.25}.items():
-        assert abs(by_source[source] - truth) < 0.35 * truth, (source, by_source[source])
+    # Observed relative errors 2.9%, 8.0% and 23% (the small source c is the noisiest at 600 outer
+    # draws); the bounds are about three times those.
+    for source, (truth, relative) in {"a": (9.0, 0.09), "b": (4.0, 0.25), "c": (0.25, 0.35)}.items():
+        assert abs(by_source[source] - truth) < relative * truth, (source, by_source[source])
 
     # Noise replay: the retained noise reproduces the draws and gives the counterfactual.
     draws, noise = fitted.sample_noise({}, 1000, execution=antecedent.Execution(seed=4))
@@ -132,7 +132,7 @@ def test_the_fitted_handle_reaches_expression_policies_selection_influence_and_n
     counterfactual = fitted.replay_noise(noise, {"a": 2.0})
     a, b = draws.draws[0], draws.draws[1]
     assert np.all(counterfactual.draws[0] == 2.0)
-    assert np.abs((counterfactual.draws[1] - b) - 1.5 * (2.0 - a)).max() < 0.2
+    assert np.abs((counterfactual.draws[1] - b) - 1.5 * (2.0 - a)).max() < 0.1  # observed 0.035
     with pytest.raises(CausalError):
         fitted.replay_noise(noise[:2], {})
     with pytest.raises(CausalError):
@@ -179,7 +179,7 @@ def test_a_prepared_policy_reuses_one_licence_and_equals_the_one_shot_results():
     # Cutting price by 15% raises demand by 0.8 * 0.15 * mean(price): the closed form of the
     # generating model, within a few simulation errors and the fitted slope's error.
     expected = 0.8 * 0.15 * data["price"].mean()
-    assert abs(value.mean_difference - expected) < 0.25, (value.mean_difference, expected)
+    assert abs(value.mean_difference - expected) < 0.1, (value.mean_difference, expected)  # observed 0.032
     assert value.difference_simulation_stderr < 0.1
     assert value.model_uncertainty == "unquantified"
     assert value.provenance_id == "model.intervention_programs"
@@ -293,6 +293,14 @@ def test_every_new_workflow_refuses_with_a_registered_code_and_names_its_provena
         fitted_intrinsic_influence(fitted, "c")
     codes["intrinsic_influence"] = _code(influence.value)
 
+    assert codes == {
+        "policy_licence": "policy_route_not_licensed",
+        "policy_cycle": "policy_dependency_circular",
+        "callback": "policy_callback_not_portable",
+        "mechanism_selection": "mechanism_candidates_invalid",
+        "graph_falsification": "invalid_argument",
+        "intrinsic_influence": "route_not_supported",
+    }
     for workflow, code in codes.items():
         assert code in REGISTERED, (workflow, code)
 
@@ -447,7 +455,7 @@ def test_prepare_reruns_the_policy_workflow_without_recompiling_and_equals_the_o
     # Cutting price by 15% raises demand by 0.8 * 0.15 * mean(price), the generating model's
     # closed form, within the fitted slope's error.
     expected = 0.8 * 0.15 * data["price"].mean()
-    assert abs(first.value.mean_difference - expected) < 0.25, (first.value, expected)
+    assert abs(first.value.mean_difference - expected) < 0.1, (first.value, expected)
 
     # Support decision, contract and provenance are reported on the result.
     support = first.support

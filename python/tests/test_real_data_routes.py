@@ -94,7 +94,22 @@ OVERLAPS: dict[str, Overlap | None] = {
 TARGETS = {"all": None, "treated": population.Treated()}
 
 
-def _check(data, treatment, outcome, covariates, estimator, target) -> None:
+_ANY = object()
+
+
+def _expected_refusal(dataset: str, estimator: str, overlap: str, target: str):
+    """The refusal code the stand-in data owe a route, from the documented contracts: a treated
+    target is not estimable for the cross-fitted and linear routes; an undeclared overlap policy
+    on the severe-overlap comparison is refused as a positivity violation by every propensity
+    route; everything else answers."""
+    if target == "treated" and estimator in {"dml", "dr_learner", "linear_adjustment"}:
+        return "population_not_estimable"
+    if dataset == "nsw_psid" and overlap == "undeclared" and estimator != "linear_adjustment":
+        return "positivity_violated"
+    return None
+
+
+def _check(data, treatment, outcome, covariates, estimator, target, expected=_ANY) -> None:
     graph = [(z, treatment) for z in covariates] + [(z, outcome) for z in covariates]
     graph.append((treatment, outcome))
     query = (
@@ -110,6 +125,9 @@ def _check(data, treatment, outcome, covariates, estimator, target) -> None:
         refute="none",
         execution=ant.Execution(seed=7),
     )
+    if expected is not _ANY:
+        got = result.refusal.code if result.refusal is not None else None
+        assert got == expected, (got, expected)
     if result.refusal is not None:
         assert result.refusal.code in RUNTIME_REFUSAL_CODES, (
             result.refusal.code,
@@ -151,6 +169,7 @@ def test_stand_in_routes_keep_the_host_contract(dataset, estimator, overlap, tar
         covariates,
         ESTIMATORS[estimator](OVERLAPS[overlap]),
         TARGETS[target],
+        expected=_expected_refusal(dataset, estimator, overlap, target),
     )
 
 

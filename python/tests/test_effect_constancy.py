@@ -136,7 +136,7 @@ def test_dependent_covariance_gives_wald_four() -> None:
 def test_varying_effects_are_rejected() -> None:
     result = run([("a", 0.0, 0.5), ("b", 5.0, 0.5)])
     assert result.statistic == pytest.approx(50.0, abs=1e-9)
-    assert result.p_value < 1e-9
+    assert result.p_value == pytest.approx(math.erfc(5.0), rel=1e-6)  # sf of chi-square(1) at 50
     assert result.conclusion is ConstancyConclusion.REJECTED
     assert result.contrasts[0].rejected
 

@@ -942,6 +942,50 @@ fn a_redraw_after_an_intervention_and_a_gaussian_redraw_return_aligned_draws() {
     near(aligned.point[0], -1.0 + 1.0 + 9.0);
     near(aligned.point[1], 0.25);
     assert_eq!(claim.operation(), "parameter_redraw");
+    // Oracle for the redraw: the least-squares prediction of E[Y | X = 2, M = 3] from the
+    // retained regression (normal equations solved here), which the posterior draws centre on.
+    let design: Vec<[f64; 3]> = x.iter().zip(&m).map(|(a, b)| [1.0, *a, *b]).collect();
+    let mut gram = [[0.0_f64; 4]; 3];
+    for (row, target) in design.iter().zip(&y) {
+        for i in 0..3 {
+            for j in 0..3 {
+                gram[i][j] += row[i] * row[j];
+            }
+            gram[i][3] += row[i] * target;
+        }
+    }
+    for pivot in 0..3 {
+        for r in 0..3 {
+            if r != pivot {
+                let factor = gram[r][pivot] / gram[pivot][pivot];
+                for c in 0..4 {
+                    gram[r][c] -= factor * gram[pivot][c];
+                }
+            }
+        }
+    }
+    let beta: Vec<f64> = (0..3).map(|i| gram[i][3] / gram[i][i]).collect();
+    let ols_prediction = beta[0] + 2.0 * beta[1] + 3.0 * beta[2];
+    let (draw_mean, draw_spread) = aligned.spread(0);
+    assert!(draw_spread > 0.0, "the draws must carry spread");
+    assert!(
+        (draw_mean - ols_prediction).abs() < 5.0 * draw_spread / 1000.0_f64.sqrt() + 1e-9,
+        "draw mean {draw_mean} vs least squares {ols_prediction} (spread {draw_spread})"
+    );
+    let residual_variance = design
+        .iter()
+        .zip(&y)
+        .map(|(row, target)| {
+            let fit = row[0] * beta[0] + row[1] * beta[1] + row[2] * beta[2];
+            (target - fit).powi(2)
+        })
+        .sum::<f64>()
+        / (60.0 - 3.0);
+    let (variance_mean, _) = aligned.spread(1);
+    assert!(
+        (variance_mean / residual_variance - 1.0).abs() < 0.5,
+        "draw variance {variance_mean} vs residual variance {residual_variance}"
+    );
 }
 
 #[test]

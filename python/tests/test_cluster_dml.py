@@ -97,9 +97,18 @@ def test_a_cluster_dml_aipw_reports_the_cluster_sandwich_se_and_the_scores():
             execution=ant.Execution(seed=7),
         )
     )
-    assert result.effect == pytest.approx(2.0, abs=0.7)
     estimate = result.estimate
     assert math.isfinite(estimate.se_analytic) and estimate.se_analytic > 0.0
+    # Oracle: the data-generating realized mean of the per-cluster effects (the draws are replayed
+    # from the same generator); the cross-fitted point sits within a few cluster-sandwich SEs of it,
+    # while the unadjusted contrast, confounded through z0, does not.
+    rng = np.random.default_rng(7)
+    rng.normal(size=40)
+    rng.normal(size=40)
+    realized = float(np.mean(2.0 + rng.normal(size=40)))
+    assert abs(result.effect - realized) < 0.03, (result.effect, realized, estimate.se_analytic)
+    naive = float(data["y"][data["t"] == 1].mean() - data["y"][data["t"] == 0].mean())
+    assert abs(naive - realized) > 0.2, (naive, realized)
     assert estimate.se_bootstrap is None
     assert estimate.joint_covariance is None and estimate.score_inference is None
     assert estimate.score_table is not None
@@ -142,7 +151,7 @@ def test_a_cluster_batch_band_uses_the_cluster_reference():
     assert report.scores_source == "estimated"
     band = report.simultaneous_interval()
     assert report.complete and len(band.members) == 1
-    assert band.critical_value > 2.1  # t_11, above the iid normal critical 1.96
+    assert band.critical_value == pytest.approx(2.2010, abs=0.06), band.critical_value
     member = band.members[0]
     assert member.lower == pytest.approx(member.value - band.critical_value * member.std_error)
 
@@ -203,9 +212,10 @@ def test_a_two_way_cluster_dml_aipw_reports_the_two_way_se_and_the_scores():
             execution=ant.Execution(seed=7),
         )
     )
-    assert result.effect == pytest.approx(2.0, abs=0.7)
     estimate = result.estimate
     assert math.isfinite(estimate.se_analytic) and estimate.se_analytic > 0.0
+    # Oracle: the effect is the constant 2 in every row of the design.
+    assert result.effect == pytest.approx(2.0, abs=0.25), (result.effect, estimate.se_analytic)
     assert estimate.se_bootstrap is None
     assert estimate.joint_covariance is None and estimate.score_inference is None
     assert estimate.score_table is not None

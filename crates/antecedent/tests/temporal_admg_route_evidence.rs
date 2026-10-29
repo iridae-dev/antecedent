@@ -842,7 +842,7 @@ fn repeated_variable_temporal_admg_is_refused() {
     };
     let text = error.to_string();
     assert!(
-        text.contains("projection") || text.contains("variable") || text.contains("Compile"),
+        text.contains("preserves the functional only when each variable appears once"),
         "{text}"
     );
 }
@@ -1026,7 +1026,7 @@ fn temporal_admg_projection_resamples_blocks_of_the_series() {
     assert_eq!(binding.method, antecedent_core::IntervalMethod::CircularBlockSe);
     assert_eq!(binding.dependence, "circular_block:row_block");
     let se = frequentist.estimate().as_effect().unwrap().se_bootstrap().expect("a block SE");
-    assert!(se.is_finite() && se > 0.0 && se < 0.2, "se {se}");
+    assert!(se.is_finite() && se > 0.01 && se < 0.04, "se {se}");
     // The same replicates for any thread budget.
     let mut parallel = ExecutionContext::for_tests(17);
     parallel.parallelism =
@@ -1040,7 +1040,7 @@ fn temporal_admg_projection_resamples_blocks_of_the_series() {
     let bayesian = projected_ate(&data, &temporal, (true, 0), None, &ctx).unwrap();
     let posterior = bayesian.posterior.as_ref().expect("a block Bayesian-bootstrap posterior");
     let column = posterior.effect_column().expect("an effect column");
-    assert!((posterior.summaries.mean[column] - expected).abs() < 0.08);
+    assert!((posterior.summaries.mean[column] - expected).abs() < 0.01, "{}", posterior.summaries.mean[column]);
     assert!(posterior.summaries.sd[column] > 0.0);
     // A declared independent-subject or clustered-panel design refuses: a row-level draw
     // is not allowed under either, and the table carries no subject or cluster labels to
@@ -1315,7 +1315,7 @@ mod window_contrast {
         let result = study(&data, template(false), next_period(), inference, 0).run(&ctx).unwrap();
         let posterior = result.posterior.as_ref().expect("a block Bayesian-bootstrap posterior");
         let column = posterior.effect_column().expect("an effect column");
-        assert!((posterior.summaries.mean[column] - counted).abs() < 0.1);
+        assert!((posterior.summaries.mean[column] - counted).abs() < 0.01, "{} vs {counted}", posterior.summaries.mean[column]);
         assert!(posterior.summaries.sd[column] > 0.0);
         assert!(discloses(&result));
         assert_eq!(result.support_status(), Some(CellStatus::Refused));
@@ -1356,7 +1356,7 @@ mod window_contrast {
         let built = study(&data, template(false), query, InferenceMode::Frequentist, 0);
         let result = built.run(&ctx).unwrap();
         assert!(result.effect().is_finite());
-        assert!((result.effect() - counted_conditional(&x, &y, &w)).abs() < 0.5);
+        assert!((result.effect() - counted_conditional(&x, &y, &w)).abs() < 1e-12, "{} vs {}", result.effect(), counted_conditional(&x, &y, &w));
         assert!(discloses(&result));
         let prepared = built.prepare(&ctx).unwrap();
         let again = prepared.estimate_series(&data, &ctx).unwrap();
@@ -1380,7 +1380,7 @@ mod window_contrast {
             .run(&ctx)
             .unwrap();
         assert!(result.effect().is_finite());
-        assert!((result.effect() - counted_contrast(&x, &y, &w)).abs() < 0.5);
+        assert!((result.effect() - counted_contrast(&x, &y, &w)).abs() < 1e-12, "{} vs {}", result.effect(), counted_contrast(&x, &y, &w));
         assert!(discloses(&result));
         let built = study(&data, template(false), query, InferenceMode::Frequentist, 0);
         let prepared = built.prepare(&ctx).unwrap();
@@ -1470,7 +1470,7 @@ mod window_contrast {
                 let ctx = ExecutionContext::for_tests(31_010);
                 let result = built.run(&ctx).unwrap();
                 assert_eq!(refuters(&result), expected, "bayesian={bayesian} suite={suite:?}");
-                let tolerance = if bayesian { 0.1 } else { 1e-12 };
+                let tolerance = if bayesian { 0.01 } else { 1e-12 };
                 assert!((result.effect() - counted).abs() < tolerance, "{}", result.effect());
                 assert!(discloses(&result));
                 for report in &result.refutations {

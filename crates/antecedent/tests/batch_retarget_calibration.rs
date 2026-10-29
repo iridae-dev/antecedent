@@ -142,7 +142,7 @@ fn construction() -> Construction {
 }
 
 /// The band's structure on one replicate at a large sample: four members in claim order,
-/// each centred on its point near the known truth, with `c` between the pointwise and the
+/// each within four standard errors of the known truth, with `c` between the pointwise and the
 /// independent four-claim critical value.
 #[test]
 fn the_unpublished_band_has_the_declared_members_and_a_max_t_critical_value() {
@@ -150,7 +150,13 @@ fn the_unpublished_band_has_the_declared_members_and_a_max_t_critical_value() {
     assert_eq!(band.members.len(), TRUTHS.len());
     for (i, (member, truth)) in band.members.iter().zip(TRUTHS).enumerate() {
         assert_eq!(member.name, format!("c{i}"));
-        assert!((member.value - truth).abs() < 0.5, "{}: {} vs {truth}", member.name, member.value);
+        assert!(
+            (member.value - truth).abs() < 4.0 * member.std_error,
+            "{}: {} vs {truth} (se {})",
+            member.name,
+            member.value,
+            member.std_error
+        );
         assert!(member.std_error > 0.0 && member.std_error.is_finite());
         assert!(
             (member.upper - member.value - band.critical_value * member.std_error).abs() < 1e-12
@@ -160,7 +166,10 @@ fn the_unpublished_band_has_the_declared_members_and_a_max_t_critical_value() {
         );
     }
     // 1.96 is the single-claim value and about 2.57 the independent four-claim value.
-    assert!(band.critical_value > 1.96 && band.critical_value < 2.7, "{}", band.critical_value);
+    // The upper bound is the independent four-claim value at level 0.95, 2.4909 (Sidak: positive
+    // or negative correlation can only lower the max-t critical value), plus 0.05 for the
+    // 10,000-draw Monte-Carlo error of the critical value; observed 2.399.
+    assert!(band.critical_value > 1.96 && band.critical_value < 2.54, "CV {}", band.critical_value);
 }
 
 #[test]

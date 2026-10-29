@@ -127,17 +127,17 @@ def test_a_retarget_onto_unsupported_rows_reports_arm_sizes_and_propensity_range
     assert fields["stage"] == "retarget"
     assert fields["subject"] == "effect(t -> y)"
     assert fields["remedy"]
-    assert fields["reason"] in {
-        "arm_effective_sample_size_below_minimum",
-        "propensity_range_touches_zero_or_one",
-        "extreme_propensity_share_above_limit",
-        "propensity_range_unavailable",
-    }
+    assert fields["reason"] == "arm_effective_sample_size_below_minimum"
     labels = [label for label, _ in fields["arm_ess"]]
     assert labels == ["control", "active"]
     # The treated arm only exists where z < 0, and the target is z > 1.2: no weighted mass.
     ess = dict(fields["arm_ess"])
     assert ess["active"] < 10.0 <= ess["control"]
+    # Oracle: the target weights are 0/1 indicators, so the Kish effective size of an arm is the
+    # count of its rows inside the target (z > 1.2); no treated row lies there.
+    inside = np.asarray(data["z"]) > 1.2
+    assert ess["control"] == float(np.sum(inside & (np.asarray(data["t"]) == 0.0)))
+    assert ess["active"] == float(np.sum(inside & (np.asarray(data["t"]) == 1.0))) == 0.0
     assert 0.0 < fields["propensity_min"] <= fields["propensity_max"] < 1.0
     # Quantiles of the raw propensities of rows the target weights: the seven reported levels,
     # ordered and inside the range (the exact nearest-rank values are checked in the Rust test).
@@ -234,32 +234,35 @@ def test_the_real_aipw_refusal_under_joint_separation_carries_the_fit_facts():
     fields = error.refusal_fields
     assert set(fields) == FIELD_KEYS
     assert fields["remedy"]
-    assert error.reason_code == (
-        "glm_fit_refused" if fields["stage"] == "glm_fit" else "design_rank_deficient"
-    )
-    if fields["stage"] == "glm_fit":
-        assert fields["reason"] in GLM_REASONS
-        assert fields["glm_iterations"] >= 1
-        assert fields["boundary_margin"] is not None and fields["boundary_count"] is not None
-        expected = {
-            "non_converged": "GLM IRLS did not converge; refuse propensity/outcome scores",
-            "separated": (
-                "GLM indicates (quasi-)complete separation; refuse propensity/outcome scores"
-            ),
-            "boundary_saturated": (
-                "GLM fitted probabilities lie within 1e-8 of 0 or 1 (extreme scores, not "
-                "necessarily separation); refuse propensity/outcome scores"
-            ),
-        }[fields["reason"]]
-        assert str(error).endswith(f"backend error: {expected}") or expected in str(error)
-    else:
-        # The IRLS design lost rank before any score existed: counts only, no fitted figure.
-        assert fields["stage"] == "design_rank"
-        assert fields["numerical_rank"] < fields["design_columns"] == p + 1
-        assert str(error).count("rank deficient") == 1
-        _absent(fields, "arm_ess", "propensity_min", "propensity_max", "glm_iterations")
+    # 174 noise covariates on 240 rows separate the arms: the IRLS fit is refused at the GLM
+    # stage (the design keeps full rank), carrying the iteration and boundary counts it produced.
+    assert error.reason_code == "glm_fit_refused"
+    assert fields["stage"] == "glm_fit"
+    assert fields["reason"] in GLM_REASONS
+    assert fields["glm_iterations"] >= 1
+    assert fields["boundary_margin"] is not None and fields["boundary_count"] is not None
+    assert 0 < fields["boundary_count"] <= n
+    expected = {
+        "non_converged": "GLM IRLS did not converge; refuse propensity/outcome scores",
+        "separated": (
+            "GLM indicates (quasi-)complete separation; refuse propensity/outcome scores"
+        ),
+        "boundary_saturated": (
+            "GLM fitted probabilities lie within 1e-8 of 0 or 1 (extreme scores, not "
+            "necessarily separation); refuse propensity/outcome scores"
+        ),
+    }[fields["reason"]]
+    assert str(error).endswith(f"backend error: {expected}")
     assert fields["subject"] == "effect(t -> y)"
-    _absent(fields, "cluster_count")
+    _absent(
+        fields,
+        "cluster_count",
+        "numerical_rank",
+        "design_columns",
+        "arm_ess",
+        "propensity_min",
+        "propensity_max",
+    )
 
 
 def test_a_cluster_count_shortfall_reports_found_and_minimum_counts():

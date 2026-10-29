@@ -210,11 +210,11 @@ fn class_derivative_validation_checks_the_finite_difference_against_the_regressi
             assert!(report(&result, "derivative.support", &label).passed, "{label}");
             let fd = report(&result, "derivative.finite_difference", &label);
             assert!(
-                (fd.refuted_ate - structural).abs() < 0.12 * structural.abs() + 0.1,
+                (fd.refuted_ate - structural).abs() < 0.02,
                 "{label}: finite difference {} vs regression slope {structural}",
                 fd.refuted_ate
             );
-            assert!((fd.refuted_ate - naive).abs() > 0.1, "{label}: confounded slope");
+            assert!((fd.refuted_ate - naive).abs() > 1.0, "{label}: confounded slope");
             assert_eq!(
                 has(&result, "derivative.bootstrap_stability"),
                 suite == RefuteSuite::Full,
@@ -227,6 +227,8 @@ fn class_derivative_validation_checks_the_finite_difference_against_the_regressi
 #[test]
 fn bayesian_class_derivative_validation_adds_the_predictive_checks() {
     let cols = class_columns();
+    let structural = ols(&[&cols[0], &cols[1]], &cols[2])[1];
+    let naive = ols(&[&cols[0]], &cols[2])[1];
     let table = class_table(&cols);
     let inference = || InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(48));
     let ctx = ExecutionContext::for_tests(32);
@@ -237,6 +239,10 @@ fn bayesian_class_derivative_validation_adds_the_predictive_checks() {
         assert_eq!(result.support_status(), Some(CellStatus::Refused), "{kind}");
         assert!(has(&result, "derivative.support"), "{kind}");
         assert!(!result.predictive_checks.is_empty(), "{kind}: posterior predictive checks");
+        // The posterior-mean slope is the adjusted regression slope (observed error 0.004-0.006),
+        // not the confounded one.
+        assert!((result.effect() - structural).abs() < 0.03, "{kind}: {}", result.effect());
+        assert!((result.effect() - naive).abs() > 1.0, "{kind}: confounded slope");
     }
 }
 
@@ -298,7 +304,7 @@ fn a_front_door_derivative_is_checked_by_smoother_sensitivity_and_resampling() {
         let sensitivity = report(&result, "derivative.front_door_smoothness_sensitivity", &label);
         assert!(sensitivity.passed, "{label}: {:?}", sensitivity.failure_condition);
         assert!(
-            (sensitivity.refuted_ate - reference).abs() < 0.15,
+            (sensitivity.refuted_ate - reference).abs() < 0.06,
             "{label}: refit slope {} vs the front-door product {reference}",
             sensitivity.refuted_ate
         );
@@ -310,7 +316,7 @@ fn a_front_door_derivative_is_checked_by_smoother_sensitivity_and_resampling() {
         if suite == RefuteSuite::Full {
             let stability = report(&result, "derivative.bootstrap_stability", &label);
             assert!(stability.replicates >= 2, "{label}");
-            assert!((stability.refuted_ate - reference).abs() < 0.15, "{label}");
+            assert!((stability.refuted_ate - reference).abs() < 0.05, "{label}");
         }
         // The contrast-shaped finite difference does not apply to a front-door plug-in.
         assert!(!has(&result, "derivative.finite_difference"), "{label}");
@@ -394,7 +400,7 @@ fn a_temporal_front_door_slope_runs_the_front_door_state_on_its_window() {
         // moved furthest under a stiffer or richer smoother, which the state passes only
         // within its documented relative tolerance of the published slope.
         assert!(
-            (sensitivity.original_ate - reference).abs() < 0.05,
+            (sensitivity.original_ate - reference).abs() < 0.01,
             "{label}: published slope {} vs the front-door product {reference}",
             sensitivity.original_ate
         );
@@ -464,6 +470,22 @@ fn several_temporal_horizons_are_checked_without_mixing_them() {
         .unwrap();
     assert_eq!(result.support_status(), Some(CellStatus::Refused));
     assert!(has(&result, "derivative.support"));
+    // Each horizon's published slope is the regression slope of the outcome on the treatment
+    // given the window adjustment (`z`), computed here by the normal equations: 2 at horizon 1
+    // and the small finite-sample association at horizon 3 (no causal path, so the unadjusted
+    // slope near 1.0 must not be reported).
+    let Some(antecedent_core::ResponseIdentification::PointIdentified(
+        antecedent_core::ResponseValue::Vector(slopes),
+    )) = result.response().map(|r| r.estimate.clone())
+    else {
+        panic!("a point-identified vector over the two horizons")
+    };
+    let oracle = |h: usize| {
+        let n = T - h;
+        ols(&[&cols[0][..n], &cols[2][..n]], &cols[1][h..])[1]
+    };
+    assert!((slopes[0] - oracle(1)).abs() < 0.02, "h=1: {} vs {}", slopes[0], oracle(1));
+    assert!((slopes[1] - oracle(3)).abs() < 0.1, "h=3: {} vs {}", slopes[1], oracle(3));
     // The support report plus the Pulse-native suite of each of the two horizons' witnesses.
     assert!(result.refutations.len() > 2, "{:?}", result.refutations);
     assert!(

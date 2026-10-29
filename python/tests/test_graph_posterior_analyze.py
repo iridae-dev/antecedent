@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import antecedent
 import numpy as np
+import pytest
 from antecedent.outcomes import require_success
 
 
@@ -28,13 +29,16 @@ def test_exact_dag_posterior_bayesian_ate_mixture():
     assert result.posterior is not None
     mass = result.posterior.unidentified_mass
     assert mass is not None
-    assert 0.0 <= mass <= 1.0
-    assert np.isfinite(result.posterior.effect_mean)
-    assert result.ate is None or np.isfinite(result.ate)
+    assert 0.0 < mass < 1.0  # this posterior splits between identified and unidentified graphs
+    assert result.ate is None  # a mixture with unidentified mass publishes no single point
     assert result.evidence_status == "licensed"
-    if mass > 0.0:
-        assert result.posterior.envelope is not None
-        assert result.posterior.envelope.unidentified_mass == mass
+    assert result.posterior.envelope is not None
+    assert result.posterior.envelope.unidentified_mass == mass
+    # The identified-graph mixture is a convex combination of the per-graph effects. Here the
+    # per-graph total effects are the adjusted 2 (z a common cause: y = 1 + 2 t + 3 z) and the
+    # unadjusted 3.5 = 2 + 3 (E[z | t=1] - E[z | t=0]) (z downstream of or independent of t), so
+    # the mixture mean lies in [2, 3.5] up to the conjugate prior's shrinkage.
+    assert 2.0 - 0.05 <= result.posterior.effect_mean <= 3.5 + 0.05, result.posterior.effect_mean
 
 
 def test_exact_dag_posterior_frequentist_ate_mixture():
@@ -55,9 +59,17 @@ def test_exact_dag_posterior_frequentist_ate_mixture():
         )
     )
     assert result.posterior is None
-    assert result.ate is None or np.isfinite(result.ate)
+    assert result.ate is None  # unidentified mass: no single point is published
     assert result.evidence_status == "licensed"
-    assert any("unidentified_mass=" in diagnostic for diagnostic in result.diagnostics)
+    masses = [d for d in result.diagnostics if "unidentified_mass=" in d]
+    assert masses, result.diagnostics
+    # The structural aggregation states a partition of the posterior into identified and
+    # unidentified mass; the two sum to one.
+    line = next(d for d in masses if "identified_mass=" in d and "structural_aggregation" in d)
+    identified = float(line.split("; identified_mass=")[1].split(";")[0])
+    unidentified = float(line.split("unidentified_mass=")[1].split(";")[0])
+    assert 0.0 < unidentified < 1.0
+    assert identified + unidentified == pytest.approx(1.0, abs=1e-9), line
 
 
 def test_dbn_posterior_bayesian_pulse_mixture():
@@ -92,8 +104,8 @@ def test_dbn_posterior_bayesian_pulse_mixture():
     mass = result.posterior.unidentified_mass
     assert mass is not None
     assert 0.0 <= mass <= 1.0
-    assert np.isfinite(result.posterior.effect_mean)
-    assert abs(result.posterior.effect_mean - 0.9) < 0.35
+    # y[t] = 0.9 pressure[t-1] exactly: a unit pulse at lag 1 moves the outcome by 0.9.
+    assert result.posterior.effect_mean == pytest.approx(0.9, abs=1e-3)
     assert result.evidence_status == "licensed"
 
 
@@ -127,8 +139,8 @@ def test_dbn_posterior_bayesian_sustained_mixture():
     mass = result.posterior.unidentified_mass
     assert mass is not None
     assert 0.0 <= mass <= 1.0
-    assert np.isfinite(result.posterior.effect_mean)
-    assert abs(result.posterior.effect_mean - 0.9) < 0.35
+    # y[t] = 0.9 pressure[t-1] exactly: a unit pulse at lag 1 moves the outcome by 0.9.
+    assert result.posterior.effect_mean == pytest.approx(0.9, abs=1e-3)
     assert result.evidence_status == "licensed"
 
 
@@ -153,7 +165,9 @@ def test_cpdag_graph_posterior_ate_from_graphs():
         )
     )
     assert result.evidence_status == "licensed"
-    assert result.ate is None or np.isfinite(result.ate)
+    # z -> t, z -> y, t -> y with y = 1 + 2 t + 3 z: the adjusted total effect of t is exactly 2
+    # (the unadjusted contrast is 3.5).
+    assert result.ate == pytest.approx(2.0, abs=1e-9)
     assert result.study is not None
 
 
@@ -174,6 +188,7 @@ def test_admg_graph_posterior_ate_and_intervention_response():
         )
     )
     assert ate.evidence_status == "licensed"
+    assert ate.ate == pytest.approx(2.0, abs=1e-9)  # y = 1 + 2 t exactly
     response = require_success(
         antecedent.analyze(
             {"t": t, "y": y},
@@ -188,6 +203,7 @@ def test_admg_graph_posterior_ate_and_intervention_response():
     )
     assert response.evidence_status == "licensed"
     assert response.response is not None
+    assert response.response.values[0][0] == pytest.approx(3.0, abs=1e-9)  # E[y | do(t=1)] = 1 + 2
 
 
 def test_dbn_posterior_temporal_response_curve_and_intervention():
@@ -212,6 +228,9 @@ def test_dbn_posterior_temporal_response_curve_and_intervention():
     )
     assert curve.evidence_status == "licensed"
     assert curve.response is not None
+    # defect[t] = 0.9 pressure[t-1]: the curve at horizon 1 is 0 at pressure 0 and 0.9 at pressure 1.
+    assert curve.response.points == ((0.0, 1.0), (1.0, 1.0))
+    assert [v[0] for v in curve.response.values] == pytest.approx([0.0, 0.9], abs=1e-9)
     assert curve.study is not None
     ir = require_success(
         antecedent.analyze(
@@ -231,6 +250,7 @@ def test_dbn_posterior_temporal_response_curve_and_intervention():
     )
     assert ir.evidence_status == "licensed"
     assert ir.response is not None
+    assert ir.response.values[0][0] == pytest.approx(0.9, abs=1e-9)  # E[defect | do(pressure=1)]
 
 
 def test_temporal_cpdag_graph_posterior_pulse():
@@ -267,3 +287,4 @@ def test_temporal_cpdag_graph_posterior_pulse():
         )
     )
     assert result.evidence_status == "licensed"
+    assert result.ate == pytest.approx(0.8, abs=1e-9)  # outcome[i] = 0.8 treatment[i-1] exactly

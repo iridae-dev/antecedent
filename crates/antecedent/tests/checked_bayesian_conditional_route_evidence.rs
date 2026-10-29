@@ -88,6 +88,11 @@ fn sealed_and_one_shot_bayesian_conditional_agree_on_a_wide_table() {
         sealed.estimate().as_effect().unwrap().ate.to_bits(),
         one_shot.estimate().as_effect().unwrap().ate.to_bits()
     );
+    // And both are the structural truth, not merely each other: y = 1 + 0.7u + 2t + 0.5tz +
+    // 0.25tw is linear with both modifiers centred over complete cycles of the table (1200 rows
+    // are 150 cycles of z and 200 of w), so the average conditional contrast is exactly 2.
+    let ate = sealed.estimate().as_effect().unwrap().ate;
+    assert!((ate - 2.0).abs() < 0.02, "ate={ate}"); // observed 0.0066 (prior shrinkage)
 }
 
 #[test]
@@ -190,7 +195,7 @@ fn bayesian_conditional_effect_keeps_target_prior_and_procedure_after_builder_dr
             // is the empirical-population mean of the conditional contrast.
             // Both modifiers have mean zero and the independent SCM mean is 2.
             assert!(
-                (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.2,
+                (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.02,
                 "{coordinate}: {}",
                 result.estimate().as_effect().unwrap().ate
             );

@@ -147,7 +147,7 @@ def test_binary_prevalence_inverts_the_misclassification_algebra():
     # There is no coefficient vector to take a functional of.
     with pytest.raises(MeasurementModelRefusal) as caught:
         require_success(estimate.downstream_linear_functional([1.0]))
-    assert caught.value.reason_code in {"cell_not_licensed", "invalid_argument"}
+    assert_refusal(caught.value, "cell_not_licensed", "measurement_model.operation_not_licensed")
 
 
 def test_risk_difference_keeps_the_arm_covariance_that_split_rates_miss():
@@ -284,6 +284,10 @@ def test_categorical_inversion_recovers_proportions_and_outcome_means():
     )
     assert contrast.point == pytest.approx(MU[2] - MU[0], abs=1e-6)
     assert contrast.naive_point < 2.5  # the observed-label contrast is attenuated
+    c_mat = np.array(CONFUSION).reshape(3, 3)
+    p_obs = c_mat @ PI
+    ybar_obs = (c_mat * PI * MU).sum(axis=1) / p_obs
+    assert contrast.naive_point == pytest.approx(ybar_obs[2] - ybar_obs[0], abs=1e-6), contrast.naive_point
     assert contrast.operation == "category_outcome_means"
     assert contrast.parameter_uncertainty == "propagated"
 
@@ -791,6 +795,19 @@ def test_changed_validation_parameters_rebuild_the_identities_and_nothing_else()
     assert rebuilt.estimate.point != before.point
     # Oracle: a smaller error variance corrects less, so the corrected slope is smaller.
     assert abs(rebuilt.estimate.point) < abs(before.point)
+    # Oracle: regression calibration by numpy at each declared error variance.
+    y_, w_, z_ = sim
+    design = np.column_stack([np.ones_like(z_), z_])
+    fitted = design @ np.linalg.lstsq(design, w_, rcond=None)[0]
+
+    def rc_slope(error_variance):
+        lam = 1.0 - error_variance / (w_ - fitted).var()
+        x_hat = lam * w_ + (1.0 - lam) * fitted
+        full = np.column_stack([np.ones_like(z_), x_hat, z_])
+        return np.linalg.lstsq(full, y_, rcond=None)[0][1]
+
+    assert before.point == pytest.approx(rc_slope(0.6), abs=2e-3)
+    assert rebuilt.estimate.point == pytest.approx(rc_slope(0.5), abs=2e-3)
     # Parameters of another route are not a validation update; the original is untouched.
     with pytest.raises(MeasurementModelRefusal) as caught:
         prepared.with_validation_parameters(
@@ -1003,7 +1020,11 @@ def test_the_identities_ignore_the_label_and_move_separately():
     evidence = mm.model_identities(
         classical_model(0.6, 0.05, evidence=mm.ParameterEvidence.declared("lab"))
     )
-    assert evidence.evidence != identities.evidence or evidence.model != identities.model
+    # Evidence moves its own identity and the model's, and nothing about what is measured.
+    assert evidence.evidence != identities.evidence
+    assert evidence.model != identities.model
+    assert evidence.measurement == identities.measurement
+    assert evidence.population == identities.population
 
 
 def test_declarations_are_validated_before_the_native_layer_sees_them():

@@ -173,6 +173,13 @@ def test_compact_verifier_round_trip_matches_the_producer() -> None:
     assert consumed.body == export.body
     for query in ({"x": 1.0, "g": "a"}, {"x": 3.0, "g": "b"}, {"x": 7.5, "g": "c"}):
         assert consumed.evaluate(query) == export.evaluate(query)
+    # ... and the replayed values are the hand values, not merely the producer's own.
+    for query, hand in (
+        ({"x": 1.0, "g": "a"}, 3.0),  # 1 + 2
+        ({"x": 3.0, "g": "b"}, 7.5),  # 1 + 6 + 0.5
+        ({"x": 7.5, "g": "c"}, 15.0),  # 1 + 15 - 1
+    ):
+        assert consumed.evaluate(query).point == pytest.approx(hand, abs=1e-12), query
     assert refused(consumed, {"x": 9.0, "g": "c"}).detail == "compact_export.masked_region"
     assert refused(consumed, {"x": 11.0, "g": "a"}).detail == "compact_export.out_of_support"
 

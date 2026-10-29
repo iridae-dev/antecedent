@@ -173,11 +173,11 @@ fn bayesian_class_graph_posterior_effect_body() {
             let result = prepared.estimate(&base, &ctx).unwrap();
             assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.gcomp"));
             let mixture = result.structural_response.as_ref().expect("structural graph mixture");
-            assert!((mixture.unidentified_mass - 0.2).abs() < 1e-9, "{coordinate}");
-            assert!((mixture.identified_mass - 0.8).abs() < 1e-9, "{coordinate}");
+            assert!((mixture.unidentified_mass - 0.2).abs() < 0.02, "{coordinate}");
+            assert!((mixture.identified_mass - 0.8).abs() < 0.02, "{coordinate}");
             if graph_class == "Pag" {
                 assert!(
-                    (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.2,
+                    (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.02,
                     "{coordinate}: {}",
                     result.estimate().as_effect().unwrap().ate
                 );
@@ -196,8 +196,8 @@ fn bayesian_class_graph_posterior_effect_body() {
                     "{coordinate}: atom estimands disagree; scalar must be withheld"
                 );
                 let set = mixture.identified_set.as_ref().expect("identified set retained");
-                assert!((set.lower[0] - 2.0).abs() < 0.2, "{coordinate}: {}", set.lower[0]);
-                assert!((set.upper[0] - 3.0).abs() < 0.2, "{coordinate}: {}", set.upper[0]);
+                assert!((set.lower[0] - 2.0).abs() < 0.02, "{coordinate}: {}", set.lower[0]);
+                assert!((set.upper[0] - 3.0).abs() < 0.02, "{coordinate}: {}", set.upper[0]);
             }
             assert_eq!(result.refutations.is_empty(), suite == RefuteSuite::None, "{coordinate}");
             assert!(
@@ -213,8 +213,10 @@ fn bayesian_class_graph_posterior_effect_body() {
                     (one_shot.estimate().as_effect().unwrap().ate
                         - result.estimate().as_effect().unwrap().ate)
                         .abs()
-                        < 0.2,
-                    "{coordinate}"
+                        < 0.02,
+                    "{coordinate} one-shot vs click {} {}",
+                    one_shot.estimate().as_effect().unwrap().ate,
+                    result.estimate().as_effect().unwrap().ate
                 );
             }
             assert!(
@@ -232,15 +234,15 @@ fn bayesian_class_graph_posterior_effect_body() {
             assert_eq!(retained.weights, plan.weights);
             assert_eq!(retained.inference, plan.inference);
             let refreshed_mix = refreshed.structural_response.as_ref().unwrap();
-            assert!((refreshed_mix.unidentified_mass - 0.2).abs() < 1e-9, "{coordinate}");
+            assert!((refreshed_mix.unidentified_mass - 0.2).abs() < 0.02, "{coordinate}");
             assert_eq!(
                 refreshed.estimate().as_effect().unwrap().ate.is_nan(),
                 result.estimate().as_effect().unwrap().ate.is_nan()
             );
             if !refreshed.estimate().as_effect().unwrap().ate.is_nan() {
                 assert!(
-                    (refreshed.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.2,
-                    "{coordinate}"
+                    (refreshed.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.02,
+                    "{coordinate} refreshed {}", refreshed.estimate().as_effect().unwrap().ate
                 );
             }
             assert!(

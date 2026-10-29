@@ -180,6 +180,16 @@ def test_native_target_experiment_update_decision_next_study_and_current_replay(
     norm = math.fsum(raw)
     assert report["posterior_weights"] == pytest.approx([v / norm for v in raw], abs=1e-12)
     mean = math.fsum(v * w for v, w in zip(values, report["posterior_weights"], strict=True))
+    # Oracle: the reported posterior means are the weighted means of the prior draws, and the
+    # linear target's mean is the same combination of them.
+    weighted = [
+        math.fsum(row[j] * w for row, w in zip(draws, report["posterior_weights"], strict=True))
+        for j in range(len(draws[0]))
+    ]
+    assert report["posterior_means"] == pytest.approx(weighted, abs=1e-9)
+    assert math.fsum(c * m for c, m in zip(coefficients, weighted, strict=True)) == pytest.approx(
+        mean, abs=1e-9
+    )
     ranking = updated.rank_next_samples(
         actions=[
             {"id": "hold", "intercept": 0.0, "coefficients": [0.0] * len(coefficients)},

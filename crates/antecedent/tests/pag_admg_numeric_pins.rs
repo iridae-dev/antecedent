@@ -393,7 +393,7 @@ fn admg_frontdoor_response_pins_against_distribution() {
                         "accepted={accepted} bayesian={bayesian} level={level}"
                     );
                     let mean = response_mean(result);
-                    let bound = if bayesian { 0.05 } else { 1e-9 };
+                    let bound = if bayesian { 0.015 } else { 1e-9 };
                     assert!(
                         (mean - dist_mean).abs() < bound,
                         "IR mean {mean} != dist {dist_mean} at do(T={level}) accepted={accepted} bayesian={bayesian}"
@@ -529,9 +529,9 @@ fn napkin_effect_with_a_free_variable_is_the_enumerated_effect() {
         }
         let result = builder.build().unwrap().run(&ctx).unwrap();
         if bayesian {
-            // Posterior mean of a Bayesian bootstrap over 2048 rows.
+            // Posterior mean of a Bayesian bootstrap over 2048 rows (observed error 6e-4).
             assert!(
-                (result.estimate().as_effect().unwrap().ate - truth).abs() < 0.05,
+                (result.estimate().as_effect().unwrap().ate - truth).abs() < 0.01,
                 "ate={}",
                 result.estimate().as_effect().unwrap().ate
             );
