@@ -13,12 +13,24 @@ use antecedent_io_core::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
+use antecedent_io_core::error::IoError;
 use antecedent_io_core::quantity_wire::DistributionMeaningWire;
 
 mod common;
 
 fn quantity(variable: &str, regime: &str) -> ScientificQuantity {
     ScientificQuantity { regime_id: regime.into(), ..common::quantity(variable) }
+}
+
+/// The message of a typed decision refusal; any other error kind fails the test.
+fn refusal_message<T: std::fmt::Debug>(result: Result<T, IoError>) -> String {
+    match result.expect_err("a typed refusal") {
+        IoError::Refused { code, message } => {
+            assert_eq!(code, "decision_contract_unsatisfied");
+            message
+        }
+        other => panic!("not a typed decision refusal: {other:?}"),
+    }
 }
 
 fn columns() -> Vec<ScientificQuantity> {
@@ -126,19 +138,23 @@ fn contract_artifact_round_trips_and_binds_its_identity() {
     edited.constraints[0].bound = 6.0;
     let resealed = DecisionContractArtifact::new(edited).unwrap();
     assert!(
-        DecisionContractArtifact::from_bytes(
+        refusal_message(DecisionContractArtifact::from_bytes(
             &resealed.to_bytes("decision-contract").unwrap(),
             artifact.identity()
-        )
-        .is_err()
+        ))
+        .starts_with("decision_artifact.identity_expected")
     );
     // Truncation and oversize refuse before decoding.
-    assert!(
+    assert!(matches!(
         DecisionContractArtifact::from_bytes(&bytes[..bytes.len() - 5], artifact.identity())
-            .is_err()
-    );
+            .unwrap_err(),
+        IoError::Io(_)
+    ));
     let huge = vec![0_u8; 9 * 1024 * 1024];
-    assert!(DecisionContractArtifact::from_bytes(&huge, artifact.identity()).is_err());
+    assert!(matches!(
+        DecisionContractArtifact::from_bytes(&huge, artifact.identity()).unwrap_err(),
+        IoError::TooLarge
+    ));
 }
 
 #[test]
@@ -158,13 +174,25 @@ fn result_replays_from_its_inputs_and_refuses_any_changed_number() {
     loaded.replay(&c, &s).unwrap();
 
     // Another contract or another source is not the stored decision.
-    assert!(DecisionResultArtifact::from_bytes(&bytes, "0".repeat(64).as_str(), &digest).is_err());
     assert!(
-        DecisionResultArtifact::from_bytes(&bytes, &identity, "0".repeat(64).as_str()).is_err()
+        refusal_message(DecisionResultArtifact::from_bytes(
+            &bytes,
+            "0".repeat(64).as_str(),
+            &digest
+        ))
+        .starts_with("decision_artifact.contract_expected")
+    );
+    assert!(
+        refusal_message(DecisionResultArtifact::from_bytes(
+            &bytes,
+            &identity,
+            "0".repeat(64).as_str()
+        ))
+        .starts_with("decision_artifact.source_expected")
     );
     let mut other = c.clone();
     other.actions[1].utility = UtilityExpr::Input(0);
-    assert!(loaded.replay(&other, &s).is_err());
+    assert!(refusal_message(loaded.replay(&other, &s)).starts_with("decision_artifact.replay_contract"));
 
     // A stored number edited and resealed under the same identities does not replay.
     let mut tampered = artifact.result().clone();
@@ -176,10 +204,18 @@ fn result_replays_from_its_inputs_and_refuses_any_changed_number() {
         &digest,
     )
     .unwrap();
-    assert!(reloaded.replay(&c, &s).is_err());
+    assert!(
+        refusal_message(reloaded.replay(&c, &s)).starts_with("decision_artifact.replay_mismatch")
+    );
     let mut flipped = artifact.result().clone();
     flipped.verdict = Verdict::UniquelyOptimal("risky".into());
-    assert!(DecisionResultArtifact::new(flipped, &s).replay(&c, &s).is_err());
+    assert!(
+        refusal_message(DecisionResultArtifact::new(flipped, &s).replay(&c, &s))
+            .starts_with("decision_artifact.replay_mismatch")
+    );
+    // The stored expected utility of the risky action is E[P Q] = (4 + 0 + 4 + 0) / 4.
+    assert!((artifact.result().actions[0].expected_utility - 2.0).abs() < 1e-12);
+    assert!((artifact.result().actions[1].expected_utility - 3.0).abs() < 1e-12);
 }
 
 #[test]

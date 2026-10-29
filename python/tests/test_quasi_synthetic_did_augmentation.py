@@ -85,6 +85,11 @@ def test_synthetic_did_exact_uniform_unit_assignment_uses_retained_analysis():
     assert fit.randomization_p_value == pytest.approx(
         sum(stat >= observed for _, stat in fit.randomization_statistics) / 4,
     )
+    # The treated unit carries the true effect 7 and every placebo unit is strictly smaller, so
+    # the exact p-value is the minimum attainable, 1 / 4 (not a tie-driven value).
+    assert observed == pytest.approx(7.0)
+    assert all(stat < 6.0 for unit, stat in fit.randomization_statistics if unit != "treated")
+    assert fit.randomization_p_value == pytest.approx(0.25)
     assert fit.uncertainty == "point_only_with_exact_unit_randomization_p_value_no_interval"
     assert "uniform_single_treated_unit_assignment" in fit.assumptions
     assert np.isnan(result.estimate.se_analytic)
@@ -179,3 +184,40 @@ def test_augmented_panel_did_uses_retained_prepare_analyze_and_artifact():
     assert section["uncertainty"] == "point_only_no_standard_error"
     with pytest.raises(CausalCompileError, match="overlap|strictly between"):
         require_success(antecedent.analyze({**data, "p": [0.0] + [0.5] * 5}, query=query))
+
+
+def test_augmented_panel_did_weights_controls_by_odds_and_normalises_the_hajek_means():
+    pre = np.array([10.0, 12.0, 13.0, 9.0, 15.0, 11.0])
+    post = np.array([16.0, 15.0, 19.0, 11.5, 18.0, 12.0])
+    treated = np.array([1.0, 1.0, 1.0, 0.0, 0.0, 0.0])
+    propensity = np.array([0.4, 0.5, 0.6, 0.2, 0.3, 0.5])
+    baseline = np.array([1.0, 2.0, 3.0, 1.5, 0.5, 2.5])
+    result = require_success(
+        analyze(
+            {
+                "id": [f"s{i}" for i in range(6)],
+                "pre": pre,
+                "post": post,
+                "treated": [bool(x) for x in treated],
+                "p": propensity,
+                "m0": baseline,
+            },
+            query=AugmentedPanelDiD("pre", "post", "id", "treated", "p", "m0", True),
+        )
+    ).panel_did
+    residual = post - pre - baseline
+    treated_weight = treated / treated.mean()
+    odds = propensity * (1.0 - treated) / (1.0 - propensity)
+    control_weight = odds / odds.mean()
+    expected = float(np.mean((treated_weight - control_weight) * residual))
+    # Doubly robust DiD with Hajek-normalised weights; the unnormalised and the unweighted
+    # readings are different numbers, so a constant-propensity fixture cannot pin this.
+    unnormalised = float(np.mean((treated / treated.mean() - odds) * residual))
+    unweighted = residual[:3].mean() - residual[3:].mean()
+    assert abs(expected - unnormalised) > 0.05 and abs(expected - unweighted) > 0.05
+    assert result.estimate == pytest.approx(expected, rel=1e-12)
+    assert result.effective_control_sample_size == pytest.approx(
+        odds.sum() ** 2 / (odds**2).sum(), rel=1e-12
+    )
+    assert result.propensity_min == pytest.approx(0.2)
+    assert result.propensity_max == pytest.approx(0.6)

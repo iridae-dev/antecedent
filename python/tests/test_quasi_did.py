@@ -101,7 +101,15 @@ def test_direct_panel_did_inherits_retained_interval_and_support_status():
     data = {"y": outcomes, "id": ids, "group": groups, "after": periods}
     query = PanelDifferenceInDifferences("y", "id", "group", "after")
     direct = require_success(antecedent.analyze(data, query=query)).panel_did
-    assert direct.interval_95 is not None
+    # Both groups carry the same cluster changes 0.1 * c, so the effect is exactly 2; the CR1
+    # variance is G / (G - 1) times the summed squared within-group deviations over n_g^2.
+    spread = sum((0.1 * (c - 14.5)) ** 2 for c in range(30))
+    expected_se = (2 * spread / 30**2 * 60 / 59) ** 0.5
+    assert direct.estimate == pytest.approx(2.0, abs=1e-12)
+    assert direct.standard_error == pytest.approx(expected_se, rel=1e-12)
+    assert direct.interval_95 == pytest.approx(
+        (2.0 - 1.959963984540054 * expected_se, 2.0 + 1.959963984540054 * expected_se), rel=1e-12
+    )
     assert direct.support_status == "licensed"
 
 
@@ -217,7 +225,13 @@ def test_supported_repeated_cross_section_did_has_exact_graphless_license():
     )
     result = require_success(antecedent.analyze(data, query=query, refute="none"))
     assert result.panel_did.estimate == pytest.approx(2.0)
-    assert result.panel_did.interval_95 is not None
+    # Four cells of 30 singleton clusters: G = 120, CR1 factor 120 / 119.
+    spread = sum((0.1 * (c - 14.5)) ** 2 for c in range(30))
+    expected_se = (4 * spread / 30**2 * 120 / 119) ** 0.5
+    assert result.panel_did.standard_error == pytest.approx(expected_se, rel=1e-12)
+    assert result.panel_did.interval_95 == pytest.approx(
+        (2.0 - 1.959963984540054 * expected_se, 2.0 + 1.959963984540054 * expected_se), rel=1e-12
+    )
     assert result.panel_did.support_status == "licensed"
     loaded = require_success(
         antecedent.load(bytes(result.export(artifact_id="licensed-repeated-did")))
@@ -425,7 +439,11 @@ def test_native_group_time_att_recovers_staggered_known_effects_and_reports_supp
     assert [effect.estimate for effect in result.effects] == pytest.approx([5.0] * 5)
     assert {(e.treated_subjects, e.control_subjects) for e in result.effects} == {(3, 4)}
     assert result.uncertainty == "cluster_robust_se_only_pointwise_cr1_unlicensed"
-    assert all(effect.standard_error >= 0.0 and effect.clusters >= 4 for effect in result.effects)
+    # Every unit in a group shares one change, so the cluster influences are all zero.
+    assert all(
+        effect.standard_error == pytest.approx(0.0, abs=1e-9) and effect.clusters >= 4
+        for effect in result.effects
+    )
     assert result.support_status == "unlicensed_point_utility"
     assert result.control_group == "never_treated_cohort_0"
     assert "cohort_specific_parallel_untreated_trends" in result.assumptions
@@ -521,7 +539,11 @@ def test_staggered_event_study_reports_cohort_event_time_and_descriptive_preperi
     )
     assert (2, -1) not in observed and (3, -1) not in observed
     assert result.uncertainty == "cluster_robust_se_only_pointwise_cr1_unlicensed"
-    assert all(effect.standard_error >= 0.0 and effect.clusters >= 4 for effect in result.effects)
+    # Every unit in a group shares one change, so the cluster influences are all zero.
+    assert all(
+        effect.standard_error == pytest.approx(0.0, abs=1e-9) and effect.clusters >= 4
+        for effect in result.effects
+    )
     assert result.support_status == "unlicensed_point_utility"
     assert "no_anticipation" in result.assumptions
     assert "pre_adoption_estimates_are_descriptive_diagnostics_not_a_test" in result.diagnostics

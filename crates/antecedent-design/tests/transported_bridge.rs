@@ -134,7 +134,9 @@ fn a_surrogate_validated_elsewhere_is_carried_when_the_diagram_leaves_the_relati
             .any(|item| **item == format!("transportability:{SURROGATE_TRANSPORT_PREMISE_ID}"))
     );
     // Still point-only: no interval is licensed for the transported bridge.
-    assert!(bridged.request_interval().is_err());
+    let interval = bridged.request_interval().unwrap_err();
+    assert_eq!(interval.code, "cell_not_licensed");
+    assert_eq!(interval.detail, "scientific_bridge.interval_not_licensed");
 }
 
 #[test]
@@ -204,4 +206,11 @@ fn a_surrogate_effect_outside_the_validated_range_is_refused_after_the_premise()
     let refusal = bridge("children", &[]).derive(&claim(9.0)).unwrap_err();
     assert_eq!(refusal.validate(), Ok(()));
     assert!(refusal.remedy.is_some());
+    assert_eq!(refusal.code, "bridge_mapping_not_licensed");
+    assert_eq!(refusal.detail, "scientific_bridge.outside_validated_range");
+    assert_eq!(refusal.expected.as_deref(), Some("[0, 1.5]"));
+    assert_eq!(refusal.supplied.as_deref(), Some("9"));
+    // The edge of the validated range is inside it: 0.06 + 0.92 * 1.5 = 1.44.
+    let edge = bridge("children", &[]).derive(&claim(1.5)).unwrap();
+    assert!((edge.value - 1.44).abs() < 1e-12, "{}", edge.value);
 }

@@ -166,9 +166,10 @@ fn a_refusal_agrees_with_what_refresh_refuses() {
     let report = prepared.staleness(&table(&wider), &policy(), &ctx()).unwrap();
     assert_eq!(report.recommendation, Recommendation::Refuse);
     assert!(exceeded(&report, FindingKind::SchemaChange));
+    let refused = rebind_estimate(&mut prepared, table(&wider), &ctx()).unwrap_err();
     assert!(
-        rebind_estimate(&mut prepared, table(&wider), &ctx()).is_err(),
-        "refresh refuses the same data"
+        refused.to_string().contains("refresh requires the same schema"),
+        "refresh refuses the same data for the same reason: {refused}"
     );
 }
 
@@ -183,7 +184,9 @@ fn an_exported_baseline_is_assessed_without_the_producer() {
     let consumed = assess_artifact_staleness(&bytes, &new, &policy(), &ctx()).unwrap();
     assert_eq!(consumed.identity, direct.identity);
     assert_eq!(consumed.recommendation, direct.recommendation);
-    assert!(assess_artifact_staleness(&bytes[..bytes.len() / 2], &new, &policy(), &ctx()).is_err());
+    let truncated =
+        assess_artifact_staleness(&bytes[..bytes.len() / 2], &new, &policy(), &ctx()).unwrap_err();
+    assert!(truncated.to_string().contains("truncated staleness baseline"), "{truncated}");
 }
 
 #[test]
@@ -200,7 +203,11 @@ fn reports_and_policies_render_as_json() {
             .to_string()
             .replace(",\"identity\"", ",\"ignored_identity\""),
     );
-    assert!(round.is_err(), "an unknown policy field is refused");
+    let unknown = round.unwrap_err();
+    assert!(
+        unknown.to_string().contains("staleness policy has no field ignored_identity"),
+        "an unknown policy field is refused by name: {unknown}"
+    );
     let mut object = staleness_policy_json(&policy());
     object.as_object_mut().unwrap().remove("identity");
     let parsed = staleness_policy_from_json(&object.to_string()).unwrap();

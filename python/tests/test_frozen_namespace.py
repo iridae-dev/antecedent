@@ -1085,9 +1085,11 @@ def test_attribute_paths_discovered_runs_end_to_end():
         outcome="y",
         execution=antecedent.Execution(seed=1),
     )
-    assert edges
-    assert result is not None
-    assert hasattr(result, "total_change")
+    # The generating graph is z -> t -> y with the direct z -> y edge; LiNGAM recovers all three.
+    assert set(edges) == {("z", "t"), ("z", "y"), ("t", "y")}
+    assert len(edges) == 3
+    assert np.isfinite(result.total_change)
+    assert result.total_change != 0.0
 
 
 def test_every_lazy_module_has_a_static_type_declaration():

@@ -1027,7 +1027,18 @@ fn a_redraw_refuses_a_draw_count_outside_its_range_and_oversized_data() {
         &ctx(),
     )
     .unwrap_err();
-    assert!(matches!(error, ObservationQueryArtifactError::Refused { .. }));
+    match error {
+        ObservationQueryArtifactError::Refused { refusals } => {
+            assert_eq!(refusals[0].code, "invalid_argument");
+            assert_eq!(refusals[0].detail, "observation_query.invalid_declaration");
+            assert!(
+                refusals[0].offending.as_deref().is_some_and(|text| text.contains("draw count")),
+                "{:?}",
+                refusals[0]
+            );
+        }
+        other => panic!("unexpected {other:?}"),
+    }
     let error = ObservationQueryArtifactWire::seal(
         Some(&spec),
         redraw_query(1, MAX_REDRAWS + 1),

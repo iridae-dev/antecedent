@@ -311,12 +311,16 @@ fn a_measured_interval_names_the_measured_cell_and_refuses_every_other_procedure
         prior_strength: 1.0,
         size_weighted: false,
     };
-    assert!(session.measured_interval(&weighting, "weighting", &ctx()).is_err());
+    let refusal = session.measured_interval(&weighting, "weighting", &ctx()).unwrap_err();
+    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.detail, "adaptive_inference.paradigm_not_licensed_for_cell");
     // The measured construction at a horizon below the measured range is outside its record.
     let measured =
         AdaptiveRequest::BayesianPosterior { look: 1, prior_alpha: 1.0, prior_beta: 1.0 };
     let refusal = session.measured_interval(&measured, "short", &ctx()).unwrap_err();
     assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.detail, "measured_inference.record_not_attesting");
+    assert!(refusal.message.contains("sample_size_outside_measured_range"), "{refusal:?}");
 }
 
 #[test]
@@ -384,7 +388,8 @@ fn a_group_sequential_repeated_interval_is_bound_to_its_record() {
     assert!(scalar.lower < scalar.point && scalar.point < scalar.upper);
     // A stagewise-adjusted reading and another arm pair are not the measured design.
     let reversed = AdaptiveRequest::GroupSequential { look: 2, control_arm: 1, treatment_arm: 0 };
-    assert!(session.measured_interval(&reversed, "gs-reversed", &ctx()).is_err());
+    let refusal = session.measured_interval(&reversed, "gs-reversed", &ctx()).unwrap_err();
+    assert_eq!(refusal.code, "cell_not_licensed");
 }
 
 #[test]

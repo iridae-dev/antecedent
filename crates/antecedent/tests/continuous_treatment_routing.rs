@@ -173,22 +173,13 @@ fn degenerate_one_level_treatment_does_not_take_continuous_overlap() {
         .build()
         .unwrap()
         .run(&ExecutionContext::for_tests(9));
-    match result {
-        Ok(result) => {
-            let names = overlap_names(&result);
-            assert!(
-                names.iter().all(|n| n != "overlap.continuous_support"),
-                "all-ones 0/1 coding must not be classified as continuous, got {names:?}"
-            );
-        }
-        Err(err) => {
-            let message = err.to_string();
-            assert!(
-                !message.contains("continuous_support"),
-                "one-level treatment must not be routed through continuous overlap, got {message}"
-            );
-        }
-    }
+    // An all-ones column never visits the control level 0: the contrast is refused as
+    // unpopulated (extrapolation), and it is not routed through continuous overlap.
+    let err = result.err().expect("a one-level treatment has no control arm");
+    assert_eq!(err.reason_code(), Some("arm_not_populated"), "{err}");
+    let message = err.to_string();
+    assert!(message.contains("treatment_levels.level_not_populated"), "{message}");
+    assert!(!message.contains("continuous_support"), "{message}");
 }
 
 #[test]
@@ -237,6 +228,9 @@ fn propensity_weighting_accepts_two_valued_unit_interval() {
         .unwrap()
         .run(&ExecutionContext::for_tests(9))
         .unwrap();
-    assert!(result.estimate().as_effect().unwrap().ate.is_finite());
+    // y = 1 + 2 t + 0.01 i: the treated (odd i) rows have mean index 40 and the control rows 39,
+    // so the weighted contrast is 2 + 0.01 * (40 - 39) = 2.01 (propensity ~ constant 1/2).
+    let ate = result.estimate().as_effect().unwrap().ate;
+    assert!((ate - 2.01).abs() < 1e-6, "{ate}");
     assert!(result.estimate().as_effect().unwrap().diagnostics.overlap_report.is_some());
 }
