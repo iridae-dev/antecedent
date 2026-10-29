@@ -91,7 +91,14 @@ fn a_mediator_cell_missing_from_an_arm_is_refused_not_extrapolated() {
         .with_outcome_model(FrontDoorOutcomeModel::Saturated);
     let query = AverageEffectQuery::with_levels(id(0), id(1), 0.0, 1.0);
     let problem = estimator.prepare(&data, &estimand, &query).unwrap();
-    assert!(
-        estimator.fit(&problem, &ExecutionContext::for_tests(3), AssumptionSet::new()).is_err()
+    let refused = estimator
+        .fit(&problem, &ExecutionContext::for_tests(3), AssumptionSet::new())
+        .err()
+        .expect("a mediator cell missing from an arm must be refused");
+    assert_eq!(
+        refused.to_string(),
+        "frontdoor.functional (saturated): a mediator value observed under a contrasted \
+         treatment level never occurs under another treatment level, so E[Y | M, T] has no data \
+         there; coarsen the mediator or request the arm-linear outcome model"
     );
 }

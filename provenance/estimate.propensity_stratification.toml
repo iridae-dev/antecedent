@@ -45,7 +45,7 @@ sha256 = "1585552de14ab7f02e5236dd6e0837c5302bbca3b32a49c6a205e950269b992e"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/stratification_reference.rs"
-sha256 = "09cfd479a45de20abf0da9bd135bca2bfb2635d64ffa2bd8436e93de48e3c9b8"
+sha256 = "4bb2ec4dc41e40eb09f8fcaf6eb77b250ad431ce032c484d13db31da91e230bd"
 
 [[method_review.artifacts]]
 role = "reference"

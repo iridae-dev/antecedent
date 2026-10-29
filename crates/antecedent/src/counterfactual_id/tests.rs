@@ -76,5 +76,12 @@ fn the_direct_sum_evaluation_agrees_with_the_compiled_one_and_the_formula() {
     // P(X = 0, M = 1) = 0 while P(M = 1 | X = 1) > 0: both evaluators decline.
     let gap = frontdoor_law(vec![0.2, 0.2, 0.0, 0.0, 0.1, 0.1, 0.2, 0.2]);
     assert!(direct_sum_numerators(&derivation, &law_wire(&gap).unwrap(), &levels).is_none());
-    assert!(evaluate_counterfactual_functional(&problem, &derivation, &gap, &ctx).is_err());
+    let refused = evaluate_counterfactual_functional(&problem, &derivation, &gap, &ctx)
+        .err()
+        .expect("a zero-mass conditioning event is declined");
+    assert_eq!(
+        refused.to_string(),
+        "invalid_argument: counterfactual_id.positivity_violation: a district term is undefined \
+         on this law: the value depends on how a conditional on a zero-mass event is extended"
+    );
 }

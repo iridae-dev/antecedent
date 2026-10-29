@@ -54,7 +54,7 @@ sha256 = "69bcc96b78d6b253500c2747782639a7ab2aed6ff5e735159e421f20109e2977"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-io/tests/sample_split_effect_reference.rs"
-sha256 = "bb9ef2a1217459737b80ef7b2492da4a3f78d2f244c2fbd1f061926c004bebdd"
+sha256 = "2916f6e2c13068de06bd3316a16435f0776d2092c7d189ffe953827ee3f3715f"
 
 [[method_review.artifacts]]
 role = "assertion"

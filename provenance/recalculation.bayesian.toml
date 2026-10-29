@@ -28,7 +28,7 @@ sha256 = "1eaa0be5ad131097080490291949c58a22d6a79bda04ac98985cef74f8003d9e"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/src/analysis/recalc_bayesian_summary_tests.rs"
-sha256 = "c7d8b88c82d43c4d6bd8302f8481ce32cdd7155f74beac8955adc8b024732128"
+sha256 = "e11f888c6d6ee1fd6756ef102c4cf095abd361a60b06f6e9d287733ab7cf3e67"
 
 [[method_review.artifacts]]
 role = "reference"

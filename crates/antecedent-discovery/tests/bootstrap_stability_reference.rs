@@ -102,7 +102,20 @@ fn tabulated_frequencies_equal_exact_counting_in_every_regime() {
             case["resamples"].as_array().unwrap().iter().map(structure).collect();
         let result = StructureStability::tabulate(reference, &resamples, requested);
         if !case["ok"].as_bool().unwrap() {
-            assert!(result.is_err(), "{name}: the tabulation must be refused");
+            let refused =
+                result.err().unwrap_or_else(|| panic!("{name}: the tabulation must be refused"));
+            let want = match name {
+                "just_under_half" | "one_success" => {
+                    "fewer than half of the requested resamples returned a structure; the \
+                     frequencies would describe the resamples that happened to succeed"
+                }
+                "none_requested" | "more_than_requested" => {
+                    "a stability tabulation needs at least one requested resample and no more \
+                     structures than resamples"
+                }
+                other => panic!("{other}: no expected refusal recorded"),
+            };
+            assert_eq!(refused.to_string(), want, "{name}");
             continue;
         }
         let table = result.unwrap_or_else(|e| panic!("{name}: {e}"));

@@ -44,7 +44,7 @@ sha256 = "3f5894911387875a062ef06469122a0b29b2df75c9ebc9203da37f661aa6ac17"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/period_refresh_reference.rs"
-sha256 = "c1c6cc11dc4ea4155509b509e49a71fa3f83ef7385bc41410402d524cc946f22"
+sha256 = "d11ea67d76f17d7bbeb9ad84bf71ac0fb55bdd0371a0ffac80c1609e2942f5f3"
 
 [[method_review.artifacts]]
 role = "reference"

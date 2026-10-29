@@ -103,13 +103,20 @@ fn temporal_facade_candidate_replay_refuses_resealed_panel_estimator_and_seed_mu
             _ => changed.config.seed += 1,
         }
         changed.seal = changed.compute_seal().unwrap();
-        assert!(
-            TemporalIntervalArtifactWire::consume(
-                &changed.export().unwrap(),
-                &TemporalIntervalConsumeLimits::default(),
-                &ExecutionContext::for_tests(901),
-            )
-            .is_err()
-        );
+        let refused = TemporalIntervalArtifactWire::consume(
+            &changed.export().unwrap(),
+            &TemporalIntervalConsumeLimits::default(),
+            &ExecutionContext::for_tests(901),
+        )
+        .err()
+        .unwrap_or_else(|| panic!("field {field}: the resealed mutation must be refused"));
+        // Re-ordering the time ids is caught by the panel's own ordering check before replay.
+        let want = if field == 2 {
+            "reason=route_not_supported: temporal_interval.unknown_units: unit 0 has time ids \
+             that are not strictly ordered"
+        } else {
+            "convert error: temporal_interval_artifact.interval_replay"
+        };
+        assert_eq!(refused.to_string(), want, "field {field}");
     }
 }

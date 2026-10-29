@@ -237,9 +237,15 @@ fn a_declared_target_population_is_refused_and_extra_horizons_read_the_first() {
 
     let mut treated = base.clone();
     treated.target_population = antecedent_core::TargetPopulation::Treated;
-    assert!(
-        estimator.estimate(&data, &estimand_for(&treated), &treated, &ctx).is_err(),
-        "a declared target population was fitted as if it were all observed windows"
+    let refused = estimator
+        .estimate(&data, &estimand_for(&treated), &treated, &ctx)
+        .err()
+        .expect("a declared target population was fitted as if it were all observed windows");
+    assert!(matches!(refused, antecedent_estimate::EstimationError::TargetPopulation));
+    assert_eq!(
+        refused.to_string(),
+        "reason=population_not_estimable: only TargetPopulation::AllObserved is supported on \
+         this estimator path"
     );
 
     // Several horizons on one query are fitted at the first horizon only (the facade slices

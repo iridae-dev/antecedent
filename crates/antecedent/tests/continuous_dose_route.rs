@@ -74,13 +74,16 @@ fn retained_grid_recovers_linear_truth_and_artifact_identity() {
     );
     let mut fabricated = body.clone();
     fabricated.interval_lower = Some(0.0);
-    assert!(
+    assert_eq!(
         antecedent_io::encode_analysis_result_artifact(
             &fabricated,
             header.variable_names,
             "fabricated"
         )
-        .is_err()
+        .err()
+        .expect("an interval fabricated on a point-only dose-response is refused")
+        .to_string(),
+        "convert error: continuous-dose result must match its query and uncertainty"
     );
     let refreshed = rebind_estimate(&mut prepared, data, &ctx).unwrap();
     assert_eq!(result.continuous_dose_response(), refreshed.continuous_dose_response());
@@ -96,7 +99,11 @@ fn retained_grid_refuses_missing_support_and_invalid_density() {
         .unwrap();
     let ctx = ExecutionContext::for_tests(614);
     let prepared = study.prepare(&ctx).unwrap();
-    assert!(prepared.estimate(&data, &ctx).is_err());
+    assert_eq!(
+        prepared.estimate(&data, &ctx).err().expect("an unsupported dose is refused").to_string(),
+        "dose-response support failure: stratum \"control\" at dose 4 has 0 local rows, below \
+         min_local_support=3"
+    );
     let mut bad_density = [0.5; 10];
     bad_density[0] = 0.0;
     let (data, query) = fixture();
@@ -109,7 +116,14 @@ fn retained_grid_refuses_missing_support_and_invalid_density() {
     let study =
         Study::tabular(data).query(CausalQuery::ContinuousDoseResponse(query)).build().unwrap();
     let prepared = study.prepare(&ctx).unwrap();
-    assert!(prepared.estimate(&invalid, &ctx).is_err());
+    assert_eq!(
+        prepared
+            .estimate(&invalid, &ctx)
+            .err()
+            .expect("a zero dose density is refused")
+            .to_string(),
+        "continuous-dose positivity failure: supplied dose densities must be finite and positive"
+    );
 }
 
 /// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.

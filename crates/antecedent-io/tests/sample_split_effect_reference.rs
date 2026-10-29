@@ -44,9 +44,15 @@ fn adjusted_effect_equals_exact_least_squares_including_offsets_and_near_colline
         .unwrap();
         let adjustment: Vec<u32> = (0..zs.len() as u32).map(|j| j + 2).collect();
         if case["singular"].as_bool().unwrap() {
-            assert!(
-                adjusted_effect(&frame, 1, 0, &adjustment, 0.95).is_err(),
-                "{name}: a design that is singular in exact arithmetic must be refused"
+            let refused =
+                adjusted_effect(&frame, 1, 0, &adjustment, 0.95).err().unwrap_or_else(|| {
+                    panic!("{name}: a design that is singular in exact arithmetic must be refused")
+                });
+            assert_eq!(
+                refused.to_string(),
+                "reason=cell_not_licensed: split_effect.design_singular: the adjusted regression \
+                 design is singular",
+                "{name}"
             );
             continue;
         }

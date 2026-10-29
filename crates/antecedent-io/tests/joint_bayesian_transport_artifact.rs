@@ -211,17 +211,34 @@ fn posterior_hydration_refuses_changed_meaning_and_independent_marginals() {
     // The consumer expects a different target population: refused.
     let mut wrong = identity(&fit, DrawAlignment::Joint);
     wrong.quantities[2].population_id = "another_target".into();
-    assert!(DistributionArtifact::from_bytes(&bytes, &wrong).is_err());
+    let mismatch = "reason=quantity_semantics_mismatch: aligned_joint_draws.identity_expected: \
+                    distribution identity differs from expected causal contract";
+    assert_eq!(
+        DistributionArtifact::from_bytes(&bytes, &wrong).err().expect("refused").to_string(),
+        mismatch
+    );
     // The consumer expects a different model contract: refused.
     let mut other_model = identity(&fit, DrawAlignment::Joint);
     other_model.causal_contract_id = "another-model".into();
-    assert!(DistributionArtifact::from_bytes(&bytes, &other_model).is_err());
+    assert_eq!(
+        DistributionArtifact::from_bytes(&bytes, &other_model).err().expect("refused").to_string(),
+        mismatch
+    );
     // The same draws labelled as independent marginals carry no covariance.
     let marginal = artifact(&fit, DrawAlignment::IndependentMarginals);
-    assert!(marginal.covariance(0, 2).is_err());
-    assert!(marginal.joint_expectation(0, 2, |s, t| s * t).is_err());
+    let not_joint = "reason=joint_law_required: aligned_joint_draws.marginals_not_joint: independent \
+                     marginals do not define covariance or nonlinear joint expectations";
+    assert_eq!(marginal.covariance(0, 2).err().expect("refused").to_string(), not_joint);
+    assert_eq!(
+        marginal.joint_expectation(0, 2, |s, t| s * t).err().expect("refused").to_string(),
+        not_joint
+    );
     let bytes = marginal.to_bytes("marginals").unwrap();
-    assert!(
-        DistributionArtifact::from_bytes(&bytes, &identity(&fit, DrawAlignment::Joint)).is_err()
+    assert_eq!(
+        DistributionArtifact::from_bytes(&bytes, &identity(&fit, DrawAlignment::Joint))
+            .err()
+            .expect("independent marginals do not satisfy a joint expectation")
+            .to_string(),
+        mismatch
     );
 }

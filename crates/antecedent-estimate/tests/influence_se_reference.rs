@@ -92,11 +92,22 @@ fn every_declared_dependence_matches_the_exact_variance() {
     let two = |s: &mut antecedent_estimate::InferenceSpec| {
         s.multiway_ids = Some(vec![ints(&data["clusters"]), ints(&data["dim1"])]);
     };
-    assert!(se(AnalyticSeKind::Multiway, &two).is_err());
+    let negative = se(AnalyticSeKind::Multiway, &two).err().expect("negative variance is refused");
+    assert_eq!(
+        negative.to_string(),
+        "non-positive variance: multiway inclusion-exclusion meat is materially negative"
+    );
     for kind in [AnalyticSeKind::Hc2, AnalyticSeKind::Hc3] {
+        let refused = se(kind, &none)
+            .err()
+            .unwrap_or_else(|| panic!("{kind:?} has no leverage correction for influence values"));
+        assert_eq!(refused.reason_code(), Some("estimator_inference_mismatch"), "{kind:?}");
         assert!(
-            se(kind, &none).is_err(),
-            "{kind:?} has no leverage correction for influence values"
+            refused.to_string().starts_with(
+                "Hc2/Hc3 leverage corrections are not implemented for influence-function SEs; \
+                 use Hc0 ("
+            ),
+            "{kind:?}: {refused}"
         );
     }
 }
@@ -114,6 +125,15 @@ fn a_dependence_declared_without_its_labels_is_refused_not_ignored() {
         AnalyticSeKind::PanelClusterHac { lag: 1 },
     ] {
         bare.se_kind = kind;
-        assert!(influence_se_under(&bare, &psi).is_err(), "{kind:?}");
+        let refused = influence_se_under(&bare, &psi)
+            .err()
+            .unwrap_or_else(|| panic!("{kind:?}: a dependence without labels must be refused"));
+        assert_eq!(refused.reason_code(), Some("required_option_missing"), "{kind:?}");
+        let want = if matches!(kind, AnalyticSeKind::Multiway) {
+            "AnalyticSeKind::Multiway requires estimator.multiway_ids"
+        } else {
+            "AnalyticSeKind::Cluster/PanelClusterHac requires estimator.cluster_ids"
+        };
+        assert_eq!(refused.to_string(), want, "{kind:?}");
     }
 }

@@ -6,7 +6,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::{PosteriorSummarySpec, summarize_issued_values};
+use super::{PosteriorSummarySpec, RecalcRequestCode, RecalcRunError, summarize_issued_values};
 use serde_json::Value;
 
 fn floats(v: &Value) -> Vec<f64> {
@@ -57,11 +57,22 @@ fn projections_equal_the_exact_rational_mean_sd_type7_quantiles_and_strict_propo
 #[test]
 fn projections_refuse_too_few_or_non_finite_draws_and_invalid_summaries() {
     let spec = PosteriorSummarySpec::default();
-    assert!(summarize_issued_values(&[1.0], spec).is_err());
-    assert!(summarize_issued_values(&[1.0, f64::NAN], spec).is_err());
-    assert!(summarize_issued_values(&[1.0, f64::INFINITY], spec).is_err());
+    for draws in [&[1.0][..], &[1.0, f64::NAN][..], &[1.0, f64::INFINITY][..]] {
+        let refused = summarize_issued_values(draws, spec).err().expect("refused");
+        assert!(matches!(
+            refused,
+            RecalcRunError::Request(RecalcRequestCode::BayesianEffectUnavailable)
+        ));
+        assert_eq!(refused.to_string(), "recalc.bayesian_effect_unavailable", "{draws:?}");
+    }
     for (lo, hi) in [(0.0, 0.9), (0.1, 1.0), (0.6, 0.4), (0.5, 0.5), (f64::NAN, 0.9)] {
-        let bad = PosteriorSummarySpec { lower_probability: lo, upper_probability: hi, threshold: 0.0 };
-        assert!(bad.validate().is_err(), "{lo} {hi}");
+        let bad =
+            PosteriorSummarySpec { lower_probability: lo, upper_probability: hi, threshold: 0.0 };
+        let refused = bad.validate().err().unwrap_or_else(|| panic!("{lo} {hi} must be refused"));
+        assert!(matches!(
+            refused,
+            RecalcRunError::Request(RecalcRequestCode::BayesianInvalidSummary)
+        ));
+        assert_eq!(refused.to_string(), "recalc.bayesian_invalid_summary", "{lo} {hi}");
     }
 }

@@ -52,7 +52,7 @@ sha256 = "b37f3fa627d2cd873724c28b0053550d37642d242adab39729e35186f746ecbd"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/tests/bootstrap_stability_reference.rs"
-sha256 = "f0901f832d1d316086e02b3ec58029311ca15f8e2c77455088e48da05e6c2054"
+sha256 = "08a867ac1202d79f82ba8f261a52e0a1e07fcfa7f86fa6413ad7e1284335f42a"
 
 [[method_review.artifacts]]
 role = "reference"

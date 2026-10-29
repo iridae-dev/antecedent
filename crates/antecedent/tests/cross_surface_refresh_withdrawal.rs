@@ -131,9 +131,16 @@ fn refreshed_summary_reloads_and_withdrawal_drops_permission() {
         assert_eq!(loaded.variance.to_bits(), variance.to_bits());
         let historical = replay_decision(&artifact.bytes, Some(&artifact.identity), &ctx).unwrap();
         let verification = workflow.withdraw_cluster().unwrap();
-        assert!(
+        let withdrawn_load =
             load_decision(&artifact.bytes, Some(&artifact.identity), workflow.authority(), &ctx)
-                .is_err()
+                .err()
+                .expect("a withdrawn cluster refuses to load the decision");
+        let withdrawn_load = withdrawn_load.to_string();
+        assert!(
+            withdrawn_load.starts_with("evidence_ledger.result_not_valid: result ")
+                && withdrawn_load
+                    .ends_with(" is recompute: its evidence changed after it was registered"),
+            "{withdrawn_load}"
         );
         assert_eq!(
             replay_decision(&artifact.bytes, Some(&artifact.identity), &ctx).unwrap(),
@@ -148,7 +155,15 @@ fn refreshed_summary_reloads_and_withdrawal_drops_permission() {
         let decision = consumed.revalidation().claim("decision").unwrap();
         assert_eq!(decision.class, Revalidation::Withdrawn);
         assert_eq!(decision.authority, PriorAuthority::NotRetained);
-        assert!(consumed.require_valid("decision").is_err());
+        assert_eq!(
+            consumed
+                .require_valid("decision")
+                .err()
+                .expect("a withdrawn claim is not valid")
+                .to_string(),
+            "reason=claim_license_withdrawn: composition_verification.input_retired: refused at \
+             stage `revalidate`; claim `decision`; origin cluster_trial; license lost: retired"
+        );
         assert_eq!(
             consumed.revalidation().claim("temporal_drift").unwrap().class,
             Revalidation::StillValid

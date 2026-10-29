@@ -180,12 +180,23 @@ fn a_refused_period_leaves_the_state_unchanged() {
     let before = refresh.summary().unwrap();
     let events = refresh.events().len();
     // Overlap, a reused snapshot and a wrong-length series are refused.
-    for (win, values) in [
-        (window(10, 15, "snap_b"), vec![1.0; 5]),
-        (window(12, 15, "snap_a"), vec![1.0; 3]),
-        (window(12, 15, "snap_c"), vec![1.0; 2]),
+    let overlap = "invalid state event: period_refresh.overlap: the period overlaps the summarized \
+                   one or reuses its snapshot, so the same observations would enter twice; supply \
+                   a later period of a new snapshot";
+    for (win, values, message) in [
+        (window(10, 15, "snap_b"), vec![1.0; 5], overlap),
+        (window(12, 15, "snap_a"), vec![1.0; 3], overlap),
+        (
+            window(12, 15, "snap_c"),
+            vec![1.0; 2],
+            "invalid state event: one value per time index of the period",
+        ),
     ] {
-        assert!(refresh.refresh(&win, cadence(), "law_1", &values).is_err());
+        let refused = refresh
+            .refresh(&win, cadence(), "law_1", &values)
+            .err()
+            .expect("an overlapping, reused or mis-sized period is refused");
+        assert_eq!(refused.to_string(), message);
         assert_eq!(refresh.events().len(), events);
         assert_eq!(refresh.fit().rows(), before_rows.as_slice());
         let after = refresh.summary().unwrap();
@@ -196,7 +207,11 @@ fn a_refused_period_leaves_the_state_unchanged() {
     let spec = PeriodRefreshSpec { standing: MechanismStanding::Undeclared, ..spec };
     let mut restarting =
         PeriodRefresh::start(&spec, &window(0, 12, "snap_a"), &prior, &series).unwrap();
-    assert!(restarting.refresh(&window(12, 13, "snap_b"), cadence(), "law_1", &[1.0]).is_err());
+    let refused = restarting
+        .refresh(&window(12, 13, "snap_b"), cadence(), "law_1", &[1.0])
+        .err()
+        .expect("a restart that leaves no row is refused");
+    assert_eq!(refused.to_string(), "invalid state event: block holds no observations");
     assert_eq!(restarting.fit().rows(), before_rows.as_slice());
     assert_eq!(restarting.events().len(), 1);
 }

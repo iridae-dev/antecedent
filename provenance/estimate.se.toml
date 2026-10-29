@@ -52,7 +52,7 @@ sha256 = "9607cb41faa47dd68e68101cc508121aeabcced372990b2c31946e62f4e977e2"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/influence_se_reference.rs"
-sha256 = "7143819a354c78185a55af23b9651f2126a909b922ce4088d2a5d1c85765791d"
+sha256 = "0e36ced1b84c69272f1f0dc1c7049c93b65aa47d1bd22e1342c0605ee8797319"
 
 [[method_review.artifacts]]
 role = "reference"

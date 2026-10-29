@@ -89,10 +89,9 @@ fn pooled_effect_and_standard_error_match_the_reference() {
                 AssumptionSet::new(),
             );
             let want = &case["targets"][key];
-            if want.is_null() {
-                assert!(got.is_err(), "{name} {key}: expected a refusal");
-                continue;
-            }
+            // Every retained target is estimable (no fixture case records a refusal), so a null
+            // reference would silently skip the comparison; it must not.
+            assert!(!want.is_null(), "{name} {key}: the reference holds no value for this target");
             let got = got.unwrap_or_else(|e| panic!("{name} {key}: {e:?}"));
             close(got.ate, want["ate"].as_f64().unwrap(), 1e-8, &format!("{name} {key} effect"));
             close(got.se_analytic(), want["se"].as_f64().unwrap(), 1e-6, &format!("{name} {key} se"));

@@ -407,9 +407,17 @@ fn graph_posterior_conditional_effect_body() {
                 );
 
                 // A different semantic schema is refused by refresh.
-                assert!(
-                    rebind_estimate(&mut prepared, reordered_data(), &ctx).is_err(),
-                    "{coordinate}: reordered columns must be refused"
+                assert_eq!(
+                    rebind_estimate(&mut prepared, reordered_data(), &ctx)
+                        .err()
+                        .unwrap_or_else(|| {
+                            panic!("{coordinate}: reordered columns must be refused")
+                        })
+                        .to_string(),
+                    "prepared analysis refresh requires the same schema (variable names, types, \
+                     and order) as prepare-time data; next attempt: supply data with the \
+                     prepare-time schema, or prepare the study again on the new schema",
+                    "{coordinate}"
                 );
 
                 let artifact = prepared

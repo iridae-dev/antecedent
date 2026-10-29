@@ -63,7 +63,7 @@ sha256 = "a06b88c72aa10b94ed926e30d8aee6be49ee4dbc494db9d442525cadab8d7923"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/program_expression_reference.rs"
-sha256 = "f420ab60cf4d25aad172d839bc41c76063ac176739f963b01bffa26b37503bc3"
+sha256 = "db2d4e85051775f94c04fa7c756ba5fc1ab4f2ff0d8a08754f9e3356188aa482"
 
 [[method_review.artifacts]]
 role = "reference"

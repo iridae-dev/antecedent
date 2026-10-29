@@ -71,9 +71,27 @@ fn the_executor_agrees_with_an_independent_interpreter_on_awkward_inputs() {
                     finite += 1;
                 }
                 None => {
+                    let error = got.err().unwrap_or_else(|| {
+                        panic!(
+                            "{} on {input:?}: reference refuses but a value came back",
+                            case["expr"]
+                        )
+                    });
+                    // The program is the dense node 2 at row 0; the non-finite value is NaN or
+                    // an infinity, exactly where the reference holds no finite value.
+                    let text = error.to_string();
+                    let value = text
+                        .strip_prefix(
+                            "numerical error: intervention program for dense node 2 is not finite \
+                             at row 0 (",
+                        )
+                        .and_then(|rest| {
+                            rest.strip_suffix("); guard a division or restrict the clip bounds")
+                        })
+                        .unwrap_or_else(|| panic!("{} on {input:?}: {text}", case["expr"]));
                     assert!(
-                        got.is_err(),
-                        "{} on {input:?}: reference refuses but got {got:?}",
+                        ["NaN", "inf", "-inf"].contains(&value),
+                        "{} on {input:?}: {text}",
                         case["expr"]
                     );
                     refused += 1;
