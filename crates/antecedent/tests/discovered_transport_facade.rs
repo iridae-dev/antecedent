@@ -536,7 +536,8 @@ fn an_identified_pag_class_is_estimated_and_covers_the_enumerated_truth() {
     let estimate =
         estimate_discovered_transport(&report, &effect_query(), &evidence, &ctx()).unwrap();
     let answer = estimate.answer();
-    let tolerance = 0.03;
+    // Observed error <= 0.0093; the untransported (source) answer is 0.02 to 0.035 away.
+    let tolerance = 0.014;
     for (level, truth) in answer.levels.iter().zip([target_truth(0.0), target_truth(1.0)]) {
         assert!(
             level.low - tolerance <= truth && truth <= level.high + tolerance,
@@ -695,7 +696,8 @@ fn a_lagged_class_is_estimated_at_the_declared_horizon_against_the_stationary_tr
     // The target chain's stationary law: pi = 0.6 - 0.4 pi.
     let pi = 0.6 / 1.4;
     let truth = |a: f64| (1.0 - pi) * p_y_lagged(a, 0.0) + pi * p_y_lagged(a, 1.0);
-    let tolerance = 0.03;
+    // Observed error <= 0.0025; the untransported answer is 0.009 to 0.011 away.
+    let tolerance = 0.006;
     for (level, expected) in estimate.answer().levels.iter().zip([truth(0.0), truth(1.0)]) {
         assert!(
             level.low - tolerance <= expected && expected <= level.high + tolerance,
@@ -793,7 +795,7 @@ fn strong_effects_table(rows: usize, target: bool, seed: u64) -> TabularData {
     let mut columns = vec![Vec::with_capacity(rows); 5];
     for _ in 0..rows {
         let (x, c, d) = (rng.bernoulli(0.5), rng.bernoulli(0.5), rng.bernoulli(0.5));
-        let pz = if target { 0.9 - 0.4 * c - 0.4 * d } else { 0.1 + 0.4 * c + 0.4 * d };
+        let pz = if target { 0.95 - 0.4 * c - 0.4 * d } else { 0.1 + 0.4 * c + 0.4 * d };
         let z = rng.bernoulli(pz);
         let y = rng.bernoulli(0.05 + 0.4 * x + 0.35 * z + 0.1 * x * z);
         for (column, value) in columns.iter_mut().zip([x, y, z, c, d]) {
@@ -832,11 +834,12 @@ fn fci_on_simulated_rows_then_transport_recovers_the_enumerated_target_effect() 
         &ctx(),
     )
     .unwrap();
-    // E*[y | do(x = a)] = 0.05 + 0.4 a + (0.35 + 0.1 a) E*[z], with E*[z] = 0.9 - 0.4 = 0.5.
-    let truth = |a: f64| 0.05 + 0.4 * a + (0.35 + 0.1 * a) * 0.5;
+    // E*[y | do(x = a)] = 0.05 + 0.4 a + (0.35 + 0.1 a) E*[z], with E*[z] = 0.95 - 0.4 = 0.55 (the source has 0.5, so an
+    // untransported answer is off by 0.05 * (0.35 + 0.1 a)).
+    let truth = |a: f64| 0.05 + 0.4 * a + (0.35 + 0.1 * a) * 0.55;
     for (level, expected) in estimate.answer().levels.iter().zip([truth(0.0), truth(1.0)]) {
         assert!(
-            level.low - 0.02 <= expected && expected <= level.high + 0.02,
+            level.low - 0.01 <= expected && expected <= level.high + 0.01,
             "{level:?} vs {expected}"
         );
     }

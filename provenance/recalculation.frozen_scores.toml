@@ -50,4 +50,4 @@ sha256 = "ab329e389d8aeca8b7ebf39ff944b7b0b97476b9483354d33327d4d55ef432fc"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/recalc_cell.rs"
-sha256 = "0f32b6f215865ae1c50f6c0d5971d24d29f287e3aee2878bae2de7c0d2a137b7"
+sha256 = "5ebed601453eae4966a96f4f67af7bdfb816997c4af30c37af7bd7dbd63208d5"

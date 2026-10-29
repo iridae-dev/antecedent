@@ -60,8 +60,11 @@ fn a_summary_exports_and_a_consumer_serves_the_same_summary() {
     assert_eq!(consumed.retention, PERIOD_REFRESH_SUMMARY_RETENTION);
     assert_eq!(consumed.n, 5);
     let beta = consumed.beta.as_ref().unwrap();
-    assert!((beta[1] - 2.0).abs() < 0.1 && (beta[0] - 1.0).abs() < 0.2, "{beta:?}");
-    assert!(consumed.residual_variance.unwrap() > 0.0);
+    // By hand: Sxy = 19.9 and Sxx = 10 about the means (2, 5.02) give slope 1.99 and intercept
+    // 1.04; the residuals (0.06, -0.13, 0.18, -0.21, 0.10) have squares summing to 0.107, so the
+    // residual variance on 3 degrees of freedom is 0.107 / 3.
+    assert!((beta[1] - 1.99).abs() < 1e-12 && (beta[0] - 1.04).abs() < 1e-12, "{beta:?}");
+    assert!((consumed.residual_variance.unwrap() - 0.107 / 3.0).abs() < 1e-12);
 }
 
 #[test]

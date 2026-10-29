@@ -230,7 +230,13 @@ fn cell_first_run_counts_the_cell_fits_and_matches_an_independent_fit() {
     close(first.law.ate, oracle.0, "interaction vs independent fit");
     close(first.law.std_error, oracle.1, "se vs independent fit");
     assert_eq!(session.score_table().unwrap(), &oracle.2, "the frozen scores are the fit's");
-    assert!((first.law.ate - 1.5).abs() < 0.4, "recovers the interaction: {}", first.law.ate);
+    // The generating interaction is 1.5 (observed error 0.5 se); the old 0.4 band was 13 se.
+    assert!(
+        (first.law.ate - 1.5).abs() <= 3.5 * first.law.std_error,
+        "recovers the interaction: {} +- {}",
+        first.law.ate,
+        first.law.std_error
+    );
     close(first.decision.net_benefit, 2.0 * first.law.ate - 0.5, "decision rule");
     assert_eq!(first.decision.treat, first.decision.net_benefit > 0.0);
 

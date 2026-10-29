@@ -435,7 +435,11 @@ fn a_changed_input_at_unchanged_shape_changes_the_registered_result() {
         &pool(),
     )
     .unwrap();
-    assert!(second.variance > first.variance);
+    // Precisions: 1 + 1/1.5 for the first pool (variance 0.6), 1 + 1/3 for the second
+    // (variance 0.75, mean (1 + 2/3) / (4/3) = 1.25).
+    near(first.variance, 0.6);
+    near(second.variance, 0.75);
+    near(second.estimate, 1.25);
     assert_ne!(first.result, second.result);
 }
 

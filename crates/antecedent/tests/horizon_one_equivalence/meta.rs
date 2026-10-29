@@ -325,6 +325,26 @@ fn horizon_one_refutation_gives_identical_reports_in_both_quadrants_and_refuses_
             "the quadrant is part of the target"
         );
     }
+    // Independent of the equivalence: the generating world is E[Y | do(T = l)] = 1 + 0.5 l
+    // (E[X] = 0), the original estimate recovers it (observed error 0.015), every shared
+    // refuter passes, and the placebo-treatment world is flat in the level while the real one
+    // rises by 1.0 (observed spread 0.02).
+    for run in [&static_run, &temporal_run] {
+        for kind in shared {
+            let report = run.reports.iter().find(|report| report.kind == kind).unwrap();
+            assert!(report.passed && report.informative, "{kind:?}");
+            for (value, level) in report.original.iter().zip(LEVELS) {
+                assert!((value - (1.0 + 0.5 * level)).abs() < 0.05, "{kind:?}: {value} at {level}");
+            }
+        }
+        let placebo = run
+            .reports
+            .iter()
+            .find(|report| report.kind == TargetRefuterKind::PlaceboTreatment)
+            .unwrap();
+        let spread = placebo.refuted[2] - placebo.refuted[0];
+        assert!(spread.abs() < 0.1, "a shuffled treatment has no effect: spread {spread}");
+    }
     assert!(static_run.reports.iter().all(|report| report.kind != TargetRefuterKind::PreTrend));
     let refused: Vec<TargetRefuterKind> = temporal_run.refused.iter().map(|r| r.kind).collect();
     assert!(refused.contains(&TargetRefuterKind::PreTrend), "{refused:?}");
@@ -559,11 +579,33 @@ fn horizon_one_period_refresh_is_the_static_least_squares_refresh_with_a_standin
     let mut static_fit =
         OlsRefresh::from_rows("series", 2, pair_rows(&values, 1..REFRESH_SPLIT)).unwrap();
     assert_same_fit(temporal.fit(), &static_fit, "first period");
+    // Independent of both: the simple-regression normal equations on the pairs (v_{t-1}, v_t).
+    let simple_ols = |targets: std::ops::Range<usize>| -> [f64; 2] {
+        let n = targets.len() as f64;
+        let (mut sx, mut sy, mut sxx, mut sxy) = (0.0, 0.0, 0.0, 0.0);
+        for i in targets {
+            let (x, y) = (values[i - 1], values[i]);
+            sx += x;
+            sy += y;
+            sxx += x * x;
+            sxy += x * y;
+        }
+        let slope = (n * sxy - sx * sy) / (n * sxx - sx * sx);
+        [(sy - slope * sx) / n, slope]
+    };
+    let check_beta = |fit: &OlsRefresh, want: [f64; 2], label: &str| {
+        let beta = fit.snapshot().beta.as_ref().unwrap().to_vec();
+        for (got, want) in beta.iter().zip(want) {
+            assert!((got - want).abs() < 1e-9, "{label}: {got} vs {want}");
+        }
+    };
+    check_beta(temporal.fit(), simple_ols(1..REFRESH_SPLIT), "first period closed form");
 
     let outcome = temporal.refresh(&second, cadence(), "law_1", &values[REFRESH_SPLIT..]).unwrap();
     assert_eq!(outcome, PeriodRefreshOutcome::Extended { contiguous: true });
     static_fit.append_window("series", &pair_rows(&values, REFRESH_SPLIT..REFRESH_ROWS)).unwrap();
     assert_same_fit(temporal.fit(), &static_fit, "extended");
+    check_beta(temporal.fit(), simple_ols(1..REFRESH_ROWS), "extended closed form");
     assert_eq!(temporal.fit().recomputes(), 0);
     assert_eq!(static_fit.recomputes(), 0);
     temporal.check_against_fresh().unwrap();
@@ -583,6 +625,11 @@ fn horizon_one_period_refresh_is_the_static_least_squares_refresh_with_a_standin
         OlsRefresh::from_rows("series", 2, pair_rows(&values, REFRESH_SPLIT + 1..REFRESH_ROWS))
             .unwrap();
     assert_same_fit(undeclared.fit(), &new_period_alone, "restarted");
+    check_beta(
+        undeclared.fit(),
+        simple_ols(REFRESH_SPLIT + 1..REFRESH_ROWS),
+        "restarted closed form",
+    );
     let pooled = static_fit.snapshot();
     let restarted_fit = undeclared.fit().snapshot();
     assert_ne!(pooled.n, restarted_fit.n, "the restart forgets the first period");
@@ -674,6 +721,13 @@ fn horizon_one_finite_program_search_ranks_exactly_as_the_static_search() {
         temporal_search.execute(ProgramSearchSource::Means(&temporal_source), &ctx()).unwrap();
 
     assert_eq!(static_result.rows, temporal_result.rows);
+    // Hand values: the objective is the mean, the cost is the control level, and the budget of 3
+    // excludes the control at 4 before it is valued.
+    let hand: Vec<(&str, f64, Option<f64>)> =
+        vec![("reference", 0.0, Some(0.0)), ("low", 2.0, Some(3.0)), ("high", 4.0, None)];
+    for (row, (id, cost, value)) in static_result.rows.iter().zip(hand) {
+        assert_eq!((row.id.as_str(), row.cost, row.value), (id, cost, value));
+    }
     assert_eq!(static_result.best, vec!["low".to_owned()]);
     assert_eq!(temporal_result.best, static_result.best);
     assert_eq!(

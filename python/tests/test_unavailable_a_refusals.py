@@ -150,16 +150,18 @@ def test_a_one_period_switchback_is_refused_because_it_never_switches_back():
     assert "Next attempt" in str(caught.value)
     # The same eight rows are a Bernoulli trial: the static randomized effect is the route for them.
     # With a second period for each sequence the design switches back and runs.
+    switching = [True, False, False, True, True, False, False, True]
     design = ant.experiment.SwitchbackDesign(
-        [True, False, False, True, True, False, False, True],
+        switching,
         ["s0", "s0", "s1", "s1", "s2", "s2", "s3", "s3"],
         ["p0", "p1"] * 4,
         [0.5] * 8,
     )
+    # Outcome = row index plus a constant 2 for every treated row: with balanced arms (each
+    # arm's index mean is 3.5) the difference of arm means is exactly 2.
+    outcome = np.arange(8.0) + 2.0 * np.array(switching)
     fit = require_success(
-        ant.analyze(
-            {"outcome": np.arange(8.0)}, query=ant.experiment.SwitchbackEffect("outcome", design)
-        )
+        ant.analyze({"outcome": outcome}, query=ant.experiment.SwitchbackEffect("outcome", design))
     ).randomized_effect
     assert fit.assignment_design == "switchback"
-    assert np.isfinite(fit.effect)
+    assert fit.effect == pytest.approx(2.0, abs=1e-12)

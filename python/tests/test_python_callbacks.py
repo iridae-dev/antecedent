@@ -21,23 +21,27 @@ def _indep_ci(columns, queries):
 
 def test_custom_ci_independence_sparse_discovery():
     rng = np.random.default_rng(0)
-    n = 80
+    n = 200
     names = ["a", "b", "c"]
     columns = [rng.normal(size=n) for _ in names]
-    # Strong dependence in data, but callback reports independence.
-    columns[1] = columns[0] + 0.01 * rng.normal(size=n)
-    result = discover_pcmci(
-        names,
-        columns,
-        max_lag=1,
-        alpha=0.05,
-        fdr=False,
-        seed=1,
-        ci=_indep_ci,
-        threads=4,
-    )
+    # Strong lagged dependence a(t-1) -> b(t) in the data, but the callback reports independence.
+    columns[1][1:] = columns[0][:-1] + 0.01 * rng.normal(size=n - 1)
+    kwargs = {"max_lag": 1, "alpha": 0.05, "fdr": False, "seed": 1, "threads": 4}
+    # Control: the native test finds the planted link, so zero links below is the callback's doing.
+    native = discover_pcmci(names, columns, **kwargs)
+    assert native.links_retained >= 1
+    assert len(native.links) >= 1
+    batches = []
+
+    def recording_ci(cols, queries):
+        batches.append(len(queries))
+        return _indep_ci(cols, queries)
+
+    result = discover_pcmci(names, columns, ci=recording_ci, **kwargs)
     assert result.ci_name == "python.callback"
-    assert result.links_retained == 0 or len(result.links) == 0
+    assert sum(batches) > 0  # the callback, not the native test, decided every query
+    assert result.links_retained == 0
+    assert len(result.links) == 0
 
 
 class _ConstMech:
@@ -70,6 +74,8 @@ def test_mechanism_wrapper_sample_do():
     # Column means for y under do(t) should be ~42 from the wrapper.
     y_idx = names.index("y")
     assert abs(out.column_means[y_idx] - 42.0) < 1e-9
+    # The intervention itself is untouched by the wrapper on y: t is fixed at 1.0 exactly.
+    assert abs(out.column_means[names.index("t")] - 1.0) < 1e-12
 
 
 def test_evaluate_decision_utility_callback():
@@ -117,7 +123,10 @@ def test_custom_validator_on_native_ate():
     columns = [z, t, y]
     edges = [("z", "t"), ("z", "y"), ("t", "y")]
 
+    seen = []
+
     def always_fail(*, ate, se_analytic, method, adjustment_set):
+        seen.append((ate, se_analytic, method, adjustment_set))
         return {
             "passed": False,
             "refuted_ate": 0.0,
@@ -137,6 +146,12 @@ def test_custom_validator_on_native_ate():
         seed=4,
         threads=4,
     )
+    # The validator received the estimate: the OLS coefficient of t in y ~ 1 + t + z.
+    design = np.column_stack([np.ones(n), t, z])
+    beta = np.linalg.lstsq(design, y, rcond=None)[0]
+    assert len(seen) >= 1
+    assert seen[0][0] == pytest.approx(beta[1], abs=1e-9)
+    assert list(seen[0][3]) == ["z"]
     assert result.refutation_ran
     assert result.refutation_count >= 1
     assert result.refutation_passed is False

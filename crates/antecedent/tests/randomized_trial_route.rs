@@ -20,7 +20,44 @@ mod retained_graphless;
 fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
     use antecedent_core::RandomizationDesign;
 
-    fn run_case(query: RandomizedEffectQuery, outcomes: &[f64], design: &str) {
+    /// Difference of the arithmetic means of `outcomes` over the `treated` and the rest.
+    fn diff_means(outcomes: &[f64], treated: &[bool]) -> f64 {
+        let (mut st, mut nt, mut sc, mut nc) = (0.0, 0.0, 0.0, 0.0);
+        for (y, &t) in outcomes.iter().zip(treated) {
+            if t {
+                st += y;
+                nt += 1.0;
+            } else {
+                sc += y;
+                nc += 1.0;
+            }
+        }
+        st / nt - sc / nc
+    }
+
+    /// `sqrt(s1^2 / n1 + s0^2 / n0)` with unbiased sample variances.
+    fn neyman_se(outcomes: &[f64], treated: &[bool]) -> f64 {
+        let part = |want: bool| {
+            let ys: Vec<f64> = outcomes
+                .iter()
+                .zip(treated)
+                .filter(|&(_, &t)| t == want)
+                .map(|(&y, _)| y)
+                .collect();
+            let n = ys.len() as f64;
+            let mean = ys.iter().sum::<f64>() / n;
+            ys.iter().map(|y| (y - mean).powi(2)).sum::<f64>() / (n - 1.0) / n
+        };
+        (part(true) + part(false)).sqrt()
+    }
+
+    fn run_case(
+        query: RandomizedEffectQuery,
+        outcomes: &[f64],
+        design: &str,
+        expected_effect: f64,
+        neyman: Option<f64>,
+    ) {
         let data = TabularData::from_f64_columns([("outcome", outcomes)]).unwrap();
         let ctx = ExecutionContext::for_tests(0xCA11_BA7E);
         let prepared =
@@ -36,7 +73,23 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
         let [lower, upper] = fit.interval_95.expect("supported randomized design interval");
         assert_eq!(fit.assignment_design.as_ref(), design);
         assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
+        // The effect is the difference of arm means, computed here from the outcomes.
+        assert!(
+            (fit.effect - expected_effect).abs() < 1e-9,
+            "{design}: {} vs {expected_effect}",
+            fit.effect
+        );
         assert!(lower <= fit.effect && fit.effect <= upper);
+        if let Some(se) = neyman {
+            assert!(
+                (fit.standard_error.unwrap() - se).abs() < 1e-9,
+                "{design}: se {:?} vs {se}",
+                fit.standard_error
+            );
+            let half = 1.959_963_984_540_054 * se;
+            assert!((lower - (fit.effect - half)).abs() < 1e-9, "{lower} vs {}", fit.effect - half);
+            assert!((upper - (fit.effect + half)).abs() < 1e-9, "{upper} vs {}", fit.effect + half);
+        }
         assert!(fit.standard_error.unwrap() > 0.0);
         assert_eq!(
             result.interval().as_ref().unwrap().method,
@@ -156,6 +209,7 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
         |n: usize| (0..n).map(|i| Arc::<str>::from(format!("unit-{i}"))).collect::<Vec<_>>();
     let n = 60;
     let assignment = (0..n).map(|i| i < 30).collect::<Vec<_>>();
+    let complete_mask = assignment.clone();
     let outcomes = (0..n)
         .map(|i| 1.0 + 2.0 * f64::from(assignment[i]) + 0.5 * (i as f64 * 0.3).sin())
         .collect::<Vec<_>>();
@@ -171,6 +225,8 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
         ),
         &outcomes,
         "complete",
+        diff_means(&outcomes, &complete_mask),
+        Some(neyman_se(&outcomes, &complete_mask)),
     );
 
     let n = 400;
@@ -178,6 +234,7 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
     let outcomes = (0..n)
         .map(|i| 1.0 + 2.0 * f64::from(assignment[i]) + 0.5 * (i as f64 * 0.3).sin())
         .collect::<Vec<_>>();
+    let bernoulli_mask = assignment.clone();
     run_case(
         RandomizedEffectQuery::bernoulli_itt(
             VariableId::from_raw(0),
@@ -189,6 +246,8 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
         ),
         &outcomes,
         "bernoulli",
+        diff_means(&outcomes, &bernoulli_mask),
+        None,
     );
 
     let arms = (0..n).map(|i| i % 4).collect::<Vec<_>>();
@@ -207,10 +266,19 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
         units(n),
         ("control", "a"),
     );
-    run_case(fit, &outcomes, "multi_arm");
+    let (mut a0, mut n0, mut a1, mut n1) = (0.0, 0.0, 0.0, 0.0);
+    for (y, arm) in outcomes.iter().zip(&arms) {
+        match arm {
+            0 => (a0, n0) = (a0 + y, n0 + 1.0),
+            1 => (a1, n1) = (a1 + y, n1 + 1.0),
+            _ => {}
+        }
+    }
+    run_case(fit, &outcomes, "multi_arm", a1 / n1 - a0 / n0, None);
 
     let n = 120;
     let assignment = (0..n).map(|i| i / 2 < 30).collect::<Vec<_>>();
+    let cluster_mask = assignment.clone();
     let outcomes = (0..n)
         .map(|i| 1.0 + 2.0 * f64::from(assignment[i]) + 0.5 * (i as f64 * 0.3).sin())
         .collect::<Vec<_>>();
@@ -228,9 +296,12 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
         ),
         &outcomes,
         "cluster",
+        diff_means(&outcomes, &cluster_mask),
+        None,
     );
 
     let assignment = (0..n).map(|i| i % 30 < 15).collect::<Vec<_>>();
+    let stratified_mask = assignment.clone();
     let outcomes = (0..n)
         .map(|i| 1.0 + 2.0 * f64::from(assignment[i]) + 0.5 * (i as f64 * 0.3).sin())
         .collect::<Vec<_>>();
@@ -250,6 +321,8 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
         ),
         &outcomes,
         "stratified",
+        diff_means(&outcomes, &stratified_mask),
+        None,
     );
 
     let first = (0..n).map(|i| i / 30 % 2 == 1).collect::<Vec<_>>();
@@ -262,6 +335,7 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
                 + 0.5 * (i as f64 * 0.3).sin()
         })
         .collect::<Vec<_>>();
+    let factorial_effect = diff_means(&outcomes, &first);
     run_case(
         RandomizedEffectQuery::with_design(
             RandomizationDesign::Factorial2x2 {
@@ -278,6 +352,8 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
         ),
         &outcomes,
         "factorial_2x2",
+        factorial_effect,
+        None,
     );
 }
 
@@ -987,6 +1063,19 @@ fn complete_randomization_keeps_its_own_neyman_construction_at_300_rows() {
     assert_eq!(fit.assignment_design.as_ref(), "complete");
     assert_eq!(fit.uncertainty.as_ref(), "complete_neyman_normal_interval");
     let [lower, upper] = fit.interval_95.expect("complete randomization publishes its interval");
-    assert!(lower < fit.effect && fit.effect < upper);
+    // Neyman: difference of arm means, sqrt(s1^2/n1 + s0^2/n0), normal 95% interval.
+    let moments = |want: bool| {
+        let ys: Vec<f64> =
+            (0..n).filter(|&i| assignment[i] == want).map(|i| outcomes[i]).collect();
+        let m = ys.len() as f64;
+        let mean = ys.iter().sum::<f64>() / m;
+        (mean, ys.iter().map(|y| (y - mean).powi(2)).sum::<f64>() / (m - 1.0) / m)
+    };
+    let ((mt, vt), (mc, vc)) = (moments(true), moments(false));
+    let (effect, se) = (mt - mc, (vt + vc).sqrt());
+    assert!((fit.effect - effect).abs() < 1e-9, "{} vs {effect}", fit.effect);
+    assert!((fit.standard_error.unwrap() - se).abs() < 1e-9, "{:?} vs {se}", fit.standard_error);
+    assert!((lower - (effect - 1.959_963_984_540_054 * se)).abs() < 1e-9, "{lower}");
+    assert!((upper - (effect + 1.959_963_984_540_054 * se)).abs() < 1e-9, "{upper}");
     assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
 }

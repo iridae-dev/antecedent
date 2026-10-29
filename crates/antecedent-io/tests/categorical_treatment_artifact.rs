@@ -393,6 +393,18 @@ fn categorical_summary_replay_equals_the_row_based_fit_for_every_robust_estimato
         .unwrap();
         assert_eq!(consumed.fit(), artifact.fit(), "{tag} after the artifact round trip");
         assert_ne!(artifact.fit().covariance, model_based.fit().covariance, "{tag}");
+        // Independent of both paths: the textbook sandwich with a dense inverse, on all rows.
+        let dummy = |level: &str| -> Vec<f64> {
+            request.levels.iter().map(|l| f64::from(u8::from(l == level))).collect()
+        };
+        let design = vec![
+            vec![1.0; request.outcome.len()],
+            request.adjustment[0].values.clone(),
+            dummy("b"),
+            dummy("c"),
+        ];
+        let full = common::dense_sandwich(&design, &request.outcome, tag);
+        common::assert_block_matches(&artifact.fit().covariance, &full, 4, 2, tag);
     }
 }
 

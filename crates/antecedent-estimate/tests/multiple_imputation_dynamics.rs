@@ -77,7 +77,8 @@ fn lagged_imputation_keeps_the_autocorrelation_that_exchangeable_rows_destroy() 
     let dynamic = mean_lag_one(&lagged, 6);
     // The true lag-one correlation is 0.8. Drawing each missing cell from its row alone (the
     // companion carries nothing) leaves the filled cells independent of their neighbours.
-    assert!(dynamic > 0.6, "lagged imputation autocorrelation {dynamic}");
+    // Observed 0.784 against 0.8 (exchangeable rows give 0.23).
+    assert!((dynamic - 0.8).abs() < 0.05, "lagged imputation autocorrelation {dynamic}");
     assert!(exchangeable < dynamic - 0.1, "rows {exchangeable} against lagged {dynamic}");
     assert_eq!(lagged.lags(), 1);
     assert_eq!(rows.lags(), 0);
@@ -103,7 +104,9 @@ fn a_gap_in_a_smooth_series_is_filled_from_its_neighbours() {
         let column = &table.columns()[0];
         for &t in &gaps {
             assert!(
-                (column[t] - truth[t]).abs() < 0.15,
+                // sin(0.1 t) obeys x_t = 2 cos(0.1) x_{t-1} - x_{t-2}, so a lagged model with both
+                // neighbours recovers a gap to rounding (observed error below 3e-6).
+                (column[t] - truth[t]).abs() < 1e-4,
                 "imputation {j} at step {t}: {} against {}",
                 column[t],
                 truth[t]

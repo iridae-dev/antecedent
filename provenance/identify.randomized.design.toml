@@ -44,4 +44,4 @@ sha256 = "8d9863c7c2758f71345dfbfd561cb00765a2a07972a63e5bed21a49362c42eef"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/randomized_trial_route.rs"
-sha256 = "e045417284fe766937ba59b9b228002fa627d981bab64cc0e2ee077ed42ae1cc"
+sha256 = "30fb62771ce5cdb18c42d16683ee26f444c1c9404299aa39a250e3f2399af08b"
