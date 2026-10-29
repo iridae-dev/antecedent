@@ -115,6 +115,14 @@ GENERATORS = (
     "conformance/bayesian/response_surfaces/reference.py",
     "conformance/bayesian/temporal_observed_response/reference.py",
     "conformance/bayesian/temporal_prior_transfer/reference.py",
+    "conformance/gcm/lgssm/reference.py",
+    "conformance/gcm/gaussian_process/reference.py",
+    "conformance/state/rolling_mechanism_diagnostics/reference.py",
+    "conformance/graph/pag_mag_completion/reference.py",
+    "conformance/identify/idc/reference.py",
+    "conformance/estimate/interventional_distribution/reference.py",
+    "conformance/response/randomized_interference/reference.py",
+    "conformance/design/candidate_ranking/reference.py",
 )
 
 

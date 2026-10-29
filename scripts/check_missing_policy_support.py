@@ -32,7 +32,7 @@ QUERY_SOURCE = ROOT / "crates/antecedent-core/src/query/variants.rs"
 GUIDE = ROOT / "docs/guides/missing-data.md"
 MODALITIES = {"tabular", "series", "event", "multi_env", "panel"}
 INFERENCES = ("frequentist", "bayesian")
-FAMILIES = {"static", "randomized", "panel", "temporal"}
+FAMILIES = {"static", "randomized", "panel", "temporal", "temporal_design", "attribution"}
 DOC_LINE = re.compile(r"^\| `([A-Za-z]+)` \| ([a-z_]+) \| ([a-z]+) \|")
 
 

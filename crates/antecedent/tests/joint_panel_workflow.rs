@@ -284,6 +284,65 @@ fn actual_bayesian_panel_fit_preserves_mixing_diagnostics_and_shared_draw_axes()
     experiment_chain::exercise(&prepared, &result, &ctx);
 }
 
+fn lag_zero_terminal_interaction(row: &[antecedent_estimate::joint_panel::PanelResponse]) -> f64 {
+    let last = |world: usize| *row[world].means.last().unwrap();
+    last(3) - last(1) - last(2) + last(0)
+}
+
+/// The lag-zero (static) panel through the Bayesian fit and the experiment-to-decision chain.
+///
+/// The panel is simulated from a retained known truth (`joint_panel_fixture::lag_zero_truth`)
+/// with no carryover and no serial error. The posterior is sampled under the strict policy
+/// (four chains, rank-normalized R-hat at most 1.01, bulk and tail ESS at least 400) and must
+/// mix under it. The interaction contrast has a closed-form truth,
+/// `b_ab * s(4)^2 = 1.5 * (4 / 7)^2`, because the group intercepts, the confounder and the
+/// season cancel in the joint minus both marginals plus the reference.
+#[test]
+fn build_joint_panel_lag_zero_bayesian_chain_mixes_and_recovers_the_known_interaction() {
+    let ctx = cached_context(20_261_029);
+    let data = fixture::source_lag_zero();
+    let request = fixture::request_lag_zero(
+        &data,
+        PanelInference::Bayesian {
+            prior: PanelPrior::default(),
+            sampler: fixture::lag_zero_sampling(),
+        },
+    );
+    assert_eq!(request.lag_order, 0);
+    let prepared = Study::prepare_joint_panel(data, request, &ctx).unwrap();
+    let result = prepared.estimate(&ctx).unwrap();
+    let JointPanelFit::Invariant(fit) = &result.fit else { panic!("invariant mechanism") };
+    let diagnostics = &fit.diagnostics;
+    let rhat = diagnostics.max_rhat.expect("sampled chains report R-hat");
+    let bulk = diagnostics.min_bulk_ess.unwrap();
+    let tail = diagnostics.min_tail_ess.unwrap();
+    assert!(rhat < 1.01, "R-hat {rhat}");
+    assert!(bulk >= 400.0 && tail >= 400.0, "ESS bulk {bulk} tail {tail}");
+    assert_eq!(diagnostics.posterior_converged, Some(true), "{diagnostics:?}");
+    assert!(diagnostics.optimizer_converged && diagnostics.curvature_available);
+    assert_eq!(diagnostics.calibration, "unmeasured");
+    assert_eq!(result.draws.len(), 100_000);
+    assert_eq!(diagnostics.failed_draws, 0);
+
+    // Known answer: the interaction contrast is b_ab * s(4)^2 at every period.
+    let truth = fixture::lag_zero_truth();
+    let known = truth.interaction * (4.0_f64 / (4.0 + truth.half_saturation)).powi(2);
+    assert!((known - 1.5 * 16.0 / 49.0).abs() < 1e-15);
+    let draws: Vec<f64> = result.draws.iter().flatten().map(|row| lag_zero_terminal_interaction(row)).collect();
+    let n = draws.len() as f64;
+    let mean = draws.iter().sum::<f64>() / n;
+    let sd = (draws.iter().map(|d| (d - mean).powi(2)).sum::<f64>() / (n - 1.0)).sqrt();
+    assert!(
+        (mean - known).abs() < 3.0 * sd,
+        "posterior interaction {mean} +- {sd} does not cover the known {known}"
+    );
+    assert!(sd < 0.5, "the posterior is informative: sd {sd}");
+    let point = lag_zero_terminal_interaction(&result.point);
+    assert!((point - known).abs() < 3.0 * sd, "point {point} vs known {known}");
+    assert_eq!(prepared.fits_performed(), 1);
+    experiment_chain::exercise_core(&prepared, &result, &ctx);
+}
+
 fn exercise_selected_posterior(
     result: &antecedent::analysis::joint_panel::JointPanelResult,
     ctx: &ExecutionContext,

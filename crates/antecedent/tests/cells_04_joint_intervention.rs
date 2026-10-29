@@ -13,11 +13,14 @@
 //! - missing outcomes follow the default complete-case policy, equal to the fit on the remaining
 //!   rows, an explicit error policy refuses, and the policies the route cannot pool (multiple
 //!   imputation, inverse probability) are refused with `missing_policy_not_applicable`;
-//! - observation weights on the table are refused with `sampling_weights.route_unsupported` on a
-//!   study and on a batch, never estimated as unweighted rows;
+//! - observation weights on the table are read by a study (weighted nuisance fits and weighted
+//!   influence variance, against an exact-rational reference) and still refused with
+//!   `sampling_weights.route_unsupported` on a batch, never estimated as unweighted rows;
 //! - an unobserved cell and a non-binary level are refused instead of extrapolated;
-//! - a declared clustered panel or dependent series with the bootstrap off is refused, and runs
-//!   under independent subject trajectories.
+//! - a declared clustered panel or dependent series is refused unless its cluster labels or
+//!   Newey-West lag are declared with `score_dependence`, which the cell reads as a cluster-robust
+//!   or Newey-West influence variance (exact-rational reference); it runs under independent
+//!   subject trajectories.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -385,13 +388,22 @@ fn weights_body() {
     assert!((unweighted - cell_mean(None)).abs() < 1e-5);
     let weights: Vec<f64> = (0..ROWS).map(|row| 1.0 + (row % 3) as f64).collect();
     let weighted = || table(None, false).with_weights(Arc::from(weights.clone())).unwrap();
+    // A study now estimates the weighted population: the weights are read, not refused. The
+    // weighted cell (1, 1) is the weighted mean of its rows (the exact weighted cross-fit
+    // reference is `the_joint_cell_equals_the_exact_weighted_cross_fit_aipw_...`).
+    let (num, den) = (0..ROWS).filter(|row| cell_of(*row) == (1.0, 1.0)).fold(
+        (0.0, 0.0),
+        |(num, den), row| (num + weights[row] * outcome_of(row), den + weights[row]),
+    );
+    let on_study = value(&study(weighted(), level_query(1.0, 1.0), None, None, 0).unwrap());
+    assert!((on_study - num / den).abs() < 1e-3, "{on_study} vs {}", num / den);
+    // A batch shares one unweighted design across its cells and still refuses the weights.
     let check = |what: &str, error: CausalError| {
         let text = error.to_string();
         assert_eq!(error.reason_code(), Some("option_not_applicable"), "{what}: {text}");
         assert!(text.contains("sampling_weights.route_unsupported"), "{what}: {text}");
         assert!(text.contains("Next attempt"), "{what}: {text}");
     };
-    check("study", refused(study(weighted(), level_query(1.0, 1.0), None, None, 0), "study"));
     let batch = |data: TabularData| {
         BatchStudy::new(data.clone(), dag())
             .refute(RefuteSuite::None)
@@ -503,4 +515,384 @@ fn dependence_with_bootstrap_body() {
         )
     };
     assert!((run(20) - run(0)).abs() < 1e-12);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Sampling weights and declared dependence: exact references
+// ---------------------------------------------------------------------------------------------
+
+use antecedent::ScoreDependence;
+
+/// The frozen exact-rational reference (see `oracle_data/joint_cell_dependence_reference.py`).
+fn reference() -> serde_json::Value {
+    serde_json::from_str(include_str!("oracle_data/joint_cell_dependence_reference.json")).unwrap()
+}
+
+fn column(reference: &serde_json::Value, key: &str) -> Vec<f64> {
+    reference[key]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| match v {
+            serde_json::Value::String(text) => text.parse().unwrap(),
+            other => other.as_f64().unwrap(),
+        })
+        .collect()
+}
+
+fn reference_table(reference: &serde_json::Value, weighted: bool) -> TabularData {
+    let (t1, t2, y) =
+        (column(reference, "t1"), column(reference, "t2"), column(reference, "y_decimal"));
+    let table = TabularData::from_f64_columns([
+        ("t1", t1.as_slice()),
+        ("t2", t2.as_slice()),
+        ("y", y.as_slice()),
+    ])
+    .unwrap();
+    if weighted {
+        table.with_weights(Arc::from(column(reference, "weights"))).unwrap()
+    } else {
+        table
+    }
+}
+
+fn dependent_study(
+    data: TabularData,
+    design: Option<DeclaredSamplingDesign>,
+    dependence: Option<ScoreDependence>,
+) -> Result<StudyResult, CausalError> {
+    let mut builder = Study::tabular(data)
+        .graph(dag())
+        .query(CausalQuery::Response(level_query(1.0, 1.0)))
+        .estimator(EstimatorId::CellAipw)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0);
+    if let Some(design) = design {
+        builder = builder.sampling_design(design);
+    }
+    if let Some(dependence) = dependence {
+        builder = builder.score_dependence(dependence);
+    }
+    builder.build().and_then(|built| built.run(&ctx()))
+}
+
+fn fraction(pair: &serde_json::Value) -> f64 {
+    // The exact rational is reduced to the nearest f64 only here, at the comparison.
+    let parts = pair.as_array().unwrap();
+    let (num, den) = (parts[0].to_string(), parts[1].to_string());
+    num.parse::<f64>().unwrap() / den.parse::<f64>().unwrap()
+}
+
+fn assert_matches_reference(result: &StudyResult, expected: &serde_json::Value, what: &str) {
+    let effect = result.estimate().as_effect().expect("an effect estimate");
+    let table = effect.scores.table.as_ref().expect("the cell score table");
+    // The one fixed input of the reference is the product's seeded, cell-stratified fold plan.
+    let frozen: Vec<u32> = expected["__folds"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| u32::try_from(f.as_u64().unwrap()).unwrap())
+        .collect();
+    assert_eq!(
+        table.fold_ids.as_ref(),
+        frozen.as_slice(),
+        "{what}: the fold plan moved; regenerate the reference with these folds"
+    );
+    let mean = fraction(&expected["mean"]);
+    let variance = fraction(&expected["variance"]);
+    let got = value(result);
+    assert!((got - mean).abs() < 1e-7 * mean.abs(), "{what}: mean {got} vs exact {mean}");
+    let se = effect.se_analytic();
+    assert!(
+        (se * se - variance).abs() < 1e-6 * variance,
+        "{what}: variance {} vs exact {variance}",
+        se * se
+    );
+}
+
+#[test]
+fn the_joint_cell_equals_the_exact_weighted_cross_fit_aipw_and_its_sandwich_variances() {
+    on_large_stack("cells-04-weighted-reference", weighted_reference_body);
+}
+
+fn weighted_reference_body() {
+    let reference = reference();
+    let clusters = ScoreDependence::clusters(
+        reference["clusters"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| u32::try_from(c.as_u64().unwrap()).unwrap())
+            .collect::<Vec<_>>(),
+    );
+    let lag = usize::try_from(reference["lag"].as_u64().unwrap()).unwrap();
+    for (weighted, key, folds_key) in
+        [(false, "unweighted", "unweighted"), (true, "weighted", "weighted")]
+    {
+        let folds: Vec<u32> = reference["folds"][folds_key]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|f| u32::try_from(f.as_u64().unwrap()).unwrap())
+            .collect();
+        let runs = [
+            ("independent", None, None),
+            (
+                "clusters",
+                Some(DeclaredSamplingDesign::ClusteredPanel),
+                Some(clusters.clone()),
+            ),
+            (
+                "newey_west",
+                Some(DeclaredSamplingDesign::DependentTimeSeries),
+                Some(ScoreDependence::newey_west(lag)),
+            ),
+        ];
+        for (dependence, design, declared) in runs {
+            let result =
+                dependent_study(reference_table(&reference, weighted), design, declared).unwrap();
+            let what = format!("{key}/{dependence}");
+            let mut expected = reference[key][dependence].clone();
+            expected["__folds"] = serde_json::json!(folds);
+            assert_matches_reference(&result, &expected, &what);
+            let record = result.estimate().as_effect().unwrap().diagnostics.sampling_weights;
+            if weighted {
+                let record = record.expect("a weighted study reports its weight record");
+                assert_eq!(record.rows_used, 59, "{what}");
+                assert_eq!(record.zero_weight_rows, 1, "{what}");
+                assert!(record.effective_sample_size < 59.0 && record.effective_sample_size > 1.0);
+            } else {
+                assert!(record.is_none(), "{what}");
+            }
+        }
+    }
+}
+
+#[test]
+fn a_zero_weight_row_equals_the_table_with_the_row_deleted() {
+    on_large_stack("cells-04-zero-weight", zero_weight_body);
+}
+
+fn zero_weight_body() {
+    let reference = reference();
+    let zero = usize::try_from(reference["zero_weight_row"].as_u64().unwrap()).unwrap();
+    let weighted = dependent_study(reference_table(&reference, true), None, None).unwrap();
+    let keep = |values: Vec<f64>| -> Vec<f64> {
+        values.into_iter().enumerate().filter(|(i, _)| *i != zero).map(|(_, v)| v).collect()
+    };
+    let (t1, t2, y, w) = (
+        keep(column(&reference, "t1")),
+        keep(column(&reference, "t2")),
+        keep(column(&reference, "y_decimal")),
+        keep(column(&reference, "weights")),
+    );
+    let deleted = TabularData::from_f64_columns([
+        ("t1", t1.as_slice()),
+        ("t2", t2.as_slice()),
+        ("y", y.as_slice()),
+    ])
+    .unwrap()
+    .with_weights(Arc::from(w))
+    .unwrap();
+    let deleted = dependent_study(deleted, None, None).unwrap();
+    let (a, b) = (
+        weighted.estimate().as_effect().unwrap(),
+        deleted.estimate().as_effect().unwrap(),
+    );
+    assert!((value(&weighted) - value(&deleted)).abs() < 1e-12);
+    assert!((a.se_analytic() - b.se_analytic()).abs() < 1e-12);
+}
+
+#[test]
+fn the_weights_are_scale_free_and_an_extreme_weight_is_read_not_clipped() {
+    on_large_stack("cells-04-weight-scale", weight_scale_body);
+}
+
+fn weight_scale_body() {
+    let reference = reference();
+    let scaled = |factor: f64| {
+        let weights: Vec<f64> = column(&reference, "weights").iter().map(|w| w * factor).collect();
+        reference_table(&reference, false).with_weights(Arc::from(weights)).unwrap()
+    };
+    let base = dependent_study(scaled(1.0), None, None).unwrap();
+    for factor in [1e-6, 0.37, 1e6] {
+        let other = dependent_study(scaled(factor), None, None).unwrap();
+        assert!((value(&base) - value(&other)).abs() < 1e-9 * value(&base).abs(), "{factor}");
+        let (a, b) = (base.estimate().as_effect().unwrap(), other.estimate().as_effect().unwrap());
+        assert!((a.se_analytic() - b.se_analytic()).abs() < 1e-9 * a.se_analytic(), "{factor}");
+    }
+}
+
+#[test]
+fn declared_score_dependence_is_read_by_the_joint_cell_and_refused_when_it_cannot_be() {
+    on_large_stack("cells-04-dependence-refusals", dependence_refusal_body);
+}
+
+fn dependence_refusal_body() {
+    let reference = reference();
+    let labels = |len: usize| {
+        ScoreDependence::clusters((0..len).map(|i| u32::try_from(i % 6).unwrap()).collect::<Vec<_>>())
+    };
+    let code = |error: &CausalError, text: &str| {
+        assert_eq!(error.reason_code(), Some("option_not_applicable"), "{error}");
+        assert!(error.to_string().contains(text), "expected {text:?} in {error}");
+    };
+    let table = || reference_table(&reference, false);
+    // Labels without the matching design, and a design that does not match the kind.
+    let error =
+        refused(dependent_study(table(), None, Some(labels(60))), "labels without a design");
+    code(&error, "disagree");
+    let error = refused(
+        dependent_study(
+            table(),
+            Some(DeclaredSamplingDesign::DependentTimeSeries),
+            Some(labels(60)),
+        ),
+        "labels under a series design",
+    );
+    code(&error, "clustered-panel");
+    let error = refused(
+        dependent_study(
+            table(),
+            Some(DeclaredSamplingDesign::ClusteredPanel),
+            Some(ScoreDependence::newey_west(2)),
+        ),
+        "lag under a panel design",
+    );
+    code(&error, "dependent-time-series");
+    // Labels that do not cover the table, and a single cluster.
+    let short = dependent_study(
+        table(),
+        Some(DeclaredSamplingDesign::ClusteredPanel),
+        Some(labels(59)),
+    );
+    assert!(short.is_err(), "a short label vector was accepted");
+    let single = dependent_study(
+        table(),
+        Some(DeclaredSamplingDesign::ClusteredPanel),
+        Some(ScoreDependence::clusters(vec![0u32; 60])),
+    );
+    assert!(single.is_err(), "one cluster has no cluster-robust variance");
+    // A bootstrap beside the declaration is not read by an influence-function route.
+    let error = refused(
+        Study::tabular(table())
+            .graph(dag())
+            .query(CausalQuery::Response(level_query(1.0, 1.0)))
+            .estimator(EstimatorId::CellAipw)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(20)
+            .sampling_design(DeclaredSamplingDesign::ClusteredPanel)
+            .score_dependence(labels(60))
+            .build()
+            .and_then(|built| built.run(&ctx())),
+        "bootstrap beside labels",
+    );
+    code(&error, "does not bootstrap");
+    // The refutation suite and the quantile read unweighted independent rows.
+    let error = refused(
+        Study::tabular(reference_table(&reference, true))
+            .graph(dag())
+            .query(CausalQuery::Response(level_query(1.0, 1.0)))
+            .estimator(EstimatorId::CellAipw)
+            .refute(RefuteSuite::Cheap)
+            .bootstrap_replicates(0)
+            .build()
+            .and_then(|built| built.run(&ctx())),
+        "refutation under weights",
+    );
+    code(&error, "RefuteSuite::None");
+    // A route that does not read the labels refuses them instead of ignoring them.
+    let error = refused(
+        Study::tabular(table())
+            .graph(dag())
+            .query(CausalQuery::Response(level_query(1.0, 1.0)))
+            .sampling_design(DeclaredSamplingDesign::ClusteredPanel)
+            .score_dependence(labels(60))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .and_then(|built| built.run(&ctx())),
+        "labels on a route that does not read them",
+    );
+    code(&error, "score_dependence is read only by the joint-cell response");
+}
+
+#[test]
+fn a_prepared_joint_cell_reads_the_weights_and_the_dependence_and_stamps_them_in_its_identity() {
+    on_large_stack("cells-04-prepared", prepared_body);
+}
+
+fn prepared_body() {
+    let reference = reference();
+    let labels = |shift: u32| {
+        ScoreDependence::clusters(
+            reference["clusters"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|c| u32::try_from(c.as_u64().unwrap()).unwrap() + shift * 0)
+                .enumerate()
+                .map(|(row, c)| if shift == 0 || row % 7 != 0 { c } else { (c + 1) % 12 })
+                .collect::<Vec<_>>(),
+        )
+    };
+    let study = |dependence: ScoreDependence| {
+        Study::tabular(reference_table(&reference, true))
+            .graph(dag())
+            .query(CausalQuery::Response(level_query(1.0, 1.0)))
+            .estimator(EstimatorId::CellAipw)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .sampling_design(DeclaredSamplingDesign::ClusteredPanel)
+            .score_dependence(dependence)
+            .build()
+            .unwrap()
+    };
+    let first = study(labels(0));
+    let one_shot = first.run(&ctx()).unwrap();
+    let mut prepared = first.prepare(&ctx()).unwrap();
+    let data = reference_table(&reference, true);
+    let result = prepared.estimate(&data, &ctx()).unwrap();
+    let (a, b) = (one_shot.estimate().as_effect().unwrap(), result.estimate().as_effect().unwrap());
+    assert!((a.ate - b.ate).abs() < 1e-12, "{} vs {}", a.ate, b.ate);
+    assert!((a.se_analytic() - b.se_analytic()).abs() < 1e-12);
+    assert!(b.diagnostics.sampling_weights.is_some());
+    // Scores fitted for a weighted population cannot be retargeted with other weights.
+    let rows = b.scores.table.as_ref().unwrap().n_rows;
+    assert!(prepared.retarget(&vec![1.0; rows], &[], &ctx()).is_err());
+    // Two results that differ only in the declared labels never share an identity.
+    let other = study(labels(1));
+    let mut other_prepared = other.prepare(&ctx()).unwrap();
+    let other_result = other_prepared.estimate(&data, &ctx()).unwrap();
+    let (stamp, other_stamp) = (
+        result.executed_contract.expect("a prepared result is stamped"),
+        other_result.executed_contract.expect("a prepared result is stamped"),
+    );
+    assert_ne!(stamp.identities, other_stamp.identities);
+    let again = study(labels(0)).prepare(&ctx()).unwrap().estimate(&data, &ctx()).unwrap();
+    assert_eq!(again.executed_contract.unwrap().identities, stamp.identities);
+}
+
+#[test]
+fn a_weighted_or_dependent_joint_cell_does_not_inherit_the_unweighted_cells_license() {
+    on_large_stack("cells-04-license", license_body);
+}
+
+fn license_body() {
+    let reference = reference();
+    let plain = dependent_study(reference_table(&reference, false), None, None).unwrap();
+    let weighted = dependent_study(reference_table(&reference, true), None, None).unwrap();
+    let clustered = dependent_study(
+        reference_table(&reference, false),
+        Some(DeclaredSamplingDesign::ClusteredPanel),
+        Some(ScoreDependence::clusters(
+            (0..60u32).map(|i| i / 5).collect::<Vec<_>>(),
+        )),
+    )
+    .unwrap();
+    assert_eq!(format!("{:?}", plain.support_status()), "Some(Licensed)");
+    assert_ne!(weighted.support_status(), plain.support_status());
+    assert_ne!(clustered.support_status(), plain.support_status());
+    assert_eq!(format!("{:?}", weighted.support_status()), "Some(Refused)");
+    assert_eq!(format!("{:?}", clustered.support_status()), "Some(Refused)");
 }

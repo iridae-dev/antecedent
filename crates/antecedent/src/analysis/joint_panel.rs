@@ -6,7 +6,15 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod artifact;
+mod categorical;
+pub use categorical::{
+    DummyCodedPanel, PanelCategoricalChannel, PanelDummyChannel, dummy_code_panel,
+};
 mod contracts;
+mod data_policy;
+pub use data_policy::{
+    PanelCellRole, PanelDataAccounting, PanelMissingPolicy, PanelUnitAccounting, PanelUnitDrop,
+};
 /// Native design-specific joint functionals and retained Bayesian laws.
 pub mod designs;
 pub use designs::{
@@ -29,6 +37,8 @@ pub use explanation::{
     replay_population_reference_with_limits, replay_reference_decomposition,
     replay_reference_decomposition_with_limits,
 };
+mod imputed;
+pub use imputed::{JointPanelImputedResult, PreparedJointPanelImputation};
 mod ports;
 mod projection;
 mod search;
@@ -193,6 +203,7 @@ pub struct JointPanelState {
     fits: Arc<FitCache>,
     source_retention: Arc<antecedent_core::execution::AdmissionLease>,
     program_retention: Option<Arc<antecedent_core::execution::AdmissionLease>>,
+    accounting: Arc<PanelDataAccounting>,
 }
 
 /// Cheap inspection; no likelihood fit, draw or response simulation occurs here.
@@ -245,6 +256,27 @@ impl Study {
     ) -> Result<PreparedStudy<JointPanelState>, JointPanelError> {
         PreparedStudy::<JointPanelState>::compile_joint_panel(data, request, ctx)
     }
+    /// [`Study::prepare_joint_panel`] with a declared policy for missing cells.
+    ///
+    /// Unit sampling weights and analysis masks on the source series are read as declared;
+    /// the policy decides only what a missing cell (`NaN` or a cleared validity bit) means:
+    /// refuse (the default of the plain entry point), drop the unit, or exclude the affected
+    /// periods with the serial law marginalized exactly over them. The exact bookkeeping is
+    /// available from the prepared handle.
+    ///
+    /// # Errors
+    /// As [`Study::prepare_joint_panel`], plus a weighted source under a bootstrap, posterior,
+    /// spatial or time-varying declaration, which the weighted pseudo-likelihood cannot honour.
+    pub fn prepare_joint_panel_with_policy(
+        data: PanelData,
+        request: JointPanelRequest,
+        missing: PanelMissingPolicy,
+        ctx: &ExecutionContext,
+    ) -> Result<PreparedStudy<JointPanelState>, JointPanelError> {
+        PreparedStudy::<JointPanelState>::compile_joint_panel_with_policy(
+            data, request, missing, ctx,
+        )
+    }
 }
 impl PreparedStudy<JointPanelState> {
     /// Compile without fitting or constructing another public study builder.
@@ -256,6 +288,18 @@ impl PreparedStudy<JointPanelState> {
         request: JointPanelRequest,
         ctx: &ExecutionContext,
     ) -> Result<Self, JointPanelError> {
+        Self::compile_joint_panel_with_policy(source, request, PanelMissingPolicy::Refuse, ctx)
+    }
+    /// [`Self::compile_joint_panel`] with a declared policy for missing cells.
+    ///
+    /// # Errors
+    /// Invalid source, target, program, policy, cancellation or admission refusal.
+    pub fn compile_joint_panel_with_policy(
+        source: PanelData,
+        request: JointPanelRequest,
+        missing: PanelMissingPolicy,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, JointPanelError> {
         source::check_cancelled(ctx)?;
         let bytes = source::source_quote(&source, &request)?;
         source::check_memory(ctx, bytes)?;
@@ -263,21 +307,24 @@ impl PreparedStudy<JointPanelState> {
             ctx.acquire_admission(0, bytes)
                 .map_err(|error| engine::PanelError::Resource(error.to_string()))?,
         );
-        let (data, identity) = source::adapt(&source, &request, ctx)?;
+        let (data, identity, accounting) = source::adapt(&source, &request, missing, ctx)?;
         Self::lower(
             source,
             Arc::new(data),
             identity,
+            Arc::new(accounting),
             request,
             Arc::new(FitCache::default()),
             retention,
             ctx,
         )
     }
+    #[expect(clippy::too_many_arguments, reason = "the retained compiler product is assembled once")]
     fn lower(
         source: PanelData,
         data: Arc<engine::PanelData>,
         source_identity: SemanticDigest,
+        accounting: Arc<PanelDataAccounting>,
         request: JointPanelRequest,
         fits: Arc<FitCache>,
         source_retention: Arc<antecedent_core::execution::AdmissionLease>,
@@ -289,6 +336,12 @@ impl PreparedStudy<JointPanelState> {
         let programs = request.worlds.iter().map(|world| world.program.clone()).collect::<Vec<_>>();
         engine::validate_panel_programs(&data, &programs)?;
         if let Some(spec) = &request.temporal {
+            if data.is_weighted() || data.has_excluded_periods() {
+                return Err(engine::PanelError::Invalid(
+                    "a time-varying mechanism is selected and bootstrapped on complete, equally weighted series; sampling weights and excluded periods are not carried through its selection procedure, so they are refused rather than ignored".into(),
+                )
+                .into());
+            }
             engine::time_varying::validate_temporal_spec(&data, spec)?;
         }
         contracts::validate_target(source.schema(), &request)?;
@@ -308,6 +361,7 @@ impl PreparedStudy<JointPanelState> {
                 static_source: None,
                 source_retention,
                 program_retention: None,
+                accounting,
             },
         })
     }
@@ -320,6 +374,12 @@ impl PreparedStudy<JointPanelState> {
     #[must_use]
     pub fn source_data(&self) -> &PanelData {
         &self.state.source
+    }
+    /// Exact bookkeeping of the units, rows and periods the source lost to analysis masks and
+    /// missing cells, and whether the units carry sampling weights.
+    #[must_use]
+    pub fn data_accounting(&self) -> &PanelDataAccounting {
+        &self.state.accounting
     }
     /// Exact adapted statistical data used by the numerical engine.
     #[must_use]
@@ -378,6 +438,7 @@ impl PreparedStudy<JointPanelState> {
             self.state.source.clone(),
             Arc::clone(&self.state.data),
             self.state.source_identity,
+            Arc::clone(&self.state.accounting),
             request,
             Arc::clone(&self.state.fits),
             Arc::clone(&self.state.source_retention),
@@ -398,7 +459,12 @@ impl PreparedStudy<JointPanelState> {
     ) -> Result<Self, JointPanelError> {
         let mut request = (*self.state.request).clone();
         request.options = options;
-        let mut prepared = Self::compile_joint_panel(data, request, ctx)?;
+        let mut prepared = Self::compile_joint_panel_with_policy(
+            data,
+            request,
+            self.state.accounting.policy,
+            ctx,
+        )?;
         prepared.state.fits = Arc::clone(&self.state.fits);
         Ok(prepared)
     }

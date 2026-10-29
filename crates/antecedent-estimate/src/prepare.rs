@@ -228,6 +228,7 @@ pub(crate) fn restrict_to_contrast_levels(
     other_levels: crate::propensity::levels::OtherLevels,
 ) -> Result<Option<crate::propensity::levels::DeclaredTreatmentLevels>, EstimationError> {
     let values = data.float64_selected(treatment, row_mask).map_err(EstimationError::from)?;
+    require_contrast_arms_populated(&values, active, control)?;
     if !is_discrete_with_other_levels(&values, active, control) {
         return Ok(None);
     }
@@ -242,6 +243,59 @@ pub(crate) fn restrict_to_contrast_levels(
         *slot = decisions.next().unwrap_or(false);
     }
     Ok(Some(levels))
+}
+
+/// Refuse a contrast to a level that no complete-case row of a discrete treatment carries.
+///
+/// A treatment that takes at most [`MAX_DISCRETE_LEVELS`] distinct values, with some value
+/// repeated, is read as arms, so a contrasted level outside those values has no rows to
+/// estimate from: a regression would extrapolate the fitted slope to it. Continuous columns
+/// (more distinct values, or every value distinct) are numeric doses and are left alone.
+///
+/// # Errors
+///
+/// `arm_not_populated` (detail `treatment_levels.level_not_populated`), naming the empty level
+/// and the levels present.
+#[allow(
+    clippy::float_cmp,
+    reason = "declared treatment levels are exact category labels, not computed values"
+)]
+pub(crate) fn require_contrast_arms_populated(
+    values: &[f64],
+    active: f64,
+    control: f64,
+) -> Result<(), EstimationError> {
+    let mut distinct: Vec<f64> = Vec::new();
+    for &value in values {
+        if !distinct.iter().any(|seen| *seen == value) {
+            distinct.push(value);
+            if distinct.len() > MAX_DISCRETE_LEVELS {
+                return Ok(());
+            }
+        }
+    }
+    if distinct.is_empty() || distinct.len() == values.len() {
+        return Ok(());
+    }
+    let empty: Vec<f64> = [active, control]
+        .into_iter()
+        .filter(|level| !distinct.iter().any(|seen| seen == level))
+        .collect();
+    if empty.is_empty() {
+        return Ok(());
+    }
+    distinct.sort_by(f64::total_cmp);
+    let present: Vec<String> = distinct.iter().map(|level| level.to_string()).collect();
+    let named: Vec<String> = empty.iter().map(|level| level.to_string()).collect();
+    Err(crate::util::refuse(
+        antecedent_core::reason_code!("arm_not_populated"),
+        "treatment_levels.level_not_populated",
+        &format!(
+            "the contrasted treatment level {} has no complete-case rows (active {active},              control {control}); the treatment takes the levels {}. A contrast to a level the              data never visited would be extrapolated, not estimated. Next attempt: contrast              two observed levels, or collect data that visits the requested level",
+            named.join(" and "),
+            present.join(", ")
+        ),
+    ))
 }
 
 /// Whether a treatment column is discrete (at most [`MAX_DISCRETE_LEVELS`] distinct values),
@@ -640,5 +694,53 @@ mod design_measurement {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod contrast_arm_tests {
+    use super::*;
+    use crate::propensity::levels::OtherLevels;
+
+    fn restrict(
+        treatment: &[f64],
+        levels: (f64, f64),
+    ) -> Result<Option<crate::propensity::levels::DeclaredTreatmentLevels>, EstimationError> {
+        let data = TabularData::from_f64_columns([("t", treatment)]).unwrap();
+        let mut mask = vec![true; treatment.len()];
+        restrict_to_contrast_levels(
+            &data,
+            VariableId::from_raw(0),
+            &mut mask,
+            levels,
+            OtherLevels::Refuse,
+        )
+    }
+
+    #[test]
+    fn a_contrasted_level_no_row_carries_is_refused_naming_the_levels_present() {
+        let t: Vec<f64> = (0..20).map(|i| f64::from(i % 2)).collect();
+        for levels in [(5.0, 0.0), (0.5, 0.0), (1.0, -3.0), (7.5, 2.0)] {
+            let err = restrict(&t, levels).expect_err("an unvisited level must refuse");
+            let text = err.to_string();
+            assert!(text.starts_with("reason=arm_not_populated:"), "{text}");
+            assert!(text.contains("the treatment takes the levels 0, 1"), "{text}");
+        }
+        let text = restrict(&t, (5.0, 0.0)).unwrap_err().to_string();
+        assert!(text.contains("level 5 has no"), "{text}");
+        // Both levels unvisited are both named.
+        assert!(restrict(&t, (5.0, 6.0)).unwrap_err().to_string().contains("level 5 and 6"));
+    }
+
+    #[test]
+    fn populated_arms_and_continuous_doses_are_untouched() {
+        let t: Vec<f64> = (0..20).map(|i| f64::from(i % 2)).collect();
+        assert!(restrict(&t, (1.0, 0.0)).unwrap().is_none());
+        // A real-valued dose (more than the discrete cap of distinct values) is not arms.
+        let dose: Vec<f64> = (0..40).map(|i| f64::from(i) * 0.37).collect();
+        assert!(restrict(&dose, (5.0, 0.0)).unwrap().is_none());
+        // Every value distinct on a small table is a dose, not repeated arms.
+        let tiny: Vec<f64> = vec![0.1, 0.4, 0.9, 1.3];
+        assert!(restrict(&tiny, (2.0, 0.0)).unwrap().is_none());
     }
 }

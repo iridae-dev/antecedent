@@ -153,12 +153,37 @@ pub struct PanelGroup {
     pub history: Vec<[f64; 2]>,
     /// Nonnegative assignments, in the declared channel order.
     pub channels: Vec<Vec<f64>>,
-    /// Outcome at each period.
+    /// Outcome at each period. `NaN` marks a period excluded from the analysis (an outcome
+    /// that is missing, masked, or whose exposure window or covariates are unobserved): the
+    /// stationary AR(1) law is marginalized exactly over such a period, so the periods around
+    /// it stay serially coupled by their true time distance rather than being closed up.
     pub outcome: Vec<f64>,
     /// One declared observable confounder at each period.
     pub confounder: Vec<f64>,
     /// Seasonal level at each period.
     pub season: Vec<usize>,
+    /// Sampling weight of this group: its relative inverse inclusion probability in the
+    /// population the response averages describe. Strictly positive and finite; only ratios
+    /// matter. The fit maximizes the weighted pseudo-likelihood `sum_g w_g l_g` and the
+    /// frequentist covariance is the weighted group-cluster sandwich.
+    #[serde(default = "unit_weight", skip_serializing_if = "is_unit_weight")]
+    pub weight: f64,
+}
+
+fn unit_weight() -> f64 {
+    1.0
+}
+#[expect(clippy::trivially_copy_pass_by_ref, reason = "serde skip predicate signature")]
+fn is_unit_weight(weight: &f64) -> bool {
+    weight.to_bits() == 1.0_f64.to_bits()
+}
+
+impl PanelGroup {
+    /// Whether the group carries no sampling weight and no excluded period.
+    #[must_use]
+    pub fn is_plain(&self) -> bool {
+        is_unit_weight(&self.weight) && self.outcome.iter().all(|value| value.is_finite())
+    }
 }
 
 /// Complete mechanism parameters, with no omitted lag, interaction or dependence term.
@@ -428,7 +453,8 @@ pub struct PanelProgram {
     pub scenarios: Vec<PanelScenario>,
 }
 
-/// One program's conditional mean response, uniformly averaged over the retained groups.
+/// One program's conditional mean response, averaged over the retained groups with their
+/// sampling weights (uniformly when the panel is unweighted).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PanelResponse {
@@ -529,6 +555,9 @@ impl PanelData {
             if group.id.trim().is_empty()
                 || !ids.insert(&group.id)
                 || !(3..=1_000_000).contains(&n)
+                || group.outcome.iter().filter(|value| value.is_finite()).count() < 3
+                || !group.weight.is_finite()
+                || group.weight <= 0.0
                 || group.channels.len() != self.channels.len()
                 || group.history.len() != self.channels.len()
                 || group.channels.iter().any(|values| values.len() != n)
@@ -540,7 +569,8 @@ impl PanelData {
                     .flatten()
                     .chain(group.history.iter().flatten())
                     .any(|value| !value.is_finite() || *value < 0.0)
-                || group.outcome.iter().chain(&group.confounder).any(|value| !value.is_finite())
+                || group.outcome.iter().any(|value| value.is_infinite())
+                || group.confounder.iter().any(|value| !value.is_finite())
                 || group.season.iter().any(|&value| value >= self.seasons)
             {
                 return Err(invalid("group IDs, finite values, cadence or vector dimensions"));
@@ -557,8 +587,17 @@ impl PanelData {
     fn validate_channel_design(&self) -> Result<(), PanelError> {
         let mut basis: Vec<Vec<f64>> = Vec::with_capacity(self.channels.len());
         for (index, channel) in self.channels.iter().enumerate() {
-            let column: Vec<f64> =
-                self.groups.iter().flat_map(|group| group.channels[index].iter().copied()).collect();
+            let column: Vec<f64> = self
+                .groups
+                .iter()
+                .flat_map(|group| {
+                    group.channels[index]
+                        .iter()
+                        .zip(&group.outcome)
+                        .filter(|(_, outcome)| outcome.is_finite())
+                        .map(|(value, _)| *value)
+                })
+                .collect();
             let first = column[0];
             if column.iter().all(|&value| value == first) {
                 return Err(invalid(&format!(
@@ -619,12 +658,20 @@ impl PanelData {
             {
                 writer.word(values.len() as u64);
                 for value in values {
-                    writer.word(value.to_bits());
+                    // An excluded period has one canonical identity whatever NaN payload carries it.
+                    writer.word(if value.is_nan() { 0x7ff8_0000_0000_0001 } else { value.to_bits() });
                 }
             }
             writer.word(group.season.len() as u64);
             for &season in &group.season {
                 writer.word(season as u64);
+            }
+        }
+        if self.groups.iter().any(|group| !is_unit_weight(&group.weight)) {
+            // Appended only for a weighted panel, so every unweighted identity is unchanged.
+            writer.word(0x5745_4947_4854);
+            for group in &self.groups {
+                writer.word(group.weight.to_bits());
             }
         }
         if !self.family.is_reviewed() {
@@ -685,7 +732,48 @@ pub fn validate_fit_options(data: &PanelData, options: &PanelFitOptions) -> Resu
     if let Some(initial) = &options.initial {
         likelihood::validate_parameters(data, initial)?;
     }
+    data.validate_weighted_inference(options)?;
     Ok(())
+}
+
+impl PanelData {
+    /// Whether any group carries a sampling weight other than one.
+    #[must_use]
+    pub fn is_weighted(&self) -> bool {
+        self.groups.iter().any(|group| !is_unit_weight(&group.weight))
+    }
+    /// Whether any group excludes a period from the analysis.
+    #[must_use]
+    pub fn has_excluded_periods(&self) -> bool {
+        self.groups.iter().any(|group| group.outcome.iter().any(|value| value.is_nan()))
+    }
+    /// Sum of the group sampling weights; the group count for an unweighted panel.
+    #[must_use]
+    pub fn total_weight(&self) -> f64 {
+        self.groups.iter().map(|group| group.weight).sum()
+    }
+    /// A weighted panel is a pseudo-likelihood: only the group-cluster sandwich of its
+    /// frequentist fit is a covariance for it. A posterior or a parametric bootstrap would
+    /// treat the weighted objective as a model likelihood and misstate its precision, and a
+    /// spatial law couples the groups so their weighted terms do not separate.
+    fn validate_weighted_inference(&self, options: &PanelFitOptions) -> Result<(), PanelError> {
+        if self.is_weighted() {
+            match &options.inference {
+                PanelInference::Frequentist { .. } => {}
+                PanelInference::FrequentistBootstrap { .. } | PanelInference::Bayesian { .. } => {
+                    return Err(invalid(
+                        "sampling weights define a weighted pseudo-likelihood whose uncertainty is the weighted group-cluster sandwich; a parametric bootstrap or a posterior would treat it as a model likelihood and misstate its precision",
+                    ));
+                }
+            }
+            if self.family.spatial.is_some() {
+                return Err(invalid(
+                    "sampling weights need group-separable likelihood terms; a spatial residual law couples the groups",
+                ));
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Validate explicit intervention/scenario axes without fitting, simulation or output allocation.
@@ -888,20 +976,23 @@ fn evaluate_bound(
                 return Err(invalid("program refers to a group with no fitted random effect"));
             };
             let mut memo = likelihood::MechanismMemo::default();
+            let weight = data.groups[group_index].weight;
             for (time, mean) in means.iter_mut().enumerate() {
                 check_cancelled(ctx)?;
-                *mean += likelihood::program_response_memo(
-                    data,
-                    &draw.parameters,
-                    program,
-                    scenario,
-                    time,
-                    &mut memo,
-                ) + draw.group_intercepts[group_index];
+                *mean += weight
+                    * (likelihood::program_response_memo(
+                        data,
+                        &draw.parameters,
+                        program,
+                        scenario,
+                        time,
+                        &mut memo,
+                    ) + draw.group_intercepts[group_index]);
             }
         }
+        let total_weight = data.total_weight();
         for mean in &mut means {
-            *mean /= data.groups.len() as f64;
+            *mean /= total_weight;
             if !mean.is_finite() {
                 return Err(PanelError::Numerical("response overflow".into()));
             }

@@ -397,7 +397,7 @@ impl TemporalLinearAdjustment {
         }
         query.validate()?;
 
-        refuse_effect_modifiers(query)?;
+        let modifiers = checked_effect_modifiers(query, data)?;
         refuse_multi_step_schedule(&query.policy)?;
         if query.target_population != TargetPopulation::AllObserved {
             return Err(EstimationError::TargetPopulation);
@@ -418,6 +418,12 @@ impl TemporalLinearAdjustment {
         cols.push(LaggedColumn { variable: query.outcome, lag: y_lag });
 
         let mut adj_keys = Vec::new();
+        // A declared modifier is read at the outcome's lag, ahead of the adjustment nodes; an
+        // adjustment node that is the modifier itself is the same column and is read once.
+        for &modifier in modifiers {
+            cols.push(LaggedColumn { variable: modifier, lag: y_lag });
+            adj_keys.push(modifier);
+        }
         for &dense_var in estimand.adjustment_set.iter() {
             let key = indexer.key_of(dense_var.raw())?;
             let lag = offset_to_lag(key.offset - sample_anchor).map_err(|_| {
@@ -426,6 +432,9 @@ impl TemporalLinearAdjustment {
                      cannot be lag-aligned",
                 )
             })?;
+            if modifiers.contains(&key.variable) && lag == y_lag {
+                continue;
+            }
             cols.push(LaggedColumn { variable: key.variable, lag });
             adj_keys.push(key.variable);
         }
@@ -500,8 +509,12 @@ impl TemporalLinearAdjustment {
             cov_refs.iter().map(|(id, values)| (*id, gather(values))).collect();
         let cov_sel_refs: Vec<(VariableId, &[f64])> =
             cov_sel.iter().map(|(id, values)| (*id, values.as_slice())).collect();
-        let design = CompiledDesign::linear_adjustment(&t_sel, &cov_sel_refs, &y_sel, &selected)
-            .map_err(EstimationError::from)?;
+        let design = if modifiers.is_empty() {
+            CompiledDesign::linear_adjustment(&t_sel, &cov_sel_refs, &y_sel, &selected)
+        } else {
+            conditional_design(&t_sel, &cov_sel, modifiers.len(), &y_sel, &selected)
+        }
+        .map_err(EstimationError::from)?;
         let (design, sampling_weights) =
             weight_windows(design, data, query, max_lag as usize + row_start, nrows, allow_gaps)?;
         let selection = complete.as_ref().map(|intact| GapSelection {
@@ -525,7 +538,11 @@ impl TemporalLinearAdjustment {
         Ok((
             PreparedEstimationProblem {
                 design,
-                method: Arc::from("temporal.linear.adjustment"),
+                method: if modifiers.is_empty() {
+                    Arc::from("temporal.linear.adjustment")
+                } else {
+                    conditional_method(modifiers.len())
+                },
                 adjustment_set: Arc::from(adj_keys),
                 overlap: self.inner.overlap,
                 treatment_delta,
@@ -724,6 +741,9 @@ impl TemporalLinearAdjustment {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<(EffectEstimate, TemporalDependenceSe), EstimationError> {
+        if conditional_modifier_count(&prep.method).is_some() {
+            return Err(refuse_conditional_bootstrap());
+        }
         let rows = prep.design.nrows;
         let fitter = self.point_fitter();
         let mut workspace = EstimationWorkspace::default();
@@ -815,6 +835,9 @@ impl TemporalLinearAdjustment {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<(EffectEstimate, TemporalDependenceSe), EstimationError> {
+        if conditional_modifier_count(&prep.method).is_some() {
+            return Err(refuse_conditional_bootstrap());
+        }
         let rows = prep.design.nrows;
         let windows = selection.complete.len();
         let fitter = self.point_fitter();
@@ -925,28 +948,219 @@ impl TemporalLinearAdjustment {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
-        self.inner.fit(problem, workspace, ctx, assumptions)
+        if conditional_modifier_count(&problem.method).is_none() {
+            return self.inner.fit(problem, workspace, ctx, assumptions);
+        }
+        if self.inner.inference.bootstrap_replicates > 0 {
+            return Err(refuse_conditional_bootstrap());
+        }
+        self.fit_conditional_point(problem, workspace, assumptions)
+    }
+
+    /// The conditional effect of a design built with declared modifiers and its delta-method
+    /// standard error.
+    ///
+    /// The treatment coefficient of the centred interaction design is the conditional effect; its
+    /// analytic variance carries the modifier-mean term the plain coefficient variance omits.
+    fn fit_conditional_point(
+        &self,
+        problem: &PreparedEstimationProblem,
+        workspace: &mut EstimationWorkspace,
+        assumptions: AssumptionSet,
+    ) -> Result<EffectEstimate, EstimationError> {
+        let modifiers = conditional_modifier_count(&problem.method).ok_or(
+            EstimationError::Unsupported {
+                message: "a conditional fit needs a design built with declared effect modifiers",
+            },
+        )?;
+        let kind = self.inner.inference.se_kind;
+        let mut point = self.point_fitter_with(kind).fit_point(problem, workspace, assumptions)?;
+        let variance = conditional_effect_variance(&problem.design, modifiers, kind)?;
+        point.uncertainty.analytic.se = variance.max(0.0).sqrt() * problem.treatment_delta.abs();
+        Ok(point)
+    }
+
+    fn point_fitter_with(&self, kind: AnalyticSeKind) -> LinearAdjustmentAte {
+        let mut fitter = self.point_fitter();
+        fitter.inference.se_kind = kind;
+        fitter
     }
 }
 
-/// This design carries the average effect. A query that declares effect modifiers asks for a
-/// conditional effect, which [`temporal_conditional_marginal_effect`] fits as a separate
-/// regression with interaction terms and no standard error; answering with the average effect
-/// would ignore the declaration, so it is refused.
-fn refuse_effect_modifiers(query: &TemporalEffectQuery) -> Result<(), EstimationError> {
-    if query.effect_modifiers.is_empty() {
-        return Ok(());
-    }
-    Err(EstimationError::refused_detail(
+fn refuse_conditional_bootstrap() -> EstimationError {
+    EstimationError::refused_detail(
         antecedent_core::reason_code!("route_not_supported"),
-        "temporal_adjustment.effect_modifiers_declared",
-        format!(
-            "the query declares {} effect modifier(s); temporal linear adjustment returns the \
-             average effect and does not condition on them (the conditional effect is \
-             temporal_conditional_marginal_effect)",
-            query.effect_modifiers.len()
-        ),
-    ))
+        "temporal_adjustment.conditional_bootstrap",
+        "the conditional effect over declared modifiers resamples the modifier mean with the \
+         regression, which the iid row bootstrap of this fit does not; the one-series interval is \
+         the block bootstrap of the temporal conditional effect, and this fit reports the \
+         analytic delta-method standard error only"
+            .to_owned(),
+    )
+}
+
+/// Method tag of a design that carries the conditional (marginal over the modifier set) effect;
+/// the number of declared modifiers follows the marker.
+const CONDITIONAL_METHOD: &str = "temporal.linear.adjustment.conditional";
+const CONDITIONAL_MARKER: &str = "/modifiers=";
+
+fn conditional_method(modifiers: usize) -> Arc<str> {
+    Arc::from(format!("{CONDITIONAL_METHOD}{CONDITIONAL_MARKER}{modifiers}"))
+}
+
+/// The number of declared modifiers of a conditional design, `None` for the average-effect design.
+fn conditional_modifier_count(method: &str) -> Option<usize> {
+    method
+        .strip_prefix(CONDITIONAL_METHOD)
+        .and_then(|rest| rest.strip_prefix(CONDITIONAL_MARKER))
+        .and_then(|count| count.parse().ok())
+}
+
+/// The effect modifiers a query declares, checked.
+///
+/// A modifier set asks for the conditional effect (the marginal effect over the modifier
+/// distribution on the lag-aligned windows), which is the treatment coefficient of the
+/// interaction regression with the modifiers centred at their window means. Each modifier is
+/// named once and is neither the treatment nor the outcome. Sampling weights are not read by
+/// the interaction design (its centring would have to be the weighted mean), so a weighted
+/// series is refused rather than answered unweighted.
+///
+/// # Errors
+///
+/// `route_not_supported` for a repeated, treatment or outcome modifier; `route_unsupported`
+/// sampling-weights refusal for a weighted series.
+fn checked_effect_modifiers<'q>(
+    query: &'q TemporalEffectQuery,
+    data: &TimeSeriesData,
+) -> Result<&'q [VariableId], EstimationError> {
+    let modifiers: &[VariableId] = query.effect_modifiers.as_ref();
+    if modifiers.is_empty() {
+        return Ok(modifiers);
+    }
+    let repeated = modifiers.iter().enumerate().any(|(i, m)| modifiers[..i].contains(m));
+    if repeated || modifiers.contains(&query.treatment) || modifiers.contains(&query.outcome) {
+        return Err(EstimationError::refused_detail(
+            antecedent_core::reason_code!("route_not_supported"),
+            "temporal_adjustment.effect_modifiers_invalid",
+            "an effect modifier must be named once and be neither the treatment nor the outcome"
+                .to_owned(),
+        ));
+    }
+    if data.storage().weights().is_some() {
+        return Err(crate::sampling_weights::unsupported_route(
+            "the conditional effect over declared modifiers centres each modifier at its window \
+             mean, which a weighted series would have to centre at the weighted mean; the \
+             interaction design does not read the series' sampling weights",
+        ));
+    }
+    Ok(modifiers)
+}
+
+/// `[1 | T | W_c | T x W_c | Z]` with the modifiers centred at their mean over the retained
+/// windows.
+///
+/// `covariates` holds the `q` modifiers first, then the adjustment columns. The coefficient of
+/// `T` in this regression is `beta_T + sum_j beta_{T x W_j} mean(W_j)` of the uncentred
+/// regression, the marginal conditional effect per unit of treatment.
+fn conditional_design(
+    treatment: &[f64],
+    covariates: &[(VariableId, Vec<f64>)],
+    q: usize,
+    outcome: &[f64],
+    selected: &[usize],
+) -> Result<CompiledDesign, antecedent_stats::StatsError> {
+    let rows = treatment.len();
+    let mut columns: Vec<(VariableId, Vec<f64>)> = Vec::with_capacity(covariates.len() + q);
+    let centred: Vec<(VariableId, Vec<f64>)> = covariates[..q]
+        .iter()
+        .map(|(id, values)| {
+            let mean = values.iter().sum::<f64>() / rows.max(1) as f64;
+            (*id, values.iter().map(|v| v - mean).collect())
+        })
+        .collect();
+    columns.extend(centred.iter().cloned());
+    for (id, values) in &centred {
+        columns.push((*id, treatment.iter().zip(values).map(|(t, w)| t * w).collect()));
+    }
+    columns.extend(covariates[q..].iter().cloned());
+    let refs: Vec<(VariableId, &[f64])> =
+        columns.iter().map(|(id, values)| (*id, values.as_slice())).collect();
+    CompiledDesign::linear_adjustment(treatment, &refs, outcome, selected)
+}
+
+/// Coefficient-scale variance of the marginal conditional effect of a conditional design.
+///
+/// The effect is `theta = beta_T + beta_{TW}' mu_W`, estimated at the window mean of the
+/// modifiers. The regression is centred at that mean, so `theta_hat` is the treatment
+/// coefficient and its influence function is
+/// `[(X'X)^-1 x_i]_T e_i + beta_{TW}' (W_i - W_bar) / n`: the regression part plus the
+/// estimation of the modifier mean. Rows are treated as independent, so serial dependence is
+/// not in this variance; the dependence-aware interval of the one-series conditional effect is
+/// the block bootstrap of the facade.
+///
+/// `Homoskedastic` uses the classical `sigma^2 = RSS / (n - p)` for the regression part (the
+/// two parts are uncorrelated under `E[e | x] = 0`); `Hc0` is `sum u_i^2` and `Hc1` rescales by
+/// `n / (n - p)`.
+///
+/// # Errors
+///
+/// A singular design, fewer rows than coefficients, or an unsupported covariance kind.
+fn conditional_effect_variance(
+    design: &CompiledDesign,
+    modifiers: usize,
+    kind: AnalyticSeKind,
+) -> Result<f64, EstimationError> {
+    let n = design.nrows;
+    let p = design.ncols;
+    if n <= p {
+        return Err(EstimationError::data_msg(
+            "too few aligned rows for the variance of a temporal conditional effect",
+        ));
+    }
+    let x = &design.matrix;
+    let mut workspace = antecedent_stats::LeastSquaresWorkspace::default();
+    let fit = SequentialRegression::solve_design(x, n, p, &design.outcome, None, &mut workspace)
+        .map_err(EstimationError::from)?;
+    let coefficients = fit.coefficients;
+    let residuals: Vec<f64> = (0..n)
+        .map(|i| design.outcome[i] - (0..p).map(|c| x[c * n + i] * coefficients[c]).sum::<f64>())
+        .collect();
+    let inverse = crate::util::xtx_inverse(x, n, p).ok_or_else(|| {
+        EstimationError::data_msg("the temporal conditional design is rank deficient")
+    })?;
+    let nf = n as f64;
+    // Treatment row of (X'X)^-1 applied to x_i, and the centred-modifier term of the mean.
+    let a_i = |i: usize| -> f64 { (0..p).map(|c| inverse[p + c] * x[c * n + i]).sum::<f64>() };
+    let mean_term = |i: usize| -> f64 {
+        (0..modifiers)
+            .map(|j| coefficients[2 + modifiers + j] * x[(2 + j) * n + i])
+            .sum::<f64>()
+            / nf
+    };
+    let rss: f64 = residuals.iter().map(|e| e * e).sum();
+    let variance = match kind {
+        AnalyticSeKind::Homoskedastic => {
+            // The regression and the modifier mean are uncorrelated under `E[e | x] = 0`.
+            let mean_part: f64 = (0..n).map(|i| mean_term(i).powi(2)).sum();
+            rss / (nf - p as f64) * inverse[p + 1] + mean_part
+        }
+        AnalyticSeKind::Hc0 | AnalyticSeKind::Hc1 => {
+            let sum: f64 = (0..n).map(|i| (a_i(i) * residuals[i] + mean_term(i)).powi(2)).sum();
+            if kind == AnalyticSeKind::Hc1 { sum * nf / (nf - p as f64) } else { sum }
+        }
+        _ => {
+            return Err(EstimationError::refused_detail(
+                antecedent_core::reason_code!("route_not_supported"),
+                "temporal_adjustment.conditional_covariance_kind",
+                format!(
+                    "the conditional effect over declared modifiers reports a homoskedastic, \
+                     HC0 or HC1 delta-method variance; `{}` is not read",
+                    kind.as_str()
+                ),
+            ));
+        }
+    };
+    Ok(variance)
 }
 
 /// Multi-step schedules identify a contrast over *every* treatment-time node;
@@ -1292,17 +1506,16 @@ pub fn temporal_conditional_marginal_effect_with_gaps(
     let mut adjustment = Vec::new();
     for &dense_var in estimand.adjustment_set.iter() {
         let key = indexer.key_of(dense_var.raw())?;
-        if modifiers.contains(&key.variable)
-            || key.variable == query.treatment
-            || key.variable == query.outcome
-        {
-            continue;
-        }
         let lag = offset_to_lag(key.offset - sample_anchor).map_err(|_| {
             EstimationError::unsupported(
                 "adjustment node sits after this horizon's sample anchor and cannot be lag-aligned",
             )
         })?;
+        // Only the modifier's own column (same variable at the outcome's lag) is read once; the
+        // same variable at another lag is a different adjustment node and stays.
+        if modifiers.contains(&key.variable) && lag == y_lag {
+            continue;
+        }
         cols.push(LaggedColumn { variable: key.variable, lag });
         adjustment.push(key.variable);
     }
@@ -1360,6 +1573,71 @@ pub fn temporal_conditional_marginal_effect_with_gaps(
         slope += coef[2 + q + j] * w_bar;
     }
     Ok((slope * delta, selection))
+}
+
+/// The conditional effect over a declared modifier set with its standard error, and the
+/// prepared problem it was fitted from.
+#[derive(Clone, Debug)]
+pub struct TemporalConditionalFit {
+    /// Marginal conditional effect over the modifier set, per the query's contrast.
+    pub effect: f64,
+    /// Delta-method standard error (rows independent; modifier-mean term included).
+    pub standard_error: f64,
+    /// Lag windows the regression read.
+    pub rows: usize,
+    /// The prepared problem: centred interaction design, fit by [`TemporalLinearAdjustment::fit`].
+    pub problem: PreparedEstimationProblem,
+    /// Intact windows, when gaps were allowed.
+    pub selection: Option<GapSelection>,
+}
+
+/// [`temporal_conditional_marginal_effect_with_gaps`] with a standard error, through the
+/// prepared-problem path of [`TemporalLinearAdjustment`].
+///
+/// The point is the treatment coefficient of `Y ~ 1 + T + (W - W_bar) + T (W - W_bar) + Z`,
+/// scaled by the contrast, which equals the unfolded-regression functional
+/// `(beta_T + sum_j beta_{T x W_j} mean(W_j)) (active - control)`. The standard error is the
+/// delta-method one of [`conditional_effect_variance`]: it treats windows as independent rows
+/// and includes the sampling variability of the modifier means. No ridge prior is applied.
+///
+/// # Errors
+///
+/// The query declares no modifier, a multi-step schedule, a target population other than all
+/// observed units, a weighted series, a design that is singular or has too few rows, or a
+/// covariance kind the conditional variance does not read.
+pub fn temporal_conditional_marginal_fit(
+    data: &TimeSeriesData,
+    estimand: &IdentifiedEstimand,
+    query: &TemporalEffectQuery,
+    indexer: &TemporalIndexer,
+    policy: &antecedent_core::KernelPolicy,
+    allow_gaps: bool,
+    se_kind: AnalyticSeKind,
+) -> Result<TemporalConditionalFit, EstimationError> {
+    if query.effect_modifiers.is_empty() {
+        return Err(EstimationError::unsupported(
+            "temporal conditional effect needs at least one effect modifier, each named once",
+        ));
+    }
+    let mut estimator = TemporalLinearAdjustment::new();
+    estimator.inner.inference.se_kind = se_kind;
+    let (problem, selection) = if allow_gaps {
+        let (problem, selection) =
+            estimator.prepare_with_gaps(data, estimand, query, indexer, policy)?;
+        (problem, Some(selection))
+    } else {
+        (estimator.prepare(data, estimand, query, indexer, None, policy)?, None)
+    };
+    let mut workspace = EstimationWorkspace::default();
+    let estimate =
+        estimator.fit_conditional_point(&problem, &mut workspace, AssumptionSet::default())?;
+    Ok(TemporalConditionalFit {
+        effect: estimate.ate,
+        standard_error: estimate.uncertainty.analytic.se,
+        rows: problem.design.nrows,
+        problem,
+        selection,
+    })
 }
 
 /// The outcome, treatments and their time offsets of a [`temporal_linear_slopes`] fit.

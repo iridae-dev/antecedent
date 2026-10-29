@@ -28,6 +28,18 @@ pub fn exercise(
     original: &JointPanelResult,
     ctx: &ExecutionContext,
 ) {
+    exercise_core(prepared, original, ctx);
+    matrix::exercise(prepared, original, ctx);
+}
+
+/// The experiment-to-decision chain on one retained Bayesian fit, without the projection and
+/// translation matrix that `exercise` then runs: update, independent likelihood reference,
+/// artifacts, decision and next study, origin refusals and current authority.
+pub fn exercise_core(
+    prepared: &PreparedStudy<JointPanelState>,
+    original: &JointPanelResult,
+    ctx: &ExecutionContext,
+) {
     let mut fixture = experiment_fixture(original);
     verify_target_refusals(prepared, &fixture, ctx);
     let program = prepared.with_experiment(fixture.update.clone(), &fixture.ledger).unwrap();
@@ -49,7 +61,6 @@ pub fn exercise(
         ),
         "original panel remains an independent retained result"
     );
-    matrix::exercise(prepared, original, ctx);
 }
 
 fn verify_independent_likelihood_reference(

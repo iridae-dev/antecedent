@@ -3,14 +3,45 @@ use super::*;
 use antecedent_core::{InferenceSelection, ScientificWorldId, ValueExpr};
 use antecedent_data::{PanelUnit, TableView, TimeSeriesData};
 use antecedent_estimate::joint_panel::{PanelInference, PanelOptimizerOptions, PanelScenario};
+/// Sixty rows per unit with pseudo-random unit-specific doses and confounder and a response
+/// built from lagged, saturating exposure to every channel plus deterministic noise, so that the
+/// mechanism's likelihood is regular: a fit on it converges to a point with positive definite
+/// curvature, which a program search over point means requires. The first two rows are the
+/// pre-period, with zero doses and no outcome.
+fn regular_columns(unit: u32) -> [Vec<f64>; 6] {
+    let n = 60_usize;
+    let mut state = 0x2545_F491_4F6C_DD1D_u64 ^ (u64::from(unit) + 1).wrapping_mul(0x9E37_79B9);
+    let mut next = move || {
+        state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        (state >> 33) as f64 / (1_u64 << 31) as f64
+    };
+    let mut doses = |n: usize| -> Vec<f64> {
+        (0..n).map(|t| if t < 2 || next() < 0.2 { 0.0 } else { 3.0 * next() }).collect()
+    };
+    let a = doses(n);
+    let b = doses(n);
+    let c = doses(n);
+    let z: Vec<f64> =
+        (0..n).map(|t| if t < 2 { f64::NAN } else { next() * 2.0 - 1.0 }).collect();
+    let lagged = |x: &[f64], t: usize| 0.6 * x[t] + 0.3 * x[t - 1] + 0.1 * x[t - 2];
+    let y: Vec<f64> = (0..n)
+        .map(|t| {
+            if t < 2 {
+                return f64::NAN;
+            }
+            let (ea, eb, ec) = (lagged(&a, t), lagged(&b, t), lagged(&c, t));
+            let noise = 0.1 * (next() - 0.5);
+            1.0 + 1.5 * ea / (ea + 1.0) + 1.0 * eb / (eb + 1.0) + 0.6 * ec / (ec + 1.0)
+                + 0.4 * z[t]
+                + noise
+        })
+        .collect();
+    [a, b, c, y, z, vec![0.0; n]]
+}
 fn fixture() -> (PanelData, JointPanelRequest) {
     let units = (0..4)
         .map(|unit_id| {
-            let a = vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 2.0, 1.0];
-            let b = vec![0.0, 0.0, 1.0, 2.0, 3.0, 1.0, 0.0, 2.0];
-            let y = vec![f64::NAN, f64::NAN, 1.0, 2.0, 3.0, 4.0, 3.0, 2.0];
-            let z = vec![f64::NAN, f64::NAN, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0];
-            let season = vec![0.0; 8];
+            let [a, b, _, y, z, season] = regular_columns(unit_id);
             PanelUnit {
                 unit_id,
                 series: TimeSeriesData::from_f64_columns(
@@ -88,7 +119,7 @@ fn fixture() -> (PanelData, JointPanelRequest) {
         seasons: 1,
         lag_order: 2,
         options: PanelFitOptions {
-            optimizer: PanelOptimizerOptions { max_iterations: 2, gradient_tolerance: 1e-4 },
+            optimizer: PanelOptimizerOptions { max_iterations: 3000, gradient_tolerance: 1e-4 },
             inference: PanelInference::Frequentist { draws: 0 },
             initial: None,
         },
@@ -138,12 +169,7 @@ fn three_channel_data() -> PanelData {
         .map(|unit_id| {
             // Three channels that are not affine functions of one another: the fit refuses
             // channels whose separate effects the data cannot identify.
-            let a = vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 2.0, 1.0];
-            let b = vec![0.0, 0.0, 1.0, 2.0, 3.0, 1.0, 0.0, 2.0];
-            let c = vec![0.0, 0.0, 2.0, 0.0, 1.0, 2.0, 3.0, 1.0];
-            let outcome = vec![f64::NAN, f64::NAN, 1.0, 2.0, 3.0, 4.0, 3.0, 2.0];
-            let confounder = vec![f64::NAN, f64::NAN, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0];
-            let seasons = vec![0.0; 8];
+            let [a, b, c, outcome, confounder, seasons] = regular_columns(unit_id);
             PanelUnit {
                 unit_id,
                 series: TimeSeriesData::from_f64_columns(
@@ -644,6 +670,57 @@ fn static_panel_refuses_source_proof_for_another_future_context_law() {
     let error = changed.with_static_source_proof(proof, &data, &ctx).unwrap_err();
     assert!(
         matches!(error,JointPanelError::Unsupported(message) if message.contains("context law differs"))
+    );
+}
+
+#[test]
+fn unrolled_graph_attempt_records_the_general_id_verdict_without_claiming_identification() {
+    use antecedent_identify::panel_unrolled::{PanelNode, UnrolledPanelGraph, UnrolledPanelSpec};
+    let (data, request) = fixture();
+    let ctx = ExecutionContext::for_tests(1);
+    let panel = Study::prepare_joint_panel(data, request, &ctx).unwrap();
+    let spec = |latent| UnrolledPanelSpec {
+        periods: 6,
+        channels: 2,
+        contexts: 1,
+        carryover_reach: 1,
+        outcome_persistence: true,
+        history_feedback: true,
+        latent_confounding: latent,
+        ..UnrolledPanelSpec::default()
+    };
+    let attempt = |panel: &PreparedStudy<JointPanelState>| {
+        panel
+            .inspect()
+            .design_attempts
+            .iter()
+            .find(|a| a.id == "joint_adjustment.observational")
+            .unwrap()
+            .clone()
+    };
+    // No unmeasured cause: a DAG over the unrolled variables is identified by general ID, but the
+    // fitted Gaussian/AR panel is not thereby identified.
+    let identified = panel
+        .with_unrolled_graph_attempt(&UnrolledPanelGraph::build(spec(vec![])).unwrap(), &[5], &ctx)
+        .unwrap();
+    let recorded = attempt(&identified);
+    assert!(recorded.detail.contains("general ID identifies"), "{}", recorded.detail);
+    assert_eq!(recorded.outcome, JointPanelDesignOutcome::Unsupported);
+    assert!(recorded.proof.is_none());
+    assert_eq!(
+        identified.inspect().identification.identity(),
+        panel.inspect().identification.identity()
+    );
+    // A bow between a channel and the outcome it drives is refused with the hedge.
+    let bow = vec![(PanelNode::Channel { channel: 0, period: 2 }, PanelNode::Outcome(2))];
+    let refused = panel
+        .with_unrolled_graph_attempt(&UnrolledPanelGraph::build(spec(bow)).unwrap(), &[5], &ctx)
+        .unwrap();
+    assert!(attempt(&refused).detail.contains("hedge"), "{}", attempt(&refused).detail);
+    // A graph of another shape than the program is refused.
+    let wrong = UnrolledPanelSpec { periods: 3, channels: 2, ..UnrolledPanelSpec::default() };
+    assert!(
+        panel.with_unrolled_graph_attempt(&UnrolledPanelGraph::build(wrong).unwrap(), &[2], &ctx).is_err()
     );
 }
 
@@ -1237,7 +1314,7 @@ fn prepare_declared(
 fn panel_source_refuses_weights_masks_and_missing_cells_with_typed_errors() {
     use antecedent_data::ValidityBitmap;
     assert!(prepare_declared(declared_panel(|_, _| {}), |_| {}).is_ok());
-    // A weighted or masked series is a declaration the engine cannot honour.
+    // A weighted or masked series is a declaration the engine reads or refuses by name.
     let weighted = declared_panel_with(
         [0, 1, 2, 3],
         |_, _| {},
@@ -1253,14 +1330,18 @@ fn panel_source_refuses_weights_masks_and_missing_cells_with_typed_errors() {
             series.with_analysis_mask(ValidityBitmap::from_bools(&keep)).unwrap()
         },
     );
-    for refused in [weighted, masked] {
-        match prepare_declared(refused, |_| {}) {
-            Err(JointPanelError::Compile(message)) => {
-                assert!(message.contains("weighted or masked panel laws"), "{message}");
-            }
-            other => panic!("expected a typed compile refusal, got {other:?}"),
+    // Weights that vary over a unit have no pseudo-likelihood and are refused by name; a mask
+    // is read, hiding the row and every period whose exposure window reads it.
+    match prepare_declared(weighted, |_| {}) {
+        Err(JointPanelError::Compile(message)) => {
+            assert!(message.contains("one strictly positive finite value over the unit"), "{message}");
         }
+        other => panic!("expected a typed compile refusal, got {other:?}"),
     }
+    let hidden = prepare_declared(masked, |_| {}).unwrap();
+    let group = &hidden.model_data().groups[0];
+    assert!(group.outcome[5].is_nan() && group.outcome[..5].iter().all(|v| v.is_finite()));
+    assert_eq!(hidden.data_accounting().units[0].masked_rows, vec![7]);
     // A missing cell in any read column of the fitted rows is refused, never dropped or filled.
     for (role, column, row) in [("outcome", 2, 4), ("confounder", 3, 4), ("channel", 0, 5)] {
         let data = declared_panel(|unit, columns| {

@@ -39,6 +39,10 @@ pub struct LocalPolynomialInfluence {
     pub point: LocalPolynomialPoint,
     /// Observation-level linearized residual contributions.
     pub influences: Vec<f64>,
+    /// Observation-level linearized contributions of the first derivative: the same
+    /// weighted-estimating-equation influences as [`Self::influences`] for the slope
+    /// coordinate. Their sum is zero up to numerical precision.
+    pub first_derivative_influences: Vec<f64>,
     /// Satterthwaite degrees of freedom of the leverage-corrected level
     /// variance quadratic form; absent for the original raw-residual helper.
     pub variance_degrees_of_freedom: Option<f64>,
@@ -342,6 +346,33 @@ pub fn gaussian_local_quadratic_influence_with(
     fit_local_quadratic(workspace, x, y, at, bandwidth, true, None, false)
 }
 
+/// Local quadratic with sampling weights multiplying the Gaussian kernel.
+///
+/// The fit solves the weighted estimating equation `sum_i s_i K_i x_i (y_i - x_i'b) = 0` and the
+/// influences are the weighted-score contributions `(X'WX)^-1 x_i s_i K_i e_i` with
+/// `W = diag(s_i K_i)`, so [`LocalPolynomialInfluence::robust_standard_error`] is the Taylor
+/// linearization (sandwich) standard error of the weighted fit with rows as the sampling units.
+/// `weights` must be finite and non-negative, one per row. A sum of the weighted influences over a
+/// declared cluster or a Newey-West combination of them gives the cluster-robust or HAC variance.
+///
+/// # Errors
+///
+/// Shape mismatch, non-finite input or weights, a negative weight, an invalid bandwidth, or a
+/// singular local design.
+pub fn gaussian_local_quadratic_influence_weighted_with(
+    workspace: &mut LocalQuadraticWorkspace,
+    x: &[f64],
+    y: &[f64],
+    at: f64,
+    bandwidth: f64,
+    weights: &[f64],
+) -> Result<LocalPolynomialInfluence, StatsError> {
+    if weights.len() != x.len() || weights.iter().any(|v| !v.is_finite() || *v < 0.0) {
+        return Err(StatsError::Shape { message: "invalid local quadratic weights" });
+    }
+    fit_local_quadratic(workspace, x, y, at, bandwidth, true, Some(weights), false)
+}
+
 /// Local quadratic after the caller has already refused non-finite `x`/`y`.
 pub fn gaussian_local_quadratic_influence_prechecked(
     workspace: &mut LocalQuadraticWorkspace,
@@ -610,6 +641,7 @@ fn fit_local_quadratic(
     let beta = matvec(inverse, rhs);
     let smoother_squares = matmul3(matmul3(inverse, squared_gram), inverse);
     let mut influences = Vec::with_capacity(workspace.weights.len());
+    let mut first_derivative_influences = Vec::with_capacity(workspace.weights.len());
     let mut first_derivative_influence_ss = 0.0;
     let mut second_derivative_influence_ss = 0.0;
     let mut weighted_rss = 0.0;
@@ -639,6 +671,7 @@ fn fit_local_quadratic(
         influences.push(w * hat * residual);
         let first_hat = inverse[1].iter().zip(row).map(|(c, v)| c * v).sum::<f64>();
         first_derivative_influence_ss += (w * first_hat * residual).powi(2);
+        first_derivative_influences.push(w * first_hat * residual);
         let second_hat = inverse[2].iter().zip(row).map(|(c, v)| c * v).sum::<f64>();
         // The fitted quadratic coefficient is half the second derivative.
         second_derivative_influence_ss += (2.0 * w * second_hat * residual).powi(2);
@@ -685,6 +718,7 @@ fn fit_local_quadratic(
     Ok(LocalPolynomialInfluence {
         point,
         influences,
+        first_derivative_influences,
         variance_degrees_of_freedom: if adjust_residuals {
             Some(local_variance_degrees_of_freedom(&workspace.weights, inverse, smoother_squares)?)
         } else {

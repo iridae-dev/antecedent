@@ -831,7 +831,27 @@ impl CausalError {
         let message = match self.peeled() {
             Self::NotIdentified { .. } => return Some("effect_not_identified"),
             Self::Compile { message } => message.as_str(),
-            Self::Rejected(failure) => failure.message(),
+            // A switchback with one period for every sequence never switches back.
+            Self::Rejected(failure)
+                if matches!(
+                    failure.cause(),
+                    CompileCause::Query(QueryError::RandomizedEffectRefused(
+                        antecedent_core::RandomizedEffectFault::SwitchbackSinglePeriod
+                    ))
+                ) =>
+            {
+                return Some(antecedent_core::reason_code!("option_not_applicable"));
+            }
+            // A query that fails its own validation (a malformed or unreadable declaration)
+            // is an invalid argument unless its text names a more specific code.
+            Self::Rejected(failure) => {
+                if matches!(failure.cause(), CompileCause::Query(_))
+                    && antecedent_core::reason_code::split_prefix(failure.message()).is_none()
+                {
+                    return Some(antecedent_core::reason_code!("invalid_argument"));
+                }
+                failure.message()
+            }
             // A retarget whose weighted support gate failed is a positivity refusal; the
             // facade carries it as a matrix refusal with the estimator's fixed message.
             Self::Support { message, .. }

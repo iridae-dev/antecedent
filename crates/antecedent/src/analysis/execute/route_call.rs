@@ -199,36 +199,35 @@ impl Study {
             return Ok(());
         }
         if matches!(self.query, CausalQuery::Transport(_)) {
-            // A temporal graph reads the rows as one series and reports the dependence-aware
-            // interval; every other graph reports the independent-row interval.
-            let temporal = matches!(
-                self.graph.class(),
-                GraphClass::TemporalDag
-                    | GraphClass::TemporalAdmg
-                    | GraphClass::TemporalCpdag
-                    | GraphClass::TemporalPag
-            );
-            if let Some(design) = self.declared.sampling_design.filter(|design| {
-                matches!(design, antecedent_core::DeclaredSamplingDesign::ClusteredPanel)
-                    || (!temporal
-                        && matches!(
-                            design,
-                            antecedent_core::DeclaredSamplingDesign::DependentTimeSeries
-                        ))
-            }) {
-                return Err(crate::compile_reason!(
-                    "option_not_applicable",
-                    "the declared `{}` design makes the rows dependent, which the \
-                     independent-row interval and Dirichlet row bootstrap of this transport \
-                     route do not cover and the route has no cluster-robust error for. Next \
-                     attempt: declare independent subject trajectories if the rows are \
-                     independent, or state the transport on a temporal graph for the \
-                     dependence-aware interval of one series",
-                    design.as_str()
+            // The trial-to-target contrast reads the table's observation weights, and its
+            // error reads the declared clusters or series (`transport_dependence`); weights
+            // declared on an estimator are read by nothing on this route.
+            let declared = self
+                .declared
+                .estimator_spec
+                .as_deref()
+                .is_some_and(|spec| spec.sampling_weights_calibration_label().is_some());
+            if declared {
+                return Err(CausalError::Estimate(
+                    antecedent_estimate::sampling_weights::unsupported_route(
+                        "sampling weights are declared on an estimator that this route does not run,                          so they would not change the estimate. Next attempt: put the weights on the                          table, which the transport contrast reads, or drop them",
+                    ),
                 ));
             }
+            return Ok(());
         }
-        if table.storage().weights().is_some() {
+        // The joint-cell response fits and summarizes for the weighted population the table's
+        // weights declare, so it is the one static route that reads them from the table.
+        let joint_cell = self.declared.estimator == Some(crate::strategy_table::EstimatorId::CellAipw)
+            && matches!(
+                &self.query,
+                CausalQuery::Response(response)
+                    if matches!(
+                        response.functional,
+                        antecedent_core::ResponseFunctional::InterventionResponse { .. }
+                    )
+            );
+        if table.storage().weights().is_some() && !joint_cell {
             return Err(CausalError::Estimate(
                 antecedent_estimate::sampling_weights::unsupported_route(
                     "the table carries observation weights, which this static effect route does                      not read, so the estimate would describe the unweighted rows. Next attempt:                      declare the weights on the estimator of an average effect                      (with_sampling_weights), or drop them from the table",

@@ -67,7 +67,8 @@ impl CheckedTemporalEffectExecution {
         let procedure = op.procedure();
         let (suite, bootstrap_replicates) = (procedure.validation, procedure.bootstrap_replicates);
         let inference = InferenceMode::Frequentist;
-        let fit = fit_temporal_effect(
+        let support = super::pulse_support::pulse_support(data, op.query(), ctx)?;
+        let mut fit = fit_temporal_effect(
             &TemporalEffectInputs {
                 data,
                 graph: op.graph(),
@@ -87,6 +88,7 @@ impl CheckedTemporalEffectExecution {
             },
             ctx,
         )?;
+        fit.diagnostics.extend(support);
         let point_only = fit.point_only;
         let missing_data = fit.missing_data.clone();
         let args = fit.finish_args(

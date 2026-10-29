@@ -6,9 +6,10 @@ use antecedent_core::{
     CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext, StreamDomain,
 };
 use antecedent_data::TableView;
+use antecedent_estimate::transport_design::{RowDependence, TrialToTargetRows};
 use antecedent_estimate::{
-    EffectEstimate, OverlapPolicy, estimate_interference, estimate_interference_bayesian,
-    trial_to_target_effect, trial_to_target_ipw_se,
+    EffectEstimate, OverlapPolicy, TransportEffectEstimate, estimate_interference,
+    estimate_interference_bayesian, trial_to_target_effect, trial_to_target_ipw_se,
 };
 use antecedent_identify::{
     TransportIdentification, TransportIdentifier, bind_transport_derivation, lower_transport_mean,
@@ -21,6 +22,7 @@ use super::{
     InferenceMode, OutcomeExprId, PhysicalExecutionPlan, Strategy, StudyResult, TabularData,
     VariableId, effect_from_posterior, elapsed_ns, report_identify_compute,
 };
+use crate::accepted::GraphClass;
 use crate::error::CausalError;
 use crate::strategy_table::{EstimatorId, IdentifierId};
 
@@ -79,6 +81,8 @@ struct TrialSample {
     trial_bool: Vec<bool>,
     selection: Vec<f64>,
     propensity: Vec<f64>,
+    /// Observation weights carried by the table, aligned to its rows.
+    weights: Option<Vec<f64>>,
 }
 
 impl TrialSample {
@@ -98,7 +102,8 @@ impl TrialSample {
         refuse_missing_trial_design(&treatment_col, &trial_col)?;
         let treatment_bool: Vec<bool> = treatment_col.iter().map(|v| *v != 0.0).collect();
         let trial_bool: Vec<bool> = trial_col.iter().map(|v| *v != 0.0).collect();
-        Ok(Self { outcomes, treatment_bool, trial_bool, selection, propensity })
+        let weights = data.storage().weights().map(<[f64]>::to_vec);
+        Ok(Self { outcomes, treatment_bool, trial_bool, selection, propensity, weights })
     }
 }
 
@@ -208,33 +213,29 @@ impl super::Study {
             identify_cached,
         } = inputs;
         let (treatment, outcome) = transport_primary_pair(query)?;
-        let TrialSample { outcomes, treatment_bool, trial_bool, selection, propensity } =
+        let TrialSample { outcomes, treatment_bool, trial_bool, selection, propensity, weights } =
             TrialSample::read(data, trial_spec, treatment, outcome)?;
-        let mut transported = trial_to_target_effect(
-            transport_id,
-            &outcomes,
-            &treatment_bool,
-            &trial_bool,
-            &selection,
-            &propensity,
-            None,
-        )
-        .map_err(CausalError::from)?;
-        let mut assumptions = identification.required_assumptions.clone();
-        assumptions.push(known_probability_assumption());
         let columns = TrialColumns {
             outcomes: &outcomes,
             treatment: &treatment_bool,
             trial: &trial_bool,
             selection: &selection,
             propensity: &propensity,
+            weights: weights.as_deref(),
         };
-        let series_block = self.transport_series_block(outcomes.len())?;
+        let dependence = self.transport_dependence(outcomes.len())?;
+        self.refuse_unread_transport_validation(&columns, &dependence)?;
+        let mut transported = transport_point(transport_id, &columns)?;
+        let mut assumptions = identification.required_assumptions.clone();
+        assumptions.push(known_probability_assumption());
+        if weights.is_some() {
+            assumptions.push(sampling_weights_assumption());
+        }
         let (estimate, posterior, estimator_id, diagnostic) = match inference {
             InferenceMode::Bayesian(cfg) => {
                 let (estimate, posterior, diagnostic) = bayesian_transport_estimate(
                     cfg,
-                    (transport_id, series_block),
+                    (transport_id, &dependence),
                     &columns,
                     assumptions,
                     identification.status,
@@ -251,7 +252,7 @@ impl super::Study {
             InferenceMode::Frequentist => {
                 let (estimate, diagnostic) = frequentist_transport_estimate(
                     &columns,
-                    (transported.ipw, series_block),
+                    (transported.ipw, &dependence),
                     assumptions,
                 )?;
                 (estimate, None, EstimatorId::TransportTrialIpw, diagnostic)
@@ -270,7 +271,7 @@ impl super::Study {
                 overlap: transported.overlap,
                 published: estimate.ate,
                 suite: self.settings.refute,
-                series_block,
+                dependence: dependence.as_grouping(),
                 replicates: self.settings.bootstrap_replicates,
             },
             ctx,
@@ -471,107 +472,402 @@ pub(super) fn known_probability_assumption() -> antecedent_core::AssumptionRecor
     }
 }
 
+/// How the rows of a trial-to-target study depend on each other, as the study declared it.
+#[derive(Clone, Debug)]
+pub(super) enum TrialDependence {
+    /// Independent rows.
+    Independent,
+    /// One series: the Newey-West lag of the error and the block length of the bootstrap.
+    Series(usize),
+    /// Whole clusters, one label per table row.
+    Clusters(Arc<[u32]>),
+}
+
+impl TrialDependence {
+    /// The estimator's view of the dependence.
+    pub(super) fn as_row(&self) -> RowDependence<'_> {
+        match self {
+            Self::Independent => RowDependence::Independent,
+            Self::Series(lag) => RowDependence::SeriesBlocks(*lag),
+            Self::Clusters(labels) => RowDependence::Clusters(labels),
+        }
+    }
+
+    /// The refuter state's view of the dependence.
+    pub(super) fn as_grouping(&self) -> super::transport_refutation::Grouping<'_> {
+        use super::transport_refutation::Grouping;
+        match self {
+            Self::Independent => Grouping::Independent,
+            Self::Series(block) => Grouping::Blocks(*block),
+            Self::Clusters(labels) => Grouping::Clusters(labels),
+        }
+    }
+
+    /// How the dependence enters the assumption and diagnostic text.
+    fn describe(&self) -> String {
+        match self {
+            Self::Independent => "independent rows".to_owned(),
+            Self::Series(lag) => format!("one dependent series (lag {lag})"),
+            Self::Clusters(labels) => {
+                let distinct: std::collections::BTreeSet<u32> = labels.iter().copied().collect();
+                format!("{} whole clusters", distinct.len())
+            }
+        }
+    }
+}
+
+/// The record that the rows carry sampling weights the contrast and its uncertainty read.
+pub(super) fn sampling_weights_assumption() -> antecedent_core::AssumptionRecord {
+    antecedent_core::AssumptionRecord {
+        assumption: antecedent_core::Assumption::ParametricRestriction(
+            antecedent_core::ParametricAssumption {
+                id: Arc::from("transport.observation_weights"),
+                description: Arc::from(
+                    "the table's observation weights are the number of population units each \
+                     row stands for: the transported contrast is the weighted ratio of the trial \
+                     and target sums, the selection and treatment probabilities are the \
+                     probabilities in that weighted population, and the error is the weighted \
+                     linearization with the declared rows, clusters or series as the sampling \
+                     units",
+                ),
+            },
+        ),
+        source: antecedent_core::AssumptionSource::AlgorithmDefault {
+            algorithm: Arc::from("estimate.transport.trial_ipw"),
+        },
+        scope: antecedent_core::AssumptionScope::Estimation,
+        status: antecedent_core::AssumptionStatus::Declared,
+    }
+}
+
+/// The trial-to-target point estimate of `columns` under `transport`: the unweighted contrast
+/// when the rows carry no weights, the weighted ratio when they do.
+///
+/// # Errors
+///
+/// An uncertified formula, or invalid rows, probabilities or weights.
+pub(super) fn transport_point(
+    transport: &TransportIdentification,
+    columns: &TrialColumns<'_>,
+) -> Result<TransportEffectEstimate, CausalError> {
+    let TrialColumns { outcomes, treatment, trial, selection, propensity, weights } = *columns;
+    if weights.is_none() {
+        return trial_to_target_effect(
+            transport, outcomes, treatment, trial, selection, propensity, None,
+        )
+        .map_err(CausalError::from);
+    }
+    let rows = columns.rows();
+    let ipw = rows.ipw(transport).map_err(CausalError::from)?;
+    let overlap = rows.overlap().map_err(CausalError::from)?;
+    Ok(TransportEffectEstimate { ipw, aipw: None, overlap })
+}
+
 /// Delta-method SE of the ratio-of-means IPW contrast under known probabilities.
 ///
-/// When the rows are the consecutive times of one series (`series_block`), the SE is the
-/// Newey–West long-run variance of the per-row influence at the block length.
+/// The independent-row error is the root of the summed squared influence; on one series it is
+/// the Newey-West long-run variance of the influence at the block length, and on declared
+/// clusters the cluster sandwich (sums of the influence inside each cluster, with the `G / (G
+/// - 1)` factor); with sampling weights the influence carries each row's weight.
 pub(super) fn frequentist_transport_estimate(
     columns: &TrialColumns<'_>,
-    (ipw, series_block): (f64, Option<usize>),
+    (ipw, dependence): (f64, &TrialDependence),
     assumptions: antecedent_core::AssumptionSet,
 ) -> Result<(EffectEstimate, Diagnostic), CausalError> {
-    let TrialColumns { outcomes, treatment, trial, selection, propensity } = *columns;
-    let Some(lag) = series_block else {
-        let se = trial_to_target_ipw_se(outcomes, treatment, trial, selection, propensity, ipw)
-            .map_err(CausalError::from)?;
-        return Ok((
-            EffectEstimate::new(ipw, se, assumptions, OverlapPolicy::ExplicitOverride),
-            Diagnostic::new(
-                "estimate.transport.trial_ipw",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "binary trial-to-target IPW; inner ResponseCurve names treatment/outcome only",
-            ),
-        ));
+    let TrialColumns { outcomes, treatment, trial, selection, propensity, weights } = *columns;
+    let weighted = if weights.is_some() { " weighted" } else { "" };
+    let (se, se_kind) = match (dependence, weights) {
+        (TrialDependence::Independent, None) => (
+            trial_to_target_ipw_se(outcomes, treatment, trial, selection, propensity, ipw)
+                .map_err(CausalError::from)?,
+            antecedent_estimate::AnalyticSeKind::default(),
+        ),
+        (TrialDependence::Series(lag), None) => (
+            antecedent_estimate::trial_to_target_ipw_hac_se(
+                outcomes,
+                treatment,
+                trial,
+                selection,
+                propensity,
+                (ipw, *lag),
+            )
+            .map_err(CausalError::from)?,
+            antecedent_estimate::AnalyticSeKind::NeweyWest { lag: *lag },
+        ),
+        (dependence, _) => (
+            columns.rows().ipw_se(ipw, dependence.as_row()).map_err(CausalError::from)?,
+            match dependence {
+                TrialDependence::Independent => antecedent_estimate::AnalyticSeKind::default(),
+                TrialDependence::Series(lag) => {
+                    antecedent_estimate::AnalyticSeKind::NeweyWest { lag: *lag }
+                }
+                TrialDependence::Clusters(_) => antecedent_estimate::AnalyticSeKind::Cluster,
+            },
+        ),
     };
-    let se = antecedent_estimate::trial_to_target_ipw_hac_se(
-        outcomes,
-        treatment,
-        trial,
-        selection,
-        propensity,
-        (ipw, lag),
-    )
-    .map_err(CausalError::from)?;
+    let message = match dependence {
+        TrialDependence::Independent => {
+            format!("binary trial-to-target{weighted} IPW; inner ResponseCurve names treatment/outcome only")
+        }
+        TrialDependence::Series(lag) => format!(
+            "binary trial-to-target{weighted} IPW on the consecutive times of one series; the SE \
+             is the Newey-West long-run variance of the per-row influence at lag {lag}, \
+             unlicensed and unmeasured; inner ResponseCurve names treatment/outcome only"
+        ),
+        TrialDependence::Clusters(_) => format!(
+            "binary trial-to-target{weighted} IPW on {}; the SE is the cluster sandwich of the \
+             per-row influence (whole clusters are the sampling units, G/(G-1) factor), \
+             unlicensed and unmeasured; inner ResponseCurve names treatment/outcome only",
+            dependence.describe()
+        ),
+    };
+    let mut estimate = EffectEstimate::new(ipw, se, assumptions, OverlapPolicy::ExplicitOverride)
+        .with_se_kind(se_kind);
+    if let TrialDependence::Clusters(labels) = dependence {
+        // The cluster sandwich is referred to a Student-t law with one fewer degree of freedom
+        // than the clusters it sums over, the small-cluster reference of a cluster-robust error.
+        let read = |row: usize| columns.weights.is_none_or(|weights| weights[row] > 0.0);
+        let clusters: std::collections::BTreeSet<u32> = labels
+            .iter()
+            .enumerate()
+            .filter(|(row, _)| read(*row))
+            .map(|(_, label)| *label)
+            .collect();
+        estimate.uncertainty.analytic.reference_df = Some(clusters.len().saturating_sub(1) as f64);
+    }
     Ok((
-        EffectEstimate::new(ipw, se, assumptions, OverlapPolicy::ExplicitOverride)
-            .with_se_kind(antecedent_estimate::AnalyticSeKind::NeweyWest { lag }),
+        estimate,
         Diagnostic::new(
             "estimate.transport.trial_ipw",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Info,
-            format!(
-                "binary trial-to-target IPW on the consecutive times of one series; the SE is \
-                 the Newey-West long-run variance of the per-row influence at lag {lag} (the \
-                 contemporaneous projection's block length), unlicensed and unmeasured; inner \
-                 ResponseCurve names treatment/outcome only"
-            ),
+            message,
         ),
     ))
 }
 
 impl super::Study {
-    /// The block length of a trial-transport uncertainty over `n` rows: `Some` when the
-    /// rows are one dependent series (a `TemporalAdmg` projection), `None` for independent
-    /// rows. A declared independent-subject or clustered design on the projection refuses
-    /// ([`Self::functional_row_resampling`]).
-    pub(super) fn transport_series_block(&self, n: usize) -> Result<Option<usize>, CausalError> {
-        let (resampling, _) = self.functional_row_resampling()?;
-        Ok(resampling.block_length(n))
+    /// How the trial-to-target rows depend on each other on this study.
+    ///
+    /// * No declaration: one series when the graph is a temporal projection, independent rows
+    ///   otherwise.
+    /// * `DependentTimeSeries`: one series on any graph. The Newey-West lag and block length is
+    ///   the declared `score_dependence` lag, or the default rule of the series bootstrap.
+    /// * `ClusteredPanel`: whole clusters, labelled by the declared `score_dependence` clusters
+    ///   (one label per table row). Without labels the design is refused: a cluster draw cannot
+    ///   be formed from a table that names none.
+    /// * `IndependentSubjectTrajectories`: independent rows.
+    ///
+    /// # Errors
+    ///
+    /// `option_not_applicable` when the declared design needs labels or a lag that were not
+    /// declared, when a declared dependence does not pair with the declared design, or when
+    /// the labels do not cover the `n` table rows.
+    pub(super) fn transport_dependence(&self, n: usize) -> Result<TrialDependence, CausalError> {
+        use antecedent_core::DeclaredSamplingDesign as Design;
+        use antecedent_estimate::ScoreDependence;
+        let temporal = matches!(
+            self.graph.class(),
+            GraphClass::TemporalDag
+                | GraphClass::TemporalAdmg
+                | GraphClass::TemporalCpdag
+                | GraphClass::TemporalPag
+        );
+        let series_default = || {
+            antecedent_estimate::RowResampling::SeriesBlocks
+                .block_length(n)
+                .map_or(TrialDependence::Independent, TrialDependence::Series)
+        };
+        match (self.declared.sampling_design, self.declared.score_dependence.as_ref()) {
+            (Some(Design::ClusteredPanel), Some(ScoreDependence::Clusters(labels))) => {
+                if labels.len() != n {
+                    return Err(crate::compile_reason!(
+                        "option_not_applicable",
+                        "the declared cluster labels name {} rows and the table has {n}; a \
+                         cluster label is needed for every row. Next attempt: declare one \
+                         label per table row",
+                        labels.len()
+                    ));
+                }
+                Ok(TrialDependence::Clusters(Arc::clone(labels)))
+            }
+            (Some(Design::ClusteredPanel), _) => Err(crate::compile_reason!(
+                "option_not_applicable",
+                "the declared `clustered_panel` design makes the rows dependent within \
+                 clusters, but the table carries no cluster labels, so no whole cluster can be \
+                 summed or drawn for the transport error. Next attempt: declare one cluster \
+                 label per row with score_dependence(ScoreDependence::clusters(..)), or declare \
+                 independent subject trajectories if the rows are independent"
+            )),
+            (Some(Design::DependentTimeSeries), Some(ScoreDependence::NeweyWest { lag })) => {
+                Ok(TrialDependence::Series(*lag))
+            }
+            (Some(Design::DependentTimeSeries) | None, None) if temporal => Ok(series_default()),
+            (Some(Design::DependentTimeSeries), None) => Ok(series_default()),
+            (None, None) | (Some(Design::IndependentSubjectTrajectories), None) => {
+                Ok(TrialDependence::Independent)
+            }
+            (_, Some(_)) => Err(crate::compile_reason!(
+                "option_not_applicable",
+                "the declared score dependence pairs cluster labels with a clustered-panel \
+                 design and a Newey-West lag with a dependent-time-series design; the declared \
+                 sampling design does not match it, so the transport error would read the wrong \
+                 dependence. Next attempt: declare the matching sampling_design"
+            )),
+        }
+    }
+
+    /// Refuse the declarations this route would read nothing from, and the transport-native
+    /// validation suite when the rows carry sampling weights.
+    ///
+    /// * An estimator other than the route's own (`transport.trial_ipw`, or its Bayesian
+    ///   bootstrap): the route runs inverse-probability weighting, so a named AIPW or matching
+    ///   estimator would be answered with a different number than the one asked for.
+    /// * An overlap policy: the supplied probabilities are the design and are never clipped or
+    ///   trimmed here, so a declared clip or trim would change nothing.
+    /// * A population registry: the target is the target rows of the table, not a named or
+    ///   weighted population.
+    /// * The validation suite beside sampling weights: its calibration tests count the
+    ///   unweighted rows and its bootstrap resamples unweighted rows, so its verdicts would
+    ///   describe a population the published number is not about.
+    ///
+    /// # Errors
+    ///
+    /// `option_not_applicable` naming the declaration and the next attempt.
+    pub(super) fn refuse_unread_transport_validation(
+        &self,
+        columns: &TrialColumns<'_>,
+        _dependence: &TrialDependence,
+    ) -> Result<(), CausalError> {
+        let own = if self.settings.inference.is_bayesian() {
+            EstimatorId::TransportTrialBayesianBootstrap
+        } else {
+            EstimatorId::TransportTrialIpw
+        };
+        if let Some(declared) = self.declared.estimator.filter(|declared| *declared != own) {
+            return Err(crate::compile_reason!(
+                "option_not_applicable",
+                "the estimator `{}` was declared, but a trial-to-target TransportQuery runs \
+                 inverse-probability weighting (`{}`) and would answer with a different \
+                 estimate than the one asked for. Next attempt: drop the estimator declaration, \
+                 or ask for the estimand on a route that runs it",
+                declared.as_str(),
+                own.as_str()
+            ));
+        }
+        if self.declared.overlap_policy.is_some() {
+            return Err(crate::compile_reason!(
+                "option_not_applicable",
+                "an overlap policy (clip or trim) was declared, but the trial-to-target \
+                 contrast takes the supplied selection and treatment probabilities as the \
+                 design and never clips or trims them, so the declaration would change nothing. \
+                 Next attempt: clip or trim the probability columns before the study, or drop \
+                 the overlap policy"
+            ));
+        }
+        if self.declared.population_registry.is_some() {
+            return Err(crate::compile_reason!(
+                "option_not_applicable",
+                "a population registry was declared, but the trial-to-target contrast is the \
+                 effect in the target rows of the table and reads no named or custom \
+                 population, so the declaration would change nothing. Next attempt: put the \
+                 target population in the table (its target rows and, if they are a sample, \
+                 their observation weights), or drop the registry"
+            ));
+        }
+        if columns.weights.is_some() && self.settings.refute != super::RefuteSuite::None {
+            return Err(crate::compile_reason!(
+                "option_not_applicable",
+                "the transport-native validation suite counts and resamples the unweighted \
+                 rows, and the table carries observation weights it would not read, so its \
+                 verdicts would describe a different population than the weighted estimate. \
+                 Next attempt: run the weighted contrast with RefuteSuite::None, or drop the \
+                 weights to validate the unweighted rows"
+            ));
+        }
+        Ok(())
     }
 }
 
 /// The binary trial-to-target columns the IPW estimator and its bootstrap read.
+#[derive(Clone, Copy)]
 pub(super) struct TrialColumns<'a> {
     pub(super) outcomes: &'a [f64],
     pub(super) treatment: &'a [bool],
     pub(super) trial: &'a [bool],
     pub(super) selection: &'a [f64],
     pub(super) propensity: &'a [f64],
+    /// Observation weights of the rows; `None` is unweighted.
+    pub(super) weights: Option<&'a [f64]>,
 }
 
-/// Dirichlet Bayesian bootstrap of the trial-to-target IPW contrast over the observed trial rows.
+impl<'a> TrialColumns<'a> {
+    /// The columns as the weighted, design-aware estimator reads them.
+    pub(super) fn rows(&self) -> TrialToTargetRows<'a> {
+        TrialToTargetRows {
+            outcome: self.outcomes,
+            treatment: self.treatment,
+            trial: self.trial,
+            selection_probability: self.selection,
+            treatment_probability: self.propensity,
+            weights: self.weights,
+        }
+    }
+}
+
+/// Dirichlet Bayesian bootstrap of the trial-to-target IPW contrast over the observed trial rows
+/// (or whole clusters, or blocks of one series).
 pub(super) fn bayesian_transport_estimate(
     cfg: &BayesianConfig,
-    (transport_id, series_block): (&TransportIdentification, Option<usize>),
+    (transport_id, dependence): (&TransportIdentification, &TrialDependence),
     columns: &TrialColumns<'_>,
     mut assumptions: antecedent_core::AssumptionSet,
     status: IdentificationStatus,
     ctx: &ExecutionContext,
 ) -> Result<(EffectEstimate, CausalPosterior, Diagnostic), CausalError> {
-    let TrialColumns { outcomes, treatment, trial, selection, propensity } = *columns;
+    let TrialColumns { outcomes, treatment, trial, selection, propensity, weights } = *columns;
     refuse_transport_bayesian_priors(cfg)?;
-    let draws = antecedent_estimate::trial_to_target_bayesian_bootstrap_blocks(
-        transport_id,
-        outcomes,
-        treatment,
-        trial,
-        selection,
-        propensity,
-        (
-            antecedent_estimate::DrawSpec::new(
-                cfg.n_draws,
-                ctx.rng.stream_for(StreamDomain::Bayesian, 0x7A17_0001).next_u64(),
-            ),
-            series_block,
-        ),
-    )
+    let spec = antecedent_estimate::DrawSpec::new(
+        cfg.n_draws,
+        ctx.rng.stream_for(StreamDomain::Bayesian, 0x7A17_0001).next_u64(),
+    );
+    let draws = if weights.is_none() && !matches!(dependence, TrialDependence::Clusters(_)) {
+        let block = match dependence {
+            TrialDependence::Series(block) => Some(*block),
+            _ => None,
+        };
+        antecedent_estimate::trial_to_target_bayesian_bootstrap_blocks(
+            transport_id,
+            outcomes,
+            treatment,
+            trial,
+            selection,
+            propensity,
+            (spec, block),
+        )
+    } else {
+        columns.rows().bayesian_bootstrap(transport_id, dependence.as_row(), spec)
+    }
     .map_err(CausalError::from)?;
+    let unit = match dependence {
+        TrialDependence::Independent => "observed trial rows",
+        TrialDependence::Series(_) => "contiguous blocks of the observed trial rows",
+        TrialDependence::Clusters(_) => "whole clusters of the observed trial rows",
+    };
+    let weighted = if weights.is_some() {
+        ", each shared draw multiplied by the row's observation weight"
+    } else {
+        ""
+    };
     assumptions.push(antecedent_core::AssumptionRecord {
                     assumption: antecedent_core::Assumption::ParametricRestriction(
                         antecedent_core::ParametricAssumption {
                             id: Arc::from("transport.trial_empirical_support_prior"),
-                            description: Arc::from("Dirichlet(1,...,1) Bayesian bootstrap over the observed trial rows, conditional on the selected trial sample size, target sample size, and supplied selection/treatment probabilities; the target row law and fitted probability-model uncertainty are held fixed"),
+                            description: if matches!(dependence, TrialDependence::Independent) && weights.is_none() {
+                                Arc::from("Dirichlet(1,...,1) Bayesian bootstrap over the observed trial rows, conditional on the selected trial sample size, target sample size, and supplied selection/treatment probabilities; the target row law and fitted probability-model uncertainty are held fixed")
+                            } else {
+                                Arc::from(format!("Dirichlet(1,...,1) Bayesian bootstrap over the {unit}{weighted}, conditional on the trial and target weight totals and the supplied selection/treatment probabilities; the target row law and fitted probability-model uncertainty are held fixed"))
+                            },
                         },
                     ),
                     source: antecedent_core::AssumptionSource::AlgorithmDefault {

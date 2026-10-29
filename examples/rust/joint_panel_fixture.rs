@@ -282,3 +282,191 @@ pub fn posterior_sampling() -> antecedent_estimate::joint_panel::PanelSamplingOp
         ..antecedent_estimate::joint_panel::PanelSamplingOptions::default()
     }
 }
+
+/// Retained generating truth of the lag-zero (static) panel.
+pub struct LagZeroTruth {
+    pub intercept: f64,
+    pub coefficients: [f64; 2],
+    pub interaction: f64,
+    pub confounder: f64,
+    pub season_effects: [f64; 4],
+    pub half_saturation: f64,
+    pub innovation_sd: f64,
+    pub group_sd: f64,
+}
+
+pub fn lag_zero_truth() -> LagZeroTruth {
+    LagZeroTruth {
+        intercept: 2.0,
+        coefficients: [3.0, 2.0],
+        interaction: 1.5,
+        confounder: 0.7,
+        season_effects: [0.0, 0.2, -0.1, 0.1],
+        half_saturation: 3.0,
+        innovation_sd: 0.2,
+        group_sd: 0.35,
+    }
+}
+
+/// SplitMix64 stream and its Box-Muller normals: a fixed, dependency-free generator so the
+/// lag-zero panel is the same panel on every platform and run.
+struct FixtureStream(u64);
+impl FixtureStream {
+    fn next_u64(&mut self) -> u64 {
+        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = self.0;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^ (z >> 31)
+    }
+    fn uniform(&mut self) -> f64 {
+        ((self.next_u64() >> 11) as f64 + 0.5) / (1_u64 << 53) as f64
+    }
+    fn normal(&mut self) -> f64 {
+        let (u, v) = (self.uniform(), self.uniform());
+        (-2.0 * u.ln()).sqrt() * (std::f64::consts::TAU * v).cos()
+    }
+}
+
+/// Number of lag-zero groups and follow-up periods per group.
+pub const LAG_ZERO_GROUPS: u32 = 12;
+pub const LAG_ZERO_PERIODS: usize = 48;
+
+/// Twelve independent groups of 48 periods generated from [`lag_zero_truth`]: no carryover and
+/// no serial error, so the rows are `y = c + b_a s(a) + b_b s(b) + b_ab s(a) s(b) + g z +
+/// season + u_group + e` with `s(x) = x / (x + k)`. Doses are 0 with probability 0.25 and
+/// otherwise uniform on (0, 10); the deterministic stream makes the panel reproducible.
+pub fn source_lag_zero() -> PanelData {
+    let truth = lag_zero_truth();
+    let mut stream = FixtureStream(20_261_029);
+    let saturate = |x: f64| x / (x + truth.half_saturation);
+    let units: Vec<_> = (0..LAG_ZERO_GROUPS)
+        .map(|group| {
+            let intercept = truth.group_sd * stream.normal();
+            let mut dose = |stream: &mut FixtureStream| {
+                if stream.uniform() < 0.25 { 0.0 } else { 10.0 * stream.uniform() }
+            };
+            let a: Vec<f64> = (0..LAG_ZERO_PERIODS).map(|_| dose(&mut stream)).collect();
+            let b: Vec<f64> = (0..LAG_ZERO_PERIODS).map(|_| dose(&mut stream)).collect();
+            let z: Vec<f64> = (0..LAG_ZERO_PERIODS).map(|_| stream.normal()).collect();
+            let season: Vec<f64> = (0..LAG_ZERO_PERIODS).map(|t| (t % 4) as f64).collect();
+            let y: Vec<f64> = (0..LAG_ZERO_PERIODS)
+                .map(|t| {
+                    let (sa, sb) = (saturate(a[t]), saturate(b[t]));
+                    truth.intercept
+                        + truth.coefficients[0] * sa
+                        + truth.coefficients[1] * sb
+                        + truth.interaction * sa * sb
+                        + truth.confounder * z[t]
+                        + truth.season_effects[t % 4]
+                        + intercept
+                        + truth.innovation_sd * stream.normal()
+                })
+                .collect();
+            let series = TimeSeriesData::from_f64_columns(
+                ["channel_a", "channel_b", "outcome", "z", "season"]
+                    .into_iter()
+                    .zip([&a, &b, &y, &z, &season].map(|column| column.as_slice())),
+                604_800_000_000_000,
+            )
+            .unwrap();
+            PanelUnit { unit_id: group, series }
+        })
+        .collect();
+    PanelData::try_new(Arc::from(units)).unwrap()
+}
+
+/// The lag-zero request on [`source_lag_zero`]: the four-world interaction contrast at dose 4
+/// held for 24 periods, with every group's own first 24 contexts as the future context.
+pub fn request_lag_zero(data: &PanelData, inference: PanelInference) -> JointPanelRequest {
+    use antecedent_data::TableView as _;
+    let selection = if matches!(&inference, PanelInference::Bayesian { .. }) {
+        InferenceSelection::Bayesian
+    } else {
+        InferenceSelection::Frequentist
+    };
+    let columns = columns();
+    let scenarios: Vec<_> = data
+        .units()
+        .iter()
+        .map(|unit| {
+            let z = unit.series.float64_cow(VariableId::from_raw(3)).unwrap();
+            let season = unit.series.float64_cow(VariableId::from_raw(4)).unwrap();
+            PanelScenario {
+                group: unit.unit_id.to_string(),
+                history: vec![
+                    PanelChannelHistory { id: "0".into(), values: [0.0; 2] },
+                    PanelChannelHistory { id: "1".into(), values: [0.0; 2] },
+                ],
+                confounder: z[..24].to_vec(),
+                season: season[..24].iter().map(|value| *value as usize).collect(),
+            }
+        })
+        .collect();
+    let worlds: Vec<_> = [("reference", 0.0, 0.0), ("a", 4.0, 0.0), ("b", 0.0, 4.0), ("joint", 4.0, 4.0)]
+        .into_iter()
+        .enumerate()
+        .map(|(index, (id, a, b))| JointPanelWorld {
+            world: ScientificWorldId::from_raw(u32::try_from(index).unwrap()),
+            reference: index == 0,
+            program: PanelProgram {
+                id: id.into(),
+                channels: vec![
+                    PanelChannelProgram { id: "0".into(), values: vec![a; 24] },
+                    PanelChannelProgram { id: "1".into(), values: vec![b; 24] },
+                ],
+                scenarios: scenarios.clone(),
+            },
+        })
+        .collect();
+    let target = joint_panel_target(
+        data.schema(),
+        &columns,
+        0,
+        &worlds,
+        JointPanelFunctional::Interaction {
+            joint: ScientificWorldId::from_raw(3),
+            a_at_reference: ScientificWorldId::from_raw(1),
+            b_at_reference: ScientificWorldId::from_raw(2),
+            reference: ScientificWorldId::from_raw(0),
+        },
+        selection,
+    )
+    .unwrap();
+    JointPanelRequest {
+        columns,
+        interactions: vec![
+            PanelInteractionSpec::from_saturated_features(
+                "ab",
+                &antecedent_core::ValueExpr::var(VariableId::from_raw(0))
+                    .mul(antecedent_core::ValueExpr::var(VariableId::from_raw(1))),
+            )
+            .unwrap(),
+        ],
+        seasons: 4,
+        lag_order: 0,
+        options: PanelFitOptions {
+            optimizer: PanelOptimizerOptions { max_iterations: 4000, gradient_tolerance: 1e-5 },
+            inference,
+            initial: None,
+        },
+        family: antecedent_estimate::joint_panel::PanelFamily::default(),
+        worlds,
+        target,
+        assignment: None,
+        temporal: None,
+    }
+}
+
+/// Sampling effort and thresholds for the lag-zero reference: four chains and the strict
+/// convergence policy (rank-normalized R-hat at most 1.01, bulk and tail ESS at least 400).
+pub fn lag_zero_sampling() -> antecedent_estimate::joint_panel::PanelSamplingOptions {
+    antecedent_estimate::joint_panel::PanelSamplingOptions {
+        chains: 4,
+        warmup: 10_000,
+        draws: 25_000,
+        max_rhat: 1.01,
+        min_ess: 400.0,
+        ..antecedent_estimate::joint_panel::PanelSamplingOptions::default()
+    }
+}

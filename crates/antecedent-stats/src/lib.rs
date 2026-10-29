@@ -164,7 +164,8 @@ pub use response::{
     gaussian_density, gaussian_local_quadratic_adjusted_influence_prechecked,
     gaussian_local_quadratic_bias_corrected, gaussian_local_quadratic_bias_corrected_influence,
     gaussian_local_quadratic_influence, gaussian_local_quadratic_influence_prechecked,
-    gaussian_local_quadratic_influence_with, gaussian_local_quadratic_weighted,
+    gaussian_local_quadratic_influence_weighted_with, gaussian_local_quadratic_influence_with,
+    gaussian_local_quadratic_weighted,
     silverman_bandwidth, silverman_normal_reference_factor,
 };
 pub use special::{

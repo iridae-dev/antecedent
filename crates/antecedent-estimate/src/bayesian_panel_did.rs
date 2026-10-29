@@ -50,8 +50,10 @@ impl DidPrior {
         if ok(self.coefficient_scale) && ok(self.variance_shape) && ok(self.variance_scale) {
             Ok(())
         } else {
-            Err(EstimationError::stats_msg(
-                "bayesian DiD prior needs finite positive coefficient scale and variance shape and scale",
+            Err(crate::util::refuse(
+                antecedent_core::reason_code!("invalid_argument"),
+                "bayesian_did_prior",
+                "bayesian DiD prior needs finite positive coefficient scale and variance shape and scale. Next attempt: declare a finite positive coefficient scale, variance shape and variance scale",
             ))
         }
     }
@@ -154,14 +156,20 @@ pub(crate) fn fit_nig(
     let n = y.len();
     let p = columns.len();
     if p == 0 || n <= p + 1 || sampling.draws < 2 {
-        return Err(EstimationError::stats_msg(
-            "bayesian DiD needs more rows than coefficients plus one, and draws >= 2",
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            "bayesian_did_sample_size",
+            "bayesian DiD needs more rows than coefficients plus one, and draws >= 2. Next attempt: supply more rows than coefficients plus one and at least two draws",
         ));
     }
     if columns.iter().any(|c| c.len() != n)
         || y.iter().chain(columns.iter().flatten()).any(|v| !v.is_finite())
     {
-        return Err(EstimationError::stats_msg("bayesian DiD needs equal-length finite columns"));
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            "bayesian_did_columns",
+            "bayesian DiD needs equal-length finite columns. Next attempt: supply equal-length finite columns",
+        ));
     }
     let x: Vec<f64> = columns.iter().flatten().copied().collect();
     let prior_set = PriorSet {
@@ -209,8 +217,10 @@ pub fn fit_bayesian_cross_section_did(
 ) -> Result<BayesianDidEstimate, EstimationError> {
     let n = outcome.len();
     if n == 0 || treated_group.len() != n || post_period.len() != n || clusters.len() != n {
-        return Err(EstimationError::stats_msg(
-            "bayesian DiD needs equal non-empty outcome, group, period and cluster vectors",
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            "bayesian_did_shape",
+            "bayesian DiD needs equal non-empty outcome, group, period and cluster vectors. Next attempt: supply equal-length non-empty outcome, group, period and cluster columns",
         ));
     }
     require_one_unit_per_cluster(clusters)?;
@@ -257,8 +267,10 @@ pub fn fit_bayesian_panel_did(
 ) -> Result<BayesianDidEstimate, EstimationError> {
     let n = pre.len();
     if n == 0 || post.len() != n || treated.len() != n || clusters.len() != n {
-        return Err(EstimationError::stats_msg(
-            "bayesian panel DiD needs equal non-empty pre, post, treatment and cluster vectors",
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            "bayesian_panel_did_shape",
+            "bayesian panel DiD needs equal non-empty pre, post, treatment and cluster vectors. Next attempt: supply equal-length non-empty pre, post, treatment and cluster columns",
         ));
     }
     require_one_unit_per_cluster(clusters)?;
@@ -307,8 +319,10 @@ pub fn fit_bayesian_augmented_panel_did(
         || clusters.len() != n
         || covariates.iter().any(|c| c.len() != n || c.iter().any(|v| !v.is_finite()))
     {
-        return Err(EstimationError::stats_msg(
-            "bayesian augmented DiD needs equal non-empty pre, post, treatment, cluster and covariate columns",
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            "bayesian_augmented_did_shape",
+            "bayesian augmented DiD needs equal non-empty pre, post, treatment, cluster and covariate columns. Next attempt: supply equal-length non-empty pre, post, treatment, cluster and finite covariate columns",
         ));
     }
     require_one_unit_per_cluster(clusters)?;

@@ -144,6 +144,81 @@ impl CellSaturatedAipw {
         spec: &CellScoreSpec<'_>,
         shared: SharedCellInputs<'_>,
     ) -> Result<ScoreTable, EstimationError> {
+        if data.storage().weights().is_some() {
+            return Err(crate::sampling_weights::unsupported_route(
+                "the table carries observation weights, which this unweighted cell-saturated \
+                 fit would not read, so the scores would describe the unweighted rows. Next \
+                 attempt: fit through the weighted entry point, or drop the weights from the table",
+            ));
+        }
+        self.fit_scores_inner(data, spec, shared, None)
+    }
+
+    /// Fit cell scores for the weighted population the table's observation weights declare.
+    ///
+    /// Zero-weight rows are dropped before any fold or fit (the scores equal those of the
+    /// table with the rows deleted), the multinomial propensity maximizes the weighted
+    /// likelihood and each cell outcome model is weighted least squares, so a score is the
+    /// augmented inverse-probability score of the weighted population. The retained weights
+    /// (mean one over the analysed rows, in score-row order) and their record are returned
+    /// beside the table; its means and variances are the weighted ones only when summarized
+    /// with those weights.
+    ///
+    /// # Errors
+    ///
+    /// The refusals of [`Self::fit_scores`], and `sampling_weights_invalid` when the table
+    /// carries no weights or none of the analysed rows has positive weight.
+    pub fn fit_scores_sampling_weighted(
+        &self,
+        data: &TabularData,
+        spec: &CellScoreSpec<'_>,
+        shared: SharedCellInputs<'_>,
+    ) -> Result<(ScoreTable, crate::sampling_weights::RetainedSamplingWeights), EstimationError>
+    {
+        let Some(source) = data.storage().weights() else {
+            return Err(crate::sampling_weights::invalid(
+                "the weighted cell-saturated fit needs observation weights on the table",
+            ));
+        };
+        let declared = crate::sampling_weights::SamplingWeights::new(Arc::<[f64]>::from(source))?;
+        self.fit_scores_inner_weighted(data, spec, shared, &declared)
+    }
+
+    fn fit_scores_inner_weighted(
+        &self,
+        data: &TabularData,
+        spec: &CellScoreSpec<'_>,
+        shared: SharedCellInputs<'_>,
+        declared: &crate::sampling_weights::SamplingWeights,
+    ) -> Result<(ScoreTable, crate::sampling_weights::RetainedSamplingWeights), EstimationError>
+    {
+        let (table, retained) = self.fit_scores_core(data, spec, shared, Some(declared))?;
+        let retained = retained.ok_or_else(|| {
+            crate::sampling_weights::invalid("the weighted fit retained no sampling weights")
+        })?;
+        Ok((table, retained))
+    }
+
+    fn fit_scores_inner(
+        &self,
+        data: &TabularData,
+        spec: &CellScoreSpec<'_>,
+        shared: SharedCellInputs<'_>,
+        declared: Option<&crate::sampling_weights::SamplingWeights>,
+    ) -> Result<ScoreTable, EstimationError> {
+        self.fit_scores_core(data, spec, shared, declared).map(|(table, _)| table)
+    }
+
+    fn fit_scores_core(
+        &self,
+        data: &TabularData,
+        spec: &CellScoreSpec<'_>,
+        shared: SharedCellInputs<'_>,
+        declared: Option<&crate::sampling_weights::SamplingWeights>,
+    ) -> Result<
+        (ScoreTable, Option<crate::sampling_weights::RetainedSamplingWeights>),
+        EstimationError,
+    > {
         let CellScoreSpec { treatments, outcome, adjustment, functional, continuous } = *spec;
         let SharedCellInputs { fold_ids, design } = shared;
         if treatments.is_empty() {
@@ -158,7 +233,7 @@ impl CellSaturatedAipw {
                 POINT_CDE_UNLICENSED,
             ));
         }
-        let mut prepared = prepare_cells(data, treatments, outcome, adjustment, continuous)?;
+        let mut prepared = prepare_cells(data, treatments, outcome, adjustment, continuous, declared)?;
         if let Some(ids) = fold_ids {
             if ids.len() != prepared.n {
                 return Err(EstimationError::data_msg(
@@ -184,7 +259,8 @@ impl CellSaturatedAipw {
         } else {
             thresholds_of(functional)
         };
-        crossfit_cell_scores(&prepared, &thresholds, self)
+        let table = crossfit_cell_scores(&prepared, &thresholds, self)?;
+        Ok((table, prepared.weights))
     }
 }
 
@@ -236,6 +312,8 @@ struct PreparedCells {
     fold_assignment: Option<Vec<u32>>,
     shared_design: bool,
     preparation: Arc<crate::PreparationSummary>,
+    /// Sampling weights of the analysed rows (mean one), when the fit is weighted.
+    weights: Option<crate::sampling_weights::RetainedSamplingWeights>,
 }
 
 #[allow(
@@ -248,6 +326,7 @@ fn prepare_cells(
     outcome: VariableId,
     adjustment: &[VariableId],
     continuous: Option<ContinuousCellSpec<'_>>,
+    declared: Option<&crate::sampling_weights::SamplingWeights>,
 ) -> Result<PreparedCells, EstimationError> {
     let mut ids = Vec::with_capacity(2 + treatments.len() + adjustment.len());
     ids.extend_from_slice(treatments);
@@ -262,8 +341,11 @@ fn prepare_cells(
     if let Some(c) = continuous {
         ids.push(c.variable);
     }
-    let crate::prepare::AdmittedColumns { data, row_mask: mask, receipt } =
+    let crate::prepare::AdmittedColumns { data, row_mask: mut mask, receipt } =
         crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
+    // Rows of weight zero stand for no population unit: they leave before any cell, fold or
+    // fit, so every score equals the one computed on the table with those rows deleted.
+    let weights = declared.map(|declared| declared.restrict(&mut mask)).transpose()?;
     // Read-only columns borrow the table when the cohort is one run; the outcome and the
     // design are retained, so each is gathered exactly once into what is kept.
     let t_cols: Vec<std::borrow::Cow<'_, [f64]>> = treatments
@@ -369,6 +451,7 @@ fn prepare_cells(
         fold_assignment: None,
         shared_design: false,
         preparation: crate::prepare::preparation_summary(&receipt),
+        weights,
     })
 }
 
@@ -437,6 +520,7 @@ fn crossfit_cell_scores(
             };
             let plan = CrossfitPlan::derive(n, folds, source, &SHARED_FOLD_ID_ERRORS)?;
             let clip = clip_of(est.overlap);
+            let row_weights: Option<&[f64]> = prepared.weights.as_ref().map(|w| &*w.weights);
             let mut out_ws = crate::aipw::AipwWorkspace::default();
 
             plan.run(
@@ -460,9 +544,12 @@ fn crossfit_cell_scores(
                     }
                     let train_cells: Vec<_> =
                         train.iter().map(|&i| prepared.cell[i] as usize).collect();
+                    let train_weights: Option<Vec<f64>> =
+                        row_weights.map(|w| train.iter().map(|&i| w[i]).collect());
                     let e_valid = multinomial_propensity(
                         DesignRows { values: &design_train, rows: train.len() },
                         &train_cells,
+                        train_weights.as_deref(),
                         DesignRows { values: &design_valid, rows: valid.len() },
                         prepared.ncols,
                         n_cells,
@@ -511,9 +598,23 @@ fn crossfit_cell_scores(
                                     "sparse cell: a cross-fit training cell has no more rows than design columns, so its outcome model has no residual degrees of freedom",
                                 ));
                             }
-                            let design_c =
+                            let mut design_c =
                                 rows_colmajor(&prepared.design, n, prepared.ncols, &cell_train);
-                            let y_c: Vec<f64> = cell_train.iter().map(|&i| y_all[i]).collect();
+                            let mut y_c: Vec<f64> = cell_train.iter().map(|&i| y_all[i]).collect();
+                            if let Some(w) = row_weights {
+                                // Weighted least squares: every row of the design and the
+                                // outcome scaled by the root of its weight.
+                                let root: Vec<f64> =
+                                    cell_train.iter().map(|&i| w[i].sqrt()).collect();
+                                for column in design_c.chunks_exact_mut(cell_train.len()) {
+                                    for (value, scale) in column.iter_mut().zip(&root) {
+                                        *value *= scale;
+                                    }
+                                }
+                                for (value, scale) in y_c.iter_mut().zip(&root) {
+                                    *value *= scale;
+                                }
+                            }
                             let fit = est
                                 .backend
                                 .least_squares(
@@ -557,10 +658,18 @@ fn crossfit_cell_scores(
                 columns: Arc::from(columns),
                 adjustment_set: Arc::clone(&prepared.adjustment_set),
                 nuisance_provenance: Arc::from(
-                    if prepared.fold_assignment.is_some() || prepared.shared_design {
-                        "cell.aipw.crossfit.multinomial_logit.ols.v1;batch.shared_design"
-                    } else {
-                        "cell.aipw.crossfit.multinomial_logit.ols.v1"
+                    match (
+                        prepared.fold_assignment.is_some() || prepared.shared_design,
+                        prepared.weights.is_some(),
+                    ) {
+                        (true, false) => {
+                            "cell.aipw.crossfit.multinomial_logit.ols.v1;batch.shared_design"
+                        }
+                        (false, false) => "cell.aipw.crossfit.multinomial_logit.ols.v1",
+                        (true, true) => {
+                            "cell.aipw.crossfit.multinomial_logit.ols.v1;batch.shared_design;sampling_weights"
+                        }
+                        (false, true) => "cell.aipw.crossfit.multinomial_logit.ols.v1;sampling_weights",
                     },
                 ),
                 propensity_clip: clip,
@@ -589,6 +698,7 @@ struct DesignRows<'a> {
 fn multinomial_propensity(
     train: DesignRows<'_>,
     cells: &[usize],
+    row_weights: Option<&[f64]>,
     valid: DesignRows<'_>,
     p: usize,
     k: usize,
@@ -622,22 +732,27 @@ fn multinomial_propensity(
                 }
                 out
             };
+            // Weighted likelihood: `row_weight(r)` is the sampling weight of training row `r`
+            // (one when unweighted), and the objective is the weighted mean.
+            let row_weight = |r: usize| row_weights.map_or(1.0, |w| w[r]);
+            let weight_total: f64 = (0..n).map(row_weight).sum();
             let loss = |prob: &[f64]| -> f64 {
                 cells
                     .iter()
                     .enumerate()
-                    .map(|(r, &c)| -prob[c * n + r].max(f64::MIN_POSITIVE).ln())
+                    .map(|(r, &c)| -row_weight(r) * prob[c * n + r].max(f64::MIN_POSITIVE).ln())
                     .sum::<f64>()
-                    / n as f64
+                    / weight_total
             };
             let score = |prob: &[f64]| {
                 let mut gradient = vec![0.0; d];
                 for r in 0..n {
                     for c in 0..k - 1 {
                         for j in 0..p {
-                            gradient[c * p + j] += train[j * n + r]
+                            gradient[c * p + j] += row_weight(r)
+                                * train[j * n + r]
                                 * (prob[c * n + r] - f64::from(cells[r] == c))
-                                / n as f64;
+                                / weight_total;
                         }
                     }
                 }
@@ -655,11 +770,12 @@ fn multinomial_propensity(
                             for e in 0..k - 1 {
                                 for l in 0..p {
                                     let b = e * p + l;
-                                    hessian[b * d + a] += train[j * n + r]
+                                    hessian[b * d + a] += row_weight(r)
+                                        * train[j * n + r]
                                         * train[l * n + r]
                                         * prob[c * n + r]
                                         * (f64::from(c == e) - prob[e * n + r])
-                                        / n as f64;
+                                        / weight_total;
                                 }
                             }
                         }
@@ -941,6 +1057,7 @@ mod tests {
             let probabilities = super::multinomial_propensity(
                 super::DesignRows { values: &train, rows: n },
                 &cells,
+                None,
                 super::DesignRows { values: &[1.0, 1.0, -1.0, 1.0], rows: 2 },
                 2,
                 4,
@@ -1065,6 +1182,7 @@ mod tests {
                 Some(10),
                 "00".into(),
             )),
+            weights: None,
         };
         let err = crossfit_cell_scores(&prepared, &[None], &CellSaturatedAipw::new()).unwrap_err();
         assert!(err.to_string().contains("training fold"));

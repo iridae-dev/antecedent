@@ -12,6 +12,9 @@ use antecedent_core::{
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_identify::compiled_product::IdentificationObligation;
+use antecedent_identify::panel_unrolled::{
+    UnrolledPanelGraph, UnrolledPanelIdentification, identify_joint_panel_intervention,
+};
 use antecedent_identify::{
     CompiledIdentificationProduct, CompiledProductParts, IdentificationClaimClass,
     IdentificationOutcome,
@@ -130,6 +133,71 @@ impl PreparedStudy<JointPanelState> {
         next.state.attempts = attempts.into();
         next.state.static_source = Some(Arc::new(proof));
         Ok(next)
+    }
+    /// Run general ID on a declared unrolled point graph of this panel program and record the
+    /// verdict on the observational joint-adjustment attempt.
+    ///
+    /// `graph` must name the program's shape: one channel node per program channel and one
+    /// period per future time point. The joint intervention sets every channel at every
+    /// period, and the verdict is for the named outcome periods. The record is the graph-level
+    /// statement only: an identified verdict is a nonparametric functional of the observed law,
+    /// and a hedge refuses it. Neither changes the retained identification product, because the
+    /// executed Gaussian/AR panel is a fitted parametric mechanism that realizes that
+    /// functional only under its own restrictions, so an identified verdict is never turned
+    /// into an identification claim for the fit.
+    ///
+    /// # Errors
+    /// A graph whose channels or periods differ from the program, an invalid outcome period,
+    /// or a failure of the general ID run.
+    pub fn with_unrolled_graph_attempt(
+        &self,
+        graph: &UnrolledPanelGraph,
+        outcome_periods: &[usize],
+        ctx: &ExecutionContext,
+    ) -> Result<Self, JointPanelError> {
+        source::check_cancelled(ctx)?;
+        for world in &self.request().worlds {
+            let channels = &world.program.channels;
+            if channels.len() != graph.spec().channels
+                || channels.iter().any(|c| c.values.len() != graph.spec().periods)
+            {
+                return Err(JointPanelError::Unsupported(
+                    "the unrolled graph names a different channel count or period count than the program"
+                        .into(),
+                ));
+            }
+        }
+        let verdict = identify_joint_panel_intervention(graph, outcome_periods)
+            .map_err(|error| JointPanelError::compile(error.to_string()))?;
+        let (detail, next) = match &verdict {
+            UnrolledPanelIdentification::Identified(result) => (
+                format!(
+                    "general ID identifies the joint intervention on the declared unrolled graph ({} channel nodes over {} periods, outcome periods {outcome_periods:?}) as a nonparametric functional of the observed law ({} derivation steps); not bound as a proof of this request: the executed Gaussian/AR panel is a fitted parametric mechanism that realizes that functional only under its own restrictions, and no estimator of the nonparametric functional is attached",
+                    graph.spec().channels * graph.spec().periods,
+                    graph.spec().periods,
+                    result.derivation.steps.len(),
+                ),
+                "an estimator that realizes the identified functional (a nonparametric g-formula on the unrolled law), or the parametric restriction declared as an assumption of the fit".to_owned(),
+            ),
+            UnrolledPanelIdentification::NotIdentified { hedge, .. } => (
+                format!(
+                    "not identified through general ID on the declared unrolled graph: a hedge of {} and {} nodes (the larger and smaller C-forests) exists for the joint intervention on outcome periods {outcome_periods:?}",
+                    hedge.f.len(),
+                    hedge.f_prime.len(),
+                ),
+                "remove the unmeasured common cause of a channel and the outcome it drives, or collect a randomized whole-program assignment".to_owned(),
+            ),
+        };
+        let mut next_state = self.clone();
+        let mut attempts = self.state.attempts.to_vec();
+        for attempt in &mut attempts {
+            if attempt.id == "joint_adjustment.observational" {
+                attempt.detail = detail.clone();
+                attempt.next_attempt = Some(next.clone());
+            }
+        }
+        next_state.state.attempts = attempts.into();
+        Ok(next_state)
     }
     /// Original independently retained compiler source used by static proof binding, if any.
     #[must_use]

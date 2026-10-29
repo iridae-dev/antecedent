@@ -13,7 +13,7 @@ use crate::EstimationError;
 /// the algebra of *direct* transport and *standardization* over a trial-selection mechanism.
 /// A recursive factorization certificate is a different identifying formula; evaluating the
 /// Dahabreh functional against it would manufacture a number the certificate did not license.
-fn require_dahabreh_compatible_formula(
+pub(crate) fn require_dahabreh_compatible_formula(
     identification: &TransportIdentification,
     stage: &str,
 ) -> Result<(), EstimationError> {
@@ -732,7 +732,7 @@ pub fn refuse_cancelled(
 /// trimming or clipping is applied at this value.
 pub(crate) const EXTREME_WEIGHT_THRESHOLD: f64 = 10.0;
 
-fn diagnostic(probabilities: &[f64], weights: &[f64]) -> TransportOverlapDiagnostic {
+pub(crate) fn diagnostic(probabilities: &[f64], weights: &[f64]) -> TransportOverlapDiagnostic {
     TransportOverlapDiagnostic {
         probability_min: probabilities.iter().copied().fold(f64::INFINITY, f64::min),
         probability_max: probabilities.iter().copied().fold(f64::NEG_INFINITY, f64::max),

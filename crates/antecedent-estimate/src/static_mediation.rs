@@ -726,7 +726,7 @@ impl MediationRows {
         if let (2, Some(level)) = (observed.len(), unvisited) {
             observed.sort_by(f64::total_cmp);
             return Err(EstimationError::refused(
-                antecedent_core::reason_code!("positivity_violated"),
+                antecedent_core::reason_code!("arm_not_populated"),
                 format!(
                     "the treatment contrast level {level} is not one of the two levels the \
                      binary treatment took ({} and {}), so the mediation mechanisms would \

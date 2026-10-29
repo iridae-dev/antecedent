@@ -37,6 +37,7 @@ pub struct PreparedSmoothedDose {
     options: SmoothedDoseOptions,
     variable_names: Vec<String>,
     seed: u64,
+    zero_weight_rows: u64,
 }
 
 /// One execution: the verified artifact wire that carries the grid and its evidence.
@@ -128,6 +129,9 @@ impl StudyBuilder {
             &query.transport_query(),
             ctx,
         )?;
+        // Rows of sampling weight zero stand for no population: they are deleted before anything
+        // else, and the artifact binds the rows that were analysed.
+        let (input, zero_weight_rows) = input.without_zero_weight_rows().map_err(estimate_err)?;
         antecedent_estimate::validate_smoothed_dose(&identification, &query, &input, &options)
             .map_err(estimate_err)?;
         Ok(PreparedSmoothedDose {
@@ -138,6 +142,7 @@ impl StudyBuilder {
             options,
             variable_names,
             seed: ctx.rng.master_seed(),
+            zero_weight_rows,
         })
     }
 
@@ -219,6 +224,7 @@ impl PreparedSmoothedDose {
         if input.features != self.input.features || input.sampling != self.input.sampling {
             return Err(err("transport.reprepare_required"));
         }
+        let (input, zero_weight_rows) = input.without_zero_weight_rows().map_err(estimate_err)?;
         antecedent_estimate::validate_smoothed_dose(
             &self.identification,
             &self.query,
@@ -226,7 +232,14 @@ impl PreparedSmoothedDose {
             &self.options,
         )
         .map_err(estimate_err)?;
-        Ok(Self { input: std::sync::Arc::new(input), ..self.clone() })
+        Ok(Self { input: std::sync::Arc::new(input), zero_weight_rows, ..self.clone() })
+    }
+
+    /// Rows of declared sampling weight zero that were deleted before preparation (they stand
+    /// for no population; the artifact binds the rows that remain).
+    #[must_use]
+    pub const fn zero_weight_rows(&self) -> u64 {
+        self.zero_weight_rows
     }
 
     /// Reconfigure the execution stream while sharing the immutable input and checked certificate.

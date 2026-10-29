@@ -1226,6 +1226,71 @@ fn require_declared_dependence_read(
 ) -> Result<(), CausalError> {
     use antecedent_core::DeclaredSamplingDesign as Design;
     use antecedent_estimate::AnalyticSeKind as Kind;
+    let joint_cell = carry.declared.estimator == Some(EstimatorId::CellAipw)
+        && matches!(carry.data, DataInput::Tabular(_))
+        && matches!(
+            query,
+            CausalQuery::Response(response)
+                if matches!(
+                    response.functional,
+                    antecedent_core::ResponseFunctional::InterventionResponse { .. }
+                )
+        );
+    // The trial-to-target contrast reads the labels or the lag in its own error and bootstrap.
+    let transport = matches!(query, CausalQuery::Transport(_))
+        && matches!(carry.data, DataInput::Tabular(_));
+    if let Some(dependence) = carry.declared.score_dependence.as_ref() {
+        // Cluster labels or a serial kernel are read by two routes only: the joint-cell
+        // response builds its variance from the influence values of its score table, and the
+        // trial-to-target transport contrast from its per-row influence.
+        if !joint_cell && !transport {
+            return Err(crate::unsupported_reason!(
+                "option_not_applicable",
+                "score_dependence is read only by the joint-cell response (a tabular \
+                 InterventionResponse with the CellAipw estimator) and by a trial-to-target \
+                 TransportQuery, which build a cluster-robust or Newey-West variance from \
+                 their influence values; this route \
+                 would silently ignore the declared labels or kernel. Next attempt: configure \
+                 an average-effect estimator whose standard error is the cluster sandwich or \
+                 Newey-West with its own labels, or drop the declaration"
+            ));
+        }
+        match (dependence, carry.declared.sampling_design) {
+            (
+                antecedent_estimate::ScoreDependence::Clusters(_),
+                Some(Design::ClusteredPanel),
+            )
+            | (
+                antecedent_estimate::ScoreDependence::NeweyWest { .. },
+                Some(Design::DependentTimeSeries),
+            ) => {}
+            (antecedent_estimate::ScoreDependence::Clusters(_), _) => {
+                return Err(crate::unsupported_reason!(
+                    "option_not_applicable",
+                    "the declared score dependence and the declared sampling design disagree: \
+                     cluster labels go with a clustered-panel design. Next attempt: declare \
+                     the clustered-panel sampling_design beside the labels, or drop them"
+                ));
+            }
+            (antecedent_estimate::ScoreDependence::NeweyWest { .. }, _) => {
+                return Err(crate::unsupported_reason!(
+                    "option_not_applicable",
+                    "the declared score dependence and the declared sampling design disagree: \
+                     a Newey-West lag goes with a dependent-time-series design. Next attempt: \
+                     declare the dependent-time-series sampling_design beside the lag, or drop it"
+                ));
+            }
+        }
+        if joint_cell && carry.settings.bootstrap_replicates > 0 {
+            return Err(crate::unsupported_reason!(
+                "option_not_applicable",
+                "the joint cell publishes an influence-function interval and does not \
+                 bootstrap, so a bootstrap requested beside the declared dependence would be \
+                 silently ignored. Next attempt: set bootstrap_replicates(0)"
+            ));
+        }
+        return Ok(());
+    }
     let Some(design @ (Design::ClusteredPanel | Design::DependentTimeSeries)) =
         carry.declared.sampling_design
     else {
@@ -1343,8 +1408,9 @@ fn require_declared_dependence_read(
                  influence-function interval over independent rows and do not bootstrap, so a \
                  declared clustered-panel or dependent-time-series design would be silently \
                  ignored whatever the bootstrap setting. Next attempt: declare independent \
-                 subject trajectories if the rows are independent, or estimate an average \
-                 effect with a cluster or Newey-West standard error"
+                 subject trajectories if the rows are independent, declare the labels or lag \
+                 with score_dependence on the joint cell (bootstrap off), or estimate an \
+                 average effect with a cluster or Newey-West standard error"
             ));
         }
     }
@@ -1956,6 +2022,18 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
         {
             support_status = Some(CellStatus::Refused);
         }
+        // The joint cell is licensed on independent, unweighted rows. Sampling weights and a
+        // declared cluster or serial dependence are read by it (weighted fits, cluster-robust or
+        // Newey-West influence variance, against an exact reference) but no coverage record
+        // measures those intervals, so the cell's license does not carry to them.
+        if support_status == Some(CellStatus::Licensed)
+            && carry.declared.estimator == Some(EstimatorId::CellAipw)
+            && matches!(query, CausalQuery::Response(_))
+            && (carry.declared.score_dependence.is_some()
+                || matches!(&carry.data, DataInput::Tabular(t) if t.storage().weights().is_some()))
+        {
+            support_status = Some(CellStatus::Refused);
+        }
         require_licensed_bayesian_estimator(carry, support_status)?;
         support_status
     };
@@ -2141,6 +2219,7 @@ fn into_study(exposure: BoundExposure) -> Study {
             participants: declared.participants,
             missing: declared.missing,
             sampling_design: declared.sampling_design,
+            score_dependence: declared.score_dependence,
             custom_validators: declared.custom_validators,
             tiered: declared.tiered,
         },

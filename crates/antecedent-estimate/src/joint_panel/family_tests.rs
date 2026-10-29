@@ -152,6 +152,7 @@ pub(super) fn simulate(
             outcome: vec![0.0; periods],
             confounder,
             season: vec![0; periods],
+            weight: 1.0,
         });
     }
     let intercepts: Vec<f64> = if let Some(spatial) = &data.family.spatial {
@@ -1187,14 +1188,34 @@ fn cells_06_non_finite_panel_values_are_refused_never_dropped_for_the_broader_fa
             "{what}: fit"
         );
     };
-    refused(&|d| d.groups[2].outcome[3] = f64::NAN, "a missing outcome");
     refused(&|d| d.groups[0].outcome[0] = f64::INFINITY, "an infinite outcome");
+    refused(
+        &|d| {
+            // Fewer than three analysed periods identify nothing about the unit.
+            let outcome = &mut d.groups[2].outcome;
+            for value in outcome.iter_mut().skip(2) {
+                *value = f64::NAN;
+            }
+        },
+        "a unit with two analysed periods",
+    );
     refused(&|d| d.groups[4].confounder[7] = f64::NAN, "a missing confounder");
     refused(&|d| d.groups[1].channels[1][2] = f64::NAN, "a missing exposure");
     refused(&|d| d.groups[3].history[0][1] = f64::NAN, "a missing pre-period exposure");
     // The refusal is of the value, not of the family: the same panel with the value present fits.
     good.validate().unwrap();
-    // A missing period cannot be skipped either: a group shorter than its exposure vectors, or
+    // A missing outcome is an excluded period, not a dropped row: the unit keeps its length, the
+    // serial law is marginalized over the period, and the panel validates and has a stable
+    // identity whatever NaN payload carries the exclusion.
+    let mut excluded = good.clone();
+    excluded.groups[2].outcome[3] = f64::NAN;
+    excluded.validate().unwrap();
+    assert!(excluded.has_excluded_periods() && !good.has_excluded_periods());
+    let mut other_payload = excluded.clone();
+    other_payload.groups[2].outcome[3] = f64::from_bits(f64::NAN.to_bits() ^ 1);
+    assert_eq!(excluded.identity().unwrap(), other_payload.identity().unwrap());
+    assert_ne!(excluded.identity().unwrap(), good.identity().unwrap());
+    // A missing period cannot be skipped by shortening a vector either: a group shorter than its exposure vectors, or
     // fewer periods than the carryover window, is a dimension refusal.
     let mut ragged = good.clone();
     ragged.groups[2].outcome.pop();
@@ -1204,17 +1225,28 @@ fn cells_06_non_finite_panel_values_are_refused_never_dropped_for_the_broader_fa
 }
 
 #[test]
-fn cells_06_a_weight_or_a_categorical_label_has_no_field_and_the_frozen_schema_refuses_it() {
+fn cells_06_a_group_weight_is_read_and_a_categorical_label_is_refused_by_the_frozen_schema() {
     let good = cells_06_panel();
     let json = serde_json::to_value(&good).unwrap();
-    // Sampling weights: no weight field exists at the panel, the group or the family, so a
-    // declaration of one cannot be ignored, it fails to parse.
+    // Sampling weights are a property of a group: panel-level and family-level weight lists have
+    // no field and fail to parse, a group's own weight is read and must be positive and finite.
     let mut weighted = json.clone();
     weighted["weights"] = serde_json::json!([1.0, 2.0]);
     assert!(serde_json::from_value::<PanelData>(weighted).is_err(), "panel weights");
     let mut weighted = json.clone();
     weighted["groups"][0]["weight"] = serde_json::json!(2.0);
-    assert!(serde_json::from_value::<PanelData>(weighted).is_err(), "group weight");
+    let parsed = serde_json::from_value::<PanelData>(weighted).unwrap();
+    assert_eq!(parsed.groups[0].weight, 2.0);
+    assert!(parsed.is_weighted() && !good.is_weighted());
+    parsed.validate().unwrap();
+    assert_ne!(parsed.identity().unwrap(), good.identity().unwrap());
+    // A unit weight of one is not serialized, so an unweighted panel's document is unchanged.
+    assert!(json["groups"][0].get("weight").is_none());
+    for bad in [0.0, -1.0] {
+        let mut broken = good.clone();
+        broken.groups[0].weight = bad;
+        assert!(matches!(broken.validate(), Err(PanelError::Invalid(_))), "weight {bad}");
+    }
     let mut weighted = json.clone();
     weighted["family"]["weights"] = serde_json::json!([1.0]);
     assert!(serde_json::from_value::<PanelData>(weighted).is_err(), "family weights");

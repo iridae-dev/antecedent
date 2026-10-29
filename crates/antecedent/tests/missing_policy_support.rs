@@ -36,6 +36,10 @@ fn expected(cell: MissingRouteCell) -> Option<&'static [&'static str]> {
             Some(&["error", "complete_case", "inverse_probability", "multiple_imputation"])
         }
         (Q::PanelDid, M::Tabular) => Some(&["error", "balanced_panel", "available_case"]),
+        (Q::AnomalyAttribution, M::Tabular) => Some(&["error", "complete_case"]),
+        (Q::TemporalDesign, M::Tabular) => {
+            Some(&["error", "complete_case", "available_case", "balanced_panel"])
+        }
         (Q::TemporalEffect | Q::Mediation, M::Series) => {
             Some(&["error", "complete_case", "multiple_imputation"])
         }
@@ -74,7 +78,7 @@ fn every_route_cell_matches_the_declared_support() {
         inference: MissingInference::Bayesian,
     })
     .unwrap();
-    assert_eq!(bayesian.imputation_estimators, ["bayesian.gcomp"]);
+    assert_eq!(bayesian.imputation_estimators, ["bayesian.gcomp", "rd.bayesian_local_linear"]);
 }
 
 fn ctx() -> ExecutionContext {

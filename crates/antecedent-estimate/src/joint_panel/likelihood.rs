@@ -310,10 +310,10 @@ pub(super) fn decode(data: &PanelData, x: &[f64]) -> Option<PanelParameters> {
     validate_parameters(data, &p).ok().map(|()| p)
 }
 pub(super) fn initial(data: &PanelData) -> PanelParameters {
-    let n = data.groups.iter().map(|g| g.outcome.len()).sum::<usize>() as f64;
-    let mean = data.groups.iter().flat_map(|g| &g.outcome).sum::<f64>() / n;
-    let variance =
-        data.groups.iter().flat_map(|g| &g.outcome).map(|v| (v - mean).powi(2)).sum::<f64>() / n;
+    let analysed = || data.groups.iter().flat_map(|g| &g.outcome).filter(|v| v.is_finite());
+    let n = analysed().count() as f64;
+    let mean = analysed().sum::<f64>() / n;
+    let variance = analysed().map(|v| (v - mean).powi(2)).sum::<f64>() / n;
     let scale = variance.sqrt().max(0.1);
     let lag = match (data.lag_order == 2, data.family.is_geometric()) {
         (false, _) => [1.0, 0.0, 0.0],
@@ -324,7 +324,11 @@ pub(super) fn initial(data: &PanelData) -> PanelParameters {
     let mut exposures: Vec<_> = data
         .groups
         .iter()
-        .flat_map(|g| g.channels.iter().flatten())
+        .flat_map(|g| {
+            g.channels.iter().flat_map(|values| {
+                values.iter().zip(&g.outcome).filter(|(_, y)| y.is_finite()).map(|(v, _)| v)
+            })
+        })
         .copied()
         .filter(|v| *v > 0.0)
         .collect();
@@ -567,7 +571,111 @@ pub(super) fn group_likelihood(
     let residuals: Vec<_> = (0..group.outcome.len())
         .map(|time| group.outcome[time] - observed_response(data, p, group, group_index, time))
         .collect();
-    ar1_random_intercept(&residuals, p.rho, p.innovation_sd, p.group_sd)
+    let mut value = group_marginal(group, &residuals, p.rho, p.innovation_sd, p.group_sd)?;
+    value.log_likelihood *= group.weight;
+    value.log_likelihood.is_finite().then_some(value)
+}
+/// One group's marginal Gaussian law. Periods whose outcome is excluded (`NaN`) are
+/// marginalized exactly; a non-finite residual at an analysed period is a numerical failure.
+pub(super) fn group_marginal(
+    group: &PanelGroup,
+    residuals: &[f64],
+    rho: f64,
+    sigma: f64,
+    tau: f64,
+) -> Option<GaussianGroup> {
+    if group.outcome.iter().all(|value| value.is_finite()) {
+        return ar1_random_intercept(residuals, rho, sigma, tau);
+    }
+    let observed = observed_periods(group, residuals)?;
+    ar1_random_intercept_at(&observed, rho, sigma, tau)
+}
+/// `(period, residual)` of every analysed period, or `None` if one of them is not finite.
+fn observed_periods(group: &PanelGroup, residuals: &[f64]) -> Option<Vec<(usize, f64)>> {
+    let mut observed = Vec::with_capacity(residuals.len());
+    for (time, (&outcome, &residual)) in group.outcome.iter().zip(residuals).enumerate() {
+        if outcome.is_finite() {
+            if !residual.is_finite() {
+                return None;
+            }
+            observed.push((time, residual));
+        }
+    }
+    Some(observed)
+}
+/// Stationary AR(1) precision factors over analysed periods `t_1 < ... < t_m` at their true
+/// time distances: `e_1 = sqrt(1-rho^2) r_1 / sigma` and, for a step of `d` periods,
+/// `e_k = (r_k - rho^d r_{k-1}) / sqrt(v_d)` with `v_d = sigma^2 (1-rho^{2d})/(1-rho^2)`.
+/// For consecutive periods this is exactly the tridiagonal precision of the closed form.
+fn ar1_moments_at(observed: &[(usize, f64)], rho: f64, sigma: f64) -> Option<Ar1Moments> {
+    if observed.is_empty()
+        || !rho.is_finite()
+        || rho.abs() >= 1.0
+        || !sigma.is_finite()
+        || sigma <= 0.0
+        || observed.iter().any(|(_, value)| !value.is_finite())
+    {
+        return None;
+    }
+    let stationary = 1.0 - rho * rho;
+    let variance = sigma * sigma;
+    let first = stationary.sqrt() / sigma;
+    let (mut ones, mut cross, mut quad) =
+        (first * first, first * first * observed[0].1, (first * observed[0].1).powi(2));
+    let mut log_det = variance.ln() - stationary.ln();
+    for pair in observed.windows(2) {
+        let distance = i32::try_from(pair[1].0 - pair[0].0).ok()?;
+        let decay = rho.powi(distance);
+        let step_variance = variance * (1.0 - rho.powi(2 * distance.min(1_000_000))) / stationary;
+        let scale = 1.0 / step_variance.sqrt();
+        let for_ones = (1.0 - decay) * scale;
+        let for_residual = (pair[1].1 - decay * pair[0].1) * scale;
+        ones += for_ones * for_ones;
+        cross += for_ones * for_residual;
+        quad += for_residual * for_residual;
+        log_det += step_variance.ln();
+    }
+    Some(Ar1Moments { ones, cross, quad, log_det })
+}
+/// Random-intercept integration over analysed periods at their true time distances.
+fn ar1_random_intercept_at(
+    observed: &[(usize, f64)],
+    rho: f64,
+    sigma: f64,
+    tau: f64,
+) -> Option<GaussianGroup> {
+    if !tau.is_finite() || tau <= 0.0 {
+        return None;
+    }
+    let moments = ar1_moments_at(observed, rho, sigma)?;
+    let tau2 = tau * tau;
+    let shrinkage = 1.0 + tau2 * moments.ones;
+    let conditional_variance = tau2 / shrinkage;
+    let intercept_mean = conditional_variance * moments.cross;
+    // Completing the square, as in the contiguous closed form: the centred quadratic form is
+    // taken from the centred residuals, never as a difference of two large forms.
+    let stationary = 1.0 - rho * rho;
+    let first = stationary.sqrt() / sigma;
+    let mut centered = (first * (observed[0].1 - intercept_mean)).powi(2);
+    for pair in observed.windows(2) {
+        let distance = i32::try_from(pair[1].0 - pair[0].0).ok()?;
+        let decay = rho.powi(distance);
+        let step_variance =
+            sigma * sigma * (1.0 - rho.powi(2 * distance.min(1_000_000))) / stationary;
+        centered += ((pair[1].1 - intercept_mean) - decay * (pair[0].1 - intercept_mean)).powi(2)
+            / step_variance;
+    }
+    let quad = centered + (tau * moments.cross / shrinkage).powi(2);
+    let log_det = moments.log_det + (tau2 * moments.ones).ln_1p();
+    let log_likelihood =
+        -0.5 * (observed.len() as f64 * std::f64::consts::TAU.ln() + log_det + quad);
+    if !log_likelihood.is_finite()
+        || !conditional_variance.is_finite()
+        || conditional_variance < 0.0
+    {
+        return None;
+    }
+    Some(GaussianGroup { log_likelihood, intercept_mean, intercept_variance: conditional_variance })
 }
 /// Residual vector of every group under one mechanism.
 pub(super) fn residuals(data: &CompiledPanel<'_>, p: &PanelParameters) -> Vec<Vec<f64>> {
@@ -755,13 +863,18 @@ fn spatial_marginal(
     let kernel = spatial_correlation(data, p.family.spatial_range)?;
     let (mut ones, mut cross) = (Vec::with_capacity(groups), Vec::with_capacity(groups));
     let (mut quad, mut log_det, mut rows) = (0.0, 0.0, 0.0);
-    for r in residuals {
-        let moments = ar1_moments(r, p.rho, p.innovation_sd)?;
+    for (group, r) in data.groups.iter().zip(residuals) {
+        let (moments, analysed) = if group.outcome.iter().all(|value| value.is_finite()) {
+            (ar1_moments(r, p.rho, p.innovation_sd)?, r.len())
+        } else {
+            let observed = observed_periods(group, r)?;
+            (ar1_moments_at(&observed, p.rho, p.innovation_sd)?, observed.len())
+        };
         ones.push(moments.ones);
         cross.push(moments.cross);
         quad += moments.quad;
         log_det += moments.log_det;
-        rows += r.len() as f64;
+        rows += analysed as f64;
     }
     let tau2 = p.group_sd * p.group_sd;
     let root: Vec<f64> = ones.iter().map(|value| value.sqrt()).collect();
@@ -855,9 +968,9 @@ pub(super) fn marginal(
     let mut total = 0.0;
     let mut intercept_mean = Vec::with_capacity(residuals.len());
     let mut intercept_variance = Vec::with_capacity(residuals.len());
-    for r in residuals {
-        let value = ar1_random_intercept(r, p.rho, p.innovation_sd, p.group_sd)?;
-        total += value.log_likelihood;
+    for (group, r) in data.groups.iter().zip(residuals) {
+        let value = group_marginal(group, r, p.rho, p.innovation_sd, p.group_sd)?;
+        total += group.weight * value.log_likelihood;
         intercept_mean.push(value.intercept_mean);
         intercept_variance.push(value.intercept_variance);
     }

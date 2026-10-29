@@ -466,3 +466,342 @@ fn rebind_estimate(
     *prepared = branch;
     Ok(result)
 }
+
+/// Declared observation weights, clusters and series on the trial-to-target contrast, against
+/// the exact rational references frozen in the estimator crate's oracle data
+/// (`transport_design_reference.json`, formed by `transport_design_reference.py`).
+mod declared_design {
+    use std::sync::Arc;
+
+    use antecedent::{
+        BayesianConfig, CausalError, InferenceMode, RefuteSuite, ScoreDependence, Study,
+        StudyBuilder, StudyResult, TransportTrialSpec,
+    };
+    use antecedent_core::{
+        CausalQuery, DeclaredSamplingDesign, ExecutionContext, VariableId,
+    };
+    use antecedent_data::TabularData;
+    use antecedent_graph::{Admg, DenseNodeId};
+    use serde_json::Value;
+
+    fn reference() -> Value {
+        serde_json::from_str(include_str!(
+            "../../antecedent-estimate/tests/oracle_data/transport_design_reference.json"
+        ))
+        .unwrap()
+    }
+
+    fn floats(v: &Value) -> Vec<f64> {
+        v.as_array().unwrap().iter().map(|x| x.as_f64().unwrap()).collect()
+    }
+
+    fn text(v: &Value) -> f64 {
+        v.as_str().unwrap().parse().unwrap()
+    }
+
+    fn labels(v: &Value) -> Vec<u32> {
+        v.as_array().unwrap().iter().map(|x| u32::try_from(x.as_u64().unwrap()).unwrap()).collect()
+    }
+
+    /// The case's columns `a, y, trial, s, e` as a table, with its weights when it has them.
+    fn table(rows: &Value) -> TabularData {
+        let flag = |v: &Value| -> Vec<f64> {
+            v.as_array().unwrap().iter().map(|x| f64::from(u8::from(x.as_bool().unwrap()))).collect()
+        };
+        let (a, trial) = (flag(&rows["treatment"]), flag(&rows["trial"]));
+        let (y, s, e) =
+            (floats(&rows["outcome"]), floats(&rows["selection"]), floats(&rows["propensity"]));
+        let data = TabularData::from_f64_columns([
+            ("a", a.as_slice()),
+            ("y", y.as_slice()),
+            ("trial", trial.as_slice()),
+            ("s", s.as_slice()),
+            ("e", e.as_slice()),
+        ])
+        .unwrap();
+        match rows["weights"].is_null() {
+            true => data,
+            false => data.with_weights(Arc::from(floats(&rows["weights"]))).unwrap(),
+        }
+    }
+
+    fn builder(data: TabularData) -> StudyBuilder {
+        let mut admg = Admg::with_variables(5);
+        admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        Study::tabular(data)
+            .graph(admg)
+            .query(CausalQuery::Transport(super::query()))
+            .selection_targets(Arc::from([]))
+            .transport_trial(TransportTrialSpec {
+                trial: VariableId::from_raw(2),
+                selection_probability: VariableId::from_raw(3),
+                treatment_probability: VariableId::from_raw(4),
+            })
+            .refute(RefuteSuite::None)
+    }
+
+    fn run(builder: StudyBuilder) -> Result<StudyResult, CausalError> {
+        builder.build()?.run(&ExecutionContext::for_tests(61))
+    }
+
+    fn declare(builder: StudyBuilder, case: &Value) -> StudyBuilder {
+        match case["dependence"]["kind"].as_str().unwrap() {
+            "clusters" => builder
+                .sampling_design(DeclaredSamplingDesign::ClusteredPanel)
+                .score_dependence(ScoreDependence::clusters(labels(&case["dependence"]["labels"]))),
+            "series" => builder
+                .sampling_design(DeclaredSamplingDesign::DependentTimeSeries)
+                .score_dependence(ScoreDependence::newey_west(
+                    usize::try_from(case["dependence"]["lag"].as_u64().unwrap()).unwrap(),
+                )),
+            _ => builder,
+        }
+    }
+
+    fn close(got: f64, want: f64, what: &str) {
+        assert!((got - want).abs() <= 1e-10 * want.abs().max(1.0), "{what}: {got} vs {want}");
+    }
+
+    fn on_large_stack(run: impl FnOnce() + Send + 'static) {
+        super::run_on_large_stack(run);
+    }
+
+    #[test]
+    fn transport_weights_clusters_and_series_publish_the_exact_reference_point_and_error() {
+        on_large_stack(|| {
+            for case in reference()["estimate"].as_array().unwrap() {
+                let name = case["name"].as_str().unwrap();
+                let result = run(declare(builder(table(&case["rows"])), case)).unwrap();
+                let effect = result.estimate().as_effect().unwrap();
+                close(effect.ate, text(&case["ipw"]), &format!("{name} point"));
+                close(result.transport().unwrap().ipw, text(&case["ipw"]), name);
+                close(effect.uncertainty.analytic.se, text(&case["se"]), &format!("{name} se"));
+                // The error kind names what was read.
+                let kind = effect.uncertainty.analytic.kind;
+                match case["dependence"]["kind"].as_str().unwrap() {
+                    "clusters" => {
+                        assert_eq!(kind, Some(antecedent_estimate::AnalyticSeKind::Cluster), "{name}");
+                        assert!(effect.uncertainty.analytic.reference_df.is_some(), "{name}");
+                    }
+                    "series" => assert!(
+                        matches!(kind, Some(antecedent_estimate::AnalyticSeKind::NeweyWest { .. })),
+                        "{name}: {kind:?}"
+                    ),
+                    _ => {}
+                }
+            }
+        });
+    }
+
+    #[test]
+    fn transport_bayesian_bootstrap_follows_the_exact_law_over_weighted_rows_clusters_and_blocks() {
+        on_large_stack(|| {
+            let draws = 60_000;
+            for case in reference()["bayes"].as_array().unwrap() {
+                let name = case["name"].as_str().unwrap();
+                let mut study = builder(table(&case["rows"]))
+                    .inference(InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(draws)));
+                study = match case["grouping"].as_str().unwrap() {
+                    "clusters" => study
+                        .sampling_design(DeclaredSamplingDesign::ClusteredPanel)
+                        .score_dependence(ScoreDependence::clusters(labels(&case["labels"]))),
+                    "blocks" => {
+                        let block = usize::try_from(case["block"].as_u64().unwrap()).unwrap();
+                        study
+                            .sampling_design(DeclaredSamplingDesign::DependentTimeSeries)
+                            .score_dependence(ScoreDependence::newey_west(block))
+                    }
+                    _ => study,
+                };
+                let result = run(study).unwrap();
+                let posterior = result.posterior.as_ref().expect("transport posterior");
+                let values = posterior.draws.values.as_ref();
+                let n = values.len() as f64;
+                assert_eq!(values.len(), draws, "{name}");
+                for point in case["cdf"].as_array().unwrap() {
+                    let (x, p) = (text(&point["x"]), text(&point["p"]));
+                    let empirical = values.iter().filter(|v| **v <= x).count() as f64 / n;
+                    let tol = 5.0 * (p * (1.0 - p) / n).sqrt();
+                    assert!((empirical - p).abs() < tol, "{name} F({x}) = {empirical} vs {p}");
+                }
+            }
+        });
+    }
+
+    #[test]
+    fn transport_series_without_a_lag_takes_the_default_rule_on_any_graph() {
+        on_large_stack(|| {
+            let all = reference();
+            let case = &all["estimate"].as_array().unwrap()[1];
+            let n = case["rows"]["outcome"].as_array().unwrap().len();
+            let lag = antecedent_estimate::RowResampling::SeriesBlocks.block_length(n).unwrap();
+            let by_default = run(builder(table(&case["rows"]))
+                .sampling_design(DeclaredSamplingDesign::DependentTimeSeries))
+            .unwrap();
+            let explicit = run(builder(table(&case["rows"]))
+                .sampling_design(DeclaredSamplingDesign::DependentTimeSeries)
+                .score_dependence(ScoreDependence::newey_west(lag)))
+            .unwrap();
+            let se = |r: &StudyResult| r.estimate().as_effect().unwrap().uncertainty.analytic.se;
+            assert!((se(&by_default) - se(&explicit)).abs() < 1e-12);
+            let independent = run(builder(table(&case["rows"]))).unwrap();
+            assert!((se(&by_default) - se(&independent)).abs() > 1e-6);
+        });
+    }
+
+    #[test]
+    fn transport_validation_runs_on_clusters_and_is_refused_beside_weights() {
+        on_large_stack(|| {
+            let estimate = reference()["estimate"].as_array().unwrap().clone();
+            let find = |name: &str| estimate.iter().find(|c| c["name"] == name).unwrap().clone();
+            let clustered = find("clusters_unbalanced_unweighted");
+            for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
+                let result =
+                    run(declare(builder(table(&clustered["rows"])), &clustered).refute(suite))
+                        .unwrap();
+                close(
+                    result.estimate().as_effect().unwrap().uncertainty.analytic.se,
+                    text(&clustered["se"]),
+                    "cluster se under validation",
+                );
+                assert!(
+                    result
+                        .refutations
+                        .iter()
+                        .any(|r| r.refuter.as_ref() == "transport.selection_calibration"),
+                    "{suite:?}"
+                );
+                if suite == RefuteSuite::Full {
+                    let range = result
+                        .refutations
+                        .iter()
+                        .find(|r| r.refuter.as_ref() == "transport.bootstrap_range")
+                        .expect("a whole-cluster bootstrap range");
+                    assert!(range.replicates >= 2, "{range:?}");
+                }
+            }
+            // The unweighted suite would describe a different population than the weighted
+            // number: refused, not run.
+            let weighted = find("independent_weighted");
+            for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
+                let error =
+                    run(builder(table(&weighted["rows"])).refute(suite)).err().expect("refused");
+                assert_eq!(error.reason_code(), Some("option_not_applicable"), "{error}");
+                assert!(error.to_string().contains("observation weights"), "{error}");
+            }
+        });
+    }
+
+    #[test]
+    fn transport_declarations_the_route_would_ignore_are_refused_not_dropped() {
+        on_large_stack(|| {
+            let all = reference();
+            let base = &all["estimate"].as_array().unwrap()[0];
+            let plain = run(builder(table(&base["rows"]))).unwrap();
+            let refused = |result: Result<StudyResult, CausalError>, needle: &str| {
+                let error = result.err().expect("a declaration was ignored");
+                assert_eq!(error.reason_code(), Some("option_not_applicable"), "{error}");
+                assert!(error.to_string().contains(needle), "{error}");
+                assert!(error.to_string().contains("Next attempt"), "{error}");
+            };
+            // An estimator the route does not run: it would be answered by weighting.
+            refused(
+                run(builder(table(&base["rows"])).estimator(antecedent::EstimatorId::Aipw)),
+                "inverse-probability weighting",
+            );
+            // The route's own estimator, named, is the plain run.
+            let named = run(
+                builder(table(&base["rows"])).estimator(antecedent::EstimatorId::TransportTrialIpw),
+            )
+            .unwrap();
+            assert_eq!(
+                named.estimate().as_effect().unwrap().ate,
+                plain.estimate().as_effect().unwrap().ate
+            );
+            // Clip or trim of probabilities that are the design, and a population registry the
+            // target rows never consult.
+            refused(
+                run(builder(table(&base["rows"])).overlap_policy(
+                    antecedent_estimate::OverlapPolicy::RequireDiagnostics {
+                        clip: Some(0.2),
+                        trim: Some(0.2),
+                    },
+                )),
+                "overlap policy",
+            );
+            refused(
+                run(builder(table(&base["rows"]))
+                    .population_registry(antecedent_core::PopulationRegistry::default())),
+                "population registry",
+            );
+            // The replicate count has a default, so it cannot be told from a declaration; the
+            // full suite is the one that reads it, in its bootstrap range.
+            let full = run(builder(table(&base["rows"]))
+                .bootstrap_replicates(50)
+                .refute(RefuteSuite::Full))
+            .unwrap();
+            let range = full
+                .refutations
+                .iter()
+                .find(|r| r.refuter.as_ref() == "transport.bootstrap_range")
+                .expect("the bootstrap range");
+            assert!(range.replicates + 20 >= 50, "{range:?}");
+        });
+    }
+
+    #[test]
+    fn transport_declarations_the_rows_cannot_honour_are_refused_with_a_next_attempt() {
+        on_large_stack(|| {
+            let estimate = reference()["estimate"].as_array().unwrap().clone();
+            let base = &estimate[0];
+            let n = base["rows"]["outcome"].as_array().unwrap().len();
+            let refused = |result: Result<StudyResult, CausalError>, needle: &str| {
+                let error = result.err().expect("an estimate was published");
+                assert_eq!(error.reason_code(), Some("option_not_applicable"), "{error}");
+                assert!(error.to_string().contains(needle), "{error}");
+                assert!(error.to_string().contains("Next attempt"), "{error}");
+            };
+            // A clustered panel without labels: no whole cluster can be formed.
+            refused(
+                run(builder(table(&base["rows"]))
+                    .sampling_design(DeclaredSamplingDesign::ClusteredPanel)),
+                "no cluster labels",
+            );
+            // Labels for fewer rows than the table has.
+            refused(
+                run(builder(table(&base["rows"]))
+                    .sampling_design(DeclaredSamplingDesign::ClusteredPanel)
+                    .score_dependence(ScoreDependence::clusters(vec![1_u32; n - 1]))),
+                "label is needed for every row",
+            );
+            // Labels beside a design that does not read them, and a lag beside a clustered panel.
+            refused(
+                run(builder(table(&base["rows"]))
+                    .score_dependence(ScoreDependence::clusters(vec![1_u32; n]))),
+                "disagree",
+            );
+            refused(
+                run(builder(table(&base["rows"]))
+                    .sampling_design(DeclaredSamplingDesign::DependentTimeSeries)
+                    .score_dependence(ScoreDependence::clusters((0..n as u32).collect::<Vec<_>>()))),
+                "disagree",
+            );
+            // Sampling weights declared on an estimator the route does not run.
+            let declared =
+                antecedent_estimate::SamplingWeights::new(vec![1.0; n]).unwrap();
+            refused(
+                run(builder(table(&base["rows"])).estimator(
+                    antecedent_estimate::LinearAdjustmentAte::new().with_sampling_weights(declared),
+                )),
+                "sampling_weights.route_unsupported",
+            );
+            // One cluster carries no between-cluster variation: a typed estimation refusal.
+            let error = run(builder(table(&base["rows"]))
+                .sampling_design(DeclaredSamplingDesign::ClusteredPanel)
+                .score_dependence(ScoreDependence::clusters(vec![3_u32; n])))
+            .err()
+            .expect("one cluster");
+            assert!(error.to_string().contains("at least two clusters"), "{error}");
+        });
+    }
+}

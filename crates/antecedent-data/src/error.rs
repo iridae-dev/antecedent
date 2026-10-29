@@ -279,7 +279,7 @@ impl fmt::Display for DataError {
             Self::MissingPolicyRequired { route, variable, row, available } => write!(
                 f,
                 "invalid argument: {route} found a missing value in column `{variable}` at row \
-                 {row} and no missing-data policy is declared; declare one of: {}",
+                 {row}, which the declared missing-data policy `error` refuses; declare one of: {}",
                 available.join(", ")
             ),
             Self::Panel(error) => write!(f, "invalid argument: {error}"),

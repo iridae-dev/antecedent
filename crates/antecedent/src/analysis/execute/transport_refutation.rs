@@ -37,6 +37,27 @@ const MIN_EFFECTIVE_SHARE: f64 = 0.1;
 /// Bootstrap replicates when the study requested none.
 const DEFAULT_BOOTSTRAP_REPLICATES: u32 = 49;
 
+/// How the rows of a transport refutation depend on each other.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum Grouping<'a> {
+    /// Independent rows.
+    Independent,
+    /// Circular blocks of this many consecutive rows (one dependent series).
+    Blocks(usize),
+    /// Whole clusters, one label per row.
+    Clusters(&'a [u32]),
+}
+
+impl Grouping<'_> {
+    /// The grouping of the rows `keep` selects, in that order.
+    fn restricted(self, keep: &[usize]) -> Option<Vec<u32>> {
+        match self {
+            Self::Clusters(labels) => Some(keep.iter().map(|&row| labels[row]).collect()),
+            _ => None,
+        }
+    }
+}
+
 /// Borrowed inputs of one transport refutation.
 pub(super) struct TransportRefutationInput<'a> {
     pub(super) transport: &'a TransportIdentification,
@@ -49,8 +70,8 @@ pub(super) struct TransportRefutationInput<'a> {
     /// The published transported contrast (the posterior mean under Bayesian inference).
     pub(super) published: f64,
     pub(super) suite: RefuteSuite,
-    /// Block length when the rows are the consecutive times of one dependent series.
-    pub(super) series_block: Option<usize>,
+    /// The dependence of the rows: independent, circular blocks of one series, or clusters.
+    pub(super) dependence: Grouping<'a>,
     /// The study's replicate count (zero: the default budget).
     pub(super) replicates: u32,
 }
@@ -69,8 +90,8 @@ pub(super) fn refute_transport(
     }
     let trial_rows = input.trial.iter().filter(|&&member| member).count();
     let mut reports = vec![
-        selection_calibration(input.trial, input.selection, input.series_block),
-        arm_calibration((input.trial, input.treatment, input.propensity), input.series_block),
+        selection_calibration(input.trial, input.selection, input.dependence),
+        arm_calibration((input.trial, input.treatment, input.propensity), input.dependence),
         overlap_report(
             "transport.selection_overlap",
             input.overlap.selection,
@@ -103,12 +124,17 @@ fn z_p_value(total: f64, variance: f64) -> f64 {
 }
 
 /// Variance of the sum of `residuals`: the independent-rows value, or on one dependent series
-/// the sum of squared block sums (the residuals have mean zero under the supplied
-/// probabilities, so the blocks are not re-centred).
-fn sum_variance(residuals: &[f64], independent: f64, block: Option<usize>) -> f64 {
-    match block {
-        None => independent,
-        Some(length) => {
+/// the sum of squared block sums, or on declared clusters the sum of squared cluster sums (the
+/// residuals have mean zero under the supplied probabilities, so the groups are not
+/// re-centred). `labels` are the cluster labels of the residuals' rows.
+fn sum_variance(
+    residuals: &[f64],
+    independent: f64,
+    (grouping, labels): (Grouping<'_>, Option<&[u32]>),
+) -> f64 {
+    match grouping {
+        Grouping::Independent => independent,
+        Grouping::Blocks(length) => {
             let length = length.clamp(1, residuals.len().max(1));
             residuals
                 .chunks(length)
@@ -117,6 +143,13 @@ fn sum_variance(residuals: &[f64], independent: f64, block: Option<usize>) -> f6
                     sum * sum
                 })
                 .sum()
+        }
+        Grouping::Clusters(_) => {
+            let mut sums: std::collections::BTreeMap<u32, f64> = std::collections::BTreeMap::new();
+            for (residual, label) in residuals.iter().zip(labels.unwrap_or(&[])) {
+                *sums.entry(*label).or_insert(0.0) += residual;
+            }
+            sums.values().map(|sum| sum * sum).sum()
         }
     }
 }
@@ -147,10 +180,18 @@ fn calibration_report(
     )
 }
 
+/// The cluster labels of a grouping that covers every row.
+fn grouping_labels(grouping: Grouping<'_>) -> Option<&[u32]> {
+    match grouping {
+        Grouping::Clusters(labels) => Some(labels),
+        _ => None,
+    }
+}
+
 fn selection_calibration(
     trial: &[bool],
     selection: &[f64],
-    block: Option<usize>,
+    grouping: Grouping<'_>,
 ) -> RefutationReport {
     let residuals: Vec<f64> = trial
         .iter()
@@ -164,31 +205,36 @@ fn selection_calibration(
     calibration_report(
         "transport.selection_calibration",
         (observed, expected),
-        sum_variance(&residuals, independent, block),
+        sum_variance(&residuals, independent, (grouping, grouping_labels(grouping))),
         "trial rows",
     )
 }
 
 fn arm_calibration(
     (trial, treatment, propensity): (&[bool], &[bool], &[f64]),
-    block: Option<usize>,
+    grouping: Grouping<'_>,
 ) -> RefutationReport {
     let mut residuals = Vec::new();
+    let mut trial_rows = Vec::new();
     let (mut independent, mut observed, mut expected) = (0.0, 0.0, 0.0);
-    for ((&member, &treated), &probability) in trial.iter().zip(treatment).zip(propensity) {
+    for (row, ((&member, &treated), &probability)) in
+        trial.iter().zip(treatment).zip(propensity).enumerate()
+    {
         if !member {
             continue;
         }
+        trial_rows.push(row);
         let treated = f64::from(u8::from(treated));
         residuals.push(treated - probability);
         independent += probability * (1.0 - probability);
         observed += treated;
         expected += probability;
     }
+    let restricted = grouping.restricted(&trial_rows);
     calibration_report(
         "transport.arm_calibration",
         (observed, expected),
-        sum_variance(&residuals, independent, block),
+        sum_variance(&residuals, independent, (grouping, restricted.as_deref())),
         "treated trial rows",
     )
 }
@@ -223,31 +269,46 @@ fn overlap_report(
     )
 }
 
-/// `n` row indices drawn with replacement, or circular blocks of `block` consecutive rows.
+/// `n` row indices drawn with replacement, circular blocks of `block` consecutive rows, or
+/// whole clusters drawn with replacement (a draw has as many clusters as the table, and every
+/// row of a drawn cluster, so its length varies).
 fn resample_rows(
     n: usize,
-    block: Option<usize>,
+    grouping: Grouping<'_>,
     rng: &mut antecedent_core::CausalRng,
 ) -> Vec<usize> {
-    let mut draw = || {
+    let mut draw = |bound: usize| {
         #[allow(
             clippy::cast_possible_truncation,
             clippy::cast_sign_loss,
-            reason = "a uniform in [0, 1) times n floors to a row index below n"
+            reason = "a uniform in [0, 1) times the bound floors to an index below the bound"
         )]
-        let row = ((rng.next_f64() * n as f64) as usize).min(n.saturating_sub(1));
-        row
+        let index = ((rng.next_f64() * bound as f64) as usize).min(bound.saturating_sub(1));
+        index
     };
-    match block {
-        None => (0..n).map(|_| draw()).collect(),
-        Some(length) => {
+    match grouping {
+        Grouping::Independent => (0..n).map(|_| draw(n)).collect(),
+        Grouping::Blocks(length) => {
             let length = length.clamp(1, n.max(1));
             let mut rows = Vec::with_capacity(n + length);
             while rows.len() < n {
-                let start = draw();
+                let start = draw(n);
                 rows.extend((0..length).map(|offset| (start + offset) % n));
             }
             rows.truncate(n);
+            rows
+        }
+        Grouping::Clusters(labels) => {
+            let mut members: std::collections::BTreeMap<u32, Vec<usize>> =
+                std::collections::BTreeMap::new();
+            for (row, label) in labels.iter().enumerate() {
+                members.entry(*label).or_default().push(row);
+            }
+            let clusters: Vec<&Vec<usize>> = members.values().collect();
+            let mut rows = Vec::with_capacity(n);
+            for _ in 0..clusters.len() {
+                rows.extend(clusters[draw(clusters.len())].iter().copied());
+            }
             rows
         }
     }
@@ -333,7 +394,7 @@ fn bootstrap_ranges(
         let mut rng = ctx
             .rng
             .stream_for(StreamDomain::Resample, 0x7A17_B007_u64.wrapping_add(u64::from(replicate)));
-        let rows = resample_rows(n, input.series_block, &mut rng);
+        let rows = resample_rows(n, input.dependence, &mut rng);
         let (outcomes, treatment, trial, selection, propensity) = (
             gather(input.outcomes, &rows),
             gather(input.treatment, &rows),
@@ -442,7 +503,7 @@ mod tests {
         let balanced = selection_calibration(
             &[true, true, true, true, true, false, false, false, false, false],
             &selection,
-            None,
+            Grouping::Independent,
         );
         assert!(balanced.passed);
         assert!((balanced.comparison - 1.0).abs() < 1e-12);
@@ -450,7 +511,7 @@ mod tests {
         let skewed = selection_calibration(
             &[true, true, true, true, true, true, true, true, true, false],
             &selection,
-            None,
+            Grouping::Independent,
         );
         assert!(!skewed.passed);
         assert!((skewed.comparison - 0.011_4).abs() < 1e-3, "{}", skewed.comparison);
@@ -465,7 +526,7 @@ mod tests {
         let trial = [true, true, true, true, false, false];
         let treatment = [true, true, true, false, true, true];
         let propensity = [0.5, 0.5, 0.5, 0.5, 0.01, 0.99];
-        let report = arm_calibration((&trial, &treatment, &propensity), None);
+        let report = arm_calibration((&trial, &treatment, &propensity), Grouping::Independent);
         assert!((report.original_ate - 3.0).abs() < 1e-12);
         assert!((report.refuted_ate - 2.0).abs() < 1e-12);
         assert!((report.comparison - 0.317_3).abs() < 1e-3, "{}", report.comparison);
@@ -477,25 +538,48 @@ mod tests {
         // Residuals +1, +1, -1, -1 in blocks of two sum to +2 and -2: variance 8, not the
         // independent value.
         let residuals = [1.0, 1.0, -1.0, -1.0];
-        assert!((sum_variance(&residuals, 1.0, Some(2)) - 8.0).abs() < 1e-12);
-        assert!((sum_variance(&residuals, 1.0, None) - 1.0).abs() < 1e-12);
+        assert!((sum_variance(&residuals, 1.0, (Grouping::Blocks(2), None)) - 8.0).abs() < 1e-12);
+        assert!(
+            (sum_variance(&residuals, 1.0, (Grouping::Independent, None)) - 1.0).abs() < 1e-12
+        );
         // A block longer than the series is one block of the whole series.
-        assert!(sum_variance(&residuals, 1.0, Some(40)).abs() < 1e-12);
+        assert!(sum_variance(&residuals, 1.0, (Grouping::Blocks(40), None)).abs() < 1e-12);
+        // Clusters {a: rows 0 and 2, b: rows 1 and 3} sum to 0 and 0; {a: 0,1, b: 2,3} to 2 and -2.
+        let across = [7_u32, 9, 7, 9];
+        let grouping = Grouping::Clusters(&across);
+        assert!(sum_variance(&residuals, 1.0, (grouping, Some(&across))).abs() < 1e-12);
+        let within = [7_u32, 7, 9, 9];
+        let grouping = Grouping::Clusters(&within);
+        assert!((sum_variance(&residuals, 1.0, (grouping, Some(&within))) - 8.0).abs() < 1e-12);
     }
 
     #[test]
     fn circular_blocks_are_runs_of_consecutive_rows() {
         let ctx = ExecutionContext::for_tests(5);
         let mut rng = ctx.rng.stream(1);
-        let rows = resample_rows(7, Some(3), &mut rng);
+        let rows = resample_rows(7, Grouping::Blocks(3), &mut rng);
         assert_eq!(rows.len(), 7);
         for chunk in rows.chunks(3).filter(|chunk| chunk.len() == 3) {
             assert_eq!(chunk[1], (chunk[0] + 1) % 7);
             assert_eq!(chunk[2], (chunk[0] + 2) % 7);
         }
-        let independent = resample_rows(7, None, &mut ctx.rng.stream(2));
+        let independent = resample_rows(7, Grouping::Independent, &mut ctx.rng.stream(2));
         assert_eq!(independent.len(), 7);
         assert!(independent.iter().all(|&row| row < 7));
+        // A cluster draw keeps every row of a drawn cluster together.
+        let labels = [4_u32, 4, 8, 8, 8, 1, 1];
+        let clustered = resample_rows(7, Grouping::Clusters(&labels), &mut ctx.rng.stream(3));
+        let mut at = 0;
+        while at < clustered.len() {
+            let size = labels.iter().filter(|&&l| l == labels[clustered[at]]).count();
+            let run = &clustered[at..at + size];
+            assert!(run.iter().all(|&row| labels[row] == labels[clustered[at]]), "{clustered:?}");
+            let mut sorted = run.to_vec();
+            sorted.sort_unstable();
+            sorted.dedup();
+            assert_eq!(sorted.len(), size);
+            at += size;
+        }
     }
 
     #[test]

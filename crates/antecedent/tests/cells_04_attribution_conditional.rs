@@ -7,8 +7,10 @@
 //! names the cause (no mechanism can be fitted, the column is not numeric, a value is missing),
 //! or, for a constant target, the score that the definition gives (the factual value is the
 //! reference, so the tail probability is one and every score and contribution is exactly zero).
-//! A declared missing-data policy is refused with `missing_policy_not_applicable`, because the
-//! route reads its rows in its own way.
+//! A missing value is refused until `complete_case` is declared, which deletes the incomplete rows
+//! before fitting and scoring (the result equals the attribution of the hand-deleted table, each
+//! row reported at its submitted position, with exact accounting); imputing or reweighting a
+//! factual value has no meaning for a scored row and stays refused.
 //!
 //! The conditional effect `y = 1 + t (1 + 2 z) + 0.5 z` with a balanced binary modifier `z` has
 //! the stratum effects 1 and 3 and the modifier-averaged effect 2. A table in which one modifier
@@ -115,6 +117,16 @@ fn attribute(
     builder.build().and_then(|study| study.run(&ExecutionContext::for_tests(3)))
 }
 
+fn attribute_rows(data: TabularData, rows: usize) -> Result<StudyResult, CausalError> {
+    Study::tabular(data)
+        .graph(dag(&[(0, 1), (0, 2), (1, 2)], 3))
+        .query(CausalQuery::AnomalyAttribution(AnomalyAttributionQuery::new([v(2)], rows)))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .and_then(|study| study.run(&ExecutionContext::for_tests(3)))
+}
+
 /// A table with one categorical column (`t`, three levels) and two continuous ones.
 fn with_categorical(column: usize) -> TabularData {
     let at = |i: usize| i as f64;
@@ -189,7 +201,8 @@ fn with_categorical(column: usize) -> TabularData {
 }
 
 #[test]
-fn the_anomaly_attribution_refuses_a_missing_value_a_categorical_column_and_every_missing_policy() {
+fn the_anomaly_attribution_drops_incomplete_rows_under_complete_case_and_refuses_what_it_cannot_read()
+ {
     // The attribution works on the complete numeric table, and its contributions add up to the
     // score above the baseline, row by row (the efficiency of the noise Shapley value).
     let result = attribute(table(&columns(Fault::default())), false, None).unwrap();
@@ -205,29 +218,65 @@ fn the_anomaly_attribution_refuses_a_missing_value_a_categorical_column_and_ever
         );
     }
 
-    // A missing target value is refused whatever policy is declared: the route reads its rows in
-    // its own way and executes no policy.
+    // A missing value is refused when no policy is declared, and under `error`, naming the first
+    // missing cell and the policy to declare.
     let holey = || table(&columns(Fault { missing_target_row: Some(5), ..Fault::default() }));
-    let error = refused(attribute(holey(), false, None), "undeclared");
-    assert!(error.to_string().contains("non-finite factual value"), "{error}");
+    for declaration in [None, Some(MissingDeclaration::new(MissingPolicy::ErrorOnMissing))] {
+        let error = refused(attribute(holey(), false, declaration), "undeclared or error");
+        assert_eq!(error.reason_code(), Some("missing_policy_required"), "{error}");
+        assert!(error.to_string().contains("complete_case"), "{error}");
+    }
+
+    // Complete case deletes the incomplete rows before fitting and scoring: the result is the
+    // attribution of the hand-deleted table, with each scored row reported at its submitted
+    // position, and the accounting is exact.
+    let missing_rows = [5_usize, 40, 77];
+    let mut faulty = columns(Fault::default());
+    for (index, row) in missing_rows.iter().enumerate() {
+        faulty[index].1[*row] = f64::NAN;
+    }
+    let complete_case = MissingDeclaration::new(MissingPolicy::CompleteCase);
+    let dropped = attribute(table(&faulty), false, Some(complete_case)).unwrap();
+    let kept: Vec<usize> = (0..N).filter(|row| !missing_rows.contains(row)).collect();
+    let by_hand: Vec<(&str, Vec<f64>)> = faulty
+        .iter()
+        .map(|(name, values)| (*name, kept.iter().map(|&row| values[row]).collect()))
+        .collect();
+    let deleted = attribute_rows(table(&by_hand), kept.len()).unwrap();
+    let (published, expected) = (&dropped.anomaly().unwrap()[0], &deleted.anomaly().unwrap()[0]);
+    assert_eq!(published.rows.as_ref(), kept.as_slice());
+    assert_eq!(expected.rows.len(), kept.len());
+    for field in [
+        (published.scores.as_ref(), expected.scores.as_ref()),
+        (published.baseline_scores.as_ref(), expected.baseline_scores.as_ref()),
+        (published.noise_contributions.as_ref(), expected.noise_contributions.as_ref()),
+    ] {
+        assert_eq!(field.0, field.1);
+    }
+    let report = dropped.missing_data().as_ref().expect("a complete-case report");
+    assert_eq!(report.accounting.policy, MissingPolicy::CompleteCase);
+    assert_eq!(report.accounting.rows_total, N);
+    assert_eq!(report.accounting.rows_kept, N - missing_rows.len());
+    assert_eq!(report.accounting.dropped_rows.as_ref(), [5_u64, 40, 77]);
+    assert_eq!(report.accounting.reasons.as_ref(), [(antecedent_data::DropReason::MissingValue, 3)]);
+    assert!(report.declared && report.non_default);
+
+    // Imputing a factual value would score a value nobody observed, and an observation weight
+    // has no meaning for the retained row: neither policy is executed.
     for (name, policy) in [
-        ("complete case", MissingPolicy::CompleteCase),
-        ("error", MissingPolicy::ErrorOnMissing),
         ("multiple imputation", MissingPolicy::MultipleImputation(ImputationSpec::new())),
         ("inverse probability", MissingPolicy::InverseProbabilityOfObservation),
+        ("available case", MissingPolicy::AvailableCase),
     ] {
         let error = refused(attribute(holey(), false, Some(MissingDeclaration::new(policy))), name);
         assert_eq!(error.reason_code(), Some("missing_policy_not_applicable"), "{name}: {error}");
-        assert!(
-            error.to_string().contains("does not execute a missing-data policy"),
-            "{name}: {error}"
-        );
     }
 
-    // A categorical column is not read as the numbers of its codes.
+    // A categorical column is not read as the numbers of its codes: it has no additive noise.
     for (column, what) in [(1, "categorical parent"), (2, "categorical target")] {
         let error = refused(attribute(with_categorical(column), false, None), what);
-        assert!(error.to_string().contains("is not of type float64"), "{what}: {error}");
+        assert_eq!(error.reason_code(), Some("route_not_supported"), "{what}: {error}");
+        assert!(error.to_string().contains("has no additive noise"), "{what}: {error}");
     }
 }
 

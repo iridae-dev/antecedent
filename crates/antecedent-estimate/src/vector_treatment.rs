@@ -10,8 +10,13 @@
 //!   `(X'X)^-1` block of the one joint fit. [`VectorCovariance::ModelBased`] is
 //!   `sigma^2 (X'X)^-1` with `sigma^2 = RSS / (n - p)`; the heteroskedasticity-robust sandwiches
 //!   `(X'X)^-1 [sum_i w_i e_i^2 x_i x_i'] (X'X)^-1` use `w_i = 1` (HC0), `n / (n - p)` (HC1),
-//!   `1 / (1 - h_i)` (HC2) or `1 / (1 - h_i)^2` (HC3). A cluster-robust option is deliberately
-//!   not offered here.
+//!   `1 / (1 - h_i)` (HC2) or `1 / (1 - h_i)^2` (HC3). The categorical route also offers a
+//!   one-way cluster-robust meat `c * sum_g s_g s_g'` (`s_g` the sum of the scores
+//!   `x_i e_i` of the cluster, `c = G / (G - 1) * (n - 1) / (n - p)`) and a Newey-West meat
+//!   `Gamma_0 + sum_l (1 - l / (L + 1)) (Gamma_l + Gamma_l')` of the score series in row order,
+//!   and declared sampling weights through a [`RowStructure`]: the fit is the weighted least
+//!   squares of the root-weight-transformed design, whose scores `w_i x_i e_i` give the
+//!   Taylor-linearized (weighted) sandwich for every covariance kind.
 //! * **Contrasts:** a declared [`Contrast`] is a weighted combination of the named coefficients.
 //!   Its variance is `w' V w` and therefore uses the off-diagonals of `V`; the result also
 //!   reports the *naive* standard error `sqrt(sum w_i^2 V_ii)` that wrongly treats the
@@ -86,6 +91,12 @@ pub enum VectorCovariance {
     Hc2,
     /// HC3 leverage-corrected sandwich.
     Hc3,
+    /// One-way cluster-robust sandwich over declared clusters, with the `G / (G - 1)` and
+    /// `(n - 1) / (n - p)` finite-sample factors. Needs a [`RowStructure`] with clusters.
+    Cluster,
+    /// Newey-West (Bartlett) HAC sandwich over the score series in row order at unit spacing.
+    /// Needs a [`RowStructure`] with a lag.
+    NeweyWest,
 }
 
 impl VectorCovariance {
@@ -98,6 +109,8 @@ impl VectorCovariance {
             Self::Hc1 => "hc1",
             Self::Hc2 => "hc2",
             Self::Hc3 => "hc3",
+            Self::Cluster => "cluster_robust",
+            Self::NeweyWest => "newey_west",
         }
     }
 }
@@ -281,6 +294,132 @@ impl VectorTreatmentFit {
     }
 }
 
+/// Declared structure of the rows of a joint fit: sampling weights, clusters and a serial lag.
+///
+/// The weights are the ones the estimator uses as given (the caller deletes zero-weight rows
+/// and normalizes beforehand, as the shared sampling-weight contract does); the fit is the
+/// weighted least squares and the covariance a sandwich of the weighted scores. Clusters are
+/// read only by [`VectorCovariance::Cluster`] and the lag only by [`VectorCovariance::NeweyWest`]
+/// (each other pairing is refused rather than ignored); weights need a robust covariance.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct RowStructure<'a> {
+    /// Sampling weights, one per row.
+    pub sampling_weights: Option<&'a [f64]>,
+    /// Cluster id per row.
+    pub clusters: Option<&'a [u32]>,
+    /// Newey-West lag for rows in time order at unit spacing.
+    pub lag: Option<usize>,
+}
+
+impl RowStructure<'_> {
+    /// Whether nothing is declared.
+    #[must_use]
+    pub fn is_plain(&self) -> bool {
+        self.sampling_weights.is_none() && self.clusters.is_none() && self.lag.is_none()
+    }
+}
+
+/// Check the declared row structure against the covariance kind and the rows.
+fn check_row_structure(
+    rows: &RowStructure<'_>,
+    kind: VectorCovariance,
+    n: usize,
+) -> Result<(), EstimationError> {
+    let invalid = reason_code!("invalid_argument");
+    if let Some(weights) = rows.sampling_weights {
+        if weights.len() != n {
+            return Err(refuse(
+                invalid,
+                "vector_treatment.row_count_mismatch",
+                "the sampling weights do not have one value per row",
+            ));
+        }
+        if weights.iter().any(|w| !w.is_finite() || *w <= 0.0) {
+            return Err(refuse(
+                reason_code!("sampling_weights_invalid"),
+                "sampling_weights.invalid",
+                "the analysed rows must all have a finite positive sampling weight",
+            ));
+        }
+        if kind == VectorCovariance::ModelBased {
+            return Err(refuse(
+                reason_code!("option_not_applicable"),
+                "vector_treatment.weights_need_robust_covariance",
+                "sampling weights need a sandwich covariance: a model-based variance treats \
+                 them as precision weights and would understate the variability of unequal \
+                 weights. Next attempt: a robust covariance (hc0 to hc3, cluster_robust or \
+                 newey_west)",
+            ));
+        }
+    }
+    match (kind, rows.clusters) {
+        (VectorCovariance::Cluster, Some(groups)) => {
+            if groups.len() != n {
+                return Err(refuse(
+                    invalid,
+                    "vector_treatment.row_count_mismatch",
+                    "the cluster ids do not have one value per row",
+                ));
+            }
+            let mut ids = groups.to_vec();
+            ids.sort_unstable();
+            ids.dedup();
+            if ids.len() < 2 {
+                return Err(refuse(
+                    invalid,
+                    "vector_treatment.too_few_clusters",
+                    "a cluster-robust covariance needs at least two clusters",
+                ));
+            }
+        }
+        (VectorCovariance::Cluster, None) => {
+            return Err(refuse(
+                invalid,
+                "vector_treatment.cluster_ids_required",
+                "the cluster-robust covariance needs a declared cluster id per row",
+            ));
+        }
+        (_, Some(_)) => {
+            return Err(refuse(
+                invalid,
+                "vector_treatment.cluster_unread",
+                "clusters were declared but the covariance kind is not cluster_robust; a \
+                 declaration the covariance does not read is refused, never dropped",
+            ));
+        }
+        (_, None) => {}
+    }
+    match (kind, rows.lag) {
+        (VectorCovariance::NeweyWest, Some(lag)) => {
+            if lag == 0 || lag >= n {
+                return Err(refuse(
+                    invalid,
+                    "vector_treatment.invalid_lag",
+                    "the Newey-West lag must be at least one and below the number of rows; it \
+                     is never silently capped",
+                ));
+            }
+        }
+        (VectorCovariance::NeweyWest, None) => {
+            return Err(refuse(
+                invalid,
+                "vector_treatment.lag_required",
+                "the Newey-West covariance needs a declared lag",
+            ));
+        }
+        (_, Some(_)) => {
+            return Err(refuse(
+                invalid,
+                "vector_treatment.lag_unread",
+                "a serial lag was declared but the covariance kind is not newey_west; a \
+                 declaration the covariance does not read is refused, never dropped",
+            ));
+        }
+        (_, None) => {}
+    }
+    Ok(())
+}
+
 /// The design: intercept, shared adjustment columns, then the treatments (column-major).
 struct Design {
     names: Vec<String>,
@@ -302,6 +441,20 @@ fn build_design(input: &VectorTreatmentInput) -> Design {
         cols.push(treatment.values.to_vec());
     }
     Design { names, cols, first_treatment }
+}
+
+/// The root-weight transform: every column and the outcome multiplied by `sqrt(w_i)`. Ordinary
+/// least squares and the sandwich of the result are the weighted fit and the weighted-score
+/// sandwich of the original rows.
+fn apply_weights(design: &mut Design, outcome: &[f64], weights: Option<&[f64]>) -> Vec<f64> {
+    let Some(weights) = weights else { return outcome.to_vec() };
+    let root: Vec<f64> = weights.iter().map(|w| w.sqrt()).collect();
+    for col in &mut design.cols {
+        for (value, scale) in col.iter_mut().zip(&root) {
+            *value *= scale;
+        }
+    }
+    outcome.iter().zip(&root).map(|(y, scale)| y * scale).collect()
 }
 
 pub(crate) fn validate_input(
@@ -532,6 +685,7 @@ fn full_covariance(
     design: &Design,
     ols: &Ols,
     kind: VectorCovariance,
+    rows: &RowStructure<'_>,
 ) -> Result<Vec<f64>, EstimationError> {
     let p = design.cols.len();
     let n = ols.residuals.len();
@@ -539,7 +693,7 @@ fn full_covariance(
         let sigma2 = dot(&ols.residuals, &ols.residuals) / count(n - p);
         return Ok(ols.ginv.iter().map(|v| sigma2 * v).collect());
     }
-    let meat = robust_meat(design, ols, kind)?;
+    let meat = robust_meat(design, ols, kind, rows)?;
     Ok(sandwich(&ols.ginv, &meat, p))
 }
 
@@ -557,11 +711,15 @@ fn robust_meat(
     design: &Design,
     ols: &Ols,
     kind: VectorCovariance,
+    rows: &RowStructure<'_>,
 ) -> Result<Vec<f64>, EstimationError> {
     let p = design.cols.len();
     let n = ols.residuals.len();
     let df = count(n - p);
     let mut meat = vec![0.0; p * p];
+    if matches!(kind, VectorCovariance::Cluster | VectorCovariance::NeweyWest) {
+        return dependent_meat(design, ols, kind, rows);
+    }
     for (r, e) in ols.residuals.iter().enumerate() {
         let x = row_of(design, r);
         let mut leverage = 0.0;
@@ -569,7 +727,10 @@ fn robust_meat(
             leverage += x[i] * dot(&ols.ginv[i * p..(i + 1) * p], &x);
         }
         let weight = match kind {
-            VectorCovariance::Hc0 | VectorCovariance::ModelBased => 1.0,
+            VectorCovariance::Hc0
+            | VectorCovariance::ModelBased
+            | VectorCovariance::Cluster
+            | VectorCovariance::NeweyWest => 1.0,
             VectorCovariance::Hc1 => count(n) / df,
             VectorCovariance::Hc2 | VectorCovariance::Hc3 => {
                 let slack = 1.0 - leverage;
@@ -587,6 +748,93 @@ fn robust_meat(
         for i in 0..p {
             for j in 0..p {
                 meat[i * p + j] += scale * x[i] * x[j];
+            }
+        }
+    }
+    Ok(meat)
+}
+
+/// The score `x_i e_i` of every row (of the root-weight-transformed design, so `w_i x_i e_i` of
+/// the original rows), row-major `n x p`.
+fn scores_of(design: &Design, ols: &Ols) -> Vec<f64> {
+    let p = design.cols.len();
+    let mut scores = vec![0.0; ols.residuals.len() * p];
+    for (r, e) in ols.residuals.iter().enumerate() {
+        for (j, col) in design.cols.iter().enumerate() {
+            scores[r * p + j] = col[r] * e;
+        }
+    }
+    scores
+}
+
+/// The meat of the cluster-robust or Newey-West estimator from the row scores.
+///
+/// Cluster: `c * sum_g s_g s_g'` with `s_g` the score sum of cluster `g` and
+/// `c = G / (G - 1) * (n - 1) / (n - p)` (the factor of `stats.robust_covariance`). Newey-West:
+/// `Gamma_0 + sum_{l=1}^{L} (1 - l / (L + 1)) (Gamma_l + Gamma_l')` with
+/// `Gamma_l = sum_t s_t s_{t-l}'` over the rows in order at unit spacing.
+fn dependent_meat(
+    design: &Design,
+    ols: &Ols,
+    kind: VectorCovariance,
+    rows: &RowStructure<'_>,
+) -> Result<Vec<f64>, EstimationError> {
+    let p = design.cols.len();
+    let n = ols.residuals.len();
+    check_row_structure(rows, kind, n)?;
+    let scores = scores_of(design, ols);
+    let mut meat = vec![0.0; p * p];
+    match kind {
+        VectorCovariance::Cluster => {
+            let groups = rows.clusters.unwrap_or_default();
+            let mut order: Vec<usize> = (0..n).collect();
+            order.sort_by_key(|&i| groups[i]);
+            let mut clusters = 0usize;
+            let mut sum = vec![0.0; p];
+            let mut index = 0usize;
+            while index < n {
+                let id = groups[order[index]];
+                sum.fill(0.0);
+                while index < n && groups[order[index]] == id {
+                    let row = &scores[order[index] * p..(order[index] + 1) * p];
+                    for (acc, value) in sum.iter_mut().zip(row) {
+                        *acc += value;
+                    }
+                    index += 1;
+                }
+                for a in 0..p {
+                    for b in 0..p {
+                        meat[a * p + b] += sum[a] * sum[b];
+                    }
+                }
+                clusters += 1;
+            }
+            let g = count(clusters);
+            let factor = g / (g - 1.0) * (count(n) - 1.0) / count(n - p);
+            for value in &mut meat {
+                *value *= factor;
+            }
+        }
+        _ => {
+            let lag = rows.lag.unwrap_or_default();
+            for t in 0..n {
+                for a in 0..p {
+                    for b in 0..p {
+                        meat[a * p + b] += scores[t * p + a] * scores[t * p + b];
+                    }
+                }
+            }
+            for ell in 1..=lag {
+                let weight = antecedent_stats::bartlett_weight(ell, lag);
+                for t in ell..n {
+                    for a in 0..p {
+                        for b in 0..p {
+                            meat[a * p + b] += weight
+                                * (scores[t * p + a] * scores[(t - ell) * p + b]
+                                    + scores[(t - ell) * p + a] * scores[t * p + b]);
+                        }
+                    }
+                }
             }
         }
     }
@@ -762,24 +1010,46 @@ pub(crate) fn fit_joint(
     fit_joint_retained(input, options, min_treatments).map(|(fit, _, _)| fit)
 }
 
+/// [`fit_joint`] under declared sampling weights, clusters or a serial lag.
+pub(crate) fn fit_joint_declared(
+    input: &VectorTreatmentInput,
+    options: &VectorTreatmentOptions,
+    min_treatments: usize,
+    rows: &RowStructure<'_>,
+) -> Result<VectorTreatmentFit, EstimationError> {
+    fit_joint_retained_declared(input, options, min_treatments, rows).map(|(fit, _, _)| fit)
+}
+
 /// Retain the full joint regression for compatible predictions.
 pub(crate) fn fit_joint_retained(
     input: &VectorTreatmentInput,
     options: &VectorTreatmentOptions,
     min_treatments: usize,
 ) -> Result<(VectorTreatmentFit, Vec<f64>, Vec<f64>), EstimationError> {
+    fit_joint_retained_declared(input, options, min_treatments, &RowStructure::default())
+}
+
+/// [`fit_joint_retained`] under declared sampling weights, clusters or a serial lag.
+pub(crate) fn fit_joint_retained_declared(
+    input: &VectorTreatmentInput,
+    options: &VectorTreatmentOptions,
+    min_treatments: usize,
+    rows: &RowStructure<'_>,
+) -> Result<(VectorTreatmentFit, Vec<f64>, Vec<f64>), EstimationError> {
     antecedent_core::execution_attempt::run_operation(
         antecedent_core::execution_attempt::Operation::AdjustedFit,
         || {
             validate_input(input, min_treatments)?;
+            check_row_structure(rows, options.covariance, input.outcome.len())?;
             let width = input.adjustment.len() + input.treatments.len() + 1;
             let _design_lease = crate::util::admit_bound_array::<f64>(input.outcome.len(), width)?;
             let _gram_lease = crate::util::admit_bound_array::<f64>(width, width)?;
-            let design = build_design(input);
+            let mut design = build_design(input);
             check_design(&design, input)?;
-            let ols = fit_ols(&design, &input.outcome)?;
+            let outcome = apply_weights(&mut design, &input.outcome, rows.sampling_weights);
+            let ols = fit_ols(&design, &outcome)?;
             crate::adjustment_resume::record_model_fit();
-            let full = full_covariance(&design, &ols, options.covariance)?;
+            let full = full_covariance(&design, &ols, options.covariance, rows)?;
             let n = input.outcome.len();
             let p = design.cols.len();
             let solved = Solved {
@@ -946,6 +1216,19 @@ pub(crate) fn summarize_joint_robust(
     min_treatments: usize,
     kind: VectorCovariance,
 ) -> Result<RobustDesignSummary, EstimationError> {
+    summarize_joint_robust_declared(input, min_treatments, kind, &RowStructure::default())
+}
+
+/// [`summarize_joint_robust`] under declared sampling weights, clusters or a serial lag: the
+/// statistics and meat of the weighted fit (`X'WX`, `X'Wy`, `e'We` and the sandwich meat of the
+/// weighted scores), from which the fit replays without a row.
+pub(crate) fn summarize_joint_robust_declared(
+    input: &VectorTreatmentInput,
+    min_treatments: usize,
+    kind: VectorCovariance,
+    rows: &RowStructure<'_>,
+) -> Result<RobustDesignSummary, EstimationError> {
+    check_row_structure(rows, kind, input.outcome.len())?;
     if kind == VectorCovariance::ModelBased {
         return Err(refuse(
             reason_code!("invalid_argument"),
@@ -954,16 +1237,18 @@ pub(crate) fn summarize_joint_robust(
         ));
     }
     validate_input(input, min_treatments)?;
-    let design = build_design(input);
+    check_row_structure(rows, kind, input.outcome.len())?;
+    let mut design = build_design(input);
     check_design(&design, input)?;
-    let ols = fit_ols(&design, &input.outcome)?;
-    let meat = robust_meat(&design, &ols, kind)?;
+    let outcome = apply_weights(&mut design, &input.outcome, rows.sampling_weights);
+    let ols = fit_ols(&design, &outcome)?;
+    let meat = robust_meat(&design, &ols, kind, rows)?;
     Ok(RobustDesignSummary {
         design: DesignSummary {
             n_rows: input.outcome.len(),
             first_treatment: design.first_treatment,
             gram: gram_of(&design),
-            xty: design.cols.iter().map(|col| dot(col, &input.outcome)).collect(),
+            xty: design.cols.iter().map(|col| dot(col, &outcome)).collect(),
             rss: dot(&ols.residuals, &ols.residuals),
         },
         meat,

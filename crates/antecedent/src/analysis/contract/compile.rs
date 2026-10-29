@@ -233,7 +233,7 @@ pub(super) fn contract_payloads(
         study.interference.as_ref(),
         study.declared.participants.as_ref(),
         missing_data::policy_wire(study),
-        study.declared.sampling_design,
+        sampling_identity(study.declared.sampling_design, study.declared.score_dependence.as_ref()),
         &program.observation_digest,
     )?;
     if let (Some(prepared), DataInput::Tabular(tabular)) = (prepared, &study.data) {
@@ -620,12 +620,30 @@ pub(super) const fn snapshot_modality(data_input: &DataInput) -> &'static str {
     }
 }
 
+/// The sampling declaration as the snapshot identity records it: the design, and when cluster
+/// labels or a serial kernel are declared beside it, a fingerprint of them, so two results that
+/// differ only in the declared dependence never share an identity.
+pub(super) fn sampling_identity(
+    design: Option<antecedent_core::DeclaredSamplingDesign>,
+    dependence: Option<&antecedent_estimate::ScoreDependence>,
+) -> Option<String> {
+    let base = design.map(|design| design.as_str().to_owned());
+    match dependence {
+        None => base,
+        Some(dependence) => Some(format!(
+            "{};score_dependence={:016x}",
+            base.as_deref().unwrap_or("undeclared"),
+            dependence.digest()
+        )),
+    }
+}
+
 pub(super) fn data_snapshot_wire(
     data_input: &DataInput,
     interference: Option<&crate::analysis::builder::InterferenceSpec>,
     participants: Option<&antecedent_io::ParticipantBindingWire>,
     missing: Option<antecedent_io::MissingPolicyWire>,
-    sampling_design: Option<antecedent_core::DeclaredSamplingDesign>,
+    sampling_design: Option<String>,
     observation: &antecedent_core::SemanticDigest,
 ) -> Result<DataSnapshotIdentityWire, CausalError> {
     let modality = snapshot_modality(data_input);
@@ -660,7 +678,7 @@ pub(super) fn data_snapshot_wire(
         linear_fit_moments: None,
         participants: participants.cloned(),
         missing,
-        sampling_design: sampling_design.map(|design| design.as_str().to_owned()),
+        sampling_design,
     })
 }
 

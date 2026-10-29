@@ -48,9 +48,12 @@ fn float_column(
 ) -> Result<Vec<f64>, CausalError> {
     match data.column(variable).map_err(CausalError::from)? {
         antecedent_data::ColumnView::Float64(column) => Ok(column.values.as_slice().to_vec()),
-        _ => Err(CausalError::Unsupported {
-            message: "augmented panel DiD requires continuous outcome and nuisance columns",
-        }),
+        _ => Err(crate::compile_reason!(
+            "route_not_supported",
+            "the Bayesian augmented panel DiD reads continuous outcome and nuisance columns, and \
+             a column of another type was declared. Next attempt: declare float64 columns for the \
+             pre-period outcome, the propensity and the untreated-change prediction"
+        )),
     }
 }
 
@@ -304,11 +307,14 @@ fn group_time_posterior(
     let Some(selected) =
         effects.iter().find(|effect| effect.cohort == cohort && effect.period == period)
     else {
-        return Err(CausalError::Compile {
-            message: format!(
-                "the selected cohort {cohort} and period {period} is not a contrast of the panel"
-            ),
-        });
+        return Err(crate::compile_reason!(
+            "route_not_supported",
+            "the selected cohort {cohort} and period {period} is not a contrast of the panel: the \
+             posterior contrasts an adoption cohort with the never-treated subjects in each \
+             observed period, and the period before adoption is the omitted reference. Next \
+             attempt: select an adoption cohort and an observed period other than the one just \
+             before its adoption, or run the event study over all cohorts"
+        ));
     };
     let n_obs = (selected.treated_subjects + selected.comparison_subjects) as u64;
     Ok(DesignPosterior {
@@ -347,9 +353,13 @@ fn event_study_posterior(
     prior: DidPrior,
 ) -> Result<DesignPosterior, CausalError> {
     let Some(representative) = effects.iter().find(|effect| effect.event_time >= 0) else {
-        return Err(CausalError::Compile {
-            message: "event study has no post-adoption contrast".into(),
-        });
+        return Err(crate::compile_reason!(
+            "route_not_supported",
+            "the event study has no post-adoption contrast: the posterior \
+             contrasts each adoption cohort with the never-treated subjects, and none is both \
+             observed after its adoption and compared with a never-treated subject. Next \
+             attempt: extend the panel past the adoption period, or add never-treated subjects"
+        ));
     };
     let column = |effect: &BayesianEventTimeEffect| {
         let name = format!("cohort_{}_period_{}", effect.cohort, effect.period);

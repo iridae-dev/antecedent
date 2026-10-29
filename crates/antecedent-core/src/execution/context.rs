@@ -45,6 +45,10 @@ pub struct ExecutionContext {
     /// analytic variance, inside each completed table. Private, set by
     /// [`Self::with_imputation_bootstrap`]; every constructor leaves it unset.
     pub(super) imputation_bootstrap: Option<u32>,
+    /// Most observed treatment ranges a pulse's active level may lie beyond the observed
+    /// treatment interval. Private, set by [`Self::with_pulse_extrapolation_ranges`]; every
+    /// constructor leaves it unset, which reads as [`Self::DEFAULT_PULSE_EXTRAPOLATION_RANGES`].
+    pub(super) pulse_extrapolation_ranges: Option<f64>,
 }
 
 impl ExecutionContext {
@@ -68,6 +72,32 @@ impl ExecutionContext {
         let mut scoped = self.clone();
         scoped.imputation_bootstrap = (replicates > 0).then_some(replicates);
         scoped
+    }
+
+    /// The pulse extrapolation bound a context carries unless one is set: the active level of a
+    /// pulse may lie at most this many observed treatment ranges beyond the observed interval.
+    pub const DEFAULT_PULSE_EXTRAPOLATION_RANGES: f64 = 10.0;
+
+    /// This context bounding how far beyond the observed treatment interval a pulse's active
+    /// level may lie, in observed treatment ranges (`max - min`); a level further out is refused
+    /// rather than reached by linear extrapolation of the fitted dose response.
+    ///
+    /// `None` when `ranges` is negative or not finite.
+    #[must_use]
+    pub fn with_pulse_extrapolation_ranges(&self, ranges: f64) -> Option<Self> {
+        if !(ranges.is_finite() && ranges >= 0.0) {
+            return None;
+        }
+        let mut scoped = self.clone();
+        scoped.pulse_extrapolation_ranges = Some(ranges);
+        Some(scoped)
+    }
+
+    /// The pulse extrapolation bound in observed treatment ranges: the declared one, else
+    /// [`Self::DEFAULT_PULSE_EXTRAPOLATION_RANGES`].
+    #[must_use]
+    pub fn pulse_extrapolation_ranges(&self) -> f64 {
+        self.pulse_extrapolation_ranges.unwrap_or(Self::DEFAULT_PULSE_EXTRAPOLATION_RANGES)
     }
 
     /// The bootstrap replicates a multiple-imputation run asked for, if it did.
@@ -108,6 +138,7 @@ impl ExecutionContext {
             adaptive_draws: AdaptiveDrawBudget::disabled(),
             lowered_scope: None,
             imputation_bootstrap: None,
+            pulse_extrapolation_ranges: None,
         }
     }
 
@@ -149,6 +180,7 @@ impl ExecutionContext {
             adaptive_draws: AdaptiveDrawBudget::disabled(),
             lowered_scope: None,
             imputation_bootstrap: None,
+            pulse_extrapolation_ranges: None,
         }
     }
 
@@ -306,6 +338,7 @@ impl core::fmt::Debug for ExecutionContext {
             .field("adaptive_draws", &self.adaptive_draws)
             .field("lowered_scope", &self.lowered_scope)
             .field("imputation_bootstrap", &self.imputation_bootstrap)
+            .field("pulse_extrapolation_ranges", &self.pulse_extrapolation_ranges)
             .field("admission", &self.admission())
             .finish()
     }

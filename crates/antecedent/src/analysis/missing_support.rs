@@ -205,7 +205,7 @@ pub struct MissingRouteSupport {
     pub modality: MissingModality,
     /// Inference modes the row covers.
     pub inference: Vec<MissingInference>,
-    /// Executing route family: `static`, `randomized`, `panel` or `temporal`.
+    /// Executing route family: `static`, `randomized`, `panel`, `temporal`, `temporal_design` or `attribution`.
     pub family: String,
     /// Policy applied when none is declared.
     pub default: MissingPolicy,
@@ -402,7 +402,7 @@ fn parse_row(index: usize, fields: &[(String, Value)]) -> Result<MissingRouteSup
     if inference.is_empty() {
         return Err(at("`inference` is empty".to_owned()));
     }
-    if !["static", "randomized", "panel", "temporal"].contains(&family.as_str()) {
+    if !["static", "randomized", "panel", "temporal", "temporal_design", "attribution"].contains(&family.as_str()) {
         return Err(at(format!("unknown family `{family}`")));
     }
     let policy = |name: &str| {

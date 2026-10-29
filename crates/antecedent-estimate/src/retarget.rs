@@ -394,6 +394,14 @@ pub fn retarget(
              supply one weight per complete-case row of the score table",
         ));
     }
+    if table.nuisance_provenance.contains("sampling_weights") {
+        return Err(crate::sampling_weights::unsupported_route(
+            "these scores were fitted for a weighted population: a retarget reweights them \
+             with its own target weights and would drop the sampling weights they were \
+             fitted and must be summarized under. Next attempt: retarget scores fitted without \
+             sampling weights, or fold the target weights into the table's weights",
+        ));
+    }
     if depends_on.is_empty() && !weights_are_constant(weights) {
         return Err(RetargetRefusal::UndeclaredNonconstantWeights.error());
     }
@@ -521,10 +529,23 @@ pub fn summarize_functional(
     table: &ScoreTable,
     weights: Option<&[f64]>,
 ) -> Result<(ScoreSummary, bool, Vec<Diagnostic>), EstimationError> {
+    summarize_functional_with(table, weights, None)
+}
+
+/// [`summarize_functional`] with the covariance read under a declared dependence.
+///
+/// # Errors
+///
+/// Weight length mismatch, empty mass, or a dependence that does not fit the rows.
+pub fn summarize_functional_with(
+    table: &ScoreTable,
+    weights: Option<&[f64]>,
+    dependence: Option<&crate::score_dependence::ScoreDependence>,
+) -> Result<(ScoreSummary, bool, Vec<Diagnostic>), EstimationError> {
     antecedent_core::execution_attempt::run_operation(
         antecedent_core::execution_attempt::Operation::LawSummary,
         || {
-            let mut summary = table.summarize(weights)?;
+            let mut summary = table.summarize_with(weights, dependence)?;
             let mut diagnostics = Vec::new();
             let monotone_rearranged = rearrange_exceedance(&mut summary, table, &mut diagnostics);
             Ok((summary, monotone_rearranged, diagnostics))

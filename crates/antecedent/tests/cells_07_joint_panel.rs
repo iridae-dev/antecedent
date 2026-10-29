@@ -1,12 +1,13 @@
-//! The independent joint panel against the inputs it cannot read: observation weights, missing
-//! cells and analysis masks, a categorical channel, degenerate channels, and a world whose
-//! program no observed group received.
+//! The independent joint panel against the inputs it must read or refuse: observation weights
+//! and analysis masks, missing cells, a categorical channel, degenerate channels, and a world
+//! whose program no observed group received.
 //!
-//! The public request declares channels as nonnegative finite numeric doses, an outcome, a
-//! confounder and an integer season, and it has no weight, missing-data or level declaration.
-//! Every input that would need one is therefore refused with a typed error at preparation
-//! instead of being dropped, imputed or coerced. The degenerate cases follow their known
-//! answers: a constant or exactly collinear channel is refused by name, and a constant outcome is
+//! Unit sampling weights and analysis masks on the series are read (see `cells_03_joint_panel`
+//! for the known answers); weights that vary within a serially dependent unit or that only some
+//! units carry have no likelihood and are refused. The public request has no level declaration,
+//! so a categorical channel is refused until it is dummy coded, and a missing cell is refused
+//! until a missing-data policy is declared. The degenerate cases follow their known answers: a
+//! constant or exactly collinear channel is refused by name, and a constant outcome is
 //! reproduced exactly by every world. A world whose program no group received keeps its fitted
 //! numbers but is withheld from the identified claim.
 //!
@@ -179,16 +180,41 @@ fn the_panel_fits_the_clean_fixture_that_every_refusal_below_departs_from() {
 }
 
 #[test]
-fn observation_weights_and_analysis_masks_are_refused_not_dropped() {
+fn observation_weights_and_analysis_masks_are_read_not_dropped() {
+    // A weight carried by one unit only declares no inclusion probability for the others.
     let mut weighted = four(&base());
     weighted[0] = weighted[0].with_weights(Arc::from(vec![1.0; 8])).unwrap();
     let text = prepare_error(weighted);
-    assert!(text.contains("weighted or masked panel laws require a matching engine"), "{text}");
-    let mut masked = four(&base());
-    let mask = ValidityBitmap::all_valid(8);
-    masked[2] = masked[2].with_analysis_mask(mask).unwrap();
-    let text = prepare_error(masked);
-    assert!(text.contains("weighted or masked panel laws require a matching engine"), "{text}");
+    assert!(text.contains("every unit or by none"), "{text}");
+    // Weights that vary over a serially dependent unit have no pseudo-likelihood term.
+    let mut varying = four(&base());
+    let mut per_period = vec![1.0; 8];
+    per_period[3] = 2.0;
+    varying[1] = varying[1].with_weights(Arc::from(per_period)).unwrap();
+    for unit in [0, 2, 3] {
+        varying[unit] = varying[unit].with_weights(Arc::from(vec![1.0; 8])).unwrap();
+    }
+    let text = prepare_error(varying);
+    assert!(text.contains("one strictly positive finite value over the unit"), "{text}");
+    // A mask that hides nothing is the same panel; a mask that hides a row removes exactly the
+    // periods whose exposure window reads it, and the rest of the panel still fits.
+    let plain = panel(four(&base()));
+    let plain_request = request(&plain, 1.0);
+    let plain_prepared = Study::prepare_joint_panel(plain, plain_request, &ctx()).unwrap();
+    let mut all_valid = four(&base());
+    all_valid[2] = all_valid[2].with_analysis_mask(ValidityBitmap::all_valid(8)).unwrap();
+    let source = panel(all_valid);
+    let same = Study::prepare_joint_panel(source.clone(), request(&source, 1.0), &ctx()).unwrap();
+    assert_eq!(same.model_data(), plain_prepared.model_data());
+    let mut hidden = four(&base());
+    let keep = [true, true, true, true, true, true, true, false];
+    hidden[2] = hidden[2].with_analysis_mask(ValidityBitmap::from_bools(&keep)).unwrap();
+    let source = panel(hidden);
+    let prepared = Study::prepare_joint_panel(source.clone(), request(&source, 1.0), &ctx()).unwrap();
+    let account = &prepared.data_accounting().units[2];
+    assert_eq!(account.masked_rows, vec![7]);
+    assert_eq!(account.excluded_periods, vec![5]);
+    assert_eq!(account.analysed_periods, 5);
 }
 
 #[test]

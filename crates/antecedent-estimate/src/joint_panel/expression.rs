@@ -284,7 +284,7 @@ pub fn compile_panel_expression(
                 terms.push(builder.binary(ArithOp::Mul, coefficient, expression)?);
             }
             let mean = builder.sum(terms)?;
-            let coefficient = builder.constant(weight / data.groups.len() as f64)?;
+            let coefficient = builder.constant(weight * group.weight / data.total_weight())?;
             response_terms.push(builder.binary(ArithOp::Mul, coefficient, mean)?);
         }
     }

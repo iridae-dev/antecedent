@@ -726,7 +726,10 @@ impl PreparedStudy {
             self.study().interference.as_ref(),
             self.study().declared.participants.as_ref(),
             missing_data::policy_wire(self.study()),
-            self.study().declared.sampling_design,
+            compile::sampling_identity(
+                self.study().declared.sampling_design,
+                self.study().declared.score_dependence.as_ref(),
+            ),
             &program.observation_digest,
         )?;
         let mut snapshot = snapshot;

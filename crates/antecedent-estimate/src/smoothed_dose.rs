@@ -60,6 +60,25 @@
 //! the dose whatever the true curvature. Neither record is ever added to the estimate or
 //! to an interval. The analytic influence-function standard error is a diagnostic only.
 //!
+//! # Declared rows
+//!
+//! [`SmoothedDoseInput`] may declare `sampling_weights` (one per row of either sample), a
+//! `cluster` id per row and a `serial_lag`. *Sampling weights* `s_i` (finite and positive, rows of
+//! weight zero are deleted by [`SmoothedDoseInput::without_zero_weight_rows`] before preparation,
+//! normalized to mean one over all rows) make the estimand the weighted populations' smoothed
+//! dose response: the membership and outcome learners are fitted with the weights, the target
+//! mean becomes `sum_T s_i nu_i / sum_T s_i` and the augmentation `sum_S s_i odds_i K_h / pi_i
+//! (Y_i - mu_i) / sum_T s_i`, and the kernel support (Kish size) is that of `s_i K_h / pi_i`.
+//! *Clusters* keep every cluster in one cross-fit fold (clusters are dealt to folds, stratified
+//! by role) so no cluster is on both sides of a split, and the influence-function standard
+//! error diagnostic sums the row scores within clusters (`G / (G - 1)` times the sum of squared
+//! sums); the internal bootstrap resamples whole clusters. *Serial dependence* (rows in time order
+//! at unit spacing) assigns folds as contiguous blocks (`floor(i * folds / n)`), so training rows
+//! are not interleaved with the rows they predict, makes the diagnostic the Newey-West variance of
+//! the score series at the declared lag, and resamples consecutive blocks of `lag + 1` rows in the
+//! internal bootstrap. Clusters and a lag are not offered together. The public interval stays
+//! closed whatever is declared; the declarations change the point, the folds and the diagnostics.
+//!
 //! # Claimed theorem
 //!
 //! Model double robustness of the point (outcome regression or participation model
@@ -123,6 +142,22 @@ pub const SMOOTHED_DOSE_MAX_KNOTS: usize = 8;
 const KERNEL_POLYNOMIAL_DEGREE: usize = 2;
 /// The fold scheme recorded on every estimate.
 pub const SMOOTHED_DOSE_FOLD_SCHEME: &str = "stratified_seeded_source_and_target";
+/// The fold scheme recorded when clusters are declared: whole clusters dealt to folds.
+pub const SMOOTHED_DOSE_CLUSTER_FOLD_SCHEME: &str = "clusters_whole_stratified_seeded_by_role";
+/// The fold scheme recorded when a serial lag is declared: contiguous blocks of the row order.
+pub const SMOOTHED_DOSE_BLOCK_FOLD_SCHEME: &str = "contiguous_row_blocks";
+
+/// The fold scheme an input's declarations select, as recorded on the estimate.
+#[must_use]
+pub fn smoothed_dose_fold_scheme(input: &SmoothedDoseInput) -> &'static str {
+    if input.cluster.is_some() {
+        SMOOTHED_DOSE_CLUSTER_FOLD_SCHEME
+    } else if input.serial_lag.is_some() {
+        SMOOTHED_DOSE_BLOCK_FOLD_SCHEME
+    } else {
+        SMOOTHED_DOSE_FOLD_SCHEME
+    }
+}
 /// The one supported target of a request.
 pub(crate) const SMOOTHED_DOSE_TARGET: &str = "smoothed_dose_response";
 /// Most design rows per quadrature chunk; cancellation is polled once per chunk.
@@ -295,6 +330,79 @@ pub struct SmoothedDoseInput {
     pub source: Vec<bool>,
     /// Declared sampling design.
     pub sampling: TrialSampling,
+    /// Sampling weights, one per row of either sample (finite and positive after zero-weight
+    /// rows are deleted); see the module documentation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sampling_weights: Option<Vec<f64>>,
+    /// Cluster id of each row. Not combined with `serial_lag`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cluster: Option<Vec<u32>>,
+    /// Newey-West lag for rows in time order at unit spacing, at least one and below the row
+    /// count. Not combined with `cluster`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub serial_lag: Option<u32>,
+}
+
+impl SmoothedDoseInput {
+    /// Whether weights, clusters or a lag are declared.
+    #[must_use]
+    pub fn declares_rows(&self) -> bool {
+        self.sampling_weights.is_some() || self.cluster.is_some() || self.serial_lag.is_some()
+    }
+
+    /// The sampling weights normalized to mean one over all rows, when declared.
+    #[must_use]
+    pub fn normalized_weights(&self) -> Option<Vec<f64>> {
+        let weights = self.sampling_weights.as_ref()?;
+        let total: f64 = weights.iter().sum();
+        let n = weights.len() as f64;
+        Some(weights.iter().map(|w| w * n / total).collect())
+    }
+
+    /// Delete the rows of weight zero (they stand for no population) from every per-row column and
+    /// return the rows analysed with the number deleted. Without weights the input is returned
+    /// unchanged.
+    ///
+    /// # Errors
+    /// `sampling_weights_invalid` for a weight that is negative or not finite, a weight vector of
+    /// the wrong length, or no positive weight.
+    pub fn without_zero_weight_rows(&self) -> Result<(Self, u64), EstimationError> {
+        let Some(weights) = &self.sampling_weights else { return Ok((self.clone(), 0)) };
+        let n = self.source.len();
+        let source = crate::sampling_weights::SamplingWeights::new(weights.as_slice())?;
+        let mut keep = vec![true; n];
+        source.require_rows(n)?;
+        let zero = source.drop_zero_weight_rows(&mut keep)?;
+        if zero == 0 {
+            return Ok((self.clone(), 0));
+        }
+        let pick_f = |values: &[f64]| -> Vec<f64> {
+            values.iter().zip(&keep).filter(|(_, k)| **k).map(|(v, _)| *v).collect()
+        };
+        Ok((
+            Self {
+                features: self.features.clone(),
+                covariates: self.covariates.iter().map(|c| pick_f(c)).collect(),
+                outcome: pick_f(&self.outcome),
+                dose: pick_f(&self.dose),
+                dose_density: pick_f(&self.dose_density),
+                source: self
+                    .source
+                    .iter()
+                    .zip(&keep)
+                    .filter(|(_, k)| **k)
+                    .map(|(v, _)| *v)
+                    .collect(),
+                sampling: self.sampling,
+                sampling_weights: Some(pick_f(weights)),
+                cluster: self.cluster.as_ref().map(|c| {
+                    c.iter().zip(&keep).filter(|(_, k)| **k).map(|(v, _)| *v).collect()
+                }),
+                serial_lag: self.serial_lag,
+            },
+            zero,
+        ))
+    }
 }
 
 /// Interval status of a public estimate. No interval is attached while the route is closed.
@@ -678,11 +786,63 @@ const FOLD_PLAN_SEED: u64 = 0x5344_F01D_5EED_0001;
 /// fold holds both roles. The assignment is deterministic in the source flags alone; no
 /// caller seed enters it. Empty when `folds` or the sample size is outside what the option
 /// validation accepts.
+///
+/// Declared rows change the assignment. With `cluster`, every cluster sits in one fold: clusters
+/// are dealt to folds like rows, stratified by the roles a cluster holds (source only, target
+/// only or both) so every fold sees every kind of cluster. With `serial_lag`, the folds are
+/// contiguous blocks of the row order, `floor(i * folds / n)`. In either case the assignment is
+/// empty when some fold would hold no source row or no target row.
 #[must_use]
 #[doc(hidden)]
 pub fn smoothed_dose_fold_assignment(input: &SmoothedDoseInput, folds: usize) -> Vec<u16> {
-    let stratum: Vec<u32> = input.source.iter().map(|&source| u32::from(!source)).collect();
-    crate::crossfit_plan::row_fold_ids_u16(&stratum, folds, FOLD_PLAN_SEED)
+    let n = input.source.len();
+    let assignment: Vec<u16> = if let Some(groups) = &input.cluster {
+        if groups.len() != n {
+            return Vec::new();
+        }
+        let mut roles: std::collections::BTreeMap<u32, (bool, bool)> =
+            std::collections::BTreeMap::new();
+        for (group, source) in groups.iter().zip(&input.source) {
+            let entry = roles.entry(*group).or_default();
+            if *source {
+                entry.0 = true;
+            } else {
+                entry.1 = true;
+            }
+        }
+        let stratum: Vec<u32> = groups
+            .iter()
+            .map(|g| match roles[g] {
+                (true, false) => 0,
+                (false, true) => 1,
+                _ => 2,
+            })
+            .collect();
+        let units: Vec<antecedent_data::GlobalId> =
+            groups.iter().map(|g| antecedent_data::GlobalId::new(u64::from(*g))).collect();
+        match crate::crossfit_plan::crossfit_fold_plan(&stratum, &units, folds, FOLD_PLAN_SEED) {
+            Ok(ids) => ids.into_iter().filter_map(|id| u16::try_from(id).ok()).collect(),
+            Err(_) => return Vec::new(),
+        }
+    } else if input.serial_lag.is_some() {
+        if folds < 2 || folds > n || u16::try_from(folds).is_err() {
+            return Vec::new();
+        }
+        (0..n).map(|i| u16::try_from(i * folds / n).unwrap_or(u16::MAX)).collect()
+    } else {
+        let stratum: Vec<u32> = input.source.iter().map(|&source| u32::from(!source)).collect();
+        return crate::crossfit_plan::row_fold_ids_u16(&stratum, folds, FOLD_PLAN_SEED);
+    };
+    if assignment.len() != n {
+        return Vec::new();
+    }
+    let holds_both_roles = (0..folds).all(|fold| {
+        let in_fold = |role: bool| {
+            (0..n).any(|i| usize::from(assignment[i]) == fold && input.source[i] == role)
+        };
+        in_fold(true) && in_fold(false)
+    });
+    if holds_both_roles { assignment } else { Vec::new() }
 }
 
 fn kernel_weight(
@@ -704,11 +864,13 @@ fn local_support(
     let h = query.bandwidth;
     let (mut sum, mut squares, mut max) = (0.0, 0.0, 0.0_f64);
     let mut doses = Vec::new();
+    let sampling = input.normalized_weights();
     for i in 0..input.source.len() {
         if !input.source[i] {
             continue;
         }
-        let w = kernel_weight(query, a, h, input.dose[i], input.dose_density[i]);
+        let w = kernel_weight(query, a, h, input.dose[i], input.dose_density[i])
+            * sampling.as_ref().map_or(1.0, |s| s[i]);
         if w > 0.0 {
             sum += w;
             squares += w * w;
@@ -723,6 +885,71 @@ fn local_support(
         distinct_doses: doses.len(),
         max_kernel_weight: max,
     }
+}
+
+fn declared_rows_refusal(detail: &'static str, message: &str) -> EstimationError {
+    refuse(antecedent_core::reason_code!("invalid_argument"), detail, message)
+}
+
+/// Check the declared weights, clusters and lag against the rows and the fold scheme.
+fn check_declared_rows(
+    input: &SmoothedDoseInput,
+    options: &SmoothedDoseOptions,
+) -> Result<(), EstimationError> {
+    let n = input.source.len();
+    if let Some(weights) = &input.sampling_weights {
+        if weights.len() != n {
+            return Err(crate::sampling_weights::invalid(&format!(
+                "{} sampling weights were declared for {n} rows",
+                weights.len()
+            )));
+        }
+        if let Some((row, value)) =
+            weights.iter().copied().enumerate().find(|(_, w)| !w.is_finite() || *w <= 0.0)
+        {
+            return Err(crate::sampling_weights::invalid(&format!(
+                "sampling weight {value} at row {row} is not finite and positive; delete rows of \
+                 weight zero (they stand for no population) with \
+                 SmoothedDoseInput::without_zero_weight_rows before preparing"
+            )));
+        }
+    }
+    if let Some(groups) = &input.cluster {
+        if groups.len() != n {
+            return Err(declared_rows_refusal(
+                "dose_response.invalid_declared_rows",
+                &format!("{} cluster ids were declared for {n} rows", groups.len()),
+            ));
+        }
+        if input.serial_lag.is_some() {
+            return Err(declared_rows_refusal(
+                "dose_response.invalid_declared_rows",
+                "clusters and a serial lag are not offered together: a panel needs a unit and a time",
+            ));
+        }
+    }
+    if let Some(lag) = input.serial_lag {
+        if lag == 0 || usize::try_from(lag).map_or(true, |lag| lag >= n) {
+            return Err(declared_rows_refusal(
+                "dose_response.invalid_declared_rows",
+                &format!(
+                    "the serial-dependence lag must be at least one and below the {n} rows; it \
+                     is never silently capped"
+                ),
+            ));
+        }
+    }
+    if (input.cluster.is_some() || input.serial_lag.is_some())
+        && smoothed_dose_fold_assignment(input, options.folds).is_empty()
+    {
+        return Err(declared_rows_refusal(
+            "dose_response.declared_folds_unbalanced",
+            "the declared clusters (kept whole in one fold) or row blocks leave some fold with \
+             no source row or no target row, or fewer clusters than folds. Next attempt: fewer \
+             folds, more or smaller clusters, or a lag-free declaration",
+        ));
+    }
+    Ok(())
 }
 
 /// Validate a request before any nuisance is fitted.
@@ -784,6 +1011,7 @@ pub fn validate_smoothed_dose(
             "invalid certified smoothed dose transport input or options",
         ));
     }
+    check_declared_rows(input, options)?;
     for i in 0..n {
         if !input.source[i] {
             continue;
@@ -946,6 +1174,11 @@ fn fit_models(
     )
     .map_err(crate::learn_nuisance::learn_err)?;
     let source_outcome: Vec<f64> = source_rows.iter().map(|i| input.outcome[*i]).collect();
+    // Declared sampling weights enter both nuisance fits, aligned with the physical rows of each
+    // design (every row for membership, the source rows for the outcome).
+    let membership_weights = input.normalized_weights();
+    let outcome_weights: Option<Vec<f64>> =
+        membership_weights.as_ref().map(|w| source_rows.iter().map(|i| w[*i]).collect());
     let fits = ctx.map_indexed(fold_count, |fold, inner| -> Result<_, EstimationError> {
         cancelled(inner)?;
         let train: Vec<u64> = (0..n)
@@ -958,7 +1191,7 @@ fn fit_models(
                     .with_rows(RowSelection::new(&train))
                     .map_err(crate::learn_nuisance::learn_err)?,
                 TargetView::new(&labels),
-                None,
+                membership_weights.as_deref(),
                 inner,
             )
             .map_err(crate::learn_nuisance::learn_err)?
@@ -974,7 +1207,7 @@ fn fit_models(
                     .with_rows(RowSelection::new(&outcome_train))
                     .map_err(crate::learn_nuisance::learn_err)?,
                 TargetView::new(&source_outcome),
-                None,
+                outcome_weights.as_deref(),
                 inner,
             )
             .map_err(crate::learn_nuisance::learn_err)?
@@ -1092,6 +1325,23 @@ fn smoothed_target_rows(
     Ok(nu)
 }
 
+/// The influence-function standard error of the row scores `psi` (which sum to zero) under the
+/// declared dependence: one-way cluster-robust (`G / (G - 1)` times the sum of squared cluster
+/// sums), Newey-West at the declared lag, or the plain root sum of squares.
+fn declared_standard_error(psi: &[f64], input: &SmoothedDoseInput) -> f64 {
+    let variance = if let Some(groups) = &input.cluster {
+        match antecedent_stats::cluster_meat_scalar(psi, groups, 0.0) {
+            Ok((meat, clusters)) if clusters > 1 => meat * clusters as f64 / (clusters as f64 - 1.0),
+            _ => f64::NAN,
+        }
+    } else if let Some(lag) = input.serial_lag {
+        antecedent_stats::newey_west_meat_scalar(psi, lag as usize)
+    } else {
+        psi.iter().map(|v| v * v).sum::<f64>()
+    };
+    variance.max(0.0).sqrt()
+}
+
 fn mean_in_order(values: &[f64]) -> f64 {
     values.iter().sum::<f64>() / values.len() as f64
 }
@@ -1104,11 +1354,12 @@ fn dose_row_scores(
     nu_fine: &[f64],
     source_rows: &[usize],
     residual_terms: &[f64],
+    sampling: Option<&[f64]>,
 ) -> Vec<f64> {
     let scale = n as f64 / n0;
     let mut row_scores = vec![0.0; n];
     for (local, &row) in target_rows.iter().enumerate() {
-        row_scores[row] = nu_fine[local] * scale;
+        row_scores[row] = nu_fine[local] * sampling.map_or(1.0, |s| s[row]) * scale;
     }
     for (local, &row) in source_rows.iter().enumerate() {
         row_scores[row] = residual_terms[local] * scale;
@@ -1200,7 +1451,17 @@ pub fn evaluate_smoothed_dose_models(
     let outcome_rmse = antecedent_learn::diagnose(PredictionTask::Regression, &observed, &fitted)
         .rmse
         .ok_or_else(|| EstimationError::data_msg("empty source outcome role"))?;
-    let n0 = target_rows.len() as f64;
+    let sampling = input.normalized_weights();
+    let weight_of = |row: usize| sampling.as_ref().map_or(1.0, |s| s[row]);
+    // The target mass: the number of target rows, or their summed sampling weights.
+    let n0: f64 = target_rows.iter().map(|&row| weight_of(row)).sum();
+    let target_mean = |values: &[f64]| -> f64 {
+        if sampling.is_some() {
+            values.iter().zip(&target_rows).map(|(v, &row)| weight_of(row) * v).sum::<f64>() / n0
+        } else {
+            mean_in_order(values)
+        }
+    };
     let coarse = antecedent_stats::special::gauss_legendre(options.quadrature_nodes);
     let fine = antecedent_stats::special::gauss_legendre(2 * options.quadrature_nodes);
     // A linear-family curve times the kernel is a polynomial of degree `degree + 2` on every
@@ -1243,12 +1504,12 @@ pub fn evaluate_smoothed_dose_models(
         let mut residual_terms = Vec::with_capacity(source_rows.len());
         for (s, i) in source_rows.iter().enumerate() {
             let w = kernel_weight(query, a, h, input.dose[*i], input.dose_density[*i]);
-            let term = odds[s] * w * (input.outcome[*i] - mu_observed[*i]);
+            let term = weight_of(*i) * odds[s] * w * (input.outcome[*i] - mu_observed[*i]);
             residual_sum += term;
             residual_terms.push(term);
         }
-        let plug_in = mean_in_order(&nu_fine);
-        let coarse_plug_in = mean_in_order(&nu_coarse);
+        let plug_in = target_mean(&nu_fine);
+        let coarse_plug_in = target_mean(&nu_coarse);
         let augmentation = residual_sum / n0;
         let estimate = plug_in + augmentation;
         let estimate_error = ((coarse_plug_in + augmentation) - estimate).abs();
@@ -1272,9 +1533,23 @@ pub fn evaluate_smoothed_dose_models(
                 ),
             ));
         }
-        let half_bandwidth_difference = plug_in - mean_in_order(&nu_half);
-        let squares: f64 = nu_fine.iter().map(|v| (v - estimate) * (v - estimate)).sum::<f64>()
-            + residual_terms.iter().map(|t| t * t).sum::<f64>();
+        let half_bandwidth_difference = plug_in - target_mean(&nu_half);
+        let influence_se = if input.declares_rows() {
+            // Row scores in row order: the target rows' weighted deviation and the source rows'
+            // augmentation term, each over the target mass; they sum to zero.
+            let mut psi = vec![0.0; n];
+            for (local, &row) in target_rows.iter().enumerate() {
+                psi[row] = weight_of(row) * (nu_fine[local] - estimate) / n0;
+            }
+            for (local, &row) in source_rows.iter().enumerate() {
+                psi[row] = residual_terms[local] / n0;
+            }
+            declared_standard_error(&psi, input)
+        } else {
+            let squares: f64 = nu_fine.iter().map(|v| (v - estimate) * (v - estimate)).sum::<f64>()
+                + residual_terms.iter().map(|t| t * t).sum::<f64>();
+            squares.sqrt() / n0
+        };
         Ok(SmoothedDoseGridPoint {
             dose: a,
             estimate,
@@ -1293,7 +1568,7 @@ pub fn evaluate_smoothed_dose_models(
                 local_quadratic_bias: half_bandwidth_difference * 4.0 / 3.0,
             },
             support: local_support(query, input, a),
-            influence_se_diagnostic: squares.sqrt() / n0,
+            influence_se_diagnostic: influence_se,
             row_scores: dose_row_scores(
                 n,
                 n0,
@@ -1301,6 +1576,7 @@ pub fn evaluate_smoothed_dose_models(
                 &nu_fine,
                 &source_rows,
                 &residual_terms,
+                sampling.as_deref(),
             ),
         })
     })?;
@@ -1480,7 +1756,7 @@ pub fn estimate_smoothed_dose(
         models,
         folds: FoldProvenance {
             count: options.folds,
-            scheme: SMOOTHED_DOSE_FOLD_SCHEME.into(),
+            scheme: smoothed_dose_fold_scheme(input).into(),
             assignment: folds,
         },
         diagnostics: evaluation.diagnostics,
@@ -1501,6 +1777,56 @@ pub fn smoothed_dose_bootstrap_groups(input: &SmoothedDoseInput) -> Vec<Vec<usiz
             (0..n).filter(|i| !input.source[*i]).collect(),
         ],
     }
+}
+
+/// The resampling units of the joint outer bootstrap, per group of [`smoothed_dose_bootstrap_groups`]:
+/// every row is its own unit, unless clusters are declared (a unit is a cluster's rows in the
+/// group) or a serial lag is (a unit is a block of `lag + 1` consecutive rows of the group).
+#[must_use]
+#[doc(hidden)]
+pub fn smoothed_dose_bootstrap_units(input: &SmoothedDoseInput) -> Vec<Vec<Vec<usize>>> {
+    smoothed_dose_bootstrap_groups(input)
+        .into_iter()
+        .map(|rows| {
+            if let Some(groups) = &input.cluster {
+                let mut by_cluster: std::collections::BTreeMap<u32, Vec<usize>> =
+                    std::collections::BTreeMap::new();
+                for row in rows {
+                    by_cluster.entry(groups[row]).or_default().push(row);
+                }
+                by_cluster.into_values().collect()
+            } else if let Some(lag) = input.serial_lag {
+                rows.chunks(lag as usize + 1).map(<[usize]>::to_vec).collect()
+            } else {
+                rows.into_iter().map(|row| vec![row]).collect()
+            }
+        })
+        .collect()
+}
+
+/// One replicate's resampled rows from [`smoothed_dose_bootstrap_units`]: each group draws as many
+/// units as it holds, with replacement, and contributes their rows. With every row its own unit
+/// this is [`crate::learned_trial::bootstrap_rows`] of the groups, draw for draw.
+///
+/// # Errors
+/// A resampling failure.
+#[doc(hidden)]
+pub fn smoothed_dose_bootstrap_unit_rows(
+    units: &[Vec<Vec<usize>>],
+    replicate: u32,
+    ctx: &ExecutionContext,
+) -> Result<Vec<usize>, EstimationError> {
+    let indices: Vec<Vec<usize>> = units.iter().map(|group| (0..group.len()).collect()).collect();
+    let drawn = crate::learned_trial::bootstrap_rows(&indices, replicate, ctx)?;
+    let mut rows = Vec::new();
+    let mut cursor = 0usize;
+    for group in units {
+        for &unit in &drawn[cursor..cursor + group.len()] {
+            rows.extend_from_slice(&group[unit]);
+        }
+        cursor += group.len();
+    }
+    Ok(rows)
 }
 
 fn menu_refusal(
@@ -1831,6 +2157,9 @@ pub fn smoothed_dose_replicate(
         dose_density: pick(&input.dose_density),
         source: rows.iter().map(|i| input.source[*i]).collect(),
         sampling: input.sampling,
+        sampling_weights: input.sampling_weights.as_ref().map(|w| pick(w)),
+        cluster: input.cluster.as_ref().map(|c| rows.iter().map(|i| c[*i]).collect()),
+        serial_lag: input.serial_lag,
     };
     (draw, rows.iter().map(|i| point_folds[*i]).collect())
 }
@@ -1901,14 +2230,14 @@ pub fn smoothed_dose_interval_internal(
             .zip(retained)
             .and_then(|(workspace, retained)| workspace.checked_add(retained));
     check_workspace(replicate_bytes, ctx)?;
-    let groups = smoothed_dose_bootstrap_groups(input);
+    let units = smoothed_dose_bootstrap_units(input);
     let folds = &point.folds.assignment;
     let outcomes = ctx.map_indexed(
         options.bootstrap as usize,
         |index, inner| -> Result<_, EstimationError> {
             cancelled(inner)?;
             let replicate = u32::try_from(index).unwrap_or(u32::MAX);
-            let rows = crate::learned_trial::bootstrap_rows(&groups, replicate, inner)?;
+            let rows = smoothed_dose_bootstrap_unit_rows(&units, replicate, inner)?;
             let (draw, draw_folds) = smoothed_dose_replicate(input, folds, &rows);
             let run = validate_smoothed_dose(id, query, &draw, options)
                 .and_then(|()| fit_and_evaluate(query, &draw, options, &draw_folds, inner));
@@ -1971,6 +2300,9 @@ mod tests {
             dose_density: vec![0.25; n],
             source: (0..n).map(|i| i % 3 != 0).collect(),
             sampling: TrialSampling::IndependentSamples,
+            sampling_weights: None,
+            cluster: None,
+            serial_lag: None,
         }
     }
 

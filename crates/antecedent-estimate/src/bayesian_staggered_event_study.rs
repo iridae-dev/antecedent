@@ -64,8 +64,10 @@ fn balanced_panel<'a>(
         || cohorts.len() != n
         || clusters.len() != n
     {
-        return Err(EstimationError::stats_msg(
-            "bayesian event study needs equal non-empty outcome, subject, period, cohort and cluster vectors",
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            "bayesian_event_study_shape",
+            "bayesian event study needs equal non-empty outcome, subject, period, cohort and cluster vectors. Next attempt: supply equal-length non-empty outcome, subject, period, cohort and cluster columns",
         ));
     }
     let mut units: Panel<'a> = BTreeMap::new();
@@ -79,29 +81,49 @@ fn balanced_panel<'a>(
             || periods[i] <= 0
             || cohorts[i] < 0
         {
-            return Err(EstimationError::stats_msg(
-                "bayesian event study needs finite outcomes, non-empty ids, positive periods and nonnegative cohorts",
+            return Err(crate::util::refuse(
+                antecedent_core::reason_code!("invalid_argument"),
+                "bayesian_event_study_labels",
+                "bayesian event study needs finite outcomes, non-empty ids, positive periods and nonnegative cohorts. Next attempt: give every row a finite outcome, a non-empty subject and cluster, a positive period and a nonnegative cohort",
             ));
         }
         all_periods.insert(periods[i]);
         let unit = units.entry(subject).or_insert_with(|| (cohorts[i], cluster, BTreeMap::new()));
         if unit.0 != cohorts[i] || unit.1 != cluster {
-            return Err(EstimationError::stats_msg(
-                "adoption cohort and cluster must remain constant within subject",
+            return Err(crate::util::refuse(
+                antecedent_core::reason_code!("invalid_argument"),
+                "bayesian_event_study_unstable_unit",
+                "adoption cohort and cluster must remain constant within subject. Next attempt: keep the adoption cohort and cluster constant within a subject",
             ));
         }
         if unit.2.insert(periods[i], outcomes[i]).is_some() {
-            return Err(EstimationError::stats_msg(
-                "each subject must have exactly one observation per period",
+            return Err(crate::util::refuse(
+                antecedent_core::reason_code!("invalid_argument"),
+                "bayesian_event_study_duplicate_cell",
+                "each subject must have exactly one observation per period. Next attempt: keep one observation per subject and period",
             ));
         }
     }
-    if all_periods.len() < 2
-        || units.values().any(|unit| all_periods.iter().any(|period| !unit.2.contains_key(period)))
-    {
-        return Err(EstimationError::stats_msg(
-            "bayesian event study requires a balanced panel with at least two common periods. \
-             Next attempt: the available-case frequentist contrast, or a missingness model",
+    let balanced_message =
+        "bayesian event study requires a balanced panel with at least two common periods";
+    if all_periods.len() < 2 {
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            "bayesian_event_study_periods",
+            &format!(
+                "{balanced_message}. Next attempt: a table with the periods before and after \
+                 each adoption, or the static randomized effect for one period"
+            ),
+        ));
+    }
+    if units.values().any(|unit| all_periods.iter().any(|period| !unit.2.contains_key(period))) {
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("missing_policy_required"),
+            "bayesian_event_study_unbalanced",
+            &format!(
+                "{balanced_message}. Next attempt: the available-case frequentist contrast, or a \
+                 missingness model"
+            ),
         ));
     }
     let unit_clusters: Vec<&str> = units.values().map(|unit| unit.1).collect();
@@ -131,8 +153,10 @@ pub fn fit_bayesian_event_study(
     let (units, all_periods) = balanced_panel(outcomes, subjects, periods, cohorts, clusters)?;
     let cohorts_present: BTreeSet<i64> = units.values().map(|unit| unit.0).collect();
     if !cohorts_present.contains(&0) {
-        return Err(EstimationError::stats_msg(
-            "bayesian event study requires never-treated controls (cohort 0)",
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            "bayesian_event_study_no_controls",
+            "bayesian event study requires never-treated controls (cohort 0). Next attempt: include never-treated subjects (cohort 0), or the not-yet-treated frequentist comparison",
         ));
     }
     let controls: Vec<_> = units.values().filter(|unit| unit.0 == 0).collect();
@@ -140,8 +164,10 @@ pub fn fit_bayesian_event_study(
     for cohort in cohorts_present.iter().copied().filter(|cohort| *cohort > 0) {
         let baseline = cohort - 1;
         if !all_periods.contains(&baseline) || !all_periods.contains(&cohort) {
-            return Err(EstimationError::stats_msg(
-                "each adoption cohort needs an observed immediately pre-treatment baseline and adoption period",
+            return Err(crate::util::refuse(
+                antecedent_core::reason_code!("invalid_argument"),
+                "bayesian_event_study_baseline",
+                "each adoption cohort needs an observed immediately pre-treatment baseline and adoption period. Next attempt: observe the period immediately before and the period of each adoption cohort, or drop the cohort",
             ));
         }
         let treated: Vec<_> = units.values().filter(|unit| unit.0 == cohort).collect();
@@ -182,7 +208,11 @@ pub fn fit_bayesian_event_study(
         }
     }
     if effects.is_empty() {
-        return Err(EstimationError::stats_msg("no event-time contrasts are available"));
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            "bayesian_event_study_empty",
+            "no event-time contrasts are available. Next attempt: include at least one adoption cohort with an observed pre-period and post-period",
+        ));
     }
     Ok(effects)
 }

@@ -484,6 +484,9 @@ fn experiment(
         return Err("whole-program conditional-context identification requires the explicit preassignment/exogenous context premise; observed equality cannot establish it".into());
     }
 
+    if data.groups.iter().any(|group| !group.is_plain()) {
+        return Err("the experimental arm means are those of complete, equally weighted groups; a panel with sampling weights or excluded periods is a different population and observation law, so the design claim is withheld".into());
+    }
     query.validate().map_err(|error| error.to_string())?;
     if query.outcome != request.columns.outcome
         || query.estimand != RandomizedEstimand::IntentionToTreat

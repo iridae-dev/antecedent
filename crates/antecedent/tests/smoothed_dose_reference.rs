@@ -36,6 +36,9 @@ fn input(case: &Value) -> SmoothedDoseInput {
         dose_density: floats(&case["density"]),
         source: case["source"].as_array().unwrap().iter().map(|v| v.as_bool().unwrap()).collect(),
         sampling: TrialSampling::NestedCohort,
+        sampling_weights: None,
+        cluster: None,
+        serial_lag: None,
     }
 }
 

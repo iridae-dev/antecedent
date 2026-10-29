@@ -196,6 +196,9 @@ pub fn draw(
         dose_density: density,
         source: participant,
         sampling: design.sampling(),
+        sampling_weights: None,
+        cluster: None,
+        serial_lag: None,
     }
 }
 

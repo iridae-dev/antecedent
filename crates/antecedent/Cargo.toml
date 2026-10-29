@@ -1029,3 +1029,91 @@ path = "tests/estimate_response_kennedy_dr_declarations.rs"
 [[test]]
 name = "temporal_response_observation_adjusted_reference"
 path = "tests/temporal_response_observation_adjusted_reference.rs"
+
+[[test]]
+name = "cells_03_quantile_missing"
+path = "tests/cells_03_quantile_missing.rs"
+
+[[test]]
+name = "cells_04_joint_intervention"
+path = "tests/cells_04_joint_intervention.rs"
+
+[[test]]
+name = "cells_05_transport_projection"
+path = "tests/cells_05_transport_projection.rs"
+
+[[test]]
+name = "cells_01_panel_search_inputs"
+path = "tests/cells_01_panel_search_inputs.rs"
+
+[[test]]
+name = "cells_00_time_varying_panel"
+path = "tests/cells_00_time_varying_panel.rs"
+
+[[test]]
+name = "cells_01_pulse_refuter_boundaries"
+path = "tests/cells_01_pulse_refuter_boundaries.rs"
+
+[[test]]
+name = "cells_03_joint_panel"
+path = "tests/cells_03_joint_panel.rs"
+
+[[test]]
+name = "cells_07_joint_panel"
+path = "tests/cells_07_joint_panel.rs"
+
+[[test]]
+name = "cells_04_attribution_conditional"
+path = "tests/cells_04_attribution_conditional.rs"
+
+[[test]]
+name = "claims_03_dbn_posterior_truth"
+path = "tests/claims_03_dbn_posterior_truth.rs"
+
+[[test]]
+name = "cells_06_joint_panel_broader"
+path = "tests/cells_06_joint_panel_broader.rs"
+
+[[test]]
+name = "unavailable_b_static_temporal_refusals"
+path = "tests/unavailable_b_static_temporal_refusals.rs"
+
+[[test]]
+name = "cells_06_adaptive"
+path = "tests/cells_06_adaptive.rs"
+
+[[test]]
+name = "unavailable_a_declarations"
+path = "tests/unavailable_a_declarations.rs"
+
+[[test]]
+name = "cells_07_scenarios"
+path = "tests/cells_07_scenarios.rs"
+
+[[test]]
+name = "unavailable_b_static_panel_refusals"
+path = "tests/unavailable_b_static_panel_refusals.rs"
+
+[[test]]
+name = "cells_00_sustained_declarations"
+path = "tests/cells_00_sustained_declarations.rs"
+
+[[test]]
+name = "unavailable_b_measurement_route_declarations"
+path = "tests/unavailable_b_measurement_route_declarations.rs"
+
+[[test]]
+name = "cells_00_iv_regime"
+path = "tests/cells_00_iv_regime.rs"
+
+[[test]]
+name = "cells_00_panel_did_serial"
+path = "tests/cells_00_panel_did_serial.rs"
+
+[[test]]
+name = "build_small_gaps_class_nonfinite"
+path = "tests/build_small_gaps_class_nonfinite.rs"
+
+[[test]]
+name = "build_quasi_experimental_synthetic_dependence"
+path = "tests/build_quasi_experimental_synthetic_dependence.rs"

@@ -101,6 +101,7 @@ pub use analysis::max_t_critical_value;
 #[doc(hidden)]
 pub use analysis::temporal_dependent_interval_candidate;
 pub use antecedent_estimate::{IvBoundsEstimate, IvBoundsInterval, IvBoundsPosterior};
+pub use antecedent_estimate::ScoreDependence;
 pub use class_prior::ClassPrior;
 pub use design_posterior_model::DesignPosteriorModel;
 pub use error::{

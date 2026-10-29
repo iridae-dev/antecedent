@@ -108,7 +108,14 @@ fn bayesian_iv_joint_fixed_loading_executes_staged_with_known_truth() {
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(result.support_status(), Some(antecedent::CellStatus::Licensed));
-    assert!((result.estimate().as_effect().unwrap().ate - truth).abs() < 0.2);
+    // The exact sample instrumental-variable ratio of this 1200-row design is 2.00277 (the
+    // reference script, exact rationals); the confounded OLS slope is 2.914. A posterior mean
+    // within 0.02 of the structural effect separates the two.
+    assert!(
+        (result.estimate().as_effect().unwrap().ate - truth).abs() < 0.02,
+        "{}",
+        result.estimate().as_effect().unwrap().ate
+    );
     let posterior = result.posterior.as_ref().unwrap();
     assert_eq!(posterior.draws.n_draws, 512);
     assert!(posterior.summaries.q025[0] < truth && posterior.summaries.q975[0] > truth);
@@ -153,7 +160,7 @@ fn bayesian_rd_executes_staged_and_checks_bandwidth_conditioning() {
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert!(
-        (result.estimate().as_effect().unwrap().ate - truth).abs() < 0.08,
+        (result.estimate().as_effect().unwrap().ate - truth).abs() < 0.02,
         "{}",
         result.estimate().as_effect().unwrap().ate
     );

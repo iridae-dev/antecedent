@@ -395,8 +395,10 @@ fn the_conditional_effect_and_the_intervention_response_refuse_degenerate_design
                 &what,
             );
             if name == "conditional effect" {
-                // The regression design loses a column to the constant treatment and to the copy.
-                assert!(constant.contains("rank deficient: rank=2 ncols=4"), "{what}: {constant}");
+                // The constant treatment never visits the control level, so the arm is refused
+                // before any design is built; the copy still loses a column to the rank check.
+                assert!(constant.contains("arm_not_populated"), "{what}: {constant}");
+                assert!(constant.contains("the treatment takes the levels 1"), "{what}: {constant}");
                 assert!(copied.contains("rank deficient: rank=4 ncols=5"), "{what}: {copied}");
             } else {
                 // The penalized smoother has no invertible design.
@@ -764,6 +766,57 @@ fn the_class_average_effect_refuses_a_treatment_that_never_visits_a_contrasted_l
         let error = run(class, table(&design(true, false)), average_effect(), None, None)
             .err()
             .unwrap_or_else(|| panic!("{class}: a constant treatment was estimated"));
-        assert!(error.to_string().contains("rank"), "{class}: {error}");
+        assert_eq!(error.reason_code(), Some("arm_not_populated"), "{class}: {error}");
+        assert!(error.to_string().contains("control 0"), "{class}: {error}");
+    }
+}
+
+#[test]
+fn the_class_average_effect_refuses_a_contrast_level_a_two_valued_treatment_never_took() {
+    // A 0/1 treatment queried at (2, -3) or (7.5, 0) used to publish the dose slope times the
+    // distance (26.7, 100, -40) on every class; the unvisited level has no rows to estimate from.
+    let at = |i: usize| i as f64;
+    let z: Vec<f64> = (0..N).map(|i| (at(i) * 0.37).sin()).collect();
+    let a: Vec<f64> = (0..N).map(|i| f64::from(u8::from(z[i] + (at(i) * 0.71).cos() > 0.0))).collect();
+    let y: Vec<f64> = (0..N).map(|i| 3.0 * a[i] + z[i] + 0.1 * (at(i) * 0.31).sin()).collect();
+    let data = table(&[("a", a), ("y", y), ("z", z)]);
+    let ctx = ctx();
+    for class in ["dag", "admg", "cpdag"] {
+        let mut graph = Dag::with_variables(3);
+        for (from, to) in [(2_u32, 0_u32), (2, 1), (0, 1)] {
+            graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+        }
+        let mut latent_free = Admg::with_variables(3);
+        for (from, to) in [(2_u32, 0_u32), (2, 1), (0, 1)] {
+            latent_free
+                .insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to))
+                .unwrap();
+        }
+        let query = |active: f64, control: f64| {
+            AverageEffectQuery::with_levels(v(0), v(1), control, active)
+        };
+        let run = |active: f64, control: f64| {
+            let builder = Study::tabular(data.clone());
+            let builder = match class {
+                "dag" => builder.graph(graph.clone()),
+                "admg" => builder.graph(latent_free.clone()),
+                _ => builder.graph(Cpdag::from_dag(&graph)),
+            };
+            builder
+                .query(query(active, control))
+                .refute(RefuteSuite::None)
+                .bootstrap_replicates(0)
+                .build()
+                .and_then(|study| study.run(&ctx))
+        };
+        let sound = run(1.0, 0.0).unwrap();
+        assert!(sound.estimate().as_effect().unwrap().ate > 2.0, "{class}");
+        for (active, control) in [(2.0, -3.0), (7.5, 0.0), (0.0, -3.0)] {
+            let error = run(active, control)
+                .err()
+                .unwrap_or_else(|| panic!("{class} ({active}, {control}): extrapolated"));
+            assert_eq!(error.reason_code(), Some("arm_not_populated"), "{class}: {error}");
+            assert!(error.to_string().contains("the treatment takes the levels 0, 1"), "{error}");
+        }
     }
 }

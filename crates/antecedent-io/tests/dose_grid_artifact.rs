@@ -16,7 +16,7 @@
 use antecedent_io::IoError;
 use antecedent_io::dose_grid_functional_artifact::{
     DOSE_GRID_ARTIFACT_VERSION, DOSE_GRID_BAND_BIAS_AWARE, DOSE_GRID_BAND_CLOSED,
-    DOSE_GRID_BIAS_AWARE_FEATURE, DOSE_GRID_CALIBRATION, DOSE_GRID_INFERENCE_CLAIM,
+    DOSE_GRID_BIAS_AWARE_FEATURE, DOSE_GRID_CALIBRATION, DOSE_GRID_DECLARED_ROWS_FEATURE, DOSE_GRID_INFERENCE_CLAIM,
     DoseBiasAwareRequestWire, DoseClaimsWire, DoseFunctionalWire, DoseGridArtifactError,
     DoseGridArtifactWire, DoseGridConsumeLimits, DoseGridRequestWire, dose_support_table,
 };
@@ -65,6 +65,9 @@ fn request(kind: &str, noise: f64) -> DoseGridRequestWire {
         dose,
         outcome,
         bias_aware: None,
+        sampling_weights: None,
+        cluster: None,
+        serial_lag: None,
     }
 }
 
@@ -454,5 +457,125 @@ fn a_contrast_under_a_curvature_bound_keeps_its_band_closed() {
     assert_eq!(sealed.result.simultaneous_band, DOSE_GRID_BAND_CLOSED);
     let section = sealed.result.bias_aware.as_ref().unwrap();
     assert!(section.band_lower.is_none() && section.band_replicates == 0);
+    assert_eq!(consume(&sealed.export().unwrap()).unwrap(), sealed);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Declared rows: sampling weights, clusters and a serial lag are read, sealed and replayed.
+// ---------------------------------------------------------------------------------------------
+
+fn declared(kind: &str, noise: f64) -> DoseGridRequestWire {
+    let mut declared = request(kind, noise);
+    declared.sampling_weights =
+        Some((0..N).map(|i| if i == 7 { 0.0 } else { 0.5 + (i % 5) as f64 * 0.3 }).collect());
+    declared
+}
+
+#[test]
+fn declared_sampling_weights_seal_replay_and_account_for_the_deleted_row() {
+    let sealed = DoseGridArtifactWire::seal(declared("level", 0.1)).unwrap();
+    assert!(sealed.required_features.iter().any(|f| f == DOSE_GRID_DECLARED_ROWS_FEATURE));
+    let accounting = sealed.result.declared_rows.as_ref().expect("the declaration is accounted");
+    assert_eq!(accounting.rows_used as usize, N - 1);
+    assert_eq!(accounting.zero_weight_rows, 1);
+    assert_eq!(sealed.result.n_rows, N - 1);
+    assert!(accounting.weight_effective_sample_size.unwrap() < (N - 1) as f64);
+    assert_eq!(accounting.interval_reference, "normal");
+    // The weighted fit differs from the unweighted one on the same table, and replays bit for bit.
+    let plain = seal("level", 0.1);
+    assert_ne!(plain.result.levels[2].value.to_bits(), sealed.result.levels[2].value.to_bits());
+    let consumed = consume(&sealed.export().unwrap()).unwrap();
+    assert_eq!(consumed, sealed);
+    // The plain request keeps the historical format: no feature, no accounting.
+    assert!(plain.result.declared_rows.is_none());
+    assert!(!plain.required_features.iter().any(|f| f == DOSE_GRID_DECLARED_ROWS_FEATURE));
+}
+
+#[test]
+fn a_changed_weight_cluster_or_lag_is_refused_even_when_the_digests_are_resealed() {
+    let mut weighted = DoseGridArtifactWire::seal(declared("level", 0.1)).unwrap();
+    weighted.request.sampling_weights.as_mut().unwrap()[40] *= 3.0;
+    assert!(matches!(consume(&reseal(weighted)), Err(DoseGridArtifactError::ResultMismatch)));
+
+    let mut clustered = declared("level", 0.1);
+    clustered.cluster = Some((0..N as u32).map(|i| i % 9).collect());
+    let sealed = DoseGridArtifactWire::seal(clustered).unwrap();
+    let accounting = sealed.result.declared_rows.as_ref().unwrap();
+    assert_eq!(accounting.clusters, Some(9));
+    assert_eq!(accounting.interval_reference, "student_t_clusters_minus_one");
+    assert_eq!(consume(&sealed.export().unwrap()).unwrap(), sealed);
+    let mut moved = sealed.clone();
+    moved.request.cluster.as_mut().unwrap()[3] = 4;
+    assert!(matches!(consume(&reseal(moved)), Err(DoseGridArtifactError::ResultMismatch)));
+    // Without resealing, the digests catch the edit first.
+    let mut stale = sealed.clone();
+    stale.request.cluster.as_mut().unwrap()[3] = 4;
+    assert!(matches!(
+        consume(&stale.export().unwrap()),
+        Err(DoseGridArtifactError::DataMismatch)
+    ));
+
+    let mut serial = request("level", 0.1);
+    serial.serial_lag = Some(3);
+    let sealed = DoseGridArtifactWire::seal(serial).unwrap();
+    assert_eq!(sealed.result.declared_rows.as_ref().unwrap().serial_lag, Some(3));
+    assert_eq!(consume(&sealed.export().unwrap()).unwrap(), sealed);
+    let mut longer = sealed.clone();
+    longer.request.serial_lag = Some(5);
+    assert!(matches!(consume(&reseal(longer)), Err(DoseGridArtifactError::ResultMismatch)));
+    // Stripping the accounting or the feature marker is refused.
+    let mut stripped = sealed.clone();
+    stripped.result.declared_rows = None;
+    assert!(matches!(
+        consume(&reseal(stripped)),
+        Err(DoseGridArtifactError::UnsupportedSemantics(_))
+    ));
+    let mut unmarked = sealed;
+    unmarked.required_features.retain(|f| f != DOSE_GRID_DECLARED_ROWS_FEATURE);
+    assert!(matches!(
+        consume(&reseal(unmarked)),
+        Err(DoseGridArtifactError::UnsupportedSemantics(_))
+    ));
+}
+
+#[test]
+fn clusters_and_a_serial_lag_together_and_malformed_declarations_are_refused_by_name() {
+    let mut both = request("level", 0.1);
+    both.cluster = Some(vec![0; N]);
+    both.serial_lag = Some(2);
+    assert!(matches!(
+        DoseGridArtifactWire::seal(both),
+        Err(DoseGridArtifactError::UnsupportedSemantics(text)) if text.contains("not offered together")
+    ));
+    let mut short = request("level", 0.1);
+    short.sampling_weights = Some(vec![1.0; N - 1]);
+    let (code, detail) = DoseGridArtifactWire::seal(short).expect_err("must refuse").refusal();
+    assert_eq!((code, detail.as_str()), ("invalid_argument", "dose_grid.invalid_request"));
+    let mut negative = request("level", 0.1);
+    negative.sampling_weights = Some((0..N).map(|i| if i == 2 { -1.0 } else { 1.0 }).collect());
+    let (code, detail) = DoseGridArtifactWire::seal(negative).unwrap_err().refusal();
+    assert_eq!((code, detail.as_str()), ("sampling_weights_invalid", "sampling_weights.invalid"));
+    let mut single = request("level", 0.1);
+    single.cluster = Some(vec![5; N]);
+    let (_, detail) = DoseGridArtifactWire::seal(single).unwrap_err().refusal();
+    assert_eq!(detail, "dose_grid.too_few_clusters");
+    for lag in [0, N as u64, N as u64 + 9] {
+        let mut serial = request("level", 0.1);
+        serial.serial_lag = Some(lag);
+        let (_, detail) = DoseGridArtifactWire::seal(serial).unwrap_err().refusal();
+        assert_eq!(detail, "dose_grid.invalid_lag", "lag {lag}");
+    }
+}
+
+#[test]
+fn declared_rows_compose_with_the_curvature_bound_and_its_cluster_band() {
+    let mut request = bias_aware("level", 0.1);
+    request.claims.simultaneous_band = true;
+    request.cluster = Some((0..N as u32).map(|i| i % 11).collect());
+    request.sampling_weights = Some((0..N).map(|i| 0.4 + (i % 4) as f64 * 0.5).collect());
+    let sealed = DoseGridArtifactWire::seal(request).unwrap();
+    assert_eq!(sealed.result.simultaneous_band, DOSE_GRID_BAND_BIAS_AWARE);
+    let band = sealed.result.bias_aware.as_ref().unwrap();
+    assert!(band.band_critical_value.is_some() && band.band_lower.is_some());
     assert_eq!(consume(&sealed.export().unwrap()).unwrap(), sealed);
 }

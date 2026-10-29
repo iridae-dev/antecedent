@@ -339,6 +339,39 @@ fn temporal_design(name: &'static str, functional: TemporalDesignFunctional) -> 
     }
 }
 
+/// The temporal arm design with the mean functional reads the weights the table carries (weighted
+/// arm means and the weighted unit-cluster sandwich; its known-answer test is
+/// `unavailable_b_measurement_route_declarations`), so it is not among the routes that refuse them.
+fn reads_table_weights(route: &Route) -> bool {
+    route.name == "temporal design mean"
+}
+
+#[test]
+fn the_temporal_arm_design_runs_on_a_weighted_table_and_scale_free_weights_change_nothing() {
+    let route = routes().into_iter().find(reads_table_weights).unwrap();
+    let n = route.data.row_count();
+    let varying = run(&route, weighted(&route.data, integer_weights(n)), None).unwrap();
+    let scaled = run(
+        &route,
+        weighted(&route.data, integer_weights(n).into_iter().map(|w| 7.0 * w).collect()),
+        None,
+    )
+    .unwrap();
+    let constant = run(&route, weighted(&route.data, vec![1.0; n]), None).unwrap();
+    let unweighted = run(&route, route.data.clone(), None).unwrap();
+    let first = |result: &StudyResult| {
+        let section = result.temporal_design().unwrap();
+        (section.estimate[0], section.standard_error[0])
+    };
+    let (point, se) = first(&varying);
+    let (scaled_point, scaled_se) = first(&scaled);
+    assert!((point - scaled_point).abs() < 1e-12 && (se - scaled_se).abs() < 1e-12);
+    let (plain, plain_se) = first(&unweighted);
+    let (unit, unit_se) = first(&constant);
+    assert!((plain - unit).abs() < 1e-12 && (plain_se - unit_se).abs() < 1e-12);
+    assert!((point - plain).abs() > 1e-9, "varying weights move the estimate");
+}
+
 fn refusal_text(error: &CausalError) -> String {
     error.to_string()
 }
@@ -368,7 +401,7 @@ fn headline(result: &StudyResult) -> f64 {
 
 #[test]
 fn table_weights_are_never_silently_ignored_on_any_static_effect_route() {
-    for route in routes() {
+    for route in routes().into_iter().filter(|route| !reads_table_weights(route)) {
         // The route works on the unweighted table, so the refusal below is of weights alone.
         run(&route, route.data.clone(), None)
             .unwrap_or_else(|error| panic!("{}: unweighted run failed: {error}", route.name));
@@ -387,7 +420,7 @@ fn table_weights_are_never_silently_ignored_on_any_static_effect_route() {
 
 #[test]
 fn a_prepared_study_refuses_a_rebound_table_that_carries_weights() {
-    for route in routes() {
+    for route in routes().into_iter().filter(|route| !reads_table_weights(route)) {
         let ctx = ExecutionContext::for_tests(5);
         let prepared = build(&route, route.data.clone(), None).unwrap().prepare(&ctx).unwrap();
         let n = route.data.row_count();

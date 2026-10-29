@@ -19,13 +19,14 @@
 use std::collections::{BTreeMap, HashSet};
 
 use antecedent_data::TableView;
-use antecedent_estimate::{TransportEffectEstimate, trial_to_target_effect};
+use antecedent_estimate::TransportEffectEstimate;
 use antecedent_identify::{TransportFormula, TransportIdentification};
 
 use super::atom_mix::{AtomBoundRule, AtomEvalView, AtomMixInput, MixedAtomEvals, mix_atom_evals};
 use super::transport_interference_path::{
     TrialColumns, bayesian_transport_estimate, frequentist_transport_estimate,
-    known_probability_assumption, transport_primary_pair, transport_sid_identification,
+    TrialDependence, known_probability_assumption, sampling_weights_assumption, transport_point,
+    transport_primary_pair, transport_sid_identification,
 };
 use super::transport_refutation::{TransportRefutationInput, refute_transport};
 use super::{
@@ -53,6 +54,8 @@ struct TransportRows {
     trial: Vec<bool>,
     selection: Vec<f64>,
     propensity: Vec<f64>,
+    /// Observation weights carried by the table, aligned to its rows.
+    weights: Option<Vec<f64>>,
 }
 
 impl TransportRows {
@@ -72,7 +75,8 @@ impl TransportRows {
         super::transport_interference_path::refuse_missing_trial_design(&treatment_col, &trial_col)?;
         let treatment = treatment_col.iter().map(|v| *v != 0.0).collect();
         let trial = trial_col.iter().map(|v| *v != 0.0).collect();
-        Ok(Self { outcomes, treatment, trial, selection, propensity })
+        let weights = data.storage().weights().map(<[f64]>::to_vec);
+        Ok(Self { outcomes, treatment, trial, selection, propensity, weights })
     }
 
     fn columns(&self) -> TrialColumns<'_> {
@@ -82,6 +86,7 @@ impl TransportRows {
             trial: &self.trial,
             selection: &self.selection,
             propensity: &self.propensity,
+            weights: self.weights.as_deref(),
         }
     }
 }
@@ -154,11 +159,15 @@ impl super::Study {
             identified.atoms[representative].identification.required_assumptions.clone();
         assumptions.push(known_probability_assumption());
         let status = identified.atoms[representative].identification.status;
-        let series_block = self.transport_series_block(columns.outcomes.len())?;
+        let dependence = self.transport_dependence(columns.outcomes.len())?;
+        self.refuse_unread_transport_validation(&columns, &dependence)?;
+        if columns.weights.is_some() {
+            assumptions.push(sampling_weights_assumption());
+        }
         let (point, representative_posterior, estimator_id, estimator_diagnostic) = self
             .estimate_transport_posterior_law(
                 &columns,
-                (representative_transport, series_block),
+                (representative_transport, &dependence),
                 &mut transported,
                 assumptions,
                 status,
@@ -184,7 +193,7 @@ impl super::Study {
         let refutations = self.refute_transport_posterior(
             representative_transport,
             &columns,
-            (transported.overlap, estimate.ate, series_block),
+            (transported.overlap, estimate.ate, &dependence),
             ctx,
         )?;
 
@@ -233,7 +242,7 @@ impl super::Study {
     fn estimate_transport_posterior_law(
         &self,
         columns: &TrialColumns<'_>,
-        proof: (&TransportIdentification, Option<usize>),
+        proof: (&TransportIdentification, &TrialDependence),
         transported: &mut TransportEffectEstimate,
         assumptions: antecedent_core::AssumptionSet,
         status: IdentificationStatus,
@@ -242,12 +251,12 @@ impl super::Study {
         (super::EffectEstimate, Option<CausalPosterior>, EstimatorId, Diagnostic),
         CausalError,
     > {
-        let (representative_transport, series_block) = proof;
+        let (representative_transport, dependence) = proof;
         Ok(match &self.settings.inference {
             InferenceMode::Frequentist => {
                 let (estimate, diagnostic) = frequentist_transport_estimate(
                     columns,
-                    (transported.ipw, series_block),
+                    (transported.ipw, dependence),
                     assumptions,
                 )?;
                 (estimate, None, EstimatorId::TransportTrialIpw, diagnostic)
@@ -255,7 +264,7 @@ impl super::Study {
             InferenceMode::Bayesian(config) => {
                 let (estimate, posterior, diagnostic) = bayesian_transport_estimate(
                     config,
-                    (representative_transport, series_block),
+                    (representative_transport, dependence),
                     columns,
                     assumptions,
                     status,
@@ -276,10 +285,10 @@ impl super::Study {
         &self,
         transport: &TransportIdentification,
         columns: &TrialColumns<'_>,
-        publication: (antecedent_estimate::TransportOverlapReport, f64, Option<usize>),
+        publication: (antecedent_estimate::TransportOverlapReport, f64, &TrialDependence),
         ctx: &ExecutionContext,
     ) -> Result<Vec<antecedent_validate::RefutationReport>, CausalError> {
-        let (overlap, published, series_block) = publication;
+        let (overlap, published, dependence) = publication;
         refute_transport(
             &TransportRefutationInput {
                 transport,
@@ -291,7 +300,7 @@ impl super::Study {
                 overlap,
                 published,
                 suite: self.settings.refute,
-                series_block,
+                dependence: dependence.as_grouping(),
                 replicates: self.settings.bootstrap_replicates,
             },
             ctx,
@@ -616,17 +625,7 @@ fn estimate_transport_atoms(
         if !ipw_estimable(transport) {
             return Ok(None);
         }
-        trial_to_target_effect(
-            transport,
-            columns.outcomes,
-            columns.treatment,
-            columns.trial,
-            columns.selection,
-            columns.propensity,
-            None,
-        )
-        .map(Some)
-        .map_err(CausalError::from)
+        transport_point(transport, columns).map(Some)
     })
 }
 

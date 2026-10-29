@@ -727,6 +727,13 @@ impl RandomizedEffectQuery {
                         RandomizedEffectFault::SwitchbackSequences,
                     ));
                 }
+                let distinct_periods: std::collections::HashSet<&str> =
+                    periods.iter().map(|period| &**period).collect();
+                if distinct_periods.len() < 2 {
+                    return Err(QueryError::RandomizedEffectRefused(
+                        RandomizedEffectFault::SwitchbackSinglePeriod,
+                    ));
+                }
             }
         }
         Ok(())
@@ -791,6 +798,23 @@ mod tests {
         assert!(
             query.validate().is_ok(),
             "global arm support suffices when one sequence happens to realize one arm"
+        );
+    }
+
+    #[test]
+    fn switchback_with_one_period_never_switches_back_and_is_refused() {
+        let query = RandomizedEffectQuery::with_design(
+            RandomizationDesign::Switchback { periods: ["p0"; 4].map(Arc::<str>::from).into() },
+            VariableId::from_raw(0),
+            [true, false, true, false],
+            [0.5; 4],
+            ["s0", "s1", "s2", "s3"].map(Arc::<str>::from),
+            ["r0", "r1", "r2", "r3"].map(Arc::<str>::from),
+            ("off", "on"),
+        );
+        assert_eq!(
+            query.validate(),
+            Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::SwitchbackSinglePeriod))
         );
     }
 

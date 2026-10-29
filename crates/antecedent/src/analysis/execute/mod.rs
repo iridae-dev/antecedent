@@ -214,6 +214,8 @@ pub(crate) struct StudyDeclarations {
     pub(crate) missing: Option<antecedent_data::MissingDeclaration>,
     /// Declared sampling design of the rows, held by every estimator that bootstraps or splits.
     pub(crate) sampling_design: Option<antecedent_core::DeclaredSamplingDesign>,
+    /// Declared cluster labels or serial kernel, read by the joint-cell response's variance.
+    pub(crate) score_dependence: Option<antecedent_estimate::ScoreDependence>,
     pub(crate) custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     /// Optional tier-rule background for O(p) closure certification.
     pub(crate) tiered: Option<antecedent_graph::TieredBackground>,
@@ -239,6 +241,7 @@ impl std::ops::Deref for Study {
 }
 
 mod admg_posterior;
+mod pulse_support;
 mod admg_posterior_response;
 mod attribution_path;
 mod checked_attribution;

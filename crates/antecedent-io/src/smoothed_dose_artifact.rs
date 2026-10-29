@@ -51,7 +51,7 @@
 use crate::{IoError, admg_from_wire, admg_to_wire, wire::AdmgWire};
 use antecedent_core::{ExecutionContext, IdentityDomain, SmoothedDoseTransportQuery, VariableId};
 use antecedent_estimate::smoothed_dose::{
-    SMOOTHED_DOSE_BOUNDS, SMOOTHED_DOSE_FOLD_SCHEME, SmoothedDoseBounds,
+    SMOOTHED_DOSE_BOUNDS, SmoothedDoseBounds, smoothed_dose_fold_scheme,
     evaluate_smoothed_dose_models, parse_smoothing_kernel, smoothed_dose_fold_assignment,
     smoothed_dose_memory_cap, smoothed_dose_workspace_bytes,
 };
@@ -229,6 +229,9 @@ struct PremisesView<'a> {
     features: &'a [u32],
     sampling: antecedent_estimate::TrialSampling,
     variable_names: &'a [String],
+    /// The Newey-West lag; absent without one, so plain premises keep their digest.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    serial_lag: Option<u32>,
 }
 
 #[derive(Serialize)]
@@ -239,6 +242,11 @@ struct DataView<'a> {
     dose: &'a [f64],
     dose_density: &'a [f64],
     source: &'a [bool],
+    /// Declared sampling weights and clusters; absent without them, so plain rows keep their digest.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    sampling_weights: Option<&'a [f64]>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cluster: Option<&'a [u32]>,
 }
 
 #[derive(Serialize)]
@@ -348,10 +356,11 @@ impl SmoothedDoseArtifactWire {
                 options: &self.options,
                 bounds: &self.bounds,
                 seed: self.seed,
-                fold_scheme: SMOOTHED_DOSE_FOLD_SCHEME,
+                fold_scheme: smoothed_dose_fold_scheme(&self.input),
                 features: &self.input.features,
                 sampling: self.input.sampling,
                 variable_names: &self.variable_names,
+                serial_lag: self.input.serial_lag,
             },
         )
     }
@@ -370,6 +379,8 @@ impl SmoothedDoseArtifactWire {
                 dose: &self.input.dose,
                 dose_density: &self.input.dose_density,
                 source: &self.input.source,
+                sampling_weights: self.input.sampling_weights.as_deref(),
+                cluster: self.input.cluster.as_deref(),
             },
         )
     }
@@ -640,7 +651,7 @@ impl SmoothedDoseArtifactWire {
         validate_smoothed_dose(&id, &query, &self.input, &self.options).map_err(replay_refusal)?;
         let r = &self.result;
         if r.folds.count != self.options.folds
-            || r.folds.scheme != SMOOTHED_DOSE_FOLD_SCHEME
+            || r.folds.scheme != smoothed_dose_fold_scheme(&self.input)
             || r.folds.assignment != smoothed_dose_fold_assignment(&self.input, self.options.folds)
         {
             return Err(Refusal::FoldMismatch.into());

@@ -1211,20 +1211,34 @@ impl Study {
             }
             None => None,
         };
-        let table = est.fit_scores_with_assignment(
-            data,
-            &antecedent_estimate::CellScoreSpec {
-                treatments: &treatments,
-                outcome: *outcome,
-                adjustment: &cache.estimand.adjustment_set,
-                functional: &query.outcome_functional,
-                continuous,
-            },
-            antecedent_estimate::SharedCellInputs {
-                fold_ids: fold_ids.as_deref(),
-                design: design.as_deref(),
-            },
-        )?;
-        Ok(Some(table))
+        let spec = antecedent_estimate::CellScoreSpec {
+            treatments: &treatments,
+            outcome: *outcome,
+            adjustment: &cache.estimand.adjustment_set,
+            functional: &query.outcome_functional,
+            continuous,
+        };
+        let shared = antecedent_estimate::SharedCellInputs {
+            fold_ids: fold_ids.as_deref(),
+            design: design.as_deref(),
+        };
+        if data.storage().weights().is_some() {
+            // A batch shares one unweighted design and summarizes every cell as independent
+            // unweighted rows, so it refuses the weights. A single prepared study estimates
+            // them at run time from fresh scores; it keeps no prepare-time table to retarget,
+            // because a retarget would drop the weights the scores are summarized under.
+            if self.shared_batch_design.is_some() {
+                return Err(CausalError::Estimate(
+                    antecedent_estimate::sampling_weights::unsupported_route(
+                        "the table carries observation weights, which a batch of joint cells \
+                         shares one unweighted design over and would not read, so the cells \
+                         would describe the unweighted rows. Next attempt: estimate each cell \
+                         as its own study, which reads the weights, or drop them from the table",
+                    ),
+                ));
+            }
+            return Ok(None);
+        }
+        Ok(Some(est.fit_scores_with_assignment(data, &spec, shared)?))
     }
 }

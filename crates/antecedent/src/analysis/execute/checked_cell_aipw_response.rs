@@ -322,18 +322,22 @@ impl CheckedCellAipwResponseOperation {
                 stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
             });
         }
-        self.estimator
-            .fit_scores(
-                data,
-                &antecedent_estimate::CellScoreSpec {
-                    treatments: &self.treatments,
-                    outcome: self.outcome,
-                    adjustment: &self.cache.estimand.adjustment_set,
-                    functional: &self.query.outcome_functional,
-                    continuous: None,
-                },
-            )
-            .map_err(CausalError::from)
+        let spec = antecedent_estimate::CellScoreSpec {
+            treatments: &self.treatments,
+            outcome: self.outcome,
+            adjustment: &self.cache.estimand.adjustment_set,
+            functional: &self.query.outcome_functional,
+            continuous: None,
+        };
+        // A table that carries observation weights is fitted for the weighted population.
+        if data.storage().weights().is_some() {
+            return self
+                .estimator
+                .fit_scores_sampling_weighted(data, &spec, antecedent_estimate::SharedCellInputs::default())
+                .map(|(table, _)| table)
+                .map_err(CausalError::from);
+        }
+        self.estimator.fit_scores(data, &spec).map_err(CausalError::from)
     }
 }
 

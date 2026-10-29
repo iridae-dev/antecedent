@@ -135,6 +135,9 @@ fn shared_functional_ate() {
     assert!((freq_est.ate - true_ate).abs() < 1e-6);
     assert!((mean - true_ate).abs() < tol, "bayes={mean} truth={true_ate}");
     assert!((mean - freq_est.ate).abs() < tol, "bayes={mean} freq={}", freq_est.ate);
+    // The data are noise free, so the posterior concentrates on the adjusted coefficient: the
+    // 0.05 band alone would also admit the unadjusted contrast (1.95), which this excludes.
+    assert!((mean - true_ate).abs() < 1e-3, "bayes={mean} truth={true_ate}");
 
     let bytes = encode_causal_posterior_bytes(&post, "shared-functional").unwrap();
     let (meta, _) = decode_causal_posterior_bytes(&bytes).unwrap();

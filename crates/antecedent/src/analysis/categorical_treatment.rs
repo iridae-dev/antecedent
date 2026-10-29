@@ -26,13 +26,14 @@ pub use antecedent_estimate::categorical_treatment::{
 };
 pub use antecedent_estimate::effect_constancy::CalibrationStatus;
 pub use antecedent_io::categorical_treatment_artifact::{
-    AdjacentStepWire, CATEGORICAL_HC_ROW_CAP, CATEGORICAL_TREATMENT_ARTIFACT_VERSION,
-    CATEGORICAL_TREATMENT_CALIBRATION, CategoricalPosteriorDeclaration, CategoricalPosteriorWire,
-    CategoricalResultWire, CategoricalSpecWire, CategoricalTreatmentArtifact,
+    AdjacentStepWire, CATEGORICAL_DECLARED_ROWS_FORMAT, CATEGORICAL_HC_ROW_CAP,
+    CATEGORICAL_TREATMENT_ARTIFACT_VERSION, CATEGORICAL_TREATMENT_CALIBRATION,
+    CategoricalPosteriorDeclaration, CategoricalPosteriorWire, CategoricalResultWire,
+    CategoricalRowsRequest, CategoricalSpecWire, CategoricalTreatmentArtifact,
     CategoricalTreatmentArtifactError, CategoricalTreatmentIdentity,
     CategoricalTreatmentReportWire, CategoricalTreatmentRequest, CovarianceKindWire,
-    LevelContrastWire, LevelCountWire, LevelScaleWire, MonotonicityDirectionWire, MonotonicityWire,
-    PairContrastWire, PosteriorContrastWire, PosteriorMonotonicityWire,
+    DeclaredRowsWire, LevelContrastWire, LevelCountWire, LevelScaleWire, MonotonicityDirectionWire,
+    MonotonicityWire, PairContrastWire, PosteriorContrastWire, PosteriorMonotonicityWire,
 };
 
 use antecedent_core::ExecutionContext;
@@ -70,6 +71,39 @@ impl CategoricalTreatment {
         ctx: &ExecutionContext,
     ) -> Result<Self, CategoricalTreatmentArtifactError> {
         Ok(Self { artifact: CategoricalTreatmentArtifact::seal_with(request, ctx)? })
+    }
+
+    /// Fit the declared regime under declared sampling weights, clusters or a Newey-West lag.
+    ///
+    /// Sampling weights follow the shared contract (rows of weight zero are deleted and counted,
+    /// the rest are normalized to mean one, a sandwich covariance is required); clusters are read
+    /// by the `cluster_robust` covariance and the lag by `newey_west`. A declaration its covariance
+    /// kind does not read, or a kind whose declaration is missing, is refused, never dropped. The
+    /// Gaussian posterior is refused for declared rows. With nothing declared this is
+    /// [`Self::evaluate_with`].
+    ///
+    /// # Errors
+    /// The refusals of [`Self::evaluate_with`]; `sampling_weights_invalid`; and
+    /// `vector_treatment.weights_need_robust_covariance`, `.cluster_ids_required`,
+    /// `.cluster_unread`, `.too_few_clusters`, `.lag_required`, `.lag_unread`, `.invalid_lag`.
+    pub fn evaluate_declared(
+        request: &CategoricalTreatmentRequest,
+        rows: &CategoricalRowsRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CategoricalTreatmentArtifactError> {
+        Ok(Self { artifact: CategoricalTreatmentArtifact::seal_declared(request, rows, ctx)? })
+    }
+
+    /// Check rows still held, with their declared weights and clusters, against the digest.
+    ///
+    /// # Errors
+    /// As [`Self::verify_data`].
+    pub fn verify_data_declared(
+        &self,
+        request: &CategoricalTreatmentRequest,
+        rows: &CategoricalRowsRequest,
+    ) -> Result<(), CategoricalTreatmentArtifactError> {
+        self.artifact.verify_data_declared(request, rows)
     }
 
     /// Attach the Bayesian counterpart of the fit under a declared prior: the posterior of the

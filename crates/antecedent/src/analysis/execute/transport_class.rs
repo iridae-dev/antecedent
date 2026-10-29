@@ -24,13 +24,14 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_data::TableView;
-use antecedent_estimate::{TransportEffectEstimate, trial_to_target_effect};
+use antecedent_estimate::TransportEffectEstimate;
 use antecedent_identify::{IdentificationEnvelope, TransportIdentification};
 
 use super::pag_path::ClassTag;
 use super::transport_interference_path::{
     TrialColumns, bayesian_transport_estimate, frequentist_transport_estimate,
-    known_probability_assumption, transport_primary_pair,
+    known_probability_assumption, sampling_weights_assumption, transport_point,
+    transport_primary_pair,
 };
 use super::transport_posterior::ipw_estimable;
 use super::transport_refutation::{
@@ -227,6 +228,17 @@ impl super::Study {
         super::transport_interference_path::refuse_missing_trial_design(&treatment_col, &trial_col)?;
         let treatment_bool: Vec<bool> = treatment_col.iter().map(|v| *v != 0.0).collect();
         let trial_bool: Vec<bool> = trial_col.iter().map(|v| *v != 0.0).collect();
+        let weights = data.storage().weights().map(<[f64]>::to_vec);
+        let columns = TrialColumns {
+            outcomes: &outcomes,
+            treatment: &treatment_bool,
+            trial: &trial_bool,
+            selection: &selection,
+            propensity: &propensity,
+            weights: weights.as_deref(),
+        };
+        let dependence = self.transport_dependence(outcomes.len())?;
+        self.refuse_unread_transport_validation(&columns, &dependence)?;
 
         // Each certified case runs the weighting's own certificate check; only a case whose
         // formula it cannot evaluate is unevaluable, never a data failure.
@@ -237,18 +249,7 @@ impl super::Study {
             {
                 continue;
             }
-            estimates[index] = Some(
-                trial_to_target_effect(
-                    &proofs[index],
-                    &outcomes,
-                    &treatment_bool,
-                    &trial_bool,
-                    &selection,
-                    &propensity,
-                    None,
-                )
-                .map_err(CausalError::from)?,
-            );
+            estimates[index] = Some(transport_point(&proofs[index], &columns)?);
         }
         let Some(representative) = estimates.iter().position(Option::is_some) else {
             return Err(crate::support_reason!(
@@ -267,20 +268,15 @@ impl super::Study {
         let representative_proof = &proofs[representative];
         let mut assumptions = representative_case.result.required_assumptions.clone();
         assumptions.push(known_probability_assumption());
-        let series_block = self.transport_series_block(outcomes.len())?;
-        let columns = TrialColumns {
-            outcomes: &outcomes,
-            treatment: &treatment_bool,
-            trial: &trial_bool,
-            selection: &selection,
-            propensity: &propensity,
-        };
+        if weights.is_some() {
+            assumptions.push(sampling_weights_assumption());
+        }
         let (estimate, mut posterior, estimator_id, estimator_diagnostic) =
             match &self.settings.inference {
                 InferenceMode::Frequentist => {
                     let (estimate, diagnostic) = frequentist_transport_estimate(
                         &columns,
-                        (transported.ipw, series_block),
+                        (transported.ipw, &dependence),
                         assumptions,
                     )?;
                     (estimate, None, EstimatorId::TransportTrialIpw, diagnostic)
@@ -288,7 +284,7 @@ impl super::Study {
                 InferenceMode::Bayesian(config) => {
                     let (estimate, posterior, diagnostic) = bayesian_transport_estimate(
                         config,
-                        (representative_proof, series_block),
+                        (representative_proof, &dependence),
                         &columns,
                         assumptions,
                         representative_case.result.status,
@@ -345,7 +341,7 @@ impl super::Study {
             overlap: transported.overlap,
             published: estimate.ate,
             suite: self.settings.refute,
-            series_block,
+            dependence: dependence.as_grouping(),
             replicates: self.settings.bootstrap_replicates,
         };
         let mut refutations = refute_transport(&refutation_input, ctx)?;

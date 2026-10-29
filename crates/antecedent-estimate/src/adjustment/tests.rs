@@ -489,9 +489,15 @@ fn influence_and_homoskedastic_se_match_the_row_wise_gram_formula() {
 #[test]
 fn scales_ate_by_level_delta() {
     let (data, estimand) = toy();
-    let est = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
     let query =
         AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 2.0);
+    // The 0/1 treatment never takes level 2, so the arm reading refuses the contrast instead
+    // of extrapolating the slope.
+    let est = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
+    let refused = est.prepare(&data, &estimand, &query).err().expect("level 2 has no rows");
+    assert!(refused.to_string().starts_with("reason=arm_not_populated:"), "{refused}");
+    // Read as a numeric dose, the contrast is the slope times the level distance.
+    let est = LinearAdjustmentAte::new().with_bootstrap_replicates(0).with_dose_reading(true);
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let mut ws = EstimationWorkspace::default();
     let ctx = ExecutionContext::for_tests(1);

@@ -16,6 +16,14 @@ mod contrast_set;
 use crate::analysis::proof_support::proof_supplies_full;
 use antecedent_core::StreamDomain;
 
+/// The complete-case table of an attribution, the submitted position of each retained row and
+/// the accounting of what was dropped.
+pub(super) struct AttributionRows {
+    table: TabularData,
+    kept: Vec<usize>,
+    report: crate::result::MissingDataReport,
+}
+
 /// Inference procedure over the heterogeneity best-score counterfactual fit.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum CounterfactualProcedure {
@@ -666,6 +674,9 @@ impl super::Study {
                     outcome,
                 ))
             })?;
+        let selection = self.select_attribution_rows(data, graph)?;
+        let missing_report = selection.as_ref().map(|selection| selection.report.clone());
+        let data = selection.as_ref().map_or(data, |selection| &selection.table);
         let fitted = fit_gcm(graph.clone(), data)?;
         // Score all rows (preserving the prior facade behavior of ignoring `unit_rows`
         // for the published mean) while honoring the query's reference. Fixing the
@@ -674,6 +685,21 @@ impl super::Study {
             antecedent_core::AnomalyAttributionQuery::new(query.targets.clone(), query.max_units)
                 .with_reference(query.reference);
         let scores = anomaly_attribution_query_with(&fitted.model, data, &scorer_query, ctx)?;
+        // Scored rows are positions in the retained table; the published rows are the
+        // positions in the submitted table.
+        let published = selection.as_ref().map_or_else(
+            || scores.clone(),
+            |selection| {
+                scores
+                    .iter()
+                    .map(|score| {
+                        let mut score = score.clone();
+                        score.rows = score.rows.iter().map(|&row| selection.kept[row]).collect();
+                        score
+                    })
+                    .collect()
+            },
+        );
         let mut result = self.finish_gcm(
             physical,
             started,
@@ -682,11 +708,14 @@ impl super::Study {
                 treatment: outcome,
                 outcome,
                 estimate: nan_effect(),
-                slot: GcmSlot::Anomaly(scores.clone()),
+                slot: GcmSlot::Anomaly(published),
                 diagnostics: Vec::new(),
                 identify_cached,
             },
         );
+        if let Some(report) = missing_report {
+            result.extras.missing_data = Some(report);
+        }
         if self.settings.inference.is_bayesian() {
             let n_draws = bayesian_draw_count(&self.settings.inference)?;
             let mut columns: Vec<(String, Vec<f64>)> = scores
@@ -761,6 +790,87 @@ impl super::Study {
             ));
         }
         Ok(result)
+    }
+
+    /// The rows an anomaly attribution scores under the declared missing-data policy.
+    ///
+    /// Without a missing cell in any graph variable the table is used as it is. A missing cell
+    /// with no `complete_case` declaration is refused, naming the first missing cell. Under
+    /// `complete_case` the rows with a missing graph variable are deleted before fitting and
+    /// scoring, and the retained table is returned with the submitted positions of its rows and
+    /// the exact accounting.
+    fn select_attribution_rows(
+        &self,
+        data: &TabularData,
+        graph: &Dag,
+    ) -> Result<Option<AttributionRows>, CausalError> {
+        use crate::analysis::missing_data::{self, MissingRoute};
+        use antecedent_data::{MissingPolicy, RowAccounting, complete_rows, first_missing_cell};
+        let variables: Vec<VariableId> =
+            (0..graph.node_count()).map(|node| VariableId::from_raw(node as u32)).collect();
+        for &variable in &variables {
+            if !matches!(data.column(variable)?, antecedent_data::ColumnView::Float64(_)) {
+                return Err(crate::compile_reason!(
+                    "route_not_supported",
+                    "anomaly attribution fits an additive-noise structural equation for every \
+                     graph variable and scores a row by the standardized deviation of its target \
+                     from a robust marginal centre; the column of variable V{} is not \
+                     continuous. A categorical node has no additive noise to abduct or \
+                     standardize, and dummy-coding it would turn the variable into several graph \
+                     nodes and move the attribution from the variable to its indicators. Next \
+                     attempt: recode the variable as a numeric score if its levels are ordered, \
+                     or drop it from the graph",
+                    variable.raw()
+                ));
+            }
+        }
+        let (policy, declared) = missing_data::effective_policy(
+            MissingRoute::Attribution,
+            self.declared.missing.as_ref(),
+        );
+        let mask = data.storage().analysis_mask();
+        let keep = complete_rows(data, mask, &variables)?;
+        if keep.is_all_valid() {
+            return Ok(None);
+        }
+        if policy != MissingPolicy::CompleteCase {
+            let cell = first_missing_cell(data, &variables)?.ok_or(CausalError::Unsupported {
+                message: "anomaly attribution validity changed during execution",
+            })?;
+            return Err(CausalError::Estimate(antecedent_estimate::missing_policy::policy_required(
+                &cell,
+                MissingRoute::Attribution.label(),
+                &MissingRoute::Attribution.supported()[1..],
+            )));
+        }
+        let accounting = RowAccounting::from_selection(data, mask, policy, &variables, &keep)?;
+        let kept: Vec<usize> = (0..data.row_count()).filter(|&row| keep.is_valid(row)).collect();
+        if kept.len() < 2 {
+            return Err(crate::compile_reason!(
+                "invalid_argument",
+                "complete-case selection leaves fewer than two rows to fit the mechanisms"
+            ));
+        }
+        let storage = data.storage();
+        let columns = (0..storage.schema().len())
+            .map(|index| {
+                storage
+                    .column(VariableId::from_raw(u32::try_from(index).unwrap_or(u32::MAX)))?
+                    .gather_rows(&kept)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let weights = storage
+            .weights()
+            .map(|weights| kept.iter().map(|&row| weights[row]).collect::<Arc<[f64]>>());
+        let table = TabularData::new(antecedent_data::OwnedColumnarStorage::try_new(
+            storage.schema().clone(),
+            columns,
+            None,
+            weights,
+        )?);
+        let report =
+            missing_data::report(MissingRoute::Attribution, declared, Arc::from([]), accounting);
+        Ok(Some(AttributionRows { table, kept, report }))
     }
 
     pub(super) fn execute_change_attribution(

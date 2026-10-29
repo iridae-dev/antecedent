@@ -39,6 +39,17 @@ const PANEL: &[MissingPolicy] =
 /// Policies a lagged temporal effect can execute; it refuses by default.
 const TEMPORAL: &[MissingPolicy] = &[MissingPolicy::ErrorOnMissing, MissingPolicy::CompleteCase];
 
+/// Policies a unit-period temporal design with an arm mean can execute; it refuses by default.
+const TEMPORAL_DESIGN: &[MissingPolicy] = &[
+    MissingPolicy::ErrorOnMissing,
+    MissingPolicy::CompleteCase,
+    MissingPolicy::AvailableCase,
+    MissingPolicy::BalancedPanel,
+];
+
+/// Policies an anomaly attribution can execute; it refuses by default.
+const ATTRIBUTION: &[MissingPolicy] = &[MissingPolicy::ErrorOnMissing, MissingPolicy::CompleteCase];
+
 /// A route family that executes a missing-data policy.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum MissingRoute {
@@ -50,6 +61,10 @@ pub(crate) enum MissingRoute {
     Panel,
     /// Lagged temporal effect on a single series.
     Temporal,
+    /// Sequentially randomized unit-period design (arm means and contrasts).
+    TemporalDesign,
+    /// Anomaly attribution of observed rows against fitted mechanisms.
+    Attribution,
 }
 
 impl MissingRoute {
@@ -66,6 +81,8 @@ impl MissingRoute {
             ) => Some(Self::Static),
             (CausalQuery::RandomizedEffect(_), DataInput::Tabular(_)) => Some(Self::Randomized),
             (CausalQuery::PanelDid(_), DataInput::Tabular(_)) => Some(Self::Panel),
+            (CausalQuery::TemporalDesign(_), DataInput::Tabular(_)) => Some(Self::TemporalDesign),
+            (CausalQuery::AnomalyAttribution(_), DataInput::Tabular(_)) => Some(Self::Attribution),
             (
                 CausalQuery::TemporalEffect(_) | CausalQuery::Mediation(_),
                 DataInput::Temporal(_),
@@ -81,6 +98,8 @@ impl MissingRoute {
             Self::Randomized => RANDOMIZED,
             Self::Panel => PANEL,
             Self::Temporal => TEMPORAL,
+            Self::TemporalDesign => TEMPORAL_DESIGN,
+            Self::Attribution => ATTRIBUTION,
         }
     }
 
@@ -88,7 +107,11 @@ impl MissingRoute {
     pub(crate) fn default_policy(self) -> MissingPolicy {
         match self {
             Self::Static => MissingPolicy::CompleteCase,
-            Self::Randomized | Self::Panel | Self::Temporal => MissingPolicy::ErrorOnMissing,
+            Self::Randomized
+            | Self::Panel
+            | Self::Temporal
+            | Self::TemporalDesign
+            | Self::Attribution => MissingPolicy::ErrorOnMissing,
         }
     }
 
@@ -99,6 +122,8 @@ impl MissingRoute {
             Self::Randomized => "randomized intention-to-treat estimation",
             Self::Panel => "panel difference-in-differences",
             Self::Temporal => "lagged temporal estimation",
+            Self::TemporalDesign => "temporal design estimation",
+            Self::Attribution => "anomaly attribution",
         }
     }
 
@@ -132,6 +157,18 @@ impl MissingRoute {
             }
             (Self::Temporal, MissingPolicy::CompleteCase) => {
                 "windows containing a missing value are dropped and time keeps its original grid, so no lag spans a gap; the retained windows represent the process when missingness is independent of the outcome innovation given the lagged regressors"
+            }
+            (Self::TemporalDesign, MissingPolicy::CompleteCase) => {
+                "a unit-period row with a missing outcome is deleted, and a decision is used when both its own row and the row of its outcome period are observed; the retained pairs represent all pairs when a pair's chance of being retained is independent of its assigned arm and of the potential outcomes (missing completely at random); the recorded assignment probabilities and the unit clusters are unchanged"
+            }
+            (Self::TemporalDesign, MissingPolicy::AvailableCase) => {
+                "a decision is used when the outcome of its outcome period is observed, whatever the decision row's own outcome; the retained pairs represent all pairs when a pair's chance of being retained is independent of its assigned arm and of the potential outcomes (missing completely at random); the recorded assignment probabilities and the unit clusters are unchanged"
+            }
+            (Self::TemporalDesign, MissingPolicy::BalancedPanel) => {
+                "units with a missing outcome in any period are dropped whole; the retained units represent all units when a unit's chance of being complete is independent of its assigned arms and its potential outcomes (missing completely at random at the unit level); the recorded assignment probabilities are unchanged"
+            }
+            (Self::Attribution, MissingPolicy::CompleteCase) => {
+                "rows with a missing value in any graph variable are deleted before the mechanisms are fitted and before any row is scored, so the scored rows, the marginal reference of the anomaly score and the Shapley attribution all speak for the retained rows; the retained rows represent the population when a row's chance of being complete is independent of its structural noise (missing completely at random, or at random given the observed parents)"
             }
             (_, MissingPolicy::ErrorOnMissing) => {
                 "no missing value is permitted; the route refuses the table at the first missing cell"
@@ -439,6 +476,8 @@ mod tests {
             MissingRoute::Randomized => "randomized",
             MissingRoute::Panel => "panel",
             MissingRoute::Temporal => "temporal",
+            MissingRoute::TemporalDesign => "temporal_design",
+            MissingRoute::Attribution => "attribution",
         }
     }
 
@@ -452,6 +491,8 @@ mod tests {
                 MissingRoute::Randomized,
                 MissingRoute::Panel,
                 MissingRoute::Temporal,
+                MissingRoute::TemporalDesign,
+                MissingRoute::Attribution,
             ]
             .into_iter()
             .find(|route| family(*route) == row.family)

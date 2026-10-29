@@ -44,6 +44,22 @@
 //! ([`CalibrationStatus::Unmeasured`]); every p-value is asymptotic and no coverage claim is
 //! made.
 //!
+//! # Declared rows
+//!
+//! [`fit_categorical_treatment_declared`] and [`summarize_categorical_design_declared`] read
+//! declared sampling weights, clusters and a serial lag. *Sampling weights* follow the shared
+//! contract of [`crate::sampling_weights`]: a zero-weight row is deleted before the level
+//! counts (so a level whose rows all have weight zero is absent), the rest are normalized to
+//! mean one, the fit is the weighted least squares of the dummy-coded design, and the covariance
+//! is a sandwich of the weighted scores `w_i x_i e_i` (a model-based variance would treat the
+//! weights as precision weights and is refused). *Clusters*
+//! ([`VectorCovariance::Cluster`]): the scores are summed within each cluster and the meat is
+//! `G / (G - 1) * (n - 1) / (n - p)` times the sum of the outer products of the cluster sums.
+//! *Serial dependence* ([`VectorCovariance::NeweyWest`]): the Bartlett-weighted autocovariances
+//! of the score series in row order at unit spacing, up to the declared lag. Each declaration
+//! needs its covariance kind and each kind its declaration; a mismatch is refused, never
+//! dropped. Level counts, the minimum rows per level and the Holm family are unchanged.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::borrow::Cow;
@@ -56,9 +72,10 @@ use crate::error::EstimationError;
 use crate::util::{count, refuse};
 use crate::vector_treatment::{
     CoefficientEstimate, Contrast, ContrastEstimate, DesignSummary, JointWald, NamedColumn,
-    RobustDesignSummary, TreatmentColumn, VectorCovariance, VectorTreatmentFit,
-    VectorTreatmentInput, VectorTreatmentOptions, fit_joint, fit_joint_from_robust_summary,
-    fit_joint_from_summary, summarize_joint, summarize_joint_robust,
+    RobustDesignSummary, RowStructure, TreatmentColumn, VectorCovariance, VectorTreatmentFit,
+    VectorTreatmentInput, VectorTreatmentOptions, fit_joint, fit_joint_declared,
+    fit_joint_from_robust_summary, fit_joint_from_summary, summarize_joint, summarize_joint_robust,
+    summarize_joint_robust_declared,
 };
 
 /// Null of the non-decreasing monotonicity test.
@@ -480,6 +497,185 @@ pub fn fit_categorical_treatment(
     Ok(assemble_categorical(fit, spec, order, counts, (n_levels, n_pairs)))
 }
 
+/// What declared sampling weights, clusters or a serial lag did to a categorical fit.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct DeclaredRows {
+    /// Sampling-weight accounting, when weights were declared.
+    pub weights: Option<crate::sampling_weights::SamplingWeightRecord>,
+    /// Clusters among the analysed rows, when rows were clustered.
+    pub clusters: Option<usize>,
+    /// Newey-West lag, when rows were serially dependent.
+    pub lag: Option<usize>,
+}
+
+impl DeclaredRows {
+    /// Whether nothing was declared.
+    #[must_use]
+    pub fn is_plain(&self) -> bool {
+        self.weights.is_none() && self.clusters.is_none() && self.lag.is_none()
+    }
+}
+
+/// The input after the declaration was applied: zero-weight rows deleted from every column,
+/// weights normalized to mean one, clusters aligned.
+struct PreparedRows<'a> {
+    input: CategoricalTreatmentInput<'a>,
+    weights: Option<Vec<f64>>,
+    clusters: Option<Vec<u32>>,
+    lag: Option<usize>,
+    record: DeclaredRows,
+}
+
+fn prepare_rows<'a>(
+    input: &'a CategoricalTreatmentInput<'a>,
+    rows: &RowStructure<'_>,
+) -> Result<PreparedRows<'a>, EstimationError> {
+    let n = input.outcome.len();
+    let mismatch = |what: &str| {
+        refuse(
+            reason_code!("route_not_supported"),
+            "categorical_treatment.row_count_mismatch",
+            &format!("the {what} do not have one entry per outcome row"),
+        )
+    };
+    if rows.sampling_weights.is_some_and(|w| w.len() != n) {
+        return Err(mismatch("sampling weights"));
+    }
+    if rows.clusters.is_some_and(|c| c.len() != n) {
+        return Err(mismatch("cluster ids"));
+    }
+    let mut keep = vec![true; n];
+    let (weights, weight_record) = match rows.sampling_weights {
+        Some(declared) => {
+            let weights = crate::sampling_weights::SamplingWeights::new(declared)?;
+            let retained = weights.restrict(&mut keep)?;
+            (Some(retained.weights.to_vec()), Some(retained.record))
+        }
+        None => (None, None),
+    };
+    let dropped = keep.iter().any(|kept| !kept);
+    let select = |values: &[f64]| -> Vec<f64> {
+        values.iter().zip(&keep).filter(|(_, kept)| **kept).map(|(v, _)| *v).collect()
+    };
+    let clusters = rows.clusters.map(|groups| {
+        groups.iter().zip(&keep).filter(|(_, kept)| **kept).map(|(g, _)| *g).collect::<Vec<_>>()
+    });
+    let cluster_count = clusters.as_ref().map(|groups| {
+        let mut ids = groups.clone();
+        ids.sort_unstable();
+        ids.dedup();
+        ids.len()
+    });
+    let prepared = if dropped {
+        CategoricalTreatmentInput {
+            outcome: Cow::Owned(select(&input.outcome)),
+            row_snapshot: Cow::Borrowed(&*input.row_snapshot),
+            adjustment: input
+                .adjustment
+                .iter()
+                .map(|c| NamedColumn::new(c.name.to_string(), select(&c.values)))
+                .collect(),
+            levels: Cow::Owned(
+                input
+                    .levels
+                    .iter()
+                    .zip(&keep)
+                    .filter(|(_, kept)| **kept)
+                    .map(|(level, _)| level.clone())
+                    .collect(),
+            ),
+        }
+    } else {
+        CategoricalTreatmentInput {
+            outcome: Cow::Borrowed(&*input.outcome),
+            row_snapshot: Cow::Borrowed(&*input.row_snapshot),
+            adjustment: input.adjustment.iter().map(NamedColumn::borrowed).collect(),
+            levels: Cow::Borrowed(&*input.levels),
+        }
+    };
+    Ok(PreparedRows {
+        input: prepared,
+        weights,
+        clusters,
+        lag: rows.lag,
+        record: DeclaredRows { weights: weight_record, clusters: cluster_count, lag: rows.lag },
+    })
+}
+
+impl PreparedRows<'_> {
+    fn structure(&self) -> RowStructure<'_> {
+        RowStructure {
+            sampling_weights: self.weights.as_deref(),
+            clusters: self.clusters.as_deref(),
+            lag: self.lag,
+        }
+    }
+}
+
+/// Fit the categorical regime under declared sampling weights, clusters or a serial lag.
+///
+/// With nothing declared this is [`fit_categorical_treatment`]. See the module documentation
+/// ("Declared rows") for how each declaration enters.
+///
+/// # Errors
+///
+/// Those of [`fit_categorical_treatment`]; `sampling_weights_invalid`
+/// (`sampling_weights.invalid`) for a malformed weight declaration;
+/// `option_not_applicable` with `vector_treatment.weights_need_robust_covariance` for weights
+/// under the model-based covariance; and `vector_treatment.cluster_ids_required`,
+/// `.cluster_unread`, `.too_few_clusters`, `.lag_required`, `.lag_unread` or `.invalid_lag` for
+/// a declaration and a covariance kind that do not match.
+pub fn fit_categorical_treatment_declared(
+    input: &CategoricalTreatmentInput,
+    spec: &CategoricalTreatmentSpec,
+    rows: &RowStructure<'_>,
+) -> Result<(CategoricalTreatmentFit, DeclaredRows), EstimationError> {
+    let prepared = prepare_rows(input, rows)?;
+    let input = &prepared.input;
+    let order = validate_spec(spec)?;
+    let counts = count_levels(input, spec, &order)?;
+    let (contrasts, n_levels, n_pairs) = declared_contrasts(spec, &order);
+    let vector_input = VectorTreatmentInput {
+        outcome: Cow::Borrowed(&*input.outcome),
+        row_snapshot: Cow::Borrowed(&*input.row_snapshot),
+        adjustment: input.adjustment.iter().map(NamedColumn::borrowed).collect(),
+        treatments: dummy_columns(input, &order, &spec.reference),
+    };
+    let options = VectorTreatmentOptions { covariance: spec.covariance, contrasts };
+    let fit = fit_joint_declared(&vector_input, &options, 1, &prepared.structure())?;
+    Ok((assemble_categorical(fit, spec, order, counts, (n_levels, n_pairs)), prepared.record))
+}
+
+/// The robust replay summary of the categorical fit under declared rows: the statistics and meat
+/// of the weighted, clustered or serial sandwich, from which the fit replays without a row.
+///
+/// # Errors
+///
+/// As [`fit_categorical_treatment_declared`], and `vector_treatment.summary_inconsistent` for the
+/// model-based covariance.
+pub fn summarize_categorical_design_declared(
+    input: &CategoricalTreatmentInput,
+    spec: &CategoricalTreatmentSpec,
+    rows: &RowStructure<'_>,
+) -> Result<(CategoricalRobustSummary, DeclaredRows), EstimationError> {
+    let prepared = prepare_rows(input, rows)?;
+    let input = &prepared.input;
+    let order = validate_spec(spec)?;
+    let counts = count_levels(input, spec, &order)?;
+    let vector_input = VectorTreatmentInput {
+        outcome: Cow::Borrowed(&*input.outcome),
+        row_snapshot: Cow::Borrowed(&*input.row_snapshot),
+        adjustment: input.adjustment.iter().map(NamedColumn::borrowed).collect(),
+        treatments: dummy_columns(input, &order, &spec.reference),
+    };
+    let design =
+        summarize_joint_robust_declared(&vector_input, 1, spec.covariance, &prepared.structure())?;
+    Ok((
+        CategoricalRobustSummary { counts, design, weighted: prepared.weights.is_some() },
+        prepared.record,
+    ))
+}
+
 /// Level counts and the sufficient statistics of the dummy-coded design: the model-based replay
 /// summary of a categorical fit (no rows).
 #[derive(Clone, Debug, PartialEq)]
@@ -527,7 +723,7 @@ pub fn fit_categorical_from_summary(
     spec: &CategoricalTreatmentSpec,
     summary: &CategoricalSummary,
 ) -> Result<CategoricalTreatmentFit, EstimationError> {
-    let (order, names) = check_summary(spec, &summary.counts, &summary.design)?;
+    let (order, names) = check_summary(spec, &summary.counts, &summary.design, false)?;
     let (contrasts, n_levels, n_pairs) = declared_contrasts(spec, &order);
     let options = VectorTreatmentOptions { covariance: spec.covariance, contrasts };
     let fit = fit_joint_from_summary(&summary.design, &names, &options, 1)?;
@@ -543,6 +739,10 @@ pub struct CategoricalRobustSummary {
     /// Gram matrix, `X'y`, residual sum of squares and meat of the design
     /// `[intercept, adjustment..., level:<non-reference levels>...]`.
     pub design: RobustDesignSummary,
+    /// Whether sampling weights were declared. The statistics are then those of the weighted
+    /// fit (`X'WX`, `X'Wy`, `e'We`), whose Gram diagonal is a weighted count, so the check that
+    /// the level counts equal it is replaced by one on the total.
+    pub weighted: bool,
 }
 
 /// Validate, count and fit the declared design once and keep the sufficient statistics and the
@@ -566,7 +766,7 @@ pub fn summarize_categorical_design_robust(
         treatments: dummy_columns(input, &order, &spec.reference),
     };
     let design = summarize_joint_robust(&vector_input, 1, spec.covariance)?;
-    Ok(CategoricalRobustSummary { counts, design })
+    Ok(CategoricalRobustSummary { counts, design, weighted: false })
 }
 
 /// Categorical fit from the sufficient statistics and meat of a robust covariance, bit-identical
@@ -583,7 +783,8 @@ pub fn fit_categorical_from_robust_summary(
     spec: &CategoricalTreatmentSpec,
     summary: &CategoricalRobustSummary,
 ) -> Result<CategoricalTreatmentFit, EstimationError> {
-    let (order, names) = check_summary(spec, &summary.counts, &summary.design.design)?;
+    let (order, names) =
+        check_summary(spec, &summary.counts, &summary.design.design, summary.weighted)?;
     let (contrasts, n_levels, n_pairs) = declared_contrasts(spec, &order);
     let options = VectorTreatmentOptions { covariance: spec.covariance, contrasts };
     let fit = fit_joint_from_robust_summary(&summary.design, &names, &options, 1)?;
@@ -596,6 +797,7 @@ fn check_summary(
     spec: &CategoricalTreatmentSpec,
     counts: &[LevelCount],
     design: &DesignSummary,
+    weighted: bool,
 ) -> Result<(Vec<String>, Vec<String>), EstimationError> {
     let order = validate_spec(spec)?;
     let inconsistent = |message: &str| {
@@ -634,14 +836,27 @@ fn check_summary(
     let p = t0 + non_reference.len();
     let total: usize = counts.iter().map(|c| c.rows).sum();
     let stored_n = |i: usize| design.gram.get(i * p + i).copied();
-    let counts_agree = t0 >= 1
-        && design.gram.len() == p * p
-        && design.n_rows == total
-        && stored_n(0) == Some(count(total))
-        && non_reference.iter().enumerate().all(|(j, level)| {
-            let rows = counts.iter().find(|c| &&c.level == level).map(|c| c.rows);
-            rows.map(count) == stored_n(t0 + j)
-        });
+    let counts_agree = if weighted {
+        // The weights are normalized to mean one, so the intercept's Gram entry is the row count
+        // up to rounding; a level's weighted count is positive and no larger than the total.
+        let total_weight = stored_n(0);
+        t0 >= 1
+            && design.gram.len() == p * p
+            && design.n_rows == total
+            && total_weight.is_some_and(|w| (w - count(total)).abs() <= 1e-9 * count(total))
+            && non_reference.iter().enumerate().all(|(j, _)| {
+                stored_n(t0 + j).is_some_and(|w| w > 0.0 && Some(w) <= total_weight.map(|t| t * (1.0 + 1e-9)))
+            })
+    } else {
+        t0 >= 1
+            && design.gram.len() == p * p
+            && design.n_rows == total
+            && stored_n(0) == Some(count(total))
+            && non_reference.iter().enumerate().all(|(j, level)| {
+                let rows = counts.iter().find(|c| &&c.level == level).map(|c| c.rows);
+                rows.map(count) == stored_n(t0 + j)
+            })
+    };
     if !counts_agree {
         return Err(inconsistent("the level counts disagree with the stored Gram matrix"));
     }

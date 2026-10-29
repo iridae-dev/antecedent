@@ -408,6 +408,7 @@ impl LinearAdjustmentAte {
             .as_ref()
             .map(|weights| weights.restrict(&mut row_mask))
             .transpose()?;
+        refuse_non_finite_cells(data, treatment, outcome, &estimand.adjustment_set, &row_mask)?;
         let design =
             assemble(data, treatment, outcome, &estimand.adjustment_set, &expanded, &row_mask)?;
         debug_assert!(
@@ -950,6 +951,42 @@ fn observational_adjustment_arm(
         function: OutcomeExprId::identity(outcome),
         distribution: averaged,
     })
+}
+
+/// Refuse an infinite value in a retained row of the treatment, the outcome or an adjustment
+/// column. A missing cell is the missing-data policy's business; an infinite one is not a
+/// missing value and would otherwise surface as a rank-deficient design.
+fn refuse_non_finite_cells(
+    data: &TabularData,
+    treatment: VariableId,
+    outcome: VariableId,
+    adjustment: &[VariableId],
+    row_mask: &[bool],
+) -> Result<(), EstimationError> {
+    use antecedent_data::ColumnView;
+    for id in [treatment, outcome].into_iter().chain(adjustment.iter().copied()) {
+        let ColumnView::Float64(column) = data.column(id)? else { continue };
+        let values = column.values.as_slice();
+        let Some(row) =
+            values.iter().zip(row_mask).position(|(value, &kept)| kept && value.is_infinite())
+        else {
+            continue;
+        };
+        let name = data
+            .schema()
+            .get(id)
+            .map_or_else(|_| format!("#{}", id.raw()), |variable| variable.name.to_string());
+        return Err(EstimationError::refused(
+            antecedent_core::reason_code!("invalid_argument"),
+            format!(
+                "column `{name}` holds a non-finite value ({}) at row {row}, which no linear \
+                 adjustment can read. Next attempt: remove or correct the row, or declare the \
+                 value missing so a missing-data policy handles it",
+                values[row]
+            ),
+        ));
+    }
+    Ok(())
 }
 
 #[cfg(test)]

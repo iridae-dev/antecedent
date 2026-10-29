@@ -37,19 +37,23 @@ pub(super) fn refuse_sampling_design(
 ) -> Result<(), CausalError> {
     use antecedent_core::DeclaredSamplingDesign as Design;
     let Some(rollout) = &query.rollout else {
-        // The single treated unit publishes a point effect (or the Bayesian donor-weight
-        // posterior) and reads no cluster label or lag, so a declared clustered or serial design
-        // would be silently ignored.
+        // A declared serial or clustered design is honoured by the study builder (conformal
+        // interval, placebo-variance interval). It reaches this point unhonoured only when the
+        // route cannot carry that interval: the Bayesian donor-weight posterior, or a query
+        // that also asks for a unit-randomization test, a ridge augmentation or (for the serial
+        // design) the synthetic difference in differences.
         return match sampling {
             Some(Design::ClusteredPanel | Design::DependentTimeSeries) => {
                 Err(crate::compile_reason!(
                     "option_not_applicable",
-                    "the single-treated-unit synthetic control publishes a point effect or a \
-                     donor-weight posterior and reads no cluster label or lag, so the declared \
-                     clustered_panel or dependent_time_series design would be silently ignored. \
-                     Next attempt: declare independent_subject_trajectories (or no design), or \
-                     add a rollout with the conformal interval for a dependent series or the \
-                     placebo-variance interval for a clustered panel"
+                    "the declared clustered_panel or dependent_time_series design is honoured by \
+                     the placebo-variance or conformal interval of the frequentist synthetic \
+                     control, and this query cannot carry it (the Bayesian donor-weight posterior \
+                     reads no cluster label or lag, and the interval cannot be combined with a \
+                     unit-randomization test, a ridge augmentation or, for a serial design, the \
+                     synthetic difference in differences), so the declaration would be silently \
+                     ignored. Next attempt: drop the conflicting option, or declare \
+                     independent_subject_trajectories (or no design)"
                 ))
             }
             _ => Ok(()),

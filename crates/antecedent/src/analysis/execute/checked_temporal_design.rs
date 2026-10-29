@@ -48,10 +48,19 @@ use antecedent_estimate::temporal_design::survival::{
     SURVIVAL_COORDINATES, Trajectories, TrajectoryRows, fit_regime_survival,
     fit_regime_survival_posterior,
 };
-use antecedent_estimate::temporal_design::{
-    ClusterScores, DEFAULT_BAND_REPLICATES, PanelRows, PosteriorSummary, SamplingSummary,
-    bayesian_bootstrap, dense_labels, holm_adjusted, lagged_pairs, sampling_summary, sup_t_band,
+use antecedent_estimate::temporal_design::serial::{
+    SERIAL_METHOD, serial_sampling_summary, serial_sup_t_band,
 };
+use antecedent_estimate::temporal_design::{
+    ClusterScores, DEFAULT_BAND_REPLICATES, LaggedPairs, PanelRows, PosteriorSummary,
+    SamplingSummary, bayesian_bootstrap, dense_labels, holm_adjusted, lagged_pairs,
+    sampling_summary, sup_t_band,
+};
+use antecedent_core::DeclaredSamplingDesign;
+use antecedent_data::{MissingDeclaration, MissingPolicy};
+use antecedent_estimate::sampling_weights::{SamplingWeightRecord, SamplingWeights};
+
+use crate::analysis::missing_data::{self, MissingRoute};
 
 /// Calibration status of every interval this route reports.
 const CALIBRATION: &str = "unmeasured";
@@ -62,6 +71,60 @@ const CALIBRATION: &str = "unmeasured";
 pub(crate) struct TemporalDesignSettings {
     bayesian: Option<super::BayesianConfig>,
     replicates: u32,
+    /// The declared handling of missing outcomes, read by the arm designs.
+    missing: Option<MissingDeclaration>,
+    /// The declared sampling design: whole-unit clusters, or one dependent series.
+    sampling_design: Option<DeclaredSamplingDesign>,
+}
+
+/// The arm designs with the mean functional: the designs whose scores are sums of per-pair
+/// Horvitz-Thompson terms, which read declared analysis weights, a missing-data policy and the
+/// declared dependence. Every other design is a bootstrap, a smoother or a model-based fit with
+/// its own resampling unit and refuses those declarations.
+pub(crate) fn arm_mean_design(query: &TemporalDesignQuery) -> bool {
+    matches!(
+        query.assignment,
+        TemporalAssignment::TwoArm { .. }
+            | TemporalAssignment::MultiArm { .. }
+            | TemporalAssignment::Factorial { .. }
+            | TemporalAssignment::Interference { .. }
+    ) && matches!(query.functional, TemporalDesignFunctional::Mean)
+}
+
+impl Study {
+    /// [`Study::refuse_unread_sampling_weights`], except that a temporal arm design reads the
+    /// weights the table carries (weighted arm means with the weighted cluster sandwich).
+    ///
+    /// Weights declared on an estimator, which no temporal design runs, stay refused.
+    ///
+    /// # Errors
+    ///
+    /// As [`Study::refuse_unread_sampling_weights`].
+    pub(crate) fn refuse_unread_sampling_weights_for_route(
+        &self,
+        table: &TabularData,
+    ) -> Result<(), CausalError> {
+        let reads_table =
+            matches!(&self.query, CausalQuery::TemporalDesign(query) if arm_mean_design(query));
+        if !reads_table {
+            return self.refuse_unread_sampling_weights(table);
+        }
+        let declared = self
+            .declared
+            .estimator_spec
+            .as_deref()
+            .is_some_and(|spec| spec.sampling_weights_calibration_label().is_some());
+        if declared {
+            return Err(CausalError::Estimate(
+                antecedent_estimate::sampling_weights::unsupported_route(
+                    "sampling weights are declared on an estimator that the temporal design does \
+                     not run; the design reads the weights the table carries. Next attempt: put \
+                     the weights on the table, or drop the estimator declaration",
+                ),
+            ));
+        }
+        Ok(())
+    }
 }
 
 /// Frozen temporal design.
@@ -154,6 +217,7 @@ impl CheckedTemporalDesignOperation {
         for id in query.columns() {
             data.schema().get(id).map_err(CausalError::rejected)?;
         }
+        check_declarations(study, query, bayesian.is_some())?;
         let estimator_id = estimator_for(query, bayesian.is_some());
         if physical.logical.query != study.query
             || !physical.binding().names(IdentifierId::RandomizedDesign, estimator_id)
@@ -170,7 +234,12 @@ impl CheckedTemporalDesignOperation {
             physical,
             identification,
             estimand,
-            TemporalDesignSettings { bayesian, replicates },
+            TemporalDesignSettings {
+                bayesian,
+                replicates,
+                missing: study.declared.missing.clone(),
+                sampling_design: study.declared.sampling_design,
+            },
         ))
     }
 
@@ -181,7 +250,7 @@ impl CheckedTemporalDesignOperation {
     ) -> Result<StudyResult, CausalError> {
         self.begin_execute(data, ctx)?;
         let started = std::time::Instant::now();
-        let output = self.fit(data, ctx)?;
+        let (output, extras) = self.fit_with_extras(data, ctx)?;
         let estimator_id = estimator_for(&self.query, self.extra.bayesian.is_some());
         let (payload, posterior) = self.assemble(output)?;
         let n_draws = posterior
@@ -226,8 +295,34 @@ impl CheckedTemporalDesignOperation {
         result.estimate = crate::PrimaryEstimate::NotAnEffect;
         result.treatment = None;
         result.support_status = None;
+        if let Some(record) = extras.sampling {
+            result.diagnostics.push(Diagnostic::new(
+                "estimate.temporal_design.sampling_weights",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "{} decisions used, {} zero-weight decisions excluded; Kish effective sample \
+                     size {:.2}; the arm means are weighted (Hajek) ratios of the Horvitz-Thompson \
+                     terms and speak for the weighted population the sampling weights represent",
+                    record.rows_used, record.zero_weight_rows, record.effective_sample_size,
+                ),
+            ));
+        }
+        result.extras.missing_data = extras.missing;
         result.payload = crate::result::ResultPayload::TemporalDesign(Box::new(payload));
         Ok(result)
+    }
+
+    /// Run the design's procedure, with what an arm design adds to the result.
+    fn fit_with_extras(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<(FitOutput, FitExtras), CausalError> {
+        if arm_mean_design(&self.query) {
+            return self.fit_arm(data, ctx);
+        }
+        self.fit(data, ctx).map(|output| (output, FitExtras::default()))
     }
 
     /// Run the design's procedure.
@@ -380,10 +475,87 @@ impl CheckedTemporalDesignOperation {
             }
             return Ok(output);
         }
+        Err(CausalError::Compile {
+            message: "an arm design is fitted by the arm path, which reads weights, missing \
+                      outcomes and the declared dependence"
+                .into(),
+        })
+    }
+
+    /// The arm designs with the mean functional: pair selection under the declared missing-data
+    /// policy, analysis weights, then the Horvitz-Thompson scores summed by cluster (the unit,
+    /// or the period under a declared dependent series).
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear procedure: read, select pairs, weight, score, accumulate, summarize"
+    )]
+    fn fit_arm(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<(FitOutput, FitExtras), CausalError> {
+        let query = &self.query;
+        let (outcome, observed) = read_outcome(data, query.outcome)?;
+        let (unit, units_total) = dense_labels(&query.units);
+        let draws = self.extra.bayesian.as_ref().map(|config| config.n_draws);
+        let floor = query.min_probability;
+        let all_pairs = lagged_pairs(PanelRows { unit: &unit, period: &query.periods }, query.lag)
+            .map_err(CausalError::from)?;
+        let declaration = self
+            .extra
+            .missing
+            .as_ref()
+            .filter(|declaration| declaration.policy != MissingPolicy::ErrorOnMissing);
+        if declaration.is_none() && observed.iter().any(|seen| !seen) {
+            let cell = antecedent_data::first_missing_cell(data, &[query.outcome])?.ok_or(
+                CausalError::Unsupported {
+                    message: "temporal design outcome validity changed during execution",
+                },
+            )?;
+            return Err(CausalError::Estimate(
+                antecedent_estimate::missing_policy::policy_required(
+                    &cell,
+                    MissingRoute::TemporalDesign.label(),
+                    &MissingRoute::TemporalDesign.supported()[1..],
+                ),
+            ));
+        }
+        let selection = select_pairs(
+            declaration.map(|declaration| declaration.policy),
+            &all_pairs,
+            &observed,
+            &unit,
+            units_total,
+        )?;
+        let missing = declaration
+            .map(|declaration| {
+                self.missing_report(data, declaration.policy, &all_pairs, &selection, &observed)
+            })
+            .transpose()?;
+        let (pairs, pair_weights, sampling) = apply_weights(data, selection.kept)?;
+        let serial =
+            self.extra.sampling_design == Some(DeclaredSamplingDesign::DependentTimeSeries);
+
         let scores = self.arm_scores(&pairs, &outcome, &unit, floor)?;
         let width = scores.coordinates.len();
-        let accumulated = ClusterScores::accumulate(&scores.scores, width, &scores.cluster_of_pair)
-            .map_err(CausalError::from)?;
+        let (cluster_of_pair, period_labels) = if serial {
+            let mut labels: Vec<i64> =
+                pairs.decision.iter().map(|&row| query.periods[row]).collect();
+            labels.sort_unstable();
+            labels.dedup();
+            let rank = |period: i64| labels.binary_search(&period).unwrap_or(0);
+            let clusters = pairs.decision.iter().map(|&row| rank(query.periods[row])).collect();
+            (clusters, labels)
+        } else {
+            (scores.cluster_of_pair.clone(), Vec::new())
+        };
+        let accumulated = ClusterScores::accumulate_weighted(
+            &scores.scores,
+            width,
+            &cluster_of_pair,
+            pair_weights.as_deref(),
+        )
+        .map_err(CausalError::from)?;
         let validation = query.outcome_misclassification.map(|counts| ValidationCounts {
             true_positive: counts.true_positive,
             false_negative: counts.false_negative,
@@ -391,9 +563,10 @@ impl CheckedTemporalDesignOperation {
             false_positive: counts.false_positive,
         });
         if validation.is_some()
-            && outcome
-                .iter()
-                .any(|y| y.to_bits() != 0.0_f64.to_bits() && y.to_bits() != 1.0_f64.to_bits())
+            && pairs.outcome.iter().any(|&row| {
+                let y = outcome[row];
+                y.to_bits() != 0.0_f64.to_bits() && y.to_bits() != 1.0_f64.to_bits()
+            })
         {
             return Err(crate::compile_reason!(
                 "invalid_argument",
@@ -401,45 +574,67 @@ impl CheckedTemporalDesignOperation {
             ));
         }
         let mut functional = "mean".to_owned();
+        if pair_weights.is_some() {
+            functional.push_str("; sampling-weighted");
+        }
+        let extras = FitExtras { missing, sampling };
         let summary = if let Some(draws) = draws {
             let posterior =
                 bayesian_bootstrap(&accumulated, draws, ctx).map_err(CausalError::from)?;
             Summary::Posterior(match validation {
                 Some(counts) => {
-                    "mean; outcome misclassification corrected".clone_into(&mut functional);
+                    functional.push_str("; outcome misclassification corrected");
                     correct_posterior(posterior, &scores.coordinates, counts, ctx)
                         .map_err(CausalError::from)?
                 }
                 None => posterior,
             })
         } else {
-            let mut summary = sampling_summary(&accumulated).map_err(CausalError::from)?;
+            let mut summary = if serial {
+                serial_sampling_summary(&accumulated, &period_labels)
+            } else {
+                sampling_summary(&accumulated)
+            }
+            .map_err(CausalError::from)?;
             if let Some(counts) = validation {
                 let youden =
                     correct_sampling(&mut summary, &scores.coordinates, &scores.family, counts)
                         .map_err(CausalError::from)?;
-                functional =
-                    format!("mean; outcome misclassification corrected (Youden index {youden})");
-                return Ok(FitOutput {
-                    coordinates: scores.coordinates,
-                    family: scores.family,
-                    uncertainty: summary.method,
-                    summary: Summary::Sampling(summary),
-                    pairs: scores.pairs,
-                    clusters: accumulated.clusters(),
-                    unpaired: pairs.unpaired,
-                    minimum_probability: scores.minimum_probability,
-                    replicates: None,
-                    functional,
-                });
+                if serial {
+                    summary.method = "newey_west_ratio_normal_over_periods_with_validation_delta";
+                }
+                functional.push_str(&format!(
+                    "; outcome misclassification corrected (Youden index {youden})"
+                ));
+                return Ok((
+                    FitOutput {
+                        coordinates: scores.coordinates,
+                        family: scores.family,
+                        uncertainty: summary.method,
+                        summary: Summary::Sampling(summary),
+                        pairs: scores.pairs,
+                        clusters: accumulated.clusters(),
+                        unpaired: all_pairs.unpaired,
+                        minimum_probability: scores.minimum_probability,
+                        replicates: None,
+                        functional,
+                    },
+                    extras,
+                ));
             }
             if scores.band.len() > 1 {
-                sup_t_band(&accumulated, &mut summary, &scores.band, DEFAULT_BAND_REPLICATES, ctx)
-                    .map_err(CausalError::from)?;
+                if serial {
+                    serial_sup_t_band(&mut summary, &scores.band, DEFAULT_BAND_REPLICATES, ctx)
+                } else {
+                    let replicates = DEFAULT_BAND_REPLICATES;
+                    sup_t_band(&accumulated, &mut summary, &scores.band, replicates, ctx)
+                }
+                .map_err(CausalError::from)?;
             }
             if scores.family.len() > 1 {
                 summary.holm_adjusted_p = Some(holm_adjusted(&summary, &scores.family));
             }
+            debug_assert!(!serial || summary.method == SERIAL_METHOD);
             Summary::Sampling(summary)
         };
         let uncertainty = match &summary {
@@ -447,18 +642,58 @@ impl CheckedTemporalDesignOperation {
             Summary::Posterior(posterior) => posterior.method,
             Summary::Bootstrap { .. } => "whole_procedure_cluster_bootstrap_percentile",
         };
-        Ok(FitOutput {
-            coordinates: scores.coordinates,
-            family: scores.family,
-            summary,
-            pairs: scores.pairs,
-            clusters: accumulated.clusters(),
-            unpaired: pairs.unpaired,
-            minimum_probability: scores.minimum_probability,
-            replicates: None,
-            functional,
-            uncertainty,
-        })
+        Ok((
+            FitOutput {
+                coordinates: scores.coordinates,
+                family: scores.family,
+                summary,
+                pairs: scores.pairs,
+                clusters: accumulated.clusters(),
+                unpaired: all_pairs.unpaired,
+                minimum_probability: scores.minimum_probability,
+                replicates: None,
+                functional,
+                uncertainty,
+            },
+            extras,
+        ))
+    }
+
+    /// Policy, assumption and exact bookkeeping of the lag-paired decisions: how many were
+    /// formed, which were dropped (by decision row) and why, and the units a balanced panel
+    /// removed.
+    fn missing_report(
+        &self,
+        data: &TabularData,
+        policy: MissingPolicy,
+        all_pairs: &LaggedPairs,
+        selection: &PairSelection,
+        observed: &[bool],
+    ) -> Result<crate::result::MissingDataReport, CausalError> {
+        let name = Arc::clone(&data.schema().get(self.query.outcome)?.name);
+        let missing_rows = observed.iter().filter(|seen| !**seen).count();
+        let mut accounting = antecedent_data::RowAccounting::from_dropped(
+            policy,
+            all_pairs.decision.len(),
+            selection.dropped.iter().map(|(row, _)| *row).collect(),
+            vec![(name, missing_rows)],
+        );
+        let count = |wanted: antecedent_data::DropReason| {
+            selection.dropped.iter().filter(|(_, reason)| *reason == wanted).count()
+        };
+        accounting.reasons = [
+            antecedent_data::DropReason::MissingValue,
+            antecedent_data::DropReason::UnitIncomplete,
+        ]
+        .into_iter()
+        .map(|reason| (reason, count(reason)))
+        .filter(|(_, rows)| *rows > 0)
+        .collect::<Vec<_>>()
+        .into();
+        if policy == MissingPolicy::BalancedPanel {
+            accounting = accounting.with_units(selection.units_total, selection.units_dropped);
+        }
+        Ok(missing_data::report(MissingRoute::TemporalDesign, true, Arc::from([]), accounting))
     }
 
     /// The pair scores of an arm design.
@@ -916,6 +1151,193 @@ struct FitOutput {
     replicates: Option<(u64, u64)>,
     functional: String,
     uncertainty: &'static str,
+}
+
+/// What an arm-design fit adds to the result beyond its section.
+#[derive(Default)]
+struct FitExtras {
+    missing: Option<crate::result::MissingDataReport>,
+    sampling: Option<SamplingWeightRecord>,
+}
+
+/// The lag-paired decisions a missing-data policy retains.
+struct PairSelection {
+    kept: LaggedPairs,
+    /// Dropped decisions: the decision row and the reason, in row order.
+    dropped: Vec<(u64, antecedent_data::DropReason)>,
+    units_total: usize,
+    units_dropped: usize,
+}
+
+/// Retain the pairs a policy keeps.
+///
+/// `complete_case` deletes every unit-period row with a missing outcome, so a decision is kept
+/// when its own row and its outcome row are both observed; `available_case` keeps a decision
+/// whose outcome row is observed whatever its own row; `balanced_panel` drops every unit with a
+/// missing outcome in any period and keeps the other units' decisions. With no policy the table
+/// has no missing outcome and every pair is kept.
+fn select_pairs(
+    policy: Option<MissingPolicy>,
+    pairs: &LaggedPairs,
+    observed: &[bool],
+    unit: &[usize],
+    units_total: usize,
+) -> Result<PairSelection, CausalError> {
+    let mut incomplete = vec![false; units_total];
+    for (row, seen) in observed.iter().enumerate() {
+        if !seen {
+            incomplete[unit[row]] = true;
+        }
+    }
+    let units_dropped = match policy {
+        Some(MissingPolicy::BalancedPanel) => incomplete.iter().filter(|dropped| **dropped).count(),
+        _ => 0,
+    };
+    let mut kept = LaggedPairs { decision: vec![], outcome: vec![], unpaired: pairs.unpaired };
+    let mut dropped = Vec::new();
+    for (&decision, &outcome) in pairs.decision.iter().zip(&pairs.outcome) {
+        let (own, later) = (observed[decision], observed[outcome]);
+        let keep = match policy {
+            None | Some(MissingPolicy::ErrorOnMissing) => true,
+            Some(MissingPolicy::CompleteCase) => own && later,
+            Some(MissingPolicy::AvailableCase) => later,
+            Some(MissingPolicy::BalancedPanel) => !incomplete[unit[decision]],
+            Some(other) => {
+                return Err(CausalError::Estimate(
+                    antecedent_estimate::missing_policy::policy_not_applicable(
+                        other,
+                        MissingRoute::TemporalDesign.label(),
+                        "the design has no estimator for it",
+                        MissingRoute::TemporalDesign.supported(),
+                    ),
+                ));
+            }
+        };
+        if keep {
+            kept.decision.push(decision);
+            kept.outcome.push(outcome);
+        } else {
+            let reason = if own && later {
+                antecedent_data::DropReason::UnitIncomplete
+            } else {
+                antecedent_data::DropReason::MissingValue
+            };
+            dropped.push((decision as u64, reason));
+        }
+    }
+    if kept.decision.is_empty() {
+        return Err(crate::compile_reason!(
+            "invalid_argument",
+            "the missing-data policy leaves no decision with an observed outcome"
+        ));
+    }
+    Ok(PairSelection { kept, dropped, units_total, units_dropped })
+}
+
+/// Apply the table's sampling weights to the retained pairs: a pair carries the weight of its
+/// decision row, a pair of weight zero is removed before scoring (the estimate equals the one on
+/// the table without it), and the weights act through their ratios only.
+fn apply_weights(
+    data: &TabularData,
+    kept: LaggedPairs,
+) -> Result<(LaggedPairs, Option<Vec<f64>>, Option<SamplingWeightRecord>), CausalError> {
+    let Some(source) = data.storage().weights() else {
+        return Ok((kept, None, None));
+    };
+    let weights = SamplingWeights::new(source.to_vec()).map_err(CausalError::from)?;
+    weights.require_rows(data.row_count()).map_err(CausalError::from)?;
+    let mut mask = vec![false; data.row_count()];
+    for &row in &kept.decision {
+        mask[row] = true;
+    }
+    let retained = weights.restrict(&mut mask).map_err(CausalError::from)?;
+    let mut pairs = LaggedPairs { decision: vec![], outcome: vec![], unpaired: kept.unpaired };
+    for (&decision, &outcome) in kept.decision.iter().zip(&kept.outcome) {
+        if mask[decision] {
+            pairs.decision.push(decision);
+            pairs.outcome.push(outcome);
+        }
+    }
+    if retained.weights.len() != pairs.decision.len() {
+        return Err(CausalError::Compile {
+            message: "the retained sampling weights lost their pairs".into(),
+        });
+    }
+    Ok((pairs, Some(retained.weights.to_vec()), Some(retained.record)))
+}
+
+/// The outcome column and which rows observe it. A missing value reads as `NaN` and is never
+/// scored: the selection removes the pairs that would read it or refuses the table.
+fn read_outcome(
+    data: &TabularData,
+    id: antecedent_core::VariableId,
+) -> Result<(Vec<f64>, Vec<bool>), CausalError> {
+    match data.column(id).map_err(CausalError::from)? {
+        antecedent_data::ColumnView::Float64(column) => {
+            let values = column.values.as_slice();
+            let observed: Vec<bool> =
+                (0..values.len()).map(|row| column.validity.is_valid(row)).collect();
+            let values = values
+                .iter()
+                .zip(&observed)
+                .map(|(value, seen)| if *seen { *value } else { f64::NAN })
+                .collect();
+            Ok((values, observed))
+        }
+        _ => Err(CausalError::Unsupported {
+            message: "temporal design columns must be complete continuous data",
+        }),
+    }
+}
+
+/// Refuse the declarations a temporal design cannot read.
+///
+/// A missing-data policy, a dependent-series declaration and table weights are read by the arm
+/// designs; every other design resamples whole units, smooths, or refits a model, and has no
+/// construction for them. A dependent series also has no posterior: the Bayesian bootstrap
+/// reweights independent units.
+fn check_declarations(
+    study: &Study,
+    query: &TemporalDesignQuery,
+    bayesian: bool,
+) -> Result<(), CausalError> {
+    let arm = arm_mean_design(query);
+    if let Some(declaration) = &study.declared.missing {
+        if declaration.policy != MissingPolicy::ErrorOnMissing && !arm {
+            return Err(CausalError::Estimate(
+                antecedent_estimate::missing_policy::policy_not_applicable(
+                    declaration.policy,
+                    MissingRoute::TemporalDesign.label(),
+                    "only the arm designs with the mean functional have a per-pair estimator \
+                     that can drop pairs; the quantile, dose, observational and survival \
+                     designs refit their models on complete columns",
+                    &MissingRoute::TemporalDesign.supported()[..1],
+                ),
+            ));
+        }
+    }
+    if study.declared.sampling_design == Some(DeclaredSamplingDesign::DependentTimeSeries) {
+        if !arm {
+            return Err(crate::compile_reason!(
+                "option_not_applicable",
+                "the declared dependent time series is read by the arm designs with the mean \
+                 functional (a Newey-West variance over the periods); this design resamples \
+                 whole units and has no serially dependent construction. Next attempt: declare \
+                 independent subject trajectories or a clustered panel, or ask for an arm design \
+                 with the mean functional"
+            ));
+        }
+        if bayesian {
+            return Err(crate::compile_reason!(
+                "option_not_applicable",
+                "the declared dependent time series has no posterior here: the Bayesian \
+                 bootstrap reweights independent units, which a dependent series does not have. \
+                 Next attempt: ask for the frequentist Newey-West interval, or declare a \
+                 clustered panel"
+            ));
+        }
+    }
+    Ok(())
 }
 
 enum Summary {

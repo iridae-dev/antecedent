@@ -35,6 +35,7 @@ pub(super) fn fixture() -> (PanelData, PanelDraw, serde_json::Value) {
                 outcome: source.iter().map(|row| row[6].parse().unwrap()).collect(),
                 confounder: source.iter().map(|row| row[3].parse().unwrap()).collect(),
                 season: source.iter().map(|row| row[2].parse().unwrap()).collect(),
+                weight: 1.0,
             }
         })
         .collect();

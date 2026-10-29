@@ -720,7 +720,8 @@ impl super::Study {
             )?;
             (id_res.result, estimand, id_res.indexer, false)
         };
-        let fit = super::temporal_effect_core::fit_temporal_effect(
+        let pulse_support = super::pulse_support::pulse_support(data, query, ctx)?;
+        let mut fit = super::temporal_effect_core::fit_temporal_effect(
             &super::temporal_effect_core::TemporalEffectInputs {
                 data,
                 graph,
@@ -740,6 +741,7 @@ impl super::Study {
             },
             ctx,
         )?;
+        fit.diagnostics.extend(pulse_support);
         let point_only = fit.point_only;
         let missing_data = fit.missing_data.clone();
         let args = fit.finish_args(

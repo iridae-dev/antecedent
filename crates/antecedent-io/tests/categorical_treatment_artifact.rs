@@ -757,3 +757,215 @@ fn the_budgeted_trait_agrees_with_the_inherent_entry_points() {
             .unwrap();
     assert_eq!(restored.identity(), artifact.identity());
 }
+
+// ---------------------------------------------------------------------------------------------
+// Declared rows: sampling weights, clusters and a serial lag are read, sealed and replayed.
+// ---------------------------------------------------------------------------------------------
+
+use antecedent_estimate::categorical_treatment::fit_categorical_treatment_declared;
+use antecedent_estimate::vector_treatment::RowStructure;
+use antecedent_io::categorical_treatment_artifact::{
+    CATEGORICAL_DECLARED_ROWS_FORMAT, CategoricalPosteriorDeclaration, CategoricalRowsRequest,
+};
+
+fn declared_request(kind: CovarianceKindWire) -> CategoricalTreatmentRequest {
+    let mut request = abc_request();
+    request.spec.covariance = kind;
+    request.adjustment = vec![AdjustmentColumnRequest {
+        name: "z".into(),
+        values: vec![0.0, 1.0, 0.5, 1.0, 1.5, 0.0, 0.5, 1.0, 2.0],
+    }];
+    request
+}
+
+fn weights() -> Vec<f64> {
+    vec![1.0, 2.5, 0.0, 1.0, 4.0, 0.5, 1.0, 3.0, 2.0]
+}
+
+fn seal_declared(
+    request: &CategoricalTreatmentRequest,
+    rows: &CategoricalRowsRequest,
+) -> Result<CategoricalTreatmentArtifact, CategoricalTreatmentArtifactError> {
+    CategoricalTreatmentArtifact::seal_declared(request, rows, &ExecutionContext::for_tests(0))
+}
+
+fn rows_of(request: &CategoricalTreatmentRequest, rows: &CategoricalRowsRequest) -> CategoricalTreatmentFit {
+    let input = CategoricalTreatmentInput {
+        outcome: request.outcome.as_slice().into(),
+        row_snapshot: request.row_snapshot.as_str().into(),
+        adjustment: request
+            .adjustment
+            .iter()
+            .map(|c| NamedColumn::new(c.name.as_str(), c.values.as_slice()))
+            .collect(),
+        levels: request.levels.as_slice().into(),
+    };
+    let spec = CategoricalTreatmentSpec {
+        declared_levels: request.spec.declared_levels.clone(),
+        scale: LevelScale::Unordered,
+        reference: request.spec.reference.clone(),
+        min_level_rows: usize::try_from(request.spec.min_level_rows).unwrap(),
+        pairwise: request.spec.pairwise.clone(),
+        monotonicity: None,
+        covariance: request.spec.covariance.into(),
+    };
+    let structure = RowStructure {
+        sampling_weights: rows.sampling_weights.as_deref(),
+        clusters: rows.cluster.as_deref(),
+        lag: rows.serial_lag.map(|l| usize::try_from(l).unwrap()),
+    };
+    fit_categorical_treatment_declared(&input, &spec, &structure).unwrap().0
+}
+
+#[test]
+fn declared_weights_clusters_and_lags_seal_replay_and_equal_the_row_based_fit() {
+    let cases = [
+        (
+            CovarianceKindWire::Hc1,
+            CategoricalRowsRequest { sampling_weights: Some(weights()), ..Default::default() },
+        ),
+        (
+            CovarianceKindWire::ClusterRobust,
+            CategoricalRowsRequest { cluster: Some(vec![0, 0, 1, 1, 2, 2, 3, 3, 3]), ..Default::default() },
+        ),
+        (
+            CovarianceKindWire::ClusterRobust,
+            CategoricalRowsRequest {
+                sampling_weights: Some(weights()),
+                cluster: Some(vec![0, 1, 2, 0, 1, 2, 0, 1, 2]),
+                ..Default::default()
+            },
+        ),
+        (
+            CovarianceKindWire::NeweyWest,
+            CategoricalRowsRequest { serial_lag: Some(2), ..Default::default() },
+        ),
+    ];
+    for (kind, rows) in cases {
+        let request = declared_request(kind);
+        let artifact = seal_declared(&request, &rows).unwrap();
+        assert_eq!(artifact.meta().replay, "robust_summary");
+        let accounting = artifact.meta().declared_rows.as_ref().expect("accounted");
+        assert_eq!(accounting.format, CATEGORICAL_DECLARED_ROWS_FORMAT);
+        // The stored fit is the row-based fit of the same declaration, bit for bit.
+        assert_eq!(*artifact.fit(), rows_of(&request, &rows), "{kind:?}");
+        let bytes = artifact.to_bytes("declared").unwrap();
+        let consumed =
+            CategoricalTreatmentArtifact::from_bytes(&bytes, Some(artifact.identity())).unwrap();
+        assert_eq!(consumed.report(), artifact.report(), "{kind:?}");
+        // The rows (weights and clusters included) are bound by the digest.
+        artifact.verify_data_declared(&request, &rows).unwrap();
+        if rows.sampling_weights.is_some() || rows.cluster.is_some() {
+            assert!(artifact.verify_data(&request).is_err(), "{kind:?}: plain rows are other rows");
+        }
+    }
+}
+
+#[test]
+fn zero_weight_rows_are_deleted_counted_and_the_weights_move_the_identity() {
+    let request = declared_request(CovarianceKindWire::Hc1);
+    let rows = CategoricalRowsRequest { sampling_weights: Some(weights()), ..Default::default() };
+    let artifact = seal_declared(&request, &rows).unwrap();
+    let accounting = artifact.meta().declared_rows.as_ref().unwrap();
+    assert_eq!((accounting.rows_used, accounting.zero_weight_rows), (8, 1));
+    assert!((accounting.weight_sum.unwrap() - 15.0).abs() < 1e-12);
+    assert!(accounting.weight_effective_sample_size.unwrap() < 8.0);
+    assert_eq!(artifact.meta().n_rows, 8);
+    let counts: Vec<u64> = artifact.report().result.counts.iter().map(|c| c.rows).collect();
+    assert_eq!(counts, [2, 2, 4], "the zero-weight row of level b is deleted before counting");
+    // Another weight vector is another design and another data digest; equal weights at another
+    // scale are the same weighted fit but still other declared data.
+    let mut other = weights();
+    other[4] = 3.5;
+    let moved = seal_declared(
+        &request,
+        &CategoricalRowsRequest { sampling_weights: Some(other), ..Default::default() },
+    )
+    .unwrap();
+    assert_ne!(moved.identity().design_id, artifact.identity().design_id);
+    assert!(moved.verify_data_declared(&request, &rows).is_err());
+    // Plain rows keep the historical digests: no section, same bytes as the plain entry point.
+    let plain = declared_request(CovarianceKindWire::Hc1);
+    let a = CategoricalTreatmentArtifact::seal(&plain).unwrap();
+    let b = seal_declared(&plain, &CategoricalRowsRequest::default()).unwrap();
+    assert_eq!(a.to_bytes("p").unwrap(), b.to_bytes("p").unwrap());
+    assert!(a.meta().declared_rows.is_none());
+}
+
+#[test]
+fn a_resealed_removal_of_the_declaration_or_a_changed_lag_is_refused() {
+    let request = declared_request(CovarianceKindWire::NeweyWest);
+    let rows = CategoricalRowsRequest { serial_lag: Some(2), ..Default::default() };
+    let artifact = seal_declared(&request, &rows).unwrap();
+    let bytes = artifact.to_bytes("declared").unwrap();
+    let (meta, numbers) = decode_parts(&bytes).unwrap();
+    // Dropping the accounting changes the design identity: the stored identity no longer replays.
+    let mut stripped = meta.clone();
+    stripped.declared_rows = None;
+    let reencoded = encode_parts(&stripped, &numbers, "stripped").unwrap();
+    assert!(CategoricalTreatmentArtifact::from_bytes(&reencoded, None).is_err());
+    let mut longer = meta.clone();
+    longer.declared_rows.as_mut().unwrap().serial_lag = Some(3);
+    let reencoded = encode_parts(&longer, &numbers, "longer").unwrap();
+    assert!(CategoricalTreatmentArtifact::from_bytes(&reencoded, None).is_err());
+    // Another lag, sealed honestly, is another covariance identity.
+    let other = seal_declared(
+        &request,
+        &CategoricalRowsRequest { serial_lag: Some(3), ..Default::default() },
+    )
+    .unwrap();
+    assert_ne!(other.identity().covariance_id, artifact.identity().covariance_id);
+}
+
+#[test]
+fn a_declaration_without_its_covariance_kind_is_refused_by_name_and_never_dropped() {
+    let detail = |request: &CategoricalTreatmentRequest, rows: CategoricalRowsRequest| {
+        seal_declared(request, &rows).unwrap_err().to_string()
+    };
+    let hc = declared_request(CovarianceKindWire::Hc1);
+    let clusters = vec![0, 0, 1, 1, 2, 2, 3, 3, 3];
+    assert!(detail(&hc, CategoricalRowsRequest { cluster: Some(clusters.clone()), ..Default::default() })
+        .contains("vector_treatment.cluster_unread"));
+    assert!(detail(&hc, CategoricalRowsRequest { serial_lag: Some(1), ..Default::default() })
+        .contains("vector_treatment.lag_unread"));
+    let model = declared_request(CovarianceKindWire::ModelBased);
+    assert!(detail(&model, CategoricalRowsRequest { sampling_weights: Some(weights()), ..Default::default() })
+        .contains("weights_need_robust_covariance"));
+    let cluster_kind = declared_request(CovarianceKindWire::ClusterRobust);
+    assert!(detail(&cluster_kind, CategoricalRowsRequest::default())
+        .contains("vector_treatment.cluster_ids_required"));
+    let one = vec![1u32; 9];
+    assert!(detail(&cluster_kind, CategoricalRowsRequest { cluster: Some(one), ..Default::default() })
+        .contains("vector_treatment.too_few_clusters"));
+    let newey = declared_request(CovarianceKindWire::NeweyWest);
+    assert!(detail(&newey, CategoricalRowsRequest::default()).contains("vector_treatment.lag_required"));
+    for lag in [0u64, 9, 40] {
+        assert!(detail(&newey, CategoricalRowsRequest { serial_lag: Some(lag), ..Default::default() })
+            .contains("vector_treatment.invalid_lag"));
+    }
+    let mut negative = weights();
+    negative[2] = -1.0;
+    assert!(detail(&hc, CategoricalRowsRequest { sampling_weights: Some(negative), ..Default::default() })
+        .contains("sampling_weights.invalid"));
+    assert!(detail(&hc, CategoricalRowsRequest { sampling_weights: Some(vec![1.0; 8]), ..Default::default() })
+        .contains("categorical_treatment.row_count_mismatch"));
+}
+
+#[test]
+fn the_gaussian_posterior_is_refused_for_declared_rows_with_a_next_attempt() {
+    let request = declared_request(CovarianceKindWire::Hc1);
+    let artifact = seal_declared(
+        &request,
+        &CategoricalRowsRequest { sampling_weights: Some(weights()), ..Default::default() },
+    )
+    .unwrap();
+    let declaration = CategoricalPosteriorDeclaration {
+        level_precision: 1.0,
+        nuisance_precision: 0.01,
+        variance_shape: 2.0,
+        variance_scale: 2.0,
+        credible_level: 0.95,
+    };
+    let text = artifact.with_posterior(&declaration).unwrap_err().to_string();
+    assert!(text.contains("categorical_treatment.posterior_declared_rows"), "{text}");
+}

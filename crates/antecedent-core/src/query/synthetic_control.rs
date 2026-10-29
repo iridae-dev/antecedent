@@ -216,6 +216,46 @@ impl SyntheticControlQuery {
         self
     }
 
+    /// Placebo replicates a declared clustered design runs when the query named no interval.
+    pub const DECLARED_CLUSTERED_PLACEBO_REPLICATES: u32 = 500;
+
+    /// Honour a declared sampling design on the single treated unit by the interval built for
+    /// it: a `dependent_time_series` declaration reports the conformal interval (it permutes the
+    /// treated unit's residual series over time), a `clustered_panel` declaration reports the
+    /// placebo-variance interval (it reassigns the adoption across whole units). A query that
+    /// already names an interval, or whose other options the interval cannot be combined with
+    /// (a unit-randomization test, a ridge augmentation, and for the conformal interval the
+    /// synthetic difference in differences), is left unchanged for the executor to refuse.
+    pub fn honor_declared_dependence(&mut self, design: Option<crate::DeclaredSamplingDesign>) {
+        use crate::DeclaredSamplingDesign as Design;
+        if self.rollout.is_some()
+            || self.uniform_unit_randomization
+            || self.sharp_null_effect.is_some()
+            || self.augmentation_ridge.is_some()
+        {
+            return;
+        }
+        let adoptions: Arc<[(Arc<str>, i64)]> =
+            Arc::from([(Arc::clone(&self.treated_unit), self.intervention_period)]);
+        match design {
+            Some(Design::DependentTimeSeries) if self.method == SyntheticPanelMethod::Control => {
+                self.rollout = Some(SyntheticRollout {
+                    adoptions,
+                    interval: SyntheticInterval::Conformal,
+                    replicates: 0,
+                });
+            }
+            Some(Design::ClusteredPanel) => {
+                self.rollout = Some(SyntheticRollout {
+                    adoptions,
+                    interval: SyntheticInterval::PlaceboVariance,
+                    replicates: Self::DECLARED_CLUSTERED_PLACEBO_REPLICATES,
+                });
+            }
+            _ => {}
+        }
+    }
+
     /// Fit every adopting unit of a staggered rollout against the never-treated donors and
     /// report placebo-variance intervals from `replicates` placebo reassignments.
     /// `adoptions` must list the query's treated unit at its intervention period.

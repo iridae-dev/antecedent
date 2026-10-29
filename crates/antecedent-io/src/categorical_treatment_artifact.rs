@@ -46,6 +46,19 @@
 //! and calibration is `unmeasured`; the monotonicity p-value is a conservative union-intersection
 //! bound whose rejection is evidence against monotonicity, not a proof of it when unrejected.
 //!
+//! # Declared rows
+//!
+//! A request may also declare per-row `sampling_weights`, a per-row `cluster` id (covariance
+//! `cluster_robust`) or a Newey-West `serial_lag` (covariance `newey_west`);
+//! see [`CategoricalRowsRequest`]. They change the fit and the covariance, so the artifact stores
+//! the weighted statistics (`X'WX`, `X'Wy`, `e'We`) and the meat of the weighted-score sandwich
+//! of the `robust_summary` replay, plus a `declared_rows` section recording the accounting
+//! (rows used, rows of weight zero that were deleted, Kish size and sum of the weights, cluster
+//! count, lag). The weights, cluster ids and lag are bound by the data digest and the covariance
+//! and design identities; an artifact without them keeps the historical format and digests, and
+//! one with them is refused by a reader that does not know the section. The Gaussian posterior
+//! section is refused for declared rows: its likelihood is independent homoskedastic errors.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CanonicalWriter, ExecutionContext};
@@ -54,14 +67,15 @@ use antecedent_estimate::categorical_treatment::{
     CategoricalSummary, CategoricalTreatmentFit, CategoricalTreatmentInput,
     CategoricalTreatmentSpec, LevelCount, LevelScale, MonotonicityDirection,
     fit_categorical_from_robust_summary, fit_categorical_from_summary, fit_categorical_treatment,
-    summarize_categorical_design, summarize_categorical_design_robust,
+    summarize_categorical_design, summarize_categorical_design_declared,
+    summarize_categorical_design_robust,
 };
 use antecedent_estimate::categorical_treatment_posterior::{
     CATEGORICAL_POSTERIOR_ESTIMAND, CATEGORICAL_POSTERIOR_LIKELIHOOD, CategoricalPosteriorPrior,
     CategoricalTreatmentPosterior, ContrastPosterior, posterior_categorical_from_summary,
 };
 use antecedent_estimate::vector_treatment::{
-    DesignSummary, NamedColumn, RobustDesignSummary, VectorCovariance,
+    DesignSummary, NamedColumn, RobustDesignSummary, RowStructure, VectorCovariance,
 };
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
@@ -246,6 +260,10 @@ pub enum CovarianceKindWire {
     Hc2,
     /// HC3.
     Hc3,
+    /// One-way cluster-robust; needs a `cluster` id per row.
+    ClusterRobust,
+    /// Newey-West (Bartlett) HAC; needs a `serial_lag` in the design.
+    NeweyWest,
 }
 
 impl CovarianceKindWire {
@@ -258,6 +276,8 @@ impl CovarianceKindWire {
             Self::Hc1 => "hc1",
             Self::Hc2 => "hc2",
             Self::Hc3 => "hc3",
+            Self::ClusterRobust => "cluster_robust",
+            Self::NeweyWest => "newey_west",
         }
     }
 }
@@ -270,6 +290,8 @@ impl From<VectorCovariance> for CovarianceKindWire {
             VectorCovariance::Hc1 => Self::Hc1,
             VectorCovariance::Hc2 => Self::Hc2,
             VectorCovariance::Hc3 => Self::Hc3,
+            VectorCovariance::Cluster => Self::ClusterRobust,
+            VectorCovariance::NeweyWest => Self::NeweyWest,
         }
     }
 }
@@ -282,6 +304,8 @@ impl From<CovarianceKindWire> for VectorCovariance {
             CovarianceKindWire::Hc1 => Self::Hc1,
             CovarianceKindWire::Hc2 => Self::Hc2,
             CovarianceKindWire::Hc3 => Self::Hc3,
+            CovarianceKindWire::ClusterRobust => Self::Cluster,
+            CovarianceKindWire::NeweyWest => Self::NeweyWest,
         }
     }
 }
@@ -306,6 +330,57 @@ pub struct CategoricalTreatmentRequest {
     /// The declared design.
     pub spec: CategoricalSpecWire,
 }
+
+/// Declarations of a categorical request beside the plain [`CategoricalTreatmentRequest`]:
+/// sampling weights and a cluster id, each one entry per row, and the Newey-West lag.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct CategoricalRowsRequest {
+    /// Sampling weights (finite, non-negative, at least one positive). Rows of weight zero are
+    /// deleted; the rest are normalized to mean one. Need a robust covariance.
+    pub sampling_weights: Option<Vec<f64>>,
+    /// Cluster id of each row; read by, and required for, the `cluster_robust` covariance.
+    pub cluster: Option<Vec<u32>>,
+    /// Newey-West (Bartlett) lag for rows in time order at unit spacing; read by, and required
+    /// for, the `newey_west` covariance.
+    pub serial_lag: Option<u64>,
+}
+
+impl CategoricalRowsRequest {
+    /// Whether nothing is declared.
+    #[must_use]
+    pub fn is_plain(&self) -> bool {
+        self.sampling_weights.is_none() && self.cluster.is_none() && self.serial_lag.is_none()
+    }
+}
+
+/// What the declared rows did, stored beside the unchanged result.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DeclaredRowsWire {
+    /// Format marker of this section.
+    pub format: String,
+    /// Whether sampling weights were declared.
+    pub weights_declared: bool,
+    /// Rows used after zero-weight rows were deleted.
+    pub rows_used: u64,
+    /// Rows of weight zero that were deleted.
+    pub zero_weight_rows: u64,
+    /// Kish effective size of the weights of the rows used, when weights were declared.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weight_effective_sample_size: Option<f64>,
+    /// Sum of the declared weights of the rows used before normalization.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weight_sum: Option<f64>,
+    /// Clusters among the rows used.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clusters: Option<u64>,
+    /// Newey-West lag.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub serial_lag: Option<u64>,
+}
+
+/// The format marker of [`DeclaredRowsWire`].
+pub const CATEGORICAL_DECLARED_ROWS_FORMAT: &str = "categorical_declared_rows_v1";
 
 /// Identity digests of one categorical fit. Each is BLAKE3 over a canonical byte encoding.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -700,6 +775,9 @@ pub struct CategoricalTreatmentMeta {
     /// The optional posterior section; absent for an artifact sealed without one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub posterior: Option<CategoricalPosteriorWire>,
+    /// What declared sampling weights, clusters or a lag did; absent for plain rows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub declared_rows: Option<DeclaredRowsWire>,
 }
 
 /// The full, self-describing report handed to host languages.
@@ -738,6 +816,9 @@ pub struct CategoricalTreatmentReportWire {
     /// The optional posterior section.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub posterior: Option<CategoricalPosteriorWire>,
+    /// What declared sampling weights, clusters or a lag did; absent for plain rows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub declared_rows: Option<DeclaredRowsWire>,
 }
 
 fn spec_of(
@@ -755,12 +836,23 @@ fn spec_of(
     })
 }
 
+/// The declared lag as the estimator reads it.
+fn lag_of(rows: &CategoricalRowsRequest) -> Result<Option<usize>, CategoricalTreatmentArtifactError> {
+    rows.serial_lag
+        .map(|lag| {
+            usize::try_from(lag)
+                .map_err(|_| CategoricalTreatmentArtifactError::LimitsExceeded("serial lag"))
+        })
+        .transpose()
+}
+
 /// The declaration shared by sealing and replay.
 struct Decl {
     row_snapshot: String,
     n_rows: usize,
     adjustment: Vec<String>,
     spec: CategoricalSpecWire,
+    declared: Option<DeclaredRowsWire>,
 }
 
 impl Decl {
@@ -773,6 +865,7 @@ impl Decl {
                 .map_err(|_| CategoricalTreatmentArtifactError::LimitsExceeded("rows"))?,
             adjustment: meta.adjustment.clone(),
             spec: meta.spec.clone(),
+            declared: meta.declared_rows.clone(),
         })
     }
 
@@ -882,6 +975,7 @@ impl Replay {
                     Ok(Self::RobustSummary(CategoricalRobustSummary {
                         counts,
                         design: RobustDesignSummary { design, meat },
+                        weighted: decl.declared.as_ref().is_some_and(|d| d.weights_declared),
                     }))
                 } else {
                     Ok(Self::Summary(CategoricalSummary { counts, design }))
@@ -1019,8 +1113,19 @@ fn identity_of(
         design.text(digest);
     }
 
+    if let Some(declared) = &decl.declared {
+        design.text(&declared.format);
+        design.word(u64::from(declared.weights_declared));
+        design.word(declared.rows_used);
+        design.word(declared.zero_weight_rows);
+        design.word(declared.clusters.unwrap_or(0));
+    }
+
     let mut covariance = CanonicalWriter::new("categorical_treatment_v1.covariance");
     covariance.text(spec.covariance.as_str());
+    if let Some(lag) = decl.declared.as_ref().and_then(|d| d.serial_lag) {
+        covariance.word(lag);
+    }
 
     let mut family = CanonicalWriter::new("categorical_treatment_v1.family");
     family.word(spec.min_level_rows);
@@ -1146,6 +1251,23 @@ fn posterior_wire(
     let posterior =
         posterior_categorical_from_summary(&summary, &spec, &prior, declaration.credible_level)?;
     Ok(posterior_section(declaration, &posterior))
+}
+
+/// The Gaussian posterior's likelihood is independent homoskedastic errors; a declaration of
+/// clusters or serial dependence contradicts it, and sampling weights have no likelihood
+/// interpretation (they describe the design that drew the rows). Refused, not approximated.
+fn reject_posterior_of_declared_rows(decl: &Decl) -> Result<(), CategoricalTreatmentArtifactError> {
+    if decl.declared.is_some() {
+        return Err(CategoricalTreatmentArtifactError::refused(
+            antecedent_core::reason_code!("route_not_supported"),
+            "categorical_treatment.posterior_declared_rows",
+            "the conjugate Gaussian posterior assumes independent homoskedastic errors and \
+             no sampling design, which declared sampling weights, clusters or serial \
+             dependence contradict. Next attempt: read the frequentist weighted, \
+             cluster-robust or Newey-West fit, or seal the posterior on plain rows",
+        ));
+    }
+    Ok(())
 }
 
 fn compute(
@@ -1295,7 +1417,7 @@ pub struct CategoricalTreatmentArtifact {
 
 /// Digest of the rows a request fits: the outcome, every adjustment column with its name and the
 /// level label of each row. A summary replay holds this instead of the rows.
-fn data_digest(request: &CategoricalTreatmentRequest) -> String {
+fn data_digest(request: &CategoricalTreatmentRequest, rows: &CategoricalRowsRequest) -> String {
     let mut writer = CanonicalWriter::new("categorical_treatment_v1.data");
     writer.reals(&request.outcome);
     writer.size(request.adjustment.len());
@@ -1304,6 +1426,18 @@ fn data_digest(request: &CategoricalTreatmentRequest) -> String {
         writer.reals(&column.values);
     }
     writer.texts(&request.levels);
+    // Declarations extend the digest only when made, so plain rows keep their digests.
+    if let Some(weights) = &rows.sampling_weights {
+        writer.text("sampling_weights");
+        writer.reals(weights);
+    }
+    if let Some(cluster) = &rows.cluster {
+        writer.text("cluster");
+        writer.size(cluster.len());
+        for id in cluster {
+            writer.word(u64::from(*id));
+        }
+    }
     writer.finish_hex()
 }
 
@@ -1364,12 +1498,35 @@ impl CategoricalTreatmentArtifact {
         request: &CategoricalTreatmentRequest,
         ctx: &ExecutionContext,
     ) -> Result<Self, CategoricalTreatmentArtifactError> {
+        Self::seal_declared(request, &CategoricalRowsRequest::default(), ctx)
+    }
+
+    /// Fit the declared categorical regime under declared sampling weights, clusters and (in the
+    /// design) a Newey-West lag, under the computation budget of `ctx`.
+    ///
+    /// With nothing declared this is [`Self::seal_with`], digests included. Declared rows seal the
+    /// weighted statistics and the meat of the weighted-score sandwich of the declared covariance
+    /// kind, and the accounting of the declaration. A declaration its covariance kind does not
+    /// read (or a kind whose declaration is missing) is refused, never dropped.
+    ///
+    /// # Errors
+    /// The refusals of [`Self::seal_with`]; `sampling_weights_invalid`
+    /// (`sampling_weights.invalid`); `option_not_applicable` with
+    /// `vector_treatment.weights_need_robust_covariance`; and `vector_treatment.cluster_ids_required`,
+    /// `.cluster_unread`, `.too_few_clusters`, `.lag_required`, `.lag_unread`, `.invalid_lag`.
+    pub fn seal_declared(
+        request: &CategoricalTreatmentRequest,
+        rows: &CategoricalRowsRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CategoricalTreatmentArtifactError> {
         let spec = spec_of(&request.spec)?;
-        let decl = Decl {
+        let lag = lag_of(rows)?;
+        let mut decl = Decl {
             row_snapshot: request.row_snapshot.clone(),
             n_rows: request.outcome.len(),
             adjustment: request.adjustment.iter().map(|c| c.name.clone()).collect(),
             spec: request.spec.clone(),
+            declared: None,
         };
         check_decl(&decl)?;
         admit_regression(BUDGET, decl.n_rows, decl.columns(), ctx).map_err(budget_refusal)?;
@@ -1383,12 +1540,39 @@ impl CategoricalTreatmentArtifact {
                 .collect(),
             levels: Cow::Borrowed(&request.levels),
         };
-        let replay = if spec.covariance == VectorCovariance::ModelBased {
-            Replay::Summary(summarize_categorical_design(&input, &spec)?)
-        } else {
-            Replay::RobustSummary(summarize_categorical_design_robust(&input, &spec)?)
+        let structure = RowStructure {
+            sampling_weights: rows.sampling_weights.as_deref(),
+            clusters: rows.cluster.as_deref(),
+            lag,
         };
-        let digest = data_digest(request);
+        let replay = if rows.is_plain() {
+            if spec.covariance == VectorCovariance::ModelBased {
+                Replay::Summary(summarize_categorical_design(&input, &spec)?)
+            } else if matches!(
+                spec.covariance,
+                VectorCovariance::Cluster | VectorCovariance::NeweyWest
+            ) {
+                // The kind's declaration is missing: the estimator names which one.
+                Replay::RobustSummary(summarize_categorical_design_declared(&input, &spec, &structure)?.0)
+            } else {
+                Replay::RobustSummary(summarize_categorical_design_robust(&input, &spec)?)
+            }
+        } else {
+            let (summary, record) = summarize_categorical_design_declared(&input, &spec, &structure)?;
+            decl.n_rows = summary.design.design.n_rows;
+            decl.declared = Some(DeclaredRowsWire {
+                format: CATEGORICAL_DECLARED_ROWS_FORMAT.to_owned(),
+                weights_declared: record.weights.is_some(),
+                rows_used: lossless_u64(summary.design.design.n_rows),
+                zero_weight_rows: record.weights.map_or(0, |w| w.zero_weight_rows),
+                weight_effective_sample_size: record.weights.map(|w| w.effective_sample_size),
+                weight_sum: record.weights.map(|w| w.weight_sum),
+                clusters: record.clusters.map(lossless_u64),
+                serial_lag: record.lag.map(lossless_u64),
+            });
+            Replay::RobustSummary(summary)
+        };
+        let digest = data_digest(request, rows);
         let computed = compute(&decl, &replay, Some(&digest))?;
         let meta = CategoricalTreatmentMeta {
             version: CATEGORICAL_TREATMENT_ARTIFACT_VERSION,
@@ -1409,6 +1593,7 @@ impl CategoricalTreatmentArtifact {
             result: computed.result,
             caveats: standing_caveats(),
             posterior: None,
+            declared_rows: decl.declared.clone(),
         };
         Ok(Self { meta, numbers: computed.numbers, fit: computed.fit })
     }
@@ -1427,6 +1612,7 @@ impl CategoricalTreatmentArtifact {
         declaration: &CategoricalPosteriorDeclaration,
     ) -> Result<Self, CategoricalTreatmentArtifactError> {
         let decl = Decl::from_meta(&self.meta)?;
+        reject_posterior_of_declared_rows(&decl)?;
         let replay = Replay::from_parts(&decl, &self.meta, &self.numbers)?;
         self.meta.posterior = Some(posterior_wire(&decl, &replay, declaration)?);
         Ok(self)
@@ -1475,6 +1661,7 @@ impl CategoricalTreatmentArtifact {
             caveats: self.meta.caveats.clone(),
             identity: self.meta.identity.clone(),
             posterior: self.meta.posterior.clone(),
+            declared_rows: self.meta.declared_rows.clone(),
         }
     }
 
@@ -1489,8 +1676,20 @@ impl CategoricalTreatmentArtifact {
         &self,
         request: &CategoricalTreatmentRequest,
     ) -> Result<(), CategoricalTreatmentArtifactError> {
+        self.verify_data_declared(request, &CategoricalRowsRequest::default())
+    }
+
+    /// [`Self::verify_data`] for rows sealed with declared sampling weights or clusters.
+    ///
+    /// # Errors
+    /// As [`Self::verify_data`]; the weights and cluster ids are part of the digest.
+    pub fn verify_data_declared(
+        &self,
+        request: &CategoricalTreatmentRequest,
+        rows: &CategoricalRowsRequest,
+    ) -> Result<(), CategoricalTreatmentArtifactError> {
         match &self.meta.data_digest {
-            Some(stored) if *stored == data_digest(request) => Ok(()),
+            Some(stored) if *stored == data_digest(request, rows) => Ok(()),
             Some(_) => Err(CategoricalTreatmentArtifactError::IdentityMismatch { field: "data" }),
             None => Err(CategoricalTreatmentArtifactError::refused(
                 antecedent_core::reason_code!("route_not_supported"),
@@ -1601,6 +1800,7 @@ impl CategoricalTreatmentArtifact {
             }
         }
         if let Some(stored) = &meta.posterior {
+            reject_posterior_of_declared_rows(&decl)?;
             let replayed = posterior_wire(&decl, &replay, &stored.declaration)?;
             if *stored != replayed {
                 return Err(CategoricalTreatmentArtifactError::ResultMismatch(
@@ -1636,7 +1836,13 @@ mod number_section_tests {
     }
 
     fn decl(n_rows: usize) -> Decl {
-        Decl { row_snapshot: String::new(), n_rows, adjustment: vec!["z".into()], spec: spec() }
+        Decl {
+            row_snapshot: String::new(),
+            n_rows,
+            adjustment: vec!["z".into()],
+            spec: spec(),
+            declared: None,
+        }
     }
 
     fn meta(n_rows: u64, levels: Vec<String>) -> CategoricalTreatmentMeta {
@@ -1684,6 +1890,7 @@ mod number_section_tests {
             },
             caveats: Vec::new(),
             posterior: None,
+            declared_rows: None,
         }
     }
 

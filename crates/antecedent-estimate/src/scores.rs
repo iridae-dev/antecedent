@@ -169,6 +169,22 @@ impl ScoreTable {
     ///
     /// Weight length mismatch or empty mass.
     pub fn summarize(&self, weights: Option<&[f64]>) -> Result<ScoreSummary, EstimationError> {
+        self.summarize_with(weights, None)
+    }
+
+    /// [`Self::summarize`] with the variance of the means read under a declared dependence:
+    /// cluster-robust or Newey-West on the weighted influence values instead of independent
+    /// rows. `None` is the independent-row summary.
+    ///
+    /// # Errors
+    ///
+    /// Weight length mismatch, empty mass, a dependence that does not cover the rows, or fewer
+    /// than two clusters.
+    pub fn summarize_with(
+        &self,
+        weights: Option<&[f64]>,
+        dependence: Option<&crate::score_dependence::ScoreDependence>,
+    ) -> Result<ScoreSummary, EstimationError> {
         // The returned Arc means have a distinct owner in an admitted workflow.
         // These guards cover the construction Vec and temporary slice references.
         let _means_scratch = crate::util::admit_bound_array::<f64>(self.n_columns(), 1)?;
@@ -180,8 +196,12 @@ impl ScoreTable {
             cols.push(col);
             means.push(weighted_mean(col, weights)?);
         }
-        let covariance =
-            crate::joint_if::joint_influence_covariance_with_means(&cols, weights, &means)?;
+        let covariance = match dependence {
+            None => crate::joint_if::joint_influence_covariance_with_means(&cols, weights, &means)?,
+            Some(dependence) => crate::score_dependence::dependent_influence_covariance(
+                &cols, weights, &means, dependence,
+            )?,
+        };
         let n_eff = match weights {
             Some(w) => kish_n_eff(w),
             None => self.n_rows as f64,
@@ -466,12 +486,25 @@ impl ScoreTable {
 
     /// Simultaneous bands for the fixed declared family; does not cover data-driven selection.
     pub fn inference(&self, weights: Option<&[f64]>) -> Result<ScoreInference, EstimationError> {
+        self.inference_with(weights, None)
+    }
+
+    /// [`Self::inference`] with the bands built from the covariance under a declared dependence.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::summarize_with`], or a failed critical value.
+    pub fn inference_with(
+        &self,
+        weights: Option<&[f64]>,
+        dependence: Option<&crate::score_dependence::ScoreDependence>,
+    ) -> Result<ScoreInference, EstimationError> {
         // This summary is consumed here. Its Arc means/covariance must stay
         // admitted until inference has finished, independently of result buffers.
         let _summary_means = crate::util::admit_bound_array::<f64>(self.n_columns(), 1)?;
         let _summary_covariance =
             crate::util::admit_bound_array::<f64>(self.n_columns(), self.n_columns())?;
-        let summary = self.summarize(weights)?;
+        let summary = self.summarize_with(weights, dependence)?;
         let support = self.support(weights);
         let (critical_value, lower, upper) =
             simultaneous_bands(&summary.means, &summary.covariance, &support.threshold_supported)?;

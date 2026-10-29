@@ -45,6 +45,7 @@ pub mod misclassification;
 pub mod observational;
 pub mod quantile;
 pub mod regime;
+pub mod serial;
 pub mod survival;
 
 pub(crate) use linalg::{cholesky as cholesky_factor, cholesky_solve as cholesky_apply};
@@ -148,12 +149,40 @@ impl ClusterScores {
         coordinates: usize,
         cluster_of_pair: &[usize],
     ) -> Result<Self, EstimationError> {
+        Self::accumulate_weighted(scores, coordinates, cluster_of_pair, None)
+    }
+
+    /// [`Self::accumulate`] under analysis weights: a pair of weight `s` contributes `s` times
+    /// its score and counts `s` toward its cluster, so the ratio of the sums is the weighted
+    /// (Hajek) ratio `sum s z / sum s` and the cluster residuals `S_g - n_g theta` are the
+    /// sampling-weighted linearization of the weighted estimating equation.
+    ///
+    /// The weights act only through their ratios: scaling every weight changes neither the
+    /// estimate nor the covariance.
+    ///
+    /// # Errors
+    /// As [`Self::accumulate`], and a weight that is not finite and positive, or a weight vector
+    /// that does not have one entry per pair.
+    pub fn accumulate_weighted(
+        scores: &[f64],
+        coordinates: usize,
+        cluster_of_pair: &[usize],
+        pair_weights: Option<&[f64]>,
+    ) -> Result<Self, EstimationError> {
         let pairs = cluster_of_pair.len();
         if coordinates == 0 || scores.len() != pairs * coordinates {
             return Err(invalid("pair scores must be aligned with the pair clusters"));
         }
         if scores.iter().any(|score| !score.is_finite()) {
             return Err(invalid("a pair score is not finite"));
+        }
+        if let Some(weights) = pair_weights {
+            if weights.len() != pairs || weights.iter().any(|w| !w.is_finite() || *w <= 0.0) {
+                return Err(invalid(
+                    "pair weights must be finite and positive, one per pair (a zero-weight pair \
+                     is removed before scoring)",
+                ));
+            }
         }
         let mut dense: Vec<usize> = cluster_of_pair.to_vec();
         dense.sort_unstable();
@@ -171,9 +200,10 @@ impl ClusterScores {
         let mut counts = vec![0.0; dense.len()];
         for (pair, cluster) in cluster_of_pair.iter().enumerate() {
             let g = position[cluster];
-            counts[g] += 1.0;
+            let weight = pair_weights.map_or(1.0, |weights| weights[pair]);
+            counts[g] += weight;
             for k in 0..coordinates {
-                sums[g * coordinates + k] += scores[pair * coordinates + k];
+                sums[g * coordinates + k] += weight * scores[pair * coordinates + k];
             }
         }
         Ok(Self { coordinates, sums, counts })
@@ -208,7 +238,7 @@ impl ClusterScores {
     }
 
     /// Linearized residual of every cluster at `estimate`: `S_g - n_g * theta`.
-    fn residuals(&self, estimate: &[f64]) -> Vec<f64> {
+    pub(crate) fn residuals(&self, estimate: &[f64]) -> Vec<f64> {
         let k = self.coordinates;
         let mut residuals = vec![0.0; self.sums.len()];
         for (g, count_g) in self.counts.iter().enumerate() {

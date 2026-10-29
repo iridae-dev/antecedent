@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! What the panel program-search route does with declarations the response fit cannot honour:
-//! observation weights or an analysis mask on a unit, missing cells, a categorical channel,
+//! missing cells under no declared policy, a categorical channel,
 //! negative or fractional codes, a constant outcome, and an identified causal reading of a
 //! response that only the fitted model supports. Each is refused with a typed error naming the
 //! cause; none is ignored, imputed or dropped. A channel that never varies is accepted, but only
@@ -9,7 +9,7 @@
 mod fixture;
 use antecedent::Study;
 use antecedent::analysis::joint_panel::{
-    JointPanelError, JointPanelResponseFunctional, JointPanelScientificScope,
+    JointPanelError, JointPanelFit, JointPanelResponseFunctional, JointPanelScientificScope,
     JointPanelSearchRequest, JointPanelSearchUncertainty,
 };
 use antecedent_core::{ExecutionContext, VariableId};
@@ -53,27 +53,33 @@ fn prepare(
     Study::prepare_joint_panel(data, request, &ctx)?.estimate(&ctx)
 }
 
-#[test]
-fn cells_01_weighted_or_masked_panel_units_are_refused_not_ignored() {
+fn weighted_units(weights: [f64; 4]) -> PanelData {
     let base = fixture::source(false);
-    let weighted: Vec<PanelUnit> = base
+    let units: Vec<PanelUnit> = base
         .units()
         .iter()
-        .map(|unit| {
+        .zip(weights)
+        .map(|(unit, weight)| {
             let n = unit.series.row_count();
             PanelUnit {
                 unit_id: unit.unit_id,
-                series: unit.series.with_weights(vec![1.0; n].into()).unwrap(),
+                series: unit.series.with_weights(vec![weight; n].into()).unwrap(),
             }
         })
         .collect();
-    // Even weights that are all one are refused: the engine has no weighted likelihood.
-    let error = prepare(PanelData::try_new(Arc::from(weighted)).unwrap(), 0).unwrap_err();
-    assert!(
-        matches!(&error, JointPanelError::Compile(detail) if detail.contains("weighted or masked panel laws require a matching engine and cannot be ignored")),
-        "{error}"
-    );
-    let masked: Vec<PanelUnit> = base
+    PanelData::try_new(Arc::from(units)).unwrap()
+}
+
+#[test]
+fn cells_01_weighted_or_masked_panel_units_are_read_not_ignored() {
+    let plain = prepare(fixture::source(false), 0).unwrap();
+    let terminal = |result: &antecedent::analysis::joint_panel::JointPanelResult| -> Vec<f64> {
+        result.point.iter().map(|world| *world.means.last().unwrap()).collect()
+    };
+    // Equal weights, and a mask that hides nothing, are the unweighted panel: same answer.
+    let equal = prepare(weighted_units([3.0; 4]), 0).unwrap();
+    assert_eq!(terminal(&equal), terminal(&plain));
+    let masked: Vec<PanelUnit> = fixture::source(false)
         .units()
         .iter()
         .map(|unit| {
@@ -85,10 +91,14 @@ fn cells_01_weighted_or_masked_panel_units_are_refused_not_ignored() {
             }
         })
         .collect();
-    let error = prepare(PanelData::try_new(Arc::from(masked)).unwrap(), 0).unwrap_err();
+    let hidden_nothing = prepare(PanelData::try_new(Arc::from(masked)).unwrap(), 0).unwrap();
+    assert_eq!(terminal(&hidden_nothing), terminal(&plain));
+    // Unequal weights change the population the response averages describe, and a search over
+    // the weighted fit is still a search over a converged mechanism.
+    let unequal = prepare(weighted_units([1.0, 4.0, 1.0, 2.0]), 0).unwrap();
     assert!(
-        matches!(&error, JointPanelError::Compile(detail) if detail.contains("cannot be ignored")),
-        "{error}"
+        terminal(&unequal).iter().zip(terminal(&plain)).any(|(a, b)| (a - b).abs() > 1e-6),
+        "unequal weights must move the weighted mean"
     );
 }
 
@@ -210,4 +220,65 @@ fn cells_01_constant_and_exactly_collinear_channels_are_refused_as_unidentified(
         matches!(&error, JointPanelError::Engine(PanelError::Invalid(detail)) if detail.contains("exactly collinear")),
         "{error}"
     );
+}
+
+#[test]
+fn cells_01_point_mean_search_refuses_a_fit_without_a_converged_optimizer_and_curvature() {
+    use antecedent::analysis::joint_panel::JointPanelContinuousSearchRequest;
+    use antecedent_design::program_search::continuous::ContinuousSearchOptions;
+    let ctx = ExecutionContext::for_tests(5);
+    let fit = |iterations: usize| {
+        let data = fixture::source(false);
+        let mut request = fixture::request(&data, false, PanelInference::Frequentist { draws: 0 });
+        request.options.optimizer.max_iterations = iterations;
+        Study::prepare_joint_panel(data, request, &ctx).unwrap().estimate(&ctx).unwrap()
+    };
+    let continuous = |result: &antecedent::analysis::joint_panel::JointPanelResult| {
+        let finite = search_request(result, JointPanelScientificScope::ModelConditional);
+        JointPanelContinuousSearchRequest {
+            base_world: result.request().worlds[0].world,
+            scope: JointPanelScientificScope::ModelConditional,
+            functional: JointPanelResponseFunctional::TerminalMean,
+            uncertainty: JointPanelSearchUncertainty::PointMeans,
+            contract: finite.contract.clone(),
+            domain: finite.domain.clone(),
+            utility_units: "response".into(),
+            options: ContinuousSearchOptions {
+                max_evaluations: 8,
+                max_iterations: 2,
+                initial_step: 0.25,
+                step_tolerance: 1e-3,
+                objective_tolerance: 1e-9,
+            },
+            initial: vec![1.0; finite.domain.controls.len()],
+        }
+    };
+    // Two accepted iterations stop far from a stationary point: the point is not a fitted
+    // mechanism, so neither the finite nor the continuous point-mean search reads it.
+    let unconverged = fit(2);
+    let JointPanelFit::Invariant(partial) = &unconverged.fit else { panic!("invariant fit") };
+    assert!(!partial.diagnostics.optimizer_converged);
+    let error = unconverged
+        .compile_search(&search_request(&unconverged, JointPanelScientificScope::ModelConditional), &ctx)
+        .map(|_| ())
+        .unwrap_err();
+    assert!(
+        matches!(&error, JointPanelError::Unsupported(detail)
+            if detail.contains("converged optimizer with positive-definite curvature")),
+        "{error}"
+    );
+    let error = unconverged.compile_continuous_search(continuous(&unconverged), &ctx).map(|_| ()).unwrap_err();
+    assert!(
+        matches!(&error, JointPanelError::Unsupported(detail)
+            if detail.contains("converged optimizer with positive-definite curvature")),
+        "{error}"
+    );
+    // The converged fit of the same panel passes both gates.
+    let converged = fit(2000);
+    let JointPanelFit::Invariant(full) = &converged.fit else { panic!("invariant fit") };
+    assert!(full.diagnostics.optimizer_converged && full.diagnostics.curvature_available);
+    converged
+        .compile_search(&search_request(&converged, JointPanelScientificScope::ModelConditional), &ctx)
+        .unwrap();
+    converged.compile_continuous_search(continuous(&converged), &ctx).unwrap();
 }

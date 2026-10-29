@@ -239,6 +239,7 @@ fn audit_identification_inputs(study: &Study) {
         participants: _,
         missing: _,
         sampling_design: _,
+        score_dependence: _,
     } = declared;
     let StudyInference {
         // Written by `retention_key`.

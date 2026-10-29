@@ -133,6 +133,29 @@ impl JointPanelResult {
         }
         DistributionArtifact::new(metadata, draws).map_err(JointPanelError::compile)
     }
+    /// The retained point mechanism must be a converged local maximum with positive-definite
+    /// curvature before a point-mean consumer (program search) may read it: an unconverged or
+    /// flat-curvature point is a stopping place, not a fitted mechanism. This is the same
+    /// optimizer and curvature predicate the complete-law path applies to a frequentist fit.
+    ///
+    /// # Errors
+    /// An optimizer that missed its tolerance or a point without positive-definite curvature.
+    pub(super) fn require_point_fit_diagnostics(&self) -> Result<(), JointPanelError> {
+        if let JointPanelFit::Invariant(fit) = &self.fit {
+            let diagnostics = &fit.diagnostics;
+            if !(diagnostics.optimizer_converged && diagnostics.curvature_available) {
+                return Err(JointPanelError::Unsupported(format!(
+                    "point-mean search needs a converged optimizer with positive-definite \
+                     curvature at the fitted mechanism (converged: {}, curvature available: {}, \
+                     score norm {:.3e}); the point is not a fitted mechanism",
+                    diagnostics.optimizer_converged,
+                    diagnostics.curvature_available,
+                    diagnostics.score_norm,
+                )));
+            }
+        }
+        Ok(())
+    }
     fn law_semantic(&self) -> Result<DistributionMeaningWire, JointPanelError> {
         if self.draws.is_empty() || self.draws.iter().any(Option::is_none) {
             return Err(JointPanelError::Unsupported(

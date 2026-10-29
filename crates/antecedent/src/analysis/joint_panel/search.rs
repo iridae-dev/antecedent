@@ -74,6 +74,9 @@ impl JointPanelResult {
             .and_then(|n| u64::try_from(n).ok())
             .ok_or_else(|| JointPanelError::compile("search response size overflow"))?;
         source::check_memory(ctx, bytes)?;
+        if request.uncertainty == JointPanelSearchUncertainty::PointMeans {
+            self.require_point_fit_diagnostics()?;
+        }
         let scoped = match request.uncertainty {
             JointPanelSearchUncertainty::PointMeans => {
                 self.project_mean_source(&request.functional)?
@@ -238,6 +241,9 @@ impl JointPanelResult {
             utility_units: request.utility_units.clone(),
             max_candidates: self.request().worlds.len(),
         };
+        if request.uncertainty == JointPanelSearchUncertainty::PointMeans {
+            self.require_point_fit_diagnostics()?;
+        }
         // The same production control/quantity admission used by the finite next-attempt predecessor.
         self.compile_numerical_search(&finite, ctx)?;
         let means = self.numerical_project_mean_source(&request.functional)?;

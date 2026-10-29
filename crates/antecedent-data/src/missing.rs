@@ -703,6 +703,16 @@ mod tests {
     }
 
     #[test]
+    fn the_error_policy_refusal_says_the_declared_policy_refuses_it() {
+        let data = table();
+        let err = MissingConversion::convert(&data, None, &ids(), MissingPolicy::ErrorOnMissing)
+            .expect_err("a missing value under `error` is refused");
+        let text = err.to_string();
+        assert!(!text.contains("no missing-data policy is declared"), "{text}");
+        assert!(text.contains("policy `error` refuses"), "{text}");
+    }
+
+    #[test]
     fn digest_identifies_which_rows_were_dropped() {
         let one = dropped_row_digest(6, &[1, 2, 4]);
         assert_eq!(one, dropped_row_digest(6, &[1, 2, 4]));

@@ -141,6 +141,16 @@ pub fn smoothed_dose_posterior(
 ) -> Result<SmoothedDosePosterior, EstimationError> {
     let certified = smoothed_dose_certified_features(id)?;
     query.validate()?;
+    if input.declares_rows() {
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("route_not_supported"),
+            "dose_response.posterior_declared_rows",
+            "the conjugate Gaussian outcome posterior assumes independent homoskedastic source \
+             rows and no sampling design, which declared sampling weights, clusters or serial \
+             dependence contradict. Next attempt: the point estimate, which reads them, or a \
+             posterior on plain rows",
+        ));
+    }
     check_grid_windows(query)?;
     let (source, target) = split_rows(&certified, query, input, model)?;
     let features = input.covariates.len();
@@ -366,6 +376,9 @@ mod tests {
             dose_density: vec![1.0 / 3.0; n],
             source: (0..n).map(|i| i < 18).collect(),
             sampling: TrialSampling::IndependentSamples,
+            sampling_weights: None,
+            cluster: None,
+            serial_lag: None,
         }
     }
 
@@ -446,6 +459,26 @@ mod tests {
         assert_eq!(posterior.source_rows, 18);
         assert_eq!(posterior.target_rows, 6);
         assert_eq!(posterior.minimum_local_rows, 6);
+    }
+
+    #[test]
+    fn declared_weights_clusters_and_lags_are_refused_not_ignored() {
+        let basis = DoseBasis::default();
+        let plain = input();
+        let n = plain.source.len();
+        for edit in [
+            |r: &mut SmoothedDoseInput| r.sampling_weights = Some(vec![1.0; 24]),
+            |r: &mut SmoothedDoseInput| r.cluster = Some((0..24).map(|i| i % 4).collect()),
+            |r: &mut SmoothedDoseInput| r.serial_lag = Some(2),
+        ] {
+            let mut declared = plain.clone();
+            edit(&mut declared);
+            assert_eq!(declared.source.len(), n);
+            let error = smoothed_dose_posterior(&standardize(), &query(), &declared, &model(&basis))
+                .unwrap_err()
+                .to_string();
+            assert!(error.contains("dose_response.posterior_declared_rows"), "{error}");
+        }
     }
 
     #[test]

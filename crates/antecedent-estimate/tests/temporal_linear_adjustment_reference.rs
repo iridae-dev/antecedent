@@ -150,7 +150,8 @@ fn aligned_windows_effect_and_standard_error_match_the_exact_reference() {
 }
 
 #[test]
-fn a_query_declaring_effect_modifiers_is_refused_not_answered_with_the_average_effect() {
+fn a_query_declaring_effect_modifiers_is_answered_with_the_conditional_effect_not_the_average_effect()
+{
     let reference: Value =
         serde_json::from_str(include_str!("oracle_data/temporal_linear_adjustment_reference.json"))
             .unwrap();
@@ -170,14 +171,20 @@ fn a_query_declaring_effect_modifiers_is_refused_not_answered_with_the_average_e
     let estimand = id_res.result.estimands.first().unwrap();
     let ctx = ExecutionContext::for_tests(1);
     let est = TemporalLinearAdjustment::new();
-    let error = est
+    // The declared modifier set is read: the prepared problem is the conditional design, whose
+    // value is exercised against the exact reference in the conditional-effect reference test.
+    let prep = est
         .prepare(&data, estimand, &query, &id_res.indexer, None, &ctx.kernel_policy)
-        .unwrap_err();
-    let (code, message) = error.coded_refusal().expect("a coded refusal");
-    assert_eq!(code, "route_not_supported");
-    assert_eq!(message.detail(), Some("temporal_adjustment.effect_modifiers_declared"));
+        .expect("a modifier query prepares the conditional design");
+    assert!(prep.method.starts_with("temporal.linear.adjustment.conditional"), "{}", prep.method);
+    let average_query = query.clone().with_effect_modifiers(Vec::<VariableId>::new());
+    let average = est
+        .prepare(&data, estimand, &average_query, &id_res.indexer, None, &ctx.kernel_policy)
+        .unwrap();
+    assert_eq!(&*average.method, "temporal.linear.adjustment");
+    assert!(prep.design.ncols > average.design.ncols, "the interaction columns are in the design");
     let gapped = est
         .prepare_with_gaps(&data, estimand, &query, &id_res.indexer, &ctx.kernel_policy)
-        .unwrap_err();
-    assert!(gapped.coded_refusal().is_some());
+        .expect("the gap-aware path reads the modifier set too");
+    assert!(gapped.0.method.starts_with("temporal.linear.adjustment.conditional"));
 }

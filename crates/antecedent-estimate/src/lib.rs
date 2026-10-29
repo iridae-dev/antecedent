@@ -147,6 +147,7 @@ pub mod retarget;
 pub mod sampling_weights;
 pub mod scenario_covariance;
 pub mod scenario_invariance_report;
+pub mod score_dependence;
 pub mod score_posterior;
 pub mod scores;
 pub mod se;
@@ -187,6 +188,7 @@ pub mod temporal_transport;
 mod tiled_prediction;
 pub mod trajectory_survival;
 pub mod transport;
+pub mod transport_design;
 pub mod transport_scenarios;
 pub mod util;
 pub mod vector_treatment;
@@ -416,9 +418,10 @@ pub use response::{
 };
 pub use retarget::{
     DirectedAncestry, RetargetRefusal, RetargetResult, changes_target, check_depends_on,
-    exceedance_cdf_values, retarget, summarize_functional, weighted_overlap_fields,
+    exceedance_cdf_values, retarget, summarize_functional, summarize_functional_with, weighted_overlap_fields,
     weighted_support_fields,
 };
+pub use score_dependence::ScoreDependence;
 pub use sampling_weights::{RetainedSamplingWeights, SamplingWeightRecord, SamplingWeights};
 pub use scores::{
     LinearContrast, ScoreColumn, ScoreInference, ScoreSummary, ScoreSupport, ScoreTable,
@@ -446,10 +449,12 @@ pub use statistical_transport::{
     mz_transport_bootstrap_law_draws,
 };
 pub use temporal_adjustment::{
-    GapSelection, NestedDirectFitMoments, TemporalDependenceSe, TemporalDesignInputs,
+    GapSelection, NestedDirectFitMoments, TemporalConditionalFit, TemporalDependenceSe,
+    TemporalDesignInputs,
     TemporalLinearAdjustment, TemporalSlopeSpec, is_temporal_coefficient_name,
     nested_direct_fit_moments, temporal_coefficient_names, temporal_conditional_marginal_effect,
-    temporal_conditional_marginal_effect_with_gaps, temporal_linear_slopes,
+    temporal_conditional_marginal_effect_with_gaps, temporal_conditional_marginal_fit,
+    temporal_linear_slopes,
 };
 pub use temporal_block::{
     AlignedRows, BlockBootstrap, CircularBlockFamily, GappedAlignedRows, RowBlockDraws,

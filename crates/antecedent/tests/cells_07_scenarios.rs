@@ -252,7 +252,8 @@ fn synthetic() -> (TabularData, SyntheticControlQuery) {
 }
 
 #[test]
-fn a_single_treated_unit_synthetic_control_refuses_a_declared_clustered_or_serial_design() {
+fn a_single_treated_unit_synthetic_control_honours_a_clustered_design_and_refuses_a_serial_one_it_cannot_test()
+ {
     let (data, query) = synthetic();
     let run = |design: Option<DeclaredSamplingDesign>| {
         let mut builder = Study::tabular(data.clone()).query(query.clone());
@@ -265,17 +266,21 @@ fn a_single_treated_unit_synthetic_control_refuses_a_declared_clustered_or_seria
         let effect = run(design).unwrap().synthetic_control().unwrap().effect;
         assert!((effect - 5.0).abs() < 1e-5, "{design:?}: {effect}");
     }
-    for design in
-        [DeclaredSamplingDesign::ClusteredPanel, DeclaredSamplingDesign::DependentTimeSeries]
-    {
-        let error = run(Some(design))
-            .err()
-            .unwrap_or_else(|| panic!("{design:?}: the declared design was silently ignored"));
-        assert_eq!(error.reason_code(), Some("option_not_applicable"), "{design:?}: {error}");
-        let text = error.to_string();
-        assert!(text.contains("would be silently ignored"), "{design:?}: {text}");
-        assert!(text.contains("Next attempt"), "{design:?}: {text}");
-    }
+    // A clustered panel reports the placebo variance of the donors, read over the whole units:
+    // the effect at the intervention period is the same 5, and the interval is the placebo one.
+    let clustered = run(Some(DeclaredSamplingDesign::ClusteredPanel)).unwrap();
+    let overall = clustered.quasi_rollout().unwrap().overall().unwrap().clone();
+    assert!((overall.estimate - 5.0).abs() < 1e-5, "{}", overall.estimate);
+    assert!(overall.standard_error.is_some());
+    // Four pre-periods cannot reach the 5% conformal level (1 / (4 + 1) = 0.2), so a serial design
+    // is refused with the next attempt instead of reporting an interval of another level.
+    let error = run(Some(DeclaredSamplingDesign::DependentTimeSeries))
+        .err()
+        .expect("a serial design on four pre-periods was silently ignored");
+    assert_eq!(error.reason_code(), Some("option_not_applicable"), "{error}");
+    let text = error.to_string();
+    assert!(text.contains("pre-periods"), "{text}");
+    assert!(text.to_lowercase().contains("next attempt"), "{text}");
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -374,7 +379,7 @@ fn a_mediation_level_the_treatment_never_took_is_refused_not_extrapolated() {
                     panic!("{class} {contrast:?} {levels:?}: extrapolated an unvisited level")
                 });
                 let text = error.to_string();
-                if error.reason_code() == Some("positivity_violated") {
+                if error.reason_code() == Some("arm_not_populated") {
                     assert!(
                         text.contains(
                             "is not one of the two levels the binary treatment took (0 and 1)"
@@ -387,7 +392,7 @@ fn a_mediation_level_the_treatment_never_took_is_refused_not_extrapolated() {
                     assert!(text.contains("missing probability table entry"), "{class}: {text}");
                 }
                 if class == "dag" {
-                    assert_eq!(error.reason_code(), Some("positivity_violated"), "{text}");
+                    assert_eq!(error.reason_code(), Some("arm_not_populated"), "{text}");
                 }
             }
         }

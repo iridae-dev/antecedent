@@ -126,7 +126,7 @@ impl Study {
         }
         ensure_prepared_supported(self)?;
         if let DataInput::Tabular(table) = &self.data {
-            self.refuse_unread_sampling_weights(table)?;
+            self.refuse_unread_sampling_weights_for_route(table)?;
         }
         let plan = Arc::new(self.compile_with_retained_identification(
             &crate::analysis::lowering::CompileGoal::Estimate,

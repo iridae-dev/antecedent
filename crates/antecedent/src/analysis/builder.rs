@@ -1826,6 +1826,20 @@ impl StudyBuilder {
         self
     }
 
+    /// Declare the cluster labels or the serial kernel that the variance of a score-table
+    /// route must read.
+    ///
+    /// The declaration pairs with [`Self::sampling_design`]: cluster labels (one per row of the
+    /// table) go with a clustered panel and a Newey-West lag with a dependent time series, rows
+    /// taken in table order as unit-spaced time. Only the joint-cell response reads it, as the
+    /// cluster-robust or Newey-West variance of its influence values; any other route refuses it
+    /// instead of ignoring it. It enters the data-snapshot identity.
+    #[must_use]
+    pub fn score_dependence(mut self, dependence: antecedent_estimate::ScoreDependence) -> Self {
+        self.declared.score_dependence = Some(dependence);
+        self
+    }
+
     /// Bindings for named predicates and custom target-distribution weights.
     #[must_use]
     pub fn population_registry(mut self, registry: PopulationRegistry) -> Self {
@@ -1920,6 +1934,13 @@ impl StudyBuilder {
 
     fn finish(mut self, inspect_only: bool) -> Result<Study, CausalError> {
         self.apply_bootstrap_interval()?;
+        if let (Some(CausalQuery::SyntheticControl(query)), InferenceMode::Frequentist) =
+            (self.query.as_mut(), &self.settings.inference)
+        {
+            // A declared serial or clustered design on the single treated unit is honoured by
+            // the interval built for it, not ignored.
+            query.honor_declared_dependence(self.declared.sampling_design);
+        }
         let discovery = self.discovery.take();
         let mechanisms = self.mechanisms.take();
         let posterior_provenance = self.posterior_provenance.take();

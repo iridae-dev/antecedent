@@ -22,6 +22,14 @@ use super::{
 };
 use crate::planner::RouteDefaults;
 
+/// What the joint cell's summary reads beyond the scores: the sampling weights of the analysed
+/// rows (`None`: equal) and the declared dependence, both aligned to the score rows.
+struct CellAipwReading {
+    weights: Option<Vec<f64>>,
+    dependence: Option<antecedent_estimate::ScoreDependence>,
+    record: Option<antecedent_estimate::SamplingWeightRecord>,
+}
+
 /// Treatment coordinates and outcome of a cell.aipw joint-arm query.
 #[derive(Clone, Copy)]
 struct CellAipwTarget<'a> {
@@ -1592,23 +1600,131 @@ impl super::Study {
         let table = if let Some(table) = precomputed_table {
             table
         } else {
-            est.fit_scores_with_assignment(
-                data,
-                &antecedent_estimate::CellScoreSpec {
-                    treatments,
-                    outcome,
-                    adjustment: &estimand.adjustment_set,
-                    functional: &query.outcome_functional,
-                    continuous,
-                },
-                antecedent_estimate::SharedCellInputs {
-                    fold_ids: fold_ids.as_deref(),
-                    design: design.as_deref(),
-                },
-            )
-            .map_err(CausalError::from)?
+            let spec = antecedent_estimate::CellScoreSpec {
+                treatments,
+                outcome,
+                adjustment: &estimand.adjustment_set,
+                functional: &query.outcome_functional,
+                continuous,
+            };
+            let shared = antecedent_estimate::SharedCellInputs {
+                fold_ids: fold_ids.as_deref(),
+                design: design.as_deref(),
+            };
+            // A table that carries observation weights is fitted for the weighted population.
+            if data.storage().weights().is_some() {
+                est.fit_scores_sampling_weighted(data, &spec, shared)
+                    .map(|(table, _)| table)
+                    .map_err(CausalError::from)?
+            } else {
+                est.fit_scores_with_assignment(data, &spec, shared).map_err(CausalError::from)?
+            }
         };
         Ok(table)
+    }
+
+    /// Refuse the options of a joint-cell study that the weighted or dependence-aware
+    /// construction does not read.
+    ///
+    /// The quantile inversion, the refutation suite and a bootstrap resample the rows as
+    /// independent and unweighted, so under sampling weights or a declared dependence each
+    /// would publish a number for another population or another sampling design.
+    fn refuse_cell_aipw_unread_options(&self, query: &ResponseQuery) -> Result<(), CausalError> {
+        if query.outcome_functional.quantile_level().is_some() {
+            return Err(crate::unsupported_reason!(
+                "option_not_applicable",
+                "the joint-cell quantile inverts an unweighted, independent-row exceedance \
+                 grid, so sampling weights or a declared cluster or serial dependence would be \
+                 silently ignored by it. Next attempt: ask for the mean or an exceedance \
+                 probability, which read the weights and the dependence, or drop them"
+            ));
+        }
+        if !matches!(self.settings.refute, RefuteSuite::None) {
+            return Err(crate::unsupported_reason!(
+                "option_not_applicable",
+                "the refutation suite of the joint cell reads unweighted independent rows, so \
+                 sampling weights or a declared cluster or serial dependence would be silently \
+                 ignored by it. Next attempt: run the study with RefuteSuite::None"
+            ));
+        }
+        Ok(())
+    }
+
+    /// The sampling weights and the dependence the joint cell's variance must read, aligned to
+    /// the rows of `table`.
+    ///
+    /// The weights are the table's observation weights of the analysed rows, and a table that
+    /// was fitted without them (or with them when the data has none) is refused rather than
+    /// summarized under the other population.
+    fn cell_aipw_reading(
+        &self,
+        data: &TabularData,
+        table: &antecedent_estimate::ScoreTable,
+        target: &CellAipwTarget<'_>,
+        estimand: &IdentifiedEstimand,
+    ) -> Result<CellAipwReading, CausalError> {
+        let fitted_weighted = table.nuisance_provenance.contains("sampling_weights");
+        let rows: Vec<usize> = table
+            .row_index
+            .iter()
+            .map(|id| usize::try_from(id.get()))
+            .collect::<Result<_, _>>()
+            .map_err(|_| CausalError::Compile {
+                message: "a cell score row index does not fit the platform's address width".into(),
+            })?;
+        let (weights, record) = match data.storage().weights() {
+            None if fitted_weighted => {
+                return Err(CausalError::Compile {
+                    message: "the cell scores were fitted with sampling weights but the data \
+                              carries none"
+                        .into(),
+                });
+            }
+            None => (None, None),
+            Some(_) if !fitted_weighted => {
+                return Err(CausalError::Compile {
+                    message: "the data carries sampling weights but the cell scores were fitted \
+                              without them; refit the scores on this data"
+                        .into(),
+                });
+            }
+            Some(source) => {
+                let used: Vec<f64> = rows
+                    .iter()
+                    .map(|&row| {
+                        source.get(row).copied().ok_or_else(|| CausalError::Compile {
+                            message: "a cell score row lies beyond the table's weights".into(),
+                        })
+                    })
+                    .collect::<Result<_, _>>()?;
+                let sum: f64 = used.iter().sum();
+                let square: f64 = used.iter().map(|w| w * w).sum();
+                let mut ids: Vec<_> = target.treatments.to_vec();
+                ids.push(target.outcome);
+                ids.extend(estimand.adjustment_set.iter().copied());
+                let zero_weight_rows = data
+                    .complete_case_mask(&ids)
+                    .map(|mask| {
+                        mask.iter().zip(source).filter(|(keep, weight)| **keep && **weight == 0.0).count()
+                    })
+                    .map_err(CausalError::from)?;
+                let record = antecedent_estimate::SamplingWeightRecord {
+                    rows_used: used.len() as u64,
+                    zero_weight_rows: zero_weight_rows as u64,
+                    effective_sample_size: sum * sum / square,
+                    weight_sum: sum,
+                };
+                (Some(used), Some(record))
+            }
+        };
+        let dependence = self
+            .declared
+            .score_dependence
+            .as_ref()
+            .map(|declared| declared.restricted(&rows))
+            .transpose()
+            .map_err(CausalError::from)?;
+        Ok(CellAipwReading { weights, dependence, record })
     }
 
     /// Level, standard error and influence column of the requested cell.
@@ -1697,10 +1813,20 @@ impl super::Study {
             });
         }
         let target = CellAipwTarget { treatments: &treatments, outcome: *outcome };
+        let declared_reading =
+            data.storage().weights().is_some() || self.declared.score_dependence.is_some();
+        if declared_reading {
+            self.refuse_cell_aipw_unread_options(query)?;
+        }
         let table =
             self.cell_aipw_score_table(data, query, &target, &estimand, precomputed_table, ctx)?;
+        let reading = self.cell_aipw_reading(data, &table, &target, &estimand)?;
         let (summary, monotone_rearranged, mut functional_diagnostics) =
-            antecedent_estimate::summarize_functional(&table, None)?;
+            antecedent_estimate::summarize_functional_with(
+                &table,
+                reading.weights.as_deref(),
+                reading.dependence.as_ref(),
+            )?;
         let (scalar, se, influence) = Self::cell_aipw_level(
             &table,
             &summary,
@@ -1711,7 +1837,8 @@ impl super::Study {
         let cdf = antecedent_estimate::exceedance_cdf_values(&summary, &table);
         let response =
             cell_aipw_response(query, &identification, scalar, se, treatments.len(), requested_arm);
-        let score_inference = table.inference(None)?;
+        let score_inference =
+            table.inference_with(reading.weights.as_deref(), reading.dependence.as_ref())?;
         let mut estimate = EffectEstimate::new(
             scalar,
             se,
@@ -1719,7 +1846,10 @@ impl super::Study {
             OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: None },
         )
         .with_score_table(Some(table))
-        .with_influence(if scalar.is_finite() { Some(influence) } else { None })
+        // The influence column is the unweighted, independent-row score; with sampling weights
+        // or a declared dependence it is not the influence the reported error is built from.
+        .with_influence(if scalar.is_finite() && !declared_reading { Some(influence) } else { None })
+        .with_sampling_weights(reading.record)
         .with_exceedance_cdf(cdf)
         .with_joint_covariance(Some(summary.covariance))
         .with_monotone_rearranged(monotone_rearranged);

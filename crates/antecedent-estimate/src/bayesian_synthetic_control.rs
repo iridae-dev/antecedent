@@ -137,22 +137,28 @@ fn parse_panel(
 ) -> Result<ScPanel, EstimationError> {
     let n = outcome.len();
     if n == 0 || units.len() != n || periods.len() != n || outcome.iter().any(|v| !v.is_finite()) {
-        return Err(EstimationError::stats_msg(
-            "synthetic control needs equal non-empty finite outcome, unit and period vectors",
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            "bayesian_synthetic_control_shape",
+            "synthetic control needs equal non-empty finite outcome, unit and period vectors. Next attempt: supply equal-length non-empty finite outcome, unit and period columns",
         ));
     }
     let mut panel: BTreeMap<&str, BTreeMap<i64, f64>> = BTreeMap::new();
     let mut all_periods = BTreeSet::new();
     for i in 0..n {
         if units[i].is_empty() || periods[i] <= 0 {
-            return Err(EstimationError::stats_msg(
-                "unit IDs must be non-empty and periods positive",
+            return Err(crate::util::refuse(
+                antecedent_core::reason_code!("invalid_argument"),
+                "bayesian_synthetic_control_labels",
+                "unit IDs must be non-empty and periods positive. Next attempt: give every row a non-empty unit label and a positive period",
             ));
         }
         all_periods.insert(periods[i]);
         if panel.entry(units[i].as_str()).or_default().insert(periods[i], outcome[i]).is_some() {
-            return Err(EstimationError::stats_msg(
-                "each unit must have exactly one outcome per period",
+            return Err(crate::util::refuse(
+                antecedent_core::reason_code!("invalid_argument"),
+                "bayesian_synthetic_control_duplicate_cell",
+                "each unit must have exactly one outcome per period. Next attempt: keep one outcome per unit and period, or aggregate repeated observations before the fit",
             ));
         }
     }
@@ -161,18 +167,24 @@ fn parse_panel(
     let post: Vec<i64> =
         all_periods.iter().copied().filter(|p| *p >= spec.intervention_period).collect();
     if pre.len() < 2 || post.is_empty() {
-        return Err(EstimationError::stats_msg(
-            "synthetic control requires at least two pre-periods and one post-period",
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            "bayesian_synthetic_control_periods",
+            "synthetic control requires at least two pre-periods and one post-period. Next attempt: supply a panel with at least two periods before and one at or after the intervention period, or the static randomized effect for a single-period table",
         ));
     }
     if panel.len() < 4 || !panel.contains_key(spec.treated_unit) {
-        return Err(EstimationError::stats_msg(
-            "synthetic control requires one observed treated unit and at least three donor units",
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            "bayesian_synthetic_control_donors",
+            "synthetic control requires one observed treated unit and at least three donor units. Next attempt: supply the treated unit and at least three donor units",
         ));
     }
     if panel.values().any(|observed| all_periods.iter().any(|p| !observed.contains_key(p))) {
-        return Err(EstimationError::stats_msg(
-            "synthetic control requires a balanced panel with identical periods for every unit",
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("missing_policy_required"),
+            "bayesian_synthetic_control_unbalanced",
+            "synthetic control requires a balanced panel with identical periods for every unit. Next attempt: balance the panel, or run the frequentist synthetic control with observed_window_support, which reads the treated unit's observed window without imputing",
         ));
     }
     let treated = &panel[spec.treated_unit];
@@ -357,8 +369,10 @@ fn validate(
         && spec.ar1_rho < 1.0
         && sampling.draws >= 400;
     if !valid {
-        return Err(EstimationError::stats_msg(
-            "Bayesian synthetic control needs a treated unit, a positive intervention period, positive prior parameters, |rho| < 1 and at least 400 draws",
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            "bayesian_synthetic_control_prior",
+            "Bayesian synthetic control needs a treated unit, a positive intervention period, positive prior parameters, |rho| < 1 and at least 400 draws. Next attempt: declare a treated unit, a positive intervention period, positive prior parameters, |rho| < 1 and at least 400 draws",
         ));
     }
     Ok(())

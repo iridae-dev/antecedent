@@ -215,6 +215,30 @@ fn same_design_pulse_consumes_named_source_target_and_filter() {
         (mean - truth).abs() < atol,
         "same-design pulse mean={mean} truth={truth} source={source_mean}"
     );
+    // The series is nearly noise-free (uniform noise of half-width 0.05 over 240 rows), so the
+    // lag-one coefficient is pinned far below the fixture's band; a band of 0.01 still
+    // separates the true 0.9 from any prior-dominated or mis-mapped coefficient.
+    assert!((mean - truth).abs() < 0.01, "same-design pulse mean={mean} truth={truth}");
+    // The transferred prior is consumed, not ignored: the same target fitted with the same seed
+    // and no prior artifact has a different posterior.
+    let flat = Study::series(target_series.clone())
+        .graph(graph_xy())
+        .temporal_query(pulse_query())
+        .inference(InferenceMode::Bayesian(bayes(n_draws)))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap()
+        .estimate_series(&target_series, &ctx)
+        .unwrap();
+    let flat_mean = flat.posterior.as_ref().unwrap().summaries.mean
+        [flat.posterior.as_ref().unwrap().effect_column().unwrap()];
+    assert!(
+        (mean - flat_mean).abs() > 0.0,
+        "the prior from the named source did not change the posterior: {mean} vs {flat_mean}"
+    );
 }
 
 #[test]

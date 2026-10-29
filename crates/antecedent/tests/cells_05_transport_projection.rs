@@ -10,7 +10,9 @@
 
 use std::sync::Arc;
 
-use antecedent::{CausalError, RefuteSuite, Study, StudyBuilder, StudyResult, TransportTrialSpec};
+use antecedent::{
+    CausalError, RefuteSuite, ScoreDependence, Study, StudyBuilder, StudyResult, TransportTrialSpec,
+};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ContinuousDomain, DeclaredSamplingDesign, ExecutionContext,
     GridSpec, ResponseFunctional, ResponseQuery, TransportQuery, VariableId,
@@ -136,15 +138,36 @@ fn cells_05_the_transport_baseline_equals_the_hand_counted_contrast() {
 }
 
 #[test]
-fn cells_05_transport_weights_are_refused_and_the_probabilities_are_its_design_weights() {
+fn cells_05_transport_weights_are_read_and_the_probabilities_are_its_design_weights() {
     run_on_large_stack(|| {
-        // Observation weights on the table, constant or not, would describe the unweighted rows.
-        for weights in [weights(), vec![1.0; ROWS]] {
-            let data = table(&columns()).with_weights(Arc::from(weights)).unwrap();
-            let error = refusal(go(data, |b| b), "table weights");
-            assert_eq!(error.reason_code(), Some("option_not_applicable"), "{error}");
-            assert!(error.to_string().contains("sampling_weights.route_unsupported"), "{error}");
-        }
+        // Observation weights on the table are read: the contrast is the weighted ratio
+        // `sum over trial rows of w (+-1) (1 - s) / (s arm) y / sum over target rows of w`.
+        let base = columns();
+        let w = weights();
+        let targets: f64 = (0..ROWS).filter(|&row| base[2][row] == 0.0).map(|row| w[row]).sum();
+        let by_hand: f64 = (0..ROWS)
+            .filter(|&row| base[2][row] == 1.0)
+            .map(|row| {
+                let (sign, arm) = if base[0][row] == 1.0 {
+                    (1.0, PROPENSITY)
+                } else {
+                    (-1.0, 1.0 - PROPENSITY)
+                };
+                w[row] * sign * (1.0 - SELECTION) / (SELECTION * arm) * base[1][row]
+            })
+            .sum::<f64>()
+            / targets;
+        let data = table(&base).with_weights(Arc::from(w)).unwrap();
+        let got = ate(&go(data, |b| b).unwrap());
+        assert!((got - by_hand).abs() < 1e-12, "{got} vs {by_hand}");
+        assert!((got - counted(&base)).abs() > 1e-6, "the weights moved nothing");
+        // Constant weights leave the contrast and its error where the unweighted rows have them.
+        let unweighted = go(table(&base), |b| b).unwrap();
+        let constant = go(table(&base).with_weights(Arc::from(vec![3.0; ROWS])).unwrap(), |b| b)
+            .unwrap();
+        let se = |result: &StudyResult| result.estimate().as_effect().unwrap().uncertainty.analytic.se;
+        assert!((ate(&constant) - ate(&unweighted)).abs() < 1e-12);
+        assert!((se(&constant) - se(&unweighted)).abs() < 1e-12);
         // Weights declared on an estimator the transport route does not run change nothing.
         let declared = SamplingWeights::new(weights()).unwrap();
         let error = refusal(
@@ -228,23 +251,51 @@ fn cells_05_transport_declared_dependence_is_honoured_or_refused() {
     run_on_large_stack(|| {
         let base = columns();
         let want = counted(&base);
+        let se = |result: &StudyResult| result.estimate().as_effect().unwrap().uncertainty.analytic.se;
         // Independent subjects are what the delta-method interval and the row bootstrap cover.
         let independent = go(table(&base), |b| {
             b.sampling_design(DeclaredSamplingDesign::IndependentSubjectTrajectories)
         })
         .unwrap();
         assert!((ate(&independent) - want).abs() < 1e-12);
-        // A clustered panel, or rows declared one dependent series on a non-temporal graph,
-        // would be published with an interval that assumes independent rows.
-        for design in
-            [DeclaredSamplingDesign::ClusteredPanel, DeclaredSamplingDesign::DependentTimeSeries]
-        {
-            let error =
-                refusal(go(table(&base), |b| b.sampling_design(design)), design.as_str());
-            assert_eq!(error.reason_code(), Some("option_not_applicable"), "{design:?}: {error}");
-            assert!(error.to_string().contains(design.as_str()), "{error}");
-            assert!(error.to_string().contains("Next attempt"), "{error}");
-        }
+        // Rows declared one dependent series are read on any graph: lag zero is the
+        // independent-row error, a longer lag is the Newey-West long-run variance.
+        let series = |lag: usize| {
+            go(table(&base), |b| {
+                b.sampling_design(DeclaredSamplingDesign::DependentTimeSeries)
+                    .score_dependence(ScoreDependence::newey_west(lag))
+            })
+            .unwrap()
+        };
+        assert!((se(&series(0)) - se(&independent)).abs() < 1e-12);
+        assert!((ate(&series(3)) - want).abs() < 1e-12);
+        assert!((se(&series(3)) - se(&independent)).abs() > 1e-6);
+        // A clustered panel is read through its labels: one row per cluster is the independent
+        // error times the G / (G - 1) factor, and a cluster of every four rows is wider.
+        let labels = |size: usize| {
+            ScoreDependence::clusters((0..ROWS).map(|row| (row / size) as u32).collect::<Vec<_>>())
+        };
+        let each = go(table(&base), |b| {
+            b.sampling_design(DeclaredSamplingDesign::ClusteredPanel).score_dependence(labels(1))
+        })
+        .unwrap();
+        let factor = (ROWS as f64 / (ROWS as f64 - 1.0)).sqrt();
+        assert!((se(&each) - se(&independent) * factor).abs() < 1e-12);
+        assert!((ate(&each) - want).abs() < 1e-12);
+        let fours = go(table(&base), |b| {
+            b.sampling_design(DeclaredSamplingDesign::ClusteredPanel).score_dependence(labels(4))
+        })
+        .unwrap();
+        assert!((ate(&fours) - want).abs() < 1e-12);
+        assert!((se(&fours) - se(&each)).abs() > 1e-6);
+        // A clustered panel with no labels names no whole cluster to sum or draw: refused.
+        let error = refusal(
+            go(table(&base), |b| b.sampling_design(DeclaredSamplingDesign::ClusteredPanel)),
+            "clustered panel without labels",
+        );
+        assert_eq!(error.reason_code(), Some("option_not_applicable"), "{error}");
+        assert!(error.to_string().contains("clustered_panel"), "{error}");
+        assert!(error.to_string().contains("Next attempt"), "{error}");
     });
 }
 
@@ -371,4 +422,55 @@ fn cells_05_the_average_effect_on_a_dag_equals_the_admg_projection_and_the_adjus
     assert!((ate(&on_dag) - truth).abs() < 1e-9, "{}", ate(&on_dag));
     assert!((ate(&on_admg) - truth).abs() < 1e-9, "{}", ate(&on_admg));
     assert!((ate(&on_dag) - ate(&on_admg)).abs() < 1e-12);
+}
+
+/// A contrasted level that no row of the treatment column carries is refused, never read off
+/// the fitted slope: a 0/1 column queried at (5, 0) used to publish 2.0 and at (0.5, 0) 0.2.
+#[test]
+fn cells_05_a_contrast_level_the_treatment_never_took_is_refused_on_every_graph_class() {
+    let (data, truth) = projection_table();
+    let node = DenseNodeId::from_raw;
+    let edges = [(2_u32, 0_u32), (2, 1), (0, 1)];
+    let mut dag = Dag::with_variables(3);
+    let mut admg = Admg::with_variables(3);
+    for (from, to) in edges {
+        dag.insert_directed(node(from), node(to)).unwrap();
+        admg.insert_directed(node(from), node(to)).unwrap();
+    }
+    let cpdag = antecedent_graph::Cpdag::from_dag(&dag);
+    let ctx = ExecutionContext::for_tests(5);
+    let run = |class: &str, active: f64, control: f64, suite: RefuteSuite| {
+        let query = AverageEffectQuery::with_levels(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            control,
+            active,
+        );
+        let builder = Study::tabular(data.clone());
+        let builder = match class {
+            "dag" => builder.graph(dag.clone()),
+            "admg" => builder.graph(admg.clone()),
+            _ => builder.graph(cpdag.clone()),
+        };
+        builder
+            .query(query)
+            .refute(suite)
+            .bootstrap_replicates(0)
+            .build()
+            .and_then(|study| study.run(&ctx))
+    };
+    for class in ["dag", "admg", "cpdag"] {
+        for suite in [RefuteSuite::None, RefuteSuite::Cheap] {
+            let populated = run(class, 1.0, 0.0, suite).unwrap();
+            assert!((ate(&populated) - truth).abs() < 1e-9, "{class}");
+            for (active, control) in [(5.0, 0.0), (0.5, 0.0), (1.0, -3.0), (7.5, 2.0)] {
+                let error = run(class, active, control, suite)
+                    .err()
+                    .unwrap_or_else(|| panic!("{class} ({active}, {control}): extrapolated"));
+                assert_eq!(error.reason_code(), Some("arm_not_populated"), "{class}: {error}");
+                let text = error.to_string();
+                assert!(text.contains("the treatment takes the levels 0, 1"), "{text}");
+            }
+        }
+    }
 }

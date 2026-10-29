@@ -57,6 +57,9 @@ pub(super) struct Declarations {
     /// Declared sampling design of the rows; `None` leaves each estimator on the design its
     /// row grouping implies.
     pub(super) sampling_design: Option<antecedent_core::DeclaredSamplingDesign>,
+    /// Cluster labels or a serial kernel for the routes whose variance is built from a score
+    /// table; `None` leaves the rows independent.
+    pub(super) score_dependence: Option<antecedent_estimate::ScoreDependence>,
     /// Custom slow-path validators appended after the built-in refute suite.
     pub(super) custom_validators: Vec<Arc<dyn CustomEffectValidator>>,
     /// Optional tier-rule background (fast-path generalized adjustment).

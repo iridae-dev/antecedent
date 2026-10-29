@@ -447,7 +447,7 @@ fn predicate_restricts_prepared_rows_and_shifts_logit_ate() {
     let est = GlmAdjustmentAte::new().with_bootstrap_replicates(0);
     let all = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let even = all.clone().with_target_population(TargetPopulation::Predicate(
-        PredicateExpr::rows((0..400).step_by(2).collect::<Vec<_>>()),
+        PredicateExpr::rows((0..200).collect::<Vec<_>>()),
     ));
     let prep_all = est.prepare(&data, &estimand, &all).unwrap();
     let prep_even = est.prepare(&data, &estimand, &even).unwrap();

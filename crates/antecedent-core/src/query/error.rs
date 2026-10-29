@@ -129,6 +129,11 @@ pub enum RandomizedEffectFault {
     /// Refused: switchback variance requires at least two independent sequences.
     #[error("switchback variance requires at least two independent sequences")]
     SwitchbackSequences,
+    /// Refused: a switchback needs at least two distinct periods; one period per sequence is a single-period randomized trial.
+    #[error(
+        "a switchback needs at least two distinct periods; with one period for every sequence the assignment never switches back, so it is a single-period randomized trial. Next attempt: the static randomized effect (a Bernoulli, complete, cluster or stratified design) for one period, or add the later periods of each sequence"
+    )]
+    SwitchbackSinglePeriod,
 }
 
 /// Errors from query construction or validation.

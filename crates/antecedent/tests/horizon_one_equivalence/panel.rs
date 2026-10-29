@@ -69,6 +69,45 @@ fn panel_data() -> PanelData {
     PanelData::try_new(Arc::from(units)).unwrap()
 }
 
+/// The same four groups with an outcome that saturates in both doses, so that the half-saturation
+/// is identified: a fit on it converges to a point with positive definite curvature, which a
+/// program search over point means requires. (The linear panel above leaves the half-saturation on
+/// a flat ridge.)
+fn saturating_panel_data() -> PanelData {
+    let units: Vec<PanelUnit> = (0..GROUPS)
+        .map(|unit_id| {
+            let offset = unit_id as usize;
+            let a: Vec<f64> = (0..STEPS).map(|t| ((t + offset) % 4) as f64).collect();
+            let b: Vec<f64> = (0..STEPS).map(|t| ((2 * t + offset + 1) % 4) as f64).collect();
+            let z: Vec<f64> = (0..STEPS).map(|t| (t % 2) as f64).collect();
+            let season = vec![0.0; STEPS];
+            let y: Vec<f64> = (0..STEPS)
+                .map(|t| {
+                    1.0 + 2.4 * a[t] / (a[t] + 1.5)
+                        + 1.5 * b[t] / (b[t] + 1.5)
+                        + 0.3 * f64::from(unit_id)
+                        + 0.1 * disturbance(t + 10 * offset)
+                })
+                .collect();
+            PanelUnit {
+                unit_id,
+                series: TimeSeriesData::from_f64_columns(
+                    [
+                        ("a", a.as_slice()),
+                        ("b", b.as_slice()),
+                        ("y", y.as_slice()),
+                        ("z", z.as_slice()),
+                        ("season", season.as_slice()),
+                    ],
+                    100,
+                )
+                .unwrap(),
+            }
+        })
+        .collect();
+    PanelData::try_new(Arc::from(units)).unwrap()
+}
+
 fn panel_columns() -> JointPanelColumns {
     JointPanelColumns {
         channels: vec![id(0), id(1)],
@@ -276,7 +315,7 @@ fn horizon_one_joint_interaction_is_the_static_decision_world_contrast_but_not_i
 #[test]
 fn horizon_one_continuous_program_search_polls_static_decision_worlds_on_one_reused_fit() {
     let context = ExecutionContext::for_tests(1);
-    let panel = panel_data();
+    let panel = saturating_panel_data();
     let prepared =
         Study::prepare_joint_panel(panel.clone(), panel_request(&panel, 0, 1), &context).unwrap();
     let result = prepared.estimate(&context).unwrap();

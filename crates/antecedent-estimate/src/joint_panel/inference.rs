@@ -461,8 +461,12 @@ fn bootstrap_draws(
                 p.innovation_sd / (1.0 - p.rho.powi(2)).sqrt() * standard_normal(&mut rng);
             for time in 0..group.outcome.len() {
                 error = p.rho * error + p.innovation_sd * standard_normal(&mut rng);
-                group.outcome[time] =
-                    likelihood::observed_response(data, p, group, index, time) + intercept + error;
+                // The process runs through every period; an excluded period stays excluded.
+                group.outcome[time] = if data.groups[index].outcome[time].is_nan() {
+                    f64::NAN
+                } else {
+                    likelihood::observed_response(data, p, group, index, time) + intercept + error
+                };
             }
         }
         let compiled = likelihood::CompiledPanel::new(&simulated)?;
@@ -652,6 +656,10 @@ fn fit_memory(
     let retained = u64::try_from(retained).map_err(|_| invalid("retained fit size overflow"))?;
     Ok((scratch, retained))
 }
+
+#[cfg(test)]
+#[path = "joint_panel_weights_gaps_reference_tests.rs"]
+mod joint_panel_weights_gaps_reference_tests;
 
 #[cfg(test)]
 mod bootstrap_tests {

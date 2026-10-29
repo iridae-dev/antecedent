@@ -883,7 +883,7 @@ impl super::Study {
         execution: Option<&super::super::prepared::PreparedExecution>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        self.refuse_unread_sampling_weights(table)?;
+        self.refuse_unread_sampling_weights_for_route(table)?;
         if let Some(gp) = &self.graph_posterior {
             return self.execute_graph_posterior_tabular(table, gp, physical, ctx);
         }
@@ -1105,7 +1105,7 @@ impl super::Study {
         execution: &super::super::prepared::PreparedExecution,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        self.refuse_unread_sampling_weights(data)?;
+        self.refuse_unread_sampling_weights_for_route(data)?;
         let lowered =
             physical.require_lowered(crate::analysis::lowering::expected_cell(self))?.identity();
         let ctx = &ctx.enter_lowered_dispatch(lowered);
