@@ -52,7 +52,8 @@ fn an_earlier_observation_recovery_artifact_is_inspectable_and_refused() {
         RecoveryConsumeLimits::default(),
         &ctx(),
     );
-    assert!(outcome.is_err(), "the earlier rule spelling is not accepted");
+    let error = format!("{:?}", outcome.err().expect("the earlier rule spelling is not accepted"));
+    assert!(error.contains(r#"ProofMismatch(RecoveryError { detail: InvalidDerivation"#), "{error}");
 }
 
 #[test]
@@ -65,7 +66,8 @@ fn an_earlier_sampled_recovery_artifact_is_inspectable_and_refused() {
         SampledRecoveryConsumeLimits::default(),
         &ctx(),
     );
-    assert!(outcome.is_err(), "the earlier rule spelling is not accepted");
+    let error = format!("{:?}", outcome.err().expect("the earlier rule spelling is not accepted"));
+    assert!(error.contains(r#""recovery.invalid_derivation: the stored derivation record is not reproduced""#), "{error}");
 }
 
 #[test]
@@ -74,7 +76,8 @@ fn an_earlier_recovery_chain_artifact_is_inspectable_and_refused() {
         .expect("the stored wire is still readable");
     assert_eq!(wire.plan.as_ref().expect("a plan").rule_version, "b2.recovery_chain.v1");
     let outcome = RecoveryChainArtifactWire::consume_typed(RECOVERY_CHAIN, &ctx());
-    assert!(outcome.is_err(), "the earlier rule spelling is not accepted");
+    let error = format!("{:?}", outcome.err().expect("the earlier rule spelling is not accepted"));
+    assert!(error.contains(r#"DecisionMismatch("plan")"#), "{error}");
 }
 
 #[test]
@@ -87,7 +90,8 @@ fn an_earlier_mixed_source_artifact_is_inspectable_and_refused() {
         MixedSourceConsumeLimits::default(),
         &ExecutionContext::for_tests(3),
     );
-    assert!(outcome.is_err(), "the earlier rule-set spelling is not accepted");
+    let error = format!("{:?}", outcome.err().expect("the earlier rule spelling is not accepted"));
+    assert!(error.contains(r#"mixed_search.invalid_derivation"#), "{error}");
 }
 
 #[test]
@@ -103,6 +107,11 @@ fn earlier_study_plans_are_inspectable_and_refused() {
             StudyPlanConsumeLimits::default(),
             &ExecutionContext::for_tests(9),
         );
-        assert!(outcome.is_err(), "{name}: the earlier ranking spelling is not accepted");
+        let error = format!("{:?}", outcome.err().unwrap_or_else(|| panic!("{name}: accepted")));
+        assert!(
+            error.contains("study_plan.invalid_artifact")
+                && error.contains("another rule set or ranking version"),
+            "{name}: {error}"
+        );
     }
 }

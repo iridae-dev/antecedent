@@ -120,17 +120,17 @@ def test_learned_scope_refusals_carry_their_own_details():
 
 
 def test_learned_validates_its_arguments_as_typed_errors():
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match="sources must be a sequence"):
         transport.learned_joint_transport(**learned_kwargs(sources="s1"))
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match="graph must be an Admg"):
         transport.learned_joint_transport(**learned_kwargs(graph="not a graph"))
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match="basis_degree must be an integer"):
         transport.learned_joint_transport(**learned_kwargs(basis_degree=1.5))
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="graph_class must be one of"):
         transport.learned_joint_transport(**learned_kwargs(graph_class="cyclic"))
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="features must not repeat"):
         transport.learned_joint_transport(**learned_kwargs(features=["x", "x"]))
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="draws must be a non-negative integer"):
         transport.learned_joint_transport(**learned_kwargs(draws=-1))
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="basis_degree must be a non-negative integer"):
         transport.learned_joint_transport(**learned_kwargs(basis_degree=-1))

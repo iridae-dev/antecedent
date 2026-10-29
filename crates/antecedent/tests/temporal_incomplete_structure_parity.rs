@@ -140,14 +140,12 @@ fn assert_completion_or_adjustment_refusal(
             .run(&ctx)
             .expect_err(&format!("{label}/{suite:?}: uncertified adjustment must not estimate"));
         let msg = err.to_string();
-        assert!(
-            msg.contains("no identified mass")
-                || msg.contains("bidirected")
-                || msg.contains("conflict")
-                || msg.contains("completion")
-                || msg.contains("refuses"),
-            "{label}/{suite:?}: {msg}"
-        );
+        let expected = if label.contains("cpdag") {
+            "TemporalCpdagCompletionSampler refuses conflict (x-x) edges"
+        } else {
+            "no identified mass in envelope"
+        };
+        assert!(msg.contains(expected), "{label}/{suite:?}: {msg}");
     }
 }
 

@@ -133,7 +133,7 @@ def test_an_edited_handoff_is_refused() -> None:
             bytes(handoff.export()), callback(), expected_identity=digest(9)
         )
     )
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match="an artifact is bytes or ExportedArtifact"):
         th.consume_for_callback("bytes", callback())  # type: ignore[arg-type]
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match="callback must be a provider_callbacks.CallbackDeclaration"):
         th.hand_to_callback(dataclasses.replace(offer(), port="x"), object(), "effect")  # type: ignore[arg-type]

@@ -43,7 +43,7 @@ sha256 = "20498b0939de03ba181934dbf94853423be8726e921b2596306193248dd3280b"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/statistical_transport_numeric.rs"
-sha256 = "9d5d4fef467593d506e2f6b9a50c7d4122b57835c8d4412649efc7d2aa201d7e"
+sha256 = "2d7d0fa38686f3fe8f0af59a02d9b23ce6a37ad1afdec3d8a86eac13a2a9ba91"
 
 [[method_review.artifacts]]
 role = "fixture"

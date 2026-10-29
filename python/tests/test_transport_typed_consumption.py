@@ -45,7 +45,7 @@ def test_typed_transport_export_does_not_bypass_native_refusal():
     require_success(prepared.estimate())
     raw = bytes(prepared.export())
     damaged = ExportedArtifact(raw[:-1], "ANTECEDENT-Z-TRANSPORT")
-    with pytest.raises(CausalSerializationError):
+    with pytest.raises(CausalSerializationError, match="cbor error"):
         transport.consume_z_transport_artifact(damaged)
 
 
@@ -81,5 +81,5 @@ def test_z_fork_and_snapshot_binding_leave_the_parent_without_a_run_header():
     require_success(run.estimate())
     assert bytes(run.export())
     for preparation in (parent, branch):
-        with pytest.raises(CausalUnsupportedError):
+        with pytest.raises(CausalUnsupportedError, match="estimate before exporting a z-transport artifact"):
             preparation.export()

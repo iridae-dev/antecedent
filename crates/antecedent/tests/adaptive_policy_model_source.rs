@@ -137,9 +137,13 @@ fn the_search_reaches_the_closed_form_tracking_optimum_on_held_out_noise() {
             held.mean_utility
         );
     }
-    assert!(
-        (result.families[1].theta[0] - 25.0).abs() < 3.0 || result.families[1].theta[1].abs() > 0.0
-    );
+    // Both families must land on the optimal price: the schedule sets it at every step, and the
+    // feedback rule must price 25 at the equilibrium lagged demand of 30.
+    for price in &result.families[0].theta {
+        assert!((price - 25.0).abs() < 0.15, "schedule price {price}");
+    }
+    let theta = &result.families[1].theta;
+    assert!((theta[0] + theta[1] * 30.0 - 25.0).abs() < 0.5, "feedback rule {theta:?}");
     assert_eq!(result.standing.label(), "fitted_model_optimization");
     // The paired contrast is the difference of the two held-out means over the same draws
     // (the model noise cancels). Its standard error excludes search error, so the contrast is

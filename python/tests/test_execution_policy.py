@@ -27,7 +27,7 @@ def _prepare(execution=None):
 def test_memory_policy_reaches_native_prepare_and_restores_after_failure():
     tiny = Execution(limits=ResourceLimits(memory_bytes=0), cache=CachePolicy.disabled())
     roomy = Execution(limits=ResourceLimits(memory_bytes=1_000_000))
-    with pytest.raises(ant.errors.CausalResourceError):
+    with pytest.raises(ant.errors.CausalResourceError, match="admission wait"):
         _prepare(tiny)
     study = _prepare(roomy)
     assert ant.estimate(study).answer.value == pytest.approx(2.0)
@@ -39,7 +39,7 @@ def test_nested_policy_restores_the_outer_caller_after_exception():
     inner = Execution(limits=ResourceLimits(memory_bytes=0))
 
     def operation():
-        with pytest.raises(ant.errors.CausalResourceError):
+        with pytest.raises(ant.errors.CausalResourceError, match="admission wait"):
             _prepare(inner)
         return ant.estimate(_prepare(outer)).answer.value
 

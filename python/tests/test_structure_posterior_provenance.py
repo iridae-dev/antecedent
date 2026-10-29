@@ -40,5 +40,5 @@ def test_another_search_is_another_provenance():
 
 def test_a_posterior_supplied_as_atoms_has_no_search_to_accept():
     supplied = _native.GraphPosterior.from_atoms(["a", "b"], [1.0], [0])
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="no contract"):
         supplied.accept_posterior()

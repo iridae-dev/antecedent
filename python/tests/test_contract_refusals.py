@@ -35,7 +35,7 @@ def test_require_refuses_what_the_mode_cannot_serve():
     policy = _native.RetentionPolicy.sufficient_statistics()
     assert policy.result_mode().as_str() == "summary-only"
     policy.require(_native.RetainedOperation.reuse_summary())
-    with pytest.raises(CausalStateError):
+    with pytest.raises(CausalStateError, match="summary-only cannot serve refit from retained rows"):
         policy.require(_native.RetainedOperation.refit_from_retained_rows())
 
     assert _native.RetentionPolicy.bounded_window(0).result_mode().as_str() == "summary-only"
@@ -45,7 +45,7 @@ def test_require_refuses_what_the_mode_cannot_serve():
 
     _native.RetentionMode.disk_backed().require(_native.RetainedOperation.read_disk_artifact())
     _native.RetentionMode.default().require(_native.RetainedOperation.reuse_full_state())
-    with pytest.raises(CausalStateError):
+    with pytest.raises(CausalStateError, match="full reusable state cannot serve read of the declared disk artifact"):
         _native.RetentionMode.default().require(_native.RetainedOperation.read_disk_artifact())
 
 
@@ -121,7 +121,7 @@ def test_interval_is_not_a_bayesian_law_and_covariance_needs_the_four_fields():
     with pytest.raises(CausalUnsupportedError, match="not a Bayesian law"):
         interval.as_bayesian_likelihood()
 
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="summary is blank"):
         _native.FrequentistSummary.estimate_covariance(" ", 1.0, 1.0)
     summary = _native.FrequentistSummary.estimate_covariance("ate", 1.5, 0.04)
     with pytest.raises(CausalValueError):

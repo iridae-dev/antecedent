@@ -93,7 +93,7 @@ def test_the_lag_zero_average_effect_is_the_explicit_pulse(graph_factory, bayesi
 
 def test_the_temporal_dag_recovers_the_contemporaneous_effect() -> None:
     result = _run(_dag(), antecedent.AverageEffect("x", "y"))
-    assert abs(result.ate - BETA) < 0.1
+    assert abs(result.ate - BETA) < 0.05
 
 
 def test_another_functional_is_refused_with_the_next_attempt() -> None:

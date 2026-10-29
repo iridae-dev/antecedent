@@ -69,4 +69,4 @@ def test_accepted_graph_analyze_on_cpdag_runs():
         )
     )
     assert result.performance.latency_mode == "interactive"
-    assert abs(result.ate - 2.0) < 0.5
+    assert abs(result.ate - 2.0) < 0.15

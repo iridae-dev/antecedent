@@ -53,7 +53,7 @@ def test_a_declared_design_without_resampling_leaves_the_estimate_unchanged():
 
 
 def test_a_row_bootstrap_is_refused_under_a_trajectory_design():
-    with pytest.raises(CausalError):
+    with pytest.raises(CausalError, match="does not allow row_iid resampling"):
         _run(bootstrap=20, sampling_design="independent_subject_trajectories")
 
 

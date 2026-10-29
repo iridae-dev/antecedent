@@ -21,7 +21,7 @@ def test_full_native_materialization_preserves_all_records_under_real_execution_
     before = view.inspect().to_dict()
     tiny = ant.Execution(limits=ResourceLimits(memory_bytes=1))
     available = tiny._handle.available_memory_bytes
-    with pytest.raises(CausalResourceError):
+    with pytest.raises(CausalResourceError, match="exceeds the remainder"):
         view.to_dict(execution=tiny)
     assert tiny._handle.available_memory_bytes == available
     assert view.inspect().to_dict() == before
@@ -70,7 +70,7 @@ def test_real_native_materialization_honors_pre_cancelled_execution_and_preserve
     token.cancel()
     policy = ant.Execution(cancel=token, limits=ResourceLimits(memory_bytes=64_000_000))
     available = policy._handle.available_memory_bytes
-    with pytest.raises(CausalCancelledError):
+    with pytest.raises(CausalCancelledError, match="cancelled during identification_materialize"):
         study.identification.to_dict(execution=policy)
     assert policy._handle.available_memory_bytes == available
     assert study.identification.inspect().to_dict() == before
@@ -99,7 +99,7 @@ def test_admission_lives_through_python_decoding_and_late_cancellation_publishes
 
     with monkeypatch.context() as patch:
         patch.setattr(json, "loads", cancel_after_decode)
-        with pytest.raises(CausalCancelledError):
+        with pytest.raises(CausalCancelledError, match="cancelled during identification_materialize"):
             published.append(study.identification.to_dict(execution=policy))
     assert decoded == ["identification"]
     assert published == []

@@ -56,7 +56,7 @@ def test_the_unrolling_builds_a_spec_once_every_coordinate_is_declared() -> None
     coordinates = [transport.VariableCoordinate(name, "binary") for name in unrolled.names]
     spec = unrolled.to_spec(coordinates, selections=["l_2"])
     assert spec.actions == ("a_1", "a_2") and spec.selections == ("l_2",)
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="missing y_2"):
         unrolled.to_spec(coordinates[:-1])
 
 
@@ -71,5 +71,5 @@ def test_roles_outside_the_template_and_other_types_are_refused() -> None:
             outcome="y",
             baseline_effects=[("b", "l")],
         )
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match="template must be a TemporalDag"):
         transport.unroll_two_slice(object(), covariates=["l"], action="a", outcome="y")

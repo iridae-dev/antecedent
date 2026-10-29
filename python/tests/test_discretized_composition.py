@@ -123,7 +123,7 @@ def test_the_plan_and_the_composition_are_refused_with_their_own_reasons() -> No
     refusal = refusal_of(lambda: finite.discretize(4))
     assert refusal.reason_code == "route_not_supported"
 
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match="composition must be a PreparedMechanismComposition"):
         dc.discretize(object(), 4)  # type: ignore[arg-type]
 
 
@@ -154,5 +154,5 @@ def test_an_export_is_re_derived_by_a_consumer_from_the_carried_premises() -> No
 
     # A damaged artifact is refused.
     refusal_of(lambda: require_success(dc.consume_discretized_composition(data[:-3])))
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match="an artifact is bytes or ExportedArtifact"):
         require_success(dc.consume_discretized_composition("not bytes"))  # type: ignore[arg-type]

@@ -327,10 +327,10 @@ fn trial_ipw_still_refuses_recursive_factorization() {
         None,
     )
     .unwrap_err();
+    let message = err.to_string();
     assert!(
-        err.to_string().contains("recursive")
-            || err.to_string().contains("Recursive")
-            || err.to_string().contains("certificate")
+        message.contains("certificate rule 'transport.sid.recursive' yields a recursive factorization"),
+        "{message}"
     );
 }
 

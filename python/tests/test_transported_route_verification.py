@@ -105,9 +105,9 @@ def test_an_evaluation_of_another_route_or_type_is_refused_before_native_work() 
     built = _built_policy(m)
     target = tc.TargetPeriod.of_model(m, "2027")
     invariance = tc.InvarianceDeclaration("2026", "2027", 2, dict(MECHANISMS))
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="not 'temporal_policy'"):
         tc.verify_period_shift(
             m, policy(m), built, target=target, target_initial=(0.4, 0.6), invariance=invariance
         )
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match="evaluation must be a TransportedConstruction"):
         tc.verify_policy(m, policy(m), "not an evaluation", **_policy_request(m))

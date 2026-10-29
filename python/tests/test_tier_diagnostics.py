@@ -77,5 +77,5 @@ def test_a_non_tiered_result_is_refused_and_nothing_is_recomputed() -> None:
 
 
 def test_an_object_without_a_study_is_a_type_error() -> None:
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match="needs the AnalysisResult or PreparedAnalysis"):
         td.tier_diagnostics(object())
