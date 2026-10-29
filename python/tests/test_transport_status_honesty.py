@@ -181,6 +181,8 @@ def test_exact_scalar_never_reports_a_fabricated_analytic_se():
     # 0.0 is a real, finite, wrong standard error; a complete exact law makes
     # no sampling claim at all, so nothing may be reported as computed.
     assert not math.isfinite(result.estimate.se_analytic)
+    # E[y | do(x=1)] from the supplied law is P(y=1, x=1) / P(x=1) = 0.35 / 0.5.
+    assert result.estimate.ate == pytest.approx(0.35 / 0.5, abs=1e-12)
     assert result.estimate.se_bootstrap is None
     assert result.transport.uncertainty_reason == "exact_supplied_law_no_sampling_uncertainty"
     report = result.inspect()
@@ -193,6 +195,8 @@ def test_statistical_scalar_reports_native_interval_not_a_fabricated_se():
     result = wrap_transport_result(study, specialist)
     assert isinstance(result, AnalysisResult)
     assert not math.isfinite(result.estimate.se_analytic)
+    # The regime's sample at do(x=1) has 80 ones out of 100.
+    assert result.estimate.ate == pytest.approx(0.8, abs=1e-12)
     # Either the bootstrap-inferred interval survives, or the native reason
     # it was withheld does (e.g. too few replicates survived resampling);
     # either way this is real native uncertainty reasoning, never a fake SE.
@@ -206,6 +210,9 @@ def test_exact_contrast_never_reports_a_fabricated_analytic_se():
     result = require_success(analyze(_exact(), graph=_graph(), query=_ate()))
     assert isinstance(result, AnalysisResult)
     assert result.answer.kind == "point"
+    # ATE of the supplied interventional laws: E[y|do(x=1)] - E[y|do(x=0)] = 0.8 - 0.5.
+    assert result.answer.value == pytest.approx(0.8 - 0.5, abs=1e-12)
+    assert result.estimate.ate == pytest.approx(0.3, abs=1e-12)
     assert not math.isfinite(result.estimate.se_analytic)
 
 

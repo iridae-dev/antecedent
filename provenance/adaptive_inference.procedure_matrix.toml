@@ -34,4 +34,4 @@ sha256 = "8618f1249ed9ecbcc515e59259babc5dd1760dde5df29423937164a5763bfef6"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/adaptive_design.rs"
-sha256 = "a37e96752eb9a1e2ead4683518c89b3e9bcde71e1e5df18d40565610c718b2d8"
+sha256 = "3d6e1383c6ebaa178e9db326b6038839f5b1b20d65bdcc38a6d5c3c52b185513"

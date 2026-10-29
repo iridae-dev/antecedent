@@ -648,8 +648,11 @@ fn leveled_experiment_is_a_restricted_domain_and_does_not_supply_an_unrestricted
     let report = run(&family, &[leveled.clone()], RepairObjective::MinimizeCost, defaults());
     // A value-restricted assignment cannot supply an unrestricted symbolic
     // response, so the transport theorem's factor stays unmet.
-    assert_ne!(
+    assert_eq!(
         outcome(&report, &[&leveled]).classification,
-        RepairClassification::VerifiedSufficient
+        RepairClassification::Insufficient,
+        "{:?}",
+        outcome(&report, &[&leveled]).reasons
     );
+    assert!(report.best().is_none());
 }

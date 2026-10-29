@@ -291,7 +291,12 @@ fn mediation_artifact_refuses_unknown_versions_features_and_corruption() {
     let mut corrupt = bytes.clone();
     let middle = corrupt.len() / 2;
     corrupt[middle] ^= 0xFF;
-    assert!(NonlinearMediationArtifact::from_bytes(&corrupt, None).is_err());
+    let error = NonlinearMediationArtifact::from_bytes(&corrupt, None).unwrap_err();
+    assert!(
+        matches!(error, NonlinearMediationArtifactError::Container(_))
+            && format!("{error:?}").contains("ChecksumMismatch"),
+        "a flipped byte is a container checksum failure, not a semantic error: {error:?}"
+    );
 }
 
 #[test]
@@ -454,9 +459,11 @@ fn assert_population_closed_form(artifact: &NonlinearMediationArtifact, rows: us
     let (nde, nie, te) = truth();
     let result = &artifact.meta().result;
     assert_eq!(result.n_rows, u64::try_from(rows).unwrap());
-    common::close(result.natural_direct, nde, 0.05, "NDE");
-    common::close(result.natural_indirect, nie, 0.05, "NIE");
-    common::close(result.total, te, 0.08, "TE");
+    // Observed deviations at 50,000 and 100,000 rows are below 0.007; the band is a few times
+    // that (the exact-grid test above pins the formula itself to 1e-8).
+    common::close(result.natural_direct, nde, 0.02, "NDE");
+    common::close(result.natural_indirect, nie, 0.02, "NIE");
+    common::close(result.total, te, 0.03, "TE");
 }
 
 /// The estimate completes on `rows` rows with its inferential standing exactly that of the

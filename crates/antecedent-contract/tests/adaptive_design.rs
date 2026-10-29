@@ -634,7 +634,10 @@ fn observation_identities_are_stable_per_contract_and_unit() {
     let mut other = thompson();
     other.label = "another".to_owned();
     let b = AdaptiveDesignContract::new(other).unwrap();
-    assert_eq!(a.observation_id(3), a.observation_id(3));
+    // Rebuilt from the same declaration, the identity is the same: it is a function of the
+    // contract and the unit, not of the instance.
+    let rebuilt = AdaptiveDesignContract::new(thompson()).unwrap();
+    assert_eq!(a.observation_id(3), rebuilt.observation_id(3));
     assert_ne!(a.observation_id(3), a.observation_id(4));
     assert_ne!(a.observation_id(3), b.observation_id(3));
 }

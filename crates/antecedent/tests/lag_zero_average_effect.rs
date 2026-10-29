@@ -189,16 +189,24 @@ fn the_point_identified_graphs_recover_the_contemporaneous_effect() {
         ("TemporalPag", AcceptedGraph::temporal_pag(pag()), 0.0),
     ];
     for (name, graph, z_to_y) in cases {
-        let result = build_on(
-            series_with(z_to_y),
-            graph,
-            CausalQuery::AverageEffect(average()),
-            InferenceMode::Frequentist,
-        )
-        .run(&ctx)
-        .unwrap();
-        let ate = result.estimate().as_effect().unwrap().ate;
-        assert!((ate - BETA).abs() < 0.1, "{name}: ate={ate}");
+        // The PAG's Bayesian answer is an identified set, not a scalar.
+        let modes = if name == "TemporalDag" {
+            vec![InferenceMode::Frequentist, bayesian()]
+        } else {
+            vec![InferenceMode::Frequentist]
+        };
+        for inference in modes {
+            let result = build_on(
+                series_with(z_to_y),
+                graph.clone(),
+                CausalQuery::AverageEffect(average()),
+                inference.clone(),
+            )
+            .run(&ctx)
+            .unwrap();
+            let ate = result.estimate().as_effect().unwrap().ate;
+            assert!((ate - BETA).abs() < 0.04, "{name} {inference:?}: ate={ate}");
+        }
     }
 }
 

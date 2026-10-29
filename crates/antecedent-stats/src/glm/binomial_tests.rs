@@ -26,7 +26,10 @@ fn logistic_separates_simple_signal() {
     )
     .unwrap();
     assert!(fit.converged, "iters={} deviance={}", fit.iterations, fit.deviance);
-    assert!(fit.coefficients[1] > 0.5);
+    // The saturated 2x2 table: P(y=1 | t=0) = 4/40 and P(y=1 | t=1) = 36/40 (every tenth
+    // row flipped), so the MLE is logit(0.1) and logit(0.9) - logit(0.1) = 2 ln 9.
+    assert!((fit.coefficients[0] + 9.0_f64.ln()).abs() < 1e-5, "{:?}", fit.coefficients);
+    assert!((fit.coefficients[1] - 2.0 * 9.0_f64.ln()).abs() < 1e-5, "{:?}", fit.coefficients);
     assert!(!fit.separated);
 }
 
@@ -77,7 +80,10 @@ fn probit_recovers_positive_slope() {
     )
     .unwrap();
     assert!(fit.converged, "iters={} deviance={}", fit.iterations, fit.deviance);
-    assert!(fit.coefficients[1] > 0.3, "slope={}", fit.coefficients[1]);
+    // Rows flipped every eighth: 13 of the 100 rows with t = 0 and 12 of the 100 with t = 1,
+    // so the MLE is Phi^-1(0.13) and Phi^-1(0.88) - Phi^-1(0.13).
+    assert!((fit.coefficients[0] + 1.126_391_129_04).abs() < 1e-5, "{:?}", fit.coefficients);
+    assert!((fit.coefficients[1] - 2.301_377_921_09).abs() < 1e-5, "{:?}", fit.coefficients);
     assert!(!fit.separated);
 }
 
@@ -303,9 +309,17 @@ fn laplace_fit_penalizes_every_coefficient_and_returns_the_inverse_information()
     assert!(fit.fit.coefficients.iter().all(|b| b.is_finite()));
     // The intercept is penalized too: it is pulled below the unpenalized -infinity, not left free.
     assert!(fit.fit.coefficients[1] > 0.0);
+    // Maximiser of loglik - 0.5 |b|^2 by Newton in an independent script, and the inverse of
+    // X'WX + I at it.
+    let expected = [-1.291_836_85, 3.019_004_51];
+    for (got, want) in fit.fit.coefficients.iter().zip(expected) {
+        assert!((got - want).abs() < 1e-6, "{:?}", fit.fit.coefficients);
+    }
+    let covariance = [0.196_038_69, -0.141_022_41, -0.141_022_41, 0.382_085_80];
     assert_eq!(fit.covariance.len(), 4);
-    assert!(fit.covariance[0] > 0.0 && fit.covariance[3] > 0.0);
-    assert!((fit.covariance[1] - fit.covariance[2]).abs() < 1e-12);
+    for (got, want) in fit.covariance.iter().zip(covariance) {
+        assert!((got - want).abs() < 1e-6, "{:?}", fit.covariance);
+    }
     // Unit case weights are the unweighted fit.
     let ones = vec![1.0; n];
     let weighted =

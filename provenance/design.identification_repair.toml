@@ -59,4 +59,4 @@ sha256 = "217a282f9c5501cb26f60a5ef8713c9d4c7e077876a24c1f59a7fc8b7e079fe9"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/repair_facade.rs"
-sha256 = "8150b958a80cfd1dc5b75f7ac1084e2bca1ad394d5cc8224304a90be0fdf4457"
+sha256 = "690c3f829b8ae73827b85e53c9c78781f0d04a0b0a0aa8477fa58cca621b3961"

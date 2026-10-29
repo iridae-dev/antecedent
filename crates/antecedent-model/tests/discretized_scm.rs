@@ -155,8 +155,9 @@ fn one_edge_two_levels_matches_the_hand_computed_table_mean() {
         )
         .unwrap();
     near(result.closed_form, 0.797_884_560_8, 1e-9);
-    near(result.value, 0.648_89, 2e-3);
-    near(result.absolute_error, 0.148_99, 2e-3);
+    // erf(1/sqrt(pi)) * 2/sqrt(pi) and its gap to 2 phi(0), to the digits of the closed form.
+    near(result.value, 0.648_888_563_189, 1e-8);
+    near(result.absolute_error, 0.148_995_997_614, 1e-8);
     // One mechanism carries the error and the path to the outcome is one
     // edge, so the computed bound is the error itself.
     near(result.error_bound, result.absolute_error, 1e-9);
@@ -189,7 +190,7 @@ fn closed_form_oracle_agrees_and_the_computed_bound_holds_and_shrinks() {
         bounds.push(result.error_bound);
     }
     assert!(bounds[2] < bounds[0], "bound did not shrink: {bounds:?}");
-    assert!(errors[2] < 0.25, "64 levels left error {}", errors[2]);
+    assert!(errors[2] < 0.02, "64 levels left error {} (bounds {bounds:?})", errors[2]);
     assert!(errors[2] < errors[0], "error did not shrink: {errors:?}");
 }
 

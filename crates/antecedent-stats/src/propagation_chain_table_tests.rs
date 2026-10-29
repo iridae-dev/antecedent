@@ -74,6 +74,18 @@ fn overlapping_rows_imply_the_correlation_a_direct_simulation_shows() {
     // Estimator A averages rows 0..200 and B rows 100..300 of one pool.
     let predicted = shared_row_correlation(200, 200, 100).expect("correlation");
     assert!((predicted - 0.5).abs() < 1e-15);
+    // Corr(mean of A rows, mean of B rows) = shared / sqrt(rows_a rows_b) for unit-variance
+    // exchangeable rows; unequal sizes, no overlap and full overlap.
+    for (a, b, shared, expected) in [
+        (100, 400, 100, 0.5),
+        (10, 40, 5, 0.25),
+        (10, 10, 0, 0.0),
+        (10, 10, 10, 1.0),
+        (9, 16, 3, 0.25),
+    ] {
+        let got = shared_row_correlation(a, b, shared).expect("correlation");
+        assert!((got - expected).abs() < 1e-15, "({a}, {b}, {shared}): {got} vs {expected}");
+    }
     let mut stream = SeedStream(77);
     let replicates = 4000;
     let (mut a_values, mut b_values) = (Vec::new(), Vec::new());
@@ -116,6 +128,8 @@ fn impossible_tables_and_overlaps_are_refused() {
         moment_matched_normal_table(&[0.0, 0.0], &ok, MAX_CHAIN_ROWS + 1, 1),
         Err(ChainError::Budget(_))
     ));
-    assert!(shared_row_correlation(10, 10, 11).is_err());
-    assert!(shared_row_correlation(0, 10, 0).is_err());
+    assert!(matches!(shared_row_correlation(10, 10, 11), Err(ChainError::Shape(_))));
+    assert!(matches!(shared_row_correlation(10, 20, 11), Err(ChainError::Shape(_))));
+    assert!(matches!(shared_row_correlation(0, 10, 0), Err(ChainError::Shape(_))));
+    assert!(matches!(shared_row_correlation(10, 0, 0), Err(ChainError::Shape(_))));
 }

@@ -446,10 +446,14 @@ fn a_declared_joint_cell_is_estimated_on_a_known_law() {
             panic!("cell {cell} unsupported")
         };
         let truth = 0.4 * cell as f64 + f64::from(u8::from(cell == 3)) + 0.25;
-        assert!((estimate.estimate - truth).abs() < 0.06, "cell {cell}");
+        assert!(
+            (estimate.estimate - truth).abs() < 0.03,
+            "cell {cell}: {} vs {truth}",
+            estimate.estimate
+        );
     }
     let interaction = fit.contrast_point(JointContrast::Interaction).unwrap();
-    assert!((interaction - 1.0).abs() < 0.1, "{interaction}");
+    assert!((interaction - 1.0).abs() < 0.06, "{interaction}");
 
     let error = estimate_derived_joint_cells(
         &data,
@@ -485,6 +489,16 @@ fn a_family_with_one_unsupported_cell_keeps_the_rest() {
     let supported: Vec<bool> =
         fit.cells.iter().map(|c| matches!(c.status, CellStatus::Supported(_))).collect();
     assert_eq!(supported, vec![true, true, true, false]);
+    for (cell, report) in fit.cells.iter().take(3).enumerate() {
+        let CellStatus::Supported(estimate) = &report.status else { unreachable!() };
+        // The outcome mean is 0.4 cell + 0.5 z, so E[Y^{do(cell)}] = 0.4 cell + 0.25.
+        let truth = 0.4 * cell as f64 + 0.25;
+        assert!(
+            (estimate.estimate - truth).abs() < 0.03,
+            "cell {cell}: {} vs {truth}",
+            estimate.estimate
+        );
+    }
     let CellStatus::Unsupported(refused) = &fit.cells[3].status else { unreachable!() };
     assert_eq!(refused.code, "arm_not_populated");
     assert_eq!(fit.scores.n_columns(), 3);

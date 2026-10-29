@@ -352,7 +352,6 @@ def test_a_provider_callback_failure_is_the_original_exception_through_estimate_
     from antecedent.extensibility import (
         CausalProviderSpec,
         ProviderQuery,
-        ProviderTrust,
         providers,
     )
 
@@ -382,7 +381,6 @@ def test_a_provider_callback_failure_is_the_original_exception_through_estimate_
             raise original
 
     providers.register("runtime-behaviour", Provider())
-    assert ProviderTrust is not None
     study = ant.prepare(
         {"x": [1.0, 3.0]}, query=ProviderQuery("runtime-behaviour", {"offsets": [0]})
     )
@@ -572,8 +570,6 @@ def test_nuisance_fit_export_and_load_under_cancellation_return_their_leases():
 def test_a_token_cancelled_mid_nuisance_fit_returns_its_leases():
     study = _nuisance_study(Execution(seed=13, threads=1))
     token = ant.CancellationToken()
-    execution = Execution(cancel=token, limits=ResourceLimits(memory_bytes=_LIMIT))
-    start = execution._handle.available_memory_bytes
 
     def observer(fraction, _stage):
         if fraction > 0.0:
@@ -586,4 +582,3 @@ def test_a_token_cancelled_mid_nuisance_fit_returns_its_leases():
     with pytest.raises(CausalCancelledError):
         ns.treatment_score_posterior(study, draws=4000, execution=cancelling)
     assert _settle(cancelling) == start
-    assert execution is not None

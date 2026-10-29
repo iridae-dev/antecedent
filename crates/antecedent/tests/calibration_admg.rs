@@ -91,6 +91,43 @@ fn uniform(seed: u64) -> impl FnMut() -> f64 {
 }
 
 fn frontdoor_data(n: usize, seed: u64) -> TabularData {
+    let (t, m, y) = frontdoor_columns(n, seed);
+    TabularData::from_f64_columns([("t", t.as_slice()), ("m", m.as_slice()), ("y", y.as_slice())])
+        .unwrap()
+}
+
+/// The plug-in front-door `P(Y = 1 | do(T = t))`, by counting the rows:
+/// `sum_m P(m | t) sum_t' P(Y = 1 | t', m) P(t')`.
+fn counted_frontdoor(cols: &(Vec<f64>, Vec<f64>, Vec<f64>), t_level: f64) -> f64 {
+    let (t, m, y) = cols;
+    let n = t.len() as f64;
+    let count = |tv: Option<f64>, mv: Option<f64>, yv: Option<f64>| -> f64 {
+        (0..t.len())
+            .filter(|&i| {
+                tv.is_none_or(|v| t[i] == v)
+                    && mv.is_none_or(|v| m[i] == v)
+                    && yv.is_none_or(|v| y[i] == v)
+            })
+            .count() as f64
+    };
+    [0.0, 1.0]
+        .into_iter()
+        .map(|mv| {
+            let p_m = count(Some(t_level), Some(mv), None) / count(Some(t_level), None, None);
+            let inner: f64 = [0.0, 1.0]
+                .into_iter()
+                .map(|tp| {
+                    count(Some(tp), Some(mv), Some(1.0)) / count(Some(tp), Some(mv), None)
+                        * count(Some(tp), None, None)
+                        / n
+                })
+                .sum();
+            p_m * inner
+        })
+        .sum()
+}
+
+fn frontdoor_columns(n: usize, seed: u64) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
     let mut u01 = uniform(seed);
     let (mut t, mut m, mut y) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
     for i in 0..n {
@@ -99,8 +136,7 @@ fn frontdoor_data(n: usize, seed: u64) -> TabularData {
         m[i] = f64::from(u01() < 0.2 + 0.6 * t[i]);
         y[i] = f64::from(u01() < 0.1 + 0.4 * m[i] + 0.3 * u);
     }
-    TabularData::from_f64_columns([("t", t.as_slice()), ("m", m.as_slice()), ("y", y.as_slice())])
-        .unwrap()
+    (t, m, y)
 }
 
 fn frontdoor_admg() -> Admg {
@@ -401,6 +437,12 @@ fn average_effect_admg_graph_posterior_bayesian_nominal_coverage() {
 #[test]
 fn admg_frontdoor_coordinates_publish_the_scored_interval() {
     let data = frontdoor_data(600, 3);
+    let cols = frontdoor_columns(600, 3);
+    let plug_in_do1 = counted_frontdoor(&cols, 1.0);
+    let plug_in_ate = plug_in_do1 - counted_frontdoor(&cols, 0.0);
+    // The sample is large enough that the plug-in sits near the generating 0.24, so a
+    // wrong adjustment (the confounded contrast is far from it) cannot pass either check.
+    assert!((plug_in_ate - ATE_TRUTH).abs() < 0.1, "{plug_in_ate}");
     let (_, freq) = run(
         &data,
         ate_query(),
@@ -420,6 +462,8 @@ fn admg_frontdoor_coordinates_publish_the_scored_interval() {
         "Study default bootstrap"
     );
     assert!(scalar_normal_pair(&freq)[0].is_some());
+    let ate = freq.estimate().as_effect().unwrap().ate;
+    assert!((ate - plug_in_ate).abs() < 1e-12, "functional ate {ate} vs counted {plug_in_ate}");
     let (_, dist) =
         run(&data, distribution_query(), bayes(), Structure::Explicit, RefuteSuite::None, 3)
             .expect("the Bayesian distribution coordinate runs");
@@ -431,6 +475,13 @@ fn admg_frontdoor_coordinates_publish_the_scored_interval() {
         posterior.draws.column(col).unwrap(),
         posterior.draws.column(col + 1 + one).unwrap(),
         "the effect column is the P(Y = 1) atom"
+    );
+    // The reported atom mass is the Dirichlet posterior mean of the front-door mass, which is
+    // centred on the counted plug-in (the row-law prior shifts it by O(1/n)).
+    assert!(
+        (atoms[one].probability - plug_in_do1).abs() < 0.02,
+        "atom {} vs counted {plug_in_do1}",
+        atoms[one].probability
     );
     assert!(posterior_pair(&dist, col)[0].is_some());
 }
