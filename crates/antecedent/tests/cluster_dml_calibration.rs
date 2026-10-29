@@ -37,6 +37,12 @@ const Z1: u32 = 3;
 /// One replicate: simulate `groups` clusters, fit the cluster-DML AIPW through the facade and
 /// return the published interval with the row count.
 fn replicate(groups: usize, seed: u64) -> Option<((f64, f64), u64)> {
+    replicate_with_estimate(groups, seed).map(|(interval, rows, _, _)| (interval, rows))
+}
+
+/// [`replicate`] with the point estimate and the cluster-sandwich standard error the interval
+/// is built from.
+fn replicate_with_estimate(groups: usize, seed: u64) -> Option<((f64, f64), u64, f64, f64)> {
     let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0xCD1);
     let n = groups * SIZE;
     let (mut t, mut y, mut z0, mut z1) = (vec![0.0; n], vec![0.0; n], vec![0.0; n], vec![0.0; n]);
@@ -76,7 +82,7 @@ fn replicate(groups: usize, seed: u64) -> Option<((f64, f64), u64)> {
         .ok()?;
     let estimate = result.estimate().as_effect()?;
     let published = PublishedScalarUncertainty::select(estimate);
-    Some((published.interval(estimate)?, n as u64))
+    Some((published.interval(estimate)?, n as u64, estimate.ate, estimate.uncertainty.analytic.se))
 }
 
 fn construction() -> Construction {
@@ -97,13 +103,19 @@ fn construction() -> Construction {
     }
 }
 
-/// The scored interval is the published one: finite, ordered and centred near the truth.
+/// The scored interval is the published one: `estimate ± t_{G-1,0.975} · se` of the
+/// cluster-sandwich standard error, with the Student-t quantile of 29 degrees of freedom
+/// (2.045229642...) rather than the normal 1.96.
 #[test]
 fn the_scored_interval_is_the_published_t_interval() {
-    let ((lo, hi), rows) = replicate(30, 90_001).expect("a cluster-DML fit");
+    const T_29_0975: f64 = 2.045_229_642_132_703;
+    let ((lo, hi), rows, ate, se) = replicate_with_estimate(30, 90_001).expect("a cluster-DML fit");
     assert_eq!(rows, 300);
-    assert!(lo.is_finite() && hi.is_finite() && lo < hi);
-    assert!((lo + hi) / 2.0 > 0.0);
+    assert!(se.is_finite() && se > 0.0, "{se}");
+    assert!((lo - (ate - T_29_0975 * se)).abs() < 1e-9, "lower {lo} vs {}", ate - T_29_0975 * se);
+    assert!((hi - (ate + T_29_0975 * se)).abs() < 1e-9, "upper {hi} vs {}", ate + T_29_0975 * se);
+    // The cluster-level effect heterogeneity (sd 1.5) is sampled; the population average is 2.
+    assert!((ate - TRUTH).abs() < 4.0 * se, "estimate {ate} se {se}");
 }
 
 #[test]

@@ -95,6 +95,10 @@ def test_analyze_equals_the_standalone_module(bayesian: bool) -> None:
     assert _same(design.upper, standalone.upper)
     assert not design.licensed and design.calibration == "unmeasured"
     assert (design.draws is not None) is bayesian
+    # Equal to the standalone module is not enough: the data are y = level + 1.2 a_{t-1} + noise,
+    # so the lag-1 excursion effect is 1.2 and the arm means differ by it.
+    assert design.estimate[0] == pytest.approx(1.2, abs=4.0 * design.standard_error[0])
+    assert design.lower[0] < 1.2 < design.upper[0]
 
 
 def test_the_answer_is_structured_and_reads_back_equal() -> None:
@@ -258,9 +262,9 @@ def test_every_design_query_compiles_to_its_design() -> None:
 
 
 def test_query_options_validate_and_misclassification_needs_a_binary_outcome() -> None:
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="lag must be a non-negative integer"):
         TwoArmExcursion("y", "unit", "period", assignment="a", probability="p", lag=-1)
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="misclassification counts must be non-negative"):
         OutcomeMisclassification(1, -1, 1, 1)
     query = TwoArmExcursion(
         "y",
@@ -270,15 +274,17 @@ def test_query_options_validate_and_misclassification_needs_a_binary_outcome() -
         probability="p",
         misclassification=OutcomeMisclassification(90, 10, 85, 15),
     )
-    with pytest.raises(CausalError):
+    with pytest.raises(CausalError, match="binary outcome coded exactly 0 or 1") as caught:
         require_success(antecedent.analyze(_two_arm_table(units=40), query=query))
+    assert caught.value.reason_code == "invalid_argument"
 
 
 def test_a_graph_or_refutation_is_not_applicable() -> None:
-    with pytest.raises(CausalUnsupportedError):
+    with pytest.raises(CausalUnsupportedError) as caught:
         require_success(
             antecedent.analyze(_two_arm_table(units=40), query=_two_arm_query(), refute="cheap")
         )
+    assert caught.value.reason_code == "option_not_applicable"
 
 
 def _observational_table(units: int = 300, periods: int = 4, seed: int = 21) -> dict[str, list]:
@@ -325,8 +331,9 @@ def test_observational_excursion_needs_history_and_replicates() -> None:
     with pytest.raises(CausalValueError):
         ObservationalExcursion("y", "unit", "period", treatment="a", history=())
     query = ObservationalExcursion("y", "unit", "period", treatment="a", history=("x",))
-    with pytest.raises(CausalError):
+    with pytest.raises(CausalError) as caught:
         require_success(antecedent.analyze(_observational_table(units=40), query=query))
+    assert caught.value.reason_code == "required_option_missing"
 
 
 def _regime_table(units: int = 1500, seed: int = 31) -> dict[str, list]:

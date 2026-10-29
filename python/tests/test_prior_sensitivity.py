@@ -34,6 +34,14 @@ def test_prior_sensitivity_on_refute_full():
     assert len(sens.effect_means) == len(sens.scales)
     assert len(sens.effect_sds) == len(sens.scales)
     assert all(np.isfinite(m) for m in sens.effect_means)
+    # The truth of y = 2 t + z + noise adjusted for z is 2. A tighter zero-centred prior shrinks
+    # the effect toward 0 and loosens toward the least-squares value, so the means rise with the
+    # scale to within a few hundredths of the truth, and the posterior spread falls.
+    assert list(sens.scales) == sorted(sens.scales)
+    assert list(sens.effect_means) == sorted(sens.effect_means)
+    assert 1.6 < sens.effect_means[0] < 1.9
+    assert abs(sens.effect_means[-1] - 2.0) < 0.06
+    assert list(sens.effect_sds) == sorted(sens.effect_sds, reverse=True)
 
 
 def test_prior_sensitivity_skipped_on_default_refute():

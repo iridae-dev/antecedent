@@ -361,6 +361,9 @@ fn removing_one_comparison_row_moves_the_interacted_fit_only_within_sampling_noi
     .unwrap();
     assert!(balanced.balanced && !nearly.balanced);
     assert!((balanced.overall.estimate - nearly.overall.estimate).abs() < 0.05);
+    // Agreeing with each other is not enough: both are the simple aggregate 3.5 of the design.
+    assert!((balanced.overall.estimate - 3.5).abs() < 0.35, "{}", balanced.overall.estimate);
+    assert!((nearly.overall.estimate - 3.5).abs() < 0.35, "{}", nearly.overall.estimate);
 }
 
 #[test]

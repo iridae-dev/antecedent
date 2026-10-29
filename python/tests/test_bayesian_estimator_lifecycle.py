@@ -40,6 +40,11 @@ def test_new_bayesian_estimator_ids_are_public_and_basis_result_keeps_metadata()
     assert result.posterior.q975 is not None
     assert result.posterior.q025 < result.posterior.q975
     assert result.posterior.interval() == (result.posterior.q025, result.posterior.q975)
+    # The sample average effect of the design is 1.25 + 0.35 mean(x) = 1.2547; the equal-tailed
+    # interval covers it and the posterior mean is within 0.2 of it.
+    sample_ate = 1.25 + 0.35 * float(np.mean(x))
+    assert result.posterior.q025 < sample_ate < result.posterior.q975
+    assert abs(result.ate - sample_ate) < 0.2
     exported = result.export(quantity="posterior")
     assert bytes(exported)
     assert any(
