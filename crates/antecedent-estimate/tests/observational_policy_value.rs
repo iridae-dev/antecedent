@@ -492,6 +492,28 @@ fn a_three_action_policy_recovers_its_closed_form_value() {
     )
     .unwrap();
     assert!(learned.value > 1.0);
+    // The optimal policy picks the best conditional mean at each z; its value is the normal
+    // expectation of max(0, 1 + z/2, 1/2 - z), by quadrature.
+    let optimum = normal_expectation(|z| 0.0_f64.max(1.0 + z / 2.0).max(0.5 - z));
+    assert!(optimum > 1.0, "optimal value {optimum}");
+    assert!(
+        within(learned.value, learned.se, optimum, 4.0) || (learned.value - optimum).abs() < 0.05,
+        "learned {} (se {}) vs optimum {optimum}",
+        learned.value,
+        learned.se
+    );
+}
+
+/// `E[f(z)]` for standard normal `z` by trapezoid quadrature.
+fn normal_expectation(f: impl Fn(f64) -> f64) -> f64 {
+    let steps = 40_000;
+    let h = 20.0 / f64::from(steps);
+    (0..=steps)
+        .map(|k| {
+            let z = -10.0 + h * f64::from(k);
+            f(z) * dgp::phi(z) * h
+        })
+        .sum()
 }
 
 #[test]
@@ -509,6 +531,19 @@ fn minimizing_picks_the_action_with_the_smallest_predicted_outcome() {
     .unwrap();
     // Action 0 has mean 0 everywhere; action 2 is lower for z > 1/2, action 1 for z < -2.
     // The minimizer's value is E[min(0, 1/2 - z, 1 + z/2)], well below the maximizer's.
-    assert!(learned.value < 0.0);
-    assert!(learned.action_values[0].policy_share > 0.4);
+    let optimum = normal_expectation(|z| 0.0_f64.min(1.0 + z / 2.0).min(0.5 - z));
+    assert!(optimum < 0.0, "minimal value {optimum}");
+    assert!(
+        within(learned.value, learned.se, optimum, 4.0) || (learned.value - optimum).abs() < 0.05,
+        "learned {} (se {}) vs minimum {optimum}",
+        learned.value,
+        learned.se
+    );
+    // Action 0 is the minimiser where 0 < 1/2 - z and 0 < 1 + z/2, i.e. -2 < z < 1/2.
+    let share = normal_expectation(|z| f64::from(u8::from(z > -2.0 && z < 0.5)));
+    assert!(
+        (learned.action_values[0].policy_share - share).abs() < 0.05,
+        "share {} vs {share}",
+        learned.action_values[0].policy_share
+    );
 }

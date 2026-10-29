@@ -346,7 +346,6 @@ fn selected_incomplete_cpdag_matches_temporal_observation_surface() {
     let (t, latent, selected, _, _, _) = generate(&pin);
     let truth: Vec<f64> =
         pin["surface"]["mean"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
-    let atol = pin["atol"].as_f64().unwrap();
     let series = selected_series(&t, &latent, &selected);
     let query = curve_query(
         &pin,
@@ -377,7 +376,9 @@ fn selected_incomplete_cpdag_matches_temporal_observation_surface() {
             .iter()
             .map(|slice| mean.iter().zip(slice).map(|(a, b)| (a - b).abs()).fold(0.0, f64::max))
             .fold(f64::INFINITY, f64::min);
-        assert!(err <= atol + 0.15, "selected class atom {mean:?} vs slices {slices:?} err={err}");
+        // Observed worst-slice error is 0.067 (the pin tolerance is 0.35); 0.15 keeps a
+        // margin of two without admitting the 0.35 slack of the conformance fixture.
+        assert!(err <= 0.15, "selected class atom {mean:?} vs slices {slices:?} err={err}");
         checked += 1;
     }
     assert!(checked >= 1, "selected pair missing per-horizon atom surfaces");

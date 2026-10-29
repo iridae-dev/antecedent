@@ -9,7 +9,12 @@ from statistics import NormalDist
 import numpy as np
 import pytest
 from antecedent import Execution, ResourceLimits, _native
-from antecedent.errors import CausalCancelledError, CausalError
+from antecedent.errors import (
+    CausalCancelledError,
+    CausalError,
+    CausalResourceError,
+    CausalUnsupportedError,
+)
 from antecedent.inference import MeasuredInference
 from antecedent.transport import advanced as tr
 
@@ -95,19 +100,26 @@ print(json.dumps(r.inspect(),sort_keys=True))
 @pytest.mark.parametrize("bayesian", [False, True])
 def test_normal_nested_unmeasured_protocol_refusals_are_not_candidate_successes(bayesian):
     for kwargs in ({"max_iterations": 49999}, {"tolerance": 2e-11}):
-        with pytest.raises(CausalError):
+        with pytest.raises(CausalUnsupportedError, match="nested_markov.measured_scope") as caught:
             produce(bayesian, **kwargs)
+        assert caught.value.reason_code == "cell_not_licensed"
+        assert "only the measured default constrained-likelihood fitting protocol" in str(
+            caught.value
+        )
     if bayesian:
-        with pytest.raises(CausalError):
+        with pytest.raises(CausalUnsupportedError, match="nested_markov.measured_scope") as caught:
             produce(True, shape=3)
+        assert caught.value.reason_code == "cell_not_licensed"
+        assert "only uniform eleven-coordinate Beta(1,1) or Beta(2,2) priors" in str(caught.value)
     else:
-        with pytest.raises(CausalError):
+        with pytest.raises(CausalUnsupportedError, match="only nominal level 0.95") as caught:
             produce(False, nominal_level=0.90)
+        assert caught.value.reason_code == "cell_not_licensed"
     cancelled = _native.CancellationToken()
     cancelled.cancel()
     with pytest.raises(CausalCancelledError):
         produce(bayesian, execution=Execution(cancel=cancelled))
-    with pytest.raises(CausalError):
+    with pytest.raises(CausalResourceError, match="measured_inference.memory_budget_exceeded"):
         produce(bayesian, execution=Execution(limits=ResourceLimits(memory_bytes=0)))
 
 

@@ -72,8 +72,15 @@ fn frequentist_static_dag_attribution_plans_body() {
     let maximum = score.scores.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1)).unwrap();
     assert_eq!(score.rows[maximum.0], 19, "the injected outlier is the top anomaly");
     let refreshed_anomaly = anomaly_data(220.0);
+    let first_top_score = *maximum.1;
     let refreshed = rebind_estimate(&mut anomaly_prepared, refreshed_anomaly, &ctx).unwrap();
-    assert!(refreshed.anomaly().unwrap()[0].scores.iter().any(|score| score.is_finite()));
+    // The refreshed row 19 is a larger outlier (220 against the 2 x 19 = 38 mechanism), so it is
+    // still the top anomaly and its score has grown.
+    let refreshed_scores = &refreshed.anomaly().unwrap()[0];
+    let refreshed_top =
+        refreshed_scores.scores.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1)).unwrap();
+    assert_eq!(refreshed_scores.rows[refreshed_top.0], 19);
+    assert!(*refreshed_top.1 > first_top_score, "{} vs {first_top_score}", refreshed_top.1);
     let artifact = anomaly_prepared
         .encode_contracted_result(&refreshed, "checked-anomaly-attribution", &ctx)
         .unwrap();

@@ -247,6 +247,30 @@ fn a_stratified_imputation_carries_the_whole_procedure_bootstrap_as_its_within_v
     assert!(close(report.total, report.within + (1.0 + 1.0 / 6.0) * report.between, 1e-12));
     let pooled = result.estimate().as_effect().unwrap();
     assert!(close(pooled.uncertainty.analytic.se, report.total.sqrt(), 1e-12));
+    // The reference: the whole stratified procedure with its 40-replicate bootstrap on each
+    // completed table, pooled by Rubin's rules written out above.
+    let (mut points, mut variances) = (Vec::new(), Vec::new());
+    for table in completed_tables(&values) {
+        let fit = Study::tabular(table)
+            .query(query())
+            .graph(graph())
+            .estimator(EstimatorId::PropensityStratification)
+            .bootstrap_replicates(40)
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+            .run(&ctx())
+            .unwrap();
+        let effect = fit.estimate().as_effect().unwrap();
+        let se = effect.uncertainty.bootstrap.se.expect("a bootstrap standard error");
+        points.push(effect.ate);
+        variances.push(se * se);
+    }
+    let (point, within, between, total, _) = rubin(&points, &variances);
+    assert!(close(pooled.ate, point, 1e-8), "pooled point {} against {point}", pooled.ate);
+    assert!(close(report.within, within, 1e-8), "within {} against {within}", report.within);
+    assert!(close(report.between, between, 1e-8), "between");
+    assert!(close(report.total, total, 1e-8), "total");
 }
 
 #[test]

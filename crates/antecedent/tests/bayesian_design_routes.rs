@@ -201,8 +201,8 @@ fn local_ratio_recovers_the_known_ratio_and_withholds_the_interval_when_weak() {
     );
     let (median, _, lower, upper) = effect_summary(&result);
     assert!(lower < 2.0 && 2.0 < upper, "{lower} {upper}");
-    assert!((result.effect() - 2.0).abs() < 0.2, "{}", result.effect());
-    assert!((median - 2.0).abs() < 0.3);
+    assert!((result.effect() - 2.0).abs() < 0.02, "{}", result.effect());
+    assert!((median - 2.0).abs() < 0.02, "{median}");
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.local_ratio"));
     assert!(result.interval().is_some());
     assert!(!result.diagnostics.iter().any(|d| d.code.as_ref().ends_with("weak_first_stage")));
@@ -251,7 +251,7 @@ fn regression_kink_posterior_recovers_the_slope_ratio_through_the_retained_progr
         &ctx,
     );
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.local_ratio"));
-    assert!((result.effect() - 2.0).abs() < 0.3, "{}", result.effect());
+    assert!((result.effect() - 2.0).abs() < 0.03, "{}", result.effect());
     assert_eq!(result.support_status(), None, "the Bayesian design route is unlicensed");
 }
 
@@ -296,7 +296,7 @@ fn synthetic_control_posterior_recovers_the_effect_and_records_convergence() {
         &ctx,
     );
     let (mean, _, lower, upper) = effect_summary(&result);
-    assert!((mean - 3.0).abs() < 0.6, "{mean}");
+    assert!((mean - 3.0).abs() < 0.1, "{mean}");
     assert!(lower < 3.0 && 3.0 < upper);
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.synthetic_control"));
     let diagnostics = &result.posterior.as_ref().unwrap().diagnostics;

@@ -431,6 +431,25 @@ def _refusals() -> list[tuple[str, Callable[[], Any]]]:
     ]
 
 
+# The typed error class and the exact registered code each probed misuse is refused with.
+EXPECTED_REFUSALS = {
+    "ResponseCurve refute=full": ("CausalUnsupportedError", "refutation_not_applicable"),
+    "unknown estimator": ("CausalValueError", "unknown_strategy"),
+    "sharp RD estimator off route": ("CausalUnsupportedError", "option_not_applicable"),
+    "regimes without RPCMCI": ("CausalUnsupportedError", "option_not_applicable"),
+    "unknown variable": ("CausalDataError", "unknown_variable"),
+    "graph cycle": ("CausalGraphError", "graph_invalid"),
+    "refute=True": ("CausalTypeError", "invalid_argument"),
+    "Pulse on static edges": ("CausalValueError", "invalid_argument"),
+    "retarget on Bayesian": ("CausalUnsupportedError", "score_table_unavailable"),
+    "retarget without scores": ("CausalUnsupportedError", "score_table_unavailable"),
+    "rebind with a missing column": ("CausalValueError", "invalid_argument"),
+    "estimator ipw": ("CausalValueError", "unknown_strategy"),
+    "identifier frontdoor": ("CausalCompileError", "strategy_incompatible"),
+    "unknown estimator_config key": ("CausalValueError", "invalid_argument"),
+}
+
+
 @pytest.mark.parametrize("label, call", _refusals(), ids=[label for label, _ in _refusals()])
 def test_every_probed_refusal_carries_a_registered_reason_code(
     label: str, call: Callable[[], Any]
@@ -445,6 +464,7 @@ def test_every_probed_refusal_carries_a_registered_reason_code(
         call()
     error = caught.value
     assert error.reason_code in REGISTERED, (label, error.reason_code, str(error))
+    assert (type(error).__name__, error.reason_code) == EXPECTED_REFUSALS[label], label
     report = getattr(error, "report", None)
     if report is not None:
         assert report.code == error.reason_code

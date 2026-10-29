@@ -121,5 +121,13 @@ fn the_frequentist_twin_replays_one_seeded_disturbance() {
     let (p0, p1) = (30.0 / 120.0, 72.0 / 120.0);
     let expected = (p1 - p0) / (1.0 - p0);
     assert!((frequency - expected).abs() < 0.2, "{frequency} vs {expected}");
+    // The (x=1, y=1) group has probability 1 - p0/p1 (72 units, binomial sd 0.058), and the two
+    // discordant groups have no effect under any disturbance.
+    let units = group(&x, &y, 1.0, 1.0);
+    let frequency = units.iter().map(|&i| effects[i]).sum::<f64>() / units.len() as f64;
+    assert!((frequency - (1.0 - p0 / p1)).abs() < 0.2, "{frequency} vs {}", 1.0 - p0 / p1);
+    for (xv, yv) in [(0.0, 1.0), (1.0, 0.0)] {
+        assert!(group(&x, &y, xv, yv).iter().all(|&i| effects[i].abs() < 1e-9), "({xv}, {yv})");
+    }
     assert!(result.counterfactual().unwrap().unit_effect_intervals.is_none());
 }

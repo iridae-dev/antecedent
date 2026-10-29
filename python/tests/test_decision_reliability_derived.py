@@ -10,6 +10,7 @@ effective sample size 40 computed here from the closed form.
 from __future__ import annotations
 
 import math
+from statistics import NormalDist
 
 import numpy as np
 import pytest
@@ -166,6 +167,11 @@ def test_simultaneous_multiplicity_widens_every_interval() -> None:
     narrow, wide = _utility(marginal, "A"), _utility(simultaneous, "A")
     assert wide["upper"] - wide["lower"] > narrow["upper"] - narrow["lower"]
     assert wide["level"] == pytest.approx(1.0 - 0.05 / 8.0)
+    # Bonferroni over the 8 reported intervals: the half-width is the 1 - 0.05/16 normal
+    # quantile times the same standard error.
+    critical = NormalDist().inv_cdf(1.0 - 0.05 / 16.0)
+    assert (wide["upper"] - wide["lower"]) / 2.0 == pytest.approx(critical * SE_A, abs=1e-6)
+    assert wide["standard_error"] == pytest.approx(SE_A, rel=1e-9)
 
 
 def test_a_fresh_consumer_rederives_and_refuses_an_edited_derivation() -> None:

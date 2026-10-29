@@ -141,12 +141,19 @@ fn thin_windows_and_invalid_inputs_are_refused() {
     let mut broken = outcome.clone();
     broken[5] = f64::INFINITY;
     let bad = LocalRatioSample { running: &running, treatment: &treatment, outcome: &broken };
-    assert!(
+    let non_finite =
         fit_bayesian_local_ratio(&bad, &spec(LocalRatioKind::FuzzyJump), DrawSpec::new(100, 1))
-            .is_err()
-    );
+            .unwrap_err()
+            .to_string();
     let no_floor = LocalRatioSpec { first_stage_floor: 0.0, ..spec(LocalRatioKind::FuzzyJump) };
-    assert!(fit_bayesian_local_ratio(&sample, &no_floor, DrawSpec::new(100, 1)).is_err());
+    let floorless = fit_bayesian_local_ratio(&sample, &no_floor, DrawSpec::new(100, 1))
+        .unwrap_err()
+        .to_string();
+    // Both are the one typed input refusal naming the finite-vector and positive-floor rules.
+    for text in [&non_finite, &floorless] {
+        assert!(text.contains("Bayesian local ratio needs equal finite vectors"), "{text}");
+        assert!(text.contains("first_stage_floor > 0"), "{text}");
+    }
 }
 
 #[test]

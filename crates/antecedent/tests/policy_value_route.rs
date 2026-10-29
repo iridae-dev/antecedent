@@ -286,10 +286,39 @@ fn retained_held_out_uplift_intervals_round_trip_and_refuse_forged_bounds() {
 fn policy_query_refuses_missing_ownership_or_overlap() {
     let mut invalid = query();
     invalid.disjoint_training_subjects = false;
-    assert!(invalid.validate().is_err());
+    let ownership = invalid.validate().unwrap_err().to_string();
+    assert!(ownership.contains("prediction ownership requires disjoint training IDs"), "{ownership}");
     invalid = query();
     invalid.propensity = Arc::from([0.0]);
-    assert!(invalid.validate().is_err());
+    let overlap = invalid.validate().unwrap_err().to_string();
+    assert!(overlap.contains("propensities must be finite and strictly between zero and one"), "{overlap}");
+}
+
+/// Independent AIPW row scores of a binary policy under a known propensity: the policy's
+/// predicted arm mean plus the inverse-propensity-weighted residual when the assigned arm
+/// matches the policy's arm. Returns the mean and the standard error of the mean.
+fn aipw_policy_value(
+    assignment: &[bool],
+    actions: &[bool],
+    outcomes: &[f64],
+    mu0: f64,
+    mu1: f64,
+    propensity: f64,
+) -> (f64, f64) {
+    let scores = (0..outcomes.len())
+        .map(|i| {
+            let (mu, weight) = if actions[i] {
+                (mu1, if assignment[i] { 1.0 / propensity } else { 0.0 })
+            } else {
+                (mu0, if assignment[i] { 0.0 } else { 1.0 / (1.0 - propensity) })
+            };
+            mu + weight * (outcomes[i] - mu)
+        })
+        .collect::<Vec<_>>();
+    let m = scores.len() as f64;
+    let mean = scores.iter().sum::<f64>() / m;
+    let variance = scores.iter().map(|s| (s - mean).powi(2)).sum::<f64>() / (m - 1.0);
+    (mean, (variance / m).sqrt())
 }
 
 #[test]
@@ -323,6 +352,19 @@ fn retained_held_out_policy_intervals_round_trip_and_reject_forgery() {
     let value = result.policy_value().unwrap();
     let policy_ci = value.policy_interval_95.unwrap();
     let incremental_ci = value.incremental_interval_95.unwrap();
+    // The published value and interval are the independently computed AIPW mean and the mean
+    // plus or minus the normal 0.975 quantile times its standard error.
+    let (expected, expected_se) = aipw_policy_value(
+        &(0..n).map(|i| i % 2 == 1).collect::<Vec<_>>(),
+        &(0..n).map(|i| i % 3 == 0).collect::<Vec<_>>(),
+        &outcomes,
+        1.0,
+        3.0,
+        0.5,
+    );
+    assert!((value.policy_value - expected).abs() < 1e-9, "{} vs {expected}", value.policy_value);
+    let half = (policy_ci[1] - policy_ci[0]) / 2.0;
+    assert!((half - 1.959_963_984_540_054 * expected_se).abs() < 1e-6, "{half} vs {expected_se}");
     assert!(policy_ci[0] < value.policy_value && value.policy_value < policy_ci[1]);
     assert!(
         incremental_ci[0] < value.incremental_value && value.incremental_value < incremental_ci[1]

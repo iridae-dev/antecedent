@@ -114,8 +114,14 @@ fn two_outcomes_under_two_interventions_recover_the_known_effects() {
     assert_eq!(set.treatments.as_ref(), [v(0), v(1)]);
     assert_eq!(set.contrasts.iter().map(|c| c.outcome).collect::<Vec<_>>(), [v(2), v(3)]);
     let (first, second) = (&set.contrasts[0], &set.contrasts[1]);
+    // The mechanisms are additive and linear, so every unit moves by the same amount: 5 for y1
+    // (bounded wiggle bias 0.18) and -1 for y2 (bias 0.002).
     assert!((first.mean_ite - 5.0).abs() < 0.25, "y1 effect {}", first.mean_ite);
-    assert!((second.mean_ite + 1.0).abs() < 0.25, "y2 effect {}", second.mean_ite);
+    assert!((second.mean_ite + 1.0).abs() < 0.02, "y2 effect {}", second.mean_ite);
+    assert!(
+        first.unit_effects.iter().all(|e| (e - first.mean_ite).abs() < 1e-6),
+        "an additive linear mechanism has a homogeneous unit effect"
+    );
     for contrast in &set.contrasts {
         assert_eq!(contrast.unit_effects.len(), ROWS);
         assert_eq!(contrast.unit_extrapolative.as_ref().map(|flags| flags.len()), Some(ROWS));
@@ -226,6 +232,8 @@ fn single_outcome_results_are_unchanged_and_agree_with_the_contrast_set_route() 
         let cf = old.counterfactual().expect("the single form keeps the single payload");
         assert!(old.counterfactual_contrasts().is_none(), "{label}");
         assert_eq!(cf.unit_effects.len(), ROWS, "{label}");
+        // Moving x1 from 0 to 1 moves y1 by its coefficient 2 (fitted 2.18 under the wiggle).
+        assert!((cf.mean_ite - 2.0).abs() < 0.25, "{label}: {}", cf.mean_ite);
         // One support diagnostic and the established wording: the single route is untouched.
         let support: Vec<_> = diagnostics(&old, "gcm.counterfactual.support").collect();
         assert_eq!(support.len(), 1, "{label}");

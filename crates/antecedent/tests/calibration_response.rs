@@ -1309,9 +1309,21 @@ fn static_response_coordinates_publish_the_scored_interval() {
     let (_, gp) = run_graph_posterior(response_data(300, seed), RefuteSuite::None, seed)
         .expect("graph-posterior run");
     assert!(response_scalar(&gp).is_some_and(|(_, _, level, _)| level == REPORTED_LEVEL));
+    // The published interval is the point estimate plus or minus the two-sided normal 0.975
+    // quantile (1.959964) times the reported standard error, and the estimate lies within five
+    // standard errors of the population value of the frozen-weight aggregate.
+    let (lo, hi, _, se) = response_scalar(&gp).expect("graph-posterior scalar band");
+    let estimate = (lo + hi) / 2.0;
+    assert!(se > 0.0 && se < 0.5, "graph-posterior se {se}");
+    assert!((hi - lo - 2.0 * 1.959_964 * se).abs() < 1e-5, "normal-quantile width {lo} {hi} {se}");
+    assert!((estimate - GP_TRUTH).abs() < 5.0 * se, "graph-posterior estimate {estimate} vs {GP_TRUTH}");
     let (_, codetermined) =
         run_codetermined(codetermined_data(600, seed), seed).expect("CoDetermined run");
     assert!(response_normal_pair(&codetermined)[0].is_some());
+    let (clo, chi, _, cse) = response_scalar(&codetermined).expect("CoDetermined scalar band");
+    let cestimate = (clo + chi) / 2.0;
+    assert!((chi - clo - 2.0 * 1.959_964 * cse).abs() < 1e-5, "normal-quantile width");
+    assert!((cestimate - 3.5).abs() < 5.0 * cse, "CoDetermined estimate {cestimate} vs 3.5");
     for case in [cpdag_case(), pag_case()] {
         let data = (case.data)(300, seed);
         let (_, result) =
@@ -1320,6 +1332,14 @@ fn static_response_coordinates_publish_the_scored_interval() {
         assert!(
             response_scalar(&result).is_some_and(|(_, _, level, _)| level == REPORTED_LEVEL),
             "{}: agreeing completions publish the shared posterior interval",
+            case.cell.graph_class
+        );
+        let (lo, hi, _, _) = response_scalar(&result).expect("class-aware scalar band");
+        let estimate = (lo + hi) / 2.0;
+        let truth = (case.truth)(1.0, mean_z(&data));
+        assert!(
+            lo < truth && truth < hi + 0.5 * (hi - lo) && (estimate - truth).abs() < (hi - lo),
+            "{}: estimate {estimate} and band ({lo}, {hi}) near the sample-covariate truth {truth}",
             case.cell.graph_class
         );
         let (_, curve) =

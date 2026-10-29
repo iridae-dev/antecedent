@@ -167,13 +167,16 @@ fn repeated_sampling_is_scoped_to_one_correct_linear_nuisance() {
             summary.reps
         );
         assert_eq!(summary.failures, 0, "{}", scenario.name);
-        assert!(summary.bias.abs() < 0.25, "{} bias={}", scenario.name, summary.bias);
+        // Observed biases are -0.021, -0.005, 0.074 and -0.004 (the replicate mean has a standard
+        // error near 0.02), so the misspecified-both scenario is bounded at 0.12 and the rest at 0.05.
+        let bound = if scenario.name.starts_with("both") { 0.12 } else { 0.05 };
+        assert!(summary.bias.abs() < bound, "{} bias={}", scenario.name, summary.bias);
         if scenario.name.starts_with("outcome correct")
             || scenario.name.starts_with("propensity correct")
         {
             // This permissive floor catches gross undercoverage while avoiding
             // an unsupported high-precision claim at only 40 replications.
-            assert!(summary.coverage >= 0.70, "{} coverage={}", scenario.name, summary.coverage);
+            assert!(summary.coverage >= 0.75, "{} coverage={}", scenario.name, summary.coverage);
         }
     }
 }

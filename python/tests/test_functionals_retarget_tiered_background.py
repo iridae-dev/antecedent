@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import antecedent
+from statistics import NormalDist
+
 import numpy as np
 import pytest
 from antecedent.errors import CausalUnsupportedError
@@ -92,8 +94,13 @@ def test_analyze_exceedance_and_mean():
             estimator="aipw",
         )
     )
-    assert np.isfinite(mean.estimate.ate)
-    assert np.isfinite(exc.estimate.ate)
+    # Truth (z ~ N(0,1), y = 2t + z + 0.3 e): ATE = 2; Y(a) ~ N(2a, 1 + 0.09), so the
+    # exceedance contrast at 1 is Phi(1/sd) - Phi(-1/sd) with sd = sqrt(1.09) = 0.6618.
+    # The unadjusted difference of means is 2.78, outside every band below.
+    assert mean.estimate.ate == pytest.approx(2.0, abs=0.15)
+    exceed_truth = NormalDist().cdf(1.0 / 1.09**0.5) - NormalDist().cdf(-1.0 / 1.09**0.5)
+    assert exceed_truth == pytest.approx(0.66185, abs=1e-5)
+    assert exc.estimate.ate == pytest.approx(exceed_truth, abs=0.05)
     qte = require_success(
         antecedent.analyze(
             data,
@@ -104,7 +111,8 @@ def test_analyze_exceedance_and_mean():
             estimator="aipw",
         )
     )
-    assert np.isfinite(qte.estimate.ate)
+    # Both arms are symmetric about their means, so the median contrast is the mean contrast.
+    assert qte.estimate.ate == pytest.approx(2.0, abs=0.15)
     plan = antecedent.prepare(
         data,
         graph=graph,
@@ -164,7 +172,8 @@ def test_tiered_background():
             inference=antecedent.Frequentist(bootstrap=0),
         )
     )
-    assert np.isfinite(result.estimate.ate)
+    # Truth: y = 1.5 t + 0.4 era + noise with era confounding t, so the ATE is 1.5.
+    assert result.estimate.ate == pytest.approx(1.5, abs=0.1)
 
 
 def test_econml_modifier_set_and_exceedance():
@@ -209,6 +218,12 @@ def test_exceedance_grid_on_fresh_estimate():
     assert cdf is not None
     assert len(cdf) == 6
     assert all(np.isfinite(cdf))
+    # Layout is [threshold][control, active]; truth is P(Y(a) <= x) with Y(a) ~ N(2a, 1.09).
+    sd = 1.09**0.5
+    truth = [
+        NormalDist(2.0 * arm, sd).cdf(threshold) for threshold in (0.0, 0.5, 1.0) for arm in (0, 1)
+    ]
+    np.testing.assert_allclose(cdf, truth, atol=0.1, rtol=0.0)
     assert fresh.estimate.ate is None
     assert isinstance(fresh.estimate.monotone_rearranged, bool)
     assert fresh.estimate.simultaneous_interval is None
@@ -471,6 +486,12 @@ def test_analyze_many_keeps_exceedance_functional():
     )
     assert mean.estimate.exceedance_cdf is None
     assert exc.estimate.ate != pytest.approx(mean.estimate.ate, abs=1e-6)
+    # Y(0) ~ N(0, 1), Y(1) ~ N(0, 1.4^2): the exceedance contrast at the 0.9 quantile of Y(0)
+    # is Phi(-q/1.4) - Phi(-q) in magnitude (0.0800) and the mean effect is zero.
+    assert exc.estimate.ate == pytest.approx(
+        NormalDist().cdf(q90) - NormalDist().cdf(q90 / 1.4), abs=0.03
+    )
+    assert abs(mean.estimate.ate) < 0.15
     solo_mean = require_success(
         antecedent.prepare(
             data,
@@ -563,6 +584,10 @@ def test_prepared_batch_keeps_exceedance_functional():
     )
     assert mean.estimate.exceedance_cdf is None
     assert exc.estimate.ate != pytest.approx(mean.estimate.ate, abs=1e-6)
+    assert exc.estimate.ate == pytest.approx(
+        NormalDist().cdf(q90) - NormalDist().cdf(q90 / 1.4), abs=0.03
+    )
+    assert abs(mean.estimate.ate) < 0.15
     solo_mean = require_success(
         antecedent.prepare(
             data,
@@ -703,9 +728,11 @@ def test_codetermined_joint_cells_are_cell_aipw():
             inference=antecedent.Frequentist(bootstrap=0),
         )
     )
-    assert np.isfinite(result.estimate)
+    # Truth: E[Y | do(t1=1, t2=1)] = 1.2 + 0.8 + 1.5 = 3.5 (z and noise have mean zero); the
+    # unadjusted cell mean is 3.83. The standard error is about 0.02.
+    assert result.estimate == pytest.approx(3.5, abs=0.08)
     assert result.uncertainty.standard_error is not None
-    assert np.isfinite(result.uncertainty.standard_error)
+    assert 0.0 < result.uncertainty.standard_error < 0.06
     prepared = antecedent.prepare(
         data,
         query=query,
@@ -855,7 +882,8 @@ def test_prepared_batch_zero_effect_pair_family_is_not_significant():
     )
     assert first.estimate.ate == pytest.approx(solo.estimate, abs=1e-12)
     for i, result in enumerate((first, second)):
-        assert result.estimate.ate > 1.0
+        # Neither treatment affects y = 2 + 0.4 z + noise, so every cell mean is E[Y] = 2.
+        assert result.estimate.ate == pytest.approx(2.0, abs=0.1)
         assert abs(result.estimate.ate) / result.estimate.se_analytic > 8.0
         bh, by_q = result.estimate.adjusted_p_values
         assert bh > 0.05 and by_q > 0.05
@@ -970,7 +998,7 @@ def test_prepared_batch_codetermined_distinct_pairs_share_folds_not_z():
     )
     assert results[0].estimate.ate == pytest.approx(solo.estimate, abs=1e-12)
     for result in results:
-        assert result.estimate.ate > 1.0
+        assert result.estimate.ate == pytest.approx(2.0, abs=0.1)
         bh, by_q = result.estimate.adjusted_p_values
         assert bh > 0.05 and by_q > 0.05
         value, _se = result.estimate.family_contrast
@@ -1087,7 +1115,7 @@ def test_conditional_quantile_fresh_prepared_and_class():
         click = require_success(plan.estimate())
         assert fresh.estimate.ate == pytest.approx(click.estimate.ate, abs=1e-10)
         assert fresh.estimate.se_analytic == pytest.approx(click.estimate.se_analytic, abs=1e-10)
-        assert fresh.estimate.ate == pytest.approx(2.0, abs=0.2)
+        assert fresh.estimate.ate == pytest.approx(2.0, abs=0.12)
         assert any(
             diagnostic.startswith("estimate.functional.quantile_grid:")
             and "control then active" in diagnostic
