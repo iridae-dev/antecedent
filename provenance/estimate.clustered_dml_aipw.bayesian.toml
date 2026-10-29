@@ -40,4 +40,4 @@ sha256 = "d3094cdc5169502b9fe681c8177005de6ac93c83609af8c9f35c0bba7d738765"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/cluster_dml_aipw.rs"
-sha256 = "b300b0b772ea5955d5cc7cfda292973142e31bdc09c7d1b980a2ec5202bb1d4c"
+sha256 = "63b8538559227594c9856284ea4d131d4bb229289f88fc5fb66a673f88c31b40"

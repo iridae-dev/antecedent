@@ -132,8 +132,13 @@ fn checked_linear_backends_execute_equal_designs_and_refuse_unavailable_routes()
     for unavailable in
         [PhysicalAlternative::StreamedReduction, PhysicalAlternative::OptionalLazyPreparation]
     {
+        let refused = estimator
+            .prepare_checked_with_backend(&data, &identification, 0, unavailable)
+            .err()
+            .expect("an unavailable physical route is refused");
         assert!(
-            estimator.prepare_checked_with_backend(&data, &identification, 0, unavailable).is_err()
+            refused.to_string().contains("streamed and lazy preparation are unavailable"),
+            "{refused}"
         );
     }
 }
@@ -170,7 +175,8 @@ fn checked_linear_adjustment_retains_selected_target_and_assumptions() {
         ("z", z.as_slice()),
     ])
     .unwrap();
-    assert!(estimator.rebind_checked(&checked, &changed_schema).is_err());
+    let refused = estimator.rebind_checked(&checked, &changed_schema).err().expect("renamed schema");
+    assert!(refused.to_string().contains("no longer agree"), "{refused}");
 }
 
 #[test]
@@ -265,7 +271,9 @@ fn checked_linear_adjustment_rejects_semantic_tampering() {
     reversed.arena = arena;
     reversed.estimands[0].functional = functional;
     let estimator = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
-    assert!(estimator.prepare_checked(&data, &reversed, 0).is_err());
+    let mismatch = "selected functional does not match the query contrast";
+    let refused = estimator.prepare_checked(&data, &reversed, 0).err().expect("reversed arms");
+    assert!(refused.to_string().contains(mismatch), "{refused}");
 
     let mut changed_arms = checked_result(query.clone(), &[VariableId::from_raw(2)]);
     let mut different_query = query.clone();
@@ -274,17 +282,22 @@ fn checked_linear_adjustment_rejects_semantic_tampering() {
         antecedent_core::Value::f64(2.0),
     );
     changed_arms.query = antecedent_core::CausalQuery::average_effect(different_query);
-    assert!(estimator.prepare_checked(&data, &changed_arms, 0).is_err());
+    let refused = estimator.prepare_checked(&data, &changed_arms, 0).err().expect("changed arms");
+    assert!(refused.to_string().contains(mismatch), "{refused}");
 
     let mut changed_covariate = checked_result(query, &[VariableId::from_raw(2)]);
     changed_covariate.estimands[0].adjustment_set = Arc::from([]);
-    assert!(estimator.prepare_checked(&data, &changed_covariate, 0).is_err());
+    let refused =
+        estimator.prepare_checked(&data, &changed_covariate, 0).err().expect("changed covariate");
+    assert!(refused.to_string().contains(mismatch), "{refused}");
 
     let mut changed_population =
         AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     changed_population.target_population = TargetPopulation::Treated;
     let changed_population = checked_result(changed_population, &[VariableId::from_raw(2)]);
-    assert!(estimator.prepare_checked(&data, &changed_population, 0).is_err());
+    let refused =
+        estimator.prepare_checked(&data, &changed_population, 0).err().expect("treated population");
+    assert!(refused.to_string().contains("supports AllObserved population averaging"), "{refused}");
 }
 
 #[test]
@@ -582,31 +595,73 @@ fn source_cluster_labels_must_cover_the_source_rows_and_exclude_complete_case_la
 
 #[test]
 fn hc_sandwich_kinds_yield_finite_se() {
-    let (data, estimand) = toy();
+    // Noisy outcome so the residuals are non-zero. The reference forms the sandwich for the
+    // treatment coefficient from the explicit Gram inverse: with u_i = [(XᵀX)⁻¹x_i]_T,
+    // HC_k is Σ e_i² u_i² / (1−h_i)^k (k = 0, 1 for HC1-free HC0, 2, 3 as named) and
+    // Newey-West is the Bartlett-weighted long-run sum of e_t u_t.
+    let (data, estimand) = toy_with(|i, t, z| 1.0 + 2.0 * t + z + wiggle(i));
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    for kind in [
-        AnalyticSeKind::Hc0,
-        AnalyticSeKind::Hc2,
-        AnalyticSeKind::Hc3,
-        AnalyticSeKind::NeweyWest { lag: 2 },
+    let probe = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
+    let prep = probe.prepare(&data, &estimand, &query).unwrap();
+    let (n, p) = (prep.design.nrows, prep.design.ncols);
+    let t_col = prep.design.treatment_column().unwrap();
+    let fit = prep.design.fit_ols(&probe.backend, &mut EstimationWorkspace::default().ols).unwrap();
+    let mut xtx = vec![0.0; p * p];
+    form_xtx(&prep.design.matrix, n, p, &mut xtx);
+    let inv = invert_square(&xtx, p).unwrap();
+    let u: Vec<f64> =
+        (0..n).map(|i| (0..p).map(|c| inv[t_col * p + c] * prep.design.matrix[c * n + i]).sum()).collect();
+    let leverage: Vec<f64> = (0..n)
+        .map(|i| {
+            (0..p)
+                .map(|a| {
+                    (0..p).map(|b| prep.design.matrix[a * n + i] * inv[a * p + b] * prep.design.matrix[b * n + i]).sum::<f64>()
+                })
+                .sum()
+        })
+        .collect();
+    let e = &fit.residuals;
+    let hc = |power: i32| -> f64 {
+        (0..n).map(|i| e[i] * e[i] * u[i] * u[i] / (1.0 - leverage[i]).powi(power)).sum::<f64>().sqrt()
+            * prep.treatment_delta.abs()
+    };
+    let newey_west = |lag: usize| -> f64 {
+        let mut total: f64 = (0..n).map(|i| e[i] * e[i] * u[i] * u[i]).sum();
+        for l in 1..=lag {
+            let weight = 1.0 - l as f64 / (lag as f64 + 1.0);
+            let cross: f64 = (l..n).map(|t| e[t] * u[t] * e[t - l] * u[t - l]).sum();
+            total += 2.0 * weight * cross;
+        }
+        total.sqrt() * prep.treatment_delta.abs()
+    };
+    let mut seen = Vec::new();
+    for (kind, expected) in [
+        (AnalyticSeKind::Hc0, hc(0)),
+        (AnalyticSeKind::Hc2, hc(1)),
+        (AnalyticSeKind::Hc3, hc(2)),
+        (AnalyticSeKind::NeweyWest { lag: 2 }, newey_west(2)),
     ] {
-        let est = LinearAdjustmentAte::new().with_bootstrap_replicates(0).with_se_kind(kind);
-        let prep = est.prepare(&data, &estimand, &query).unwrap();
-        let mut ws = EstimationWorkspace::default();
-        let effect =
-            est.fit(&prep, &mut ws, &ExecutionContext::for_tests(1), AssumptionSet::new()).unwrap();
-        assert!(effect.se_analytic().is_finite() && effect.se_analytic() > 0.0, "{kind:?}");
+        let effect = fit_kind_effect(&data, &estimand, LinearFitKind::Ols, kind);
+        let got = effect.se_analytic();
+        assert!(got.is_finite() && got > 0.0, "{kind:?}");
+        let tolerance = 1e-9 * expected;
+        assert!((got - expected).abs() <= tolerance, "{kind:?}: {got} vs {expected}");
+        seen.push(got);
     }
+    // The four estimators are different sandwiches, not one value reported four times.
+    assert!(seen[0] < seen[1] && seen[1] < seen[2], "{seen:?}");
 }
 
 #[test]
 fn ridge_lasso_huber_fit_kinds_recover_ate() {
     let (data, estimand) = toy();
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    for kind in [
-        LinearFitKind::Ridge { lambda: 1e-3 },
-        LinearFitKind::Lasso { lambda: 1e-4 },
-        LinearFitKind::Huber { c: 1.345 },
+    // The data are exact (`y = 1 + 2t + z`), so OLS and Huber recover 2 to rounding; the
+    // penalised fits carry only their own shrinkage bias, of the order of the penalty.
+    for (kind, tolerance) in [
+        (LinearFitKind::Ridge { lambda: 1e-3 }, 3e-4),
+        (LinearFitKind::Lasso { lambda: 1e-4 }, 2e-5),
+        (LinearFitKind::Huber { c: 1.345 }, 1e-9),
     ] {
         let est = LinearAdjustmentAte { fit_kind: kind, ..LinearAdjustmentAte::new() }
             .with_bootstrap_replicates(0);
@@ -615,7 +670,7 @@ fn ridge_lasso_huber_fit_kinds_recover_ate() {
         let effect =
             est.fit(&prep, &mut ws, &ExecutionContext::for_tests(2), AssumptionSet::new()).unwrap();
         assert!(effect.ate.is_finite(), "{kind:?}");
-        assert!((effect.ate - 2.0).abs() < 0.05, "ate={} kind={kind:?}", effect.ate);
+        assert!((effect.ate - 2.0).abs() < tolerance, "ate={} kind={kind:?}", effect.ate);
     }
 }
 
@@ -646,6 +701,21 @@ fn lasso_analytic_se_nan_bootstrap_finite() {
     assert!(effect.se_analytic().is_nan());
     let boot = effect.se_bootstrap().expect("bootstrap SE");
     assert!(boot.is_finite() && boot >= 0.0, "se_bootstrap={boot}");
+
+    // With noise the near-unpenalised lasso is OLS, so its pairs bootstrap SE estimates the
+    // OLS standard error; 40 replicates pin it to well within a factor of two (the sampling
+    // error of an SE from 40 replicates is about 11%).
+    let (noisy, noisy_estimand) = toy_with(|i, t, z| 1.0 + 2.0 * t + z + wiggle(i));
+    let ols_se =
+        fit_kind_effect(&noisy, &noisy_estimand, LinearFitKind::Ols, AnalyticSeKind::Homoskedastic)
+            .se_analytic();
+    let prep = with_boot.prepare(&noisy, &noisy_estimand, &query).unwrap();
+    let boot = with_boot
+        .fit(&prep, &mut ws, &ExecutionContext::for_tests(3), AssumptionSet::new())
+        .unwrap()
+        .se_bootstrap()
+        .expect("bootstrap SE");
+    assert!(boot > 0.6 * ols_se && boot < 1.6 * ols_se, "bootstrap {boot} vs OLS {ols_se}");
 }
 
 /// Deterministic bounded noise in `[-0.1, 0.1]`.

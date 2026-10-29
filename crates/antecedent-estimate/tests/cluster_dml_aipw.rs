@@ -715,7 +715,9 @@ fn the_two_way_variance_equals_hand_computed_cgm_sums() {
     assert_eq!((receipt.reference_df, receipt.n_rows, receipt.folds), (89, 360, FOLDS));
     // A cluster-unit receipt refuses a second label set instead of ignoring it.
     let first_only = ClusterDml::new(20).unwrap();
-    assert!(first_only.receipt(t, &raw.cluster, Some(&raw.second)).is_err());
+    let error = first_only.receipt(t, &raw.cluster, Some(&raw.second)).unwrap_err();
+    code_of(&error, "cluster_dml.second_ids_unexpected");
+    assert!(error.to_string().contains("a cluster unit takes one label per row"), "{error}");
 }
 
 /// A deterministic fixture with repeated endpoints in a 12 by 12 grid, `psi = alpha_a + beta_b`
@@ -768,6 +770,7 @@ fn a_materially_negative_two_way_variance_is_refused_not_truncated() {
     let error =
         ClusterDml::dyadic(10, 2).unwrap().receipt(&table, &first, Some(&second)).unwrap_err();
     assert!(matches!(error, EstimationError::Stats(_)), "{error}");
+    assert!(error.to_string().contains("materially negative"), "{error}");
 }
 
 /// Chains of shared endpoints form one unit: in each block a path of rows links first
@@ -949,7 +952,9 @@ fn the_cluster_summed_covariance_matches_a_hand_calculation_on_a_fixed_table() {
     assert!((20.0_f64 / 380.0 - cov.get(0, 0)).abs() > 0.05);
     assert_eq!(spec.reference_df(&clusters, None), 9);
     // Labels that do not match the unit, or too few clusters, are typed refusals.
-    assert!(spec.influence_covariance(&[&a], &clusters, Some(&clusters)).is_err());
+    let error = spec.influence_covariance(&[&a], &clusters, Some(&clusters)).unwrap_err();
+    code_of(&error, "cluster_dml.second_ids_unexpected");
+    assert!(error.to_string().contains("do not match the declared independence unit"), "{error}");
     let few: Vec<u32> = (0..9u32).flat_map(|g| [g, g]).collect();
     code_of(&spec.influence_covariance(&[&a[..18]], &few, None).unwrap_err(), "too_few_clusters");
 }

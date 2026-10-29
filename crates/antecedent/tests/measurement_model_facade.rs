@@ -243,7 +243,10 @@ fn the_measurement_parameter_uncertainty_is_in_the_variance_and_the_functional()
     assert!((value - 1.5 * uncertain.point()).abs() < 1e-12);
     assert!((variance - 2.25 * uncertain.standard_error().unwrap().powi(2)).abs() < 1e-12);
     // A wrong-width weight vector refuses.
-    assert!(uncertain.downstream_linear_functional(&[1.0]).is_err());
+    let refusal = uncertain.downstream_linear_functional(&[1.0]).unwrap_err();
+    assert_eq!(refusal.code, "invalid_argument");
+    assert_eq!(refusal.detail, "measurement_model.input_invalid");
+    assert!(refusal.message.contains("functional weights do not match the design"), "{}", refusal.message);
 }
 
 #[test]
@@ -604,7 +607,10 @@ fn binary_prevalence_inverts_the_misclassification_algebra() {
     assert_eq!(estimate.parameter_uncertainty(), ParameterUncertainty::Propagated);
     assert_eq!(estimate.operation(), MeasurementOperation::LatentPrevalence);
     // No coefficient vector to take a functional of.
-    assert!(estimate.downstream_linear_functional(&[1.0]).is_err());
+    let refusal = estimate.downstream_linear_functional(&[1.0]).unwrap_err();
+    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.detail, "measurement_model.operation_not_licensed");
+    assert!(refusal.message.contains("not an operation this route enters"), "{}", refusal.message);
 }
 
 #[test]
@@ -719,6 +725,13 @@ fn categorical_inversion_recovers_proportions_and_outcome_means() {
     let contrast =
         run(CategoricalTarget::OutcomeContrast { first: "high".into(), second: "low".into() });
     assert!((contrast.point() - 3.0).abs() < 1e-6, "{}", contrast.point());
+    // The naive contrast is the difference of the observed class means, high minus low.
+    let observed = exact_classes();
+    assert!(
+        (contrast.naive_point().unwrap() - (observed[2].mean - observed[0].mean)).abs() < 1e-12,
+        "{}",
+        contrast.naive_point().unwrap()
+    );
     assert!(contrast.naive_point().unwrap() < 2.5);
     assert_eq!(contrast.operation(), MeasurementOperation::CategoryOutcomeMeans);
     assert_eq!(contrast.parameter_uncertainty(), ParameterUncertainty::Propagated);
@@ -980,7 +993,10 @@ fn refresh_keeps_the_model_recomputes_the_numbers_and_refuses_other_questions() 
     assert_eq!(prepared.estimate(&ctx()).unwrap().record(), before.record());
     // A refresh that fails inside the estimator leaves the prior state alone.
     let tiny = Simulated { y: vec![0.0; 3], w: vec![0.0; 3], z: vec![0.0; 3] };
-    assert!(prepared.refresh(classical_input(&tiny), &ctx()).is_err());
+    let refusal = prepared.refresh(classical_input(&tiny), &ctx()).unwrap_err();
+    assert_eq!(refusal.code, "invalid_argument");
+    assert_eq!(refusal.detail, "measurement_model.input_invalid");
+    assert!(refusal.message.contains("too few rows: 3"), "{}", refusal.message);
     assert_eq!(prepared.estimate(&ctx()).unwrap().record(), before.record());
 }
 
@@ -1099,9 +1115,15 @@ fn artifact_replays_independently_and_refuses_semantic_mutation() {
     let mut damaged = bytes.clone();
     let at = damaged.len() / 2;
     damaged[at] ^= 0x55;
-    assert!(consume_measurement_model_artifact(&damaged, &identity).is_err());
+    let refusal = consume_measurement_model_artifact(&damaged, &identity).unwrap_err();
+    assert_eq!(refusal.code, "invalid_argument");
+    assert_eq!(refusal.detail, "measurement_model.artifact_invalid");
+    assert!(refusal.message.contains("checksum mismatch"), "{}", refusal.message);
     // A malformed retained identity is refused, not ignored.
-    assert!(consume_measurement_model_artifact(&bytes, "not-an-identity").is_err());
+    let refusal = consume_measurement_model_artifact(&bytes, "not-an-identity").unwrap_err();
+    assert_eq!(refusal.code, "invalid_argument");
+    assert_eq!(refusal.detail, "measurement_model.artifact_invalid");
+    assert!(refusal.message.contains("64 hexadecimal characters"), "{}", refusal.message);
 }
 
 #[test]

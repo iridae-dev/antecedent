@@ -298,7 +298,11 @@ fn latent_artifact_refuses_unknown_versions_features_and_corruption() {
     let mut corrupt = bytes.clone();
     let middle = corrupt.len() / 2;
     corrupt[middle] ^= 0xFF;
-    assert!(LatentClassArtifact::from_bytes(&corrupt, None).is_err());
+    let error = LatentClassArtifact::from_bytes(&corrupt, None).unwrap_err();
+    assert!(
+        matches!(&error, LatentClassArtifactError::Container(_)),
+        "a flipped byte is a container refusal: {error:?}"
+    );
 }
 
 #[test]
@@ -453,15 +457,20 @@ fn population_request(rows: usize, seed: u64) -> LatentClassRequestWire {
 }
 
 /// The population's classes in canonical (ascending effect) order, within sampling error.
+/// Every tolerance is a multiple of `1 / sqrt(rows)`: the standard error of an effect is about
+/// `1.5 / sqrt(rows)` (noise scale 0.5 over a fair-coin treatment within a class holding 40% to
+/// 60% of the rows), of a class weight `0.5 / sqrt(rows)`, so the bands are a few standard errors
+/// wide at every size and a fit that drifted (a swapped class, a wrong pooled effect) fails them.
 fn assert_population_recovered(artifact: &LatentClassArtifact, rows: usize) {
     let meta = artifact.meta();
     assert_eq!(meta.n_rows, u64::try_from(rows).unwrap());
     assert_eq!(meta.responsibilities.rows, meta.n_rows);
-    close(meta.classes[0].effect, -2.0, 0.08, "tau q");
-    close(meta.classes[0].weight, 0.4, 0.03, "pi q");
-    close(meta.classes[1].effect, 1.0, 0.08, "tau p");
-    close(meta.classes[1].weight, 0.6, 0.03, "pi p");
-    close(meta.mixture_average_effect, -0.2, 0.06, "mixture average");
+    let unit = 1.0 / (rows as f64).sqrt();
+    close(meta.classes[0].effect, -2.0, 6.0 * unit, "tau q");
+    close(meta.classes[0].weight, 0.4, 2.5 * unit, "pi q");
+    close(meta.classes[1].effect, 1.0, 6.0 * unit, "tau p");
+    close(meta.classes[1].weight, 0.6, 2.5 * unit, "pi p");
+    close(meta.mixture_average_effect, -0.2, 4.0 * unit, "mixture average");
 }
 
 /// The fit completes on `rows` rows with its inferential standing exactly that of the small
