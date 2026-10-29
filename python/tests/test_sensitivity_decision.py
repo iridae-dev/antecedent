@@ -498,6 +498,21 @@ def test_joint_sensitivity_full_source_export_replays_the_actual_retained_laws()
     restored = require_success(sd.SensitivityArtifact.consume_with_source(exported))
     assert restored.identity == artifact.identity
     assert restored.quantities == artifact.quantities
+    # The restored surface is the hand-derived range, not merely the exporter's own output:
+    # the effect sum_w P(w) delta_w = 0.65 * 0.3 + 0.35 * 0.5 at gamma = 0, and at gamma = 0.2 the range is
+    # sum_w P(w) ((1 - 0.2) delta_w -/+ 0.2).
+    delta = {w: P_Y1[(w, 1)] - P_Y1[(w, 0)] for w in (0, 1)}
+    baseline = sum(P_W[w] * delta[w] for w in (0, 1))
+    assert baseline == pytest.approx(0.37, abs=1e-15)
+    surface = restored.quantities[0]
+    assert surface.lower[0] == pytest.approx(baseline, abs=1e-12)
+    assert surface.upper[0] == pytest.approx(baseline, abs=1e-12)
+    assert surface.lower[-1] == pytest.approx(
+        sum(P_W[w] * (0.8 * delta[w] - 0.2) for w in (0, 1)), abs=1e-12
+    )
+    assert surface.upper[-1] == pytest.approx(
+        sum(P_W[w] * (0.8 * delta[w] + 0.2) for w in (0, 1)), abs=1e-12
+    )
     assert artifact.source_evidence is not None
     assert artifact.original_source() is not None
     assert restored.source_evidence == artifact.source_evidence

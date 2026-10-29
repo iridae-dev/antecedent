@@ -193,13 +193,14 @@ fn an_interventional_distribution_on_an_admg_is_refuted_by_its_atom_vector() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    // Two outcome levels: the vector is the probability of the first atom, and the atom the
-    // route publishes first is one of the two levels of Y, so it is `truth` or `1 - truth`.
-    let first = result.distribution().unwrap().atoms[0].probability;
-    assert!(
-        (first - truth).abs() < 0.02 || (first - (1.0 - truth)).abs() < 0.02,
-        "{first} vs {truth}"
-    );
+    // Two outcome levels: the vector is the probability of the first atom. Which level that
+    // atom carries is read from the atom itself, so the expected value is `truth` for Y = 1
+    // and `1 - truth` for Y = 0, never either.
+    let first_atom = &result.distribution().unwrap().atoms[0];
+    let first = first_atom.probability;
+    let first_is_one = first_atom.outcomes[0].1 == Value::f64(1.0);
+    let expected_first = if first_is_one { truth } else { 1.0 - truth };
+    assert!((first - expected_first).abs() < 0.02, "{first} vs {expected_first} (Y=1: {first_is_one})");
     assert_eq!(result.support_status(), Some(CellStatus::Refused));
     for refuter in ["target.subset_stability", "target.bootstrap_stability"] {
         let check = report(&result, refuter);
@@ -212,18 +213,15 @@ fn an_interventional_distribution_on_an_admg_is_refuted_by_its_atom_vector() {
     let observed_y1 = routed_data().float64_values(v(3)).unwrap().iter().sum::<f64>()
         / routed_data().row_count() as f64;
     let placebo = report(&result, "target.distribution_placebo");
+    let expected_placebo = if first_is_one { observed_y1 } else { 1.0 - observed_y1 };
     assert!(
-        (placebo.refuted_ate - observed_y1).abs() < 0.02
-            || (placebo.refuted_ate - (1.0 - observed_y1)).abs() < 0.02,
-        "{} vs marginal {observed_y1}",
+        (placebo.refuted_ate - expected_placebo).abs() < 0.02,
+        "{} vs marginal {expected_placebo}",
         placebo.refuted_ate
     );
     // The intervened law itself is far from that marginal, so the placebo is informative.
-    assert!(
-        (first - placebo.refuted_ate).abs() > 0.02 || (truth - observed_y1).abs() < 0.03,
-        "{first} vs {}",
-        placebo.refuted_ate
-    );
+    assert!((truth - observed_y1).abs() > 0.05, "{truth} vs {observed_y1}");
+    assert!((first - placebo.refuted_ate).abs() > 0.05, "{first} vs {}", placebo.refuted_ate);
 }
 
 /// `z -> t -> y`, `z -> y` over `(z, t, y)` with a deterministic, well-conditioned table.

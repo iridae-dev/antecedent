@@ -31,6 +31,10 @@ fn evalue_range_states_the_assumption_the_range_and_the_break_even_values() {
     assert_eq!(range.assumption, SensitivityAssumption::UnmeasuredConfoundingRiskRatio);
     assert_eq!(range.break_even, Some(bounds.point));
     assert_eq!(range.break_even_significance, bounds.limit);
+    // VanderWeele-Ding closed form E = RR + sqrt(RR (RR - 1)), at the estimate and at the
+    // confidence limit nearer the null: 3.9 + sqrt(3.9 * 2.9) and 1.8 + sqrt(1.8 * 0.8) = 3.
+    assert!((bounds.point - (3.9 + (3.9_f64 * 2.9).sqrt())).abs() < 1e-12, "{}", bounds.point);
+    assert!((bounds.limit.unwrap() - 3.0).abs() < 1e-12, "{:?}", bounds.limit);
     // No confounding leaves the estimate; a confounder at the E-value would reach the null,
     // so every probed strength below it leaves the adjusted risk ratio above one.
     assert_eq!(range.tested[0].target, 3.9);
@@ -96,6 +100,49 @@ fn rosenbaum_range_tracks_the_upper_bound_and_gamma_star() {
     for point in range.tested.iter() {
         assert_eq!(point.parameter <= gamma_star, point.target <= 0.05, "{point:?}");
     }
+    // Reference: the upper-bound p-value of the signed-rank statistic by enumerating all 2^16
+    // sign vectors, each positive with probability gamma / (1 + gamma), from the ranks of |d|
+    // (all distinct) and the observed sum of positive ranks.
+    let mut order: Vec<usize> = (0..d.len()).collect();
+    order.sort_by(|&a, &b| d[a].abs().total_cmp(&d[b].abs()));
+    let mut rank = vec![0_u32; d.len()];
+    for (position, &index) in order.iter().enumerate() {
+        rank[index] = u32::try_from(position + 1).unwrap();
+    }
+    let observed: u32 = (0..d.len()).filter(|&i| d[i] > 0.0).map(|i| rank[i]).sum();
+    assert_eq!(analysis.statistic, f64::from(observed));
+    let upper_p = |gamma: f64| -> f64 {
+        let p = gamma / (1.0 + gamma);
+        let mut total = 0.0;
+        for mask in 0_u32..(1 << d.len()) {
+            let mut sum = 0;
+            let mut probability = 1.0;
+            for (i, r) in rank.iter().enumerate() {
+                if mask & (1 << i) != 0 {
+                    sum += r;
+                    probability *= p;
+                } else {
+                    probability *= 1.0 - p;
+                }
+            }
+            if sum >= observed {
+                total += probability;
+            }
+        }
+        total
+    };
+    for point in range.tested.iter() {
+        assert!(
+            (point.target - upper_p(point.parameter)).abs() < 1e-12,
+            "gamma {}: {} vs {}",
+            point.parameter,
+            point.target,
+            upper_p(point.parameter)
+        );
+    }
+    // The break-even is the largest gamma whose bound is still at most 0.05.
+    assert!(upper_p(gamma_star) <= 0.05 + 1e-9, "{}", upper_p(gamma_star));
+    assert!(upper_p(gamma_star * 1.002) > 0.05, "{}", upper_p(gamma_star * 1.002));
 }
 
 #[test]
@@ -144,6 +191,32 @@ fn mediation_range_breaks_even_at_the_residual_correlation() {
     )
     .unwrap();
     let range = mediation_range(mediation, &summary).unwrap();
+    // Reference from the definition (Imai, Keele, Yamamoto 2010): residuals of m ~ 1 + t and
+    // y ~ 1 + t, their correlation rho_tilde, the residual sds with n - 2 degrees of freedom,
+    // and the mediated effect beta_m sigma_y / sigma_m (rho_tilde - rho sqrt((1 - rho_tilde^2)
+    // / (1 - rho^2))) at each probed correlation.
+    let n = t.len() as f64;
+    let arm_mean = |v: &[f64], arm: f64| {
+        let rows: Vec<f64> = t.iter().zip(v).filter(|(a, _)| **a == arm).map(|(_, b)| *b).collect();
+        rows.iter().sum::<f64>() / rows.len() as f64
+    };
+    let (m_mean, y_mean) = ([arm_mean(&m, 0.0), arm_mean(&m, 1.0)], [arm_mean(&y, 0.0), arm_mean(&y, 1.0)]);
+    let (mut rss_m, mut rss_y, mut cross) = (0.0, 0.0, 0.0);
+    for i in 0..t.len() {
+        let arm = t[i] as usize;
+        let (rm, ry) = (m[i] - m_mean[arm], y[i] - y_mean[arm]);
+        rss_m += rm * rm;
+        rss_y += ry * ry;
+        cross += rm * ry;
+    }
+    let rho_tilde = cross / (rss_m.sqrt() * rss_y.sqrt());
+    let scale = (m_mean[1] - m_mean[0]) * ((rss_y / (n - 2.0)).sqrt() / (rss_m / (n - 2.0)).sqrt());
+    assert!((summary.rho_tilde - rho_tilde).abs() < 1e-12, "{} vs {rho_tilde}", summary.rho_tilde);
+    for point in range.tested.iter() {
+        let rho = point.parameter;
+        let acme = scale * (rho_tilde - rho * ((1.0 - rho_tilde * rho_tilde) / (1.0 - rho * rho)).sqrt());
+        assert!((point.target - acme).abs() < 1e-10, "rho {rho}: {} vs {acme}", point.target);
+    }
     assert_eq!(range.break_even, Some(summary.rho_tilde));
     assert!(summary.rho_tilde > 0.0);
     let at_zero = range.tested.iter().find(|p| p.parameter == 0.0).unwrap();

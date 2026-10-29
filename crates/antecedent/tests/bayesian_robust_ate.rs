@@ -79,6 +79,14 @@ fn bayesian_robust_ate_all_observed_staged_known_truth() {
         (result.estimate().as_effect().unwrap().ate - spec["truth"].as_f64().unwrap()).abs()
             < spec["tolerance"].as_f64().unwrap()
     );
+    // The fixture band (0.25) is 25 times the observed error of 0.0099 on this noiseless
+    // design; the robust estimate recovers the effect to a few times that, while the
+    // unadjusted contrast (confounded by x) does not.
+    assert!(
+        (result.estimate().as_effect().unwrap().ate - spec["truth"].as_f64().unwrap()).abs() < 0.05,
+        "{}",
+        result.estimate().as_effect().unwrap().ate
+    );
     assert!(
         result.diagnostics.iter().any(
             |d| d.code.as_ref() == "estimate.bayesian.robust_ate.modular_bootstrap_pushforward"

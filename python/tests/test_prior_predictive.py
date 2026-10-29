@@ -35,6 +35,10 @@ def test_bayesian_ate_validation_includes_prior_and_posterior_ppc():
     assert np.isfinite(prior.predictive_mean)
     assert np.isfinite(prior.predictive_sd)
     assert prior.n_sims > 0
+    # The location statistic is the outcome mean, computed here independently.
+    assert prior.observed == pytest.approx(float(np.mean(data["y"])), abs=1e-9)
+    assert 0.0 <= prior.p_value <= 1.0
+    assert prior.predictive_sd > 0.0
 
     post = result.validation.posterior_predictive
     assert post is not None
@@ -43,7 +47,13 @@ def test_bayesian_ate_validation_includes_prior_and_posterior_ppc():
     assert np.isfinite(post.observed)
     assert np.isfinite(post.predictive_mean)
     assert np.isfinite(post.predictive_sd)
-    assert post.n_sims > 0
+    assert post.n_sims == 64  # one replicate per posterior draw
+    assert post.observed == pytest.approx(float(np.mean(data["y"])), abs=1e-9)
+    assert 0.0 <= post.p_value <= 1.0
+    assert post.predictive_sd > 0.0
+    # The fitted intercept reproduces the outcome mean; replicates centre on it (observed gap
+    # 0.002 against a replicate sd of 0.03).
+    assert abs(post.predictive_mean - post.observed) < 3.0 * post.predictive_sd
 
     assert result.validation.ran is True
     assert result.validation.count >= 2

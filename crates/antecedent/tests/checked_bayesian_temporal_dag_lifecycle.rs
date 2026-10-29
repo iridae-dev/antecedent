@@ -84,8 +84,8 @@ fn multi_step_sustained_query() -> TemporalEffectQuery {
 fn bayesian_temporal_dag_route_retains_proof_refreshes_and_exports_dependency() {
     let ctx = ExecutionContext::for_tests(88_401);
     let routes = [
-        (series(1.0), graph(), query(false), 1.75, series(1.2), 2.1),
-        (series(1.0), graph(), query(true), 1.75, series(1.2), 2.1),
+        (series(1.0), graph(), query(false), 1.75, series(1.2), 2.1, 0.01),
+        (series(1.0), graph(), query(true), 1.75, series(1.2), 2.1, 0.01),
         (
             lagged_pulse_series(1.0),
             two_lag_graph(),
@@ -95,6 +95,10 @@ fn bayesian_temporal_dag_route_retains_proof_refreshes_and_exports_dependency() 
             2.0,
             lagged_pulse_series(1.2),
             2.4,
+            // The two-lag routes sit above the analytic coefficient by 0.069 and 0.083 (30 and
+            // 36 standard errors, deterministic and proportional to the data scale); that
+            // excess is recorded here, not accepted as correct.
+            0.1,
         ),
         (
             lagged_pulse_series(1.0),
@@ -105,10 +109,11 @@ fn bayesian_temporal_dag_route_retains_proof_refreshes_and_exports_dependency() 
             4.0,
             lagged_pulse_series(1.2),
             4.8,
+            0.06,
         ),
-        (series(1.0), graph(), multi_step_sustained_query(), 1.75, series(1.2), 2.1),
+        (series(1.0), graph(), multi_step_sustained_query(), 1.75, series(1.2), 2.1, 0.01),
     ];
-    for (data, graph, target, truth, updated_data, refreshed_truth) in routes {
+    for (data, graph, target, truth, updated_data, refreshed_truth, tolerance) in routes {
         for accepted in [false, true] {
             for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
                 let structure = if accepted {
@@ -148,7 +153,7 @@ fn bayesian_temporal_dag_route_retains_proof_refreshes_and_exports_dependency() 
 
                 let result = prepared.estimate_series(&data, &ctx).unwrap();
                 assert!(
-                    (result.estimate().as_effect().unwrap().ate - truth).abs() < 0.16,
+                    (result.estimate().as_effect().unwrap().ate - truth).abs() < tolerance,
                     "query={target:?}, accepted={accepted}, suite={suite:?}, estimate={}",
                     result.estimate().as_effect().unwrap().ate
                 );
@@ -156,7 +161,7 @@ fn bayesian_temporal_dag_route_retains_proof_refreshes_and_exports_dependency() 
 
                 let refreshed = prepared.refresh_series(updated_data.clone(), &ctx).unwrap();
                 assert!(
-                    (refreshed.estimate().as_effect().unwrap().ate - refreshed_truth).abs() < 0.2,
+                    (refreshed.estimate().as_effect().unwrap().ate - refreshed_truth).abs() < tolerance,
                     "refresh estimate={}",
                     refreshed.estimate().as_effect().unwrap().ate
                 );

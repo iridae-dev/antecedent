@@ -134,7 +134,15 @@ fn a_summary_row_outside_the_data_is_refused() {
     let prepared = builder().build().unwrap().prepare(&ctx).unwrap();
     let mut bad = spec(2.0);
     bad.summary_rows = vec![200];
-    assert!(prepared.treatment_score_posterior(&table(), &bad).is_err());
+    let error = prepared.treatment_score_posterior(&table(), &bad).unwrap_err();
+    assert!(
+        error.to_string().contains("a summary row is outside the prepared data"),
+        "{error}"
+    );
+    // The last valid row (199) is accepted: the bound is on the row count, not off by one.
+    let mut edge = spec(2.0);
+    edge.summary_rows = vec![199];
+    assert!(prepared.treatment_score_posterior(&table(), &edge).is_ok());
 }
 
 #[test]

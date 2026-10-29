@@ -91,6 +91,11 @@ def test_bayesian_path_prepare_estimate():
     assert result.posterior is not None
     assert result.identification
     assert result.assumptions is not None
+    # The only path is t -> m -> y, so the path-specific effect is the total effect of the
+    # counts: P(y=1 | t=1) - P(y=1 | t=0) = 80/100 - 50/100. The posterior mean sits within
+    # the Dirichlet smoothing of it (observed 0.011); the graph-factorised value 0.168 or a
+    # zero effect is far outside.
+    assert result.effect == pytest.approx(0.8 - 0.5, abs=0.03)
 
 
 def test_bayesian_mediation_four_axes():
@@ -121,7 +126,7 @@ def test_bayesian_mediation_four_axes():
     assert result.identification
     assert result.assumptions
     assert result.mediation is not None
-    assert result.effect == pytest.approx(kinds["direct"], abs=0.2)
+    assert result.effect == pytest.approx(kinds["direct"], abs=kinds["tolerance"])
 
 
 def test_bayesian_counterfactual_unit_posterior():
@@ -158,8 +163,13 @@ def test_bayesian_counterfactual_unit_posterior():
     )
     assert bayes.unit_effects is not None
     assert freq.unit_effects is not None
-    assert bayes.mean_ite == pytest.approx(kinds["counterfactual_mean"], abs=0.25)
-    assert float(np.mean(bayes.unit_effects)) == pytest.approx(bayes.mean_ite, abs=0.05)
+    assert bayes.mean_ite == pytest.approx(kinds["counterfactual_mean"], abs=kinds["tolerance"])
+    assert float(np.mean(bayes.unit_effects)) == pytest.approx(bayes.mean_ite, abs=1e-9)
+    # The structural model is additive, so every unit's counterfactual contrast is the same
+    # closed-form 11 * (0.8 - 0.2) = 6.6 whatever its disturbance (observed spread 4e-15).
+    truth = kinds["counterfactual_mean"]
+    assert np.all(np.abs(np.asarray(bayes.unit_effects) - truth) < kinds["tolerance"])
+    assert np.all(np.abs(np.asarray(freq.unit_effects) - truth) < kinds["tolerance"])
     assert not np.allclose(bayes.unit_effects, freq.unit_effects)
 
 
@@ -234,8 +244,14 @@ def test_bayesian_mediation_mapped_prior_is_used():
     text = " ".join(str(a) for a in transferred.assumptions)
     assert "mapped ATE/Δ prior hydrated onto outcome-mechanism" in text
     assert "implied NDE/ATE mean" in text
-    assert source.effect == pytest.approx(kinds["total"], abs=0.25)
+    assert source.effect == pytest.approx(kinds["total"], abs=kinds["tolerance"])
     assert isotropic.effect == pytest.approx(kinds["direct"], abs=kinds["tolerance"])
+    # The mapped source posterior (total effect 6.6, tightly concentrated) is the prior on the
+    # outcome-mechanism treatment slope: it pulls the natural direct effect from the
+    # isotropic fit's 1.8 toward the source's 6.6 (observed 6.02). A route that ignored the
+    # mapped prior would reproduce the isotropic value.
+    assert transferred.effect - isotropic.effect > 2.0
+    assert isotropic.effect < transferred.effect < source.effect
 
 
 def test_bayesian_mediation_refuses_a_prior_source_that_is_not_a_posterior_artifact():
@@ -247,7 +263,7 @@ def test_bayesian_mediation_refuses_a_prior_source_that_is_not_a_posterior_artif
     m = 2 * a + np.cos(i * 1.13)
     y = 3 * a + 4 * m + 0.1 * np.sin(i * 0.31)
     dag = ac.Dag.from_edges(["a", "m", "y"], [("a", "m"), ("a", "y"), ("m", "y")])
-    with pytest.raises(ac.errors.CausalError):
+    with pytest.raises(ac.errors.CausalSerializationError, match="bad artifact magic"):
         require_success(
             ac.analyze(
                 {"a": a, "m": m, "y": y},
@@ -321,3 +337,6 @@ def test_bayesian_conditional_distribution_without_scalar_mean(refute, accepted)
     # Atom order is conditioning assignment, then outcome support.
     assert np.allclose(draws[:, :2].sum(axis=1), 1.0)
     assert np.allclose(draws[:, 2:].sum(axis=1), 1.0)
+    # Every (t, y, z) cell holds 40 rows, so P(y | do(t=1), z) is 1/2 for each z (posterior
+    # means 0.510, 0.490, 0.497, 0.503; Monte-Carlo error of 64 draws about 0.007).
+    assert np.allclose(draws.mean(axis=0), 0.5, atol=0.03)

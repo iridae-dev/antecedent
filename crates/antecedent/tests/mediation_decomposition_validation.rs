@@ -276,7 +276,16 @@ fn an_admg_decomposition_runs_the_mediation_suite_on_both_inferences() {
             // Validation observes the estimate, it does not move it.
             assert!((result.effect() - none.effect()).abs() < 1e-12);
             let components = result.payload().mediation().expect("the decomposition");
-            assert!((components.total.unwrap() - counted_total(&CELLS)).abs() < 0.05);
+            // The frequentist components are the counted decomposition of the table; a
+            // posterior mean is within sampling noise of it.
+            if matches!(inference, InferenceMode::Frequentist) {
+                assert!((components.total.unwrap() - counted_total(&CELLS)).abs() < 1e-9);
+                assert!((components.mediated.unwrap() - counted_indirect(&CELLS)).abs() < 1e-9);
+                assert!((result.effect() - counted_indirect(&CELLS)).abs() < 1e-9);
+            } else {
+                assert!((components.total.unwrap() - counted_total(&CELLS)).abs() < 0.05);
+                assert!((result.effect() - counted_indirect(&CELLS)).abs() < 0.05);
+            }
             // The components are refitted together on the same perturbed tables.
             assert!(report(&result, "mediation.subset_total").replicates >= 18);
             assert!(report(&result, "mediation.joint_stability_subset").replicates >= 18);
@@ -924,6 +933,10 @@ fn a_pulse_posterior_runs_the_window_suite_per_atom_and_mixes_the_reports() {
         // are both centred on their own plug-in: it lies between the atoms' contrasts.
         let stretch = report(&result, "window.stretch_80");
         assert!(stretch.original_ate.is_finite() && stretch.refuted_ate.is_finite());
+        // The report's original value is the mixed effect it refutes, and the refit on a long
+        // contiguous stretch of a stationary series stays close to it.
+        assert!((stretch.original_ate - result.effect()).abs() < 1e-9, "{stretch:?}");
+        assert!((stretch.refuted_ate - stretch.original_ate).abs() < 0.1, "{stretch:?}");
     }
 }
 
@@ -946,6 +959,14 @@ fn a_pag_decomposition_publishes_an_artifact_a_consumer_reads() {
         let artifact = prepared.encode_contracted_result(&result, "pag-mediation", &ctx).unwrap();
         let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
         assert_eq!(consumed.body.estimate, Some(result.effect()));
+        // The number published and read back is the structural natural direct effect of the
+        // generating law, not merely the producer's own output (cell rounding 6e-3).
+        let truth = mediated_with_parents::natural_direct_effect();
+        assert!(
+            (consumed.body.estimate.unwrap() - truth).abs() < 6e-3,
+            "{:?} vs {truth}",
+            consumed.body.estimate
+        );
     }
 }
 
@@ -970,6 +991,16 @@ fn a_pag_interventional_distribution_publishes_an_artifact_a_consumer_reads() {
     let distribution = result.payload().distribution().expect("a distribution payload");
     let mass: f64 = distribution.atoms.iter().map(|a| a.probability).sum();
     assert!((mass - 1.0).abs() < 1e-9, "the published law must be normalised: {mass}");
+    // P(Y = 1 | do(T = 1)) = sum_m P(m | T = 1) P(Y = 1 | T = 1, m) from the generating law
+    // (cell rounding 6e-3), at the atom carrying Y = 1.
+    let structural: f64 =
+        (0..2).map(|m| mediated_with_parents::p_m_given(m, 1) * mediated_with_parents::p_y(1, 1, m)).sum();
+    let one = distribution
+        .atoms
+        .iter()
+        .find(|a| a.outcomes[0].1 == antecedent_core::Value::f64(1.0))
+        .expect("an atom for Y = 1");
+    assert!((one.probability - structural).abs() < 6e-3, "{} vs {structural}", one.probability);
     let artifact = prepared.encode_contracted_result(&result, "pag-distribution", &ctx).unwrap();
     let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
     let wire = consumed.body.interventional_distribution.expect("a consumed distribution");

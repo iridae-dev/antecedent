@@ -35,4 +35,10 @@ def test_causal_forest_returns_cate():
     assert result.estimate.cate_leaf_dispersion is not None
     assert len(result.estimate.cate_leaf_dispersion) == n
     assert all(d >= 0.0 for d in result.estimate.cate_leaf_dispersion)
-    assert abs(result.ate - 1.0) < 0.4
+    # The structural CATE is 1 + z (population ATE 1; the sample average of 1 + z is 0.974).
+    # The forest's ATE sits within 0.11 of that (observed 0.871); a constant or unadjusted
+    # answer does not recover the heterogeneity checked next.
+    assert abs(result.ate - float(np.mean(1.0 + z))) < 0.2
+    cate = np.asarray(result.estimate.cate)
+    assert np.corrcoef(cate, 1.0 + z)[0, 1] > 0.9  # observed 0.976
+    assert float(np.sqrt(np.mean((cate - (1.0 + z)) ** 2))) < 0.4  # observed 0.243

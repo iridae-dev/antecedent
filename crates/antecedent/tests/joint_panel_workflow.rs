@@ -933,14 +933,28 @@ fn programmable_feature_constant_semantics_and_forbidden_reads_are_checked_befor
     let prepared = Study::prepare_joint_panel(data.clone(), request.clone(), &ctx).unwrap();
     assert_eq!(prepared.fits_performed(), 0);
     assert!(!prepared.inspect().identification.is_identified_claim());
-    for expression in [
+    for (position, expression) in [
         ValueExpr::var(VariableId::from_raw(99)),
         ValueExpr::generated(),
         ValueExpr::lag(VariableId::from_raw(0), 1),
-    ] {
+    ]
+    .into_iter()
+    .enumerate()
+    {
         request.interactions =
             vec![PanelInteractionSpec::from_saturated_features("forbidden", &expression).unwrap()];
-        assert!(Study::prepare_joint_panel(data.clone(), request.clone(), &ctx).is_err());
+        let refusal = Study::prepare_joint_panel(data.clone(), request.clone(), &ctx)
+            .err()
+            .expect("a feature that reads outside the lagged saturated channels is refused");
+        let text = refusal.to_string();
+        assert!(
+            text.starts_with("joint panel invalid input: invalid programmable feature: "),
+            "expression {position}: {text}"
+        );
+        if position == 0 {
+            assert!(text.contains("intervention_program.variable_not_in_model"), "{text}");
+            assert!(text.contains("column expression reads absent variable V99"), "{text}");
+        }
     }
 }
 
@@ -965,7 +979,13 @@ fn recoverable_callback_feature_is_refused_by_public_panel_compilation() {
             args: vec![],
         },
     }];
-    assert!(Study::prepare_joint_panel(data, request, &cached_context(1)).is_err());
+    let refusal = Study::prepare_joint_panel(data, request, &cached_context(1))
+        .err()
+        .expect("a callback feature cannot be compiled into a retained panel");
+    assert_eq!(
+        refusal.to_string(),
+        "joint panel compilation refused: panel features require callback-free common expressions"
+    );
 }
 
 fn cached_context(seed: u64) -> ExecutionContext {

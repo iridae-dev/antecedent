@@ -180,8 +180,10 @@ fn tiered_bayesian_average_effects_execute_from_the_retained_plan() {
     assert_eq!(plan.estimator.as_deref(), Some("bayesian.gcomp"));
     let result = prepared.estimate(&data, &ctx).unwrap();
     let posterior = result.posterior.as_ref().expect("a posterior of the closure functional");
-    let mean = posterior.summaries.mean[posterior.effect_column().unwrap()];
-    assert!((mean - CODETERMINED_TRUTH).abs() < 0.2, "{mean}");
+    let column = posterior.effect_column().unwrap();
+    let (mean, sd) = (posterior.summaries.mean[column], posterior.summaries.sd[column]);
+    // The same coverage statement as the one-shot run: the closure functional is exactly 2.
+    assert!((mean - CODETERMINED_TRUTH).abs() < 4.0 * sd.max(0.03), "{mean} sd {sd}");
 
     let data = unknown_data(4_000, 31);
     let builder = Study::tabular(data.clone())
@@ -200,6 +202,11 @@ fn tiered_bayesian_average_effects_execute_from_the_retained_plan() {
     let result = prepared.estimate(&data, &ctx).unwrap();
     let effect = result.estimate().as_effect().unwrap();
     assert!(effect.ate.is_nan(), "no scenario is the effect");
-    assert_eq!(effect.scenarios.effects.as_ref().expect("scenario posterior means").len(), 2);
+    let values = effect.scenarios.effects.as_ref().expect("scenario posterior means");
+    assert_eq!(values.len(), 2);
+    // Scenario 0 (treatment before its peer) is the total effect 1, scenario 1 the direct -1.
+    for (value, truth) in values.iter().zip(UNKNOWN_TRUTH) {
+        assert!((value - truth).abs() < 0.15, "{value} vs {truth}");
+    }
     assert!(result.posterior.is_none(), "no cross-scenario posterior exists");
 }

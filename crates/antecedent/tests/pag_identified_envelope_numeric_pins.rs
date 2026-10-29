@@ -393,6 +393,19 @@ fn pag_identified_envelope_average_effect_pins() {
                 // deterministically under the fixture's frozen seed, so this re-pins to the
                 // current, verified output rather than the fixture's stale mean/SD.
                 let sd = result.estimate().as_effect().unwrap().se_analytic();
+                // Independent bound on the pinned output: under the flat prior the Bayesian
+                // envelope mean is the frequentist mass-weighted ATE of the numpy reference,
+                // and its sd the reference joint-IF SE, to a fraction of that SE (observed
+                // 0.08 and 7%). The completion effects themselves differ by 0.072 (3.3 SE).
+                let reference_ate = freq["expected_ate"].as_f64().unwrap();
+                let reference_se = freq["expected_se"].as_f64().unwrap();
+                assert!(
+                    (result.estimate().as_effect().unwrap().ate - reference_ate).abs()
+                        < 0.2 * reference_se,
+                    "Bayesian envelope mean {} vs reference {reference_ate}",
+                    result.estimate().as_effect().unwrap().ate
+                );
+                assert!((sd / reference_se - 1.0).abs() < 0.15, "sd {sd} vs {reference_se}");
                 let expected_mean = 0.376_238_176_353_573;
                 let expected_sd = 0.023_106_965_314_873_36;
                 assert!(
@@ -460,6 +473,21 @@ fn pag_identified_envelope_conditional_effect_pins() {
                 // moved, for the same cross-completion influence-function-correlation reason
                 // (6890a67 can license a different, still-valid, non-minimal per-completion
                 // adjustment set). Re-pinned to the current, verified, deterministic output.
+                // Independent bound on the pinned output, as for the average effect above
+                // (observed gap 0.1 SE, sd ratio 1.03).
+                let reference_ate = freq["expected_ate"].as_f64().unwrap();
+                let reference_se = freq["expected_se"].as_f64().unwrap();
+                let bayes_effect = result.estimate().as_effect().unwrap();
+                assert!(
+                    (bayes_effect.ate - reference_ate).abs() < 0.2 * reference_se,
+                    "Bayesian CATE envelope mean {} vs reference {reference_ate}",
+                    bayes_effect.ate
+                );
+                assert!(
+                    (bayes_effect.se_analytic() / reference_se - 1.0).abs() < 0.15,
+                    "Bayesian CATE envelope sd {} vs {reference_se}",
+                    bayes_effect.se_analytic()
+                );
                 let expected_mean = 0.372_057_989_220_976_1;
                 let expected_sd = 0.021_957_536_176_990_86;
                 assert!(

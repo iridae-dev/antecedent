@@ -644,13 +644,18 @@ fn a_penalized_family_retargets_with_its_plug_in_score_covariance() {
     // score covariance, contrast standard errors and a complete family.
     assert!(report.covariance.is_some());
     let a = report.claims[0].outcome.as_ref().unwrap();
-    let (theta, _) = oracle(scores.table(0).unwrap(), &w);
+    let (theta, xi_a) = oracle(scores.table(0).unwrap(), &w);
     close(a.value, theta, "penalized point");
-    assert!(a.std_error.is_some_and(|se| se.is_finite() && se > 0.0));
+    // The plug-in standard error is the root sum of squares of the weighted influence values
+    // of the penalized score table, written here from the raw scores.
+    close(a.std_error.unwrap(), dot(&xi_a, &xi_a).sqrt(), "penalized se");
     assert_eq!(a.uncertainty_kind.as_str(), "plug_in_score_covariance");
     assert!(a.nuisance_provenance.contains("ridge_logistic"));
     let diff = report.contrasts[0].outcome.as_ref().unwrap();
-    assert!(diff.std_error.is_some_and(|se| se.is_finite() && se > 0.0));
+    let (theta_b, xi_b) = oracle(scores.table(1).unwrap(), &w);
+    close(diff.value, theta - theta_b, "penalized contrast value");
+    let delta: Vec<f64> = xi_a.iter().zip(&xi_b).map(|(p, q)| p - q).collect();
+    close(diff.std_error.unwrap(), dot(&delta, &delta).sqrt(), "penalized contrast se");
     assert!(report.point_only_members().is_empty());
     assert!(report.complete_family().is_ok());
     let rows = report.tidy_rows();
@@ -696,7 +701,48 @@ fn the_simultaneous_interval_is_the_max_t_band_of_a_complete_family() {
     // Half-widths are c * se for the plug-in standard errors the report carries, and the
     // family band is wider than the marginal 95% Wald band of either claim.
     assert_eq!(band.members.len(), 2);
-    assert!(band.critical_value > 1.959_963_984_540_054 && band.critical_value < 2.6);
+    // Reference: the max-t critical value of two claims is the c with
+    // P(|Z1| <= c, |Z2| <= c) = 0.95 for a bivariate normal at the claims' correlation, from
+    // numerical integration of the conditional normal (Phi by Abramowitz-Stegun 7.1.26).
+    let covariance = report.complete_family().unwrap();
+    let rho = covariance.get("a", "b").unwrap()
+        / (covariance.get("a", "a").unwrap() * covariance.get("b", "b").unwrap()).sqrt();
+    let phi = |x: f64| {
+        let z = x.abs() / std::f64::consts::SQRT_2;
+        let t = 1.0 / (1.0 + 0.327_591_1 * z);
+        let poly = t
+            * (0.254_829_592
+                + t * (-0.284_496_736
+                    + t * (1.421_413_741 + t * (-1.453_152_027 + t * 1.061_405_429))));
+        let erf = 1.0 - poly * (-z * z).exp();
+        if x >= 0.0 { 0.5 * (1.0 + erf) } else { 0.5 * (1.0 - erf) }
+    };
+    let coverage = |c: f64| {
+        let s = (1.0 - rho * rho).sqrt();
+        let steps = 4000;
+        let h = 2.0 * c / f64::from(steps);
+        let f = |z: f64| {
+            let density = (-0.5 * z * z).exp() / (2.0 * std::f64::consts::PI).sqrt();
+            density * (phi((c - rho * z) / s) - phi((-c - rho * z) / s))
+        };
+        let mut sum = f(-c) + f(c);
+        for k in 1..steps {
+            sum += f(-c + f64::from(k) * h) * if k % 2 == 1 { 4.0 } else { 2.0 };
+        }
+        sum * h / 3.0
+    };
+    let (mut low, mut high) = (1.5_f64, 4.0_f64);
+    for _ in 0..60 {
+        let mid = 0.5 * (low + high);
+        if coverage(mid) < 0.95 { low = mid } else { high = mid }
+    }
+    let exact = 0.5 * (low + high);
+    // Monte-Carlo error of a 20 000-draw quantile is about 0.015.
+    assert!(
+        (band.critical_value - exact).abs() < 0.05,
+        "critical {} vs bivariate-normal {exact} at rho {rho}",
+        band.critical_value
+    );
     for (member, claim) in band.members.iter().zip(&report.claims) {
         let point = claim.outcome.as_ref().unwrap();
         close(member.value, point.value, "band point");

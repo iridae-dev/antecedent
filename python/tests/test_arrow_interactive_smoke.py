@@ -58,7 +58,8 @@ def test_arrow_cdi_borrow_and_owned_snapshot_estimate():
         )
     )
     assert math.isfinite(arrow_result.ate)
-    assert abs(arrow_result.ate - 2.0) < 0.5
+    # The structural ATE is 2 (observed 1.989); the unadjusted contrast is far above it.
+    assert abs(arrow_result.ate - 2.0) < 0.1
     assert arrow_result.identification.status
     assert arrow_result.plan.validation_suite == "overlap+evalue"
     assert arrow_result.performance.bootstrap_replicates_requested == 0
@@ -105,7 +106,7 @@ def test_arrow_interactive_on_stage_streams_payloads():
             execution=antecedent.Execution(on_stage=on_stage),
         )
     )
-    assert math.isfinite(result.ate)
+    assert abs(result.ate - 2.0) < 0.15  # structural ATE 2; observed 1.943
     assert stages, "on_stage must fire on the Arrow path"
 
 
