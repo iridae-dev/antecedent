@@ -81,7 +81,12 @@ def test_path_specific_lingam_discovery_smoke():
         )
     )
     assert result.study is not None
-    assert np.isfinite(result.estimate.ate)
+    # Discovered graph t -> y -> m with t -> m. Holding the direct t -> m arrow at t = 0,
+    # the effect through y is sum_y P(m=1 | t=0, y) * (P(y=1 | t=1) - P(y=1 | t=0)).
+    # Counts: P(m=1|t=0,y=0)=10/50, P(m=1|t=0,y=1)=40/50, P(y=1|t=1)=80/100, P(y=1|t=0)=50/100.
+    expected = (10 / 50) * (0.5 - 0.8) + (40 / 50) * (0.8 - 0.5)
+    assert result.estimate.ate == pytest.approx(expected, abs=1e-9)
+    assert expected == pytest.approx(0.18)
 
 
 def test_interventional_lingam_discovery_smoke():
@@ -106,6 +111,8 @@ def test_interventional_lingam_discovery_smoke():
         )
     )
     assert result.study is not None
+    # t is a root of the discovered graph, so E[y | do(t=1)] = E[y | t=1] = 80/100.
+    assert result.estimate.ate == pytest.approx(0.8, abs=1e-9)
 
 
 def test_path_specific_exact_dag_posterior_map():
@@ -122,7 +129,10 @@ def test_path_specific_exact_dag_posterior_map():
             execution=antecedent.Execution(seed=1),
         )
     )
-    assert np.isfinite(result.estimate.ate)
+    # The MAP graph x -> y has no mediator, so the path effect is the difference of means.
+    assert result.estimate.ate == pytest.approx(
+        data["y"][data["x"] == 1].mean() - data["y"][data["x"] == 0].mean(), abs=1e-9
+    )
     assert result.evidence_status != "licensed"
 
 
@@ -142,6 +152,30 @@ def test_interventional_distribution_exact_dag_posterior_mixes_the_atoms():
     )
     assert np.isfinite(result.estimate.ate)
     assert 0.0 <= result.estimate.ate <= 1.0
+
+    # Known atoms and weights: A = {m -> t, m -> y, t -> y} adjusts for m,
+    # B = {t -> y} does not. Hence
+    #   A: sum_m P(m) E[y | t=1, m] = 0.35 * 0.5 + 0.65 * 0.875 = 0.74375
+    #   B: E[y | t=1] = 0.8
+    # and the posterior answer is the weighted mixture of the atoms' own answers.
+    names = ["t", "m", "y"]
+    graph_a = antecedent.Dag.from_edges(names, [("m", "t"), ("m", "y"), ("t", "y")])
+    graph_b = antecedent.Dag.from_edges(names, [("t", "y")])
+    for weight_a, expected in ((0.4, 0.4 * 0.74375 + 0.6 * 0.8), (0.9, 0.9 * 0.74375 + 0.1 * 0.8)):
+        posterior = antecedent.discovery.GraphPosterior.from_graphs(
+            names, [weight_a, 1.0 - weight_a], [graph_a, graph_b]
+        )
+        mixed = require_success(
+            antecedent.analyze(
+                data,
+                discovery=posterior,
+                query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
+                refute=False,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
+            )
+        )
+        assert mixed.estimate.ate == pytest.approx(expected, abs=1e-9)
 
 
 def test_path_specific_fci_rejected():
@@ -237,7 +271,8 @@ def test_analyze_path_specific_graph_cpdag_fully_oriented():
             inference=antecedent.Frequentist(bootstrap=0),
         )
     )
-    assert abs(result.ate - 0.3) < 0.1
+    # No t -> y arrow, so the path effect is the total effect E[y|t=1] - E[y|t=0] = 0.8 - 0.5.
+    assert result.ate == pytest.approx(0.3, abs=1e-9)
 
 
 def test_analyze_path_specific_graph_cpdag_incomplete():

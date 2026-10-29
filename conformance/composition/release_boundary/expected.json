@@ -41,7 +41,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/composition_release_fixture.rs",
-          "sha256": "889843f86665a5945e44f1e75ed3686ee7085d576e4b770ec644ed1879b6aace"
+          "sha256": "95028592dede0f8ee27ee35df48914a1cbc1a944b5c4936b20428490af85d57c"
         }
       ],
       "fixture_payload_sha256": "846c3d92933177ef90f9c9a9476fff2ea80b15b5babfca7abb52674e63cfdc06"

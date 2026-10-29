@@ -357,7 +357,12 @@ fn dr_curve_calibrates_linear_response_and_reports_support() {
     else {
         panic!("expected surface");
     };
-    assert!((mean[2] - mean[0] - 1.6).abs() < 0.25, "means={mean:?}");
+    // y = 1 + 2a + 0.8x + tiny with E[x] = 0, so E[y | do(a)] = 1 + 2a; the unadjusted
+    // regression slope would be about 2.8. Observed smoothing error is at most 0.045.
+    for (got, level) in mean.iter().zip([-0.4, 0.0, 0.4]) {
+        assert!((got - (1.0 + 2.0 * level)).abs() < 0.07, "means={mean:?}");
+    }
+    assert!((mean[2] - mean[0] - 1.6).abs() < 0.15, "means={mean:?}");
     assert_ne!(response.support.status, SupportStatus::OutsideEmpiricalSupport);
     assert_eq!(response.support.diagnostics[0].values.len(), 3);
     assert_eq!(response.provenance_id.as_ref(), "estimate.response.kennedy_dr");
@@ -755,9 +760,11 @@ fn intervention_response_executes_set_shift_and_stochastic_policies() {
         ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) => *value,
         _ => panic!("expected scalar"),
     };
-    assert!((scalar(&set) - 1.5).abs() < 0.2);
-    assert!((scalar(&stochastic) - scalar(&set)).abs() < 0.1);
-    assert!((scalar(&shift) - 1.5).abs() < 0.2);
+    // Linear truth: E[y | do(a=0.25)] = 1 + 2 * 0.25 (E[x] = 0), the same for a shift of 0.25
+    // from E[a] ~ 0 and for a tight Gaussian policy centred at 0.25.
+    assert!((scalar(&set) - 1.5).abs() < 0.05, "{}", scalar(&set));
+    assert!((scalar(&stochastic) - scalar(&set)).abs() < 0.01);
+    assert!((scalar(&shift) - 1.5).abs() < 0.05, "{}", scalar(&shift));
     assert_eq!(set.support.status, SupportStatus::Extrapolative);
     assert_eq!(set.provenance_id.as_ref(), "estimate.response.intervention_gcomp");
     let codes: Vec<_> = set.support.warnings.iter().map(|w| w.code.as_ref()).collect();
@@ -1082,7 +1089,7 @@ fn riesz_ade_calibrates_linear_slope() {
     else {
         panic!("expected scalar");
     };
-    assert!((value - 2.0).abs() < 0.2, "ade={value}");
+    assert!((value - 2.0).abs() < 0.03, "ade={value}");
     assert_eq!(response.provenance_id.as_ref(), "estimate.response.riesz_ade");
     assert!(
         response.support.diagnostics.iter().any(|d| d.id.as_ref() == "response.outcome_tail_ratio")
@@ -1176,7 +1183,8 @@ fn point_elasticity_applies_scale_transform() {
     else {
         panic!("expected scalar");
     };
-    assert!(value.is_finite() && value > 0.2 && value < 0.7, "elasticity={value}");
+    // Elasticity a f'(a) / f(a) of f(a) = 1 + 2a (E[x] = 0) at a = 0.4: 0.8 / 1.8.
+    assert!((value - 0.8 / 1.8).abs() < 0.03, "elasticity={value}");
     // The elasticity publishes a Fieller interval on the joint
     // local-coordinate covariance and a delta-method standard error.
     let ResponseUncertainty::Scalar { standard_error, lower, upper, .. } = response.uncertainty
@@ -1465,8 +1473,10 @@ fn plugin_jacobian_recovers_low_dimensional_slopes() {
     else {
         panic!("expected Jacobian");
     };
-    for (got, expected) in values.iter().zip([2.0, -0.5, 0.25, 1.5]) {
-        assert!((got - expected).abs() < 0.25, "got={got}, expected={expected}");
+    for ((got, expected), tolerance) in
+        values.iter().zip([2.0, -0.5, 0.25, 1.5]).zip([0.15, 0.03, 0.12, 0.03])
+    {
+        assert!((got - expected).abs() < tolerance, "got={got}, expected={expected}");
     }
     assert_eq!(response.support.status, SupportStatus::Extrapolative);
     assert_eq!(response.provenance_id.as_ref(), "estimate.response.gam_derivative");
@@ -1555,7 +1565,9 @@ fn plugin_jacobian_warns_when_clamped_outside_support() {
 fn plugin_derivatives_serve_more_than_two_treatments() {
     let n: usize = 60;
     let col = |k: f64| (0..n).map(|i| (i as f64 * k).sin()).collect::<Vec<f64>>();
-    let (a, b, c, y, x) = (col(0.3), col(0.7), col(1.1), col(0.5), col(0.9));
+    let (a, b, c, x) = (col(0.3), col(0.7), col(1.1), col(0.9));
+    // Additive linear truth: the three partials are 2, -1 and 0.5.
+    let y: Vec<f64> = (0..n).map(|i| 1.0 + 2.0 * a[i] - b[i] + 0.5 * c[i]).collect();
     let data = TabularData::from_f64_columns([
         ("a", a.as_slice()),
         ("b", b.as_slice()),
@@ -1593,7 +1605,9 @@ fn plugin_derivatives_serve_more_than_two_treatments() {
     };
     assert_eq!((outcomes, width), (1, 3), "one outcome row with one partial per treatment");
     assert_eq!(partials.len(), 3);
-    assert!(partials.iter().all(|partial| partial.is_finite()), "{partials:?}");
+    for (got, truth) in partials.iter().zip([2.0, -1.0, 0.5]) {
+        assert!((got - truth).abs() < 0.01, "partials {partials:?} vs [2, -1, 0.5]");
+    }
     let directional = serve(ResponseFunctional::DirectionalDerivative {
         outcomes: Arc::from([VariableId::from_raw(3)]),
         treatments,

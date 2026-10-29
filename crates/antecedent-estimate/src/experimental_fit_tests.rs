@@ -226,7 +226,7 @@ fn assert_recovers(truth: &Truth, fit: &ExperimentalRecoveryFit, sigmas: f64) {
     }
     for unit in 0..truth.n() {
         let intercept = fit.intercept()[unit].expect("resolved intercept");
-        close(intercept, truth.c[unit], 0.4, "intercept");
+        close(intercept, truth.c[unit], 0.1, "intercept");
         let variance = fit.disturbance_variance()[unit].expect("resolved variance");
         let expected = truth.sd[unit] * truth.sd[unit];
         close(variance, expected, 0.05 * expected, "disturbance variance");

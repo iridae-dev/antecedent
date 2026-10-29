@@ -62,9 +62,18 @@ fn rubin_pooling_matches_a_hand_computation() {
     assert!(flat.df_rubin.is_infinite());
     assert!(close(flat.df, 11.0 / 13.0 * 10.0, 1e-12));
 
-    assert!(rubin_pool(&[1.0], &[0.1], None).is_err());
-    assert!(rubin_pool(&[1.0, 2.0], &[0.1, -0.1], None).is_err());
-    assert!(rubin_pool(&[1.0, 2.0], &[0.1, 0.1], Some(0.0)).is_err());
+    assert_eq!(
+        rubin_pool(&[1.0], &[0.1], None).unwrap_err().detail(),
+        "multiple_imputation.too_few_imputations"
+    );
+    assert_eq!(
+        rubin_pool(&[1.0, 2.0], &[0.1, -0.1], None).unwrap_err().detail(),
+        "multiple_imputation.pool_non_finite"
+    );
+    assert_eq!(
+        rubin_pool(&[1.0, 2.0], &[0.1, 0.1], Some(0.0)).unwrap_err().detail(),
+        "multiple_imputation.pool_df"
+    );
 }
 
 #[test]
@@ -77,8 +86,15 @@ fn the_stacked_posterior_keeps_the_between_axis() {
     assert!(close(stacked.within, 1.0, 1e-12));
     assert!(close(stacked.between, 50.0, 1e-12));
     assert!(stacked.between_share() > 0.8);
-    assert!(stack_posterior(&[&a, &b[..2]]).is_err(), "unequal draws would weight unequally");
-    assert!(stack_posterior(&[&a]).is_err());
+    assert_eq!(
+        stack_posterior(&[&a, &b[..2]]).unwrap_err().detail(),
+        "multiple_imputation.stack_shape",
+        "unequal draws would weight unequally"
+    );
+    assert_eq!(
+        stack_posterior(&[&a]).unwrap_err().detail(),
+        "multiple_imputation.too_few_imputations"
+    );
 }
 
 /// `y = 1 + 2 x + 1.5 z + e` with `corr(x, z) = 0.6`: the slope of `y` on `x` alone is
@@ -251,8 +267,12 @@ fn missing_not_at_random_is_refused_with_a_sensitivity_analysis() {
         Some("sensitivity_analysis")
     );
     assert!(refused.message().contains("next attempt"));
-    assert!(multiple_imputation::check_spec(&ImputationSpec::new().with_imputations(1)).is_err());
-    assert!(multiple_imputation::check_spec(&ImputationSpec::new().with_iterations(0)).is_err());
+    for spec in [ImputationSpec::new().with_imputations(1), ImputationSpec::new().with_iterations(0)]
+    {
+        let refused = multiple_imputation::check_spec(&spec).unwrap_err();
+        assert_eq!(refused.code(), "invalid_argument");
+        assert_eq!(refused.detail(), "multiple_imputation.spec_range");
+    }
 }
 
 #[test]
@@ -283,7 +303,10 @@ fn the_sampling_design_governs_the_imputation_unit() {
         series.next_attempt().map(antecedent_core::NextAttempt::name),
         Some("temporal_complete_case")
     );
-    assert!(multiple_imputation::bind_units(None, Some(groups), 5).is_err());
+    assert_eq!(
+        multiple_imputation::bind_units(None, Some(groups), 5).unwrap_err().detail(),
+        "multiple_imputation.units_shape"
+    );
 
     // Whole-cluster draws: rows of one cluster share one bootstrap weight, and the result
     // differs from row-level draws of the same data.
@@ -389,7 +412,17 @@ fn bayesian_fits_are_stacked_into_one_posterior() {
     assert_eq!(stacked.draws.len(), 2_000);
     assert!(stacked.between > 0.0);
     assert!(stacked.variance > stacked.within, "the mixture is wider than one table's posterior");
-    assert!(close(stacked.mean, TRUE_SLOPE, 0.4));
+    // The stacked mean is the mean of the five tables' own slopes (equal weights), up to the
+    // Monte Carlo error of 2000 draws (observed 0.003), and sits near the truth 2.9.
+    let slopes: Vec<f64> = (0..5)
+        .map(|j| {
+            let table = imputer.impute(j, &ExecutionContext::for_tests(1)).unwrap();
+            ols_slope(&table.columns()[0], &table.columns()[1]).0
+        })
+        .collect();
+    let mean_slope = slopes.iter().sum::<f64>() / 5.0;
+    assert!(close(stacked.mean, mean_slope, 0.01), "{} vs {mean_slope}", stacked.mean);
+    assert!(close(stacked.mean, TRUE_SLOPE, 0.15), "{}", stacked.mean);
     assert!(run.imputed_cells.iter().any(|(name, cells)| name.as_ref() == "y" && *cells > 0));
 }
 

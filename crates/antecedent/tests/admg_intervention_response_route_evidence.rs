@@ -163,7 +163,9 @@ fn explicit_and_accepted_admg_scalar_response_is_sealed_for_both_inference_modes
 
                 let result = prepared.estimate(&data, &context).unwrap();
                 assert!(
-                    (response_value(&result) - truth).abs() < if bayesian { 0.06 } else { 1e-12 }
+                    (response_value(&result) - truth).abs() < if bayesian { 0.003 } else { 1e-12 },
+                    "{}",
+                    response_value(&result)
                 );
                 if bayesian {
                     assert_eq!(result.posterior.as_ref().unwrap().draws.n_draws, 1024);
@@ -195,7 +197,9 @@ fn explicit_and_accepted_admg_scalar_response_is_sealed_for_both_inference_modes
                 let refreshed = rebind_estimate(&mut prepared, refreshed_data, &context).unwrap();
                 assert!(
                     (response_value(&refreshed) - (truth + 0.4)).abs()
-                        < if bayesian { 0.06 } else { 1e-12 }
+                        < if bayesian { 0.003 } else { 1e-12 },
+                    "{}",
+                    response_value(&refreshed)
                 );
                 assert!(matches!(
                     prepared.retained_operation(),
@@ -288,7 +292,7 @@ fn explicit_and_accepted_admg_scalar_response_runs_plugin_level_refuters() {
                 );
                 let result = prepared.estimate(&data, &context).unwrap();
                 assert!(
-                    (response_value(&result) - truth).abs() < if bayesian { 0.08 } else { 1e-12 },
+                    (response_value(&result) - truth).abs() < if bayesian { 0.02 } else { 1e-12 },
                     "{coordinate}: {}",
                     response_value(&result)
                 );
@@ -374,6 +378,18 @@ fn graph_posterior_admg_intervention_response_is_sealed_across_refuters() {
             assert_eq!(plan.validation, suite);
             let result = prepared.estimate(&data, &context).unwrap();
             let mixture = result.structural_response.as_ref().expect("posterior response mass");
+            // Both atoms share the front-door structure, so the identified mass answers with the
+            // atom's own value (0.596 exactly, or its Bayesian posterior mean).
+            let value = match &result.response().expect("response").estimate {
+                ResponseIdentification::GraphDependent(atoms) => {
+                    assert_eq!(atoms.len(), 1);
+                    atoms[0].1.clone()
+                }
+                ResponseIdentification::PointIdentified(value) => value.clone(),
+                other => panic!("expected an answered response, got {other:?}"),
+            };
+            let ResponseValue::Scalar(value) = value else { panic!("scalar response") };
+            assert!((value - 0.596).abs() < if bayesian { 0.03 } else { 1e-12 }, "{value}");
             let expected_unidentified = if suite == RefuteSuite::None { 0.2 } else { 0.0 };
             assert!((mixture.identified_mass - (1.0 - expected_unidentified)).abs() < 1e-12);
             assert!((mixture.unidentified_mass - expected_unidentified).abs() < 1e-12);

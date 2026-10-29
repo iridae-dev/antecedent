@@ -135,9 +135,20 @@ def test_design_weak_iv_retains_point_diagnostics_and_previous_state():
     )
     assert error.point == pytest.approx(2.0, abs=1e-9)
     assert error.model_fits >= 2
-    assert (
-        error.diagnostics["uncertainty_withheld"] or error.diagnostics["anderson_rubin"] is not None
-    )
+    # Independent first-stage F: OLS of t on (1, z), F = beta^2 * Sxx / s^2 with n - 2 df.
+    weak = request(strength=0.001).data
+    z, t = weak["z"], weak["t"]
+    sxx = ((z - z.mean()) ** 2).sum()
+    beta = ((z - z.mean()) * (t - t.mean())).sum() / sxx
+    resid = t - t.mean() - beta * (z - z.mean())
+    f_independent = beta**2 * sxx / ((resid**2).sum() / (len(z) - 2))
+    diagnostics = error.diagnostics
+    assert diagnostics["f_statistic"] == pytest.approx(f_independent, rel=1e-6)
+    assert (diagnostics["df1"], diagnostics["df2"]) == (1, len(z) - 2)
+    # An instrument this weak cannot bound the effect: the AR set is the whole line.
+    assert diagnostics["anderson_rubin"]["lower"] == "negative_infinity"
+    assert diagnostics["anderson_rubin"]["upper"] == "positive_infinity"
+    assert diagnostics["uncertainty_withheld"] is None
     assert session.identities == before and session.is_live
     assert (
         require_success(session.execute(strong, execution=Execution(seed=3))).receipt.totals.total

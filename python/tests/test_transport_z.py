@@ -39,6 +39,15 @@ def _rewrite_f64(blob: bytes, value: float, replacement: float, *, last: bool = 
     raise AssertionError("the semantic field is not encoded as a CBOR float64")
 
 
+def _assert_interval_brackets_the_true_mass(mean, true_mass):
+    """P(y=1 | do(x=0)) = 0.2 exactly in the fixture's Bernoulli law. The interval brackets
+    that truth (not merely the product's own point) and has the width a 10 000-row table
+    gives (95% half-width about 0.008 per cell; observed 0.019 to 0.024 overall)."""
+    assert true_mass == pytest.approx(0.2, abs=0.002)
+    assert mean["lower"] < 0.2 < mean["upper"]
+    assert 0.005 < mean["upper"] - mean["lower"] < 0.05, mean
+
+
 def fixture(empirical=False):
     names = ["w", "z", "x", "y"]
     graph = Admg.from_edges(
@@ -138,7 +147,7 @@ def test_z_transport_prepared_native_route_matches_independent_truth(empirical):
         assert interval["method"] == "percentile_bootstrap"
         assert interval["reason"] == "estimator_grid_not_measured"
         mean = interval["mean_intervals"][0]
-        assert mean["lower"] <= true_mass <= mean["upper"]
+        _assert_interval_brackets_the_true_mass(mean, true_mass)
     else:
         assert result["interval"] == {"available": False, "reason": "no_interval_reported"}
     assert true_mass == pytest.approx(0.2, abs=0.002 if empirical else 1e-12)
@@ -222,7 +231,7 @@ def test_bayesian_z_transport_publishes_an_unmeasured_posterior(estimator):
         for atom, p in zip(posterior["atoms"], posterior["probabilities"], strict=True)
         if atom == [1.0]
     )
-    assert mean["lower"] <= true_mass <= mean["upper"]
+    _assert_interval_brackets_the_true_mass(mean, true_mass)
     assert prepared.interval_type == "posterior_equal_tail"
 
 
@@ -252,7 +261,7 @@ def test_bayesian_z_transport_posterior_executes_retained_plan_after_builder_dis
         for atom, p in zip(posterior["atoms"], posterior["probabilities"], strict=True)
         if atom == [1.0]
     )
-    assert mean["lower"] <= true_mass <= mean["upper"]
+    _assert_interval_brackets_the_true_mass(mean, true_mass)
     assert prepared.interval_type == "posterior_equal_tail"
     # Portable artifacts carry the point result only; the posterior is never replayed.
     consumed = transport.consume_z_transport_artifact(bytes(prepared.export())).to_dict()

@@ -858,7 +858,8 @@ fn every_stage_is_point_only_and_no_interval_or_posterior_decision_ships() {
     assert_eq!(decision.class, Revalidation::StillValid);
     // The decision under a criterion beyond a mean is refused, not approximated.
     let law = DecisionDeclaration { needs_law: true, ..world.declaration.clone() };
-    assert!(decide(&law, world.excess_risk, "s", "p").is_err());
+    let refused = decide(&law, world.excess_risk, "s", "p").unwrap_err();
+    assert_refused(&refused, &fx["mutations"]["law"]);
     assert_eq!(text(&fx["calibration"]), "unmeasured");
     assert_eq!(text(&fx["label"]), "point_only");
     // The result of the decision has no statistical guarantee fields set.

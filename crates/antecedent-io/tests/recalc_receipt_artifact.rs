@@ -479,8 +479,14 @@ fn artifact_identity_is_order_independent() {
 fn artifact_is_bounded_and_versioned() {
     let artifact = utility_only();
     let bytes = artifact.to_bytes(ID).unwrap();
-    assert!(artifact.to_bytes("  ").is_err());
-    assert!(RecalcReceiptArtifact::from_bytes(&bytes[..bytes.len() / 2], None).is_err());
+    assert!(matches!(
+        artifact.to_bytes("  "),
+        Err(RecalcReceiptArtifactError::Encode(text)) if text == "missing artifact id"
+    ));
+    assert!(matches!(
+        RecalcReceiptArtifact::from_bytes(&bytes[..bytes.len() / 2], None),
+        Err(RecalcReceiptArtifactError::Decode(_))
+    ));
     assert!(matches!(
         RecalcReceiptArtifact::from_bytes(&vec![0_u8; 300 * 1024], None),
         Err(RecalcReceiptArtifactError::LimitsExceeded(_))

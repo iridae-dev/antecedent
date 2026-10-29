@@ -49,4 +49,4 @@ sha256 = "fa89e232037aea2e143f28fe039e5ab7c3c7bd84f4c47e32ad15ba407b97db9d"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-io/tests/recalc_receipt_artifact.rs"
-sha256 = "16a7c0176b05c816b0303734b7699a471cff378f596392948179b02b0d9cb067"
+sha256 = "cc92466c8f4370e9cb089c67bcad33e385092d6610b764a37ab0466f4c85a5ff"

@@ -134,12 +134,19 @@ fn original_covariance_aware_contrast_replays_and_does_not_license_transport() {
     );
     assert!(diagnostic.separate_transport_identification_required);
     assert_eq!(diagnostic.evidence.calibration, "unmeasured");
-    assert!(consumer(&original).transport_diagnostic("b", "a").is_err());
+    let reversed = consumer(&original).transport_diagnostic("b", "a").unwrap_err();
+    assert_eq!(
+        (reversed.code, reversed.detail.as_ref()),
+        ("invalid_argument", "effect_constancy_consumer.contrast_missing")
+    );
     req.partitions[0].effect = 1.1;
     let changed = EffectConstancy::evaluate(&req).unwrap();
-    assert!(
+    let refused =
         ConstancyConsumers::consume(&changed.export("changed").unwrap(), original.identity())
-            .is_err()
+            .unwrap_err();
+    assert_eq!(
+        (refused.code, refused.detail.as_ref()),
+        ("invalid_argument", "effect_constancy_consumer.artifact_invalid")
     );
 }
 #[test]
@@ -181,10 +188,16 @@ fn actual_bank_filtering_and_effect_ranking_remain_data_dependent_advice() {
             .collect::<Vec<_>>(),
         ["near", "far"]
     );
-    assert!((ranking.scores[0].1 - oracle()["prior"]["scores"][0].as_f64().unwrap()).abs() < 1e-12);
+    for (index, (_, score)) in ranking.scores.iter().take(2).enumerate() {
+        assert!((score - oracle()["prior"]["scores"][index].as_f64().unwrap()).abs() < 1e-12);
+    }
     assert!(ranking.data_dependent_selection);
     assert!(!ranking.posterior_transfer_licensed);
-    assert!(c.rank_prior_sources(&bank, &target, "p2", &bindings[..2]).is_err());
+    let unbound = c.rank_prior_sources(&bank, &target, "p2", &bindings[..2]).unwrap_err();
+    assert_eq!(
+        (unbound.code, unbound.detail.as_ref()),
+        ("invalid_argument", "effect_constancy_consumer.catalog_binding_invalid")
+    );
 }
 #[test]
 fn actual_affine_policy_engine_retains_ties_and_empty_generalization_intersection() {
@@ -205,5 +218,10 @@ fn actual_affine_policy_engine_retains_ties_and_empty_generalization_intersectio
     );
     let mut mismatch = effect();
     mismatch.units = "wrong".into();
-    assert!(consumer(&original(&[1.0, 2.0])).policy_review(&contract(), &mismatch).is_err());
+    let refused =
+        consumer(&original(&[1.0, 2.0])).policy_review(&contract(), &mismatch).unwrap_err();
+    assert_eq!(
+        (refused.code, refused.detail.as_ref()),
+        ("invalid_argument", "effect_constancy_consumer.quantity_mismatch")
+    );
 }

@@ -258,7 +258,7 @@ fn natural_direct_effect_with_covariate_confounding_matches_the_structural_effec
         .unwrap();
     let result = study.run(&ExecutionContext::for_tests(11)).unwrap();
     assert!(
-        (ate(&result) - truth).abs() < 2e-3,
+        (ate(&result) - truth).abs() < 1e-5,
         "natural direct effect {} against the structural effect {truth}",
         ate(&result)
     );
@@ -274,7 +274,7 @@ fn effect_through_a_confounded_child_uses_the_district_formula() {
         .unwrap();
     let result = study.run(&ExecutionContext::for_tests(12)).unwrap();
     assert!(
-        (ate(&result) - truth).abs() < 2e-3,
+        (ate(&result) - truth).abs() < 1e-4,
         "path-specific effect {} against the structural effect {truth}",
         ate(&result)
     );
@@ -288,11 +288,18 @@ fn a_bootstrap_interval_accompanies_the_frequentist_point() {
         .unwrap();
     let result = study.run(&ExecutionContext::for_tests(13)).unwrap();
     let effect = result.estimate().as_effect().expect("an effect estimate");
-    assert!(
-        effect.uncertainty.bootstrap.replicates_ok.unwrap_or(0) > 0,
+    let bootstrap = &effect.uncertainty.bootstrap;
+    assert_eq!(
+        (bootstrap.replicates_ok, bootstrap.replicates_failed),
+        (Some(30), Some(0)),
         "{:?}",
         effect.uncertainty
     );
+    // The point is the structural effect, and the resampling spread is of the order of the
+    // 1/sqrt(n) sampling error of a 100 000-row table (observed 0.0036).
+    assert!((effect.ate - routed_through_a::effect_through_a()).abs() < 1e-4);
+    let se = bootstrap.se.expect("a bootstrap standard error");
+    assert!(se > 0.001 && se < 0.01, "bootstrap se {se}");
 }
 
 #[test]
@@ -305,18 +312,19 @@ fn the_bayesian_posterior_centres_on_the_structural_effect() {
         .unwrap();
     let result = study.run(&ExecutionContext::for_tests(14)).unwrap();
     assert!(
-        (ate(&result) - truth).abs() < 6e-3,
+        (ate(&result) - truth).abs() < 2e-4,
         "posterior mean {} against the structural effect {truth}",
         ate(&result)
     );
 }
 
-/// Refused at build or at run, never estimated.
+/// Built, then refused by identification at run (typed `NotIdentified`), never estimated.
 fn assert_refused_by_identification(builder: antecedent::analysis::StudyBuilder, seed: u64) {
-    let Ok(study) = builder.build() else { return };
+    let study = builder.build().expect("the study builds; identification refuses at run");
     let error = study.run(&ExecutionContext::for_tests(seed)).unwrap_err();
     assert!(
-        !error.to_string().contains("unsupported data/graph/query combination"),
+        matches!(&error, antecedent::CausalError::NotIdentified { .. })
+            && error.to_string().contains("reason=effect_not_identified"),
         "the refusal must come from identification, got: {error}"
     );
 }
@@ -356,7 +364,7 @@ fn a_class_with_one_completion_reproduces_the_structural_effect() {
         .unwrap();
     let result = study.run(&ExecutionContext::for_tests(17)).unwrap();
     assert!(
-        (ate(&result) - truth).abs() < 2e-3,
+        (ate(&result) - truth).abs() < 1e-4,
         "class path-specific effect {} against the structural effect {truth}",
         ate(&result)
     );
@@ -377,14 +385,17 @@ fn completions_that_disagree_publish_the_identified_set() {
     let mixture = result.structural_response.as_ref().expect("a partially identified class");
     let set = mixture.identified_set.as_ref().expect("an identified set over the completions");
     let (lower, upper) = (set.lower[0], set.upper[0]);
+    // The identified completions are T -> A, T -> B (the generating one, effect `truth`) and
+    // B -> T -> A, where B is a non-descendant of T and so adjusted:
+    //   sum_b P(b) sum_a (P(a|t=1) - P(a|t=0)) E[y|a,b], with P(b=1) = 0.45 and
+    //   E[y|a=1,b] - E[y|a=0,b] = 0.3 + 0.25 b:  0.4 * (0.55 * 0.3 + 0.45 * 0.55) = 0.165.
+    // The third completion (A -> T -> B) has no directed path through A.
+    assert!((lower - truth).abs() < 1e-4, "lower {lower} against the generating effect {truth}");
+    assert!((upper - 0.165).abs() < 1e-4, "upper {upper} against the adjusted completion 0.165");
     assert!(
-        lower - 2e-3 <= truth && truth <= upper + 2e-3,
-        "the generating completion's effect {truth} lies in the identified set [{lower}, {upper}]"
-    );
-    assert!(upper - lower > 5e-3, "the completions disagree: [{lower}, {upper}]");
-    assert!(
-        mixture.unidentified_mass > 0.0,
-        "the completion with no directed path through A carries unidentified mass"
+        (mixture.unidentified_mass - 1.0 / 3.0).abs() < 1e-12,
+        "the completion with no directed path through A carries one third of the mass: {}",
+        mixture.unidentified_mass
     );
 }
 
@@ -427,7 +438,7 @@ fn the_natural_direct_effect_over_a_class_matches_its_one_completion() {
         .unwrap();
     let result = study.run(&ExecutionContext::for_tests(19)).unwrap();
     assert!(
-        (ate(&result) - truth).abs() < 2e-3,
+        (ate(&result) - truth).abs() < 1e-9,
         "natural direct effect {} against the structural effect {truth}",
         ate(&result)
     );
@@ -534,6 +545,16 @@ fn prepared_handles_run_their_static_cross_world_operation_and_equal_a_fresh_run
             "{name} retains its static cross-world operation"
         );
         let first = prepared.estimate(&data, &ctx).unwrap();
+        // The structural effect of each route's data-generating model.
+        let truth = match name {
+            "admg_path" | "temporal_admg_path" => routed_through_a::effect_through_a(),
+            "cpdag_path" => markovian_routed::effect_through_a(),
+            "admg_nested" | "temporal_admg_nested" | "cpdag_nested" => {
+                covariate_confounded::natural_direct_effect()
+            }
+            other => panic!("no structural effect for {other}"),
+        };
+        assert!((first.effect() - truth).abs() < 1e-4, "{name}: {} vs {truth}", first.effect());
         let second = prepared.estimate(&data, &ctx).unwrap();
         assert_eq!(first.effect().to_bits(), fresh.effect().to_bits(), "{name} prepared vs fresh");
         assert_eq!(first.effect().to_bits(), second.effect().to_bits(), "{name} rerun");

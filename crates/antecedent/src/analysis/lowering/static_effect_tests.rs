@@ -757,13 +757,21 @@ fn static_cross_world_cells_retain_execute_refresh_and_export_their_own_family()
                 .unwrap(),
         );
         assert!(
-            operation.require_program(&unrelated).is_err(),
+            matches!(
+                operation.require_program(&unrelated),
+                Err(crate::CausalError::Compile { ref message })
+                    if message.contains("reason=route_not_lowered")
+            ),
             "{name}: replaced program admitted"
         );
         let mut altered = study.clone();
         altered.query = CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(v(0), v(1)));
         assert!(
-            operation.execute_checked_static_cross_world(&altered, data, &plan, &ctx).is_err(),
+            matches!(
+                operation.execute_checked_static_cross_world(&altered, data, &plan, &ctx),
+                Err(crate::CausalError::Compile { ref message })
+                    if message.contains("reason=route_not_lowered")
+            ),
             "{name}: changed target admitted"
         );
         let mut prepared = study.prepare(&ctx).unwrap_or_else(|error| panic!("{name}: {error}"));
@@ -773,11 +781,23 @@ fn static_cross_world_cells_retain_execute_refresh_and_export_their_own_family()
         );
         let first = prepared.estimate(data, &ctx).unwrap_or_else(|error| panic!("{name}: {error}"));
         let fresh = study.run(&ctx).unwrap();
-        if name == "PathSpecificPag" {
-            // A(1)-A(0)=1/2 and B follows control with P(B=1)=1/4:
-            // E[Y(1 along A)]-E[Y(0)] = 1/2 * (1/4 + 1/8 * 1/4).
-            assert!((first.effect() - 0.140625).abs() < 1e-12);
-        }
+        // Independent hand values from the `t, m, y` table (P(t=1)=1/2, P(m=1|t=0)=1/2,
+        // P(m=1|t=1)=4/5, E[y|t,m] = 1/5, 4/5 (t=0) and 1/2, 7/8 (t=1)):
+        //  - CPDAG t -> m -> y: the only path is the total effect E[y|t=1]-E[y|t=0] = 4/5-1/2.
+        //  - class counterfactual (effect for the control stratum, front door):
+        //    sum_m P(m|t=1) E[y|t=0,m] - E[y|t=0] = (0.2*0.2 + 0.8*0.8) - 0.5.
+        //  - mixed t -> m -> y with t <-> y, front door: sum_m [P(m|1)-P(m|0)] g(m) with
+        //    g(m) = sum_t P(t) E[y|t,m] = 0.35, 0.8375, i.e. 0.74 - 0.59375.
+        //  - PAG: A(1)-A(0)=1/2 and B follows control with P(B=1)=1/4:
+        //    E[Y(1 along A)]-E[Y(0)] = 1/2 * (1/4 + 1/8 * 1/4).
+        let hand = match name {
+            "PathSpecificCpdag" => 0.3,
+            "CounterfactualClass" => 0.18,
+            "PathSpecificMixed" => 0.14625,
+            "PathSpecificPag" => 0.140625,
+            other => panic!("no hand value for {other}"),
+        };
+        assert!((first.effect() - hand).abs() < 1e-12, "{name}: {} vs {hand}", first.effect());
         assert_eq!(first.effect().to_bits(), fresh.effect().to_bits(), "{name}");
         assert_eq!(first.lowered_program_identity(), prepared.plan().lowered_program_identity());
         let original = prepared.clone();
@@ -828,6 +848,14 @@ fn signed_zero_query_drift_is_refused_before_static_family_work() {
     let (result, work) = antecedent_expr::execution_counts::count_static_work(|| {
         operation.execute_checked_static_cross_world(&changed, data, &plan, &ctx)
     });
-    assert!(result.is_err(), "bit-distinct signed-zero target must require preparation");
+    assert!(
+        matches!(
+            &result,
+            Err(crate::CausalError::Compile { message })
+                if message.contains("reason=route_not_lowered")
+        ),
+        "bit-distinct signed-zero target must require preparation: {:?}",
+        result.as_ref().err()
+    );
     assert_eq!(work, antecedent_expr::execution_counts::StaticWorkCounts::default());
 }

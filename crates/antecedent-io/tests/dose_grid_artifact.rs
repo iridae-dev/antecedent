@@ -118,7 +118,8 @@ fn artifact_derivative_and_contrast_replay_to_closed_form() {
 
     let contrast = consume(&seal("contrast", 0.1).export().unwrap()).unwrap();
     let item = contrast.result.contrast.as_ref().unwrap();
-    assert!((item.estimate - 3.0).abs() < 0.05, "{}", item.estimate);
+    // The alternating perturbation cancels in the symmetric design, so the contrast is exact.
+    assert!((item.estimate - 3.0).abs() < 1e-9, "{}", item.estimate);
     assert!(item.standard_error.is_finite() && item.standard_error > 0.0);
     assert!(item.lower < item.estimate && item.estimate < item.upper);
     assert_eq!((item.from_support.as_str(), item.to_support.as_str()), ("supported", "supported"));
@@ -367,11 +368,17 @@ fn quadratic_mean_premise_and_required_feature_cannot_be_silently_changed() {
     }
     let mut missing_feature = scoped.clone();
     missing_feature.required_features.pop();
-    assert!(consume(&missing_feature.export().unwrap()).is_err());
+    assert!(matches!(
+        consume(&missing_feature.export().unwrap()),
+        Err(DoseGridArtifactError::UnsupportedSemantics(_))
+    ));
     let mut changed_premise = scoped.clone();
     changed_premise.request.quadratic_mean = false;
     changed_premise.required_features.pop();
-    assert!(consume(&reseal(changed_premise)).is_err());
+    assert!(matches!(
+        consume(&reseal(changed_premise)),
+        Err(DoseGridArtifactError::UnsupportedSemantics(_))
+    ));
     let mut changed_result = scoped;
     changed_result.result.levels[0].smoothing_bias_included = false;
     assert_eq!(
@@ -484,6 +491,38 @@ fn declared_sampling_weights_seal_replay_and_account_for_the_deleted_row() {
     // The weighted fit differs from the unweighted one on the same table, and replays bit for bit.
     let plain = seal("level", 0.1);
     assert_ne!(plain.result.levels[2].value.to_bits(), sealed.result.levels[2].value.to_bits());
+    // Independent reference: Gaussian-kernel x sampling-weight local quadratic, solved by
+    // weighted normal equations (Gaussian elimination) at each grid dose.
+    let (dose, outcome) = table(0.1);
+    let weights = declared("level", 0.1).sampling_weights.unwrap();
+    for (point, grid_dose) in sealed.result.levels.iter().zip(GRID) {
+        let mut a = [[0.0f64; 4]; 3];
+        for i in 0..N {
+            let u = dose[i] - grid_dose;
+            let w = weights[i] * (-0.5 * (u / 0.4) * (u / 0.4)).exp();
+            let x = [1.0, u, u * u];
+            for r in 0..3 {
+                for c in 0..3 {
+                    a[r][c] += w * x[r] * x[c];
+                }
+                a[r][3] += w * x[r] * outcome[i];
+            }
+        }
+        for col in 0..3 {
+            let pivot = (col..3).max_by(|&p, &q| a[p][col].abs().total_cmp(&a[q][col].abs())).unwrap();
+            a.swap(col, pivot);
+            for r in col + 1..3 {
+                let f = a[r][col] / a[col][col];
+                for c in col..4 {
+                    a[r][c] -= f * a[col][c];
+                }
+            }
+        }
+        let c2 = a[2][3] / a[2][2];
+        let c1 = (a[1][3] - a[1][2] * c2) / a[1][1];
+        let c0 = (a[0][3] - a[0][1] * c1 - a[0][2] * c2) / a[0][0];
+        assert!((point.value - c0).abs() < 1e-8, "dose {grid_dose}: {} vs {c0}", point.value);
+    }
     let consumed = consume(&sealed.export().unwrap()).unwrap();
     assert_eq!(consumed, sealed);
     // The plain request keeps the historical format: no feature, no accounting.
