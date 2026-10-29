@@ -580,7 +580,7 @@ def test_adjusted_glm_domain_and_solver_refusals_preserve_previous_fit(kind):
         expected = ("route_not_supported", "recalc.adjusted_glm_not_converged", "score_artifact")
     else:
         changed = replace(request, data={**request.data, "y": np.asarray(request.data["t"])})
-        expected = ("route_not_supported", "recalc.adjusted_glm_not_converged", "score_artifact")
+        expected = ("route_not_supported", "recalc.adjusted_glm_separated", "score_artifact")
     with pytest.raises(RecalcRefusal) as error:
         require_success(session.execute(changed, execution=Execution(seed=3)))
     assert (error.value.reason_code, error.value.detail, error.value.stage) == expected

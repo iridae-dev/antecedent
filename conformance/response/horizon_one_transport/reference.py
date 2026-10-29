@@ -83,9 +83,9 @@ def main() -> int:
     doc = derive()
     path = HERE / "expected.json"
     if args.write:
-        path.write_text(json.dumps(doc, indent=2) + "\n")
+        path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
     if args.check:
-        have = json.loads(path.read_text())
+        have = json.loads(path.read_text(encoding="utf-8"))
         bad = [k for k in doc if k == "ipw_exact" and have[k] != doc[k] or k != "ipw_exact" and abs(have[k] - doc[k]) > 1e-12]
         if bad:
             print("mismatch:", bad, file=sys.stderr)
