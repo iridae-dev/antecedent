@@ -238,7 +238,7 @@ def test_rd_triple_via_estimator_config_matches_loose_kwargs():
 
     assert via_estimator_config.ate == pytest.approx(via_loose_kwargs.ate)
     assert via_estimator_config.se_analytic == pytest.approx(via_loose_kwargs.se_analytic)
-    assert abs(via_estimator_config.ate - 2.0) < 0.35
+    assert abs(via_estimator_config.ate - 2.0) < 0.1
 
 
 def test_rd_triple_conflict_between_loose_and_estimator_config_raises():

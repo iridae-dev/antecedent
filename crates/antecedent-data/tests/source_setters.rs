@@ -6,6 +6,7 @@
 use std::sync::Arc;
 
 use antecedent_core::{CausalSchema, CausalSchemaBuilder, VariableId};
+use antecedent_data::DataError;
 use antecedent_data::column::ValidityBitmap;
 use antecedent_data::lazy_identity::{FullContentIdentity, LazyViewIdentity};
 use antecedent_data::source::{OwnedSource, SegmentedSource, SourceModality};
@@ -146,7 +147,10 @@ fn every_time_series_setter_yields_a_new_source_identity() {
         data.with_time_index(irregular).unwrap().source(SourceModality::TimeSeries).unwrap();
     assert_invalidated(&before, &irregular_source, "with_time_index (regularity)");
     let short = TimeIndex { regularity: SamplingRegularity::Irregular, length: 3 };
-    assert!(data.with_time_index(short).is_err());
+    assert!(matches!(
+        data.with_time_index(short),
+        Err(DataError::LengthMismatch { expected: 4, actual: 3, context: "time index" })
+    ));
 
     let weighted = data.with_weights(weights([1.0, 2.0, 1.0, 2.0])).unwrap();
     assert_invalidated(
@@ -174,7 +178,13 @@ fn every_time_series_setter_yields_a_new_source_identity() {
     assert_invalidated(&before, &roled.source(SourceModality::TimeSeries).unwrap(), "with_schema");
 
     // A time series is not a tabular source.
-    assert!(data.source(SourceModality::Tabular).is_err());
+    assert!(matches!(
+        data.source(SourceModality::Tabular),
+        Err(DataError::Unsupported {
+            operation: "building a tabular source from a time series",
+            ..
+        })
+    ));
 }
 
 #[test]
@@ -208,9 +218,18 @@ fn event_timestamps_are_bound_into_the_event_source() {
     assert_invalidated(&before, &roled.unwrap().source(), "with_storage (schema)");
 
     // Timestamps belong to an event series only, and must be ordered and complete.
-    assert!(table().source().with_event_times(&[0, 1, 2, 3]).is_err());
-    assert!(source.clone().with_event_times(&[0, 10, 25]).is_err());
-    assert!(source.with_event_times(&[0, 10, 5, 40]).is_err());
+    assert!(matches!(
+        table().source().with_event_times(&[0, 1, 2, 3]),
+        Err(DataError::Unsupported { operation: "event timestamps on this source", .. })
+    ));
+    assert!(matches!(
+        source.clone().with_event_times(&[0, 10, 25]),
+        Err(DataError::LengthMismatch { expected: 4, actual: 3, context: "event times" })
+    ));
+    assert!(matches!(
+        source.with_event_times(&[0, 10, 5, 40]),
+        Err(DataError::NotOrdered { what: "event times" })
+    ));
 }
 
 /// What a consumer holds after reading a segmented source.
@@ -272,8 +291,14 @@ fn every_panel_setter_yields_a_new_composite_identity() {
         &data.source().with_part(1, part).unwrap(),
         "SegmentedSource::with_part",
     );
-    assert!(data.with_unit_series(2, series(10)).is_err());
-    assert!(data.with_unit_id(2, 1).is_err());
+    assert!(matches!(
+        data.with_unit_series(2, series(10)),
+        Err(DataError::OutOfRange { what: "panel unit", index: 2, bound: 2 })
+    ));
+    assert!(matches!(
+        data.with_unit_id(2, 1),
+        Err(DataError::OutOfRange { what: "panel unit", index: 2, bound: 2 })
+    ));
 
     // Re-setting what is there is the same composite.
     let same = data.with_unit_id(1, 9).unwrap().source();
@@ -299,14 +324,20 @@ fn every_multi_environment_setter_yields_a_new_composite_identity() {
     );
     // Environments share one schema, so a role change on one environment alone is refused;
     // the change on every environment is a new composite.
-    assert!(data.with_environment(0, series(10).with_schema(schema(true)).unwrap()).is_err());
+    assert!(matches!(
+        data.with_environment(0, series(10).with_schema(schema(true)).unwrap()),
+        Err(DataError::Mismatch { what: "environment schemas" })
+    ));
     let roled = MultiEnvironmentData::try_new(vec![
         series(10).with_schema(schema(true)).unwrap(),
         series(10).with_schema(schema(true)).unwrap(),
     ])
     .unwrap();
     assert_segments_invalidated(&before, &roled.source(), "schema on every environment");
-    assert!(data.with_environment(2, series(10)).is_err());
+    assert!(matches!(
+        data.with_environment(2, series(10)),
+        Err(DataError::OutOfRange { what: "environment", index: 2, bound: 2 })
+    ));
     let same = data.with_environment(1, series(10)).unwrap().source();
     assert_eq!(FullContentIdentity::try_from_segmented(&same).unwrap(), before.composite);
 }

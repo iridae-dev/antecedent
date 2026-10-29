@@ -176,5 +176,5 @@ def test_a_compiled_discovery_is_accepted_through_its_review_gate_with_its_prove
     assert provenance["claim"] == result.claim["claim_id"]
     assert provenance["review"] in {"accepted", "accepted_after_review"}
     # Declining to accept pending marks refuses at the review gate instead of guessing.
-    with pytest.raises(antecedent.errors.CausalReviewError):
+    with pytest.raises(antecedent.errors.CausalReviewError, match=r"pending\ directed\ edges\ remain"):
         route.accepted_graph(accept_discovered=False)

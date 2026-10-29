@@ -678,7 +678,7 @@ def test_native_composition_consumes_issued_execution_and_refuses_metadata_subst
     decided = require_success(comp.evaluate_with_support(contract, [native]))
     assert decided.verdict.selected == "B"
     assert decided.outcome("B").expected_utility == pytest.approx(3.5, abs=1e-4)
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"claim\ must\ be\ an\ issued\ NativeClaim"):
         comp.DecisionInput.from_native_claim("invented", _view(), contract=contract)
     point = claim.as_decision_source(contract).source
     metadata = comp.DecisionInput.from_means(
@@ -690,7 +690,7 @@ def test_native_composition_consumes_issued_execution_and_refuses_metadata_subst
         causal_contract_id=point.causal_contract_id,
     )
     assert not metadata.provenance.native
-    with pytest.raises(comp.UnverifiedTrustRefusal):
+    with pytest.raises(comp.UnverifiedTrustRefusal, match=r"attested_not_reverifiable"):
         comp.DecisionInput.from_means(
             "metadata",
             claim.coordinates,

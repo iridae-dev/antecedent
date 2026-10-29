@@ -52,7 +52,7 @@ def test_a_one_two_coding_gives_the_zero_one_answer(estimator: Any) -> None:
     base = _estimate(data, estimator(bootstrap=0), control=0.0, active=1.0)
     recoded = _estimate(shifted, estimator(bootstrap=0), control=1.0, active=2.0)
     assert recoded.answer.value == base.answer.value
-    assert abs(base.answer.value - 2.0) < 0.4
+    assert abs(base.answer.value - 2.0) < 0.15
 
 
 def test_swapping_active_and_control_flips_the_sign() -> None:

@@ -108,7 +108,7 @@ def test_an_exported_baseline_is_assessed_without_the_study(study):
     )
     assert via_bytes.identity == direct.identity == via_object.identity == via_artifact.identity
     assert via_bytes.to_dict() == direct.to_dict() == via_object.to_dict() == via_artifact.to_dict()
-    with pytest.raises(ant.CausalError):
+    with pytest.raises(ant.CausalError, match=r"truncated\ staleness\ baseline"):
         drift.staleness(raw[: len(raw) // 2], new, policy=POLICY, execution=study.execution)
 
 

@@ -124,14 +124,19 @@ fn gaussian_log_score_matches_the_density() {
 fn standalone_scoring_refuses_malformed_inputs_and_non_finite_scores() {
     let form = EnsembleCrpsForm::EmpiricalLaw;
     let malformed_law = ForecastLaw::Gaussian { mean: 0.0, sd: -1.0 };
-    assert!(score_case(ScoreKind::Log, form, &malformed_law, &Outcome::Real(0.0)).is_err());
+    let error = score_case(ScoreKind::Log, form, &malformed_law, &Outcome::Real(0.0)).unwrap_err();
+    assert_eq!(error.detail(), detail::INVALID_LAW, "{error}");
+    assert!(error.to_string().contains("a Gaussian law needs a finite mean and a positive sd"));
 
     let law = ForecastLaw::gaussian(0.0, 1.0);
-    assert!(score_case(ScoreKind::Crps, form, &law, &Outcome::Real(f64::NAN)).is_err());
+    let error = score_case(ScoreKind::Crps, form, &law, &Outcome::Real(f64::NAN)).unwrap_err();
+    assert_eq!(error.detail(), detail::INVALID_OBSERVATIONS, "{error}");
 
     // Finite inputs can still overflow an intermediate standardized residual.
     let extreme = ForecastLaw::gaussian(f64::MAX, 1.0);
-    assert!(score_case(ScoreKind::Log, form, &extreme, &Outcome::Real(-f64::MAX)).is_err());
+    let error = score_case(ScoreKind::Log, form, &extreme, &Outcome::Real(-f64::MAX)).unwrap_err();
+    assert_eq!(error.detail(), detail::INVALID_LAW, "{error}");
+    assert!(error.to_string().contains("overflowed the finite numeric range"), "{error}");
 }
 
 #[test]
@@ -139,11 +144,17 @@ fn exact_expected_score_refuses_malformed_finite_truths() {
     let forecast = ForecastLaw::gaussian(0.0, 1.0);
     let non_finite_support =
         FiniteTruth::Real { support: vec![f64::NAN], probabilities: vec![1.0] };
-    assert!(exact_expected_score(ScoreKind::Crps, &forecast, &non_finite_support).is_err());
+    let error =
+        exact_expected_score(ScoreKind::Crps, &forecast, &non_finite_support).unwrap_err();
+    assert_eq!(error.detail(), detail::INVALID_LAW, "{error}");
+    assert!(error.to_string().contains("a finite truth support point is not finite"), "{error}");
 
     let overflowing_dimension =
         FiniteTruth::Vector { dimension: usize::MAX, atoms: vec![], probabilities: vec![1.0] };
-    assert!(exact_expected_score(ScoreKind::Energy, &forecast, &overflowing_dimension).is_err());
+    let error =
+        exact_expected_score(ScoreKind::Energy, &forecast, &overflowing_dimension).unwrap_err();
+    assert_eq!(error.detail(), detail::INVALID_LAW, "{error}");
+    assert!(error.to_string().contains("a vector truth needs a bounded positive dimension"), "{error}");
 }
 
 #[test]
@@ -365,10 +376,10 @@ fn a_calibrated_generator_has_a_uniform_pit_and_nominal_coverage() {
     assert!(close(coverage[1].empirical_coverage, 0.9, 0.04));
     // The expected CRPS of the true law is 1 / sqrt(pi).
     let expected = 1.0 / std::f64::consts::PI.sqrt();
-    assert!(close(mean_score(&report, 0, ScoreKind::Crps), expected, 0.04));
+    assert!(close(mean_score(&report, 0, ScoreKind::Crps), expected, 0.02));
     // The expected log score of the true law is the entropy (1 + ln 2 pi) / 2.
     let entropy = 0.5 * (1.0 + (2.0 * std::f64::consts::PI).ln());
-    assert!(close(mean_score(&report, 0, ScoreKind::Log), entropy, 0.08));
+    assert!(close(mean_score(&report, 0, ScoreKind::Log), entropy, 0.03));
 }
 
 #[test]
@@ -426,7 +437,7 @@ fn score_differences_are_paired_and_state_their_dependence() {
     ));
     // The exact expected CRPS of N(0, 0.5^2) under N(0, 1) is 0.60997; the calibrated one
     // is 1/sqrt(pi); their difference is about 0.0458.
-    assert!(close(crps_overconfident.mean_difference, 0.0458, 0.02));
+    assert!(close(crps_overconfident.mean_difference, 0.0458, 0.005));
 }
 
 #[test]
@@ -440,8 +451,18 @@ fn no_declared_dependence_withholds_every_standard_error() {
         assert!(difference.dm_statistic.is_none());
         assert_eq!(difference.dependence, "undeclared");
     }
-    // The point scores are still reported.
-    assert!(mean_score(&report, 0, ScoreKind::Crps).is_finite());
+    // The point scores are still reported, and equal the scores under a declared dependence on
+    // the same stream: the declaration only governs standard errors.
+    let mut declared = generator_spec(200);
+    declared.dependence = Some(DependenceDeclaration::Iid);
+    let with_dependence = assess_predictive_laws(&declared, &ctx()).unwrap();
+    for kind in [ScoreKind::Crps, ScoreKind::Log] {
+        assert!(close(
+            mean_score(&report, 0, kind),
+            mean_score(&with_dependence, 0, kind),
+            1e-12,
+        ));
+    }
 }
 
 // -- the shape of the report ------------------------------------------------------------
@@ -681,9 +702,11 @@ fn caller_minted_keys_are_never_verified_held_out() {
         assess_predictive_laws(&overlap_spec(fit.clone(), OverlapPolicy::LabelOnly), &ctx())
             .unwrap();
     assert_eq!(report.predictors[0].overlap.label(), "unverified");
-    assert!(
-        assess_predictive_laws(&overlap_spec(fit, OverlapPolicy::RequireHeldOut), &ctx()).is_err()
-    );
+    let (code, slot) = refusal(assess_predictive_laws(
+        &overlap_spec(fit, OverlapPolicy::RequireHeldOut),
+        &ctx(),
+    ));
+    assert_eq!((code.as_str(), slot.as_str()), ("evidence_overlap_unknown", detail::OVERLAP_UNKNOWN));
     assert!(minted_key(1).is_caller_minted());
     assert!(!key(1).is_caller_minted());
     // Digest equality is origin-independent.
@@ -832,7 +855,8 @@ fn posterior_predictive_replicates_are_scored_as_sample_laws() {
     let report = assess_predictive_laws(&spec, &ctx()).unwrap();
     // Row 0: 7/18 (hand value above); row 1: a point mass at the outcome, CRPS 0.
     assert!(close(mean_score(&report, 0, ScoreKind::Crps), 7.0 / 36.0, 1e-12));
-    assert!(PredictiveReplicates::new(2, 2, vec![0.0; 3]).is_err());
+    let error = PredictiveReplicates::new(2, 2, vec![0.0; 3]).unwrap_err();
+    assert_eq!(error.detail(), detail::INVALID_LAW, "{error}");
 }
 
 #[test]
@@ -923,7 +947,8 @@ fn malformed_inputs_are_refused() {
         ValidationDesign::HeldOutSplit,
         Vec::new(),
     );
-    assert!(assess_predictive_laws(&empty, &ctx()).is_err());
+    let (code, slot) = refusal(assess_predictive_laws(&empty, &ctx()));
+    assert_eq!((code.as_str(), slot.as_str()), ("invalid_argument", detail::SCORE_NOT_DEFINED));
     let cancelled = ctx();
     cancelled.cancellation.cancel();
     let (code, slot) = refusal(assess_predictive_laws(&generator_spec(10), &cancelled));

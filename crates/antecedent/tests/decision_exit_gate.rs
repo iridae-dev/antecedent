@@ -380,7 +380,7 @@ fn story_smoothed_dose_grid_against_closed_form_truth_with_closed_interval() {
         // psi_h at every grid dose, against the closed form.
         for point in &plan.estimate().grid {
             let truth = Scenario::Good.truth(point.dose, H);
-            assert!((point.estimate - truth).abs() < 0.2, "a={}: {}", point.dose, point.estimate);
+            assert!((point.estimate - truth).abs() < 0.12, "a={}: {}", point.dose, point.estimate);
         }
         assert_eq!(plan.estimate().uncertainty.status, "point_only");
         // The interval route is closed until it is measured.

@@ -66,7 +66,7 @@ def test_analyze_over_parquet_equals_the_same_analysis_in_memory(tmp_path):
     from_pathlike = _analyze(path)
     for result in (from_handle, from_path, from_pathlike):
         assert math.isclose(result.effect, in_memory.effect, rel_tol=0, abs_tol=1e-12)
-    assert abs(in_memory.effect - 2.0) < 0.25
+    assert abs(in_memory.effect - 2.0) < 0.08
 
 
 def test_prepare_estimate_and_refresh_accept_files(tmp_path):
@@ -227,7 +227,7 @@ def test_paths_that_are_not_tables_are_refused():
     with pytest.raises(CausalValueError) as refused:
         _analyze("rows.csv")
     assert refused.value.reason_code == "invalid_argument"
-    with pytest.raises(CausalDataError):
+    with pytest.raises(CausalDataError, match=r"No\ such\ file\ or\ directory"):
         ant.data.from_parquet("does-not-exist.parquet")
 
 
@@ -248,11 +248,11 @@ def test_loader_execution_cancels_a_read_and_owns_the_memory_limit(tmp_path):
     handle = ant.data.from_parquet(path, chunk_rows=128, execution=Execution(cancel=token))
     assert handle.read(["t"])["t"].shape == (2_000,)  # an unfired token changes nothing
     token.cancel()
-    with pytest.raises(CausalCancelledError):
+    with pytest.raises(CausalCancelledError, match=r"read\ was\ cancelled"):
         handle.read(["y", "z"])
-    with pytest.raises(CausalCancelledError):
+    with pytest.raises(CausalCancelledError, match=r"read\ was\ cancelled"):
         handle.content_identity()
-    with pytest.raises(CausalCancelledError):
+    with pytest.raises(CausalCancelledError, match=r"read\ was\ cancelled"):
         handle.summarize_weighted_gaussian(["t"], "y")
     # A table that was opened without an execution is unaffected by that token.
     free = ant.data.from_arrow_ipc(_arrow(tmp_path, data), chunk_rows=128)
@@ -263,7 +263,7 @@ def test_loader_execution_cancels_a_read_and_owns_the_memory_limit(tmp_path):
             opener(path, memory_limit_bytes=1)
     with pytest.raises(TypeError, match="unexpected keyword"):
         ant.data.from_arrow_ipc(path, memory_limit_bytes=1)
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=r"memory_limit_bytes\ must\ be\ positive"):
         ant.data.from_parquet(path, execution=Execution(limits=ResourceLimits(memory_bytes=0)))
     with pytest.raises(Exception, match="Execution"):
         ant.data.from_parquet(path, execution={"limits": 1})

@@ -212,7 +212,11 @@ fn identity_is_order_free_and_moves_with_a_changed_number_at_unchanged_shape() {
 fn a_failed_carry_leaves_the_request_and_a_later_valid_carry_unaffected() {
     let ok = request(Selection::TreatmentSelected);
     let first = transport_linear_gaussian(&ok).unwrap();
-    assert!(transport_linear_gaussian(&request(Selection::OutcomeSelected)).is_err());
+    let refused = transport_linear_gaussian(&request(Selection::OutcomeSelected)).unwrap_err();
+    assert!(
+        format!("{refused:?}").contains("mechanism_composition.population_selection_arrow_into_mechanism"),
+        "{refused:?}"
+    );
     let second = transport_linear_gaussian(&ok).unwrap();
     assert_eq!(first.identity(), second.identity());
 }

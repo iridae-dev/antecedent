@@ -21,6 +21,7 @@ use std::sync::Arc;
 use antecedent_core::{CausalRng, Value, VariableId};
 use antecedent_expr::{Assignment, DistributionProvider, EvalContext, EvalError, FactorSpec};
 use antecedent_identify::IdentificationResult;
+use antecedent_identify::error::IdentificationError;
 use antecedent_identify::panel_unrolled::{
     PanelNode, UnrolledPanelGraph, UnrolledPanelIdentification, UnrolledPanelSpec,
     identify_joint_panel_intervention,
@@ -451,8 +452,16 @@ fn a_bow_between_a_channel_and_its_outcome_stays_refused_with_the_hedge() {
 /// Degenerate programs, nodes outside the program and an empty outcome set are typed errors.
 #[test]
 fn a_declaration_outside_the_program_or_degenerate_is_refused() {
-    assert!(UnrolledPanelGraph::build(spec(0, 1)).is_err());
-    assert!(UnrolledPanelGraph::build(spec(1, 0)).is_err());
+    fn refused<T>(result: Result<T, IdentificationError>) -> &'static str {
+        match result {
+            Err(IdentificationError::UnsupportedQuery { message }) => message,
+            Err(_) => panic!("expected an unsupported-query refusal"),
+            Ok(_) => panic!("the declaration must be refused"),
+        }
+    }
+    let degenerate = "an unrolled panel graph needs at least one period and one channel";
+    assert_eq!(refused(UnrolledPanelGraph::build(spec(0, 1))), degenerate);
+    assert_eq!(refused(UnrolledPanelGraph::build(spec(1, 0))), degenerate);
     let outside = UnrolledPanelSpec {
         latent_confounding: vec![(
             PanelNode::Channel { channel: 3, period: 0 },
@@ -460,15 +469,27 @@ fn a_declaration_outside_the_program_or_degenerate_is_refused() {
         )],
         ..spec(1, 1)
     };
-    assert!(UnrolledPanelGraph::build(outside).is_err());
+    assert_eq!(
+        refused(UnrolledPanelGraph::build(outside)),
+        "a named node lies outside the panel program"
+    );
     let selfie = UnrolledPanelSpec {
         latent_confounding: vec![(PanelNode::Outcome(0), PanelNode::Outcome(0))],
         ..spec(1, 1)
     };
-    assert!(UnrolledPanelGraph::build(selfie).is_err());
+    assert_eq!(
+        refused(UnrolledPanelGraph::build(selfie)),
+        "a latent confounder joins two distinct nodes"
+    );
     let graph = UnrolledPanelGraph::build(spec(2, 1)).unwrap();
-    assert!(identify_joint_panel_intervention(&graph, &[]).is_err());
-    assert!(identify_joint_panel_intervention(&graph, &[2]).is_err());
+    assert_eq!(
+        refused(identify_joint_panel_intervention(&graph, &[])),
+        "name at least one outcome period"
+    );
+    assert_eq!(
+        refused(identify_joint_panel_intervention(&graph, &[2])),
+        "an outcome period lies outside the program"
+    );
 }
 
 /// The functional is a function of the graph: the same structure without the bow identifies and

@@ -58,11 +58,9 @@ fn the_interval_is_bound_to_its_record_or_refused_for_want_of_one() {
         }
         Err(refusal) => {
             assert_eq!(refusal.code(), "cell_not_licensed");
-            assert!(
-                refusal.details()[0].contains("record_not_attesting")
-                    || refusal.details()[0].contains("protocol_not_measured"),
-                "{refusal}"
-            );
+            // The n = 100 sample lies outside the measured size range, so the record does not attest.
+            assert_eq!(refusal.details()[0], "measured_inference.record_not_attesting");
+            assert!(refusal.to_string().contains("sample_size_outside_measured_range"), "{refusal}");
         }
     }
 }

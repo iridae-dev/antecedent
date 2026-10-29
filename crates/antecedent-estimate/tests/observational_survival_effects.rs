@@ -215,8 +215,8 @@ fn heavy_censoring_before_the_horizon_is_a_censoring_support_refusal() {
     let error = run(&data, CensoringAssumption::IndependentWithinArm, 2).unwrap_err();
     let text = detail_of(&error);
     assert!(
-        text.contains("survival_effect.censoring_support")
-            || text.contains("survival_effect.horizon_beyond_follow_up"),
+        text.contains("positivity_violated: survival_effect.censoring_support")
+            && text.contains("below the declared floor 0.05"),
         "{text}"
     );
     // A shorter horizon that the censoring leaves support for is estimated.

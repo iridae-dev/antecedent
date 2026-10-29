@@ -50,8 +50,16 @@ fn counts_update_the_beta_posterior_and_its_moments() {
     close(p.mean(), 8.0 / 12.0, 1e-15, "mean");
     // alpha beta / ((alpha + beta)^2 (alpha + beta + 1)) = 32 / (144 * 13).
     close(p.variance(), 32.0 / (144.0 * 13.0), 1e-15, "variance");
-    assert!(BetaPosterior::new(0.5, 1.0).is_err(), "a shape below one is refused");
-    assert!(BetaPosterior::new(f64::NAN, 1.0).is_err());
+    let shape = "a Beta shape must be finite and at least one";
+    assert_eq!(
+        BetaPosterior::new(0.5, 1.0).err(),
+        Some(AdaptiveInferenceError::InvalidParameter(shape)),
+        "a shape below one is refused"
+    );
+    assert_eq!(
+        BetaPosterior::new(f64::NAN, 1.0).err(),
+        Some(AdaptiveInferenceError::InvalidParameter(shape))
+    );
 }
 
 #[test]
@@ -92,8 +100,16 @@ fn incomplete_beta_matches_closed_forms_and_scipy() {
         1e-9,
         "I_0.56(500,400)",
     );
-    assert!(regularized_incomplete_beta(1.5, 1.0, 1.0).is_err());
-    assert!(regularized_incomplete_beta(0.5, 0.0, 1.0).is_err());
+    assert_eq!(
+        regularized_incomplete_beta(1.5, 1.0, 1.0),
+        Err(AdaptiveInferenceError::InvalidParameter("incomplete beta argument must lie in [0, 1]"))
+    );
+    assert_eq!(
+        regularized_incomplete_beta(0.5, 0.0, 1.0),
+        Err(AdaptiveInferenceError::InvalidParameter(
+            "incomplete beta shapes must be finite and positive"
+        ))
+    );
 }
 
 /// `P(theta_b > theta_a)` for integer shapes (Evan Miller's finite sum):
@@ -175,8 +191,9 @@ fn best_arm_probabilities_are_exchangeable_normalized_and_match_scipy() {
     let q =
         best_arm_probabilities(&[post(3.0, 3.0), post(8.0, 4.0), post(5.0, 7.0)], &never).unwrap();
     close(q[1], p[0], 1e-12, "relabelled arm");
-    assert!(
-        best_arm_probabilities(&[post(1.0, 1.0)], &never).is_err(),
+    assert_eq!(
+        best_arm_probabilities(&[post(1.0, 1.0)], &never).err(),
+        Some(AdaptiveInferenceError::Shape("a posterior comparison needs between 2 and 64 arms")),
         "one arm is not a comparison"
     );
 }
@@ -494,8 +511,14 @@ fn confidence_sequence_radius_matches_the_closed_form() {
         1e-9,
         "u_400",
     );
-    assert!(mixture_hoeffding_radius(0, 0.05, 10.0).is_err());
-    assert!(mixture_hoeffding_radius(5, 1.5, 10.0).is_err());
+    assert_eq!(
+        mixture_hoeffding_radius(0, 0.05, 10.0),
+        Err(AdaptiveInferenceError::Shape("a radius needs at least one observation"))
+    );
+    assert_eq!(
+        mixture_hoeffding_radius(5, 1.5, 10.0),
+        Err(AdaptiveInferenceError::InvalidParameter("the miscoverage level must lie in (0, 1)"))
+    );
 }
 
 #[test]
@@ -699,7 +722,15 @@ fn simulated_random_walks_cross_at_the_spent_rates() {
 
 #[test]
 fn invalid_information_fractions_are_refused() {
-    for bad in [vec![], vec![0.5, 0.5, 1.0], vec![0.0, 1.0], vec![0.5, 1.2]] {
+    let increasing = AdaptiveInferenceError::InvalidParameter(
+        "information fractions must be strictly increasing in (0, 1]",
+    );
+    for (bad, want) in [
+        (vec![], AdaptiveInferenceError::Shape("a group-sequential rule has between 1 and 20 looks")),
+        (vec![0.5, 0.5, 1.0], increasing.clone()),
+        (vec![0.0, 1.0], increasing.clone()),
+        (vec![0.5, 1.2], increasing),
+    ] {
         let outcome = boundaries(
             &bad,
             0.05,
@@ -707,7 +738,7 @@ fn invalid_information_fractions_are_refused() {
             Sidedness::TwoSidedSymmetric,
             &never,
         );
-        assert!(outcome.is_err(), "{bad:?} must be refused");
+        assert_eq!(outcome.err(), Some(want), "{bad:?} must be refused with its reason");
     }
     let cancelled = boundaries(
         &[0.5, 1.0],

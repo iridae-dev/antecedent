@@ -221,6 +221,14 @@ fn dispatch_refuses_a_plan_without_a_lowered_program() {
     assert_eq!(result.lowered_program_identity(), Some(lowered.identity()));
 }
 
+/// The refusal text of a result that must be an error.
+fn refusal_text<T, E: std::fmt::Display>(result: Result<T, E>) -> String {
+    match result {
+        Err(error) => error.to_string(),
+        Ok(_) => panic!("the call must be refused"),
+    }
+}
+
 #[test]
 fn lowered_dispatch_refuses_public_builder_reentry() {
     let ctx = ExecutionContext::for_tests(3);
@@ -229,10 +237,13 @@ fn lowered_dispatch_refuses_public_builder_reentry() {
     let inside = ctx.enter_lowered_dispatch(plan.lowered().unwrap().identity());
     let compiled = study.compile(&inside).unwrap_err();
     assert!(compiled.to_string().contains("public_builder_reentry"), "{compiled}");
-    assert!(study.prepare(&inside).is_err(), "prepare inside a lowered dispatch must refuse");
-    assert!(study.run(&inside).is_err(), "a one-shot run inside a lowered dispatch must refuse");
-    let other = graph_posterior_study();
-    assert!(other.run(&inside).is_err(), "no other study runs inside a lowered dispatch");
+    for (what, text) in [
+        ("prepare", refusal_text(study.prepare(&inside))),
+        ("a one-shot run", refusal_text(study.run(&inside))),
+        ("another study's run", refusal_text(graph_posterior_study().run(&inside))),
+    ] {
+        assert!(text.contains("reason=public_builder_reentry"), "{what} inside a dispatch: {text}");
+    }
 }
 
 #[test]
@@ -286,7 +297,11 @@ fn a_compiled_single_graph_plan_executes_its_retained_identification() {
         let (other_ctx, other_sink) = recording_ctx(13);
         let foreign = static_effect_study().compile(&other_ctx).unwrap();
         let fresh = study.execute(&foreign, &other_ctx);
-        assert!(fresh.is_err(), "{family}: a foreign plan's lowered cell does not match");
+        let text = refusal_text(fresh);
+        assert!(
+            text.contains("reason=route_not_lowered: the plan was lowered for StaticAteDag but"),
+            "{family}: a foreign plan's lowered cell does not match: {text}"
+        );
         assert_eq!(identify_computations(&other_sink), 1, "{family}: only the foreign compile");
     }
 }

@@ -74,13 +74,19 @@ fn the_ljung_box_statistic_and_p_value_match_the_exact_reference() {
 fn invalid_gates_and_too_few_rows_are_refused() {
     let case = cases().into_iter().find(|c| c["name"] == "single_lag").unwrap();
     let design = design(&case);
-    for gate in [
-        InnovationWhitenessGate { max_lag: 0, level: 0.05 },
-        InnovationWhitenessGate { max_lag: 1, level: 0.0 },
-        InnovationWhitenessGate { max_lag: 1, level: 1.0 },
-        InnovationWhitenessGate { max_lag: 40, level: 0.05 },
+    let malformed = "white_innovation.invalid_argument: the whiteness gate needs max_lag >= 1 and a level in (0, 1)";
+    let short = "white_innovation.invalid_argument: too few rows for the requested residual autocorrelation lags";
+    for (gate, reason) in [
+        (InnovationWhitenessGate { max_lag: 0, level: 0.05 }, malformed),
+        (InnovationWhitenessGate { max_lag: 1, level: 0.0 }, malformed),
+        (InnovationWhitenessGate { max_lag: 1, level: 1.0 }, malformed),
+        (InnovationWhitenessGate { max_lag: 40, level: 0.05 }, short),
     ] {
-        assert!(innovation_whiteness_of(&design, &gate).is_err(), "{gate:?}");
+        let text = match innovation_whiteness_of(&design, &gate) {
+            Err(error) => error.to_string(),
+            Ok(_) => panic!("{gate:?} must be refused"),
+        };
+        assert!(text.contains(reason), "{gate:?}: {text}");
     }
 }
 
@@ -127,7 +133,14 @@ fn the_gate_refuses_exactly_when_the_reference_p_value_is_below_the_level() {
         )
     };
     assert!(run(p * 0.99).is_ok(), "level just below the reference p-value passes");
-    assert!(run(p * 1.01).is_err(), "level just above the reference p-value refuses");
+    let refusal = match run(p * 1.01) {
+        Err(error) => error.to_string(),
+        Ok(_) => panic!("level just above the reference p-value refuses"),
+    };
+    assert!(
+        refusal.contains("white_innovation.residual_autocorrelation: Ljung-Box Q = 7.409 on 4 lags (p = 0.1158)"),
+        "{refusal}"
+    );
 }
 
 #[test]
@@ -156,14 +169,15 @@ fn a_multi_step_horizon_is_refused() {
     let case = cases().into_iter().find(|c| c["name"] == "single_lag").unwrap();
     let mut declared = declaration(&case, 0.05);
     declared.horizon_steps = 2;
-    assert!(
-        fit_white_innovation_posterior(
-            &estimator(),
-            &prepared(&case),
-            &declared,
-            IdentificationStatus::NonparametricallyIdentified,
-            &ExecutionContext::for_tests(1),
-        )
-        .is_err()
-    );
+    let refusal = match fit_white_innovation_posterior(
+        &estimator(),
+        &prepared(&case),
+        &declared,
+        IdentificationStatus::NonparametricallyIdentified,
+        &ExecutionContext::for_tests(1),
+    ) {
+        Err(error) => error.to_string(),
+        Ok(_) => panic!("a multi-step horizon must be refused"),
+    };
+    assert!(refusal.contains("white_innovation.multi_step: an unfolded regression at horizon h >= 2"), "{refusal}");
 }

@@ -602,7 +602,7 @@ def test_exported_result_round_trips_and_mutations_are_refused():
         refusal_of(pc.consume_callback_result, bytes(corrupt))
     refusal_of(pc.consume_callback_result, result.data[:-17])
     refusal_of(pc.consume_callback_result, b"not an artifact")
-    with pytest.raises(pc.CallbackRefusal):
+    with pytest.raises(pc.CallbackRefusal, match=r"callback_protocol\.artifact_invalid"):
         pc.inspect_callback_result(b"\x00\x01\x02")
 
 
@@ -675,7 +675,7 @@ def test_fresh_process_resume_with_and_without_a_provider():
 
 
 def test_provider_objects_need_an_identity():
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"needs\ an\ `identity`"):
         require_success(
             pc.CallbackSession().execute(
                 object(),
@@ -721,7 +721,7 @@ def test_verifying_a_callback_provider_issues_a_receipt_only_for_passing_indepen
     # A probe outside its predeclared tolerance, and a missing required probe, are refused.
     refusal_of(base.verify, gaussian_probes(moments=(MU + 0.5, MU, 1e-3)))
     refusal_of(base.verify, [p for p in gaussian_probes() if p.kind != "normalization"])
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"probes\ must\ be\ VerificationProbe"):
         base.verify([("moments", 2.0, 2.0, 0.0)])
 
 
@@ -830,7 +830,7 @@ def test_a_producer_claim_connects_to_a_callback_input_or_is_refused_with_every_
     assert_registered_refusal(caught.value)
     assert len(caught.value.refusals) >= 1
     # An input the callback does not declare is refused too.
-    with pytest.raises(pc.CallbackRefusal):
+    with pytest.raises(pc.CallbackRefusal, match=r"interface_contract\.unknown_port"):
         pc.check_claim_to_callback(claim(), "effect", outer, "no_such_input")
 
 
@@ -956,5 +956,5 @@ def test_a_callback_is_connected_to_its_consumer_before_the_provider_ever_runs()
     assert isinstance(refused, pc.CallbackExecutionRefusal) and refused.invocations == 0
     assert fresh.invocations == 0 and counted(never) == []
     assert session.invocations == 1
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"consumer\ must\ be\ an\ interface_contract\.InterfaceContract"):
         session.execute_for_consumer(provider, decl, request, {"component": "x"}, "law_in")

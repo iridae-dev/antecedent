@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use antecedent::prelude::ExecutionContext;
 use antecedent::{Study, SyntheticControlQuery};
-use antecedent_core::{IntervalMethod, VariableId};
+use antecedent_core::{IntervalMethod, PanelDesignFault, QueryError, VariableId};
 use antecedent_data::{TableView, TabularData};
 
 #[path = "common/retained_graphless.rs"]
@@ -49,6 +49,22 @@ fn fixture() -> (TabularData, SyntheticControlQuery) {
         5,
     );
     (data, query)
+}
+
+const PAYLOAD: &str = "invalid synthetic-control payload or fabricated interval";
+const DID: &str = "invalid synthetic DiD weights, support, or fabricated interval";
+
+/// A sealed body edited to claim what the route never produced is refused by the encoder.
+fn assert_forgery_refused(
+    forged: &antecedent_io::AnalysisResultWire,
+    variable_names: Vec<String>,
+    reason: &str,
+) {
+    match antecedent_io::encode_analysis_result_artifact(forged, variable_names, "fabricated") {
+        Err(antecedent_io::IoError::Convert(message)) => assert_eq!(message, reason),
+        Err(other) => panic!("expected a conversion refusal, got {other:?}"),
+        Ok(_) => panic!("a forged result body was sealed"),
+    }
 }
 
 #[test]
@@ -92,14 +108,7 @@ fn synthetic_control_retained_route_recovers_truth_and_preserves_point_only_clai
     assert!(body.interval_upper.is_none());
     let mut fabricated = body.clone();
     fabricated.standard_error = Some(0.1);
-    assert!(
-        antecedent_io::encode_analysis_result_artifact(
-            &fabricated,
-            header.variable_names,
-            "fabricated"
-        )
-        .is_err()
-    );
+    assert_forgery_refused(&fabricated, header.variable_names, PAYLOAD);
 }
 
 #[test]
@@ -114,12 +123,24 @@ fn synthetic_control_refuses_insufficient_donors_and_unbalanced_panel() {
         5,
     );
     let few_data = TabularData::from_f64_columns([("outcome", [0.0; 18].as_slice())]).unwrap();
-    assert!(Study::tabular(few_data).query(few_donors).build().unwrap().run(&ctx).is_err());
+    let error = Study::tabular(few_data).query(few_donors).build().unwrap().run(&ctx);
+    assert!(
+        matches!(&error, Err(antecedent::CausalError::Compile { message })
+            if message == "synthetic control requires one observed treated unit and at least three donor units"),
+        "{:?}",
+        error.err()
+    );
     let mut missing = query.clone();
     let mut periods = query.periods.to_vec();
     *periods.last_mut().unwrap() = 5;
     missing.periods = periods.into();
-    assert!(Study::tabular(data).query(missing).build().unwrap().run(&ctx).is_err());
+    let error = Study::tabular(data).query(missing).build().unwrap().run(&ctx);
+    assert!(
+        matches!(&error, Err(antecedent::CausalError::Compile { message })
+            if message == "each unit must have exactly one outcome per period"),
+        "{:?}",
+        error.err()
+    );
 }
 
 #[test]
@@ -153,14 +174,7 @@ fn retained_synthetic_did_recovers_additive_truth_and_round_trips_weights() {
     assert!(body.standard_error.is_none());
     let mut fabricated = body.clone();
     fabricated.interval_lower = Some(6.0);
-    assert!(
-        antecedent_io::encode_analysis_result_artifact(
-            &fabricated,
-            header.variable_names,
-            "fabricated"
-        )
-        .is_err()
-    );
+    assert_forgery_refused(&fabricated, header.variable_names, DID);
 }
 
 #[test]
@@ -194,14 +208,7 @@ fn uniform_unit_randomization_enumerates_sharp_null_and_seals_p_value() {
     );
     let mut fabricated = body.clone();
     fabricated.synthetic_control.as_mut().unwrap().randomization_p_value = Some(0.0);
-    assert!(
-        antecedent_io::encode_analysis_result_artifact(
-            &fabricated,
-            header.variable_names,
-            "fabricated"
-        )
-        .is_err()
-    );
+    assert_forgery_refused(&fabricated, header.variable_names, PAYLOAD);
     let (_, invalid) = fixture();
     assert!(
         invalid.difference_in_differences().with_uniform_unit_randomization().validate().is_ok()
@@ -211,15 +218,14 @@ fn uniform_unit_randomization_enumerates_sharp_null_and_seals_p_value() {
 #[test]
 fn nonzero_constant_effect_null_round_trips_and_refuses_missing_assignment() {
     let (data, query) = fixture();
-    assert!(query.clone().with_sharp_null_effect(5.0).validate().is_err());
-    assert!(
-        query
-            .clone()
-            .with_uniform_unit_randomization()
-            .with_sharp_null_effect(f64::NAN)
-            .validate()
-            .is_err()
-    );
+    assert!(matches!(
+        query.clone().with_sharp_null_effect(5.0).validate(),
+        Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::SharpNullRandomization))
+    ));
+    assert!(matches!(
+        query.clone().with_uniform_unit_randomization().with_sharp_null_effect(f64::NAN).validate(),
+        Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::SharpNullRandomization))
+    ));
     let query = query.with_uniform_unit_randomization().with_sharp_null_effect(5.0);
     let ctx = ExecutionContext::for_tests(19);
     let prepared =
@@ -237,14 +243,7 @@ fn nonzero_constant_effect_null_round_trips_and_refuses_missing_assignment() {
     assert_eq!(body.synthetic_control.as_ref().unwrap().randomization_null_effect, Some(5.0));
     let mut fabricated = body.clone();
     fabricated.synthetic_control.as_mut().unwrap().randomization_null_effect = Some(1.0);
-    assert!(
-        antecedent_io::encode_analysis_result_artifact(
-            &fabricated,
-            header.variable_names,
-            "fabricated"
-        )
-        .is_err()
-    );
+    assert_forgery_refused(&fabricated, header.variable_names, PAYLOAD);
 }
 
 #[test]
@@ -275,14 +274,7 @@ fn augmented_uniform_assignment_tests_the_adjusted_effect_and_seals_artifact() {
     );
     let mut fabricated = body.clone();
     fabricated.synthetic_control.as_mut().unwrap().randomization_p_value = Some(0.0);
-    assert!(
-        antecedent_io::encode_analysis_result_artifact(
-            &fabricated,
-            header.variable_names,
-            "fabricated"
-        )
-        .is_err()
-    );
+    assert_forgery_refused(&fabricated, header.variable_names, PAYLOAD);
 }
 
 #[test]
@@ -364,16 +356,12 @@ fn augmented_synthetic_control_recovers_outside_hull_truth_and_seals_artifact() 
     assert_eq!(body.synthetic_control.as_ref().unwrap().effect, fit.effect);
     let mut fabricated = body.clone();
     fabricated.synthetic_control.as_mut().unwrap().outcome_model_correction = Some(0.0);
-    assert!(
-        antecedent_io::encode_analysis_result_artifact(
-            &fabricated,
-            header.variable_names,
-            "fabricated"
-        )
-        .is_err()
-    );
+    assert_forgery_refused(&fabricated, header.variable_names, PAYLOAD);
     assert!(query.clone().with_uniform_unit_randomization().validate().is_ok());
-    assert!(query.difference_in_differences().validate().is_err());
+    assert!(matches!(
+        query.difference_in_differences().validate(),
+        Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::AugmentedWithDid))
+    ));
 }
 
 /// The exact-weights panel plus an unrelated donor `d`, without the listed unit-periods.
@@ -419,7 +407,12 @@ fn observed_window_support_reads_an_unbalanced_panel_and_refuses_without_support
     // The treated unit misses period 2 and donor d misses period 3, so d is excluded.
     let (data, query) = unbalanced_fixture(&[("treated", 2), ("d", 3), ("a", 2)]);
     let balanced = Study::tabular(data.clone()).query(query.clone()).build().unwrap().run(&ctx);
-    assert!(balanced.is_err(), "an unbalanced panel needs the observed-window declaration");
+    assert!(
+        matches!(&balanced, Err(antecedent::CausalError::Compile { message })
+            if message == "synthetic control requires a balanced panel with identical periods for every unit"),
+        "an unbalanced panel needs the observed-window declaration: {:?}",
+        balanced.err()
+    );
     let declared = query.clone().with_observed_window_support();
     let result =
         Study::tabular(data.clone()).query(declared.clone()).build().unwrap().run(&ctx).unwrap();

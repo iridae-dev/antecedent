@@ -46,7 +46,7 @@ def test_measurement_adapter_retains_data_binding_and_refuses_scope_changes():
     assert consumed.point == estimate.point
     assert bytes(consumed.export()) == bytes(estimate.export())
     assert consumed.as_mean_source(quantity=q).snapshot_id == source.snapshot_id
-    with pytest.raises(ant.CausalError):
+    with pytest.raises(ant.CausalError, match=r"measurement_binding_mismatch"):
         require_success(ant.load(envelope, expected="0" * 64))
 
 
@@ -87,7 +87,7 @@ def test_ledger_mean_keeps_evidence_and_remains_point_only():
     consumed = require_success(ant.load(artifact, expected=artifact.expectation))
     assert bytes(consumed.export()) == artifact.data
     assert consumed.acceptance.identity_bound
-    with pytest.raises(el.EvidenceLedgerRefusal):
+    with pytest.raises(el.EvidenceLedgerRefusal, match=r"evidence_ledger\.interval_not_measured"):
         ledger.pooled_interval(outcome.result)
 
 
@@ -210,19 +210,24 @@ def test_unknown_framed_format_is_checked_and_forwardable_without_consumption():
     assert isinstance(loaded, ant.artifacts.ArtifactInspection)
     assert bytes(loaded.export()) == frame
     assert loaded.acceptance.status == "unavailable"
-    with pytest.raises(ant.errors.CausalSerializationError):
+    with pytest.raises(ant.errors.CausalSerializationError, match=r"UnexpectedEof"):
         ant.artifacts.inspect(frame[:-1])
-    with pytest.raises(ant.errors.CausalSerializationError):
+    with pytest.raises(ant.errors.CausalSerializationError, match=r"trailing\ bytes"):
         ant.artifacts.inspect(frame + b"trailing")
 
 
 @pytest.mark.parametrize(
-    "data", [b"ANTECEDENT-garbage", b"ANTECEDENT-FUTURE\x01", b"ANTECEDENT-FUTURE\x01garbage"]
+    ("data", "message"),
+    [
+        (b"ANTECEDENT-garbage", r"no version delimiter"),
+        (b"ANTECEDENT-FUTURE\x01", r"UnexpectedEof"),
+        (b"ANTECEDENT-FUTURE\x01garbage", r"expected array"),
+    ],
 )
-def test_malformed_frames_are_errors_even_without_scientific_consumption(data):
-    with pytest.raises(ant.errors.CausalSerializationError):
+def test_malformed_frames_are_errors_even_without_scientific_consumption(data, message):
+    with pytest.raises(ant.errors.CausalSerializationError, match=message):
         ant.artifacts.inspect(data)
-    with pytest.raises(ant.errors.CausalSerializationError):
+    with pytest.raises(ant.errors.CausalSerializationError, match=message):
         require_success(ant.load(data))
 
 
@@ -402,7 +407,7 @@ def test_inverse_query_accepts_complete_bridge_and_retains_mean_boundaries():
     direct = require_success(query.evaluate(claim))
     adapted = require_success(query.evaluate(claim.as_mean_source()))
     assert direct.to_dict() == adapted.to_dict()
-    with pytest.raises(iq.InverseQueryRefusal):
+    with pytest.raises(iq.InverseQueryRefusal, match=r"mean_source_insufficient"):
         require_success(
             iq.InverseQuery(contract, ("use", "wait"), (iq.target_quantile(0.5, 0.0),)).evaluate(
                 claim

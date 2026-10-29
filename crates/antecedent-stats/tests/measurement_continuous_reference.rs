@@ -13,8 +13,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::measurement_error::{
-    ErrorVariance, LinearErrorData, LinearMoments, combine_imputations_linear, posterior_means,
-    replicate_variance_components, rubin_combine,
+    ErrorVariance, LinearErrorData, LinearMoments, MeasurementErrorError,
+    combine_imputations_linear, posterior_means, replicate_variance_components, rubin_combine,
 };
 use serde_json::Value;
 
@@ -169,7 +169,11 @@ fn a_reliability_at_or_below_zero_is_refused() {
     };
     // An error variance larger than the variance of W given the covariate leaves no latent signal.
     let huge = ErrorVariance::known(50.0, 0.0).unwrap();
-    assert!(LinearMoments::accumulate(&data, &huge, 0.0).is_err());
+    assert!(matches!(
+        LinearMoments::accumulate(&data, &huge, 0.0),
+        Err(MeasurementErrorError::ReliabilityNotPositive { reliability, floor })
+            if reliability < 0.0 && floor == 0.0
+    ));
 }
 
 #[test]
@@ -196,8 +200,10 @@ fn rubin_rules_combine_per_draw_fits_and_the_posterior_mean_is_the_draw_average(
         "posterior mean",
     );
     // One imputation cannot estimate the between-imputation variance.
-    assert!(
-        combine_imputations_linear(&vec_of(&main["y"]), &draws[0], 1, &vec_of(&main["z"]), 1)
-            .is_err()
-    );
+    assert!(matches!(
+        combine_imputations_linear(&vec_of(&main["y"]), &draws[0], 1, &vec_of(&main["z"]), 1),
+        Err(MeasurementErrorError::InsufficientReplicates(
+            "Rubin's rules need at least two imputations"
+        ))
+    ));
 }

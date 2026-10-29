@@ -73,7 +73,10 @@ fn unavailable_b_the_static_control_builds_and_runs_where_the_temporal_contrast_
         .expect("the static average effect is the valid control")
         .run(&antecedent_core::ExecutionContext::for_tests(11))
         .unwrap();
-    assert!(result.estimate().as_effect().unwrap().ate.is_finite());
+    // No confounder: the effect is the difference of arm means, 2 + (mean(i % 7 | odd) -
+    // mean(i % 7 | even)) / 20 = 799 / 400 on the 40 rows of the fixture.
+    let ate = result.estimate().as_effect().unwrap().ate;
+    assert!((ate - 799.0 / 400.0).abs() < 1e-9, "{ate}");
 }
 
 #[test]

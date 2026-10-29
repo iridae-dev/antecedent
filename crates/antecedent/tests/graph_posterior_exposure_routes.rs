@@ -170,6 +170,14 @@ fn value_of(result: &antecedent::StudyResult, key: u64) -> Option<f64> {
 }
 
 /// sID run directly on each atom's selection diagram names the rule that decides the atom.
+/// The refusal text of a study run that must fail.
+fn refusal_text<T>(result: Result<T, antecedent::CausalError>) -> String {
+    match result {
+        Err(error) => error.to_string(),
+        Ok(_) => panic!("the run must be refused"),
+    }
+}
+
 #[test]
 fn each_atom_is_decided_by_sid_on_its_own_selection_diagram() {
     let targets = vec![VariableId::from_raw(Z)];
@@ -382,7 +390,12 @@ fn a_posterior_with_no_certified_atom_is_not_identified() {
         .with_atom_kind(GraphPosteriorAtomKind::Admg);
         let study =
             transport_study(only_uncertified, &[Z], InferenceMode::Frequentist, RefuteSuite::None);
-        assert!(study.run(&ctx).is_err());
+        let text = refusal_text(study.run(&ctx));
+        assert!(
+            text.contains("effect_not_identified")
+                && text.contains("sID certifies a transport formula for no posterior atom"),
+            "{text}"
+        );
 
         // A single certified atom that only the recursive formula decides cannot be evaluated.
         let only_recursive = GraphPosterior::new(
@@ -397,7 +410,11 @@ fn a_posterior_with_no_certified_atom_is_not_identified() {
         .with_atom_kind(GraphPosteriorAtomKind::Admg);
         let study =
             transport_study(only_recursive, &[Z], InferenceMode::Frequentist, RefuteSuite::None);
-        assert!(study.run(&ctx).is_err());
+        let text = refusal_text(study.run(&ctx));
+        assert!(
+            text.contains("construction_not_licensed: every certified posterior atom is a RecursiveFactorization"),
+            "{text}"
+        );
     });
 }
 
@@ -690,7 +707,11 @@ fn a_posterior_that_does_not_cover_the_unit_schema_is_refused() {
             Some(three),
             InferenceMode::Frequentist,
         );
-        assert!(study.run(&ExecutionContext::for_tests(7_104)).is_err());
+        let text = refusal_text(study.run(&ExecutionContext::for_tests(7_104)));
+        assert!(
+            text.contains("the posterior's atoms must cover exactly the unit table's variables"),
+            "{text}"
+        );
     });
 }
 
@@ -1052,6 +1073,11 @@ fn a_posterior_of_pag_atoms_with_no_certified_atom_is_not_identified() {
             InferenceMode::Frequentist,
             RefuteSuite::None,
         );
-        assert!(study.run(&ExecutionContext::for_tests(7_304)).is_err());
+        let text = refusal_text(study.run(&ExecutionContext::for_tests(7_304)));
+        assert!(
+            text.contains("effect_not_identified")
+                && text.contains("sID certifies a transport formula for no posterior atom"),
+            "{text}"
+        );
     });
 }

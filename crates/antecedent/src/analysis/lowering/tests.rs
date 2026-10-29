@@ -186,7 +186,11 @@ fn compile_and_run_refuse_inside_a_lowered_dispatch() {
     let study = linear_study();
     let compiled = study.compile(&ctx).unwrap_err();
     assert!(compiled.to_string().contains("public_builder_reentry"), "{compiled}");
-    assert!(study.run(&ctx).is_err(), "one-shot run inside a lowered dispatch must refuse");
+    let run = match study.run(&ctx) {
+        Err(error) => error.to_string(),
+        Ok(_) => panic!("one-shot run inside a lowered dispatch must refuse"),
+    };
+    assert!(run.contains("public_builder_reentry"), "{run}");
 }
 
 #[test]

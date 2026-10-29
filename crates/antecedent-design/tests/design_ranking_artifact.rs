@@ -27,7 +27,8 @@ use antecedent_design::design_ranking_artifact::{
     SealInputs, consume, consume_wire, seal,
 };
 use antecedent_design::evsi::{
-    CostToUtilityMap, EvsiCandidate, EvsiReport, EvsiRequest, StudyCostSpec, evaluate_evsi,
+    CostToUtilityMap, EvsiCandidate, EvsiError, EvsiReport, EvsiRequest, StudyCostSpec,
+    evaluate_evsi,
 };
 use antecedent_design::ranking::RankingError;
 use antecedent_design::signal::{
@@ -333,7 +334,12 @@ fn unsealed_mutation_corruption_and_unknown_version_refuse() {
 
     // Truncation and an unknown major version also refuse.
     let good = wire.to_bytes("r").unwrap();
-    assert!(consume(&good[..good.len() / 2], &open()).is_err());
+    let truncated = consume(&good[..good.len() / 2], &open()).unwrap_err();
+    assert!(
+        matches!(truncated, DesignRankingArtifactError::Io(_))
+            && format!("{truncated:?}").contains("UnexpectedEof"),
+        "{truncated:?}"
+    );
     let mut future = wire.clone();
     future.version = 2;
     let error = consume(&future.to_bytes("r").unwrap(), &open()).unwrap_err();
@@ -513,7 +519,10 @@ fn source_overlap_is_refused_before_ranking_and_when_resealed() {
     overlapping[0].reused_observation_ids = vec!["obs-prior".into()];
     let problem = guess_problem();
     let req = request(&GUESS, overlapping, Some(utility_map()));
-    assert!(evaluate_evsi(&problem, &guess_prior(), &req, &CancellationToken::new()).is_err());
+    assert!(matches!(
+        evaluate_evsi(&problem, &guess_prior(), &req, &CancellationToken::new()),
+        Err(EvsiError::SourceOverlap(ids)) if ids == ["obs-prior"]
+    ));
 
     // An artifact whose reuse list was edited to overlap and resealed refuses at consumption.
     let wire = seal_guess(frozen_candidates());
@@ -581,7 +590,12 @@ fn bounds_are_checked_before_any_recomputation() {
     assert_eq!(refusal_detail(&error), "design_ranking.bounds_exceeded");
     // Oversized bytes refuse before decoding.
     let big = vec![0_u8; 9 * 1024 * 1024];
-    assert!(consume(&big, &open()).is_err());
+    let oversized = consume(&big, &open()).unwrap_err();
+    assert!(
+        matches!(oversized, DesignRankingArtifactError::Io(_))
+            && format!("{oversized:?}").contains("TooLarge"),
+        "{oversized:?}"
+    );
 }
 
 // -- native exact recomputation -------------------------------------------------------------

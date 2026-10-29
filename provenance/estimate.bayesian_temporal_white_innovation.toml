@@ -51,7 +51,7 @@ sha256 = "4f75e10ed8efe20961d9b06ccaf65f682b40505d38158d7683379e27ffbb6897"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/white_innovation_ljung_box_reference.rs"
-sha256 = "5d8e87b4eda3ccdc6dbfd9ef92a31190206053be71474607e17f3995a2e54810"
+sha256 = "d2d4f7dde8ba6fa2e86b8fbabaeee1064e3cb3321ce26ee7ca20ba2ea1d79420"
 
 [[method_review.artifacts]]
 role = "reference"

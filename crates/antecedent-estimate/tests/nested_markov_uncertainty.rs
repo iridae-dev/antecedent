@@ -111,7 +111,9 @@ fn nested_fisher_refuses_pseudocounts_sparse_cells_invalid_scope_and_cancellatio
     assert!(err.to_string().contains("nested_markov.fisher_sampling_design"));
     let mut sparse = input(16_000.);
     sparse.regimes[0].cells[0] = 0.;
-    assert!(nested_markov_fisher_internal(&sparse, &FitOptions::default(), 0.95, &ctx).is_err());
+    let sparse_err =
+        nested_markov_fisher_internal(&sparse, &FitOptions::default(), 0.95, &ctx).unwrap_err();
+    assert!(sparse_err.to_string().contains("nested_markov.fisher_sampling_design"), "{sparse_err}");
     for level in [0., 1., 0.80, 0.99, f64::NAN] {
         assert!(
             nested_markov_fisher_internal(&input(16_000.), &FitOptions::default(), level, &ctx)

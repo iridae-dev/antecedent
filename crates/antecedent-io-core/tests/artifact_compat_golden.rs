@@ -47,7 +47,7 @@ use antecedent_discovery::selective::{
 };
 use antecedent_io_core::adaptive_monitoring_contract_artifact::{
     ADAPTIVE_MONITORING_CONTRACT_FEATURE, ADAPTIVE_MONITORING_CONTRACT_VERSION,
-    AdaptiveMonitoringContractArtifact,
+    AdaptiveMonitoringContractArtifact, AdaptiveMonitoringContractError,
 };
 use antecedent_io_core::cohort_decision::{
     CATE_FUNCTIONAL_ID, COHORT_DECISION_ARTIFACT_KIND, COHORT_DECISION_SECTION, CohortBinding,
@@ -434,7 +434,11 @@ fn the_adaptive_monitoring_contract_golden_is_consumed_and_gated() {
     assert_eq!(meta.feature, ADAPTIVE_MONITORING_CONTRACT_FEATURE);
     meta.version += 1;
     AdaptiveMonitoringContractArtifact::reseal_identity(&mut meta);
-    assert!(AdaptiveMonitoringContractArtifact::from_meta(&meta, None).is_err());
+    assert!(matches!(
+        AdaptiveMonitoringContractArtifact::from_meta(&meta, None),
+        Err(AdaptiveMonitoringContractError::UnsupportedVersion { version })
+            if version == ADAPTIVE_MONITORING_CONTRACT_VERSION + 1
+    ));
 }
 
 const PARTICIPANT_GOLDEN: &str = "adaptive_monitoring_contract_participant_v1.bin";
@@ -611,7 +615,10 @@ fn the_adaptive_participant_procedure_golden_is_replayed_and_gated() {
     let look = &mut meta.participant_procedure.as_mut().expect("section").looks[0];
     look.numbers_bits[0] = (f64::from_bits(look.numbers_bits[0]) + 0.01).to_bits();
     AdaptiveMonitoringContractArtifact::reseal_identity(&mut meta);
-    assert!(AdaptiveMonitoringContractArtifact::from_meta(&meta, None).is_err());
+    assert!(matches!(
+        AdaptiveMonitoringContractArtifact::from_meta(&meta, None),
+        Err(AdaptiveMonitoringContractError::ReplayMismatch("procedure readings"))
+    ));
 }
 
 #[test]
@@ -640,12 +647,18 @@ fn a_plug_in_sequence_procedure_records_its_construction_and_replays() {
     assert_eq!(section.anytime_sequence.as_deref(), Some(plug_in.label()));
     section.anytime_sequence = None;
     AdaptiveMonitoringContractArtifact::reseal_identity(&mut meta);
-    assert!(AdaptiveMonitoringContractArtifact::from_meta(&meta, None).is_err());
+    assert!(matches!(
+        AdaptiveMonitoringContractArtifact::from_meta(&meta, None),
+        Err(AdaptiveMonitoringContractError::ReplayMismatch("procedure identity"))
+    ));
     // A construction the consumer does not know is refused, not defaulted.
     let section = meta.participant_procedure.as_mut().expect("section");
     section.anytime_sequence = Some("unknown_construction".to_owned());
     AdaptiveMonitoringContractArtifact::reseal_identity(&mut meta);
-    assert!(AdaptiveMonitoringContractArtifact::from_meta(&meta, None).is_err());
+    assert!(matches!(
+        AdaptiveMonitoringContractArtifact::from_meta(&meta, None),
+        Err(AdaptiveMonitoringContractError::UnsupportedSemantics("confidence sequence construction"))
+    ));
 }
 
 // -- composition verification -----------------------------------------------------------------
@@ -739,7 +752,10 @@ fn the_composition_verification_golden_is_replayed_and_gated() {
     let mut feature = meta;
     feature.required_features.push("future_feature".into());
     CompositionVerificationArtifact::reseal_identity(&mut feature);
-    assert!(CompositionVerificationArtifact::from_meta(&feature, None).is_err());
+    assert!(matches!(
+        CompositionVerificationArtifact::from_meta(&feature, None),
+        Err(CompositionVerificationArtifactError::UnsupportedSemantics("required feature"))
+    ));
 }
 
 // -- compact runtime export and cohort decision source --------------------------------------
@@ -857,7 +873,9 @@ fn the_cohort_decision_source_golden_is_consumed_and_gated() {
     assert!((consumed.mean_contrast() - 2.225).abs() < 1e-12);
     // Another retained identity is refused.
     let other = CohortExpectation::for_identity("0".repeat(64));
-    assert!(CohortDecisionSource::consume(&bytes, &other).is_err());
+    let refused = CohortDecisionSource::consume(&bytes, &other).unwrap_err();
+    assert_eq!(refused.detail, "cohort_decision.identity_unexpected", "{refused}");
+    assert_eq!(refused.subject, "0".repeat(64));
     // A newer body version is refused as an unsupported version, not a field error.
     let newer = with_body_version(
         &bytes,

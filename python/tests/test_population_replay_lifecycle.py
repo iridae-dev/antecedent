@@ -123,9 +123,9 @@ def test_replay_requires_live_scores_and_preserves_independent_load_semantics():
     assert loaded.study is None
     with pytest.raises(CausalStateError, match="live completed study"):
         replay_retarget(loaded, targeted.export())
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"requires\ one\ immutable\ prepared\ study\ or\ outcome"):
         replay_retarget({}, targeted.export())
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"execution\ must\ be\ an\ Execution\ declaration"):
         replay_retarget(completed, targeted.export(), execution={"seed": 3})
 
 
@@ -135,12 +135,12 @@ def test_replay_operational_failures_preserve_original_observer_and_release_leas
     carried = targeted.export()
     tiny = Execution(limits=ResourceLimits(memory_bytes=0))
     for _ in range(2):
-        with pytest.raises(CausalResourceError):
+        with pytest.raises(CausalResourceError, match=r"exceeds\ the\ remainder"):
             replay_retarget(completed, carried, execution=tiny)
         assert tiny._handle.available_memory_bytes == 0
     token = ant.CancellationToken()
     token.cancel()
-    with pytest.raises(CausalCancelledError):
+    with pytest.raises(CausalCancelledError, match=r"cancelled\ before\ returning\ a\ claim"):
         replay_retarget(completed, carried, execution=Execution(cancel=token))
     original = CausalUnsupportedError(
         "observer interrupted replay", reason_code="effect_not_identified"

@@ -107,7 +107,7 @@ def test_parameter_uncertainty_agrees_with_the_independent_delta_method(
     u = transported.mean_contrast_uncertainty(
         level(outcome, 2.0), draws=300_000, execution=at.Execution(seed=13)
     )
-    assert abs(u.standard_error - ref) / ref < 0.08
+    assert abs(u.standard_error - ref) / ref < 5e-3
     assert u.scope == "fitted_parameters_only_transport_assumption_not_propagated"
     assert u.dependence == "independent_by_design"
     assert np.isfinite(u.estimate.monte_carlo_se)
@@ -205,7 +205,7 @@ def test_identity_is_verified_only_against_what_it_re_derives(
 def test_fit_refuses_support_violations_and_separation() -> None:
     x = [i / 10 for i in range(40)]
     bad = tmt.MechanismSpecification("n", parents=("x",), family="poisson")
-    with pytest.raises(tmt.TypedMechanismRefusal):
+    with pytest.raises(tmt.TypedMechanismRefusal, match=r"outside\ the\ support\ of\ the\ poisson\ family"):
         tmt.fit_typed_mechanism(bad, {"x": x, "n": [-1.0] + [1.0] * 39}, population="p")
     separated = tmt.MechanismSpecification("n", parents=("x",), family="bernoulli")
     with pytest.raises(tmt.TypedMechanismRefusal) as caught:
@@ -248,15 +248,15 @@ def test_an_expression_mean_is_fitted_and_reported_with_its_covariance() -> None
     )
     sd = np.sqrt(np.diag(fit.covariance))[:3]
     assert np.all(np.abs(fit.parameters[:3] - np.array([0.5, 3.0, 1.5])) < 4.5 * sd)
-    assert fit.conditional_mean([1.0]) == pytest.approx(0.5 + 3.0 * np.tanh(1.5), abs=0.1)
+    assert fit.conditional_mean([1.0]) == pytest.approx(0.5 + 3.0 * np.tanh(1.5), abs=0.015)
 
 
 def test_declarations_are_validated() -> None:
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=r"family\ must\ be\ one\ of"):
         tmt.MechanismSpecification("y", family="weibull")
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"parents\ must\ be\ an\ iterable"):
         tmt.MechanismSpecification("y", parents="x")
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"transport\ must\ be\ a\ TypedTransport"):
         tmt.transport_typed_mechanisms("not a transport", [])
 
 

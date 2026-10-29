@@ -321,7 +321,14 @@ fn unambiguous_treatment_parents_are_accepted_with_unrelated_edges_unresolved() 
     );
     // The class is a partially directed graph, not a completed single graph, and the effect is
     // reported from it.
-    assert!(result.reported().point.is_finite());
+    let truth_effect = simulated_truth(scm, false, 1.0);
+    let reported = result.reported();
+    assert!(
+        (reported.point - truth_effect).abs() <= 4.0 * reported.standard_error,
+        "estimate {} vs truth {truth_effect} (se {})",
+        reported.point,
+        reported.standard_error
+    );
     assert_eq!(result.edge_count(), scm.edges().len());
     // Every listed edge is a true edge: nothing is invented.
     let truth: BTreeSet<(u32, u32)> = scm.edges().iter().map(|&(a, b)| unordered(a, b)).collect();
@@ -641,9 +648,12 @@ fn a_source_that_states_another_format_or_roles_is_refused() {
 
     let mut padded = result.source_artifact().to_vec();
     padded.push(0);
+    let trailing =
+        antecedent::analysis::sample_split_parent_set_effect::measure_source(&padded, &ctx());
     assert!(
-        antecedent::analysis::sample_split_parent_set_effect::measure_source(&padded, &ctx())
-            .is_err()
+        matches!(&trailing, Err(error) if format!("{error:?}").contains("TrailingBytes")),
+        "{:?}",
+        trailing.err()
     );
 }
 
