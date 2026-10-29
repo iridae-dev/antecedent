@@ -347,7 +347,9 @@ fn unsupported_coordinate_refuses_and_a_subrange_avoids_it() {
     assert_eq!(error.reason_code(), "quantity_semantics_mismatch");
     assert_eq!(error.detail(), "sensitivity_decision_composition.unsupported_coordinate");
     let spec = SensitivityDecisionSpec { range: Some((0.0, 2.0)), ..Default::default() };
-    assert!(evaluate_sensitivity_decision(&contract, &artifact, &spec).is_err());
+    let error = evaluate_sensitivity_decision(&contract, &artifact, &spec).unwrap_err();
+    assert_eq!(error.reason_code(), "quantity_semantics_mismatch");
+    assert_eq!(error.detail(), "sensitivity_decision_composition.unsupported_coordinate");
 
     // Evaluating only gamma = 0, where A = 2 beats B = 1, never touches the bad point.
     let spec = SensitivityDecisionSpec { range: Some((0.0, 0.0)), ..Default::default() };
@@ -447,7 +449,9 @@ fn weights_are_declared_for_point_surfaces_and_never_inferred_from_ranges() {
 
     // A weight count that does not match the grid refuses.
     let short = SensitivityDecisionSpec { weights: Some(vec![0.5, 0.5]), ..Default::default() };
-    assert!(evaluate_sensitivity_decision(&bayes, &artifact, &short).is_err());
+    let error = evaluate_sensitivity_decision(&bayes, &artifact, &short).unwrap_err();
+    assert_eq!(error.reason_code(), "decision_contract_unsatisfied");
+    assert_eq!(error.detail(), "sensitivity_decision_composition.wrong_contract");
 
     // An assumption range with weights would turn the range into a probability law.
     let ranged = SensitivityArtifact::new(parts(

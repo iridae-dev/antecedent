@@ -1509,7 +1509,7 @@ def test_unseen_cells_are_refused_smoothed_or_enveloped_and_never_zero_filled():
     assert enveloped.envelope is not None
     assert enveloped.envelope["label"] == "structural_envelope_vertex_family"
     assert enveloped.envelope["lower"] <= enveloped.envelope["upper"]
-    assert enveloped.envelope["upper"] - enveloped.envelope["lower"] < 0.1
+    assert 0.0 < enveloped.envelope["upper"] - enveloped.envelope["lower"] < 0.05
     assert enveloped.standard_error is None
     assert enveloped.standard_error_withheld_reason == (
         "partial_identification_has_no_single_standard_error"

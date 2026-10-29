@@ -82,7 +82,7 @@ def test_equivalent_treatment_recodings_agree(estimator: Any) -> None:
         for name, (control, active) in CODINGS.items()
     }
     base = results["0/1"]
-    assert abs(base.answer.value - EFFECT) < 0.25
+    assert abs(base.answer.value - EFFECT) < 0.1
     for name, (control, active) in CODINGS.items():
         result = results[name]
         assert result.answer.value == base.answer.value, name

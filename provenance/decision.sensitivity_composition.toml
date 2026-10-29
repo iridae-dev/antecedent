@@ -49,4 +49,4 @@ sha256 = "811957ff6217da5da4f70e14ef47640af983a5a8508865c03cc49d44921d29de"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/sensitivity_decision.rs"
-sha256 = "d9497f7421659494bc221d4d5a678ab661e849a62f3a0dcc04f911b419a6dffe"
+sha256 = "7a3a137fb2e587cb3885f43ff2cb49a671cf4663c92546cd264c5c977c0e4b48"

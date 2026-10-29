@@ -406,7 +406,11 @@ fn a_compact_linear_model_carries_the_uncalibrated_variance_diagnostic_only() {
     assert_eq!(diagnostic.calibration, "calibration unmeasured");
     // A declared model is attested, never native, and exposes no interval.
     assert!(!source.is_native());
-    assert!(cohort_decision_input("c", &source, TrustRequirement::Native).is_err());
+    let refused = cohort_decision_input("c", &source, TrustRequirement::Native).err().unwrap();
+    assert!(
+        format!("{refused:?}").contains("NativeRequired"),
+        "a declared model is refused as non-native: {refused:?}"
+    );
     assert_eq!(source.interval_refusal().detail, "cohort_decision.interval_requires_native_fit");
     // The decision result inherits no standard error from the diagnostic.
     let decision = evaluate_cohort_decision(

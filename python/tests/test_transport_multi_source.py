@@ -286,7 +286,7 @@ def test_the_unmeasured_interval_route_refuses_with_cell_not_licensed():
         laws(sample_size=40_000), {"x": 1.0}, seed=3
     )
     result = json.loads(require_success(with_studies.estimate()))
-    assert risk(result) == pytest.approx(truth(1), abs=1e-2)
+    assert risk(result) == pytest.approx(truth(1), abs=1e-12)
     interval = result["interval"]
     assert interval["available"] is False
     assert interval["status"] == "withheld"
@@ -399,7 +399,7 @@ def test_prepare_empirical_compiles_a_counted_plan_after_builder_disposal():
     plan = retained_plan.plan()
     assert plan["compiled_plans"] == 2
     result = json.loads(require_success(retained_plan.estimate()))
-    assert [risk(r) for r in result["requests"]] == pytest.approx([truth(0), truth(1)], abs=1e-2)
+    assert [risk(r) for r in result["requests"]] == pytest.approx([truth(0), truth(1)], abs=1e-12)
     assert result["interval"]["reason"] == "cell_not_licensed"
     assert retained_plan.seed == 5
 
@@ -436,7 +436,7 @@ def test_rebinding_snapshots_re_executes_the_retained_plan_on_a_new_branch():
     after = json.loads(require_success(moved.estimate()))
     assert len(after["requests"]) == 2 and len(after["contrasts"]) == 1
     assert after["contrasts"][0]["estimate"] != before["contrasts"][0]["estimate"]
-    assert after["contrasts"][0]["estimate"] == pytest.approx(truth(1) - truth(0), abs=5e-2)
+    assert after["contrasts"][0]["estimate"] == pytest.approx(truth(1) - truth(0), abs=5e-4)
     # A rebound branch has no claim: nothing is exported until its plan runs.
     unexecuted = prepared.bind_snapshot(laws(sample_size=5_000))
     with pytest.raises(Exception, match="not_executed"):

@@ -134,7 +134,7 @@ def test_forward_inverse_round_trip_on_a_known_structural_law_through_a_real_rou
     for result in report.actions:
         # Finite-sample nuisance tolerance around the exact structural margin.
         assert result.margin == pytest.approx(
-            intercept + 2.0 * result.point[0] - threshold, abs=0.1
+            intercept + 2.0 * result.point[0] - threshold, abs=0.05
         )
     assert report.inference_claim == "point_only"
     assert report.enumerated == "reachable"
