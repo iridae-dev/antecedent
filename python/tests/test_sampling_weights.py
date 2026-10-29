@@ -106,6 +106,77 @@ def _with_zero_weight_rows(data):
     return pad
 
 
+def _hajek_of_mass(data, mass) -> float:
+    """The Hajek effect of the weighted-logistic inverse-probability weights at case masses."""
+    e = _weighted_logit(data["z"], data["t"], mass)
+    treated = data["t"] > 0.5
+    ipw = np.where(treated, 1 / e, 1 / (1 - e)) * mass
+    return float(
+        (ipw[treated] * data["y"][treated]).sum() / ipw[treated].sum()
+        - (ipw[~treated] * data["y"][~treated]).sum() / ipw[~treated].sum()
+    )
+
+
+def _case_mass_scores(effect, mass, step=1e-5) -> np.ndarray:
+    """``m_i dT/dm_i`` of an estimator ``T(mass)`` by central differences: the with-replacement
+    linearisation of an estimator of the weighted measure sum_i m_i delta_i has these per-unit
+    contributions, and their squares sum to its variance."""
+    scores = np.empty(len(mass))
+    for i in range(len(mass)):
+        plus, minus = mass.copy(), mass.copy()
+        plus[i] *= 1 + step
+        minus[i] *= 1 - step
+        scores[i] = (effect(plus) - effect(minus)) / (2 * step)
+    return scores
+
+
+def _cluster_sandwich(scores, labels) -> float:
+    """sqrt(G / (G - 1) * sum_g (sum_{i in g} score_i)^2) for scores that sum to the influence."""
+    totals = pd.Series(scores).groupby(np.asarray(labels)).sum().to_numpy()
+    groups = len(totals)
+    return float(np.sqrt(groups / (groups - 1) * (totals**2).sum()))
+
+
+def _stratified_effect(data, strata, mass, k) -> float:
+    """Pooled weighted within-stratum contrast, strata fixed, pooled by weighted stratum mass."""
+    total = pooled = 0.0
+    for s in range(k):
+        in_stratum = strata == s
+        arms = []
+        for arm in (1.0, 0.0):
+            rows = in_stratum & (data["t"] == arm)
+            arms.append((mass[rows].sum(), (mass[rows] * data["y"][rows]).sum()))
+        if all(weight > 0 for weight, _ in arms):
+            share = arms[0][0] + arms[1][0]
+            pooled += share * (arms[0][1] / arms[0][0] - arms[1][1] / arms[1][0])
+            total += share
+    return pooled / total
+
+
+def _strata_of(data, mass, k) -> np.ndarray:
+    """Cut the weighted-logistic propensity at its sample quantiles; assign by ``score <= cut``."""
+    n = len(mass)
+    score = _weighted_logit(data["z"], data["t"], mass)
+    order = np.lexsort((np.arange(n), score))
+    cuts = [score[order[min(-(-s * n // k) - 1, n - 1)]] for s in range(1, k)]
+    return np.array(
+        [min(next((j for j, c in enumerate(cuts) if v <= c), len(cuts)), k - 1) for v in score]
+    )
+
+
+def _score_table_sandwich(estimate, labels) -> tuple[float, float]:
+    """Mean and cluster-sandwich SE of the contrast scores ``b - a`` of a cross-fitted score
+    table (two arm columns, column-major), from the definition."""
+    table = estimate.score_table
+    scores = np.asarray(table.scores).reshape(2, table.n_rows)
+    contrast = scores[1] - scores[0]
+    centred = contrast - contrast.mean()
+    totals = pd.Series(centred).groupby(np.asarray(labels)).sum().to_numpy()
+    groups = len(totals)
+    se = np.sqrt(groups / (groups - 1) * (totals**2).sum()) / table.n_rows
+    return float(contrast.mean()), float(se)
+
+
 def test_linear_adjustment_is_weighted_least_squares_with_the_sampling_sandwich():
     data = _survey()
     ate, se = _wls_hc1(data)
@@ -225,29 +296,59 @@ def test_a_refreshed_table_with_other_weights_is_refused():
 def test_clusters_on_propensity_weighting_and_stratification_are_valid():
     data = _survey(240)
     data["site"] = np.array([f"s{i // 8}" for i in range(240)])
-    for estimator in (
-        PropensityWeighting(cluster="site", weights="w", bootstrap=0),
-        PropensityStratification(cluster="site", weights="w", bootstrap=0),
-    ):
-        clustered = _run(data, estimator)
-        flat = _run(data, type(estimator)(weights="w", bootstrap=0))
+    mass = data["w"] * len(data["w"]) / data["w"].sum()
+    # Weighting: the cluster sandwich of the case-mass scores of the whole estimator (the
+    # propensity refit included), computed here from the definition.
+    weighting_scores = _case_mass_scores(lambda m: _hajek_of_mass(data, m), mass)
+    # Stratification: the same sandwich of the pooled stratified point's scores, strata fixed.
+    strata = _strata_of(data, mass, 5)
+    strata_scores = _case_mass_scores(lambda m: _stratified_effect(data, strata, m, 5), mass)
+    cases = (
+        (PropensityWeighting, weighting_scores, _hajek(data)),
+        (
+            PropensityStratification,
+            strata_scores,
+            _stratified_effect(data, strata, mass, 5),
+        ),
+    )
+    for estimator, scores, point in cases:
+        clustered = _run(data, estimator(cluster="site", weights="w", bootstrap=0))
+        flat = _run(data, estimator(weights="w", bootstrap=0))
         assert clustered.estimate.ate == pytest.approx(flat.estimate.ate, rel=1e-12)
-        assert np.isfinite(clustered.estimate.se_analytic) and clustered.estimate.se_analytic > 0
+        assert clustered.estimate.ate == pytest.approx(point, rel=1e-7)
+        expected = _cluster_sandwich(scores, data["site"])
+        assert clustered.estimate.se_analytic == pytest.approx(expected, rel=1e-5), estimator
         assert clustered.estimate.se_analytic != pytest.approx(flat.estimate.se_analytic, rel=1e-9)
 
 
 def test_the_cluster_bootstrap_resamples_whole_clusters():
     data = _survey(240)
     data["site"] = np.array([f"s{i // 8}" for i in range(240)])
-    result = _run(data, PropensityWeighting(cluster="site", bootstrap=60))
-    assert result.estimate.se_bootstrap is not None and result.estimate.se_bootstrap > 0
+    result = _run(data, PropensityWeighting(cluster="site", bootstrap=200))
+    assert result.estimate.se_bootstrap is not None
+    # Independent whole-cluster bootstrap: draw the 30 clusters with replacement, refit the
+    # logistic propensity and the Hajek contrast on the drawn rows, take the SD over replicates.
+    rng = np.random.default_rng(2024)
+    members = [np.flatnonzero(data["site"] == s) for s in np.unique(data["site"])]
+    draws = []
+    for _ in range(600):
+        rows = np.concatenate([members[g] for g in rng.integers(len(members), size=len(members))])
+        resample = {k: v[rows] for k, v in data.items() if k != "site"}
+        draws.append(_hajek_of_mass(resample, np.ones(len(rows))))
+    reference = float(np.std(draws, ddof=1))
+    # 200 product and 600 reference replicates estimate an SD to about 6 percent together.
+    assert result.estimate.se_bootstrap == pytest.approx(reference, rel=0.25)
 
 
 def test_a_causal_forest_with_clusters_subsamples_and_splits_whole_clusters():
     data = _survey(400)
     data["site"] = np.array([f"s{i // 10}" for i in range(400)])
     result = _run(data, CausalForest(n_trees=12, min_leaf=5, cluster="site"), bootstrap=0)
-    assert np.isfinite(result.estimate.ate) and result.estimate.se_analytic > 0
+    # The forest's marginal ATE is the mean of the whole-cluster cross-fitted AIPW contrast
+    # scores and its SE their cluster sandwich: both recomputed here from the retained scores.
+    mean, se = _score_table_sandwich(result.estimate, data["site"])
+    assert result.estimate.ate == pytest.approx(mean, rel=1e-10)
+    assert result.estimate.se_analytic == pytest.approx(se, rel=1e-10)
     with pytest.raises(CausalUnsupportedError, match="too_few_clusters"):
         data["site"] = np.array([f"s{i // 100}" for i in range(400)])
         _run(data, CausalForest(n_trees=12, min_leaf=5, cluster="site"), bootstrap=0)
@@ -472,14 +573,29 @@ def test_the_classical_se_is_refused_with_glm_weights():
 
 
 def test_cluster_dml_with_weights_reads_the_weighted_cluster_sandwich():
+    # Integer weights are row multiplicities. The weighted cluster-DML contrast and its cluster
+    # sandwich therefore equal those of the unweighted fit on the replicated rows (same cluster
+    # labels, so the same whole-cluster folds); the unweighted fit's SE is checked against the
+    # sandwich of its own retained scores, computed here from the definition.
     data = _survey(400)
+    data["w"] = np.array([1.0 + (i % 3) for i in range(400)])
     data["site"] = np.array([f"s{i // 10}" for i in range(400)])
+    repeats = data["w"].astype(int)
+    replicated = {k: np.repeat(v, repeats) for k, v in data.items() if k != "w"}
+    # The default outcome learner is a ridge with a fixed penalty, whose fit is not invariant to
+    # duplicating rows, so the outcome nuisance is the unpenalised linear fit here.
     for estimator in (DML, DRLearner):
-        weighted = _run(
-            data, estimator(weights="w", cluster_dml=ClusterDml(cluster="site")), bootstrap=0
-        )
-        assert np.isfinite(weighted.estimate.ate) and weighted.estimate.se_analytic > 0
+        unit = ClusterDml(cluster="site")
+        weighted = _run(data, estimator(outcome="linear", weights="w", cluster_dml=unit))
+        plain = _run(replicated, estimator(outcome="linear", cluster_dml=unit))
         assert weighted.estimate.sampling_weights.rows_used == 400
+        assert weighted.estimate.ate == pytest.approx(plain.estimate.ate, rel=1e-6)
+        assert weighted.estimate.se_analytic == pytest.approx(plain.estimate.se_analytic, rel=1e-6)
+        mean, se = _score_table_sandwich(plain.estimate, replicated["site"])
+        assert plain.estimate.ate == pytest.approx(mean, rel=1e-10)
+        assert plain.estimate.se_analytic == pytest.approx(se, rel=1e-10)
+        flat = _run(data, estimator(outcome="linear", weights="w"))
+        assert weighted.estimate.se_analytic != pytest.approx(flat.estimate.se_analytic, rel=1e-3)
 
 
 def test_a_penalized_propensity_reads_weights_through_a_weighted_penalty_selection():

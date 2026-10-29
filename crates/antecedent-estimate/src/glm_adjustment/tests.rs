@@ -426,6 +426,105 @@ fn recovers_att_via_gcomp() {
     assert!((effect.ate - 0.43378).abs() < ATT_TOL, "logit ATT {} vs 0.43378", effect.ate);
 }
 
+/// Independent logit g-computation of `y ~ 1 + t + z` on the data of [`binary_scm`]: Newton on
+/// the binomial likelihood, the effect averaged over all rows or over the treated rows, and the
+/// delta-method SE `sqrt(g' (X'WX)^-1 g)` (Fisher covariance, `W = mu (1 - mu)`) with gradient
+/// `g = mean_{i in target} [mu1'(i) x_i1 - mu0'(i) x_i0]`, `mu' = mu (1 - mu)`.
+fn logit_gcomp_reference(n: usize, seed: u64, treated_only: bool) -> (f64, f64) {
+    let mut rng =
+        ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0xABCD_u64);
+    let rows: Vec<([f64; 3], f64)> = (0..n)
+        .map(|i| {
+            let ti = (i % 2) as f64;
+            let zi = (i as f64) / (n as f64) - 0.5;
+            let p = antecedent_kernels::sigmoid(-0.5 + 2.0 * ti + zi);
+            let yi = if rng.next_f64() < p { 1.0 } else { 0.0 };
+            ([1.0, ti, zi], yi)
+        })
+        .collect();
+    let eta = |b: &[f64; 3], x: &[f64; 3]| b[0] * x[0] + b[1] * x[1] + b[2] * x[2];
+    let solve3 = |mut a: [[f64; 3]; 3], mut v: [f64; 3]| -> [f64; 3] {
+        for col in 0..3 {
+            let pivot = (col..3)
+                .max_by(|&i, &j| a[i][col].abs().total_cmp(&a[j][col].abs()))
+                .unwrap();
+            a.swap(col, pivot);
+            v.swap(col, pivot);
+            for row in col + 1..3 {
+                let f = a[row][col] / a[col][col];
+                for c in col..3 {
+                    a[row][c] -= f * a[col][c];
+                }
+                v[row] -= f * v[col];
+            }
+        }
+        let mut x = [0.0; 3];
+        for row in (0..3).rev() {
+            let tail: f64 = (row + 1..3).map(|c| a[row][c] * x[c]).sum();
+            x[row] = (v[row] - tail) / a[row][row];
+        }
+        x
+    };
+    let information = |b: &[f64; 3]| {
+        let mut info = [[0.0; 3]; 3];
+        for (x, _) in &rows {
+            let mu = antecedent_kernels::sigmoid(eta(b, x));
+            for a in 0..3 {
+                for c in 0..3 {
+                    info[a][c] += mu * (1.0 - mu) * x[a] * x[c];
+                }
+            }
+        }
+        info
+    };
+    let mut beta = [0.0_f64; 3];
+    for _ in 0..100 {
+        let mut score = [0.0; 3];
+        for (x, y) in &rows {
+            let mu = antecedent_kernels::sigmoid(eta(&beta, x));
+            for a in 0..3 {
+                score[a] += (y - mu) * x[a];
+            }
+        }
+        let step = solve3(information(&beta), score);
+        for a in 0..3 {
+            beta[a] += step[a];
+        }
+        if step.iter().all(|v| v.abs() < 1e-13) {
+            break;
+        }
+    }
+    let (mut effect, mut gradient, mut count) = (0.0, [0.0_f64; 3], 0.0);
+    for (x, _) in &rows {
+        if treated_only && x[1] < 0.5 {
+            continue;
+        }
+        let (x1, x0) = ([1.0, 1.0, x[2]], [1.0, 0.0, x[2]]);
+        let (m1, m0) = (
+            antecedent_kernels::sigmoid(eta(&beta, &x1)),
+            antecedent_kernels::sigmoid(eta(&beta, &x0)),
+        );
+        effect += m1 - m0;
+        for a in 0..3 {
+            gradient[a] += m1 * (1.0 - m1) * x1[a] - m0 * (1.0 - m0) * x0[a];
+        }
+        count += 1.0;
+    }
+    let gradient = gradient.map(|g| g / count);
+    // covariance column c solves information * col = e_c.
+    let info = information(&beta);
+    let mut variance = 0.0;
+    for c in 0..3 {
+        let mut e = [0.0; 3];
+        e[c] = 1.0;
+        let column = solve3(info, e);
+        for a in 0..3 {
+            variance += gradient[a] * column[a] * gradient[c];
+        }
+    }
+    (effect / count, variance.sqrt())
+}
+
 #[test]
 fn att_se_differs_from_ate_se_under_logit() {
     let (data, estimand) = binary_scm(800, 5);
@@ -439,12 +538,25 @@ fn att_se_differs_from_ate_se_under_logit() {
     let att = est
         .fit(&est.prepare(&data, &estimand, &att_q).unwrap(), &mut ws, &ctx(), AssumptionSet::new())
         .unwrap();
-    assert!(ate.se_analytic().is_finite() && att.se_analytic().is_finite());
+    // Both SEs are the delta-method values of an independent Newton fit; the ATT gradient
+    // averages over the treated rows only, so it must differ from the ATE one.
+    let (ate_value, ate_se) = logit_gcomp_reference(800, 5, false);
+    let (att_value, att_se) = logit_gcomp_reference(800, 5, true);
+    assert!((ate.ate - ate_value).abs() < 1e-8, "ATE {} vs {ate_value}", ate.ate);
+    assert!((att.ate - att_value).abs() < 1e-8, "ATT {} vs {att_value}", att.ate);
     assert!(
-        (ate.se_analytic() - att.se_analytic()).abs() > 1e-8,
-        "logit ATT SE must not reuse the ATE gradient; ate_se={} att_se={}",
-        ate.se_analytic(),
+        (ate.se_analytic() - ate_se).abs() < 1e-8,
+        "ATE SE {} vs delta method {ate_se}",
+        ate.se_analytic()
+    );
+    assert!(
+        (att.se_analytic() - att_se).abs() < 1e-8,
+        "ATT SE {} vs delta method {att_se}",
         att.se_analytic()
+    );
+    assert!(
+        (ate_se - att_se).abs() > 1e-7,
+        "the oracle itself must separate the two gradients: {ate_se} vs {att_se}"
     );
 }
 

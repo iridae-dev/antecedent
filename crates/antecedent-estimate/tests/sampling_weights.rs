@@ -1376,7 +1376,43 @@ fn aipw_cluster_dml_reads_weights_through_the_weighted_cluster_sandwich() {
     close(unit.se_analytic(), plain.se_analytic(), 1e-9, "unit-weight cluster-DML SE");
     let weighted = run(&study, true);
     assert!((weighted.ate - plain.ate).abs() > 1e-4 || study.w.iter().all(|w| *w == study.w[0]));
-    assert!(weighted.se_analytic().is_finite() && weighted.se_analytic() > 0.0);
+    // The reported SE is the cluster sandwich of the weighted influence, computed here from the
+    // cross-fitted arm scores (a, b) and the weights by definition: the weighted contrast is
+    // tau = sum w (b - a) / sum w, the influence is psi_i = n w_i / sum w * (b_i - a_i - tau),
+    // and the SE is sqrt(G/(G-1) * sum_g (sum_{i in g} (psi_i - mean psi))^2) / n.
+    let cluster_sandwich = |fit: &EffectEstimate, w: &[f64]| {
+        let table = fit.scores.table.as_ref().expect("score table");
+        assert_eq!(table.n_rows, groups.len());
+        let (a, b) = (table.column(0).unwrap(), table.column(1).unwrap());
+        let n = a.len() as f64;
+        let mass: f64 = w.iter().sum();
+        let tau = a.iter().zip(b).zip(w).map(|((a, b), w)| w * (b - a)).sum::<f64>() / mass;
+        close(fit.ate, tau, 1e-10, "weighted contrast of the cross-fitted scores");
+        let psi: Vec<f64> =
+            a.iter().zip(b).zip(w).map(|((a, b), w)| n * w / mass * (b - a - tau)).collect();
+        let mean = psi.iter().sum::<f64>() / n;
+        let mut totals = std::collections::BTreeMap::<u32, f64>::new();
+        for (value, g) in psi.iter().zip(&groups) {
+            *totals.entry(*g).or_default() += value - mean;
+        }
+        let g = totals.len() as f64;
+        assert_eq!(totals.len(), 30);
+        (g / (g - 1.0) * totals.values().map(|v| v * v).sum::<f64>()).sqrt() / n
+    };
+    close(
+        weighted.se_analytic(),
+        cluster_sandwich(&weighted, &study.w),
+        1e-10,
+        "weighted cluster-DML cluster sandwich",
+    );
+    close(
+        unit.se_analytic(),
+        cluster_sandwich(&unit, &ones.w),
+        1e-10,
+        "unit-weight cluster sandwich",
+    );
+    // The weights matter: the weighted SE is not the unit-weight SE.
+    assert!((weighted.se_analytic() - plain.se_analytic()).abs() > 1e-4 * plain.se_analytic());
     let scaled = run(&study.rescaled(60.0), true);
     close(scaled.ate, weighted.ate, 1e-9, "rescaled cluster-DML point");
     close(scaled.se_analytic(), weighted.se_analytic(), 1e-9, "rescaled cluster-DML SE");
@@ -1437,13 +1473,89 @@ fn a_gaussian_glm_with_weights_is_the_weighted_linear_adjustment() {
     close(glm_fit.se_analytic(), linear_fit.se_analytic(), 1e-7, "weighted Gaussian GLM SE");
 }
 
+/// Independent weighted logit g-computation of `y ~ 1 + t + z`: Newton on the weighted binomial
+/// likelihood, the weighted ATE `sum w (mu1 - mu0) / sum w`, and the delta-method standard error
+/// through the HC1 sandwich `n/(n-3) A^-1 B A^-1` of the weighted scores `w_i (y_i - mu_i) x_i`
+/// (bread `A = sum w_i mu_i (1 - mu_i) x_i x_i'`), with gradient
+/// `sum_i w_i (mu1'(i) x_i1 - mu0'(i) x_i0) / sum w`.
+fn weighted_logit_gcomp_oracle(study: &Study) -> (f64, f64) {
+    let n = study.len();
+    let x = |t: f64, z: f64| [1.0, t, z];
+    let eta = |b: &[f64; 3], x: [f64; 3]| b[0] * x[0] + b[1] * x[1] + b[2] * x[2];
+    let mut beta = [0.0_f64; 3];
+    for _ in 0..200 {
+        let mut score = vec![0.0; 3];
+        let mut info = vec![vec![0.0; 3]; 3];
+        for i in 0..n {
+            let xi = x(study.t[i], study.z[i]);
+            let mu = sigmoid(eta(&beta, xi));
+            for a in 0..3 {
+                score[a] += study.w[i] * (study.y[i] - mu) * xi[a];
+                for b in 0..3 {
+                    info[a][b] += study.w[i] * mu * (1.0 - mu) * xi[a] * xi[b];
+                }
+            }
+        }
+        let step = solve(info, score);
+        let size = step.iter().fold(0.0_f64, |m, s| m.max(s.abs()));
+        for a in 0..3 {
+            beta[a] += step[a];
+        }
+        if size < 1e-13 {
+            break;
+        }
+    }
+    let mass: f64 = study.w.iter().sum();
+    let mut info = vec![vec![0.0; 3]; 3];
+    let mut meat = vec![vec![0.0; 3]; 3];
+    let mut gradient = [0.0_f64; 3];
+    let mut ate = 0.0;
+    for i in 0..n {
+        let xi = x(study.t[i], study.z[i]);
+        let mu = sigmoid(eta(&beta, xi));
+        let (x1, x0) = (x(1.0, study.z[i]), x(0.0, study.z[i]));
+        let (m1, m0) = (sigmoid(eta(&beta, x1)), sigmoid(eta(&beta, x0)));
+        ate += study.w[i] * (m1 - m0) / mass;
+        for a in 0..3 {
+            gradient[a] +=
+                study.w[i] * (m1 * (1.0 - m1) * x1[a] - m0 * (1.0 - m0) * x0[a]) / mass;
+            for b in 0..3 {
+                info[a][b] += study.w[i] * mu * (1.0 - mu) * xi[a] * xi[b];
+                meat[a][b] += (study.w[i] * (study.y[i] - mu)).powi(2) * xi[a] * xi[b];
+            }
+        }
+    }
+    let bread = inverse(&info);
+    let mut variance = 0.0;
+    for a in 0..3 {
+        for b in 0..3 {
+            let mut sandwich = 0.0;
+            for c in 0..3 {
+                for d in 0..3 {
+                    sandwich += bread[a][c] * meat[c][d] * bread[d][b];
+                }
+            }
+            variance += gradient[a] * sandwich * gradient[b];
+        }
+    }
+    (ate, (variance * n as f64 / (n as f64 - 3.0)).sqrt())
+}
+
 #[test]
 fn a_logit_glm_with_integer_weights_equals_the_replicated_rows() {
     let study = binary_outcome(&integer_study(260, 35));
     let weighted = glm(&study, GlmFamily::BinomialLogit, true, |e| e);
     let plain = glm(&replicated(&study), GlmFamily::BinomialLogit, false, |e| e);
     close(weighted.ate, plain.ate, 1e-6, "weighted logit g-computation point");
-    assert!(weighted.se_analytic().is_finite() && weighted.se_analytic() > 0.0);
+    // The SE is the weighted-sandwich delta-method value from an independent Newton fit; the
+    // replicated-row model-based SE (frequency weights) is a different, smaller quantity and is
+    // only a sanity bracket.
+    let (oracle_ate, oracle_se) = weighted_logit_gcomp_oracle(&study);
+    close(weighted.ate, oracle_ate, 1e-8, "weighted logit g-computation oracle point");
+    close(weighted.se_analytic(), oracle_se, 1e-6, "weighted logit sandwich delta-method SE");
+    let (replicated_ate, replicated_se) = weighted_logit_gcomp_oracle(&replicated(&study));
+    close(replicated_ate, plain.ate, 1e-6, "replicated-row oracle point");
+    close(plain.se_analytic(), replicated_se, 1e-6, "replicated-row HC1 delta-method SE");
     let record = weighted.diagnostics.sampling_weights.expect("weight record");
     assert_eq!(record.rows_used, 260);
 }
@@ -1596,7 +1708,46 @@ fn the_dr_learner_publishes_weighted_pointwise_standard_errors() {
     for (a, b) in scaled.iter().zip(&base) {
         close(*a, *b, 1e-8, "rescaled pointwise SE");
     }
-    assert!(base.iter().all(|v| v.is_finite() && *v > 0.0));
+    // Absolute oracle. The weighted fit publishes the weighted influence of its pseudo-outcome
+    // scores, psi_i = n w_i (phi_i - tau) / sum w, so phi_i is recovered by inverting that
+    // definition; the final stage and its pointwise SE are then computed here from scratch: the
+    // weighted least-squares fit of phi on [1, z], the HC0 sandwich
+    // (X'WX)^-1 (sum w_i^2 e_i^2 x_i x_i') (X'WX)^-1, and se_i = sqrt(x_i' V x_i).
+    let fit = dr_learner(&study, true);
+    let psi = fit.scores.influence.as_ref().expect("weighted influence");
+    let n = study.len();
+    let mass: f64 = study.w.iter().sum();
+    let phi: Vec<f64> =
+        (0..n).map(|i| psi[i] * mass / (n as f64 * study.w[i]) + fit.ate).collect();
+    let x: Vec<Vec<f64>> = study.z.iter().map(|&z| vec![1.0, z]).collect();
+    let beta = weighted_least_squares(&x, &phi, &study.w);
+    let mut xtwx = vec![vec![0.0; 2]; 2];
+    let mut meat = vec![vec![0.0; 2]; 2];
+    for i in 0..n {
+        let e = phi[i] - beta[0] - beta[1] * study.z[i];
+        for a in 0..2 {
+            for b in 0..2 {
+                xtwx[a][b] += study.w[i] * x[i][a] * x[i][b];
+                meat[a][b] += (study.w[i] * e).powi(2) * x[i][a] * x[i][b];
+            }
+        }
+    }
+    let bread = inverse(&xtwx);
+    let cate = fit.heterogeneity.cate.as_ref().expect("cate");
+    for i in 0..n {
+        close(cate[i], beta[0] + beta[1] * study.z[i], 1e-8, "weighted final-stage CATE");
+        let mut v = 0.0;
+        for a in 0..2 {
+            for b in 0..2 {
+                for c in 0..2 {
+                    for d in 0..2 {
+                        v += x[i][a] * bread[a][c] * meat[c][d] * bread[d][b] * x[i][b];
+                    }
+                }
+            }
+        }
+        close(base[i], v.sqrt(), 1e-8, "weighted HC0 pointwise SE");
+    }
 }
 
 #[test]
@@ -1787,8 +1938,28 @@ fn a_clustered_causal_forest_subsamples_whole_clusters_and_reports_a_cluster_se(
     let prepared = forest.prepare(&data, &estimand, &query()).unwrap();
     let fit = forest.fit(&prepared, &ctx(), AssumptionSet::new()).unwrap();
     assert_eq!(fit.uncertainty.analytic.kind, Some(AnalyticSeKind::Cluster));
-    assert!(fit.se_analytic().is_finite() && fit.se_analytic() > 0.0);
     assert!(fit.heterogeneity.cate.is_some());
+    // The marginal ATE is the mean of the whole-cluster cross-fitted AIPW contrast scores and its
+    // SE the cluster sandwich sqrt(G/(G-1) * sum_g (sum_{i in g} (psi_i - tau))^2) / n, computed
+    // here from the retained arm scores (a, b) with psi_i = b_i - a_i.
+    let table = fit.scores.table.as_ref().expect("score table");
+    let (a, b) = (table.column(0).unwrap(), table.column(1).unwrap());
+    assert_eq!(a.len(), labels.len());
+    let n = a.len() as f64;
+    let tau = a.iter().zip(b).map(|(a, b)| b - a).sum::<f64>() / n;
+    close(fit.ate, tau, 1e-10, "forest marginal ATE is the mean cross-fitted score");
+    let mut totals = std::collections::BTreeMap::<u32, f64>::new();
+    for ((a, b), g) in a.iter().zip(b).zip(&labels) {
+        *totals.entry(*g).or_default() += b - a - tau;
+    }
+    assert_eq!(totals.len(), 40);
+    let g = totals.len() as f64;
+    let expected = (g / (g - 1.0) * totals.values().map(|v| v * v).sum::<f64>()).sqrt() / n;
+    close(fit.se_analytic(), expected, 1e-10, "forest whole-cluster sandwich SE");
+    // The row-level iid SE of the same scores is smaller (the clusters share a random effect).
+    let iid = (a.iter().zip(b).map(|(a, b)| (b - a - tau).powi(2)).sum::<f64>() / (n - 1.0)).sqrt()
+        / n.sqrt();
+    assert!(fit.se_analytic() > 1.1 * iid, "cluster {} vs iid {iid}", fit.se_analytic());
 
     // Fewer clusters than the declared minimum cannot support a cluster sandwich.
     let few: Vec<u32> = labels.iter().map(|l| l % 8).collect();

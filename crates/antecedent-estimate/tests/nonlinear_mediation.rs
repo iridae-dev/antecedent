@@ -370,8 +370,59 @@ fn mediation_bootstrap_is_deterministic_and_closed_for_intervals() {
     let b = run(&g, &ignorable, &cfg).expect("second");
     assert_eq!(a, b, "same seed must reproduce the whole estimate");
     let se = a.natural_direct_se.expect("direct se");
-    assert!(se > 0.0 && se.is_finite());
     assert!(a.natural_indirect_se.is_some() && a.total_se.is_some());
+    // Independent bootstrap reference. The documented replicate scheme is: replicate `r` seeds a
+    // splitmix64 stream with mix64((seed ^ mix64(r + 1)) + GOLDEN_GAMMA) and draws n row indices
+    // as `next % n`. Each resampled data set is analysed here through the public estimator
+    // (whose point estimates are pinned to the closed-form SCM truth above), and the standard
+    // errors are the sample standard deviations of the replicate effects.
+    let rows = g.a.len();
+    let (mut direct, mut indirect, mut total) = (Vec::new(), Vec::new(), Vec::new());
+    for replicate in 0..30_u64 {
+        let mut state = antecedent_core::mix64(
+            (cfg.seed ^ antecedent_core::mix64(replicate + 1))
+                .wrapping_add(antecedent_core::GOLDEN_GAMMA),
+        );
+        let picks: Vec<usize> = (0..rows)
+            .map(|_| (antecedent_core::splitmix64(&mut state) % rows as u64) as usize)
+            .collect();
+        let resampled = Grid {
+            a: picks.iter().map(|&i| g.a[i]).collect(),
+            m: picks.iter().map(|&i| g.m[i]).collect(),
+            y: picks.iter().map(|&i| g.y[i]).collect(),
+            x: picks.iter().map(|&i| g.x[i]).collect(),
+        };
+        // Replicate refits are not subject to the point-estimate support refusal, so it is
+        // lifted here (resamples can leave the cross-world law outside the treated range).
+        let no_bootstrap = NonlinearMediationConfig {
+            bootstrap_replicates: 0,
+            max_support_violation: 1.0,
+            ..cfg
+        };
+        if let Ok(replicate_fit) = run(&resampled, &ignorable, &no_bootstrap) {
+            direct.push(replicate_fit.natural_direct);
+            indirect.push(replicate_fit.natural_indirect);
+            total.push(replicate_fit.total);
+        }
+    }
+    let sample_sd = |v: &[f64]| {
+        let mean = v.iter().sum::<f64>() / v.len() as f64;
+        (v.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / (v.len() as f64 - 1.0)).sqrt()
+    };
+    assert_eq!(direct.len() as u32, a.bootstrap.replicates_succeeded);
+    for (reported, replicates, name) in [
+        (a.natural_direct_se.unwrap(), &direct, "direct"),
+        (a.natural_indirect_se.unwrap(), &indirect, "indirect"),
+        (a.total_se.unwrap(), &total, "total"),
+    ] {
+        let expected = sample_sd(replicates);
+        assert!(expected > 0.0, "{name}");
+        assert!(
+            (reported - expected).abs() < 1e-8 * (1.0 + expected),
+            "{name} bootstrap SE {reported} vs independent replication {expected}"
+        );
+    }
+    assert!(se > 0.0 && se.is_finite());
     assert_eq!(
         u64::from(a.bootstrap.replicates_succeeded) + a.bootstrap.failed_replicate_ids.len() as u64,
         30
