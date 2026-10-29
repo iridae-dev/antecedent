@@ -90,6 +90,8 @@ fn report_json(done: &DoseGridFunctional) -> PyResult<String> {
     if let Some(map) = request.as_object_mut() {
         map.remove("dose");
         map.remove("outcome");
+        map.remove("sampling_weights");
+        map.remove("cluster");
     }
     let (premises, data) = done.digests();
     Ok(serde_json::json!({
@@ -105,13 +107,20 @@ fn report_json(done: &DoseGridFunctional) -> PyResult<String> {
 ///
 /// `request_json` carries every premise with empty `dose` and `outcome`; the table is
 /// passed as `dose` and `outcome`.
+///
+/// `sampling_weights`, `cluster` (one id per row) and `serial_lag` declare the rows' weights and
+/// dependence; they travel beside the table, like it, and are bound by the artifact digests.
 #[pyfunction]
-#[pyo3(signature=(request_json, dose, outcome, *, threads=None, max_bytes=None, cancel=None))]
+#[pyo3(signature=(request_json, dose, outcome, *, sampling_weights=None, cluster=None, serial_lag=None, threads=None, max_bytes=None, cancel=None))]
+#[allow(clippy::too_many_arguments, reason = "the request, the table, its declarations and the controls")]
 fn evaluate_dose_grid_functional(
     py: Python<'_>,
     request_json: &str,
     dose: Vec<f64>,
     outcome: Vec<f64>,
+    sampling_weights: Option<Vec<f64>>,
+    cluster: Option<Vec<u32>>,
+    serial_lag: Option<u64>,
     threads: Option<u32>,
     max_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
@@ -121,6 +130,9 @@ fn evaluate_dose_grid_functional(
         .map_err(|e| value_err(format!("dose_grid.invalid_request: {e}")))?;
     request.dose = dose;
     request.outcome = outcome;
+    request.sampling_weights = sampling_weights;
+    request.cluster = cluster;
+    request.serial_lag = serial_lag;
     let ctx = dose_context(threads, max_bytes, cancel)?;
     let payload =
         detach_catch(py, move || match DoseGridFunctional::evaluate_with_context(request, &ctx) {

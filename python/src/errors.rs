@@ -405,6 +405,15 @@ pub(crate) fn reason_code_of(error: &RustCausalError) -> Option<String> {
         } else {
             reason_code!("cell_not_licensed")
         }),
+        // A query that failed its own validation carries the code the facade derives for it.
+        RustCausalError::Rejected(_) => {
+            return named.or_else(|| {
+                error
+                    .reason_code()
+                    .filter(|code| reason_code::is_registered(code))
+                    .map(str::to_string)
+            });
+        }
         RustCausalError::Missing { .. } => Some(reason_code!("required_option_missing")),
         RustCausalError::Conflict { .. } => Some(reason_code!("invalid_argument")),
         // The estimator layer derives the code of a refusal built without one (a rank-deficient

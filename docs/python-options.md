@@ -207,6 +207,20 @@ parent under the pulse parent-adjustment fallback, the refusal names
 default, the unfolding grows to the graph's own chain bound, and a refusal
 there (a lagged cycle) is not helped by a cap.
 
+## Bound a pulse's extrapolation
+
+A pulse is a counterfactual dose, and its fitted lag response is linear in the
+treatment, so a level the series never visited is reached by extrapolation. When
+the control or active level of a `PulseEffect` lies outside the observed treatment
+interval, the result's support diagnostics carry
+`estimate.temporal.pulse.level_extrapolation`, whose fields give the observed
+minimum, maximum, mean and standard deviation, and each level's distance in
+observed ranges (`max - min`) and in standard deviations. The effect there is
+conditional on the response staying linear. An active level more than
+`Execution(pulse_extrapolation_ranges=...)` observed ranges beyond the interval
+(default 10) is refused with `positivity_violated` and a next attempt. The control
+level is never refused: a control of 0 outside the data is how a pulse is written.
+
 ## Declare delayed feedback
 
 A temporal `ResponseCurve` or `InterventionResponse` takes a keyword-only

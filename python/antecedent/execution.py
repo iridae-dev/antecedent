@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal, ParamSpec, TypeVar
@@ -75,6 +76,15 @@ class Execution:
     executing run retains so each can be attributed to its original exception
     (default 256, nonnegative). A run that exceeds it still fails with its own
     error; only the original-exception attribution of the surplus is dropped.
+
+    ``pulse_extrapolation_ranges`` bounds how far a ``PulseEffect`` may extrapolate: the
+    active level may lie at most this many observed treatment ranges (``max - min``)
+    beyond the observed treatment interval (default ``None``, the engine's 10 ranges).
+    A level inside the bound but outside the observed interval is computed and named in
+    the result's support diagnostics with its distance in ranges and standard
+    deviations; a level beyond the bound is refused with ``positivity_violated``. The
+    control level is never refused, since a control of 0 outside the data is how a pulse
+    is written.
     """
 
     seed: int = 1
@@ -88,6 +98,7 @@ class Execution:
     )
     on_stage: Callable[..., None] | None = field(default=None, repr=False, compare=False)
     callback_failure_capacity: int = 256
+    pulse_extrapolation_ranges: float | None = None
     _handle: Any = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -96,6 +107,12 @@ class Execution:
         if self.callback_failure_capacity is None:
             raise CausalTypeError("callback_failure_capacity must be an integer")
         _integer(self.callback_failure_capacity, "callback_failure_capacity")
+        if self.pulse_extrapolation_ranges is not None:
+            ranges = self.pulse_extrapolation_ranges
+            if isinstance(ranges, bool) or not isinstance(ranges, (int, float)):
+                raise CausalTypeError("pulse_extrapolation_ranges must be a number")
+            if not (math.isfinite(ranges) and ranges >= 0):
+                raise CausalValueError("pulse_extrapolation_ranges must be finite and nonnegative")
         if self.threads is not None and self.threads > 2**32 - 1:
             raise CausalValueError("threads exceeds the native thread range")
         if not isinstance(self.limits, ResourceLimits) or not isinstance(self.cache, CachePolicy):
@@ -121,6 +138,11 @@ class Execution:
                 cancel=self.cancel,
                 on_progress=self.on_progress,
                 callback_failure_capacity=self.callback_failure_capacity,
+                pulse_extrapolation_ranges=(
+                    None
+                    if self.pulse_extrapolation_ranges is None
+                    else float(self.pulse_extrapolation_ranges)
+                ),
             ),
         )
 

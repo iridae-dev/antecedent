@@ -28,7 +28,12 @@ def _binary(values: Iterable[Any], name: str) -> list[bool]:
         ):
             encoded.append(bool(value))
         else:
-            raise CausalValueError(f"{name} values must be bool or encoded as 0/1")
+            raise CausalValueError(
+                f"{name} values must be bool or encoded as 0/1; a column with more than two "
+                "levels is a multi-level contrast. Next attempt: estimate_categorical_did, "
+                "which contrasts each level with a declared reference level",
+                reason_code="treatment_level_undeclared",
+            )
     return encoded
 
 
@@ -1277,6 +1282,153 @@ def _bind_local_ratio_options(query: Any) -> None:
     )
 
 
+@dataclass(frozen=True, slots=True)
+class CategoricalDidContrast:
+    """One level's difference in differences against the reference level."""
+
+    level: Any
+    reference: Any
+    estimate: float
+    #: Cluster-robust standard error of the panel form; ``None`` for the point-only forms.
+    standard_error: float | None
+    #: Subjects (panel forms) or rows (2x2) of the level and of the reference.
+    level_units: int
+    reference_units: int
+
+
+@dataclass(frozen=True, slots=True)
+class CategoricalDidEstimate:
+    """Pairwise multi-level difference in differences.
+
+    Every contrast is the binary contrast of one level against the reference level, fitted on
+    the rows of those two levels only (the rows of the other levels are not read by it), so a
+    contrast, its standard error and its assumptions are exactly those of the binary form. The
+    contrasts are not a joint model: no covariance between them is reported.
+    """
+
+    reference: Any
+    contrasts: tuple[CategoricalDidContrast, ...]
+    design: str
+    assumptions: tuple[str, ...] = (
+        "parallel_untreated_trends_between_each_level_and_the_reference",
+        "no_anticipation",
+        "stable_treatment_level_within_subject",
+        "no_interference",
+    )
+    support_status: str = "unlicensed_point_utility"
+
+    def contrast(self, level: Any) -> CategoricalDidContrast:
+        """The contrast of ``level`` against the reference."""
+        for entry in self.contrasts:
+            if entry.level == level:
+                return entry
+        raise CausalValueError(f"no contrast for level {level!r}")
+
+
+def _level_key(value: Any) -> Any:
+    return value.item() if isinstance(value, np.generic) else value
+
+
+def estimate_categorical_did(
+    data: Any,
+    query: DifferenceInDifferences | PanelDifferenceInDifferences | AugmentedPanelDiD,
+    *,
+    reference: Any = None,
+    nuisance: Mapping[Any, tuple[str, str]] | None = None,
+) -> CategoricalDidEstimate:
+    """Contrast every level of a multi-level treated column with a reference level.
+
+    The query names the multi-level column in its ``treated`` field (the 2x2, the two-period
+    panel or the augmented panel). ``reference`` defaults to the smallest level. The augmented
+    panel needs ``nuisance``: a mapping from each non-reference level to the names of its
+    propensity column (probability of that level against the reference) and its untreated-change
+    prediction column, because one propensity cannot serve two different contrasts.
+    """
+
+    if not isinstance(query, (DifferenceInDifferences, PanelDifferenceInDifferences, AugmentedPanelDiD)):
+        raise CausalValueError(
+            "query must be a DifferenceInDifferences, PanelDifferenceInDifferences or AugmentedPanelDiD"
+        )
+    names, columns = _raw_columns(data)
+    if query.treated not in names:
+        raise CausalValueError(f"required difference-in-differences column {query.treated!r} is missing")
+    table = dict(zip(names, columns, strict=True))
+    raw_group = table[query.treated]
+    levels = sorted({_level_key(value) for value in raw_group})
+    if len(levels) < 2:
+        raise CausalValueError(
+            "a categorical contrast needs at least two levels of the treated column",
+            reason_code="arm_not_populated",
+        )
+    if reference is None:
+        reference = levels[0]
+    if reference not in levels:
+        raise CausalValueError(
+            f"the reference level {reference!r} is none of the observed levels {levels!r}",
+            reason_code="treatment_level_undeclared",
+        )
+    if isinstance(query, AugmentedPanelDiD) and nuisance is None:
+        raise CausalUnsupportedError(
+            "the augmented panel contrast needs nuisance= mapping each non-reference level to "
+            "its (propensity, untreated-change prediction) columns. Next attempt: declare it, "
+            "or use the two-period panel contrast",
+            reason_code="required_option_missing",
+        )
+    from . import analyze
+    from .outcomes import require_success
+
+    group_keys = np.array([_level_key(value) for value in raw_group], dtype=object)
+    contrasts: list[CategoricalDidContrast] = []
+    for level in levels:
+        if level == reference:
+            continue
+        mask = np.array([key == level or key == reference for key in group_keys])
+        subset = {name: column[mask] for name, column in table.items()}
+        subset[query.treated] = np.array([key == level for key in group_keys[mask]], dtype=bool)
+        standard_error: float | None = None
+        if isinstance(query, DifferenceInDifferences):
+            estimate = estimate_did(subset, query).estimate
+            level_units = int(np.sum(group_keys == level))
+            reference_units = int(np.sum(group_keys == reference))
+        elif isinstance(query, PanelDifferenceInDifferences):
+            fit = require_success(analyze(subset, query=query)).panel_did
+            estimate, standard_error = fit.estimate, fit.standard_error
+            level_units, reference_units = fit.treated_subjects, fit.control_subjects
+        else:
+            if level not in nuisance:
+                raise CausalValueError(
+                    f"nuisance= has no (propensity, prediction) columns for level {level!r}",
+                    reason_code="required_option_missing",
+                )
+            propensity, prediction = nuisance[level]
+            level_query = AugmentedPanelDiD(
+                query.outcome_pre,
+                query.outcome_post,
+                query.subject,
+                query.treated,
+                propensity,
+                prediction,
+                query.predictions_cross_fitted,
+                query.cluster,
+                query.resampling,
+                query.replicates,
+            )
+            fit = require_success(analyze(subset, query=level_query)).panel_did
+            estimate, standard_error = fit.estimate, getattr(fit, "standard_error", None)
+            level_units, reference_units = fit.treated_subjects, fit.control_subjects
+        contrasts.append(
+            CategoricalDidContrast(
+                level, reference, float(estimate), standard_error, level_units, reference_units
+            )
+        )
+    design = {
+        DifferenceInDifferences: "categorical_repeated_cross_section_2x2",
+        PanelDifferenceInDifferences: "categorical_balanced_two_period_panel",
+        AugmentedPanelDiD: "categorical_augmented_panel",
+    }[type(query)]
+    return CategoricalDidEstimate(reference, tuple(contrasts), design)
+
+
 __all__ = [
     "PeriodHistoryMatch",
     "PeriodHistoryMatchEstimate",
@@ -1286,6 +1438,9 @@ __all__ = [
     "IvBoundsPosterior",
     "DifferenceInDifferences",
     "DifferenceInDifferencesEstimate",
+    "CategoricalDidContrast",
+    "CategoricalDidEstimate",
+    "estimate_categorical_did",
     "PanelDifferenceInDifferences",
     "PanelDifferenceInDifferencesEstimate",
     "StaggeredAdoption",

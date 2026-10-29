@@ -7550,6 +7550,9 @@ def evaluate_dose_grid_functional(
     dose: list[float],
     outcome: list[float],
     *,
+    sampling_weights: list[float] | None = None,
+    cluster: list[int] | None = None,
+    serial_lag: int | None = None,
     threads: int | None = None,
     max_bytes: int | None = None,
     cancel: CancellationToken | None = None,
@@ -7622,6 +7625,10 @@ def evaluate_categorical_treatment(
     levels: list[str],
     declaration_json: str,
     artifact_id: str,
+    *,
+    sampling_weights: NDArray[np.float64] | list[float] | None = None,
+    cluster: list[int] | None = None,
+    serial_lag: int | None = None,
 ) -> tuple[str | None, bytes | None, str | None]: ...
 def consume_categorical_treatment_artifact(
     artifact: bytes,
@@ -11493,6 +11500,7 @@ class _Execution:
         cancel: CancellationToken | None = None,
         on_progress: Callable[[float, str], None] | None = None,
         callback_failure_capacity: int = 256,
+        pulse_extrapolation_ranges: float | None = None,
     ) -> None: ...
     @property
     def available_memory_bytes(self) -> int: ...

@@ -176,6 +176,19 @@ class SmoothedDoseQuery:
         )
 
 
+def _declared_json(data: SmoothedDoseData) -> dict[str, Any]:
+    from ._buffers import cluster_ids
+
+    out: dict[str, Any] = {}
+    if data.sampling_weights is not None:
+        out["sampling_weights"] = [float(w) for w in data.sampling_weights]
+    if data.cluster is not None:
+        out["cluster"] = cluster_ids(data.cluster)
+    if data.serial_lag is not None:
+        out["serial_lag"] = int(data.serial_lag)
+    return out
+
+
 @dataclass(frozen=True, slots=True)
 class SmoothedDoseData:
     """IID trial and target rows with the known conditional dose density.
@@ -190,6 +203,14 @@ class SmoothedDoseData:
     dose_density: Sequence[float]
     source: Sequence[bool]
     sampling: Literal["nested_cohort", "independent_samples"]
+    #: Sampling weights, one per row of either sample (finite and non-negative; rows of weight
+    #: zero are deleted before preparation, the rest are normalized to mean one).
+    sampling_weights: Sequence[float] | None = None
+    #: One cluster label per row; clusters stay whole in one cross-fit fold and the influence
+    #: standard error diagnostic is cluster-robust. Not combined with ``serial_lag``.
+    cluster: Sequence[Any] | None = None
+    #: Newey-West lag for rows in time order at unit spacing (folds are contiguous blocks).
+    serial_lag: int | None = None
 
     def _buffers(self, names: Sequence[str]) -> dict[str, Any]:
         from ._buffers import smoothed_buffers
@@ -210,6 +231,7 @@ class SmoothedDoseData:
                 dose_density=list(map(float, self.dose_density)),
                 source=[bool(v) for v in self.source],
                 sampling=self.sampling,
+                **_declared_json(self),
             ),
             allow_nan=False,
         )

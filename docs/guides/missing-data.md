@@ -19,6 +19,8 @@ result.value.missing_data.accounting     # rows total / kept / dropped, per vari
 | Conditional, response, distribution, static mediation | complete case, reported | `error`, `complete_case`, `multiple_imputation` |
 | Randomized two-arm ITT (`complete_case` and `inverse_probability` for every design except CUPED, ANCOVA and receipt-adjusted) | refuses at the first missing outcome | `error`, `complete_case`, `inverse_probability`, `multiple_imputation` |
 | Panel difference-in-differences | refuses at the first missing outcome | `error`, `balanced_panel`, `available_case` |
+| Anomaly attribution (rows scored against fitted mechanisms) | refuses at the first missing cell | `error`, `complete_case` |
+| Temporal design, arm designs with the mean functional (one row per unit and period) | refuses at the first missing outcome | `error`, `complete_case`, `available_case`, `balanced_panel` |
 | Lagged temporal effect and temporal mediation (one series) | refuses at the first missing time point | `error`, `complete_case`, `multiple_imputation` |
 | NOTEARS discovery | refuses at the first missing cell | `error`, `complete_case`, `pairwise_available` |
 
@@ -48,6 +50,10 @@ Support is declared once per route cell (query kind, data modality, inference mo
 | `RandomizedEffect` | tabular | bayesian | `error` | `error`, `complete_case`, `inverse_probability`, `multiple_imputation` |
 | `PanelDid` | tabular | frequentist | `error` | `error`, `balanced_panel`, `available_case` |
 | `PanelDid` | tabular | bayesian | `error` | `error`, `balanced_panel`, `available_case` |
+| `AnomalyAttribution` | tabular | frequentist | `error` | `error`, `complete_case` |
+| `AnomalyAttribution` | tabular | bayesian | `error` | `error`, `complete_case` |
+| `TemporalDesign` | tabular | frequentist | `error` | `error`, `complete_case`, `available_case`, `balanced_panel` |
+| `TemporalDesign` | tabular | bayesian | `error` | `error`, `complete_case`, `available_case`, `balanced_panel` |
 | `TemporalEffect` | series | frequentist | `error` | `error`, `complete_case`, `multiple_imputation` |
 | `TemporalEffect` | series | bayesian | `error` | `error`, `complete_case`, `multiple_imputation` |
 | `Mediation` | series | frequentist | `error` | `error`, `complete_case`, `multiple_imputation` |
@@ -57,7 +63,7 @@ Multiple imputation pools, per route cell:
 
 | Route | Frequentist | Bayesian |
 | --- | --- | --- |
-| Average effect | `linear.adjustment.ate`, `glm.adjustment`, `aipw`, `propensity.weighting`, `propensity.matching`, `propensity.stratification`, `distance.matching` | `bayesian.gcomp` |
+| Average effect | `linear.adjustment.ate`, `glm.adjustment`, `aipw`, `propensity.weighting`, `propensity.matching`, `propensity.stratification`, `distance.matching`, `rd.sharp` | `bayesian.gcomp`, `rd.bayesian_local_linear` |
 | Conditional effect | `conditional.linear.adjustment`, `aipw` | `conditional.bayesian` |
 | Response | `response.intervention_gcomp`, `response.kennedy_dr`, `response.gam_derivative`, `response.riesz_ade` | `response.bayesian` |
 | Distribution | `functional.distribution` | `functional.distribution` |

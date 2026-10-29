@@ -367,6 +367,37 @@ consumes (a test asserts each):
 The premises digest binds all of them against unsealed edits only. The replayed
 smoothing-bias diagnostic is only as good as the fitted curve (see above).
 
+## Declared sampling weights, clusters and serial dependence
+
+`SmoothedDoseInput` may declare `sampling_weights` (one per row of either sample), a `cluster`
+id per row and a `serial_lag`; each is optional and absent from the serialized input when not
+declared, so an input without them, its artifact and its digests are unchanged. A declaration is
+read or refused, never dropped.
+
+- **Weights** `s_i` (finite and positive; rows of weight zero stand for no population and are
+  deleted by `SmoothedDoseInput::without_zero_weight_rows`, which the facade calls at preparation)
+  are normalized to mean one over all rows and enter both nuisance fits, the plug-in mean
+  `sum_T s_i nu_i / sum_T s_i`, the augmentation `sum_S s_i odds_i K_h / pi_i (Y_i - mu_i) / sum_T s_i`
+  and the support (the Kish size of `s_i K_h / pi_i`). The estimand is the smoothed dose response of
+  the weighted populations.
+- **Clusters** are dealt to the cross-fit folds whole (stratified by whether a cluster holds source
+  rows, target rows or both), so no cluster sits on both sides of a split, and the influence-function
+  standard error is `G / (G - 1)` times the sum of squared cluster sums of the row scores. The internal
+  bootstrap resamples whole clusters.
+- **A lag** (rows in time order at unit spacing) assigns the folds as contiguous blocks
+  `floor(i * folds / n)`, makes the diagnostic the Newey-West variance of the row-score series, and
+  resamples blocks of `lag + 1` consecutive rows in the internal bootstrap. Clusters and a lag are
+  not offered together.
+- A declaration that leaves some fold without a source or a target row is refused
+  (`dose_response.declared_folds_unbalanced`); so are wrong lengths, non-finite weights and a lag
+  outside `[1, n)` (`dose_response.invalid_declared_rows`, `sampling_weights.invalid`).
+- The public interval stays closed whatever is declared: the declarations change the point, the folds
+  and the diagnostics. The Gaussian outcome posterior assumes independent homoskedastic source rows
+  and is refused for declared rows (`dose_response.posterior_declared_rows`).
+- The weights, cluster ids and lag are bound by the artifact's data and premises digests and replay
+  with it. The reference is `crates/antecedent-estimate/tests/smoothed_dose_declared_reference.rs`
+  against 50-digit values.
+
 ## Not in this cell
 
 - An estimated conditional dose density (the observational generalized-propensity path).

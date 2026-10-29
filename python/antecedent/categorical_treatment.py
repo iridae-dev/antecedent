@@ -32,6 +32,18 @@ What the answer is **not**:
   (non-increasing); the p-value is a conservative one-sided union-intersection (Bonferroni)
   bound. Rejection is evidence *against* monotonicity in that direction; failing to reject does
   not prove it.
+* Rows are independent and equally weighted unless declared otherwise.
+  ``sampling_weights=`` (one finite non-negative weight per row; rows of weight zero are deleted
+  and counted, the rest normalized to mean one) fit the weighted regression and need a sandwich
+  covariance (``hc0`` to ``hc3``, ``cluster_robust`` or ``newey_west``): a model-based variance
+  would treat the weights as precision weights and is refused. ``cluster=`` (one label per row)
+  with ``covariance="cluster_robust"`` gives the one-way cluster-robust variance
+  (``G / (G - 1) (n - 1) / (n - p)`` times the sum of outer products of the cluster score sums);
+  ``serial_lag=`` with ``covariance="newey_west"`` gives the Bartlett-weighted long-run variance of
+  the score series in row order at unit spacing. Each declaration needs its covariance kind and
+  each kind its declaration; a mismatch is refused, never dropped. The declared accounting is
+  :attr:`CategoricalEffects.declared_rows`; the Gaussian ``posterior`` is refused for declared
+  rows (its likelihood is independent homoskedastic errors).
 * Unordered levels are canonicalised (sorted) before any arithmetic, so permuting their declared
   order changes nothing. For ordered levels the declared order is the scale and part of the
   estimand.
@@ -74,6 +86,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "CategoricalEffects",
+    "CategoricalDeclaredRows",
     "CategoricalPosterior",
     "CategoricalPosteriorPrior",
     "PosteriorContrast",
@@ -90,7 +103,7 @@ __all__ = [
     "categorical_effects",
 ]
 
-_COVARIANCES = ("model_based", "hc0", "hc1", "hc2", "hc3")
+_COVARIANCES = ("model_based", "hc0", "hc1", "hc2", "hc3", "cluster_robust", "newey_west")
 _DEFAULT_ARTIFACT_ID = "categorical_treatment"
 
 
@@ -115,6 +128,26 @@ def _name(value: object, what: str) -> str:
     if not isinstance(value, str) or not value:
         raise CausalTypeError(f"{what} must be a non-empty string")
     return value
+
+
+def _cluster_ids(cluster: object, rows: int) -> list[int]:
+    """Dense integer ids (first-appearance order) of one hashable cluster label per row."""
+    try:
+        labels = list(cluster)  # type: ignore[call-overload]
+    except TypeError as error:
+        raise CausalTypeError("cluster must hold one label per row") from error
+    if len(labels) != rows:
+        raise CausalValueError(f"{len(labels)} cluster labels were declared for {rows} rows")
+    ids: dict[Any, int] = {}
+    out: list[int] = []
+    for label in labels:
+        if label is None or (isinstance(label, float) and label != label):
+            raise CausalValueError("a cluster label is missing")
+        try:
+            out.append(ids.setdefault(label, len(ids)))
+        except TypeError as error:
+            raise CausalTypeError("cluster labels must be hashable scalars") from error
+    return out
 
 
 def _column(values: object, what: str) -> np.ndarray:
@@ -322,6 +355,40 @@ class CategoricalTreatmentIdentity:
         return {name: getattr(self, name) for name in self.__slots__}
 
 
+@dataclass(frozen=True, slots=True)
+class CategoricalDeclaredRows:
+    """What declared sampling weights, clusters or a serial lag did to the fit.
+
+    ``rows_used`` counts the rows after those of weight zero were deleted.
+    """
+
+    weights_declared: bool
+    rows_used: int
+    zero_weight_rows: int
+    weight_effective_sample_size: float | None
+    weight_sum: float | None
+    clusters: int | None
+    serial_lag: int | None
+
+
+def _declared_rows(raw: Mapping[str, Any] | None) -> CategoricalDeclaredRows | None:
+    if raw is None:
+        return None
+    ess = raw.get("weight_effective_sample_size")
+    total = raw.get("weight_sum")
+    clusters = raw.get("clusters")
+    lag = raw.get("serial_lag")
+    return CategoricalDeclaredRows(
+        weights_declared=bool(raw["weights_declared"]),
+        rows_used=int(raw["rows_used"]),
+        zero_weight_rows=int(raw["zero_weight_rows"]),
+        weight_effective_sample_size=None if ess is None else float(ess),
+        weight_sum=None if total is None else float(total),
+        clusters=None if clusters is None else int(clusters),
+        serial_lag=None if lag is None else int(lag),
+    )
+
+
 @dataclass(frozen=True, slots=True, eq=False)
 class CategoricalEffects(ScientificResult):
     """The categorical fit: level and pairwise contrasts, multiplicity, tests and the artifact.
@@ -358,6 +425,8 @@ class CategoricalEffects(ScientificResult):
     _export_refusal: str | None = field(default=None, repr=False)
     #: The Bayesian counterpart, when ``posterior=`` declared a prior.
     posterior: CategoricalPosterior | None = None
+    #: What declared sampling weights, clusters or a serial lag did; ``None`` for plain rows.
+    declared_rows: CategoricalDeclaredRows | None = None
 
     @artifact_export
     def export(self) -> ExportedArtifact[CategoricalEffects]:
@@ -467,6 +536,17 @@ class CategoricalEffects(ScientificResult):
             "monotonicity": monotonicity,
             "covariance": self.covariance.tolist(),
             "covariance_kind": self.covariance_kind,
+            "declared_rows": None
+            if self.declared_rows is None
+            else {
+                "weights_declared": self.declared_rows.weights_declared,
+                "rows_used": self.declared_rows.rows_used,
+                "zero_weight_rows": self.declared_rows.zero_weight_rows,
+                "weight_effective_sample_size": self.declared_rows.weight_effective_sample_size,
+                "weight_sum": self.declared_rows.weight_sum,
+                "clusters": self.declared_rows.clusters,
+                "serial_lag": self.declared_rows.serial_lag,
+            },
             "replay": self.replay,
             "calibration": self.calibration,
             "inference_claim": self.inference_claim,
@@ -610,11 +690,15 @@ def _result(
         _artifact_bytes=artifact,
         _export_refusal=export_refusal,
         posterior=_posterior(report.get("posterior")),
+        declared_rows=_declared_rows(report.get("declared_rows")),
     )
 
 
 def _content_snapshot(
-    outcome: np.ndarray, labels: Sequence[str], adjustment: Mapping[str, np.ndarray]
+    outcome: np.ndarray,
+    labels: Sequence[str],
+    adjustment: Mapping[str, np.ndarray],
+    declared: Mapping[str, Any] | None = None,
 ) -> str:
     digest = hashlib.sha256()
     digest.update(np.ascontiguousarray(outcome, dtype="<f8").tobytes())
@@ -625,6 +709,11 @@ def _content_snapshot(
         digest.update(name.encode())
         digest.update(b"\0")
         digest.update(np.ascontiguousarray(values, dtype="<f8").tobytes())
+    # Declarations extend the snapshot only when made, so plain rows keep their snapshot ids.
+    for key, value in (declared or {}).items():
+        digest.update(key.encode())
+        digest.update(b"\0")
+        digest.update(np.ascontiguousarray(value, dtype="<f8").tobytes())
     return "sha256:" + digest.hexdigest()
 
 
@@ -640,6 +729,9 @@ def categorical_effects(
     min_level_rows: int = 2,
     adjust: Mapping[str, Any] | None = None,
     covariance: str = "model_based",
+    sampling_weights: Any | None = None,
+    cluster: Sequence[Any] | None = None,
+    serial_lag: int | None = None,
     snapshot: str | None = None,
     artifact_id: str = _DEFAULT_ARTIFACT_ID,
     posterior: CategoricalPosteriorPrior | None = None,
@@ -657,8 +749,15 @@ def categorical_effects(
     one Holm family. ``monotonicity`` (``"non_decreasing"`` or ``"non_increasing"``) declares a
     monotonicity test and requires ``ordered=True``. ``min_level_rows`` is the fewest rows a
     declared level may have. ``adjust`` maps shared adjustment column names to their columns.
-    ``covariance`` is ``"model_based"`` or a robust sandwich ``"hc0"`` to ``"hc3"`` (the meat of
-    the sandwich is embedded beside ``X'X``, not the rows, so there is no row ceiling).
+    ``covariance`` is ``"model_based"``, a robust sandwich ``"hc0"`` to ``"hc3"``, the one-way
+    ``"cluster_robust"`` (needs ``cluster=``) or the Bartlett ``"newey_west"`` (needs
+    ``serial_lag=``, rows in time order at unit spacing); the meat of the sandwich is embedded
+    beside ``X'X``, not the rows, so there is no row ceiling. ``sampling_weights`` (one finite
+    non-negative weight per row) fit the weighted regression under a sandwich covariance;
+    ``cluster`` (one hashable label per row) and ``serial_lag`` are read only by their covariance
+    kind. A declaration the covariance does not read, or a kind whose declaration is missing, is
+    refused (:class:`CategoricalTreatmentRefusal`, ``vector_treatment.*`` details), as are weights
+    under the model-based covariance. See :attr:`CategoricalEffects.declared_rows`.
 
     ``posterior`` declares a prior and attaches the Bayesian counterpart
     (:attr:`CategoricalEffects.posterior`): a Student-t posterior of every level and requested
@@ -707,7 +806,32 @@ def categorical_effects(
         ) from error
     if posterior is not None and not isinstance(posterior, CategoricalPosteriorPrior):
         raise CausalTypeError("posterior must be a CategoricalPosteriorPrior")
-    shared = snapshot if snapshot is not None else _content_snapshot(y, labels, adjustment)
+    native_rows: dict[str, Any] = {}
+    snapshot_rows: dict[str, Any] = {}
+    if sampling_weights is not None:
+        weights = _column(sampling_weights, "sampling_weights")
+        if len(weights) != len(y):
+            raise CausalValueError(
+                f"{len(weights)} sampling weights were declared for {len(y)} rows"
+            )
+        native_rows["sampling_weights"] = weights
+        snapshot_rows["sampling_weights"] = weights
+    if cluster is not None:
+        ids = _cluster_ids(cluster, len(y))
+        native_rows["cluster"] = ids
+        snapshot_rows["cluster"] = np.asarray(ids, dtype=np.float64)
+    if serial_lag is not None:
+        if isinstance(serial_lag, bool) or not isinstance(serial_lag, int):
+            raise CausalTypeError("serial_lag must be an integer")
+        if serial_lag < 1:
+            raise CausalValueError("serial_lag must be at least one")
+        native_rows["serial_lag"] = serial_lag
+        snapshot_rows["serial_lag"] = np.asarray([serial_lag], dtype=np.float64)
+    shared = (
+        snapshot
+        if snapshot is not None
+        else _content_snapshot(y, labels, adjustment, snapshot_rows)
+    )
     declaration = {
         "row_snapshot": _name(shared, "snapshot"),
         "adjustment": list(adjustment),
@@ -728,6 +852,7 @@ def categorical_effects(
         labels,
         json.dumps(declaration, allow_nan=False),
         _name(artifact_id, "artifact_id"),
+        **native_rows,
     )
     if report is not None and artifact is None and refusal is not None:
         return _result(report, None, refusal)  # the export was refused; the fit stands

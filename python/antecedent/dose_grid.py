@@ -38,8 +38,19 @@ The ``execution`` argument owns the worker threads, the memory limit and cancell
 Independent grid fits preserve request order;
 small grids use serial execution. The same controls apply during artifact recomputation.
 
-Rows are independent: clustered, serial or linked rows are outside this row. An observational
-dose is refused (``dose_grid.graph_not_certified``): this row does not adjust.
+Rows are independent unless declared otherwise. ``sampling_weights`` (one finite non-negative
+weight per row) multiply the Gaussian kernel weights, so the fit is the weighted local quadratic
+and the standard error is the Taylor-linearized weighted-score sandwich; the weights are normalized
+to mean one, a zero-weight row is deleted, and the Kish effective size of the weights is reported
+(:class:`DoseDeclaredRows`). ``cluster`` (one label per row) gives the one-way cluster-robust
+variance, ``G / (G - 1)`` times the sum of squared cluster sums of the linearized scores, with a
+``t`` reference of ``G - 1`` degrees of freedom for the pointwise interval; ``serial_lag`` (rows in
+time order at unit spacing) gives the Newey-West (Bartlett) variance. Weights compose with either;
+``cluster`` and ``serial_lag`` together are refused (a panel needs a unit and a time). The
+bias-aware band draws its multipliers per cluster, or per block of ``serial_lag + 1`` consecutive
+rows, so it never assumes more independence than the pointwise intervals. Calibration of every
+interval stays unmeasured. An observational dose is refused (``dose_grid.graph_not_certified``):
+this row does not adjust.
 
 :meth:`DoseFunctionalResult.export` writes an artifact embedding the compact dose/outcome table;
 :func:`consume_dose_grid_artifact` recomputes the local-quadratic fit from it and refuses any
@@ -79,6 +90,7 @@ __all__ = [
     "DoseBiasAware",
     "DoseClaims",
     "DoseContrast",
+    "DoseDeclaredRows",
     "DoseFunctionalResult",
     "DoseGridRefusal",
     "DosePoint",
@@ -250,6 +262,41 @@ def _bias_aware(section: Mapping[str, Any] | None) -> DoseBiasAware | None:
 
 
 @dataclass(frozen=True, slots=True)
+class DoseDeclaredRows:
+    """What declared sampling weights, clusters or a serial lag did to the fit.
+
+    ``rows_used`` counts the rows after zero-weight rows were deleted. ``interval_reference`` is
+    ``"normal"`` or ``"student_t_clusters_minus_one"``. Calibration stays unmeasured.
+    """
+
+    rows_used: int
+    zero_weight_rows: int
+    weight_effective_sample_size: float | None
+    weight_sum: float | None
+    clusters: int | None
+    serial_lag: int | None
+    interval_reference: str
+
+
+def _declared_rows(section: Mapping[str, Any] | None) -> DoseDeclaredRows | None:
+    if section is None:
+        return None
+    ess = section.get("weight_effective_sample_size")
+    weight_sum = section.get("weight_sum")
+    clusters = section.get("clusters")
+    lag = section.get("serial_lag")
+    return DoseDeclaredRows(
+        rows_used=int(section["rows_used"]),
+        zero_weight_rows=int(section["zero_weight_rows"]),
+        weight_effective_sample_size=None if ess is None else float(ess),
+        weight_sum=None if weight_sum is None else float(weight_sum),
+        clusters=None if clusters is None else int(clusters),
+        serial_lag=None if lag is None else int(lag),
+        interval_reference=section["interval_reference"],
+    )
+
+
+@dataclass(frozen=True, slots=True)
 class DoseFunctionalResult:
     """One named functional of the dose response, its support, claims and artifact."""
 
@@ -279,6 +326,8 @@ class DoseFunctionalResult:
     quadratic_mean: bool = False
     #: Bias-aware intervals and band under a declared curvature bound, when one was declared.
     bias_aware: DoseBiasAware | None = None
+    #: What declared sampling weights, clusters or a serial lag did; ``None`` for plain rows.
+    declared_rows: DoseDeclaredRows | None = None
 
     @artifact_export
     def export(self) -> ExportedArtifact:
@@ -359,6 +408,17 @@ class DoseFunctionalResult:
             "inference_claim": self.inference_claim,
             "quadratic_mean": self.quadratic_mean,
             "bias_aware": None if self.bias_aware is None else self.bias_aware.to_dict(),
+            "declared_rows": None
+            if self.declared_rows is None
+            else {
+                "rows_used": self.declared_rows.rows_used,
+                "zero_weight_rows": self.declared_rows.zero_weight_rows,
+                "weight_effective_sample_size": self.declared_rows.weight_effective_sample_size,
+                "weight_sum": self.declared_rows.weight_sum,
+                "clusters": self.declared_rows.clusters,
+                "serial_lag": self.declared_rows.serial_lag,
+                "interval_reference": self.declared_rows.interval_reference,
+            },
         }
 
 
@@ -396,6 +456,57 @@ def _finite_list(values: list[float], what: str) -> list[float]:
     if not all(math.isfinite(x) for x in values):
         raise _invalid(f"{what} has a non-finite entry", what)
     return values
+
+
+def _cluster_ids(cluster: object, rows: int) -> list[int]:
+    """Dense integer ids (first-appearance order) of one hashable cluster label per row."""
+    try:
+        labels = list(cluster)  # type: ignore[call-overload]
+    except TypeError as error:
+        raise CausalTypeError("cluster must hold one label per row") from error
+    if len(labels) != rows:
+        raise _invalid(f"{len(labels)} cluster labels were declared for {rows} rows", "cluster")
+    ids: dict[Any, int] = {}
+    out: list[int] = []
+    for label in labels:
+        if isinstance(label, float) and not math.isfinite(label):
+            raise _invalid("a cluster label is not finite", "cluster")
+        if label is None:
+            raise _invalid("a cluster label is missing", "cluster")
+        try:
+            out.append(ids.setdefault(label, len(ids)))
+        except TypeError as error:
+            raise CausalTypeError("cluster labels must be hashable scalars") from error
+    return out
+
+
+def _declared_arguments(
+    rows: int,
+    sampling_weights: object,
+    cluster: object,
+    serial_lag: int | None,
+) -> dict[str, Any]:
+    """The native keyword arguments of the declared weights, clusters and serial lag."""
+    out: dict[str, Any] = {}
+    if sampling_weights is not None:
+        weights = _column(sampling_weights, "sampling_weights")
+        if len(weights) != rows:
+            raise _invalid(f"{len(weights)} sampling weights were declared for {rows} rows", "sampling_weights")
+        out["sampling_weights"] = weights
+    if cluster is not None:
+        out["cluster"] = _cluster_ids(cluster, rows)
+    if serial_lag is not None:
+        if isinstance(serial_lag, bool) or not isinstance(serial_lag, int):
+            raise CausalTypeError("serial_lag must be an int")
+        if serial_lag < 1:
+            raise _invalid("serial_lag must be at least one", "serial_lag")
+        if cluster is not None:
+            raise _invalid(
+                "cluster and serial_lag are not offered together: a panel needs a unit and a time",
+                "serial_lag",
+            )
+        out["serial_lag"] = serial_lag
+    return out
 
 
 def _point(item: Mapping[str, Any]) -> DosePoint:
@@ -463,6 +574,7 @@ def _result(report_json: str, artifact: bytes) -> DoseFunctionalResult:
         artifact=artifact,
         quadratic_mean=bool(request.get("quadratic_mean", False)),
         bias_aware=_bias_aware(result.get("bias_aware")),
+        declared_rows=_declared_rows(result.get("declared_rows")),
     )
 
 
@@ -482,13 +594,17 @@ def _dose_functional(
     curvature_bound: float | None = None,
     band_replicates: int = 2000,
     band_seed: int = 1,
+    sampling_weights: Sequence[float] | np.ndarray | None = None,
+    cluster: Sequence[Any] | np.ndarray | None = None,
+    serial_lag: int | None = None,
     threads: int | None = None,
     max_bytes: int | None = None,
     cancel: Any = None,
 ) -> DoseFunctionalResult:
     """Estimate one named functional of a randomized-dose response curve.
 
-    ``dose`` and ``outcome`` are aligned finite rows (independent; at least three).
+    ``dose`` and ``outcome`` are aligned finite rows (independent unless ``sampling_weights``,
+    ``cluster`` or ``serial_lag`` declare otherwise; at least three).
     ``functional`` selects ``"level"`` (``m(d)`` on ``grid``), ``"derivative"`` (``m'(d)`` on
     ``grid``) or ``"contrast"`` (``m(to) - m(from)`` for ``contrast=(from, to)``; no grid).
     ``bandwidth`` is the fixed Gaussian bandwidth and must lie in the caller-declared inclusive
@@ -563,10 +679,12 @@ def _dose_functional(
             "band_replicates": band_replicates,
             "band_seed": band_seed,
         }
+    dose_column = _column(dose, "dose")
     report, artifact, refusal = _evaluate(
         json.dumps(request, allow_nan=False),
-        _column(dose, "dose"),
+        dose_column,
         _column(outcome, "outcome"),
+        **_declared_arguments(len(dose_column), sampling_weights, cluster, serial_lag),
         threads=threads,
         max_bytes=max_bytes,
         cancel=cancel,
@@ -592,6 +710,9 @@ def dose_functional(
     curvature_bound: float | None = None,
     band_replicates: int = 2000,
     band_seed: int = 1,
+    sampling_weights: Sequence[float] | np.ndarray | None = None,
+    cluster: Sequence[Any] | np.ndarray | None = None,
+    serial_lag: int | None = None,
     execution: Execution | None = None,
 ) -> DoseFunctionalResult:
     """Estimate a randomized-dose smoother functional.
@@ -617,6 +738,9 @@ def dose_functional(
         curvature_bound=curvature_bound,
         band_replicates=band_replicates,
         band_seed=band_seed,
+        sampling_weights=sampling_weights,
+        cluster=cluster,
+        serial_lag=serial_lag,
         threads=execution.threads,
         max_bytes=execution.limits.memory_bytes,
         cancel=execution.cancel,
@@ -635,6 +759,9 @@ def quadratic_dose_functional(
     minimum_local_ess: float = DEFAULT_MINIMUM_LOCAL_ESS,
     claims: DoseClaims | None = None,
     design: Design = "randomized_dose",
+    sampling_weights: Sequence[float] | np.ndarray | None = None,
+    cluster: Sequence[Any] | np.ndarray | None = None,
+    serial_lag: int | None = None,
     execution: Execution | None = None,
 ) -> DoseFunctionalResult:
     """Attest an exact quadratic conditional mean and estimate its named functional.
@@ -659,6 +786,9 @@ def quadratic_dose_functional(
         minimum_local_ess=minimum_local_ess,
         claims=claims,
         design=design,
+        sampling_weights=sampling_weights,
+        cluster=cluster,
+        serial_lag=serial_lag,
         threads=execution.threads,
         max_bytes=execution.limits.memory_bytes,
         cancel=execution.cancel,

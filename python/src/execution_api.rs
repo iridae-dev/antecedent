@@ -14,6 +14,9 @@ pub(crate) struct Policy {
     cancel: Option<antecedent_core::CancellationToken>,
     /// Most Python callback failures one run retains for attribution.
     callback_failure_capacity: usize,
+    /// Observed treatment ranges a pulse's active level may lie beyond the observed treatment
+    /// interval; `None` keeps the engine default.
+    pulse_extrapolation_ranges: Option<f64>,
 }
 
 thread_local! {
@@ -52,6 +55,11 @@ pub(crate) fn apply(ctx: &mut ExecutionContext) {
     ctx.admission = policy.context.admission.clone();
     ctx.cache_policy = policy.context.cache_policy;
     ctx.kernel_policy = policy.context.kernel_policy;
+    if let Some(ranges) = policy.pulse_extrapolation_ranges {
+        if let Some(scoped) = ctx.with_pulse_extrapolation_ranges(ranges) {
+            *ctx = scoped;
+        }
+    }
     if let Some(progress) = &policy.progress {
         ctx.progress = crate::interrupt::bind_progress(Some(Arc::clone(progress)));
     }
@@ -70,7 +78,7 @@ pub(crate) struct PythonExecution {
 #[pymethods]
 impl PythonExecution {
     #[new]
-    #[pyo3(signature = (*, seed=1, threads=None, memory_bytes=None, cache="bounded", cache_bytes=Some(crate::PY_DEFAULT_CACHE_MAX_BYTES), kernel="auto", cancel=None, on_progress=None, callback_failure_capacity=crate::interrupt::DEFAULT_CALLBACK_FAILURE_CAPACITY))]
+    #[pyo3(signature = (*, seed=1, threads=None, memory_bytes=None, cache="bounded", cache_bytes=Some(crate::PY_DEFAULT_CACHE_MAX_BYTES), kernel="auto", cancel=None, on_progress=None, callback_failure_capacity=crate::interrupt::DEFAULT_CALLBACK_FAILURE_CAPACITY, pulse_extrapolation_ranges=None))]
     fn new(
         seed: u64,
         threads: Option<u32>,
@@ -81,7 +89,15 @@ impl PythonExecution {
         cancel: Option<crate::PyCancellationToken>,
         on_progress: Option<Bound<'_, PyAny>>,
         callback_failure_capacity: usize,
+        pulse_extrapolation_ranges: Option<f64>,
     ) -> PyResult<Self> {
+        if let Some(ranges) = pulse_extrapolation_ranges {
+            if !(ranges.is_finite() && ranges >= 0.0) {
+                return Err(crate::value_err(
+                    "pulse_extrapolation_ranges must be finite and nonnegative",
+                ));
+            }
+        }
         if threads == Some(0) {
             return Err(crate::value_err("threads must be positive"));
         }
@@ -112,7 +128,13 @@ impl PythonExecution {
         }
         let progress = crate::callbacks::progress_sink_from_py(on_progress.as_ref())?;
         Ok(Self {
-            policy: Arc::new(Policy { context, progress, cancel, callback_failure_capacity }),
+            policy: Arc::new(Policy {
+                context,
+                progress,
+                cancel,
+                callback_failure_capacity,
+                pulse_extrapolation_ranges,
+            }),
         })
     }
 
@@ -150,6 +172,7 @@ mod tests {
             progress: None,
             cancel: None,
             callback_failure_capacity: crate::interrupt::DEFAULT_CALLBACK_FAILURE_CAPACITY,
+            pulse_extrapolation_ranges: None,
         })
     }
 

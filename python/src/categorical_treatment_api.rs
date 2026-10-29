@@ -10,8 +10,9 @@
 
 use crate::bridge::{artifact_refusal_json, check_declared_size};
 use antecedent::analysis::categorical_treatment::{
-    CategoricalPosteriorDeclaration, CategoricalSpecWire, CategoricalTreatment,
-    CategoricalTreatmentArtifactError, CategoricalTreatmentIdentity, CategoricalTreatmentRequest,
+    CategoricalPosteriorDeclaration, CategoricalRowsRequest, CategoricalSpecWire,
+    CategoricalTreatment, CategoricalTreatmentArtifactError, CategoricalTreatmentIdentity,
+    CategoricalTreatmentRequest,
 };
 use antecedent::analysis::vector_treatment::AdjustmentColumnRequest;
 use pyo3::prelude::*;
@@ -61,8 +62,12 @@ fn check_size(text: &str) -> PyResult<()> {
 /// Fit the categorical regime: `(report json, artifact bytes, refusal json)`; an export over its
 /// byte budget returns the report and the refusal with no artifact.
 ///
-/// `adjustment_columns[j]` is the column of `declaration.adjustment[j]`.
+/// `adjustment_columns[j]` is the column of `declaration.adjustment[j]`. `sampling_weights` and
+/// `cluster` (one entry per row) and `serial_lag` declare the rows' weights and dependence; each
+/// is read by the matching covariance kind or refused, and is bound by the artifact digests.
 #[pyfunction]
+#[pyo3(signature = (outcome, adjustment_columns, levels, declaration_json, artifact_id, *, sampling_weights=None, cluster=None, serial_lag=None))]
+#[allow(clippy::too_many_arguments, reason = "the rows, their declarations and the artifact id")]
 fn evaluate_categorical_treatment(
     py: Python<'_>,
     outcome: Vec<f64>,
@@ -70,6 +75,9 @@ fn evaluate_categorical_treatment(
     levels: Vec<String>,
     declaration_json: &str,
     artifact_id: &str,
+    sampling_weights: Option<Vec<f64>>,
+    cluster: Option<Vec<u32>>,
+    serial_lag: Option<u64>,
 ) -> PyResult<EvaluatePayload> {
     check_size(declaration_json)?;
     let declared: Declaration = serde_json::from_str(declaration_json)
@@ -96,8 +104,18 @@ fn evaluate_categorical_treatment(
         spec: declared.spec,
     };
     let artifact_id = artifact_id.to_owned();
+    let rows = CategoricalRowsRequest { sampling_weights, cluster, serial_lag };
     detach_catch(py, move || {
-        match CategoricalTreatment::evaluate(&request).and_then(|done| match &posterior {
+        let fitted = if rows.is_plain() {
+            CategoricalTreatment::evaluate(&request)
+        } else {
+            CategoricalTreatment::evaluate_declared(
+                &request,
+                &rows,
+                &antecedent_core::ExecutionContext::production(0, 1),
+            )
+        };
+        match fitted.and_then(|done| match &posterior {
             Some(declaration) => done.with_posterior(declaration),
             None => Ok(done),
         }) {
