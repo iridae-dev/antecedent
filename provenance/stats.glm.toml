@@ -60,7 +60,7 @@ sha256 = "aa3472a7f5139bb79b3ed6b7985238ebbe8eab607c2f64b0e94c47c7395847d3"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/glm_reference.rs"
-sha256 = "34fc7115f4730f49a4450619955e5317362121cc559fb1d0420cd2b13c09e88c"
+sha256 = "67d3a17629c9706ae36971eb654d885730c56431b2cb486c0a5e9a08b536d094"
 
 [[method_review.artifacts]]
 role = "reference"

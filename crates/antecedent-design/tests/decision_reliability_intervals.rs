@@ -226,7 +226,8 @@ fn common_random_numbers_narrow_the_difference_interval() {
         i.upper - i.lower
     };
     // Variance ratio is 1 - rho = 0.1, so the standard error ratio is about 0.32.
-    assert!(width(&shared) < 0.5 * width(&separate));
+    let ratio = width(&shared) / width(&separate);
+    assert!((ratio - 0.1_f64.sqrt()).abs() < 0.03, "{ratio}");
 }
 
 // ---- selection component ------------------------------------------------------------
@@ -540,7 +541,54 @@ fn a_derivation_is_published_inside_a_measured_record_and_refused_outside_it() {
     }
 }
 
+#[test]
+fn a_derivation_is_refused_publication_at_every_coordinate_while_calibration_is_pending() {
+    // No coverage record is attested while calibration is pending, so no route opens at any
+    // coordinate (a shared stream, two candidates, 1000 or 100 draws, other levels, simultaneous
+    // intervals); each refusal names the coordinate that a record would have to measure.
+    let design = |n_draws: usize| KnownOptimumDesign {
+        true_means: vec![0.5, 0.0],
+        noise_sd: 1.0,
+        n_draws,
+        coupling: NoiseCoupling::SharedStream { correlation: 0.5 },
+    };
+    let stream = StreamId::new(77, StreamPurpose::Selection, 0, "measured");
+    let request = ReliabilityRequest {
+        ranking: Some(RankingRequest::default()),
+        ..expected_utility_request()
+    };
+    let simultaneous =
+        IntervalRequest { level: 0.95, multiplicity: IntervalMultiplicity::Simultaneous };
+    for (n_draws, interval, budget) in [
+        (1000, IntervalRequest::marginal(0.95), "mc_budget=1000"),
+        (1000, IntervalRequest::marginal(0.9), "mc_budget=1000"),
+        (1000, simultaneous, "mc_budget=1000"),
+        (100, IntervalRequest::marginal(0.95), "mc_budget=100"),
+    ] {
+        let draws = simulate_selection_draws(&design(n_draws), &stream).unwrap();
+        let derived = derive_uncertainty(&draws, None, &request, &interval, &ctx()).unwrap();
+        assert_eq!(derived.standing, DerivedStanding::DerivedUnmeasured);
+        for route in PublishedRoute::ALL {
+            let error = derived.publish(route).unwrap_err();
+            assert_eq!(error.reason_code(), "cell_not_licensed", "{} {budget}", route.as_str());
+            let offending = error.to_refusal().offending.unwrap();
+            assert!(offending.contains("candidate_set_size=2"), "{offending}");
+            assert!(offending.contains(budget), "{offending}");
+            assert!(offending.contains("coupling=shared_simulation"), "{offending}");
+        }
+    }
+}
+
 // ---- fresh consumer -----------------------------------------------------------------
+
+fn assert_recompute_refusal(result: Result<(), ReliabilityError>) {
+    match result {
+        Err(ReliabilityError::InvalidInput { slot: "derived_uncertainty", message }) => {
+            assert_eq!(message, "stored derivation does not recompute from the draws");
+        }
+        other => panic!("expected the recompute refusal, got {other:?}"),
+    }
+}
 
 #[test]
 fn a_fresh_consumer_rederives_and_refuses_edited_draws_or_edited_intervals() {
@@ -553,15 +601,15 @@ fn a_fresh_consumer_rederives_and_refuses_edited_draws_or_edited_intervals() {
     // One utility changed at unchanged shape: the stored derivation no longer recomputes.
     let mut edited = draws.clone();
     edited.candidates[0].utilities[0] += 0.5;
-    assert!(derived.verify(&edited, None, &request, &ctx()).is_err());
+    assert_recompute_refusal(derived.verify(&edited, None, &request, &ctx()));
     // A claimed interval edited after the fact.
     let mut forged = derived.clone();
     forged.selection.corrected.as_mut().unwrap().lower += 1.0;
-    assert!(forged.verify(&draws, None, &request, &ctx()).is_err());
+    assert_recompute_refusal(forged.verify(&draws, None, &request, &ctx()));
     // A changed request level is part of the derivation.
     let mut other_level = derived.clone();
     other_level.request.level = 0.9;
-    assert!(other_level.verify(&draws, None, &request, &ctx()).is_err());
+    assert_recompute_refusal(other_level.verify(&draws, None, &request, &ctx()));
 }
 
 // ---- measurement design -------------------------------------------------------------

@@ -243,6 +243,19 @@ def test_route_interference_tabular_explicit():
     contrast = result.interference
     assert contrast is not None
     assert result.estimate.ate == contrast.contrast.horvitz_thompson
+    # Independent Horvitz-Thompson contrast from the definition: own 1 vs own 0 with no treated
+    # neighbour, each exposure having Bernoulli(1/2) probability 0.5 * 0.5^2 (the product's
+    # probabilities are Monte Carlo at 40 units, hence the 0.05 band around the exact one).
+    treated = np.array(assignment, dtype=float)
+    neighbors = np.array(
+        [treated[(i + 1) % UNITS] + treated[(i - 1) % UNITS] for i in range(UNITS)]
+    )
+    pi = 0.5 * 0.25
+    y = data["y"]
+    exact = (
+        y[(treated == 1.0) & (neighbors == 0.0)].sum() - y[(treated == 0.0) & (neighbors == 0.0)].sum()
+    ) / (pi * UNITS)
+    assert result.estimate.ate == pytest.approx(exact, abs=0.05)
     assert result.estimate.se_analytic == pytest.approx(
         np.sqrt(contrast.contrast.conservative_variance)
     )

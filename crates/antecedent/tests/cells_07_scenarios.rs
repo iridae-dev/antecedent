@@ -216,6 +216,10 @@ fn a_clustered_panel_is_read_through_a_clustered_assignment_design() {
     let undeclared = run(None).unwrap();
     let declared = run(Some(DeclaredSamplingDesign::ClusteredPanel)).unwrap();
     assert_eq!(declared.effect().to_bits(), undeclared.effect().to_bits());
+    // Hand value: units of the four treated clusters (exposure own 1, neighbours 1) sum to 26 (2+3.5+5+2.5, twice) and
+    // the four control clusters (exposure 0, 0) to 18; each exposure has probability 1/2, so the
+    // Horvitz-Thompson contrast is (26 / 0.5 - 18 / 0.5) / 16 = 1 (and so is the Hajek one).
+    assert!((undeclared.effect() - 1.0).abs() < 1e-12, "{}", undeclared.effect());
     let error = run(Some(DeclaredSamplingDesign::DependentTimeSeries)).err().unwrap();
     assert_eq!(error.reason_code(), Some("option_not_applicable"), "{error}");
 }

@@ -19,6 +19,8 @@ import math
 import subprocess
 import sys
 
+import numpy as np
+
 import pytest
 from antecedent import Execution
 from antecedent import measurement_models as mm
@@ -774,8 +776,18 @@ def test_a_regression_redraw_spreads_around_the_declared_structural_equation():
     assert aligned.quantities == ("conditional_mean", "conditional_variance")
     assert aligned.point == pytest.approx((9.0, 0.25), abs=1e-10)
     mean, spread = require_success(aligned.spread("conditional_mean"))
-    assert spread > 0.0
-    assert abs(mean - 9.0) < 0.5
+    # The redrawn conditional mean is centred on the least-squares prediction at (X, M) =
+    # (2, 3) with the spread of its standard error, sqrt(s^2 x0' (X'X)^-1 x0).
+    design = np.column_stack([np.ones(60), x, m])
+    beta, *_ = np.linalg.lstsq(design, np.asarray(y), rcond=None)
+    residual = np.asarray(y) - design @ beta
+    x0 = np.array([1.0, 2.0, 3.0])
+    prediction = float(x0 @ beta)
+    standard_error = float(
+        np.sqrt(residual @ residual / 57.0 * (x0 @ np.linalg.inv(design.T @ design) @ x0))
+    )
+    assert abs(mean - prediction) < 0.01, (mean, prediction)
+    assert abs(spread / standard_error - 1.0) < 0.15, (spread, standard_error)
     with pytest.raises(ObservationQueryRefusal):
         oq.parameter_uncertainty(
             gaussian_chain(),

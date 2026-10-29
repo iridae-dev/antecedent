@@ -331,18 +331,33 @@ fn a_dependent_or_underdetermined_design_has_no_sandwich() {
         .collect();
     for (x, p) in [(&dup, 3), (&zero, 2), (&multiple, 3)] {
         for kind in [SandwichKind::Hc0, SandwichKind::Hc3, SandwichKind::Homoskedastic] {
-            assert!(coefficient_covariance(x, 6, p, &e, kind).is_err(), "p {p} {kind:?}");
+            let err = coefficient_covariance(x, 6, p, &e, kind).unwrap_err();
+            assert!(
+                matches!(&err, StatsError::Backend(m) if m == "singular sandwich bread"),
+                "p {p} {kind:?}: {err:?}"
+            );
         }
-        assert!(hc2_coefficient_bell_mccaffrey(x, 6, p, &e, 0).is_err());
+        let err = hc2_coefficient_bell_mccaffrey(x, 6, p, &e, 0).unwrap_err();
+        assert!(
+            matches!(&err, StatsError::Backend(m) if m == "singular sandwich bread"),
+            "p {p}: {err:?}"
+        );
     }
     // Fewer rows than columns.
     let wide: Vec<f64> = (0..8).map(f64::from).collect();
-    assert!(coefficient_covariance(&wide, 2, 4, &e[..2], SandwichKind::Hc0).is_err());
+    let err = coefficient_covariance(&wide, 2, 4, &e[..2], SandwichKind::Hc0).unwrap_err();
+    assert!(matches!(&err, StatsError::Backend(m) if m == "singular sandwich bread"), "{err:?}");
     // A leverage-one row (its own dummy) is refused by HC2/HC3 and fine for HC0/HC1.
     let x = [1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0];
     let r = [0.0, 0.5, -0.5, 0.0];
-    assert!(coefficient_covariance(&x, 4, 2, &r, SandwichKind::Hc2).is_err());
-    assert!(coefficient_covariance(&x, 4, 2, &r, SandwichKind::Hc3).is_err());
+    for kind in [SandwichKind::Hc2, SandwichKind::Hc3] {
+        let err = coefficient_covariance(&x, 4, 2, &r, kind).unwrap_err();
+        assert!(
+            matches!(&err, StatsError::Backend(m)
+                if m.starts_with("HC2/HC3 are undefined for 1 row(s) with leverage 1 (rows 0)")),
+            "{kind:?}: {err:?}"
+        );
+    }
     assert!(coefficient_covariance(&x, 4, 2, &r, SandwichKind::Hc0).is_ok());
     assert!(coefficient_covariance(&x, 4, 2, &r, SandwichKind::Hc1).is_ok());
 }

@@ -399,15 +399,15 @@ def test_request_bounds_are_refusals():
     many = [observation(f"n{k}", ["t", "y", "z1"], k + 1) for k in range(17)]
     # No single study of these reads the joint law of {t, y, z1, z2}, so none certifies a repair.
     searched = repair.repair(backdoor(), many)
-    assert searched.outcome in {"none_certified", "exhausted"}
-    if searched.outcome == "exhausted":
-        assert searched.receipt.unevaluated_total > 0
+    assert searched.outcome == "none_certified"
+    assert searched.best is None
+    assert searched.receipt.unevaluated_total == 0
     # One study that does read it is found among the many, within the declared work.
     with_cohort = [*many, observation("cohort", ["t", "y", "z1", "z2"], 20)]
     found = repair.repair(backdoor(), with_cohort)
-    assert found.outcome in {"repaired", "exhausted"}
-    if found.outcome == "exhausted":
-        assert found.receipt.unevaluated_total > 0
+    assert found.outcome == "repaired"
+    assert found.best.labels == ("cohort",)
+    assert found.receipt.unevaluated_total == 0
     with pytest.raises(repair.RepairRefusal) as caught:
         repair.repair(backdoor(), candidates(), limits=repair.RepairLimits(max_operations=10**9))
     assert caught.value.detail == "identification_repair.bounds_exceeded"

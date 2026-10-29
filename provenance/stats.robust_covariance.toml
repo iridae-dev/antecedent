@@ -55,7 +55,7 @@ sha256 = "9607cb41faa47dd68e68101cc508121aeabcced372990b2c31946e62f4e977e2"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/sandwich_reference.rs"
-sha256 = "fa750c21347ace183fadebc8ad8ccffb3e3954444dbdbfb681801eb41074bcc2"
+sha256 = "b229d9452e060b3675d0f076ca09252926a4c8e4a9119171c1af1d001d82e590"
 
 [[method_review.artifacts]]
 role = "reference"

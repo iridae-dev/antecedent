@@ -92,7 +92,7 @@ def test_known_truth_grid_under_each_design(design):
     )
     assert [p.dose for p in result.grid] == list(GRID)
     for point in result.grid:
-        assert point.estimate == pytest.approx(truth(point.dose), abs=0.3)
+        assert point.estimate == pytest.approx(truth(point.dose), abs=0.1)
         assert point.quadrature["estimate_error"] < 1e-9
         assert point.estimate == pytest.approx(point.plug_in + point.augmentation, abs=1e-12)
     assert result.interval is None
@@ -115,7 +115,7 @@ def test_prepare_smoothed_dose_retains_a_checked_plan_after_builder_disposal():
     assert plan.certificate["formula"] == "standardize"
     assert plan.certificate["over"] == (0,)
     assert plan.query["grid"] == GRID
-    assert plan[2.0].estimate == pytest.approx(truth(2.0), abs=0.3)
+    assert plan[2.0].estimate == pytest.approx(truth(2.0), abs=0.1)
 
 
 @pytest.mark.parametrize("design", DESIGNS)
@@ -129,7 +129,7 @@ def test_estimate_executes_the_retained_plan_after_builder_disposal(design):
     assert require_success(study.estimate()).execution_id == plan.execution_id
     assert plan.sampling == design
     assert all(
-        p.smoothing_bias["local_quadratic_bias"] == pytest.approx(H * H / 5, abs=0.05)
+        p.smoothing_bias["local_quadratic_bias"] == pytest.approx(H * H / 5, abs=0.005)
         for p in plan.grid
     )
 
@@ -214,7 +214,7 @@ def test_smoothed_dose_estimator_menu_reads_the_retained_plan_after_builder_disp
     plan = study.estimator_menu()
     assert plan["smoothed_dose_transport_aipw"].refusal is None
     assert plan["smoothed_dose_transport_aipw"].sampling_design == ("independent_samples",)
-    assert require_success(study.estimate())[2.0].estimate == pytest.approx(truth(2.0), abs=0.3)
+    assert require_success(study.estimate())[2.0].estimate == pytest.approx(truth(2.0), abs=0.1)
 
 
 def test_refusals_carry_their_reason_codes():

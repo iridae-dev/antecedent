@@ -728,5 +728,5 @@ fn class_effect_is_stated_under_the_class_and_reads_its_envelope() {
     assert_eq!(target.assumptions().graph(), GraphFamily::TemporalCpdag);
     let envelope = matches!(program.statistical().realization(), Realization::Envelope(_));
     let bounds = program.claim().kind() == Some(ClaimKind::Bounds);
-    assert_eq!(envelope, bounds, "an identified set is read as an envelope");
+    assert!(envelope && bounds, "an identified set is read as an envelope claiming bounds");
 }

@@ -322,46 +322,50 @@ fn invalid_outcomes_and_weights_are_refused() {
     let mut y = floats(&case["y"]);
     y[0] = 0.5;
     let design = GlmDesignRef { x_colmajor: &x, nrows: n, ncols: p, y: &y };
-    assert!(
-        fit_glm(GlmFamily::BinomialLogit, design, &FaerBackend, &mut ws, &GlmOptions::default())
-            .is_err()
+    let shape = |r: Result<GlmFit, StatsError>, want: &str| match r {
+        Err(StatsError::Shape { message }) => assert_eq!(message, want),
+        other => panic!("expected the shape refusal {want:?}, got {other:?}"),
+    };
+    shape(
+        fit_glm(GlmFamily::BinomialLogit, design, &FaerBackend, &mut ws, &GlmOptions::default()),
+        "binomial GLM requires 0/1 outcomes",
     );
-    assert!(
+    shape(
         fit_glm(
             GlmFamily::PoissonLog,
             GlmDesignRef { y: &[-1.0; 60], ..design },
             &FaerBackend,
             &mut ws,
-            &GlmOptions::default()
-        )
-        .is_err()
+            &GlmOptions::default(),
+        ),
+        "Poisson GLM requires non-negative outcomes",
     );
     let y = floats(&case["y"]);
     let design = GlmDesignRef { x_colmajor: &x, nrows: n, ncols: p, y: &y };
     for bad in [-1.0, f64::NAN, f64::INFINITY] {
         let mut w = vec![1.0; n];
         w[3] = bad;
-        assert!(
+        shape(
             fit_glm_weighted(
                 GlmFamily::BinomialLogit,
                 design,
                 &w,
                 &FaerBackend,
                 &mut ws,
-                &GlmOptions::default()
-            )
-            .is_err()
+                &GlmOptions::default(),
+            ),
+            "prior weights must be finite and non-negative",
         );
     }
-    assert!(
+    shape(
         fit_glm_weighted(
             GlmFamily::BinomialLogit,
             design,
             &vec![1.0; n - 1],
             &FaerBackend,
             &mut ws,
-            &GlmOptions::default()
-        )
-        .is_err()
+            &GlmOptions::default(),
+        ),
+        "weights length != nrows",
     );
 }

@@ -310,8 +310,14 @@ def test_average_effect_population_changes_the_answer_and_the_target() -> None:
         )
 
     ate, att = run(None), run(P.Treated())
-    # The effect grows with z and the treated have higher z.
-    assert att.ate > ate.ate + 0.3
+    # The effect grows with z and the treated have higher z. The true unit
+    # effect is 1 + 2z + 0.7 * 0.8 + 0.5w, so the all-row and treated-row means
+    # of it are the targets (sampling error of AIPW at n=1200 is about 0.2).
+    tau = 1.0 + 2.0 * data["z"] + 0.56 + 0.5 * data["w"]
+    true_ate, true_att = tau.mean(), tau[data["t"] == 1.0].mean()
+    assert abs(ate.ate - true_ate) < 0.4, (ate.ate, true_ate)
+    assert abs(att.ate - true_att) < 0.4, (att.ate, true_att)
+    assert true_att - true_ate > 0.8
     assert att.inspect().target_id != ate.inspect().target_id
     assert att.program_id != ate.program_id
     loaded = require_success(ant.load(bytes(att.export())))
@@ -353,7 +359,9 @@ def test_analyze_many_estimates_each_query_population() -> None:
             )
         ).members
     )
-    assert att.ate > ate.ate + 0.3
+    data_tau = 1.0 + 2.0 * data["z"] + 0.56 + 0.5 * data["w"]
+    assert abs(ate.ate - data_tau.mean()) < 0.4
+    assert abs(att.ate - data_tau[data["t"] == 1.0].mean()) < 0.4
     single = require_success(
         ant.analyze(data, graph=STATIC_DAG, query=queries[1], estimator="aipw", refute=False)
     )
