@@ -1324,20 +1324,22 @@ fn require_declared_dependence_read(
     // influence-function interval over independent rows and do not bootstrap: the replicates
     // setting changes nothing in them, so it is not a way to read a declared clustered panel or
     // dependent series.
+    let cell_aipw = carry.declared.estimator == Some(EstimatorId::CellAipw);
     if let CausalQuery::Response(response) = query {
         if replicates > 0
             && response.temporal.is_none()
-            && graph_class == GraphClass::Dag
-            && carry.declared.estimator_spec.is_none()
-            && matches!(
-                response.functional,
-                antecedent_core::ResponseFunctional::MeanCurve { .. }
-                    | antecedent_core::ResponseFunctional::InterventionResponse { .. }
-            )
+            && (cell_aipw
+                || (graph_class == GraphClass::Dag
+                    && carry.declared.estimator_spec.is_none()
+                    && matches!(
+                        response.functional,
+                        antecedent_core::ResponseFunctional::MeanCurve { .. }
+                            | antecedent_core::ResponseFunctional::InterventionResponse { .. }
+                    )))
         {
             return Err(crate::unsupported_reason!(
                 "option_not_applicable",
-                "the default response curve and intervention response publish an \
+                "the default response curve, the intervention response and the joint cell AIPW publish an \
                  influence-function interval over independent rows and do not bootstrap, so a \
                  declared clustered-panel or dependent-time-series design would be silently \
                  ignored whatever the bootstrap setting. Next attempt: declare independent \
