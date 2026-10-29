@@ -1216,9 +1216,17 @@ fn frequentist_point_derivative_transforms_publish_a_delta_method_interval() {
     };
     // Each transform publishes a Confidence scalar. Elasticity uses Fieller
     // bounds; the remaining transforms use a delta-method interval.
-    for (label, functional) in [
-        ("elasticity", point_query(DerivativeScale::LogLog)),
-        ("semi_elasticity_log_outcome", point_query(DerivativeScale::LogOutcome)),
+    for (label, functional, truth) in [
+        (
+            "elasticity",
+            point_query(DerivativeScale::LogLog),
+            Some(AT * mu_prime(AT) / mu(AT)),
+        ),
+        (
+            "semi_elasticity_log_outcome",
+            point_query(DerivativeScale::LogOutcome),
+            Some(mu_prime(AT) / mu(AT)),
+        ),
         (
             "semi_elasticity_log_treatment_order_2",
             F::PointDerivative {
@@ -1228,6 +1236,7 @@ fn frequentist_point_derivative_transforms_publish_a_delta_method_interval() {
                 order: 2,
                 scale: DerivativeScale::LogTreatment,
             },
+            None,
         ),
     ] {
         let response = run(&data, &graph, functional, Some(BANDWIDTH), None, 7).unwrap();
@@ -1235,6 +1244,16 @@ fn frequentist_point_derivative_transforms_publish_a_delta_method_interval() {
         let (lower, upper) =
             scalar_interval(&response).unwrap_or_else(|| panic!("{label}: interval must publish"));
         assert!(lower <= upper, "{label}: interval must be ordered");
+        if let Some(truth) = truth {
+            let value = scalar_value(&response);
+            assert!(lower <= value && value <= upper, "{label}: the point lies in its interval");
+            assert!(
+                lower <= truth && truth <= upper,
+                "{label}: the interval ({lower}, {upper}) covers the true {truth}"
+            );
+            let half = (upper - lower) / 2.0;
+            assert!((value - truth).abs() <= half, "{label}: {value} vs truth {truth}, half {half}");
+        }
         assert!(
             matches!(
                 response.uncertainty,
@@ -1258,16 +1277,29 @@ fn frequentist_point_derivative_transforms_publish_a_delta_method_interval() {
         assert!(no_withheld(&response), "{label}: must not withhold");
     }
     // The identity / log-treatment order-1 cases keep their direct-SE interval.
-    for (label, functional) in [
-        ("semi_elasticity_log_treatment", point_query(DerivativeScale::LogTreatment)),
-        ("point_derivative", point_query(DerivativeScale::Identity)),
+    for (label, functional, truth) in [
+        (
+            "semi_elasticity_log_treatment",
+            point_query(DerivativeScale::LogTreatment),
+            AT * mu_prime(AT),
+        ),
+        ("point_derivative", point_query(DerivativeScale::Identity), mu_prime(AT)),
     ] {
         let response = run(&data, &graph, functional, Some(BANDWIDTH), None, 7).unwrap();
-        assert!(scalar_interval(&response).is_some(), "{label}: interval is published");
+        let (lower, upper) = scalar_interval(&response)
+            .unwrap_or_else(|| panic!("{label}: interval is published"));
+        let value = scalar_value(&response);
+        assert!(lower <= value && value <= upper, "{label}: the point lies in its interval");
+        assert!(
+            lower <= truth && truth <= upper,
+            "{label}: the interval ({lower}, {upper}) covers the true {truth}"
+        );
+        let half = (upper - lower) / 2.0;
+        assert!((value - truth).abs() <= half, "{label}: {value} vs truth {truth}, half {half}");
     }
     // The multivariate GAM plug-in still withholds the Frequentist interval and
     // says why; the closed band the gate measures is around the published point.
-    let gam = gam_data(300, 7);
+    let gam = gam_data(3_000, 7);
     for (label, functional) in
         [("jacobian", jacobian_query()), ("directional", directional_query())]
     {
@@ -1292,6 +1324,13 @@ fn frequentist_point_derivative_transforms_publish_a_delta_method_interval() {
         };
         let (internal, bands) = gam_internal_band(&gam, &functional);
         assert_eq!(internal, values.to_vec(), "{label}: the gate measures the published point");
+        let truth: &[f64] = if label == "jacobian" { &JACOBIAN_TRUTH } else { &DIRECTIONAL_TRUTH };
+        assert_eq!(values.len(), truth.len(), "{label}: dimension");
+        for (value, truth) in values.iter().zip(truth) {
+            // n = 3,000 spline plug-in (observed error at most 0.08; it shrinks to 0.05 at
+            // 20,000 rows): a transposed or sign-flipped Jacobian is off by 0.5 or more.
+            assert!((value - truth).abs() < 0.15, "{label}: {value} vs truth {truth}");
+        }
         assert!(bands.iter().zip(&internal).all(|(&(lo, hi), &v)| lo < v && v < hi));
     }
 }

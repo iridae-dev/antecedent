@@ -39,11 +39,15 @@ def test_staleness_assesses_canonical_preparation_without_estimating_or_mutating
     assert original.recommendation == "reuse"
     assert original.findings == ()
     assert original.changed_keys == original.invalidated == ()
+    # Fresh draws of the same law are not drift; a 0.35 mean shift of z is.
+    for seed in (2, 3, 4):
+        assert require_success(drift.staleness(study, sample(seed), policy=POLICY)).findings == ()
     shifted = drift.staleness(study, sample(2, shift=0.35), policy=POLICY)
     assert shifted.accepted
     assert shifted.answer.kind == "structured"
     report = require_success(shifted)
     assert report.recommendation == "refresh"
+    assert {finding.kind for finding in report.findings} == {"covariate_shift", "joint_shift"}
     assert "data_snapshot" in report.changed_keys
     assert {"score_artifact", "law", "decision"} <= set(report.invalidated)
     assert "identification" not in report.invalidated
@@ -120,13 +124,15 @@ def test_drift_inspection_is_bounded_and_never_reprofiles(monkeypatch):
 
 def test_baseline_consumption_rejects_tampering_and_wrong_expected_identity():
     artifact = require_success(drift.baseline(_study(), policy=POLICY)).export()
-    with pytest.raises(ant.CausalError):
+    from antecedent.errors import CausalSerializationError, CausalValueError
+
+    with pytest.raises(CausalValueError, match="identity differs from expectation"):
         ant.load(artifact, expected="0" * 64)
     changed = bytearray(bytes(artifact))
     changed[-1] ^= 1
-    with pytest.raises(ant.CausalError):
+    with pytest.raises(CausalSerializationError, match="seal does not verify"):
         ant.load(bytes(changed))
-    with pytest.raises(ant.CausalError):
+    with pytest.raises(CausalSerializationError, match="truncated staleness baseline"):
         drift.consume_baseline(bytes(artifact)[:20])
 
 

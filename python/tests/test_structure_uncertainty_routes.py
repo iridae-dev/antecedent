@@ -153,6 +153,8 @@ def test_a_stability_search_matches_the_search_it_wraps_on_the_full_sample():
     full = {(e.source, e.target, e.at_source, e.at_target) for e in direct.graph_edges}
     unordered = lambda edges: {frozenset((a, b)) for a, b, *_ in edges}  # noqa: E731
     assert unordered(reference) == unordered(full)
+    # The generating skeleton is z - t - y (no direct z -> y edge), not merely what PC returned.
+    assert unordered(reference) == {frozenset(("z", "t")), frozenset(("t", "y"))}
 
 
 def test_a_series_stability_search_resamples_circular_blocks():
@@ -163,8 +165,14 @@ def test_a_series_stability_search_resamples_circular_blocks():
     _assert_contract(result, "frequentist")
     assert result.structure_class == "temporal_dag"
     assert result.replicates_requested == 12
-    lagged = [e for e in result.edges if e.in_reference and e.frequency >= 0.8]
-    assert lagged
+    # y_t = 0.8 x_{t-1} + noise and x is white noise: the one true link is x(t-1) -> y(t),
+    # present in the reference and in nearly every circular-block resample; nothing else is.
+    assert [(e.source, e.source_lag, e.target, e.target_lag) for e in result.reference_edges] == [
+        ("x", 1, "y", 0)
+    ]
+    link = next(e for e in result.edges if (e.source, e.target, e.source_lag) == ("x", "y", 1))
+    assert link.in_reference and link.frequency >= 0.8
+    assert all(e.frequency < 0.5 for e in result.edges if not e.in_reference)
 
 
 def test_a_panel_stability_search_resamples_whole_units():
@@ -175,7 +183,10 @@ def test_a_panel_stability_search_resamples_whole_units():
         names, pooled, base="pcmci", replicates=10, max_lag=1, seed=1, unit_lengths=[120, 120]
     )
     assert result.replicates_requested == 10
-    assert result.replicates_succeeded >= 5
+    assert result.replicates_succeeded >= 8
+    # Resampling whole units keeps the lagged link x(t-1) -> y(t) of both units.
+    link = next(e for e in result.edges if (e.source, e.target, e.source_lag) == ("x", "y", 1))
+    assert link.in_reference and link.frequency >= 0.8
 
 
 def test_the_python_wrapper_validates_and_runs_the_stability_search():
@@ -205,8 +216,8 @@ def test_unsupported_bases_are_refused_with_a_next_attempt():
         _native.discover_bootstrap_stability(names, cols, base="pc", unit_lengths=[300])
     with_missing = [c.copy() for c in cols]
     with_missing[0][3] = np.nan
-    # rows are incomplete: a typed value or unsupported refusal, never an unrelated failure
-    with pytest.raises((ValueError, CausalValueError, CausalUnsupportedError)):
+    # rows are incomplete: the typed unsupported refusal names the option and the next attempt
+    with pytest.raises(CausalUnsupportedError, match="option_not_applicable.*drop the rows"):
         _native.discover_bootstrap_stability(names, with_missing, base="pc", replicates=5)
 
 

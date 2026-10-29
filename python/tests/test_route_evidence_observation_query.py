@@ -286,3 +286,7 @@ def test_the_native_consume_entry_returns_the_replayed_summary_or_a_refusal() ->
     assert wire["operation"] == "posterior_update"
     raw, refusal = _native.observation_query_consume(bytes(claim.export()), "0" * 64)
     assert raw is None and refusal is not None
+    refused = json.loads(refusal)
+    assert refused["code"] == "invalid_argument"
+    assert refused["detail"] == "observation_query.artifact_refused"
+    assert refused["stage"] == "consume"

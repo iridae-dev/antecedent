@@ -898,8 +898,15 @@ fn the_practitioner_study_is_a_well_posed_design() {
         .run(&ExecutionContext::for_tests(17))
         .unwrap();
     let effect = result.estimate().as_effect().unwrap();
-    assert!((effect.ate - TRUTH).abs() < 0.15, "ate {}", effect.ate);
     assert!(effect.se_analytic() > 0.0);
+    // The estimate sits within five analytic standard errors of the generating effect (the
+    // cluster-level treatment shift has mean zero), not merely within a fixed 0.15.
+    assert!(
+        (effect.ate - TRUTH).abs() < 5.0 * effect.se_analytic(),
+        "ate {} se {}",
+        effect.ate,
+        effect.se_analytic()
+    );
 }
 
 /// A Laplace request for 64 draws keeps its draws, mean and sd; its effect interval is the
@@ -923,6 +930,15 @@ fn a_64_draw_laplace_request_publishes_the_exchangeable_rank_interval() {
     assert_eq!(posterior.draws.n_draws, 64);
     let column = posterior.effect_column().unwrap();
     let (lower, upper) = rank_interval(posterior.draws.column(column).unwrap(), 0.95);
+    // Exchangeable-rank (type 6) by hand: position (n + 1) p = 65 * 0.025 = 1.625 and
+    // 65 * 0.975 = 63.375 (1-based) interpolate the order statistics linearly.
+    let mut sorted = posterior.draws.column(column).unwrap().to_vec();
+    sorted.sort_by(f64::total_cmp);
+    let by_hand = (
+        sorted[0] + 0.625 * (sorted[1] - sorted[0]),
+        sorted[62] + 0.375 * (sorted[63] - sorted[62]),
+    );
+    assert!((by_hand.0 - lower).abs() < 1e-12 && (by_hand.1 - upper).abs() < 1e-12);
     assert_eq!(posterior.summaries.q025[column].to_bits(), lower.to_bits());
     assert_eq!(posterior.summaries.q975[column].to_bits(), upper.to_bits());
     let own = posterior.draws.summarize();

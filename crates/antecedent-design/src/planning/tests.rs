@@ -164,10 +164,11 @@ fn one_look_is_the_fixed_z_design_and_inflation_matches_jennison_turnbull() {
     assert!((one.analytic.value - fixed).abs() < 1e-6);
     // Jennison and Turnbull (2000), table 2.4, K = 3, two-sided 0.05, power 0.9:
     // O'Brien-Fleming R = 1.022, Pocock R = 1.166. The spending-function
-    // boundaries approximate them.
+    // boundaries approximate them (observed 1.0225 and 1.154), so each band is a
+    // few times the observed deviation and excludes the other family's value.
     for (spending, low, high) in [
-        (SpendingFunction::OBrienFlemingType, 1.0, 1.05),
-        (SpendingFunction::PocockType, 1.08, 1.22),
+        (SpendingFunction::OBrienFlemingType, 1.022 - 0.004, 1.022 + 0.004),
+        (SpendingFunction::PocockType, 1.154 - 0.008, 1.154 + 0.008),
     ] {
         let result = plan(
             PlannedDesign::GroupSequential {
@@ -239,6 +240,16 @@ fn covariate_adjustment_and_bernoulli_assignment_move_power_as_they_should() {
     let adjusted = at(PlannedDesign::Complete, base.with_covariates(0.5, 1));
     let bernoulli = at(PlannedDesign::Bernoulli, base);
     assert!(adjusted > complete);
+    // ANCOVA with R² = 0.5 halves the residual variance of the contrast.
+    let variance = |design, assumptions| {
+        plan(design, assumptions, power(0.8), PlanningGoal::Evaluate { units: 200 })
+            .unwrap()
+            .analytic
+            .estimator_variance
+    };
+    let ratio = variance(PlannedDesign::Complete, base.with_covariates(0.5, 1))
+        / variance(PlannedDesign::Complete, base);
+    assert!((ratio - 0.5).abs() < 1e-9, "{ratio}");
     assert!(bernoulli < complete && complete - bernoulli < 0.01, "{bernoulli} {complete}");
 }
 

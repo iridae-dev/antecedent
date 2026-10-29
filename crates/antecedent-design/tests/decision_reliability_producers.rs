@@ -196,7 +196,11 @@ fn cohort_utilities_without_a_declared_shared_law_or_with_a_known_law_are_refuse
     assert!(matches!(error, ReliabilityError::InvalidInput { slot: "source", .. }));
     let mut blank = cohort_input();
     blank.source_identity = " ".into();
-    assert!(reach_carrier(ProducerOutput::Cohort(blank)).is_err());
+    let error = reach_carrier(ProducerOutput::Cohort(blank)).unwrap_err();
+    assert!(matches!(
+        &error,
+        ReliabilityError::InvalidInput { slot: "source_identity", message } if message == "must be named"
+    ));
 }
 
 #[test]
@@ -235,7 +239,8 @@ fn implementation_keyed_rollouts_report_functionals_but_refuse_ranking() {
     let error = carrier.assess(None, &with_ranking(), &ctx()).unwrap_err();
     assert!(matches!(error, ReliabilityError::JointLawRequired { .. }));
     assert_eq!(error.reason_code(), "joint_law_required");
-    assert!(carrier.rank(&RankingRequest::default(), &ctx()).is_err());
+    let direct = carrier.rank(&RankingRequest::default(), &ctx()).unwrap_err();
+    assert!(matches!(direct, ReliabilityError::JointLawRequired { .. }));
 }
 
 #[test]

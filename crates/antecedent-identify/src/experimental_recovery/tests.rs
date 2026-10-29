@@ -929,7 +929,9 @@ fn held_out_joint_regime_uses_coefficient_uncertainty() {
     }
     let close_to = |into: u32, from: u32, truth: f64| {
         let got = effect(&coefficients, into, from);
-        assert!((got - truth).abs() < 0.12, "K[{into},{from}] = {got}, truth {truth}");
+        // 2,000 rows per regime: observed errors are at most 0.039, so 0.06 still rejects a
+        // swapped or mis-scaled coefficient (the smallest nonzero truth is 0.25).
+        assert!((got - truth).abs() < 0.06, "K[{into},{from}] = {got}, truth {truth}");
     };
     close_to(1, 0, 0.5);
     close_to(2, 0, 0.25);
@@ -984,8 +986,10 @@ fn held_out_joint_regime_uses_coefficient_uncertainty() {
     let spread =
         admissible.iter().map(|mechanism| (predict(mechanism) - center).abs()).fold(0.0, f64::max);
     assert!(spread > 0.05, "held-out check must use the coefficient draws");
+    // The held-out regime fixes x0 = 2, x1 = 1.25, so the true mean of x2 is 0.25 * 2 + 0.4 * 1.25.
+    assert!((center - 1.0).abs() < 0.06, "draw center {center} vs true 1.0");
     assert!(
-        (held_mean - center).abs() < 0.25,
+        (held_mean - center).abs() < 0.05,
         "held-out joint regime mean {held_mean} vs draw center {center}"
     );
 }

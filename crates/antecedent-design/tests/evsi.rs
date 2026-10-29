@@ -374,6 +374,16 @@ fn monte_carlo_is_labelled_with_error_replicates_ess_and_convergence() {
     assert!(near(row.evpi, 1.0 / 12.0, 1e-12));
     let slack = 4.0 * row.integration.stderr + 1e-9;
     assert!(row.evsi >= -slack && row.evsi <= row.evpi + slack, "{} / {}", row.evsi, row.evpi);
+    // The exact value: Ybar ~ N(theta, 0.25 / 4), EVSI = int max(0, sum_k (theta_k - 0.45) f(y | theta_k) / 3) dy
+    // - 0.05 = 0.0538382731697 (fine-grid trapezoid, error below 1e-12); the estimate is
+    // within five Monte-Carlo standard errors of it, not merely inside [0, EVPI].
+    let exact = 0.053_838_273_169_72;
+    assert!(
+        (row.evsi - exact).abs() <= 5.0 * row.integration.stderr,
+        "{} vs exact {exact}, stderr {}",
+        row.evsi,
+        row.integration.stderr
+    );
     // The same seed reproduces the estimate exactly; a zero tolerance is not converged.
     let again = run(&problem, &prior, &req).unwrap();
     assert!(near(again.candidates[0].evsi, row.evsi, 0.0));
