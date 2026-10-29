@@ -38,20 +38,20 @@
         {
           "role": "generator",
           "path": "conformance/response/temporal_admg_derivative_states/reference.py",
-          "sha256": ""
+          "sha256": "5dbd55e2f47e2236b76a5a9d6cbe3a31c09310e6011b97071e25b0a1c70bf5bf"
         },
         {
           "role": "environment_lock",
           "path": "conformance/response/temporal_admg_derivative_states/reference.py.lock",
-          "sha256": ""
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_admg_derivative_known_truth.rs",
-          "sha256": ""
+          "sha256": "bbd230dc1e98fcc6d8ec071b048b3c9c293450932d2be1176d09906150b3f5b5"
         }
       ],
-      "fixture_payload_sha256": ""
+      "fixture_payload_sha256": "52f59269be4bce6d386007252492a967f473a75229434b9e891d38c321d48678"
     }
   }
 }

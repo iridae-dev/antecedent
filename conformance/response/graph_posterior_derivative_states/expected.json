@@ -46,20 +46,20 @@
         {
           "role": "generator",
           "path": "conformance/response/graph_posterior_derivative_states/reference.py",
-          "sha256": ""
+          "sha256": "6c88665e24aa982cdcf8a2a18237fc8948673c6557fe75641a816c80c49d6ea9"
         },
         {
           "role": "environment_lock",
           "path": "conformance/response/graph_posterior_derivative_states/reference.py.lock",
-          "sha256": ""
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/graph_posterior_derivative_known_truth.rs",
-          "sha256": ""
+          "sha256": "68aa92db3ed4c184cbf60c2468d28e66e834c7317b16ff663a675b367c3b81d5"
         }
       ],
-      "fixture_payload_sha256": ""
+      "fixture_payload_sha256": "26a8cc79672d7b22fe4b495b568dca176fab17aa1c00270c074a22eb235096ea"
     }
   },
   "atoms": {

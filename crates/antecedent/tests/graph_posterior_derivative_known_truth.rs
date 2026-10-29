@@ -76,8 +76,7 @@ fn table() -> TabularData {
     let a: Vec<f64> = (0..ROWS)
         .map(|i| 2.0 + (f64::from(i) * 0.71).sin() + 0.2 * (f64::from(i) * 0.13).cos())
         .collect();
-    let b: Vec<f64> =
-        (0..ROWS).map(|_| 0.7 * gauss()).collect();
+    let b: Vec<f64> = (0..ROWS).map(|_| 0.7 * gauss()).collect();
     let y: Vec<f64> =
         a.iter().zip(&b).map(|(a, b)| 5.0 + 2.0 * a - 0.2 * b + 0.3 * gauss()).collect();
     let w: Vec<f64> =
@@ -94,7 +93,9 @@ fn table() -> TabularData {
 fn posterior(atoms: &[&[(usize, usize)]], weights: &[f64]) -> GraphPosterior {
     let masks: Vec<u64> = atoms
         .iter()
-        .map(|edges| edges.iter().fold(0_u64, |mask, &(from, to)| set_edge(mask, 4, from, to, true)))
+        .map(|edges| {
+            edges.iter().fold(0_u64, |mask, &(from, to)| set_edge(mask, 4, from, to, true))
+        })
         .collect();
     GraphPosterior::new(
         4,
@@ -265,7 +266,10 @@ fn graph_posterior_derivative_mixtures_and_refuter_states_known_truth() {
                     continue;
                 }
                 assert!(
-                    result.diagnostics.iter().any(|d| d.code.as_ref() == "refute.graph_posterior.per_atom"),
+                    result
+                        .diagnostics
+                        .iter()
+                        .any(|d| d.code.as_ref() == "refute.graph_posterior.per_atom"),
                     "{label}: per-atom refuter mixture"
                 );
                 assert!(report(&result, "derivative.support").is_some_and(|r| r.passed), "{label}");

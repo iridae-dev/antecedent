@@ -1,7 +1,9 @@
 //! Cheap and full validation of derivatives on supplied classes and front-door windows.
 //!
-//! A derivative on a Cpdag, Pag, Admg or TemporalAdmg runs a refuter state at cheap and full
-//! and stays unlicensed (the support status is `refused`, so no coverage record is implied).
+//! A derivative on a Cpdag, Pag, Admg or TemporalAdmg runs a refuter state at cheap and full. The
+//! adjustment-identified single-horizon cells are licensed (their evidence is the class derivative
+//! known-truth tests); a front-door-identified derivative and several horizons execute and report
+//! the support status `refused`, so no coverage record is implied.
 //! The fixtures are linear structural laws whose structural slopes are computed here by the
 //! normal equations, independently of the library:
 //!
@@ -206,7 +208,7 @@ fn class_derivative_validation_checks_the_finite_difference_against_the_regressi
             let result = class_study(&table, kind, accepted, InferenceMode::Frequentist, suite)
                 .run(&ctx)
                 .unwrap_or_else(|error| panic!("{label}: {error}"));
-            assert_eq!(result.support_status(), Some(CellStatus::Refused), "{label}");
+            assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
             assert!(report(&result, "derivative.support", &label).passed, "{label}");
             let fd = report(&result, "derivative.finite_difference", &label);
             assert!(
@@ -236,7 +238,7 @@ fn bayesian_class_derivative_validation_adds_the_predictive_checks() {
         let result = class_study(&table, kind, false, inference(), RefuteSuite::Cheap)
             .run(&ctx)
             .unwrap_or_else(|error| panic!("{kind}: {error}"));
-        assert_eq!(result.support_status(), Some(CellStatus::Refused), "{kind}");
+        assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{kind}");
         assert!(has(&result, "derivative.support"), "{kind}");
         assert!(!result.predictive_checks.is_empty(), "{kind}: posterior predictive checks");
         // The posterior-mean slope is the adjusted regression slope (observed error 0.004-0.006),

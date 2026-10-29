@@ -106,17 +106,10 @@ fn study(
     suite: RefuteSuite,
 ) -> antecedent::StudyBuilder {
     let base = Study::tabular(data.clone());
-    let builder = if accepted {
-        base.graph(AcceptedGraph::from(dag()))
-    } else {
-        base.graph(dag())
-    };
+    let builder = if accepted { base.graph(AcceptedGraph::from(dag())) } else { base.graph(dag()) };
     let builder = builder
         .query(CausalQuery::Response(ResponseQuery::new(functional.clone())))
-        .response_options(ContinuousResponseOptions {
-            bandwidth: Some(0.35),
-            ..Default::default()
-        })
+        .response_options(ContinuousResponseOptions { bandwidth: Some(0.35), ..Default::default() })
         .refute(suite)
         .bootstrap_replicates(0);
     if bayesian {
@@ -204,9 +197,11 @@ fn derivative_refuter_states_known_truth() {
             for bayesian in [false, true] {
                 for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
                     let label = format!("{key} accepted={accepted} bayesian={bayesian} {suite:?}");
-                    let builder = study(&data, functional, accepted, bayesian, suite).build().unwrap();
+                    let builder =
+                        study(&data, functional, accepted, bayesian, suite).build().unwrap();
                     let context = ExecutionContext::for_tests(809);
-                    let prepared = builder.prepare(&context).unwrap_or_else(|e| panic!("{label}: {e:?}"));
+                    let prepared =
+                        builder.prepare(&context).unwrap_or_else(|e| panic!("{label}: {e:?}"));
                     // A refuted study is not sealed to the derivative operation (that one carries no
                     // refuter state); it runs its estimator route from the lowered program.
                     assert!(
@@ -215,9 +210,15 @@ fn derivative_refuter_states_known_truth() {
                         prepared.retained_operation().name()
                     );
                     drop(builder);
-                    let result = prepared.estimate(&data, &context).unwrap_or_else(|e| panic!("{label}: {e:?}"));
+                    let result = prepared
+                        .estimate(&data, &context)
+                        .unwrap_or_else(|e| panic!("{label}: {e:?}"));
 
-                    assert_eq!(result.logical_plan.estimator.as_deref(), Some(*estimator), "{label}");
+                    assert_eq!(
+                        result.logical_plan.estimator.as_deref(),
+                        Some(*estimator),
+                        "{label}"
+                    );
                     assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
                     let published = values(&result, &label);
                     assert_eq!(published.len(), truths.len(), "{label}");
@@ -228,10 +229,16 @@ fn derivative_refuter_states_known_truth() {
                             "{label}: published {value} vs closed-form {truth}"
                         );
                     }
-                    assert!(report(&result, "derivative.support").is_some_and(|r| r.passed), "{label}");
+                    assert!(
+                        report(&result, "derivative.support").is_some_and(|r| r.passed),
+                        "{label}"
+                    );
                     if multivariate {
                         // The contrast-shaped finite difference has no plug-in for a vector.
-                        assert!(report(&result, "derivative.finite_difference").is_none(), "{label}");
+                        assert!(
+                            report(&result, "derivative.finite_difference").is_none(),
+                            "{label}"
+                        );
                     } else {
                         let difference = report(&result, "derivative.finite_difference")
                             .unwrap_or_else(|| panic!("{label}: no finite-difference report"));
@@ -246,7 +253,11 @@ fn derivative_refuter_states_known_truth() {
                     assert_eq!(stability.is_some(), suite == RefuteSuite::Full, "{label}");
                     if let Some(stability) = stability {
                         assert!(stability.passed && stability.replicates >= 2, "{label}");
-                        assert!((stability.refuted_ate - truth).abs() <= (value_band * truth.abs()).max(0.1), "{label}");
+                        assert!(
+                            (stability.refuted_ate - truth).abs()
+                                <= (value_band * truth.abs()).max(0.1),
+                            "{label}"
+                        );
                     }
                     if bayesian {
                         let posterior = report(&result, "posterior_predictive")

@@ -17,10 +17,10 @@ use std::sync::Arc;
 
 use antecedent::support::CellStatus;
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study};
-use antecedent_core::{IdentificationStatus,
-    CausalQuery, DerivativeScale, DerivativeWeighting, ExecutionContext, Lag, ResponseFunctional,
-    ResponseIdentification, ResponseQuery, ResponseValue, TemporalPolicy, TemporalResponseSpec,
-    VariableId,
+use antecedent_core::{
+    CausalQuery, DerivativeScale, DerivativeWeighting, ExecutionContext, IdentificationStatus, Lag,
+    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseValue, TemporalPolicy,
+    TemporalResponseSpec, VariableId,
 };
 use antecedent_data::TimeSeriesData;
 use antecedent_discovery::adjacency_mask::set_edge as set_class_edge;
@@ -54,7 +54,9 @@ fn series(witness: bool) -> TimeSeriesData {
     let mut gauss = || {
         let mut sum = 0.0;
         for _ in 0..12 {
-            state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
             sum += (state >> 11) as f64 / 9_007_199_254_740_992.0;
         }
         sum - 6.0
@@ -126,7 +128,6 @@ fn functionals(at: f64) -> Vec<(&'static str, ResponseFunctional, bool)> {
         ),
     ]
 }
-
 
 const BASE: usize = 4;
 /// `x(t-1) -> y(t)`, `b(t-1) -> y(t)`, `x(t-1) -> v(t)`, `b(t-1) -> v(t)` over the columns `x, b, y, v`.
@@ -211,9 +212,9 @@ fn valid(weight: f64) -> Template {
 
 #[derive(Clone, Copy, Debug)]
 enum Atoms {
-    Dag,
-    Cpdag,
-    Pag,
+    TemporalDag,
+    TemporalCpdag,
+    TemporalPag,
 }
 
 fn study(
@@ -270,16 +271,18 @@ fn report<'a>(
 
 fn posterior_of(atoms: Atoms) -> GraphPosterior {
     match atoms {
-        Atoms::Dag => dbn_posterior(&[valid(1.0)]),
-        Atoms::Cpdag => class_posterior(false),
-        Atoms::Pag => class_posterior(true),
+        Atoms::TemporalDag => dbn_posterior(&[valid(1.0)]),
+        Atoms::TemporalCpdag => class_posterior(false),
+        Atoms::TemporalPag => class_posterior(true),
     }
 }
 
 fn atoms_suites(atoms: Atoms) -> Vec<RefuteSuite> {
     match atoms {
-        Atoms::Dag => vec![RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full],
-        Atoms::Cpdag | Atoms::Pag => vec![RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full],
+        Atoms::TemporalDag => vec![RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full],
+        Atoms::TemporalCpdag | Atoms::TemporalPag => {
+            vec![RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full]
+        }
     }
 }
 
@@ -289,8 +292,8 @@ fn temporal_graph_posterior_derivative_routes_and_refuter_states_known_truth() {
     let value_band = number(&pin, "value_relative_tolerance");
     let difference_band = number(&pin, "finite_difference_relative_tolerance");
     let slope = number(&pin, "point");
-    for atoms in [Atoms::Dag, Atoms::Cpdag, Atoms::Pag] {
-        let data = series(matches!(atoms, Atoms::Pag));
+    for atoms in [Atoms::TemporalDag, Atoms::TemporalCpdag, Atoms::TemporalPag] {
+        let data = series(matches!(atoms, Atoms::TemporalPag));
         for (key, functional, has_difference) in functionals(number(&pin, "at")) {
             let truths = numbers(&pin, key);
             for bayesian in [false, true] {
@@ -314,11 +317,15 @@ fn temporal_graph_posterior_derivative_routes_and_refuter_states_known_truth() {
                     assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
                     assert_eq!(
                         result.logical_plan.estimator.as_deref(),
-                        Some(if bayesian { "response.temporal.bayesian" } else { "temporal.response.gcomp" }),
+                        Some(if bayesian {
+                            "response.temporal.bayesian"
+                        } else {
+                            "temporal.response.gcomp"
+                        }),
                         "{label}"
                     );
                     let mixture = result.structural_response.as_ref();
-                    if let (Some(mixture), Atoms::Dag) = (mixture, atoms) {
+                    if let (Some(mixture), Atoms::TemporalDag) = (mixture, atoms) {
                         assert!((mixture.identified_mass - 1.0).abs() < 1e-9, "{label}");
                     }
                     let values = published(&result, &label);
@@ -382,18 +389,22 @@ fn temporal_graph_posterior_lost_mass_is_stated_and_the_identified_mixture_is_th
     let data = series(false);
     let truth = number(&pin, "point");
     // `y -> v` and `v -> y` at the same time: not a DAG, so the sample identifies nothing.
-    let cyclic = Template { contemporaneous: vec![(2, 3), (3, 2)], lagged: LAGGED.to_vec(), weight: 0.3 };
+    let cyclic =
+        Template { contemporaneous: vec![(2, 3), (3, 2)], lagged: LAGGED.to_vec(), weight: 0.3 };
     let functional = functionals(number(&pin, "at")).remove(0).1;
     for bayesian in [false, true] {
         let label = format!("bayesian={bayesian}");
         let posterior = dbn_posterior(&[valid(0.7), cyclic_clone(&cyclic)]);
-        let builder = study(&data, posterior, &functional, bayesian, RefuteSuite::None)
-            .build()
-            .unwrap();
+        let builder =
+            study(&data, posterior, &functional, bayesian, RefuteSuite::None).build().unwrap();
         assert_eq!(builder.support_status(), Some(CellStatus::Licensed), "{label}");
         let result = builder.run(&ExecutionContext::for_tests(822)).unwrap();
         let mixture = result.structural_response.as_ref().expect("a structural mixture");
-        assert!((mixture.identified_mass - 0.7).abs() < 1e-9, "{label}: {}", mixture.identified_mass);
+        assert!(
+            (mixture.identified_mass - 0.7).abs() < 1e-9,
+            "{label}: {}",
+            mixture.identified_mass
+        );
         assert!((mixture.unidentified_mass - 0.3).abs() < 1e-9, "{label}");
         assert_eq!(result.identification.status, IdentificationStatus::GraphDependent, "{label}");
         let values = published(&result, &label);
@@ -414,8 +425,8 @@ fn temporal_graph_posterior_planted_off_support_point_is_detected() {
     let pin = fixture();
     let clean = functionals(number(&pin, "at")).remove(0).1;
     let planted = functionals(number(&pin, "off_support_at")).remove(0).1;
-    for atoms in [Atoms::Dag, Atoms::Cpdag, Atoms::Pag] {
-        let data = series(matches!(atoms, Atoms::Pag));
+    for atoms in [Atoms::TemporalDag, Atoms::TemporalCpdag, Atoms::TemporalPag] {
+        let data = series(matches!(atoms, Atoms::TemporalPag));
         for bayesian in [false, true] {
             for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
                 let label = format!("{atoms:?} bayesian={bayesian} {suite:?}");

@@ -48,7 +48,9 @@ fn series() -> TimeSeriesData {
     let mut gauss = || {
         let mut sum = 0.0;
         for _ in 0..12 {
-            state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
             sum += (state >> 11) as f64 / 9_007_199_254_740_992.0;
         }
         sum - 6.0
@@ -142,11 +144,8 @@ fn study(
     let query = ResponseQuery::new(functional.clone())
         .with_temporal(TemporalResponseSpec::new([1], TemporalPolicy::pulse(-1), Some(1)).unwrap());
     let builder = Study::series(data.clone()).query(CausalQuery::Response(query));
-    let builder = if accepted {
-        builder.graph(AcceptedGraph::from(graph()))
-    } else {
-        builder.graph(graph())
-    };
+    let builder =
+        if accepted { builder.graph(AcceptedGraph::from(graph())) } else { builder.graph(graph()) };
     let builder = builder.refute(suite).bootstrap_replicates(0);
     if bayesian {
         builder.inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(24)))
@@ -186,10 +185,12 @@ fn temporal_derivative_refuter_states_known_truth() {
             for bayesian in [false, true] {
                 for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
                     let label = format!("{key} accepted={accepted} bayesian={bayesian} {suite:?}");
-                    let builder = study(&data, &functional, accepted, bayesian, suite).build().unwrap();
+                    let builder =
+                        study(&data, &functional, accepted, bayesian, suite).build().unwrap();
                     assert_eq!(builder.support_status(), Some(CellStatus::Licensed), "{label}");
                     let context = ExecutionContext::for_tests(812);
-                    let prepared = builder.prepare(&context).unwrap_or_else(|e| panic!("{label}: {e:?}"));
+                    let prepared =
+                        builder.prepare(&context).unwrap_or_else(|e| panic!("{label}: {e:?}"));
                     assert!(
                         !prepared.retained_operation().name().is_empty(),
                         "{label}: the prepared study retains no operation"
@@ -208,7 +209,10 @@ fn temporal_derivative_refuter_states_known_truth() {
                             "{label}: published {value} vs closed-form {truth}"
                         );
                     }
-                    assert!(report(&result, "derivative.support").is_some_and(|r| r.passed), "{label}");
+                    assert!(
+                        report(&result, "derivative.support").is_some_and(|r| r.passed),
+                        "{label}"
+                    );
                     let difference = report(&result, "derivative.finite_difference");
                     assert_eq!(difference.is_some(), has_difference, "{label}");
                     if let Some(difference) = difference {
@@ -264,7 +268,10 @@ fn temporal_derivative_planted_off_support_point_is_detected() {
                     .run(&ExecutionContext::for_tests(813))
                     .unwrap_or_else(|e| panic!("{label}: {e}"))
             };
-            assert!(report(&run(&clean[0].1), "derivative.support").is_some_and(|r| r.passed), "{label}");
+            assert!(
+                report(&run(&clean[0].1), "derivative.support").is_some_and(|r| r.passed),
+                "{label}"
+            );
             let result = run(&planted[0].1);
             let support = report(&result, "derivative.support").expect("support report");
             assert!(!support.passed, "{label}: off-support evaluation point not detected");

@@ -247,7 +247,8 @@ fn joint_nearest_distance(at: &[f64], treatment_matrix: &[f64], dimensions: usiz
         .map(|j| {
             let column = &treatment_matrix[j * n..(j + 1) * n];
             let mean = column.iter().sum::<f64>() / n as f64;
-            let sd = (column.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / (n - 1) as f64).sqrt();
+            let sd =
+                (column.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / (n - 1) as f64).sqrt();
             if sd > 0.0 && sd.is_finite() { sd } else { 1.0 }
         })
         .collect();

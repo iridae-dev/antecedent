@@ -1284,7 +1284,7 @@ impl super::Study {
                     self.refute_temporal_admg_front_door(&fit, (identification, estimand), ctx)?;
                 (reports, Vec::new(), notes)
             };
-            return Ok(self.finish_temporal_admg_response(
+            let mut result = self.finish_temporal_admg_response(
                 fit.response,
                 IdentifiedClaim {
                     identification: identification.clone(),
@@ -1293,7 +1293,11 @@ impl super::Study {
                 (treatment, outcome),
                 run,
                 refuted,
-            ));
+            );
+            // No evidence row names the front-door derivative route: the cell's licence belongs to
+            // the adjustment-identified plug-ins, so a front-door run reports its status as refused.
+            result.support_status = Some(crate::support::CellStatus::Refused);
+            return Ok(result);
         }
         self.execute_temporal_derivative_response(
             DerivativeResponseInputs { data, query, temporal, indexer, treatment, outcome },
@@ -1331,13 +1335,17 @@ impl super::Study {
             horizon_notes,
             ctx,
         )?;
-        Ok(self.finish_temporal_admg_response(
+        let mut result = self.finish_temporal_admg_response(
             combined,
             IdentifiedClaim { identification, estimand: first.estimand.clone() },
             (treatment, outcome),
             run,
             refuted,
-        ))
+        );
+        // The evidence rows of the temporal-ADMG derivative cells run one horizon; several
+        // horizons execute and report their status as refused.
+        result.support_status = Some(crate::support::CellStatus::Refused);
+        Ok(result)
     }
 
     /// Fit each horizon on its native window, retaining its own witness and refuter state.

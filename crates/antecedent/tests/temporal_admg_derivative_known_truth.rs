@@ -120,8 +120,9 @@ fn study(
     inference: InferenceMode,
     suite: RefuteSuite,
 ) -> antecedent::StudyBuilder {
-    let query = ResponseQuery::new(functional.clone())
-        .with_temporal(TemporalResponseSpec::new(vec![1_u32], TemporalPolicy::pulse(-1), None).unwrap());
+    let query = ResponseQuery::new(functional.clone()).with_temporal(
+        TemporalResponseSpec::new(vec![1_u32], TemporalPolicy::pulse(-1), None).unwrap(),
+    );
     let builder = Study::series(data.clone()).query(CausalQuery::Response(query));
     let builder = if accepted {
         builder.graph(AcceptedGraph::from(template()))
@@ -161,11 +162,7 @@ fn cases(pin: &Value, at: f64) -> Vec<(&'static str, F, Vec<f64>)> {
             point(DerivativeScale::LogTreatment, at),
             vec![number(pin, "semi_treatment")],
         ),
-        (
-            "semi_outcome",
-            point(DerivativeScale::LogOutcome, at),
-            vec![number(pin, "semi_outcome")],
-        ),
+        ("semi_outcome", point(DerivativeScale::LogOutcome, at), vec![number(pin, "semi_outcome")]),
         (
             "average",
             F::AverageDerivative {
@@ -208,8 +205,7 @@ fn temporal_admg_derivative_routes_and_refuter_states_known_truth() {
         for accepted in [false, true] {
             for bayesian in [false, true] {
                 for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
-                    let label =
-                        format!("{key} accepted={accepted} bayesian={bayesian} {suite:?}");
+                    let label = format!("{key} accepted={accepted} bayesian={bayesian} {suite:?}");
                     let inference = if bayesian {
                         InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(24))
                     } else {
@@ -233,7 +229,11 @@ fn temporal_admg_derivative_routes_and_refuter_states_known_truth() {
                     assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
                     assert_eq!(
                         result.logical_plan.estimator.as_deref(),
-                        Some(if bayesian { "response.temporal.bayesian" } else { "temporal.response.gcomp" }),
+                        Some(if bayesian {
+                            "response.temporal.bayesian"
+                        } else {
+                            "temporal.response.gcomp"
+                        }),
                         "{label}"
                     );
                     let values = published(&result, &label);
@@ -322,7 +322,10 @@ fn temporal_admg_derivative_planted_off_support_point_is_detected() {
                     .run(&ExecutionContext::for_tests(817))
             };
             let clean_result = run(&clean).unwrap_or_else(|e| panic!("{label}: {e}"));
-            assert!(report(&clean_result, "derivative.support").is_some_and(|r| r.passed), "{label}");
+            assert!(
+                report(&clean_result, "derivative.support").is_some_and(|r| r.passed),
+                "{label}"
+            );
             // A point beyond the observed treatment range is detected: either the support check
             // fails, or the local window around it holds too little weight and the route refuses.
             match run(&planted) {

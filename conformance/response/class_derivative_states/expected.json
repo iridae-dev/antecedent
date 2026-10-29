@@ -49,7 +49,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/class_derivative_known_truth.rs",
-          "sha256": "b70f68d2d6e47de7a0a5989f097fc86d8f7c487f02bb310e2855a6b524249ceb"
+          "sha256": "b3544a90ed4d0c0ebd1a8892e67e0c71a94071eed55d2baa4a05d714f5ed057c"
         }
       ],
       "fixture_payload_sha256": "554cbebe073c84964f9ec480ece4c5f74704c93137cd798f1e21a062662c2c59"

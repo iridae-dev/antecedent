@@ -35,4 +35,4 @@ sha256 = "fad5dc92f7cf93a5a92bd83eadb0d07806481287658c3d403ce8f6c926a262cf"
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/response/support.rs"
-sha256 = "3897fb55c56a44592120dab2e68271b231bd13d373a9160db9846cbe361bac6c"
+sha256 = "322882e926ca3ca4753f45db4d4c760bc1a611bd8705a074173ed27182f5b724"

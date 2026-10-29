@@ -342,7 +342,11 @@ fn class_derivative_routes_and_refuter_states_known_truth() {
                         let difference = report(&result, "derivative.finite_difference");
                         assert_eq!(difference.is_some(), has_difference, "{label}");
                         if let Some(difference) = difference {
-                            assert!(difference.passed, "{label}: {:?}", difference.failure_condition);
+                            assert!(
+                                difference.passed,
+                                "{label}: {:?}",
+                                difference.failure_condition
+                            );
                             assert!(
                                 (difference.refuted_ate - truths[0]).abs()
                                     <= number(&pin, "finite_difference_relative_tolerance")
@@ -358,8 +362,10 @@ fn class_derivative_routes_and_refuter_states_known_truth() {
                             assert!(stability.passed && stability.replicates >= 2, "{label}");
                         }
                         if bayesian {
-                            let posterior = report(&result, "posterior_predictive")
-                                .unwrap_or_else(|| panic!("{label}: no posterior predictive check"));
+                            let posterior =
+                                report(&result, "posterior_predictive").unwrap_or_else(|| {
+                                    panic!("{label}: no posterior predictive check")
+                                });
                             assert!(posterior.passed, "{label}: {:?}", posterior.failure_condition);
                             // The prior predictive check may only fail by reporting that the weakly
                             // informative default prior is diffuse relative to the data, which its
@@ -418,7 +424,8 @@ fn class_derivative_planted_off_support_point_is_detected() {
                 // refuses with that typed reason.
                 match run(&planted) {
                     Ok(result) => {
-                        let support = report(&result, "derivative.support").expect("support report");
+                        let support =
+                            report(&result, "derivative.support").expect("support report");
                         assert!(!support.passed, "{label}: off-support point not detected");
                     }
                     Err(error) => assert!(

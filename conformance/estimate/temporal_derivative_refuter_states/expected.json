@@ -48,20 +48,20 @@
         {
           "role": "generator",
           "path": "conformance/estimate/temporal_derivative_refuter_states/reference.py",
-          "sha256": ""
+          "sha256": "1a1f4f1edda7406e794490ccd0e20d632d3cf914377d36a0bb546f3727b83f7b"
         },
         {
           "role": "environment_lock",
           "path": "conformance/estimate/temporal_derivative_refuter_states/reference.py.lock",
-          "sha256": ""
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_derivative_refuter_known_truth.rs",
-          "sha256": ""
+          "sha256": "e7dd2b7b00079494559341687c9acacda7ffe867c81a62d6cd338fbfe171cca5"
         }
       ],
-      "fixture_payload_sha256": ""
+      "fixture_payload_sha256": "5a10653881dc96e248d9aa9b440b6494fd4b45082fef1a7d0d2edc81d65b1130"
     }
   }
 }

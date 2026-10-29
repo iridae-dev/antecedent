@@ -238,11 +238,11 @@ def test_derivative_stages_and_artifacts(kind, pin_key, accepted):
         ac.analyze(data, graph=graph, query=query, estimator_config=config, refute="none")
     )
     np.testing.assert_array_equal(np.asarray(fresh.estimate, dtype=float).ravel(), got)
-    # cheap/full run the derivative refuter state, which is unlicensed.
+    # cheap/full run the derivative refuter state; its cells are licensed.
     refuted = require_success(
         ac.analyze(data, graph=graph, query=query, estimator_config=config, refute="cheap")
     )
-    assert refuted.evidence_status != "licensed"
+    assert refuted.evidence_status == "licensed"
     assert refuted.validation is not None
     checks = [check.id for check in refuted.validation.checks]
     assert "derivative.support" in checks, checks

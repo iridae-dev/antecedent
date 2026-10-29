@@ -271,6 +271,24 @@ TEMPORAL_GP_BAYES = (
     "and, under full, prior sensitivity. "
 )
 
+CLASS_GP = {
+    "fixture": "conformance/response/class_derivative_states",
+    "test": "crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs",
+    "assertion": "class_graph_posterior_derivative_routes_and_refuter_states_known_truth",
+}
+CLASS_GP_TEXT = (
+    "A {what} over a graph posterior of Cpdag, Pag, latent-confounded Admg or TemporalAdmg (read as its contemporaneous ADMG projection) atoms at validation "
+    "{validation}, executed through {estimator}. Every atom is answered by the executor the query "
+    "has on a supplied structure of its kind (each identified completion of a class is adjusted "
+    "by one valid set; an Admg is identified by the adjustment criterion on its proper back-door "
+    "graph) and the atoms mix by posterior probability; the fixture's single atom is checked "
+    "against the exact rational least-squares structural slope of a confounded linear law (the "
+    "confounded slope is not what a route publishes). {states}Several atoms of different kinds, "
+    "lost posterior mass of a class posterior, front-door-identified and general-ID atoms are not "
+    "covered by this row's evidence. The verdicts are checks of this route, not a calibration "
+    "claim; no coverage record measures the intervals and calibration is not claimed."
+)
+
 SELECTOR = {
     "structure": ["explicit", "accepted"],
     "inference": ["Frequentist", "Bayesian"],
@@ -298,6 +316,20 @@ TEMPORAL_ESTIMATOR = {
 }
 
 FAMILIES: list[dict] = []
+for query, what, estimator, multivariate in STATIC_FAMILIES:
+    FAMILIES.append(
+        {
+            **CLASS_GP,
+            "query": query,
+            "graph_class": ["Cpdag", "Pag", "Admg", "TemporalAdmg"],
+            "structure": ["graph_posterior"],
+            "validation": ["none", "cheap", "full"],
+            "estimator": {"Frequentist": estimator, "Bayesian": estimator},
+            "what": what,
+            "text": CLASS_GP_TEXT,
+            "multivariate": multivariate,
+        }
+    )
 for query, what in TEMPORAL_QUERIES:
     FAMILIES.append(
         {
@@ -419,6 +451,14 @@ def render_row(family: dict, cell: tuple[str, str, str, str, str]) -> str:
     query, graph_class, structure, inference, validation = cell
     estimator = family["estimator"][inference]
     if family["text"] is CLASS_TEXT:
+        states = CLASS_STATES[validation].format(
+            difference=CLASS_NO_DIFFERENCE if family["multivariate"] else CLASS_DIFFERENCE,
+            bayesian=CLASS_BAYES if inference == "Bayesian" else "",
+        )
+        limitations = family["text"].format(
+            what=family["what"], estimator=estimator, validation=validation, states=states
+        )
+    elif family["text"] is CLASS_GP_TEXT:
         states = CLASS_STATES[validation].format(
             difference=CLASS_NO_DIFFERENCE if family["multivariate"] else CLASS_DIFFERENCE,
             bayesian=CLASS_BAYES if inference == "Bayesian" else "",
