@@ -929,6 +929,7 @@ _REF = re.compile(
 _QUALIFIED_FN = re.compile(r"(?<![.:\w])([A-Za-z_]\w*)::([A-Za-z_]\w*)\s*\(")
 
 
+@source_cache
 def _declared_module_file(path: Path, name: str) -> Path | None:
     """Resolve one enabled module declared directly in `path` (including `#[path]`)."""
     masked, items = rust_items(path)
@@ -984,7 +985,8 @@ def _rust_closure_parts(path: Path, name: str) -> tuple[str, str]:
     root = target_root(path)
     root_file = root[0].resolve() if root else path
     index = _rust_index(root_file)
-    if path not in target_files(root_file):
+    live = frozenset(target_files(root_file))
+    if path not in live:
         index = dict(index)
         for it in rust_items(path)[1]:
             if it.kind != "mod":
@@ -1010,7 +1012,6 @@ def _rust_closure_parts(path: Path, name: str) -> tuple[str, str]:
         # is not followed by the unqualified identifier index above. Follow it
         # only when its prefix is a real module declaration in this file and
         # the module is part of the current Cargo target.
-        live = set(target_files(root_file))
         for module_name, function_name in _QUALIFIED_FN.findall(skel):
             module_file = _declared_module_file(ff, module_name)
             if module_file is None or module_file not in live:

@@ -13,6 +13,10 @@ from pathlib import Path
 
 _active: list[dict] = []
 _validation: dict = {}
+# Bumped whenever the per-run stat memo is cleared, i.e. at the start of every
+# top-level cached call. An entry validated in the current generation was checked
+# against the same stat results, so nested lookups skip re-checking its dependencies.
+_generation = [0]
 
 
 def signature(path: Path):
@@ -35,11 +39,15 @@ def source_cache(function):
     def wrapped(*args, **kwargs):
         if not _active:
             _validation.clear()
+            _generation[0] += 1
         key = args, tuple(sorted(kwargs.items()))
         saved = entries.get(key)
         if saved is not None:
-            result, dependencies = saved
-            if all(signature(path) == stamp for path, stamp in dependencies.items()):
+            result, dependencies, checked = saved
+            if checked == _generation[0] or all(
+                signature(path) == stamp for path, stamp in dependencies.items()
+            ):
+                entries[key] = result, dependencies, _generation[0]
                 if _active:
                     _active[-1].update(dependencies)
                 return result
@@ -55,7 +63,7 @@ def source_cache(function):
             _active.pop()
             if _active:
                 _active[-1].update(dependencies)
-        entries[key] = result, dependencies
+        entries[key] = result, dependencies, _generation[0]
         return result
 
     wrapped.cache_clear = entries.clear

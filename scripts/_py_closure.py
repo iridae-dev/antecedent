@@ -9,6 +9,7 @@ and the assertion reader does not.
 from __future__ import annotations
 
 import ast
+import functools
 import re
 from pathlib import Path
 
@@ -51,13 +52,35 @@ def closure_nodes(tree: ast.Module, name: str, *, constants: bool = False) -> li
     return out
 
 
-def closure_source(path: Path, name: str) -> str:
-    """Source of ``closure_nodes`` for ``name``, including constant assignments."""
+@functools.lru_cache(maxsize=512)
+def _parsed(path: Path, mtime_ns: int, size: int):
+    """(text, tree, lines) of one file revision; parsed and split once."""
     text = path.read_text(errors="ignore", encoding="utf-8")
     tree = ast.parse(text)
+    split = getattr(ast, "_splitlines_no_ff", None)
+    return text, tree, (split(text) if split else None)
+
+
+def _segment(text: str, lines: list[str] | None, node: ast.AST) -> str | None:
+    """``ast.get_source_segment`` without re-splitting the file for every node."""
+    if lines is None or getattr(node, "end_lineno", None) is None:
+        return ast.get_source_segment(text, node)
+    first, last = node.lineno - 1, node.end_lineno - 1
+    start, end = node.col_offset, node.end_col_offset
+    if first == last:
+        return lines[first].encode()[start:end].decode()
+    head = lines[first].encode()[start:].decode()
+    tail = lines[last].encode()[:end].decode()
+    return "".join([head, *lines[first + 1 : last], tail])
+
+
+def closure_source(path: Path, name: str) -> str:
+    """Source of ``closure_nodes`` for ``name``, including constant assignments."""
+    stat = path.stat()
+    text, tree, lines = _parsed(path, stat.st_mtime_ns, stat.st_size)
     parts = []
     for node in closure_nodes(tree, name, constants=True):
-        segment = ast.get_source_segment(text, node)
+        segment = _segment(text, lines, node)
         if segment:
             parts.append(segment)
     return "\n".join(parts)
