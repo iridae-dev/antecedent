@@ -28,6 +28,7 @@ GENERATORS = (
     "conformance/graph/latent_projection/reference.py",
     "conformance/identify/efficient_adjustment/reference.py",
     "conformance/identify/id_hedge/reference.py",
+    "conformance/response/horizon_one_transport/reference.py",
     "conformance/gcm/ou_trajectory_likelihood/reference.py",
     "conformance/gcm/nonlinear_sde_ensemble/reference.py",
     "conformance/estimate/temporal_class_envelope/identified_pag_reference.py",

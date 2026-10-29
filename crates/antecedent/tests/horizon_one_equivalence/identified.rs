@@ -404,11 +404,19 @@ fn horizon_one_transport_is_the_static_contrast_with_a_long_run_variance() {
         (series_result.transport().unwrap().ipw - rows_result.transport().unwrap().ipw).abs()
             < 1e-12
     );
-    assert!(
-        (rows_effect.ate - 1.0).abs() < 0.2,
-        "the fixture carries the effect: {}",
-        rows_effect.ate
-    );
+    // The estimator is the inverse-odds sum over trial rows divided by the number of target rows,
+    // not a normalised mean: with the recorded selection probability 1/2 against the realised
+    // trial share 517/1000 the contrast is the trial arm-mean difference (1.0139) times roughly
+    // 517/483, so 1.0873 is the defined value (3.3 SE above the effect 1), not a defect. The
+    // exact-Fraction derivation lives in the retained reference script and frozen JSON.
+    let oracle: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../conformance/response/horizon_one_transport/expected.json"
+    ))
+    .unwrap();
+    let expected = oracle["ipw"].as_f64().unwrap();
+    assert!((expected - 1.087_326_798_735_091_2).abs() < 1e-12);
+    assert!((rows_effect.ate - expected).abs() < 1e-9, "{} vs {expected}", rows_effect.ate);
+    assert!((series_effect.ate - expected).abs() < 1e-9);
     assert!(matches!(
         series_effect.uncertainty.analytic.kind,
         Some(AnalyticSeKind::NeweyWest { lag: 10 })

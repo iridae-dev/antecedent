@@ -1,0 +1,11 @@
+{
+  "n": 1000,
+  "n_trial": 517,
+  "n_target": 483,
+  "ipw": 1.0873267987350912,
+  "ipw_exact": "84471258756829621/77687093572141056",
+  "trial_arm_mean_difference": 1.013898956504084,
+  "all_rows_arm_mean_difference": 1.0227984452176482,
+  "horvitz_thompson_over_n": 0.5251788437890491,
+  "trial_share_inflation": 1.0703933747412009
+}
