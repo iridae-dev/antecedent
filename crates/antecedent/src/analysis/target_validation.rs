@@ -1295,21 +1295,43 @@ impl PreparedRefit<'_> {
         if !adjustment.is_empty()
             || !matches!(
                 self.study().query,
-                CausalQuery::Counterfactual(_) | CausalQuery::NestedCounterfactual(_)
+                CausalQuery::Counterfactual(_)
+                    | CausalQuery::NestedCounterfactual(_)
+                    | CausalQuery::PathSpecific(_)
+                    | CausalQuery::Distribution(_)
             )
         {
             return adjustment;
         }
-        let Some(dag) = self.study().graph.as_dag() else { return adjustment };
-        let Some(outcome) = static_node(dag, self.outcome) else { return adjustment };
-        dag.parents(outcome)
-            .iter()
-            .filter_map(|parent| match dag.nodes().get(parent.as_usize())? {
-                antecedent_core::NodeRef::Static(variable) => Some(*variable),
-                _ => None,
-            })
-            .filter(|variable| *variable != self.treatment && self.is_float(*variable))
-            .collect()
+        let mut parents: Vec<VariableId> = Vec::new();
+        if let Some(dag) = self.study().graph.as_dag() {
+            if let Some(outcome) = static_node(dag, self.outcome) {
+                parents.extend(dag.parents(outcome).iter().filter_map(|parent| {
+                    match dag.nodes().get(parent.as_usize())? {
+                        antecedent_core::NodeRef::Static(variable) => Some(*variable),
+                        _ => None,
+                    }
+                }));
+            }
+        } else if let Some(tdag) = self.study().graph.as_temporal_dag() {
+            for (outcome, lag) in lagged_nodes(tdag, self.outcome) {
+                if lag != 0 {
+                    continue;
+                }
+                parents.extend(tdag.parents(outcome).iter().filter_map(|parent| {
+                    match tdag.nodes().get(parent.as_usize())? {
+                        antecedent_core::NodeRef::Lagged { variable, .. } => Some(*variable),
+                        _ => None,
+                    }
+                }));
+            }
+        }
+        parents.sort_unstable();
+        parents.dedup();
+        parents.retain(|variable| {
+            *variable != self.treatment && *variable != self.outcome && self.is_float(*variable)
+        });
+        if parents.is_empty() { adjustment } else { parents }
     }
 
     fn storage(&self) -> &antecedent_data::OwnedColumnarStorage {
@@ -2080,25 +2102,20 @@ impl PreparedRefit<'_> {
                 if n < 2 {
                     return Err(unsupported("a window needs at least two periods", "more data"));
                 }
-                // A contiguous window keeps every lag the procedure reads inside the window.
+                // A circular window of design rows: the row ending at each period keeps its own
+                // lag window, and every period is in a window with the same probability
+                // (`width / n`), so the window estimates centre on the full-series estimate
+                // instead of over-weighting the middle of the series.
                 #[allow(
                     clippy::cast_possible_truncation,
                     clippy::cast_sign_loss,
                     reason = "the subset fraction lies in (0, 1), and the saturating cast is clamped into [1, n]"
                 )]
                 let width = ((fraction * n as f64).round() as usize).clamp(1, n);
-                let start = unbiased_index(rng, n - width + 1);
-                match truncated_series(series, start, start + width)? {
-                    Some(window) => Ok(window),
-                    // A non-float column cannot be cut here: the window is carried as zero
-                    // weights outside it, which also leaves the series complete.
-                    None => series_with(
-                        series,
-                        &[],
-                        None,
-                        Some(window_weights(n, start + span.min(width), start + width)),
-                    ),
-                }
+                let start = unbiased_index(rng, n);
+                let weights: Arc<[f64]> =
+                    (0..n).map(|t| if (t + n - start) % n < width { 1.0 } else { 0.0 }).collect();
+                series_with(series, &[], None, Some(weights))
             }
             TargetPerturbation::Bootstrap { .. } => {
                 series_with(series, &[], None, Some(block_weights(n, span, rng)?))
@@ -2391,6 +2408,26 @@ impl PreparedRefit<'_> {
             self.options.negative_control_outcome,
         )?;
         let refit = self.reestimate(&Modal::Series(perturbed), ctx);
+        // A route that reads no row weights (a conditional effect) cannot take the circular
+        // window as zero weights; the same subset is then cut as a contiguous window, which keeps
+        // every lag the procedure reads inside it.
+        if refit.is_err() {
+            if let TargetPerturbation::Subset { fraction, .. } = perturbation {
+                let n = series.row_count();
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    clippy::cast_sign_loss,
+                    reason = "the subset fraction lies in (0, 1), and the saturating cast is clamped into [1, n]"
+                )]
+                let width = ((fraction * n as f64).round() as usize).clamp(1, n);
+                let start = unbiased_index(rng, n - width + 1);
+                if let Some(window) = truncated_series(series, start, start + width)? {
+                    if let Ok(values) = self.reestimate(&Modal::Series(window), ctx) {
+                        return Ok(values);
+                    }
+                }
+            }
+        }
         // A route that reads no row weights cannot take the block resample as multiplicities;
         // the bootstrap is then drawn as a gathered circular-block series, whose lag windows
         // that straddle a block junction pair values observed apart (the block length keeps
@@ -2814,7 +2851,12 @@ impl PreparedRefit<'_> {
         }
         let fit = FaerBackend
             .least_squares(&design, n, p, y, &mut LeastSquaresWorkspace::default())
-            .map_err(|error| TargetRefitError::Failed(ValidationError::from(error)))?;
+            .map_err(|error| {
+                unsupported(
+                    format!("the reference outcome regression could not be fit: {error}"),
+                    "a full-rank reference design",
+                )
+            })?;
         let l = gram_cholesky_factor(
             &design,
             n,
@@ -2909,7 +2951,7 @@ impl PreparedRefit<'_> {
         };
         let lags = max_graph_lag(self.study()).max(1);
         let mut ids = vec![self.treatment];
-        ids.extend(self.adjustment());
+        ids.extend(self.reference_covariates());
         // The reference model is an autoregressive distributed-lag regression: the outcome on its
         // own lags and on the treatment and the adjustment covariates at every lag the graph
         // spans, so a treatment read at an earlier period (a pulse at a lag) is in the model the
@@ -2972,7 +3014,12 @@ impl PreparedRefit<'_> {
         }
         let fit = FaerBackend
             .least_squares(&design, rows, p, &response, &mut LeastSquaresWorkspace::default())
-            .map_err(|error| TargetRefitError::Failed(ValidationError::from(error)))?;
+            .map_err(|error| {
+                unsupported(
+                    format!("the reference outcome regression could not be fit: {error}"),
+                    "a full-rank reference design",
+                )
+            })?;
         let l = gram_cholesky_factor(
             &design,
             rows,

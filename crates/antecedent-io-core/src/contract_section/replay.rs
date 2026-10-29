@@ -65,7 +65,7 @@ pub(in crate::contract_section) fn verify_nested_counterfactual_result(
         .and_then(|program| program.checked_nested_counterfactual.as_ref())
         .ok_or(ContractReason::ProgramCheckedNestedCounterfactual)?;
     if contract.graph_class != "Dag"
-        || contract.structure_source != "explicit"
+        || !matches!(contract.structure_source.as_str(), "explicit" | "accepted")
         || !matches!(contract.identifier.as_deref(), None | Some("path_specific.natural"))
         || !matches!(contract.estimator.as_deref(), None | Some("mediation.linear"))
         || contract

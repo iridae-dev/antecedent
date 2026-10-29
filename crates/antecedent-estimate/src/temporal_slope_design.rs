@@ -52,6 +52,10 @@ pub struct TemporalSlopeDesign {
     cols: usize,
     layout: SlopeLayout,
     windows: GappedAlignedRows,
+    /// Sampling weight of each design row (the weight of the period the window ends at), when the
+    /// series declares weights. [`Self::fit`] is weighted least squares over them; a row-resampled
+    /// refit has no weighted construction and is unavailable.
+    row_weights: Option<Vec<f64>>,
 }
 
 /// The coefficients of one fit of a [`TemporalSlopeDesign`] and, for the
@@ -197,6 +201,23 @@ impl TemporalSlopeDesign {
             matrix[base..base + n].copy_from_slice(prep.column(treatment_count + 1 + k));
         }
         let outcome_column = prep.column(treatment_count).to_vec();
+        let row_weights = match data.storage().weights() {
+            None => None,
+            Some(weights) => {
+                let first = max_lag as usize;
+                let Some(window) = weights.get(first..first + n) else {
+                    return Err(crate::sampling_weights::invalid(
+                        "the series' sampling weights do not cover its lag-aligned windows",
+                    ));
+                };
+                if window.iter().any(|w| !w.is_finite() || *w < 0.0) {
+                    return Err(crate::sampling_weights::invalid(
+                        "sampling weights must be finite and non-negative",
+                    ));
+                }
+                Some(window.to_vec())
+            }
+        };
         Ok(Self {
             matrix,
             outcome: outcome_column,
@@ -204,6 +225,7 @@ impl TemporalSlopeDesign {
             cols: ncols,
             layout: SlopeLayout::Slopes { treatments: treatment_count },
             windows: GappedAlignedRows { first_time: max_lag as usize, complete: vec![true; n] },
+            row_weights,
         })
     }
 
@@ -311,6 +333,7 @@ impl TemporalSlopeDesign {
                 cols: ncols,
                 layout: SlopeLayout::Conditional { modifiers: q },
                 windows: GappedAlignedRows { first_time: max_lag as usize, complete },
+                row_weights: None,
             },
             delta,
         ))
@@ -388,11 +411,26 @@ impl TemporalSlopeDesign {
     /// A singular design or a non-positive prior scale.
     pub fn fit(&self, prior_scale: Option<f64>) -> Result<SlopeFit, EstimationError> {
         let mut ws = LeastSquaresWorkspace::default();
+        let (matrix, outcome);
+        let (matrix_ref, outcome_ref): (&[f64], &[f64]) = if let Some(weights) = &self.row_weights {
+            let root: Vec<f64> = weights.iter().map(|w| w.sqrt()).collect();
+            let mut scaled = self.matrix.clone();
+            for column in scaled.chunks_exact_mut(self.rows) {
+                for (value, scale) in column.iter_mut().zip(&root) {
+                    *value *= scale;
+                }
+            }
+            matrix = scaled;
+            outcome = self.outcome.iter().zip(&root).map(|(y, scale)| y * scale).collect::<Vec<_>>();
+            (&matrix, &outcome)
+        } else {
+            (&self.matrix, &self.outcome)
+        };
         let fit = SequentialRegression::solve_design(
-            &self.matrix,
+            matrix_ref,
             self.rows,
             self.cols,
-            &self.outcome,
+            outcome_ref,
             None,
             &mut ws,
         )
@@ -409,7 +447,10 @@ impl TemporalSlopeDesign {
     #[must_use]
     pub fn refit_rows(&self, rows: &[usize], scratch: &mut SlopeRefitScratch) -> Option<SlopeFit> {
         let m = rows.len();
-        if m < self.cols.max(MIN_SLOPE_ROWS) || rows.iter().any(|&row| row >= self.rows) {
+        if self.row_weights.is_some()
+            || m < self.cols.max(MIN_SLOPE_ROWS)
+            || rows.iter().any(|&row| row >= self.rows)
+        {
             return None;
         }
         scratch.matrix.clear();
@@ -1003,6 +1044,7 @@ mod tests {
             cols: 2,
             layout: SlopeLayout::Slopes { treatments: 1 },
             windows: GappedAlignedRows { first_time: 1, complete: vec![true; rows] },
+            row_weights: None,
         }
     }
 
@@ -1069,6 +1111,7 @@ mod tests {
             cols: 2,
             layout: SlopeLayout::Slopes { treatments: 1 },
             windows: GappedAlignedRows { first_time: 2, complete: vec![true; rows] },
+            row_weights: None,
         }
     }
 
