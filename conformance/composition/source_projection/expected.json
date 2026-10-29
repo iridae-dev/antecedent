@@ -37,7 +37,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/source_projection.rs",
-          "sha256": "be0faaf6096d4089b8170715a6dd6b17981e47f5733bc388eff092ccc36a279c"
+          "sha256": "ff5edd60fe3d6664167b313dcb609b74feff7fcacf8a93a03081ab79ff2b9917"
         }
       ],
       "fixture_payload_sha256": "a1626415293db6820be0cd2324fffd1c9d47949cd866469396c0ecdd50752553"

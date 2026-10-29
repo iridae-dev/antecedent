@@ -11,7 +11,8 @@
     "kind": "regression_pin",
     "project": "repository software contract",
     "origin": "Current review of the retained fixture fields and the exact executing consumer; the values are repository-authored inputs and pins, and no external generator or independent numerical origin is asserted.",
-    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
+    "note": "Pins this library's recorded output for the case stated in evidence_proposition (\"Over an 80-seed grid, at least 68 kernel-target AIPW intervals cover the closed-form population functional 1+0.6/(1+0.7^2) asserted in the test\"); kernel_target_population_coverage_over_seed_grid compares the live result with it. Asserts no independent numerical truth."
   },
   "true_effect": 1.4026845637583893,
   "formula": "1 + 0.6 / (1 + 0.7^2)",

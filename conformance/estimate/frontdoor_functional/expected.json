@@ -39,7 +39,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/estimate_conformance.rs",
-          "sha256": "ee32a186b9dda64627ff43827387eb90ffc1ef795220675863b5c54c129aabf4"
+          "sha256": "4eeca1546ae3ed197b3b82844f910bd61f44675dacf4d8f631d0142e5ccdc0d3"
         }
       ],
       "fixture_payload_sha256": "3fd3a7d5562ccbe92eed3a71c77a9cdb0b305bc783ad294bdf88a2c79cac48eb"

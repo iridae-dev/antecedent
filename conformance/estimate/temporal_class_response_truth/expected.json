@@ -43,12 +43,12 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_class_bayesian_envelope.rs",
-          "sha256": "e7ab18dec2aa74fe4edd80ea92e971f899464990daeb413736ce547da4072e3f"
+          "sha256": "ecf28cda958af8dab792f796e335276cec7668a3df43bce142a404b79782ed10"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs",
-          "sha256": "dae61c24a4a391e352a3bf151eac096ccd7fd1b9defc93743ca99fc45978c0b1"
+          "sha256": "0490324dc3d77cc40966896ea125c7cd3f726cfabd15f7e4b5886de4b27ebaa7"
         }
       ],
       "fixture_payload_sha256": "2dd31961529955a04775c235a79f693a37b3483c518203e03768967da7cee443"

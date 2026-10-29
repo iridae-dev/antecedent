@@ -10,7 +10,8 @@
     "kind": "regression_pin",
     "project": "repository software contract",
     "origin": "Current review of the retained fixture fields and the exact executing consumer; the values are repository-authored inputs and pins, and no external generator or independent numerical origin is asserted.",
-    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
+    "note": "Pins this library's recorded output for the case stated in evidence_proposition (\"The path-specific natural-effect query reports the pinned identification method label and status and an effect within the pinned tolerance\"); end_to_end_path_specific_natural_effect compares the live result with it. Asserts no independent numerical truth."
   },
   "method": "path_specific.natural",
   "status": "nonparametrically_identified"

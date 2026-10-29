@@ -10,7 +10,8 @@
     "kind": "regression_pin",
     "project": "repository software contract",
     "origin": "Current review of the retained fixture fields and the exact executing consumer; the values are repository-authored inputs and pins, and no external generator or independent numerical origin is asserted.",
-    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
+    "note": "Pins this library's recorded output for the case stated in evidence_proposition (\"The KDE do-sampler returns the requested number of draws and every draw is finite\"); do_sampling_kde compares the live result with it. Asserts no independent numerical truth."
   },
   "require_finite_draws": true,
   "n_draws": 40,
@@ -24,7 +25,8 @@
     "available": true,
     "version": "0.14",
     "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
-    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py", "generator_retained": false,
+    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py",
+    "generator_retained": false,
     "note": "black-box execution only; no source translation",
     "outputs": {
       "method": "dowhy.gcm.average_causal_effect",

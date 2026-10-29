@@ -4,7 +4,8 @@
     "kind": "regression_pin",
     "project": "repository software contract",
     "origin": "Current review of the frozen fields and executing assertion; no external numeric dump is present.",
-    "historical_exposure": "The deleted-harness/package wording is preserved in historical_oracle. Original author exposure cannot be independently established."
+    "historical_exposure": "The deleted-harness/package wording is preserved in historical_oracle. Original author exposure cannot be independently established.",
+    "note": "Pins this library's recorded output for the case stated in evidence_proposition (\"Dropping the essential confounder in the declared toy example produces a descriptive, non-informative report exceeding the repository threshold 0.5\"); graph_refute_reports_the_confounder_dependence_descriptively compares the live result with it. Asserts no independent numerical truth."
   },
   "overlap": {
     "ess_fraction": "ess/n",

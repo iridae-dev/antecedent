@@ -37,7 +37,7 @@
         {
           "role": "input_fixture",
           "path": "conformance/design/expected_information_gain/expected.json",
-          "sha256": "f6ee6192288abb3767941dd79d7999bca4b05236e6836a1ba92802dd997ce73d"
+          "sha256": "cfedabd2287052ef533224e58c314d0dcf6fc7aed9469476bd63686748594163"
         },
         {
           "role": "assertion_source",

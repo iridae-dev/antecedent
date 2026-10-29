@@ -50,7 +50,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/src/glm_adjustment/tests.rs",
-          "sha256": "245d1b471677b65ff36c4674e9795fb8f0ddfd152916bc35ee80f8c458fd251a"
+          "sha256": "2bc7a0529a8d9d8c6ea93331ce911b888887e31d299b13efa0e1846310640785"
         }
       ],
       "fixture_payload_sha256": "a2f9bfbf56b2e14dbb3d851416c0bae85a2edafcb21f29860e905fb97f82cf64"

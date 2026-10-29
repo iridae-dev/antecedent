@@ -40,7 +40,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_response_redundancy.rs",
-          "sha256": "bdf985b0dea1c89e9e767c44ea01284eefc89780dbc99f756a4d5f2cd274a6ca"
+          "sha256": "155a4d12e1b89ba3e679bac18ea31274e3cb9950daf61df081e578b3b356bfdd"
         }
       ],
       "fixture_payload_sha256": "f72f9c8e9f1fa7aa5dd2823d853abbb3780345a01da218d225be0fdd73bd53a3"

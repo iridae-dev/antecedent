@@ -40,7 +40,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/context_effects.rs",
-          "sha256": "05a489ae2520808f5adc2b84ab1e77d1de7033a4b870eca3d51021e419693100"
+          "sha256": "4733f9c64001f525840a53edd43cd966252d0f68e5f51a934e783aab198750e3"
         }
       ],
       "fixture_payload_sha256": "149b3c61f53179258556fa6cf609097c30ed2f27d4a996e996c1b506a77bc1aa"

@@ -38,7 +38,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/recalc_temporal.rs",
-          "sha256": "9f0d01bfac3232b535d5c817119bf8fac4ac95ecbcbdabaf9f7ed9f7ecb74440"
+          "sha256": "28aee9bb8617877afa4fb19c2ee5fe1b8637ebb02fd9f9e24fe960ef276eb698"
         },
         {
           "role": "assertion_source",

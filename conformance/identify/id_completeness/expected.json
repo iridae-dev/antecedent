@@ -3,7 +3,8 @@
   "oracle": {
     "kind": "regression_pin",
     "origin": "Current review of retained local contract inputs and their exact executing consumer; this record asserts no external generator or independent numerical origin.",
-    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
+    "note": "Pins this library's recorded output for the case stated in evidence_proposition (\"The listed ADMG queries are identified (napkin, nested napkin, front-door) or refused with a verified hedge (confounded-mediator front-door, bow-arc, joint treatment), matching the stated status\"); frontdoor_with_confounded_mediator_is_a_verified_hedge compares the live result with it. Asserts no independent numerical truth."
   },
   "cases": [
     {

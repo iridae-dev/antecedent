@@ -1622,12 +1622,12 @@
         {
           "role": "assertion_source",
           "path": "python/tests/test_posterior_moments.py",
-          "sha256": "4574f56a2becdd041455734fbdb10a9b01540741bfd51fc1ead17e706c58b92f"
+          "sha256": "46fa038d2767d130116aecc221821c1ca0328a8839a9abc9a35f828fef4c1c0b"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/bayesian_temporal.rs",
-          "sha256": "2bde5cee157aa421338d2f693f6e100558fd64d6293908eabd8687053886176b"
+          "sha256": "dc222f017c4ceb8d5c6543c8a8422b12adccc33209cf8eb4c5177bea77711b29"
         }
       ],
       "fixture_payload_sha256": "60d5b8e111b58f1532481fc28728bde89042107c7d912843bc0a15ac485562d6"

@@ -16,6 +16,7 @@
   "oracle": {
     "kind": "regression_pin",
     "origin": "Current review of retained local contract inputs and their exact executing consumer; this record asserts no external generator or independent numerical origin.",
-    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
+    "note": "Pins this library's recorded output for the case stated in evidence_proposition (\"Rolling mechanism diagnostics over the trailing window of the known linear law y = 2 + 3x match a batch OLS on the same rows within the stable float tolerance, append does not clear the slot and replace does\"); rolling_summaries_match_independent_batch_windows compares the live result with it. Asserts no independent numerical truth."
   }
 }

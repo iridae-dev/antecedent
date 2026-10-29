@@ -55,7 +55,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-prob/tests/prior_support_oracle.rs",
-          "sha256": "30160d9724fff15bca4d770a1aa7caa40cec8f18914f081948703eeb55f209fb"
+          "sha256": "d30b64d100e6407638455f2089e92648697ec71cb981e2857c7914c4d6777761"
         }
       ],
       "fixture_payload_sha256": "3817f8c8f06d951724f8addd58ab3d94bc18f58e8fad989cca888a80fb904230"

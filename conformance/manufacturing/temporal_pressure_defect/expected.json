@@ -11,7 +11,8 @@
     "kind": "regression_pin",
     "project": "repository software contract",
     "origin": "Current review of the retained fixture fields and the exact executing consumer; the values are repository-authored inputs and pins, and no external generator or independent numerical origin is asserted.",
-    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
+    "note": "Pins this library's recorded output for the case stated in evidence_proposition (\"On the lagged series defect_t=0.9*pressure_{t-1}, the Bayesian pulse effect at the declared lag and horizon lies within the pinned tolerance of 0.9 and the query carries the declared policy and sampling interval\"); manufacturing_pressure_defect_bayesian compares the live result with it. Asserts no independent numerical truth."
   },
   "scm": "defect_t = 0.9 * pressure_{t-1}",
   "true_effect_per_unit": 0.9,
@@ -33,5 +34,5 @@
     ]
   ],
   "sampling_interval_ns": 3600000000000,
-  "note": "Discrete time steps; 2h at 1h sampling \u2261 2 steps"
+  "note": "Discrete time steps; 2h at 1h sampling ≡ 2 steps"
 }

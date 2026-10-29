@@ -3,7 +3,8 @@
   "oracle": {
     "kind": "regression_pin",
     "origin": "Current review of retained local contract inputs and their exact executing consumer; this record asserts no external generator or independent numerical origin.",
-    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
+    "note": "Pins this library's recorded output for the case stated in evidence_proposition (\"Static PAG endpoint marks are stored as declared (circle-arrow, circle-circle), a directed cycle is refused as a cycle and a self-loop is refused as invalid endpoints\"); pag_endpoint_and_definite_status_oracles compares the live result with it. Asserts no independent numerical truth."
   },
   "cases": [
     {

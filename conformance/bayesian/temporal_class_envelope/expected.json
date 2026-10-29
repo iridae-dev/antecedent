@@ -153,7 +153,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_class_bayesian_envelope.rs",
-          "sha256": "e7ab18dec2aa74fe4edd80ea92e971f899464990daeb413736ce547da4072e3f"
+          "sha256": "ecf28cda958af8dab792f796e335276cec7668a3df43bce142a404b79782ed10"
         }
       ],
       "fixture_payload_sha256": "fd662338bbefbdc83289407e90c7c7e516d0f030608b245b02dbb625d8d9baf3"

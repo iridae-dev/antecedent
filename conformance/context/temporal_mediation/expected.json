@@ -8,5 +8,11 @@
   "evidence_kind": "internal_cross_check",
   "evidence_source": "crates/antecedent/tests/context_effects.rs::temporal_mediation_numeric_pin",
   "evidence_proposition": "On the declared toy temporal mediation series the estimated mediated effect exceeds mediated_min and total equals direct plus mediated within the decomposition tolerance.",
-  "limitations": "The structural mediated effect (0.8*0.5=0.4) is not pinned: only a lower bound and an internal decomposition identity are checked. Not independent known truth."
+  "limitations": "The structural mediated effect (0.8*0.5=0.4) is not pinned: only a lower bound and an internal decomposition identity are checked. Not independent known truth.",
+  "oracle": {
+    "kind": "regression_pin",
+    "origin": "Current review of retained local contract inputs and their exact executing consumer; this record asserts no external generator or independent numerical origin.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
+    "note": "Pins a lower bound on the mediated effect and the total = direct + mediated decomposition identity on the toy series; the structural mediated effect 0.8*0.5=0.4 is not pinned. An internal cross-check, not an independent truth."
+  }
 }

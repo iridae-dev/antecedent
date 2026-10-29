@@ -53,7 +53,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/bayesian.rs",
-          "sha256": "f2f11f9729d3226feecc149094235ae27240171659e933d51350ca603c4838b1"
+          "sha256": "5d4cb6dec2b06a1a5aa334403144f1c9acaadb4eb7ed12ae10129bae04c2a654"
         }
       ],
       "fixture_payload_sha256": "4b3717e5f7819cea6b4d8ae8fab6cf13b190d27a5eaa25254bd0d14af761c616"

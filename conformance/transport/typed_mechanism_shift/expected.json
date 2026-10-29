@@ -40,12 +40,12 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-model/tests/typed_mechanism_transport.rs",
-          "sha256": "c766d73ce698e760d9945ff49d64a312ddc51fb18fc98b15a58fec2f7a0365c8"
+          "sha256": "d41adad655a2f935c4c483ebb687e99bc73cce1dacf0299dadb6169766fc52c6"
         },
         {
           "role": "assertion_source",
           "path": "python/tests/test_typed_mechanism_transport.py",
-          "sha256": "1e38931f1ca0dfd22634feabd7b08e36cb4509dbcbfd7cb255c9d1856afff00b"
+          "sha256": "6296ce7475092a36638244240976c0a233cd784088d232b28b51923f5d496bce"
         },
         {
           "role": "input_fixture",

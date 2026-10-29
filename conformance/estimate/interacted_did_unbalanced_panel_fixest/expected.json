@@ -87,12 +87,12 @@
         {
           "role": "input_fixture",
           "path": "conformance/estimate/interacted_did_unbalanced_panel/expected.json",
-          "sha256": "ab5223fa0f00f48f02b2b1cb3892a986a4ea98291d259aeeb44c2871003fdfb4"
+          "sha256": "5927f1373b29d4e762f153e86e4672732c71a54606443166c52bc8a6e2d6b976"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/src/heterogeneity_robust_did/tests.rs",
-          "sha256": "e3414f75f92b94bf7ca50ac8428f5e298bbb027668e952c5ee843587916b8ce3"
+          "sha256": "03068fa9224a7958a2e3d388a14802f5edcbf59ed0ab02faf396c02269f64bc4"
         }
       ],
       "fixture_payload_sha256": "39e0152ec777709cb586a8e53382ea2ac49856f5c1ee31346597aaf87a143127"

@@ -39,7 +39,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/rollout_artifact.rs",
-          "sha256": "1329fc4808b78c3c9b0016ba555d11ee3abb75797fd2cb1f276092107f5cdc91"
+          "sha256": "1355aff7f961f9a1f942a543bfb3bcf92c5834324c62cfd6d6b0840a89cc7af2"
         }
       ],
       "fixture_payload_sha256": "293f527285c6906088201a666b1258d5b2ecac400097687227d34795ac9caa14"

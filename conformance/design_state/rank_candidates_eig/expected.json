@@ -16,6 +16,7 @@
   "oracle": {
     "kind": "regression_pin",
     "origin": "Current review of retained local contract inputs and their exact executing consumer; this record asserts no external generator or independent numerical origin.",
-    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
+    "note": "Pins this library's recorded output for the case stated in evidence_proposition (\"Ranking two declared design candidates through a prepared study returns both, takes one exact sample or at least min_mc_samples Monte Carlo samples, orders the scores, and puts a measurement or sampling candidate first\"); rank_candidates_eig_conformance compares the live result with it. Asserts no independent numerical truth."
   }
 }

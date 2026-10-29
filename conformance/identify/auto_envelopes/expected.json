@@ -16,7 +16,8 @@
       "kind": "independent_reimplementation",
       "method": "composition of frozen backdoor, ID, IDC, IV, RD, and envelope fixtures",
       "generator": "temporary composition harness (deleted after artifact import)"
-    }
+    },
+    "note": "Pins this library's recorded output for the case stated in evidence_proposition (\"On the declared three-node graph 0->1, 0->2, 1->2 the automatic identifier reports a nonparametrically identified average effect of 1 on 2 with a non-empty estimand, an auto.method derivation step and an auto.rd.missing_\"); auto_finds_backdoor_on_chain compares the live result with it. Asserts no independent numerical truth."
   },
   "cases": [
     {

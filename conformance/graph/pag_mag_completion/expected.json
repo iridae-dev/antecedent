@@ -32,7 +32,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-graph/tests/oracle_closure.rs",
-          "sha256": "ebf538d85c36d5c3cc4a53627c1fefcf1e28b7b69d891e24b1e4aea92c0e75ea"
+          "sha256": "733adab7e0a3c83b207803aa4092ede4ffc7960020295b9dae439a252667e9e0"
         }
       ],
       "sources": [],

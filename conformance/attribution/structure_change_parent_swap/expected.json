@@ -10,7 +10,8 @@
     "kind": "regression_pin",
     "project": "repository software contract",
     "origin": "Current review of the retained fixture fields and the exact executing consumer; the values are repository-authored inputs and pins, and no external generator or independent numerical origin is asserted.",
-    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
+    "note": "Pins this library's recorded output for the case stated in evidence_proposition (\"On the declared two-graph parent swap, exact Shapley structure attribution returns a single y contribution equal to the total change within 1e-6, with total change magnitude at least the pinned lower bound\"); structure_change_parent_swap_conformance compares the live result with it. Asserts no independent numerical truth."
   },
   "outcome": "y",
   "total_change_min": 2.0,

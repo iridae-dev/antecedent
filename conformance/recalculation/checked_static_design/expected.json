@@ -38,12 +38,12 @@
         {
           "role": "input_fixture",
           "path": "conformance/estimate/admg_frontdoor_functional/expected.json",
-          "sha256": "969e3e85ff022166c87293a09deb4b43f17133281866d8a751f9aafcedd546fa"
+          "sha256": "0bd900dd787bf8f71f60db0ca8d3317edabac80bb9e4f59880d3a69b96cad6d2"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/recalc_static.rs",
-          "sha256": "457b6a5b2d26b8a683b381ab60deea91775743c99ccc4a223e9cb364841d078e"
+          "sha256": "7a2314e89d93fa3d9116475d80e5cc7f25640593eddbf67ed9dee1d20f4ccd0e"
         }
       ],
       "fixture_payload_sha256": "75806cabb949592c60d26b8994ac9e6f25ed438007431888bc82a9f0d7407cde"

@@ -21,5 +21,11 @@
   "evidence_kind": "implementation_exists",
   "evidence_source": "crates/antecedent/tests/bayesian.rs::prior_bank_conflict_shrink",
   "evidence_proposition": "The declared ConflictPolicy sets the applied power-prior alpha to zero when the conflict p-value is at most p_min, never raises alpha, and leaves alpha unchanged without conflict.",
-  "limitations": "Evaluates a repository-authored rule; it validates no conflict-test calibration, numerical prior content or posterior behavior."
+  "limitations": "Evaluates a repository-authored rule; it validates no conflict-test calibration, numerical prior content or posterior behavior.",
+  "oracle": {
+    "kind": "regression_pin",
+    "origin": "Current review of retained local contract inputs and their exact executing consumer; this record asserts no external generator or independent numerical origin.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
+    "note": "Pins the declared ConflictPolicy rule: applied alpha is zero when the conflict p-value is at most p_min, never rises, and is unchanged without conflict. A repository-authored rule, not a numerical truth."
+  }
 }

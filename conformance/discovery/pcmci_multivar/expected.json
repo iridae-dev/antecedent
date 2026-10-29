@@ -10,7 +10,8 @@
     "kind": "regression_pin",
     "project": "repository software contract",
     "origin": "Frozen output of a historical black-box Tigramite 5.2.1.30 run on the retained CSV; the harness is not retained.",
-    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
+    "note": "Pins this library's recorded output for the case stated in evidence_proposition (\"PCMCI on the retained four-variable series reproduces the edge set and the val/p matrix entries within the pinned tolerances recorded from a historical black-box Tigramite 5.2.1.30 run\"); discovery_pcmci_multivar_edges_and_matrices compares the live result with it. Asserts no independent numerical truth."
   },
   "true_parents": [
     {
@@ -47,7 +48,7 @@
     "c",
     "d"
   ],
-  "scm": "4-var VAR; a\u2192b@1, b\u2192c@1, a\u2192d@2; seed=3",
+  "scm": "4-var VAR; a→b@1, b→c@1, a→d@2; seed=3",
   "generation": {
     "script": "/tmp/oracle_harness_deleted_after_artifact_import.py",
     "baseline_pin": "parity/baselines/tigramite.toml",

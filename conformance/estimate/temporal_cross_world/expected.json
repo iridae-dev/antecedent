@@ -41,7 +41,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_cross_world_effect.rs",
-          "sha256": "4277db6a7c7fae192dd1ea19b8499bebde90d3c54c1288f588a0fc423540db42"
+          "sha256": "9664c6389609620723687e6cb290fe96e8d45a724e63b9eacb853868ea14c5b4"
         }
       ],
       "fixture_payload_sha256": "2acfcb33e057c0ab03e89001d89d854f871b54906f57465c316d47dd7122356d"

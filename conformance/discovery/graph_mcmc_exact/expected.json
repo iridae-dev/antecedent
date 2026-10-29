@@ -39,7 +39,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs",
-          "sha256": "84ab687ec69e5e16bf085b18f29808d672e758c06f8f5440c97d084f9e1167aa"
+          "sha256": "42ca047d3dceee1dc9014d89e8bfda6f033a08291888ba6ca953c107fef99fc6"
         }
       ],
       "sources": [],

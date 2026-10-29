@@ -41,7 +41,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/src/heterogeneity_robust_did/tests.rs",
-          "sha256": "e3414f75f92b94bf7ca50ac8428f5e298bbb027668e952c5ee843587916b8ce3"
+          "sha256": "03068fa9224a7958a2e3d388a14802f5edcbf59ed0ab02faf396c02269f64bc4"
         }
       ],
       "fixture_payload_sha256": "b942d67fed936f19bc4c17e18ceb6901336a91cc58b05f3e3fa09075d668324a"

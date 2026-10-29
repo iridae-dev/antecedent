@@ -30,5 +30,11 @@
   "evidence_kind": "implementation_exists",
   "evidence_source": "crates/antecedent/tests/bayesian.rs::prior_bank_transport",
   "evidence_proposition": "A population-tag mismatch without a transport policy refuses with the named error code; with the declared policy the required assumption ids are recorded and alpha is unchanged; propensity transport without weights forces alpha to zero.",
-  "limitations": "Policy and refusal contract only; no transport assumption, numerical prior or posterior is validated."
+  "limitations": "Policy and refusal contract only; no transport assumption, numerical prior or posterior is validated.",
+  "oracle": {
+    "kind": "regression_pin",
+    "origin": "Current review of retained local contract inputs and their exact executing consumer; this record asserts no external generator or independent numerical origin.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
+    "note": "Pins the declared TransportPolicy contract: a population-tag mismatch without a policy refuses with the named code, the declared policy records its assumption ids with alpha unchanged, and propensity transport without weights forces alpha to zero. A policy and refusal contract, not a numerical truth."
+  }
 }

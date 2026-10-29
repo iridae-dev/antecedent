@@ -11,13 +11,17 @@
     "kind": "regression_pin",
     "project": "repository software contract",
     "origin": "Current review of the retained fixture fields and the exact executing consumer; the values are repository-authored inputs and pins, and no external generator or independent numerical origin is asserted.",
-    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
+    "note": "Pins this library's recorded output for the case stated in evidence_proposition (\"A joint intervention-response prior built over both intervention coordinates of the exact noiseless table recovers the joint effect 3 within 0.1, and a response-curve prior supplied without a response-specific mapping is\"); static_effect_and_response_prior_transfer compares the live result with it. Asserts no independent numerical truth."
   },
   "schema_version": 1,
   "n": 200,
   "n_draws": 128,
   "seed": 18,
-  "grid": [0.0, 1.0],
+  "grid": [
+    0.0,
+    1.0
+  ],
   "true_level": 3.0,
   "atol": 0.1,
   "compatibility_filter": "PriorCatalog.filter_compatible",

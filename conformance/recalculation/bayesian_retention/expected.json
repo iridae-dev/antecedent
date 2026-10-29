@@ -39,12 +39,12 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/recalc_bayesian.rs",
-          "sha256": "b533426947efd7bf2a9111c225b8b05f7b5940f768de06893bbf3aaacae4d45a"
+          "sha256": "096d0803eab92446edaf333ccb140170b224061f0fce4667c4e5f52c59f4bf51"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/recalc_joint_bayesian.rs",
-          "sha256": "5ce49bfa2c0563cf0f932597e7e08f40c2b947b738082c9e6ab786376151c5e1"
+          "sha256": "61d6db3faacea86c761ccdd008a733723d62d167620bf486113cfd9ada4e41bd"
         }
       ],
       "fixture_payload_sha256": "5e230779ba6f90b9f5eec6eb9c0bdfa26fe1cf62e5031ccc9bb94f399d86e38c"

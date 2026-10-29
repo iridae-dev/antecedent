@@ -10,7 +10,8 @@
     "kind": "regression_pin",
     "project": "repository software contract",
     "origin": "Frozen output of a historical black-box Tigramite 5.2.1.30 run on the retained series; the harness is not retained.",
-    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
+    "note": "Pins this library's recorded output for the case stated in evidence_proposition (\"LPCMCI on the retained series reproduces the links and marks recorded from a historical black-box Tigramite 5.2.1.30 run\"); lpcmci_chain_matches_upstream_reference_links_and_marks compares the live result with it. Asserts no independent numerical truth."
   },
   "algorithm_id": "lpcmci",
   "min_nodes": 2,
