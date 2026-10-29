@@ -233,7 +233,10 @@ fn design_action_bridges_to_the_existing_planners() {
     assert!(increase.proposed_regimes(0).unwrap().is_empty());
     // A sample increase delivers no new regime and so claims none.
     increase.expected_evidence = Arc::from([evidence(1.0, &[Y, Z], true)]);
-    assert!(increase.validate().is_err());
+    let error = increase.validate().unwrap_err();
+    assert_eq!(error.code, "design_signal_invalid");
+    assert_eq!(error.detail, "study_candidate.wrong_contract");
+    assert_eq!(error.message, "a sample increase delivers no new regime");
 }
 
 fn observational(kind: StudyKind, measured: &[u32], joint: bool) -> DurableStudyCandidate {

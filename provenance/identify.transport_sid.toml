@@ -52,4 +52,4 @@ sha256 = "38c6c14cdd70ff4006c4212490de24c3128700d9a9f39a1961dabaae5f3099be"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/transport_exact_scm.rs"
-sha256 = "5330cb82ef30d3e1944bfebc0a49f7fceecc50f05d95448e90513864bb7b1d03"
+sha256 = "dc64a36f27a0dfaa34c5012d481f1e4212d15c8eb4865131d69545cdc799b9c1"

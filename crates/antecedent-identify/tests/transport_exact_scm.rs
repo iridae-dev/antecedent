@@ -154,22 +154,39 @@ fn negative_witness_mutations_and_evidence_substitution_fail() {
     .unwrap();
     let mut altered = witness.to_record();
     altered.evidence_setting = "finite_catalog".into();
-    assert!(
+    assert_invalid_derivation(
         antecedent_identify::sid::SHedgeCertificate::from_record_checked(
-            altered, &diagram, &query, &ctx
+            altered, &diagram, &query, &ctx,
         )
-        .is_err()
+        .map(|_| ()),
+        "transport.invalid_s_hedge_evidence",
     );
 
     let mut mutated = witness.clone();
     mutated.larger.bidirected = Arc::from([]);
-    assert!(verify_s_hedge(&diagram, &query, &mutated, &ctx).is_err());
+    assert_invalid_derivation(
+        verify_s_hedge(&diagram, &query, &mutated, &ctx).map(|_| ()),
+        "transport.invalid_s_hedge",
+    );
     let mut mutated = witness.clone();
     mutated.larger.directed = Arc::from([]);
-    assert!(verify_s_hedge(&diagram, &query, &mutated, &ctx).is_err());
+    assert_invalid_derivation(
+        verify_s_hedge(&diagram, &query, &mutated, &ctx).map(|_| ()),
+        "transport.invalid_s_hedge",
+    );
     let mut different_evidence = query;
     different_evidence.source = Arc::from("another-source");
-    assert!(verify_s_hedge(&diagram, &different_evidence, &witness, &ctx).is_err());
+    assert_invalid_derivation(
+        verify_s_hedge(&diagram, &different_evidence, &witness, &ctx).map(|_| ()),
+        "transport.invalid_s_hedge",
+    );
+}
+
+fn assert_invalid_derivation(result: Result<(), IdentificationError>, expected: &str) {
+    match result {
+        Err(IdentificationError::InvalidDerivation { code }) => assert_eq!(code, expected),
+        other => panic!("expected the invalid-derivation refusal {expected}, got {other:?}"),
+    }
 }
 
 #[test]
@@ -629,7 +646,15 @@ fn two_population_district_recursion_fails_truth_under_kernel_population_substit
         let substituted = mean(mediator_bow_laws("target", 0.0), x as i64).unwrap();
         assert!((substituted - truth).abs() > 0.2, "population substitution went unnoticed");
         // An honestly labelled source observation cannot stand in for the target leaf.
-        assert!(mean(mediator_bow_laws("source", 0.0), x as i64).is_err());
+        match mean(mediator_bow_laws("source", 0.0), x as i64) {
+            Err(antecedent_expr::EvalError::ExactLaw(law)) => {
+                assert_eq!(law.kind, "missing_exact_provider");
+                assert_eq!(&*law.population, "target");
+                assert_eq!(law.regime, Some(RegimeId::from_raw(2)));
+                assert_eq!(*law.variables, [v(0), v(1), v(2)]);
+            }
+            other => panic!("the target leaf has no exact provider, got {other:?}"),
+        }
     }
 }
 
@@ -1847,7 +1872,10 @@ fn a_direct_transport_step_cannot_be_relabelled_as_figure_five_line_ten() {
     let mut relabelled = record;
     let root = relabelled.root_step;
     relabelled.steps[root].rule = Rule::Source;
-    assert!(check(relabelled).is_err());
+    assert!(matches!(
+        check(relabelled),
+        Err(IdentificationError::InvalidDerivation { code }) if code == "transport.invalid_derivation"
+    ));
 }
 
 #[test]

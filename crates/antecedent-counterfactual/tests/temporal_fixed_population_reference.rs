@@ -227,13 +227,24 @@ fn each_world_must_cover_exactly_the_factual_units() {
     let s = spec(&case);
     let mut short = s.clone();
     short.plus.units.pop();
-    assert!(run(&short).is_err());
+    assert_refusal(&short, "temporal_counterfactual.unpaired_histories", "u06", "plus");
     let mut extra = s.clone();
     extra.minus.units.push(UnitId::new("ghost"));
-    assert!(run(&extra).is_err());
+    assert_refusal(&extra, "temporal_counterfactual.unpaired_histories", "ghost", "minus");
     let mut shifted = s;
     shifted.minus.times = [0, 2];
-    assert!(run(&shifted).is_err());
+    assert_refusal(&shifted, "temporal_counterfactual.time_misaligned", "u00", "minus");
+}
+
+fn assert_refusal(s: &TemporalCounterfactualSpec, detail: &str, unit: &str, world: &str) {
+    let err = run(s).unwrap_err();
+    let refusal = err.refusal().expect("a typed refusal");
+    assert_eq!(refusal.code, "route_not_supported");
+    assert_eq!(refusal.detail, detail);
+    assert_eq!(refusal.offending.as_deref(), Some(unit));
+    let witness = err.witness().expect("witness");
+    assert_eq!(witness.unit.as_ref().unwrap().as_str(), unit);
+    assert_eq!(witness.world.as_deref(), Some(world));
 }
 
 /// The staged executor runs the same arithmetic as separate stages and must return, bit for bit,

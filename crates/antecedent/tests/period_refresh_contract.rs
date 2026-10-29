@@ -216,17 +216,33 @@ fn a_changed_initial_law_or_cadence_restarts_a_declared_invariant_mechanism() {
     }
 }
 
+const OVERLAP: &str = "period_refresh.overlap: the period overlaps the summarized one or reuses its snapshot, so the same observations would enter twice; supply a later period of a new snapshot";
+
+fn invalid_event<T>(result: Result<T, antecedent_state::StateError>) -> String {
+    match result {
+        Err(antecedent_state::StateError::InvalidEvent(message)) => message,
+        Err(other) => panic!("expected an invalid-event refusal, got {other:?}"),
+        Ok(_) => panic!("expected a refusal"),
+    }
+}
+
 #[test]
 fn an_overlapping_period_or_reused_snapshot_is_refused_and_changes_nothing() {
     let mut refresh = start(MechanismStanding::DeclaredInvariant);
     let before = refresh.fit().snapshot();
     let posterior = refresh.summary().unwrap();
     let overlap = window(4, 10, "snap_overlap", &units());
-    assert!(refresh.refresh(&overlap, cadence(), "law_1", &S[4..10]).is_err());
+    assert_eq!(
+        invalid_event(refresh.refresh(&overlap, cadence(), "law_1", &S[4..10])),
+        OVERLAP
+    );
     let reused = window(6, 12, "snap_1", &units());
-    assert!(refresh.refresh(&reused, cadence(), "law_1", &S[6..12]).is_err());
+    assert_eq!(invalid_event(refresh.refresh(&reused, cadence(), "law_1", &S[6..12])), OVERLAP);
     let short = window(6, 12, "snap_2", &units());
-    assert!(refresh.refresh(&short, cadence(), "law_1", &S[6..11]).is_err());
+    assert_eq!(
+        invalid_event(refresh.refresh(&short, cadence(), "law_1", &S[6..11])),
+        "one value per time index of the period"
+    );
     assert_eq!(refresh.fit().snapshot(), before);
     assert_eq!(refresh.summary().unwrap(), posterior);
 }
@@ -236,7 +252,10 @@ fn a_stated_prior_of_the_wrong_width_is_refused() {
     let narrow = ConjugateOlsPrior::isotropic(2, 1.0, 3.0, 2.0).unwrap();
     let first = window(0, 6, "snap_1", &units());
     let spec = spec(MechanismStanding::DeclaredInvariant, "law_1");
-    assert!(PeriodRefresh::start(&spec, &first, &narrow, &S[0..6]).is_err());
+    assert_eq!(
+        invalid_event(PeriodRefresh::start(&spec, &first, &narrow, &S[0..6])),
+        "a lag order of at least one and a prior of width lags + 1"
+    );
 }
 
 #[test]
@@ -253,6 +272,16 @@ fn the_summary_only_export_serves_the_least_squares_fit_and_is_not_the_ledger() 
     assert_eq!(consumer.residual_variance(), fit.residual_variance);
     assert_eq!(consumer.source_digest(), fit.source_digest);
     // Neither form is read as the other.
-    assert!(SummaryOnlyFit::consume(&ledger_bytes).is_err());
-    assert!(antecedent::consume_period_refresh_artifact(&summary_bytes).is_err());
+    let message = invalid_event(SummaryOnlyFit::consume(&ledger_bytes));
+    assert!(
+        message.starts_with("cbor error: Custom(\"unknown field `series_id`, expected one of"),
+        "{message}"
+    );
+    match antecedent::consume_period_refresh_artifact(&summary_bytes) {
+        Err(antecedent_io::error::IoError::Refused { code, message }) => {
+            assert_eq!(code, "invalid_argument");
+            assert!(message.starts_with("period_refresh.summary_only: this is the summary-only form"));
+        }
+        other => panic!("the summary-only form is not the full ledger, got {:?}", other.err()),
+    }
 }

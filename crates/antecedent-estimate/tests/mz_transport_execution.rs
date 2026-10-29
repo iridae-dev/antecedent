@@ -194,7 +194,9 @@ fn empirical_tables_run_through_the_same_formula_with_a_joint_bootstrap() {
         )
     };
     let (p0, p1) = (point(false), point(true));
-    assert!((p0 - truth(0)).abs() < 1e-2 && (p1 - truth(1)).abs() < 1e-2);
+    // The tables are the exact laws rounded to whole counts of 40_000 (no sampling), so the formula
+    // reproduces the target truth to rounding error.
+    assert!((p0 - truth(0)).abs() < 1e-12 && (p1 - truth(1)).abs() < 1e-12);
 
     let intervals = mz_transport_bootstrap_interval(
         &functional,
@@ -343,7 +345,7 @@ fn identical_shared_dataset_tables_are_resampled_as_one() {
     let (catalog, data) =
         with_shared_b_trial(&catalog, &empirical(&exact, 40_000.0), SharedTable::Identical);
     let (point, run) = joint_bootstrap(&catalog, &data);
-    assert!((point - truth(1)).abs() < 1e-2);
+    assert!((point - truth(1)).abs() < 1e-12);
     let intervals = run.expect("one table under two regimes is resampled jointly");
     assert_eq!(intervals.replicates_ok + intervals.replicates_failed, 49);
     let functional = bound(sources(), &catalog);
@@ -382,7 +384,7 @@ fn a_recorded_margin_of_a_shared_joint_is_projected_within_every_replicate() {
     let (catalog, data) =
         with_shared_b_trial(&catalog, &empirical(&exact, 40_000.0), SharedTable::Margin);
     let (point, run) = joint_bootstrap(&catalog, &data);
-    assert!((point - truth(1)).abs() < 1e-2);
+    assert!((point - truth(1)).abs() < 1e-12);
     let intervals = run.expect("a recorded margin is projected from the resampled joint");
     let p1 = point;
     let means = &intervals.requests[1].mean_intervals;
@@ -446,7 +448,7 @@ fn unrelatable_tables_of_one_dataset_withhold_the_interval_not_the_point() {
     assert_eq!(mz_sampling_dependence(&functional), Ok(()));
     // ... but the two arms' different tables cannot be one resampled table.
     let (point, run) = joint_bootstrap(&catalog, &data);
-    assert!((point - truth(1)).abs() < 1e-2);
+    assert!((point - truth(1)).abs() < 1e-12);
     assert_eq!(run.unwrap_err(), "transport.unsupported_dependence");
     assert_eq!(
         mz_interval_withheld_reason(&functional, &data).unwrap(),

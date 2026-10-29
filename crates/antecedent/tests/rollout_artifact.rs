@@ -15,6 +15,7 @@ use antecedent_io::distribution_artifact::{
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
 use antecedent_io::quantity_wire::DistributionMeaningWire;
+use antecedent_io::error::IoError;
 use serde_json::json;
 
 fn pin(key: &str) -> serde_json::Value {
@@ -138,6 +139,14 @@ fn rollout_finite_source_and_ranking_replay_match_independent_bet_truth() {
         assert_eq!(decoded.binding.source.calibration, DistributionCalibration::Unmeasured);
     }
 }
+fn assert_refused(result: Result<(), IoError>, code: &str, message: &str, edit: usize) {
+    match result {
+        Err(IoError::Refused { code: c, message: m }) => {
+            assert_eq!((c, m.as_str()), (code, message), "edit {edit}");
+        }
+        other => panic!("edit {edit}: expected the refusal {code}/{message}, got {other:?}"),
+    }
+}
 #[test]
 fn rollout_resealed_prior_terminal_coordinate_and_standing_mutations_refuse() {
     let artifact = fixture(false);
@@ -166,23 +175,55 @@ fn rollout_resealed_prior_terminal_coordinate_and_standing_mutations_refuse() {
             }
         }
         changed.seal().unwrap();
-        assert!(changed.verify(&artifact.binding).is_err(), "expected boundary edit {edit}");
-        assert!(changed.verify(&changed.binding).is_err(), "scientific boundary edit {edit}");
+        assert_refused(
+            changed.verify(&artifact.binding),
+            "invalid_argument",
+            "rollout.expected_binding_mismatch",
+            edit,
+        );
+        let scientific = [
+            "rollout.terminal_decision_mismatch",
+            "rollout.terminal_decision_mismatch",
+            "rollout.terminal_decision_mismatch",
+            "rollout.state_coordinate_mismatch",
+            "rollout.source_standing_mismatch",
+            "rollout.source_standing_mismatch",
+            "rollout.ordered_prior_mismatch",
+            "rollout.terminal_decision_mismatch",
+        ];
+        assert_refused(
+            changed.verify(&changed.binding),
+            "invalid_argument",
+            scientific[edit],
+            edit,
+        );
     }
 }
 #[test]
 fn rollout_changed_source_values_and_draw_order_cannot_retain_original_prior() {
     let artifact = fixture(false);
     let old = source(false);
-    for draws in [vec![0.75, 2., 0.25, 1.], vec![0.25, 999., 0.75, 2.], vec![0.5, 1., 0.75, 2.]] {
+    for (edit, (draws, scientific)) in [
+        (vec![0.75, 2., 0.25, 1.], "rollout.ordered_prior_mismatch"),
+        (vec![0.25, 999., 0.75, 2.], "rollout.ranking_source_mismatch"),
+        (vec![0.5, 1., 0.75, 2.], "rollout.ordered_prior_mismatch"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
         let replacement = DistributionArtifact::new(old.metadata().clone(), draws).unwrap();
         let mut changed = artifact.clone();
         changed.source_artifact = replacement.to_bytes("law").unwrap();
         changed.seal().unwrap();
-        assert!(changed.verify(&artifact.binding).is_err());
+        assert_refused(
+            changed.verify(&artifact.binding),
+            "invalid_argument",
+            "rollout.source_digest_mismatch",
+            edit,
+        );
         changed.binding.source_digest = source_digest(&replacement);
         changed.seal().unwrap();
-        assert!(changed.verify(&changed.binding).is_err());
+        assert_refused(changed.verify(&changed.binding), "invalid_argument", scientific, edit);
     }
 }
 #[test]
@@ -205,7 +246,25 @@ fn rollout_meaning_support_weighting_and_marginal_pairing_refuse() {
         changed.binding.state = source.quantities()[0].clone();
         changed.binding.source_digest = source_digest(&source);
         changed.seal().unwrap();
-        assert!(changed.verify(&changed.binding).is_err(), "edit {edit}");
+        let result = changed.verify(&changed.binding);
+        match edit {
+            1 => assert!(
+                matches!(&result, Err(IoError::Convert(m)) if m == "distribution coordinate unsupported"),
+                "edit {edit}: {result:?}"
+            ),
+            0 | 2 => assert_refused(
+                result,
+                "route_not_supported",
+                "rollout.unweighted_joint_state_required",
+                edit,
+            ),
+            _ => assert_refused(
+                result,
+                "route_not_supported",
+                "rollout.state_interpretation_mismatch",
+                edit,
+            ),
+        }
     }
 }
 fn bundle(
@@ -257,7 +316,10 @@ fn rollout_bundle_verifies_source_rollout_ranking_chain_and_refuses_swapped_meta
 fn rollout_truncation_corruption_and_nonfinite_prior_refuse() {
     let artifact = fixture(false);
     let bytes = artifact.to_bytes("rollout").unwrap();
-    assert!(consume(&bytes[..bytes.len() / 2], &artifact.binding).is_err());
+    match consume(&bytes[..bytes.len() / 2], &artifact.binding) {
+        Err(IoError::Io(failure)) => assert_eq!(failure.message(), "failed to fill whole buffer"),
+        other => panic!("a truncated rollout ends unexpectedly, got {:?}", other.err()),
+    }
     let mut changed = artifact.clone();
     if let antecedent_design::design_ranking_artifact::PriorWire::Draws { states } =
         &mut changed.binding.decision.prior
@@ -265,5 +327,5 @@ fn rollout_truncation_corruption_and_nonfinite_prior_refuse() {
         states[0] = f64::NAN;
     }
     changed.seal().unwrap();
-    assert!(changed.verify(&changed.binding).is_err());
+    assert_refused(changed.verify(&changed.binding), "invalid_argument", "rollout.ordered_prior_mismatch", 0);
 }

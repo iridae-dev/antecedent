@@ -214,7 +214,15 @@ fn native_receipts_are_native_and_differ_from_an_equivalent_external_receipt() {
     assert_ne!(native.receipt.identity(), external.receipt.identity());
     let gauss = NativeGaussianMeanSignal::new(0.25).unwrap().prepare(&req).unwrap();
     assert_eq!(gauss.receipt.family, "gaussian_mean");
-    assert!(NativeGaussianMeanSignal::new(0.0).is_err());
+    for bad in [0.0, -1.0] {
+        match NativeGaussianMeanSignal::new(bad) {
+            Err(antecedent_design::DesignError::Config(message)) => assert_eq!(
+                message,
+                format!("Gaussian signal noise variance must be finite and > 0 (got {bad})")
+            ),
+            other => panic!("variance {bad} must be a configuration refusal, got {:?}", other.err()),
+        }
+    }
     // The request's sample size is authoritative for every candidate.
     let design = CandidateDesign::IncreaseSamplingRate(SamplingPlan {
         additional_samples: 99,

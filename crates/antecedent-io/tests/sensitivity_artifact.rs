@@ -233,13 +233,26 @@ fn unknown_versions_and_malformed_payloads_are_refused() {
     let mut nan = numbers.clone();
     set(&mut nan, 4, f64::NAN);
     let resealed = encode_parts(&meta, &nan, "sensitivity-1").unwrap();
-    assert!(SensitivityArtifact::from_bytes(&resealed, None).is_err());
+    let error = SensitivityArtifact::from_bytes(&resealed, None).unwrap_err();
+    assert_eq!(
+        refusal(&error),
+        (
+            "invalid_argument",
+            "sensitivity_decision_composition.invalid_surface: surface values must be finite with lower <= upper"
+        )
+    );
 
     let mut oversized = bytes.clone();
     oversized.resize(MAX_SENSITIVITY_ARTIFACT_BYTES + 1, 0);
     assert!(matches!(SensitivityArtifact::from_bytes(&oversized, None), Err(IoError::TooLarge)));
-    assert!(SensitivityArtifact::from_bytes(&bytes[..bytes.len() / 2], None).is_err());
-    assert!(artifact.to_bytes("  ").is_err());
+    match SensitivityArtifact::from_bytes(&bytes[..bytes.len() / 2], None).unwrap_err() {
+        IoError::Io(failure) => assert_eq!(failure.message(), "failed to fill whole buffer"),
+        other => panic!("a truncated artifact is an unexpected end of input, got {other:?}"),
+    }
+    assert!(matches!(
+        artifact.to_bytes("  "),
+        Err(IoError::Convert(m)) if m == "missing artifact id"
+    ));
 }
 
 #[test]
@@ -488,9 +501,15 @@ fn a_joint_result_that_cannot_be_filled_exactly_or_is_not_a_range_is_refused() {
         0.5,
         (0.5, 0.5),
     );
-    assert!(
+    let error =
         SensitivityArtifact::from_joint_result(&empty, &effect, 5, adopt_against(0.0), "checked")
-            .is_err()
+            .unwrap_err();
+    assert_eq!(
+        refusal(&error),
+        (
+            "route_not_supported",
+            "sensitivity_decision_composition.unsupported_adaptation: the declared contamination bound is empty"
+        )
     );
 
     let mut interval = joint_result(
@@ -535,18 +554,31 @@ fn caller_intake_limits_refuse_what_the_defaults_admit() {
     let bytes = artifact.to_bytes("tight").expect("encode");
     SensitivityArtifact::from_bytes_within(&bytes, None, &defaults).expect("default consume");
 
-    for limits in [
-        SensitivityLimits { max_grid_points: 2, ..defaults },
-        SensitivityLimits { max_quantities: 1, ..defaults },
-        SensitivityLimits { max_actions: 1, ..defaults },
-        SensitivityLimits { max_scenario_evaluations: 0, ..defaults },
-        SensitivityLimits { max_utility_depth: 0, ..defaults },
+    const BOUNDS: &str = "route_not_supported";
+    const ALL_THREE: &str = "sensitivity_decision_composition.bounds_exceeded: grid points, quantities or actions are outside the bounds";
+    const GRID_QUANTITY: &str = "sensitivity_decision_composition.bounds_exceeded: grid points or quantities are outside the bounds";
+    const EVALUATIONS: &str = "sensitivity_decision_composition.bounds_exceeded: the range vertices of the surface need more utility evaluations than the bound";
+    const DEPTH: &str = "sensitivity_decision_composition.invalid_surface: utility expression is too deep or not finite";
+    for (limits, built, consumed) in [
+        (SensitivityLimits { max_grid_points: 2, ..defaults }, (BOUNDS, ALL_THREE), (BOUNDS, GRID_QUANTITY)),
+        (SensitivityLimits { max_quantities: 1, ..defaults }, (BOUNDS, ALL_THREE), (BOUNDS, GRID_QUANTITY)),
+        (SensitivityLimits { max_actions: 1, ..defaults }, (BOUNDS, ALL_THREE), (BOUNDS, ALL_THREE)),
+        (SensitivityLimits { max_scenario_evaluations: 0, ..defaults }, (BOUNDS, EVALUATIONS), (BOUNDS, EVALUATIONS)),
+        (SensitivityLimits { max_utility_depth: 0, ..defaults }, ("invalid_argument", DEPTH), ("invalid_argument", DEPTH)),
     ] {
-        assert!(SensitivityArtifact::new_within(frozen_parts(), &limits).is_err());
-        assert!(SensitivityArtifact::from_bytes_within(&bytes, None, &limits).is_err());
+        let error = SensitivityArtifact::new_within(frozen_parts(), &limits).unwrap_err();
+        assert_eq!(refusal(&error), built, "{limits:?}");
+        let error = SensitivityArtifact::from_bytes_within(&bytes, None, &limits).unwrap_err();
+        assert_eq!(refusal(&error), consumed, "{limits:?}");
     }
     let tight = SensitivityLimits { max_bytes: bytes.len() - 1, ..defaults };
-    assert!(SensitivityArtifact::from_bytes_within(&bytes, None, &tight).is_err());
-    assert!(artifact.to_bytes_within("tight", bytes.len() - 1).is_err());
+    assert!(matches!(
+        SensitivityArtifact::from_bytes_within(&bytes, None, &tight),
+        Err(IoError::TooLarge)
+    ));
+    assert!(matches!(
+        artifact.to_bytes_within("tight", bytes.len() - 1),
+        Err(IoError::TooLarge)
+    ));
     assert_eq!(artifact.to_bytes_within("tight", bytes.len()).expect("fits"), bytes);
 }

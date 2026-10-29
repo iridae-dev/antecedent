@@ -51,7 +51,7 @@ sha256 = "6c8de8ef83b22506aa0c0e70b771e4e29ab4199d9f3d86c7d1e9cbcf8dbcad3e"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-counterfactual/tests/temporal_fixed_population_reference.rs"
-sha256 = "56c9df120ddd2dbd7f7252d371e508536eb3fe66b39d7d55401353373f670b43"
+sha256 = "99a7002c99dbedf680fb914088f7d18956da28c5d61810bf0f8b0ff050ad8f61"
 
 [[method_review.artifacts]]
 role = "reference"

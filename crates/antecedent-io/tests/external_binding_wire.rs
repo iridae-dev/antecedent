@@ -200,6 +200,13 @@ fn bind(capabilities: &Value, request: &str, probes: &Value) -> ExternalClaimArt
         .unwrap()
 }
 
+fn convert_message(result: Result<Vec<u8>, antecedent_io::error::IoError>) -> String {
+    match result {
+        Err(antecedent_io::error::IoError::Convert(message)) => message,
+        other => panic!("expected a conversion refusal, got {other:?}"),
+    }
+}
+
 fn reseal(
     artifact: &ExternalClaimArtifact,
     edit: impl FnOnce(&mut ExternalClaimIdentity),
@@ -228,7 +235,10 @@ fn provider_contract_identity_is_retained_by_the_artifact() {
     let bytes = artifact.to_bytes("claim").unwrap();
     assert!(reload(&bytes, &identity));
     // An edit that leaves the fingerprint stale is not a coherent identity.
-    assert!(reseal(&artifact, |i| i.provider_meaning = "posterior_predictive".into()).is_err());
+    assert_eq!(
+        convert_message(reseal(&artifact, |i| i.provider_meaning = "posterior_predictive".into())),
+        "provider fingerprint differs from its contract"
+    );
     // An edit resealed with a recomputed fingerprint differs from the retained identity.
     let resealed = reseal(&artifact, |i| {
         i.provider_meaning = "posterior_predictive".into();
@@ -285,20 +295,24 @@ fn verification_checks_are_retained_and_cover_only_the_fingerprint() {
     assert!(reload(&bytes, &identity));
 
     // A receipt cannot be edited into a failure, dropped, or attached to an attested claim.
-    assert!(
-        reseal(&verified, |i| {
+    assert_eq!(
+        convert_message(reseal(&verified, |i| {
             i.verification.as_mut().unwrap()[0] = VerificationProbeWire {
                 kind: "shape".into(),
                 observed: 2.0,
                 expected: 1.0,
                 tolerance: 0.0,
             };
-        })
-        .is_err()
+        })),
+        "verification receipt has a failed or unknown probe"
     );
-    assert!(reseal(&verified, |i| i.verification = None).is_err());
+    const RECEIPT_TRUST: &str = "verification receipt must accompany exactly verified trust";
+    assert_eq!(convert_message(reseal(&verified, |i| i.verification = None)), RECEIPT_TRUST);
     let attested = bind(&json!(["mean"]), "req-1", &Value::Null);
-    assert!(reseal(&attested, |i| i.verification = Some(checks.clone())).is_err());
+    assert_eq!(
+        convert_message(reseal(&attested, |i| i.verification = Some(checks.clone()))),
+        RECEIPT_TRUST
+    );
     // The same checks under another request are another fingerprint, not a reused one.
     let other = bind(&json!(["mean"]), "req-2", &verified_probes());
     assert_ne!(other.metadata().identity.provider_fingerprint, identity.provider_fingerprint);

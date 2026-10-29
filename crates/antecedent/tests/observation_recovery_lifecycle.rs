@@ -453,19 +453,29 @@ fn wire_structs_deny_unknown_fields() {
     }
     let mut tampered = Vec::new();
     ciborium::into_writer(&value, &mut tampered).unwrap();
-    assert!(RecoveryArtifactWire::decode(&tampered).is_err());
+    match RecoveryArtifactWire::decode(&tampered) {
+        Err(antecedent_io::IoError::Cbor(failure)) => {
+            assert_eq!(format!("{:?}", failure.fault()), "Decode");
+            assert!(
+                failure.message().starts_with("Custom(\"unknown field `smuggled`, expected one of"),
+                "{}",
+                failure.message()
+            );
+        }
+        other => panic!("an unknown wire field is a CBOR decode refusal, got {:?}", other.err()),
+    }
     let json = serde_json::json!({"population": "p", "observed_regime": 0, "partially_observed": [], "fully_observed": [], "extra": 1});
-    assert!(
+    let error =
         serde_json::from_value::<antecedent_io::recovery_artifact::RecoveryQueryWire>(json)
-            .is_err()
-    );
+            .unwrap_err();
+    assert!(error.to_string().starts_with("unknown field `extra`, expected one of `population`"), "{error}");
     let record =
         serde_json::to_value(RecoveryArtifactWire::decode(&bytes).unwrap().derivation).unwrap();
     let mut extra = record;
     extra["smuggled"] = serde_json::json!(1);
-    assert!(
-        serde_json::from_value::<antecedent_identify::RecoveryDerivationRecord>(extra).is_err()
-    );
+    let error =
+        serde_json::from_value::<antecedent_identify::RecoveryDerivationRecord>(extra).unwrap_err();
+    assert!(error.to_string().starts_with("unknown field `smuggled`, expected one of `rule_version`"), "{error}");
 }
 
 /// Compatibility: any other format version is refused before the payload is
@@ -482,14 +492,20 @@ fn another_format_version_or_an_unknown_required_feature_is_refused() {
             RecoveryArtifactWire::decode(&wire.export().unwrap()),
             Err(antecedent_io::IoError::UnsupportedVersion { version: v }) if v == version
         ));
-        assert!(
-            consume_observation_recovery_artifact(
-                &wire.export().unwrap(),
-                RecoveryConsumeLimits::default(),
-                &ctx()
-            )
-            .is_err()
-        );
+        match consume_observation_recovery_artifact(
+            &wire.export().unwrap(),
+            RecoveryConsumeLimits::default(),
+            &ctx(),
+        ) {
+            Err(antecedent_io::IoError::Refused { code, message }) => {
+                assert_eq!(code, "transport_not_certified");
+                assert_eq!(
+                    message,
+                    "recovery.invalid_derivation: recovery artifact: unsupported semantics: decode"
+                );
+            }
+            other => panic!("an unsupported version is refused, got {:?}", other.err()),
+        }
     }
     for features in [vec!["future_semantics_v9".to_owned()], Vec::new()] {
         let mut wire = original.clone();
