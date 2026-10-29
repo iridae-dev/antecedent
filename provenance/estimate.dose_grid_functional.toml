@@ -52,7 +52,7 @@ record_sha256 = "0bd2f9944ea4e106f0364aa641ae1a45dd3007009a7b484c6dc3c44843f9e96
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/dose_grid_functional.rs"
-sha256 = "8a6a2286bc058c8ef44682ca0b0cc54170239c6725dea8feb60a63263d29a848"
+sha256 = "a97713a71507a1b93e9df4c52c62587b0ec8c66a1960e4572e007a3d829f3978"
 
 [[method_review.artifacts]]
 role = "assertion"

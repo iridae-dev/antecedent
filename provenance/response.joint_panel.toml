@@ -56,7 +56,7 @@ record_sha256 = "6ecd5de06bd2864b73d317815c11f4caa00fddee1269d1d02c5aee062114e5f
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/joint_panel/likelihood.rs"
-sha256 = "197f2485d6b4616514e2be5c137ad48f8f014408481d25782918b2d012466e2f"
+sha256 = "574da9f1ce6bf8ac2a21283b12dcd587b8983431cb290e8d587138f76b7ef19f"
 
 [[method_review.artifacts]]
 role = "assertion"

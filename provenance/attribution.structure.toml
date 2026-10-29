@@ -59,9 +59,9 @@ record_sha256 = "5409365556c03a5a66fb776a54508733c296668ba2f228671f343238a8e84c6
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-attribution/src/structure_change.rs"
-sha256 = "d28352df0650b13982611bb89881d8fd18fdfdc31dc6b5bcc5f70d5d45a849dc"
+sha256 = "82d1ba69ca08325e3692c26df54ffaaacab581e6e51c0159ac87e8cef73e0595"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/attribution.rs"
-sha256 = "b85777654e4e9aaf2dcadb59e3dd5fdf5756eb0dd39255549b84a9c6d4f9df2b"
+sha256 = "72e42fd27f426ef16c70fab94ebcf46bc9aae038feaeb7702fae79a1aa12f65f"

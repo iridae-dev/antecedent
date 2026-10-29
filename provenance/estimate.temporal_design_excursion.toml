@@ -48,7 +48,7 @@ sha256 = "529c9ec8de69287f34caae14418c81a34f4fc9959e5c3319d56c2e744dd28806"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_design/mod.rs"
-sha256 = "bf613b0d56a0fa92a8aaf8e9976563b892f9b89aaaddc890d126aacd0597c2e9"
+sha256 = "2392379ef56a7c77b1b9ad93e6af3c5901be61402840112cbe2ab4f55443bdb0"
 
 [[method_review.artifacts]]
 role = "assertion"

@@ -35,7 +35,7 @@ family = "static"
 default = "complete_case"
 supported = ["error", "complete_case", "multiple_imputation"]
 next_attempt = "multiple_imputation"
-imputation_estimators = ["linear.adjustment.ate", "glm.adjustment", "aipw", "propensity.weighting", "propensity.matching", "propensity.stratification", "distance.matching"]
+imputation_estimators = ["linear.adjustment.ate", "glm.adjustment", "aipw", "propensity.weighting", "propensity.matching", "propensity.stratification", "distance.matching", "rd.sharp"]
 
 [[route]]
 query = "AverageEffect"
@@ -45,7 +45,7 @@ family = "static"
 default = "complete_case"
 supported = ["error", "complete_case", "multiple_imputation"]
 next_attempt = "multiple_imputation"
-imputation_estimators = ["bayesian.gcomp"]
+imputation_estimators = ["bayesian.gcomp", "rd.bayesian_local_linear"]
 
 [[route]]
 query = "ConditionalEffect"
@@ -126,6 +126,26 @@ default = "error"
 supported = ["error", "complete_case", "inverse_probability", "multiple_imputation"]
 next_attempt = "inverse_probability"
 imputation_estimators = ["bayesian.randomized_finite_population", "bayesian.randomized_superpopulation", "bayesian.switchback_effect", "bayesian.complier_effect"]
+
+[[route]]
+query = "AnomalyAttribution"
+modality = "tabular"
+inference = ["frequentist", "bayesian"]
+family = "attribution"
+default = "error"
+supported = ["error", "complete_case"]
+next_attempt = "complete_case"
+imputation_estimators = []
+
+[[route]]
+query = "TemporalDesign"
+modality = "tabular"
+inference = ["frequentist", "bayesian"]
+family = "temporal_design"
+default = "error"
+supported = ["error", "complete_case", "available_case", "balanced_panel"]
+next_attempt = "available_case"
+imputation_estimators = []
 
 [[route]]
 query = "PanelDid"

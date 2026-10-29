@@ -55,7 +55,7 @@ record_sha256 = "1aed0c95558fc227dbf62a5742c5eb36f24780ffcbd871320f8c4f3920f2e0b
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/transport.rs"
-sha256 = "a190456f974409a14fdac5312ba8e5367ed1c71452285b261a0560bc03706b1f"
+sha256 = "20498b0939de03ba181934dbf94853423be8726e921b2596306193248dd3280b"
 
 [[method_review.artifacts]]
 role = "assertion"

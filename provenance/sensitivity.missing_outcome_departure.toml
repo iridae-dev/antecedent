@@ -62,4 +62,4 @@ sha256 = "12608ed35cc712d6515cbb6e8cda6f683167e52f84fd25425a8843e7ce2d4beb"
 [[method_review.artifacts]]
 role = "reference"
 path = "conformance/validate/mnar_sensitivity/expected.json"
-sha256 = "9aec731c84463b3ed0d868e0a38e4cfa1f7380b0b0548811931ce92ec5e998da"
+sha256 = "0bac02461a7e2a25f502732c4f8da36e3d63da84982f5f13416afa4bd6a389db"

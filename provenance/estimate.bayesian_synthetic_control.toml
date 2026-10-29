@@ -56,7 +56,7 @@ record_sha256 = "85513742edf56bc7f8697ff98849986e12248d78ae3625b7d079ad02f2634bf
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/bayesian_synthetic_control.rs"
-sha256 = "7e567ae882241dd73c3ca749d1492d6b10f490525410faf4016d46e6758eec07"
+sha256 = "bcbfacaa7aefc418b6e348676c84570f6b769364fb524cd6af32f39f96cb01e8"
 
 [[method_review.artifacts]]
 role = "assertion"

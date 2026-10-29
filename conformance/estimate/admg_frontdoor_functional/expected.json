@@ -130,12 +130,12 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/admg_posterior_response.rs",
-          "sha256": "06750e165c3e17d61577155d6777ee8dc8ab008a45db050e273e84e42985218d"
+          "sha256": "e2317a8aa75a234c098d7892c934a1c1d9ce27430c6da5ff75bf225e37a7e8ff"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/pag_admg_numeric_pins.rs",
-          "sha256": "34962a5e6794637e091ca5721d2432d4af8058caac7190bcd72d6e85f61603bc"
+          "sha256": "97bb429086c399d8d9b2102f5147689bbad9e6b9aed8fabd3643312d76b84382"
         }
       ],
       "fixture_payload_sha256": "e14574359dfdba5a1f95e35a62a00caaa6775397f443bbdb440a5b20394b3a33"

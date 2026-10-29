@@ -39,7 +39,7 @@ record_sha256 = "5761689ef9e90411bfc41da09028f60925372120d63fd13af74c200d712f246
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/ci/parcorr_variants.rs"
-sha256 = "015eda9e238cda1dd4a531a20098389c4f77cc648d225ff2a67b899e9f841c22"
+sha256 = "62c6af754e254485877fa6ced8edfa1a60ab9f9adf7df1413837fb30bdd10c99"
 
 [[method_review.artifacts]]
 role = "assertion"

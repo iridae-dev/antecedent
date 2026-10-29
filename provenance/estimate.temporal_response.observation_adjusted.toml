@@ -57,7 +57,7 @@ sha256 = "b01a0a926742bec3c45dd9a78e4ef720aa45b0378d6c41724335f4a3df0a26b3"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/execute/temporal_path.rs"
-sha256 = "12c239b3af9baad228e7a7873bb9f98dd0c8fd82a312ccfe080772f930aca15f"
+sha256 = "e91dde4e200f968fab1941d0948da788192ccece2163cec8d9515da10ad29359"
 
 [[method_review.artifacts]]
 role = "assertion"

@@ -45,7 +45,7 @@ sha256 = "6ab7b828cd441fd76b1aa3d45143bc9940566d6d0faf2faf0f6fcb2db0a10d40"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-state/src/graph_score.rs"
-sha256 = "ec713b89209825fb1dc8be3f956fcd36158d5b7fe8598bf35a37e2cd98c63379"
+sha256 = "aa44d7e1dad1c91356386a7ad05169d6ffdebb216db0ec3e5bdb6b27b861d9c4"
 
 [[method_review.artifacts]]
 role = "assertion"
@@ -65,9 +65,9 @@ sha256 = "71db326fb8b9059c2c2aecffa102193d79a6a9a567dba43a0a826e7ff0c737a3"
 [[method_review.artifacts]]
 role = "reference"
 path = "conformance/discovery/graph_mcmc_exact/reference_exact.py"
-sha256 = "0ef1c6765a67611fc0e855663368a4b05fa796000395c23153006053ab817d8f"
+sha256 = "64d50b0e20a40fe50bbec2baf8f855a8015a94b4d9fee467e9fe99fc48f9972b"
 
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/discovery/graph_mcmc_exact/expected.json"
-sha256 = "7fca792640a430954f3479035214c9e4a8c0b22463ffa1e4de326b48e11df9f0"
+sha256 = "6c3f3a83578ee5f0a25e07cf814b258386e1c74fcb62666aa5f50e1cece9e7c3"

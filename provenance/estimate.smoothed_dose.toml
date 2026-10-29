@@ -39,12 +39,12 @@ record_sha256 = "41332ee4c36f40837dda0d0e42ec0bffc7df8acc65c51b3472f8b329cb07eca
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/smoothed_dose.rs"
-sha256 = "b77719797069632898a1f3491aa82ebef4a29e7e8a3917ce6516d5beb44dea76"
+sha256 = "e2b6ff0049e1eb5a8e7c0a936a233c054bb47c106a45126a28ddb5d20a202d77"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/smoothed_dose_reference.rs"
-sha256 = "2e9c66d76deef0be470f57c8402e17f57c76aee8837423de56bf9665da845a61"
+sha256 = "d7bc49c78be4cd37e1f22e78461c719f91a56c90a46179a6cee94ad9b8e07898"
 
 [[method_review.artifacts]]
 role = "reference"

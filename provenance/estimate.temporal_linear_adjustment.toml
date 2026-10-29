@@ -42,12 +42,12 @@ record_sha256 = "fe91763834fe7236f41980f960ef640c32b1c64dfc593fde66844e026aa54b4
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_adjustment.rs"
-sha256 = "9c42f2996a6766b8d0dc9f24f9a6f0e722b3c2c03a5fc73523c90041b39625d7"
+sha256 = "3d797a96149cf2f2725ad780b6242ee28c002ebfa36c1149e8da0d1e1a647c87"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/temporal_linear_adjustment_reference.rs"
-sha256 = "5f599bf4156486920e1c670b4f3360f7460c9b2fb03100f907220419fc503747"
+sha256 = "afa3bf43260537d3e4375b5195b108998bd1f3ae70bebe6c0894d9db2d71956a"
 
 [[method_review.artifacts]]
 role = "reference"

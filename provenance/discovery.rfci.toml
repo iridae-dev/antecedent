@@ -37,7 +37,7 @@ record_sha256 = "a4f1f23aef5d2846c2babc09891d0729ec06269dc4fe31527bea020dcf395f6
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/rfci.rs"
-sha256 = "81c2a662f16517af1c976de98412f49c31175718d94b6d337c0bb4b3a22b94ec"
+sha256 = "74cc3042deb3e764685df9b4bd6304c8d74b4850950c9dec8e80217bd06c0992"
 
 [[method_review.artifacts]]
 role = "implementation"

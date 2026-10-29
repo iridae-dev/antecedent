@@ -99,7 +99,7 @@ record_sha256 = "ac974e6a03fb66d56aaeb7629c62f3fff737d4005602b06da247abe5a72d634
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/registry/mod.rs"
-sha256 = "bb70e833f2ea9d2ba8e19487cc07de5ada69b93d1d0f0f685c45072277fb3a63"
+sha256 = "c2217e530bff0e8c494d2ae8408ef0d7a414cc62b68ec66885df3775c003a8d7"
 
 [[method_review.artifacts]]
 role = "implementation"

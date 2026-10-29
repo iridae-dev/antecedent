@@ -157,7 +157,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_admg_route_evidence.rs",
-          "sha256": "c398e0f26bfd289266bba2653c2f7214c7de5159309c70650f5b4cf588a3e171"
+          "sha256": "4792f4f31dd4c375bd010f6d85901bc122fb56595b1b7e108c04510c72a6504f"
         }
       ],
       "fixture_payload_sha256": "8c97ed07a071aec5f78e9b9445031e77b34e1879902bc82248e6ad6efc7b3dbb"

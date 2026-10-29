@@ -62,7 +62,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-stats/tests/advanced_ci_oracle.rs",
-          "sha256": "ee0e664407455820535010bced2278d4cf732548cc093a478a842bf5bd9be995"
+          "sha256": "afa063c537ae7dbbbd144159b372cedfd9c15b40ec08c4929545790db311a4c1"
         }
       ],
       "fixture_payload_sha256": "538f5f3ffcc2da5847bc2191f6369844b910219fb88e1378a6bddf5dd3e247bf"

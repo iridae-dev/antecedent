@@ -47,7 +47,7 @@ record_sha256 = "571947f2088d67f8c4e7a0efdf31315ced5ba83abdf78166a9a6eb638328454
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/vector_treatment.rs"
-sha256 = "ae588b0ce25904fa20febf84f84dbc34f324d4e591ddde2dffaa102319128b43"
+sha256 = "7b28e6192c23e24495b6e7d12e0c22bdbaaa5488d56f6fc733c4d7c81a62708b"
 
 [[method_review.artifacts]]
 role = "assertion"

@@ -19658,3 +19658,290 @@ crate = "antecedent"
 cargo_target = "temporal_response_observation_adjusted_reference"
 path = "crates/antecedent/tests/temporal_response_observation_adjusted_reference.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-counterfactual-tests-finite-scm-readings-reference-rs"
+crate = "antecedent-counterfactual"
+cargo_target = "finite_scm_readings_reference"
+path = "crates/antecedent-counterfactual/tests/finite_scm_readings_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-design-tests-cells-01-finite-program-search-rs"
+crate = "antecedent-design"
+cargo_target = "cells_01_finite_program_search"
+path = "crates/antecedent-design/tests/cells_01_finite_program_search.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-src-joint-panel-joint-panel-weights-gaps-reference-tests-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/joint_panel/joint_panel_weights_gaps_reference_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-src-joint-panel-time-varying-dependence-reference-tests-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/joint_panel/time_varying_dependence_reference_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-src-score-dependence-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/score_dependence.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-categorical-declared-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "categorical_declared_reference"
+path = "crates/antecedent-estimate/tests/categorical_declared_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-cells-01-staggered-serial-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "cells_01_staggered_serial_reference"
+path = "crates/antecedent-estimate/tests/cells_01_staggered_serial_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-dose-grid-declared-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "dose_grid_declared_reference"
+path = "crates/antecedent-estimate/tests/dose_grid_declared_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-smoothed-dose-declared-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "smoothed_dose_declared_reference"
+path = "crates/antecedent-estimate/tests/smoothed_dose_declared_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-temporal-conditional-effect-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "temporal_conditional_effect_reference"
+path = "crates/antecedent-estimate/tests/temporal_conditional_effect_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-tests-transport-design-reference-rs"
+crate = "antecedent-estimate"
+cargo_target = "transport_design_reference"
+path = "crates/antecedent-estimate/tests/transport_design_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-graph-tests-latent-projection-claims-02-reference-rs"
+crate = "antecedent-graph"
+cargo_target = "latent_projection_claims_02_reference"
+path = "crates/antecedent-graph/tests/latent_projection_claims_02_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-identify-tests-identify-fixture-cases-fixtures-01-rs"
+crate = "antecedent-identify"
+cargo_target = "identify_fixture_cases_fixtures_01"
+path = "crates/antecedent-identify/tests/identify_fixture_cases_fixtures_01.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-identify-tests-panel-unrolled-exact-scm-rs"
+crate = "antecedent-identify"
+cargo_target = "panel_unrolled_exact_scm"
+path = "crates/antecedent-identify/tests/panel_unrolled_exact_scm.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-stats-tests-claims-07-regression-ci-reference-rs"
+crate = "antecedent-stats"
+cargo_target = "claims_07_regression_ci_reference"
+path = "crates/antecedent-stats/tests/claims_07_regression_ci_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-build-quasi-experimental-synthetic-dependence-rs"
+crate = "antecedent"
+cargo_target = "build_quasi_experimental_synthetic_dependence"
+path = "crates/antecedent/tests/build_quasi_experimental_synthetic_dependence.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-build-small-gaps-class-nonfinite-rs"
+crate = "antecedent"
+cargo_target = "build_small_gaps_class_nonfinite"
+path = "crates/antecedent/tests/build_small_gaps_class_nonfinite.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-cells-00-iv-regime-rs"
+crate = "antecedent"
+cargo_target = "cells_00_iv_regime"
+path = "crates/antecedent/tests/cells_00_iv_regime.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-cells-00-panel-did-serial-rs"
+crate = "antecedent"
+cargo_target = "cells_00_panel_did_serial"
+path = "crates/antecedent/tests/cells_00_panel_did_serial.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-cells-00-sustained-declarations-rs"
+crate = "antecedent"
+cargo_target = "cells_00_sustained_declarations"
+path = "crates/antecedent/tests/cells_00_sustained_declarations.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-cells-00-time-varying-panel-rs"
+crate = "antecedent"
+cargo_target = "cells_00_time_varying_panel"
+path = "crates/antecedent/tests/cells_00_time_varying_panel.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-cells-01-panel-search-inputs-rs"
+crate = "antecedent"
+cargo_target = "cells_01_panel_search_inputs"
+path = "crates/antecedent/tests/cells_01_panel_search_inputs.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-cells-01-pulse-refuter-boundaries-rs"
+crate = "antecedent"
+cargo_target = "cells_01_pulse_refuter_boundaries"
+path = "crates/antecedent/tests/cells_01_pulse_refuter_boundaries.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-cells-03-joint-panel-rs"
+crate = "antecedent"
+cargo_target = "cells_03_joint_panel"
+path = "crates/antecedent/tests/cells_03_joint_panel.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-cells-03-quantile-missing-rs"
+crate = "antecedent"
+cargo_target = "cells_03_quantile_missing"
+path = "crates/antecedent/tests/cells_03_quantile_missing.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-cells-04-attribution-conditional-rs"
+crate = "antecedent"
+cargo_target = "cells_04_attribution_conditional"
+path = "crates/antecedent/tests/cells_04_attribution_conditional.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-cells-04-joint-intervention-rs"
+crate = "antecedent"
+cargo_target = "cells_04_joint_intervention"
+path = "crates/antecedent/tests/cells_04_joint_intervention.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-cells-05-transport-projection-rs"
+crate = "antecedent"
+cargo_target = "cells_05_transport_projection"
+path = "crates/antecedent/tests/cells_05_transport_projection.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-cells-06-adaptive-rs"
+crate = "antecedent"
+cargo_target = "cells_06_adaptive"
+path = "crates/antecedent/tests/cells_06_adaptive.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-cells-06-joint-panel-broader-rs"
+crate = "antecedent"
+cargo_target = "cells_06_joint_panel_broader"
+path = "crates/antecedent/tests/cells_06_joint_panel_broader.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-cells-07-joint-panel-rs"
+crate = "antecedent"
+cargo_target = "cells_07_joint_panel"
+path = "crates/antecedent/tests/cells_07_joint_panel.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-cells-07-scenarios-rs"
+crate = "antecedent"
+cargo_target = "cells_07_scenarios"
+path = "crates/antecedent/tests/cells_07_scenarios.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-claims-03-dbn-posterior-truth-rs"
+crate = "antecedent"
+cargo_target = "claims_03_dbn_posterior_truth"
+path = "crates/antecedent/tests/claims_03_dbn_posterior_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-unavailable-a-declarations-rs"
+crate = "antecedent"
+cargo_target = "unavailable_a_declarations"
+path = "crates/antecedent/tests/unavailable_a_declarations.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-unavailable-b-measurement-route-declarations-rs"
+crate = "antecedent"
+cargo_target = "unavailable_b_measurement_route_declarations"
+path = "crates/antecedent/tests/unavailable_b_measurement_route_declarations.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-unavailable-b-static-panel-refusals-rs"
+crate = "antecedent"
+cargo_target = "unavailable_b_static_panel_refusals"
+path = "crates/antecedent/tests/unavailable_b_static_panel_refusals.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-unavailable-b-static-temporal-refusals-rs"
+crate = "antecedent"
+cargo_target = "unavailable_b_static_temporal_refusals"
+path = "crates/antecedent/tests/unavailable_b_static_temporal_refusals.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-python-tests-test-categorical-did-reference-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_categorical_did_reference.py"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-python-tests-test-declared-rows-dose-categorical-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_declared_rows_dose_categorical.py"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-python-tests-test-pulse-extrapolation-bound-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_pulse_extrapolation_bound.py"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-python-tests-test-unavailable-a-refusals-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_unavailable_a_refusals.py"
+gates = ["inventory"]

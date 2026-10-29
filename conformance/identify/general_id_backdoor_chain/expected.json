@@ -56,7 +56,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-identify/src/backdoor.rs",
-          "sha256": "53df18f0d16058de42d374e0b2733a0b1a89048c332aa1459e8c7c3669b64d74"
+          "sha256": "46031a290c8c1e1aaef573fc068f01bfe86459027d5e6f670c5b46c0124970b2"
         },
         {
           "role": "comparison_helper",

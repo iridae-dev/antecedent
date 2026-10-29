@@ -1,8 +1,23 @@
 {
   "schema_version": 1,
-  "oracle": {"kind": "regression_pin", "note": "Bayesian expected_ate 0.46160512322751795 is a seeded (seed 1, 64 draws) output pin of this library, not truth (re-pinned after 6890a67 shifted the rank-coupled Bayesian mixture's cross-completion correlation input; see crates/antecedent/tests/cpdag_ate_numeric_pins.rs for the derivation). The frequentist ATE 0.46 and joint-IF SE are checked against the independent numpy reference.py beside it.", "independent_inferences": ["Frequentist"]},
+  "oracle": {
+    "kind": "regression_pin",
+    "note": "Bayesian expected_ate 0.46160512322751795 is a seeded (seed 1, 64 draws) output pin of this library, not truth (re-pinned after 6890a67 shifted the rank-coupled Bayesian mixture's cross-completion correlation input; see crates/antecedent/tests/cpdag_ate_numeric_pins.rs for the derivation). The frequentist ATE 0.46 and joint-IF SE are checked against the independent numpy reference.py beside it.",
+    "independent_inferences": [
+      "Frequentist"
+    ],
+    "generator": "conformance/estimate/cpdag_ate_envelope/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/cpdag_ate_envelope/reference.py --check",
+    "environment_lock": "conformance/estimate/cpdag_ate_envelope/reference.py.lock",
+    "generator_retained": true,
+    "independent_inference_scope": "The frequentist expected_ate, expected_se and completion_effects given the fixture-declared adjustment sets are recomputed by the retained numpy reference; adjustment sets, identification fields and every Bayesian field are product pins."
+  },
   "case": "two_completion_cpdag_mec_envelope",
-  "columns": ["t", "y", "z"],
+  "columns": [
+    "t",
+    "y",
+    "z"
+  ],
   "query": {
     "treatment": "t",
     "outcome": "y",
@@ -12,22 +27,71 @@
   "graph": {
     "class": "Cpdag",
     "directed_edges": [
-      ["z", "y"],
-      ["t", "y"]
+      [
+        "z",
+        "y"
+      ],
+      [
+        "t",
+        "y"
+      ]
     ],
     "undirected_edges": [
-      ["z", "t"]
+      [
+        "z",
+        "t"
+      ]
     ]
   },
   "contingency_table": [
-    {"z": 0.0, "t": 0.0, "y": 0.0, "count": 360},
-    {"z": 0.0, "t": 0.0, "y": 1.0, "count": 40},
-    {"z": 0.0, "t": 1.0, "y": 0.0, "count": 50},
-    {"z": 0.0, "t": 1.0, "y": 1.0, "count": 50},
-    {"z": 1.0, "t": 0.0, "y": 0.0, "count": 70},
-    {"z": 1.0, "t": 0.0, "y": 1.0, "count": 30},
-    {"z": 1.0, "t": 1.0, "y": 0.0, "count": 120},
-    {"z": 1.0, "t": 1.0, "y": 1.0, "count": 280}
+    {
+      "z": 0.0,
+      "t": 0.0,
+      "y": 0.0,
+      "count": 360
+    },
+    {
+      "z": 0.0,
+      "t": 0.0,
+      "y": 1.0,
+      "count": 40
+    },
+    {
+      "z": 0.0,
+      "t": 1.0,
+      "y": 0.0,
+      "count": 50
+    },
+    {
+      "z": 0.0,
+      "t": 1.0,
+      "y": 1.0,
+      "count": 50
+    },
+    {
+      "z": 1.0,
+      "t": 0.0,
+      "y": 0.0,
+      "count": 70
+    },
+    {
+      "z": 1.0,
+      "t": 0.0,
+      "y": 1.0,
+      "count": 30
+    },
+    {
+      "z": 1.0,
+      "t": 1.0,
+      "y": 0.0,
+      "count": 120
+    },
+    {
+      "z": 1.0,
+      "t": 1.0,
+      "y": 1.0,
+      "count": 280
+    }
   ],
   "identification": {
     "identifier": "generalized.adjustment",
@@ -35,7 +99,10 @@
     "completion_count": 2,
     "identified_mass": 2.0,
     "unidentified_mass": 0.0,
-    "completion_effects": [0.4, 0.52]
+    "completion_effects": [
+      0.4,
+      0.52
+    ]
   },
   "frequentist": {
     "estimator": "linear.adjustment.ate",
@@ -46,8 +113,16 @@
     "se_absolute_tolerance": 1e-12,
     "se_reference": "conformance/estimate/cpdag_ate_envelope/reference.py",
     "reference_atoms": [
-      {"weight": 1.0, "adjustment_set": ["z"]},
-      {"weight": 1.0, "adjustment_set": []}
+      {
+        "weight": 1.0,
+        "adjustment_set": [
+          "z"
+        ]
+      },
+      {
+        "weight": 1.0,
+        "adjustment_set": []
+      }
     ]
   },
   "bayesian": {
@@ -58,7 +133,7 @@
     "prior_scale": 10.0,
     "seed": 1,
     "expected_ate": 0.46160512322751795,
-    "absolute_tolerance": 1e-9,
+    "absolute_tolerance": 1e-09,
     "tolerance_class": "PosteriorDistribution"
   },
   "conditional": {
@@ -76,7 +151,7 @@
       "prior_scale": 10.0,
       "seed": 1,
       "expected_ate": 0.4,
-      "absolute_tolerance": 1e-2,
+      "absolute_tolerance": 0.01,
       "tolerance_class": "PosteriorDistribution"
     }
   }

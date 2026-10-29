@@ -2,20 +2,124 @@
   "schema_version": 1,
   "oracle": {
     "kind": "independent_reimplementation",
+    "project": "joint-Gaussian conditioning of the scalar linear-Gaussian state-space model in exact rational arithmetic",
+    "pin": "fixture-algorithm-v1",
+    "generation_location": "temporary standard-library harness; deleted after artifact import",
+    "generator": "conformance/gcm/lgssm/reference.py",
+    "command": "uv run --frozen --script conformance/gcm/lgssm/reference.py --check",
+    "environment_lock": "conformance/gcm/lgssm/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "filtered_mean",
+      "filtered_variance",
+      "predicted_mean",
+      "predicted_variance",
+      "smoothed_mean",
+      "smoothed_variance",
+      "lag_one_covariance"
+    ],
+    "context_only_outputs": [
+      "acceptance.innovation_pack_atol (not read by the executing assertion)"
+    ],
+    "reference_review": {
+      "scope": "Seven length-five arrays (filtered, predicted and smoothed means and variances, and the smoothed lag-one covariance) of one scalar AR(1) state-space model with five observations, re-derived by the retained generator and compared elementwise with the product's kalman_filter and rts_smooth.",
+      "independence_basis": "The generator builds the exact joint covariance of the five states from the declared parameters in rational arithmetic and obtains every filtered, predicted and smoothed law, and the lag-one covariance, by Gaussian conditioning of the state on the observations it is allowed to see. It contains no Kalman gain and no Rauch-Tung-Striebel backward pass, imports no Antecedent code and no statistics package, and agrees with every frozen value to 2e-16. The shared object is the model definition (state transition a, process and observation variance, observation coefficient one, and the convention that the first predicted law is the declared initial law).",
+      "historical_exposure": "Original harness deleted (preserved in historical_oracle). The retained generator was written during this review from the fixture's declared inputs and the textbook definition; the product's assertion source was read to establish which arrays are compared; no product recursion source was consulted. It reproduces every frozen value, so the frozen values were not products of a faulty product run. Who first derived the earlier values is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "One scalar model, one five-point series; conditioning on the full joint is equivalent to, not a test of, numerical stability of long recursions. The innovation_pack_atol field is not read by the executing assertion. Product tolerance is acceptance.atol (2e-14); the generator checks at atol/100. No uncertainty or calibration.",
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/gcm/lgssm/reference.py",
+          "sha256": "7877095773db6275b06a72ab6d272c89fc4287a3fee05fbc24e923a39221c1a6"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/gcm/lgssm/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-model/tests/scm_oracle.rs",
+          "sha256": "bc469596ad05dcb0d2a36db1fcf739fc44b88d4f909423a6711337c89b34f2cc"
+        }
+      ],
+      "sources": [],
+      "fixture_payload_sha256": "5ca2fcf552ffe6f55c25b837afbe9140d90dbfab4414ce43bc2afc67a1f56271"
+    }
+  },
+  "parameters": {
+    "a": 0.8,
+    "process_variance": 0.09,
+    "observation_variance": 0.16,
+    "initial_mean": 0.1,
+    "initial_variance": 0.5
+  },
+  "observations": [
+    0.2,
+    -0.1,
+    0.5,
+    0.7,
+    -0.2
+  ],
+  "reference": {
+    "filtered_mean": [
+      0.17575757575757578,
+      0.017520814061054588,
+      0.24285242286705833,
+      0.42867133427718807,
+      0.09203884879330732
+    ],
+    "filtered_variance": [
+      0.12121212121212122,
+      0.08185013876040705,
+      0.07533946081280678,
+      0.07415654333331376,
+      0.07393806278724288
+    ],
+    "predicted_mean": [
+      0.1,
+      0.14060606060606062,
+      0.014016651248843671,
+      0.19428193829364668,
+      0.34293706742175045
+    ],
+    "predicted_variance": [
+      0.5,
+      0.1675757575757576,
+      0.1423840888066605,
+      0.13821725492019635,
+      0.1374601877333208
+    ],
+    "smoothed_mean": [
+      0.18006386031029717,
+      0.14804785859873226,
+      0.29784290039433753,
+      0.3203883765494283,
+      0.09203884879330732
+    ],
+    "smoothed_variance": [
+      0.0867369646579711,
+      0.06461859790126452,
+      0.060908366224587646,
+      0.062324763440104985,
+      0.07393806278724288
+    ],
+    "lag_one_covariance": [
+      0.0,
+      0.037392317049556326,
+      0.02801076029736256,
+      0.02717758546470529,
+      0.031910278881333756
+    ]
+  },
+  "acceptance": {
+    "atol": 2e-14,
+    "innovation_pack_atol": 2e-06
+  },
+  "historical_oracle": {
     "project": "clean-room scalar Kalman and Rauch-Tung-Striebel recursion",
     "pin": "fixture-algorithm-v1",
     "generation_location": "temporary standard-library harness; deleted after artifact import"
-  },
-  "parameters": {"a": 0.8, "process_variance": 0.09, "observation_variance": 0.16, "initial_mean": 0.1, "initial_variance": 0.5},
-  "observations": [0.2, -0.1, 0.5, 0.7, -0.2],
-  "reference": {
-    "filtered_mean": [0.17575757575757578, 0.017520814061054588, 0.24285242286705833, 0.42867133427718807, 0.09203884879330732],
-    "filtered_variance": [0.12121212121212122, 0.08185013876040705, 0.07533946081280678, 0.07415654333331376, 0.07393806278724288],
-    "predicted_mean": [0.1, 0.14060606060606062, 0.014016651248843671, 0.19428193829364668, 0.34293706742175045],
-    "predicted_variance": [0.5, 0.1675757575757576, 0.1423840888066605, 0.13821725492019635, 0.1374601877333208],
-    "smoothed_mean": [0.18006386031029717, 0.14804785859873226, 0.29784290039433753, 0.3203883765494283, 0.09203884879330732],
-    "smoothed_variance": [0.0867369646579711, 0.06461859790126452, 0.060908366224587646, 0.062324763440104985, 0.07393806278724288],
-    "lag_one_covariance": [0.0, 0.037392317049556326, 0.02801076029736256, 0.02717758546470529, 0.031910278881333756]
-  },
-  "acceptance": {"atol": 2e-14, "innovation_pack_atol": 2e-6}
+  }
 }

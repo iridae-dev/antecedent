@@ -56,7 +56,7 @@ record_sha256 = "ba9030a9bdb2e00df97b01046334139065c99a7a178342f8c9d29410c8605f2
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/bayesian_panel_did.rs"
-sha256 = "2f92db6feaded2e0331dc3cece46c23221e6e592ad447bcd1f0e662d48ec0e25"
+sha256 = "7aa16ef1efbce3cf222813b0f4909b99457bb96a775a73c15aeaa87f06318d41"
 
 [[method_review.artifacts]]
 role = "assertion"

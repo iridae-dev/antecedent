@@ -5,7 +5,12 @@
     "note": "Bayesian mean/sd values are seeded output pins of this library, not truth. The frequentist envelope and the contingency table are checked against the independent numpy reference.py beside it.",
     "independent_inferences": [
       "Frequentist"
-    ]
+    ],
+    "generator": "conformance/estimate/pag_ate_envelope_identified/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/pag_ate_envelope_identified/reference.py --check",
+    "environment_lock": "conformance/estimate/pag_ate_envelope_identified/reference.py.lock",
+    "generator_retained": true,
+    "independent_inference_scope": "The frequentist expected_ate, expected_se and completion_effects given the fixture-declared adjustment sets are recomputed by the retained numpy reference; adjustment sets, identification fields and every Bayesian field are product pins."
   },
   "case": "identified_multi_completion_pag_envelope",
   "columns": [

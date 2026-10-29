@@ -75,4 +75,4 @@ sha256 = "bb3ee9feb2de7f6c432f496ff6becbb5c95ccfaa0800a55f06d82cb1b306854e"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/builder/finish.rs"
-sha256 = "e02eae6b235ed34191d6eb1b8e68147ea60ef6a8effc6d6698e301b98ae56e5b"
+sha256 = "fc52537182bb6250fc4919d688a0738c46f7372880e89ae8c98f62b8742413c0"

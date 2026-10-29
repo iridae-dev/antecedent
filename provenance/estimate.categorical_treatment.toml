@@ -45,12 +45,12 @@ record_sha256 = "8bd345882f691005f1fb64e907b1166560e5e9b2e0b8ac109a9b52b24a48054
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/categorical_treatment.rs"
-sha256 = "d8ad52a6f58742cec469f93f37f97f217accb12da4c4f4e3277c4a1c81f5e650"
+sha256 = "efa46c6dd7d496eef51d31f2cc10a0d96bb2ac1c2963ecde60ed8ceb39336b95"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/vector_treatment.rs"
-sha256 = "ae588b0ce25904fa20febf84f84dbc34f324d4e591ddde2dffaa102319128b43"
+sha256 = "7b28e6192c23e24495b6e7d12e0c22bdbaaa5488d56f6fc733c4d7c81a62708b"
 
 [[method_review.artifacts]]
 role = "assertion"

@@ -41,9 +41,9 @@ sha256 = "41660d28c4fd2b056d884328b73812a2df7265d56199a508d082985160c3dc93"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/bayesian_ci_oracle.rs"
-sha256 = "bb2efb7a697efcaa32b599821f040e455cacf9b92a304c82edc1b4db41034a82"
+sha256 = "fff309d8abed79d14a9d22c9c8508dac8969a5c609489cde9efc0d612eda5d69"
 
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/discovery/bayesian_ci/expected.json"
-sha256 = "d5d637db45fc2def23c75959764795df52ba0ba7c47a02d4f2835699b594b13a"
+sha256 = "a92dd6f2e90b6c6bfc5646047ae06791c6376d89cedcc0be28aa6d832b04e285"

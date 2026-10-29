@@ -1,9 +1,82 @@
 {
   "schema_version": 1,
-  "oracle": {"kind": "independent_reimplementation", "project": "Shpitser-Pearl IDC recursion", "generator": "temporary clean-room harness (deleted after artifact import)"},
+  "oracle": {
+    "kind": "enumeration",
+    "project": "exact enumeration of binary structural models with the truncated factorisation, checking the back-door functional of each case",
+    "generator": "conformance/identify/idc/reference.py",
+    "command": "uv run --frozen --script conformance/identify/idc/reference.py --check",
+    "environment_lock": "conformance/identify/idc/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "cases[].status (identified)"
+    ],
+    "reference_review": {
+      "scope": "Two positive cases on the single-confounder graph Z->T, Z->Y, T->Y: P(Y | do(T=1)) with no conditioning and P(Y | do(T=1), Z), each shown identified by an explicit functional of the observational joint.",
+      "independence_basis": "The retained generator enumerates 16384 exact-rational parameter sets of the three-variable binary model, computes the interventional law by the truncated factorisation (the treatment mechanism replaced by a point mass) and the observational joint, and checks that the stated back-door functionals reproduce the interventional quantity at every parameter set. It runs no identification algorithm and imports no Antecedent code. The executing assertion now builds both cases' graph, outcomes, interventions and conditioning set from the fixture strings and compares the product's status for each.",
+      "historical_exposure": "Original harness deleted (preserved in historical_oracle). The retained generator was written during this review from the fixture's declared inputs and the textbook definition; the product's test module and the provenance scope text were read; the identification recursion was not consulted. It reproduces every frozen value, so the frozen values were not products of a faulty product run. Who first derived the earlier values is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Two positive cases on one three-node graph: no non-identified case, no hedge, latent confounding or multi-outcome query. The functionals are named in the generator from the do-calculus; the enumeration shows they hold on the grid, not for all parameters. The product assertion compares only the identification status, not the emitted functional's value. No estimation, uncertainty or calibration.",
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/identify/idc/reference.py",
+          "sha256": "316062a31e5c6e2442a23156f3a2dc556928ba4c5284ee7715ed012b1a86fb8f"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/identify/idc/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-identify/src/idc.rs",
+          "sha256": "b384693e8ba8f7d9eed4b66c82361fe1fd6d3b5c105b5b3c162679b60ad74495"
+        }
+      ],
+      "sources": [],
+      "fixture_payload_sha256": "ae265fe64dc7ee7d1d2b4ef92e03bb3d0275d1e8f423c5220d0fdfd6358ba00d"
+    }
+  },
   "cases": [
-    {"id": "unconditional_reduces_to_id", "edges": ["Z->T", "Z->Y", "T->Y"], "outcomes": ["Y"], "interventions": ["do(T=1)"], "conditioning": [], "status": "identified"},
-    {"id": "conditioned_backdoor", "edges": ["Z->T", "Z->Y", "T->Y"], "outcomes": ["Y"], "interventions": ["do(T=1)"], "conditioning": ["Z"], "status": "identified"}
+    {
+      "id": "unconditional_reduces_to_id",
+      "edges": [
+        "Z->T",
+        "Z->Y",
+        "T->Y"
+      ],
+      "outcomes": [
+        "Y"
+      ],
+      "interventions": [
+        "do(T=1)"
+      ],
+      "conditioning": [],
+      "status": "identified"
+    },
+    {
+      "id": "conditioned_backdoor",
+      "edges": [
+        "Z->T",
+        "Z->Y",
+        "T->Y"
+      ],
+      "outcomes": [
+        "Y"
+      ],
+      "interventions": [
+        "do(T=1)"
+      ],
+      "conditioning": [
+        "Z"
+      ],
+      "status": "identified"
+    }
   ],
-  "invariant": "IDC never invents NaN intervention values."
+  "invariant": "IDC never invents NaN intervention values.",
+  "historical_oracle": {
+    "kind": "independent_reimplementation",
+    "project": "Shpitser-Pearl IDC recursion",
+    "generator": "temporary clean-room harness (deleted after artifact import)"
+  }
 }
