@@ -233,7 +233,10 @@ fn the_derived_fixed_sample_report_separates_exact_values_from_monte_carlo_error
         simulated.monte_carlo_standard_error
     );
     assert!(
-        (simulated.variance / exact.variance() - 1.0).abs() < 0.1,
+        // 4,000 replications: Monte Carlo relative error of a variance is about 2 percent and the
+        // fixed seed observes 1.1 percent, so 4 percent replaces the former 10 percent that
+        // admitted a variance off by a tenth (e.g. a design effect of 1.8 for 2.0).
+        (simulated.variance / exact.variance() - 1.0).abs() < 0.04,
         "simulated {} exact {}",
         simulated.variance,
         exact.variance()

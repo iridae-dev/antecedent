@@ -14,6 +14,9 @@ use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_io::consume_analysis_result;
 use serde_json::Value;
 
+/// Posterior-mean tolerance around the enumerated path-specific truth (observed deviation 7.3e-4).
+const BAYESIAN_TOLERANCE: f64 = 2.5e-3;
+
 fn pin() -> Value {
     serde_json::from_str(include_str!(
         "../../../conformance/estimate/path_specific_edge_gformula/expected.json"
@@ -156,7 +159,12 @@ fn verify_path_specific_coordinate(
         prepared.estimate(&data, &ctx).unwrap_or_else(|error| panic!("{coordinate}: {error}"));
     let truth = fixture["truth"]["path_specific_effect"].as_f64().unwrap();
     let tolerance = if bayesian {
-        fixture["bayesian"]["posterior_mean_tolerance"].as_f64().unwrap()
+        // The pin's 0.02 is a declared acceptance band; the conjugate posterior mean of this
+        // fixture sits 7.3e-4 from the enumerated truth, so a few times that is the tolerance.
+        assert!(
+            BAYESIAN_TOLERANCE <= fixture["bayesian"]["posterior_mean_tolerance"].as_f64().unwrap()
+        );
+        BAYESIAN_TOLERANCE
     } else {
         fixture["frequentist"]["absolute_tolerance"].as_f64().unwrap()
     };

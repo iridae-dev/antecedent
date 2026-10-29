@@ -67,7 +67,7 @@ sha256 = "89d0c9cbc1ee9c613fadd8253a6cf0a7e4dfdb8ba388590f85a0a00d5165d5d5"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/src/bayesian_checks/ppc_prior_sensitivity_reference_tests.rs"
-sha256 = "f3a459ca54d3dbe6b904b400cf0c100b62f1d9ec43196f40e911c5a9dd740ba0"
+sha256 = "ab05536659d75575262ddb13317dd0a003c192022eb899dcb96c0dfca3c59785"
 
 [[method_review.artifacts]]
 role = "reference"

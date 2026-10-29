@@ -530,10 +530,12 @@ fn adaptive_minimum_exploration_enforced() {
         dominated_arm.iter().any(|&q| (q - FLOOR).abs() < 1e-9),
         "the dominated arm sits on the floor at some look"
     );
-    // The arm keeps being assigned: roughly a tenth of the later participants.
+    // The arm keeps being assigned at the floor, a tenth of the later participants: 1,100 draws
+    // give a binomial standard error of 0.009 and the fixed seed observes 0.111, so the window
+    // [0.09, 0.13] excludes a floor of 0.07 or 0.2 that the former [0.07, 0.2) admitted.
     let later = &history.arms[100..];
     let share = later.iter().filter(|&&arm| arm == 0).count() as f64 / later.len() as f64;
-    assert!((0.07..0.2).contains(&share), "share of the dominated arm {share}");
+    assert!((0.09..0.13).contains(&share), "share of the dominated arm {share}");
     // Each posterior probability of being best is far below the floor for the dominated arm, so
     // it is the floor, not the data, that keeps the arm in the trial.
     let last = run.readings.last().unwrap();

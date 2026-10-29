@@ -341,7 +341,8 @@ fn ppc_prior_sensitivity_posterior_predictive_reads_every_option() {
         assert_eq!(strided_draw_index(k, 45, 60), want);
     }
     // n_sims = 0 and an empty design are refused.
-    assert!(PosteriorPredictiveCheck { n_sims: 0, ..base }.check(&prep, &post).is_err());
+    let refused = PosteriorPredictiveCheck { n_sims: 0, ..base }.check(&prep, &post).unwrap_err();
+    assert!(format!("{refused:?}").contains("no posterior draws for PPC"), "{refused:?}");
 }
 
 /// The residual-variance conditional of a replicate noise draw: with the conjugate
@@ -542,10 +543,15 @@ fn ppc_prior_sensitivity_prior_predictive_reads_every_option_and_refuses_bad_inp
         .unwrap();
     assert_ne!(a.predictive_mean, d.predictive_mean, "family");
     // A prior without Gaussian coefficients, or of the wrong dimension, is refused.
-    assert!(base.check_with_prior(&prep, &PriorSet::new(), &ctx()).is_err());
+    let missing = base.check_with_prior(&prep, &PriorSet::new(), &ctx()).unwrap_err();
+    assert!(format!("{missing:?}").contains("missing Gaussian coefficients"), "{missing:?}");
     let mut short = PriorSet::new();
     short.push(PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(2, 1.0)));
-    assert!(base.check_with_prior(&prep, &short, &ctx()).is_err());
+    let wrong_dimension = base.check_with_prior(&prep, &short, &ctx()).unwrap_err();
+    assert!(
+        format!("{wrong_dimension:?}").contains("coefficient dimension mismatch"),
+        "{wrong_dimension:?}"
+    );
     // A known residual variance is not read as a prior on the coefficient scale: doubling it
     // doubles the replicate-mean variance when the coefficient scale dominates.
     let mut loose = PriorSet::new();
@@ -564,7 +570,7 @@ fn ppc_prior_sensitivity_prior_predictive_reads_every_option_and_refuses_bad_inp
         .check_with_prior(&prep, &loose4, &ctx())
         .unwrap()
         .predictive_sd;
-    assert!((sd4 / sd1 - 2.0).abs() < 0.2, "sd ratio {}", sd4 / sd1);
+    assert!((sd4 / sd1 - 2.0).abs() < 1e-6, "sd ratio {}", sd4 / sd1);
 }
 
 // ------------------------------------------------------------------------------------------
@@ -730,8 +736,13 @@ fn ppc_prior_sensitivity_simulation_based_calibration_reads_every_option() {
     let fewer_draws = run(&SimulationBasedCalibration { n_draws: 49, ..sbc.clone() }).unwrap();
     assert_eq!(fewer_draws.rank_draw_count, 49);
     assert!(fewer_draws.ranks.iter().all(|&r| r <= 49));
-    assert!(run(&SimulationBasedCalibration { n_draws: 98, ..sbc.clone() }).is_err());
-    assert!(run(&SimulationBasedCalibration { n_reps: 49, ..sbc }).is_err());
+    let unequal_bins = run(&SimulationBasedCalibration { n_draws: 98, ..sbc.clone() }).unwrap_err();
+    assert!(
+        format!("{unequal_bins:?}").contains("multiple of the 10 rank bins"),
+        "{unequal_bins:?}"
+    );
+    let too_few = run(&SimulationBasedCalibration { n_reps: 49, ..sbc }).unwrap_err();
+    assert!(format!("{too_few:?}").contains("at least 50 replicates"), "{too_few:?}");
 }
 
 #[test]
@@ -887,11 +898,13 @@ fn assert_means(
             "{label}[{i}]: posterior mean {} vs exact {centre} (bound {bound})",
             summary.effect_means[i]
         );
-        // The posterior SD is a statistic of the same draws; its sampling error at 200 draws is
-        // about 5 percent, so a 35 percent window is a loose sanity bound, not a derived one.
+        // The posterior SD is a statistic of the same fixed-seed draws; its sampling error at 200
+        // draws is about 5 percent and the observed relative deviation over all nine cases is at
+        // most 2.1 percent, so the window is 6 percent (the former 35 percent admitted an SD off
+        // by a third, e.g. a prior whose variance was misscaled by 1.8).
         let sd = w["sd"].as_f64().unwrap();
         assert!(
-            (summary.effect_sds[i] / sd - 1.0).abs() < 0.35,
+            (summary.effect_sds[i] / sd - 1.0).abs() < 0.06,
             "{label}[{i}]: posterior sd {} vs exact {sd}",
             summary.effect_sds[i]
         );
@@ -977,39 +990,43 @@ fn ppc_prior_sensitivity_grids_read_every_option_and_refuse_bad_inputs() {
     assert!(posts.iter().all(|p| p.draws.n_draws == 50));
     // An empty or invalid grid is refused.
     let empty = PriorSensitivity { scales: Arc::from([]), ..PriorSensitivity::standard_grid() };
-    assert!(empty.evaluate(&plain, &prep, id, &mut ws, &ctx()).is_err());
+    let empty_error = empty.evaluate(&plain, &prep, id, &mut ws, &ctx()).unwrap_err();
+    assert!(format!("{empty_error:?}").contains("scale grid is empty"), "{empty_error:?}");
     let supplied = sens_estimator(spec, Some(resolved_prior(spec)));
     for bad in [0.0, -1.0, f64::NAN, f64::INFINITY] {
         let grid = PriorSensitivity {
             variance_multipliers: Arc::from([bad]),
             ..PriorSensitivity::standard_resolved_grid()
         };
-        assert!(grid.evaluate_resolved_prior(&supplied, &prep, id, &mut ws, &ctx()).is_err());
+        let error =
+            grid.evaluate_resolved_prior(&supplied, &prep, id, &mut ws, &ctx()).unwrap_err();
+        assert!(
+            format!("{error:?}").contains("variance multiplier must be finite and positive"),
+            "{bad}: {error:?}"
+        );
     }
-    assert!(
-        PriorSensitivity::standard_resolved_grid()
-            .evaluate_resolved_prior(&plain, &prep, id, &mut ws, &ctx())
-            .is_err(),
-        "no resolved prior on the estimator"
-    );
-    assert!(
-        PriorSensitivity::standard_alpha_grid()
-            .evaluate_in_force(&plain, &prep, id, &mut ws, &ctx())
-            .is_err(),
-        "an alpha grid needs the sources"
-    );
+    let no_prior = PriorSensitivity::standard_resolved_grid()
+        .evaluate_resolved_prior(&plain, &prep, id, &mut ws, &ctx())
+        .unwrap_err();
+    assert!(format!("{no_prior:?}").contains("requires the prior in force"), "{no_prior:?}");
+    let no_sources = PriorSensitivity::standard_alpha_grid()
+        .evaluate_in_force(&plain, &prep, id, &mut ws, &ctx())
+        .unwrap_err();
+    assert!(format!("{no_sources:?}").contains("needs the prior bank's sources"), "{no_sources:?}");
     let sources = alpha_sources(spec, prep.design.ncols);
-    for (multipliers, applied) in
-        [(vec![1.5], vec![0.8]), (vec![0.5], vec![0.8, 0.8]), (vec![], vec![0.8])]
-    {
+    for (multipliers, applied, expected) in [
+        (vec![1.5], vec![0.8], "alpha multiplier must be finite and in [0, 1]"),
+        (vec![0.5], vec![0.8, 0.8], "sources / alphas_applied length mismatch"),
+        (vec![], vec![0.8], "alpha grid is empty"),
+    ] {
         let grid = PriorSensitivity {
             scales: Arc::from([]),
             alphas: Arc::from(multipliers),
             variance_multipliers: Arc::from([]),
             max_relative_range: 1.0,
         };
-        assert!(
-            grid.evaluate_external_alpha(
+        let error = grid
+            .evaluate_external_alpha(
                 &plain,
                 &prep,
                 id,
@@ -1017,8 +1034,8 @@ fn ppc_prior_sensitivity_grids_read_every_option_and_refuse_bad_inputs() {
                 &ctx(),
                 ExternalAlphaSensitivity { sources: &sources, alphas_applied: &applied },
             )
-            .is_err()
-        );
+            .unwrap_err();
+        assert!(format!("{error:?}").contains(expected), "{expected}: {error:?}");
     }
     // The grid constructors.
     assert_eq!(PriorSensitivity::standard_grid().scales.to_vec(), [0.5, 1.0, 2.0, 5.0, 10.0, 20.0]);

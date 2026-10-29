@@ -17,6 +17,15 @@ use antecedent_estimate::{AnalyticSeKind, FrontDoorTwoStage, TwoStageLeastSquare
 use antecedent_graph::Dag;
 use antecedent_io::consume_analysis_result;
 
+/// Independent references on the exact fixture columns, computed with numpy (`a * b` with `a` the
+/// slope of the mediator on the treatment and `b` the mediator coefficient of the outcome on the
+/// mediator and treatment; the instrument covariance ratio `cov(z, y) / cov(z, t)`). The shifted
+/// refresh data moves only the outcome intercept, so it does not move either estimate. The naive
+/// estimates on the same columns give 1.3989 (outcome on treatment, front door) and 2.9135 (outcome
+/// on treatment, IV), so a route that ignores its identification strategy fails.
+const FRONTDOOR_REFERENCE: f64 = 1.397_384_939_760_580_2;
+const IV_REFERENCE: f64 = 1.993_429_330_350_900_8;
+
 fn frontdoor_data(y_shift: f64) -> TabularData {
     let mut builder = CausalSchemaBuilder::new();
     for (name, hint) in [
@@ -161,13 +170,21 @@ fn verify_frontdoor(accepted: bool, validation: &str) {
     assert_eq!(checked.lowering().treatment, VariableId::from_raw(0), "{coordinate}");
     assert_eq!(checked.lowering().outcome, VariableId::from_raw(2), "{coordinate}");
     let result = prepared.estimate(&data, &context).unwrap();
-    assert!((result.effect() - 1.4).abs() < 0.1, "{coordinate}: {}", result.effect());
+    assert!(
+        (result.effect() - FRONTDOOR_REFERENCE).abs() < 1e-9,
+        "{coordinate}: {}",
+        result.effect()
+    );
     assert!(
         (result.effect() - reference.effect()).abs() < 1e-12,
         "{coordinate} changed result vs fresh route"
     );
     let refreshed = rebind_estimate(&mut prepared, refreshed_data, &context).unwrap();
-    assert!((refreshed.effect() - result.effect()).abs() < 0.05, "{coordinate} refresh");
+    assert!(
+        (refreshed.effect() - FRONTDOOR_REFERENCE).abs() < 1e-9,
+        "{coordinate} refresh: {}",
+        refreshed.effect()
+    );
     let artifact = prepared
         .encode_contracted_result(
             &refreshed,
@@ -235,7 +252,11 @@ fn verify_iv(accepted: bool, validation: &str, wald: bool) {
     assert_eq!(checked.lowering().treatment, VariableId::from_raw(0), "{coordinate}");
     assert_eq!(checked.lowering().outcome, VariableId::from_raw(1), "{coordinate}");
     let result = prepared.estimate(&data, &context).unwrap();
-    assert!((result.effect() - 2.0).abs() < 0.15, "{coordinate}: {}", result.effect());
+    assert!(
+        (result.effect() - IV_REFERENCE).abs() < 1e-9,
+        "{coordinate}: {}",
+        result.effect()
+    );
     assert!(
         (result.effect() - reference.effect()).abs() < 1e-12,
         "{coordinate} changed result vs fresh route"
@@ -247,7 +268,7 @@ fn verify_iv(accepted: bool, validation: &str, wald: bool) {
     );
     let refreshed = rebind_estimate(&mut prepared, refreshed_data, &context).unwrap();
     assert!(
-        (refreshed.effect() - 2.0).abs() < 0.15,
+        (refreshed.effect() - IV_REFERENCE).abs() < 1e-9,
         "{coordinate} refresh: {}",
         refreshed.effect()
     );

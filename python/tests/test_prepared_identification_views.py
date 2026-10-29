@@ -139,8 +139,6 @@ def test_native_readview_preserves_each_prepared_cache_and_complete_proofs(famil
         # Aggregate class proofs retain a merged arena and assumptions, with
         # their original empty derivation/performance counters. Per-case proofs
         # retain their own evidence; inspection must not invent aggregate work.
-        assert summary["sets_returned"] >= 0
-        assert summary["derivation_step_count"] >= 0
 
     wire = view.materialize(seed=19, threads=1).to_dict()
     converted = [node for node in _wire_nodes(wire) if "identification" in node]
@@ -155,6 +153,10 @@ def test_native_readview_preserves_each_prepared_cache_and_complete_proofs(famil
         assert len(proof["derivation"]) == summary["derivation_step_count"]
         assert len(proof["required_assumptions"]) == summary["assumption_count"]
         assert proof["candidates_examined"] == summary["candidates_examined"]
+        # The inspection summary and the materialized proof are two readers of one retained
+        # counter; a set count the summary invents or drops no longer matches the wire.
+        assert proof["sets_returned"] == summary["sets_returned"]
+        assert proof["sets_returned"] <= proof["candidates_examined"]
     assert study._engine.last_result is None
 
 

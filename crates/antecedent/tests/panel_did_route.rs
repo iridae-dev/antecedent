@@ -15,6 +15,16 @@ use antecedent_data::TabularData;
 #[path = "common/retained_graphless.rs"]
 mod retained_graphless;
 
+const FABRICATION: &str = "invalid panel DiD payload or fabricated interval";
+
+/// A refusal carrying `expected` in its message; an accepted result is the failure.
+fn assert_refused<T, E: std::fmt::Debug>(result: Result<T, E>, expected: &str) {
+    match result {
+        Err(error) => assert!(format!("{error:?}").contains(expected), "{expected}: {error:?}"),
+        Ok(_) => panic!("expected a refusal containing {expected:?}"),
+    }
+}
+
 fn fixture() -> (TabularData, PanelDidQuery) {
     let mut ids = Vec::new();
     let mut treated = Vec::new();
@@ -72,13 +82,13 @@ fn panel_did_runs_identically_through_study_and_prepared_routes() {
     let bytes = prepared.encode_contracted_result(&refreshed, "thin-panel-did", &context).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     body.panel_did.as_mut().unwrap().graphless_support_status = Some("licensed".into());
-    assert!(
+    assert_refused(
         antecedent_io::encode_analysis_result_artifact(
             &body,
             header.variable_names,
             "forged-thin-did-license"
-        )
-        .is_err()
+        ),
+        FABRICATION,
     );
 }
 
@@ -137,13 +147,13 @@ fn supported_panel_did_interval_round_trips_and_rejects_fabrication() {
     );
     let mut fabricated = body.clone();
     fabricated.panel_did.as_mut().unwrap().interval_95 = Some([bounds[0] - 1.0, bounds[1]]);
-    assert!(
+    assert_refused(
         antecedent_io::encode_analysis_result_artifact(
             &fabricated,
             header.variable_names,
             "fabricated"
-        )
-        .is_err()
+        ),
+        FABRICATION,
     );
 }
 
@@ -200,13 +210,13 @@ fn supported_repeated_cross_section_interval_round_trips_and_rejects_fabrication
         Some("licensed")
     );
     body.panel_did.as_mut().unwrap().interval_95 = Some([interval[0] - 1.0, interval[1]]);
-    assert!(
+    assert_refused(
         antecedent_io::encode_analysis_result_artifact(
             &body,
             header.variable_names,
             "forged-repeated-did"
-        )
-        .is_err()
+        ),
+        FABRICATION,
     );
 }
 
@@ -221,7 +231,28 @@ fn panel_did_refuses_missing_wave_and_insufficient_group_clusters() {
         query.subjects[..15].to_vec(),
         query.clusters[..15].to_vec(),
     );
-    assert!(Study::tabular(data.clone()).query(missing).build().unwrap().run(&context).is_err());
+    assert_refused(
+        Study::tabular(data.clone()).query(missing).build().unwrap().run(&context),
+        "panel DiD metadata must align with table rows",
+    );
+
+    // A subject observed in one wave only (its post row dropped from table and metadata alike).
+    let changes = [2.0, 4.0, 6.0, 8.0, 0.0, 2.0, 4.0, 6.0];
+    let outcome: Vec<f64> = (0..15)
+        .map(|row| (row / 2) as f64 * 10.0 + if row % 2 == 1 { changes[row / 2] } else { 0.0 })
+        .collect();
+    let one_wave = PanelDidQuery::new(
+        query.outcome,
+        query.treated[..15].to_vec(),
+        query.post[..15].to_vec(),
+        query.subjects[..15].to_vec(),
+        query.clusters[..15].to_vec(),
+    );
+    let thin = TabularData::from_f64_columns([("outcome", outcome.as_slice())]).unwrap();
+    assert_refused(
+        Study::tabular(thin).query(one_wave).build().unwrap().run(&context),
+        "panel DiD requires a balanced two-period panel",
+    );
 
     let collapsed = PanelDidQuery::new(
         query.outcome,
@@ -232,7 +263,10 @@ fn panel_did_refuses_missing_wave_and_insufficient_group_clusters() {
     );
     let prepared =
         Study::tabular(data.clone()).query(collapsed).build().unwrap().prepare(&context).unwrap();
-    assert!(prepared.estimate(&data, &context).is_err());
+    assert_refused(
+        prepared.estimate(&data, &context),
+        "cluster SE requires at least two clusters in each group",
+    );
 }
 
 #[test]
@@ -305,23 +339,19 @@ fn repeated_cross_section_refuses_duplicate_subject_or_sparse_cell_clusters() {
     let context = ExecutionContext::for_tests(17);
     let mut repeated_ids = ids.clone();
     repeated_ids[1] = repeated_ids[0].clone();
-    assert!(
+    assert_refused(
         Study::tabular(data.clone())
             .query(make(repeated_ids, clusters.clone()))
             .build()
             .unwrap()
-            .run(&context)
-            .is_err()
+            .run(&context),
+        "repeated-cross-section DiD requires one row per subject",
     );
     let mut sparse_clusters = clusters;
     sparse_clusters[1] = sparse_clusters[0].clone();
-    assert!(
-        Study::tabular(data)
-            .query(make(ids, sparse_clusters))
-            .build()
-            .unwrap()
-            .run(&context)
-            .is_err()
+    assert_refused(
+        Study::tabular(data).query(make(ids, sparse_clusters)).build().unwrap().run(&context),
+        "requires at least two clusters in each group-period cell",
     );
 }
 
@@ -413,7 +443,10 @@ fn staggered_group_time_runs_as_retained_native_study() {
         3,
         4,
     );
-    assert!(Study::tabular(data).query(no_controls).build().unwrap().run(&context).is_err());
+    assert_refused(
+        Study::tabular(data).query(no_controls).build().unwrap().run(&context),
+        "staggered DiD requires never-treated controls",
+    );
 }
 
 #[test]
@@ -482,13 +515,13 @@ fn staggered_event_study_retains_full_curve_and_refuses_missing_controls() {
     assert!(body.interval_lower.is_none() && body.interval_upper.is_none());
     let mut fabricated = body.clone();
     fabricated.panel_did.as_mut().unwrap().event_time_effects[1].6 = f64::INFINITY;
-    assert!(
+    assert_refused(
         antecedent_io::encode_analysis_result_artifact(
             &fabricated,
             header.variable_names,
             "fabricated"
-        )
-        .is_err()
+        ),
+        FABRICATION,
     );
     let no_controls = PanelDidQuery::staggered_event_study(
         query.outcome,
@@ -497,7 +530,10 @@ fn staggered_event_study_retains_full_curve_and_refuses_missing_controls() {
         query.periods.to_vec(),
         vec![3; query.cohorts.len()],
     );
-    assert!(Study::tabular(data).query(no_controls).build().unwrap().run(&context).is_err());
+    assert_refused(
+        Study::tabular(data).query(no_controls).build().unwrap().run(&context),
+        "event study requires never-treated controls (cohort 0)",
+    );
 }
 
 #[test]
@@ -631,13 +667,13 @@ fn supported_staggered_event_study_interval_round_trips_and_rejects_forged_licen
         .unwrap();
     fabricated.panel_did.as_mut().unwrap().event_time_intervals_95[index] =
         Some([bounds[0] - 1.0, bounds[1]]);
-    assert!(
+    assert_refused(
         antecedent_io::encode_analysis_result_artifact(
             &fabricated,
             header.variable_names.clone(),
             "fabricated-staggered-interval"
-        )
-        .is_err()
+        ),
+        FABRICATION,
     );
 
     // Thin cohort: 8 clusters per group withholds the interval and the license;
@@ -659,13 +695,13 @@ fn supported_staggered_event_study_interval_round_trips_and_rejects_forged_licen
         antecedent_io::decode_analysis_result_artifact(&thin_bytes).unwrap();
     assert_eq!(thin_body.panel_did.as_ref().unwrap().graphless_support_status, None);
     thin_body.panel_did.as_mut().unwrap().graphless_support_status = Some("licensed".into());
-    assert!(
+    assert_refused(
         antecedent_io::encode_analysis_result_artifact(
             &thin_body,
             thin_header.variable_names,
             "forged-thin-staggered-license"
-        )
-        .is_err()
+        ),
+        FABRICATION,
     );
 }
 
@@ -716,13 +752,13 @@ fn staggered_event_known_truth_fixture_spans_thin_and_supported_clusters() {
         assert_eq!(body.panel_did.as_ref().unwrap().event_time_intervals_95.len(), 3);
         if clusters_per_group == 24 {
             body.panel_did.as_mut().unwrap().event_time_intervals_95[1] = Some([0.0, 0.0]);
-            assert!(
+            assert_refused(
                 antecedent_io::encode_analysis_result_artifact(
                     &body,
                     header.variable_names,
                     "forged-staggered-interval"
-                )
-                .is_err()
+                ),
+                FABRICATION,
             );
         }
     }

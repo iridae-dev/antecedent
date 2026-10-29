@@ -639,10 +639,29 @@ fn refresh_keeps_the_proof_and_refuses_changed_evidence_identity() {
     .unwrap();
     let foreign = ExactTransportData::try_new(foreign, exact.max_support_rows()).unwrap();
     let exact_prepared = prepare(&studies, exact, false);
-    assert!(exact_prepared.refresh(relabelled, &ctx).is_err());
-    assert!(exact_prepared.refresh(foreign, &ctx).is_err());
+    let relabelled_error = exact_prepared.refresh(relabelled, &ctx).map(|_| ()).unwrap_err();
+    let foreign_error = exact_prepared.refresh(foreign, &ctx).map(|_| ()).unwrap_err();
     // An empirical preparation refuses tables without counts.
-    assert!(prepared.refresh(exact_prepared.data().clone(), &ctx).is_err());
+    let counts_error =
+        prepared.refresh(exact_prepared.data().clone(), &ctx).map(|_| ()).unwrap_err();
+    let message = |error: IoError| match error {
+        IoError::Refused { code, message } => (code, message),
+        other => panic!("expected a coded refusal, got {other:?}"),
+    };
+    assert_eq!(
+        message(relabelled_error),
+        (
+            "transport_missing_provider",
+            "exact provider snapshot does not match catalog binding".to_owned()
+        )
+    );
+    assert_eq!(
+        message(foreign_error),
+        ("transport_missing_provider", "exact provider names an unknown evidence regime".to_owned())
+    );
+    let (code, text) = message(counts_error);
+    assert_eq!(code, "transport_missing_provider");
+    assert!(text.starts_with("mz_transport.empirical_counts_required"), "{text}");
 }
 
 #[test]

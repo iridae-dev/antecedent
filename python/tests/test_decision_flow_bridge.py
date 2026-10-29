@@ -82,8 +82,10 @@ def test_analyze_then_contract_evaluate_takes_the_result_directly() -> None:
     decided = require_success(contract.evaluate(result, outcome_units="mmHg", dose_units="mg"))
 
     by_id = {action.id: action for action in decided.actions}
-    assert by_id["high"].expected_utility == pytest.approx(1.0, abs=0.15)
-    assert by_id["low"].expected_utility == pytest.approx(-1.0, abs=0.15)
+    # E[Y | do(a)] = 2a on the grid: the observed deviation is 7e-3 (noise 0.2, n = 400), so 0.03
+    # excludes a slope off by more than 6 percent that the former 0.15 band admitted.
+    assert by_id["high"].expected_utility == pytest.approx(1.0, abs=0.03)
+    assert by_id["low"].expected_utility == pytest.approx(-1.0, abs=0.03)
     assert decided.selected == ("high",)
     # A mean grid has no outcome draws: no regret, no replayable export.
     assert decided.evpi is None
@@ -103,6 +105,8 @@ def test_result_evaluate_matches_the_native_claim_path() -> None:
     via_result = require_success(contract.evaluate(result, program=program))
     source = program_claims.native_claim(result, program).as_decision_source(contract).source
     via_source = require_success(contract.evaluate(source))
+    # Both paths must also give the hand value 2a at a = -0.5, 0.5, not merely agree.
+    assert [a.expected_utility for a in via_result.actions] == pytest.approx([-1.0, 1.0], abs=0.03)
     assert [a.expected_utility for a in via_result.actions] == [
         a.expected_utility for a in via_source.actions
     ]
@@ -116,6 +120,7 @@ def test_result_evaluate_uses_contract_declared_units_and_original_numeric_scale
         contract.evaluate(result, outcome_units="mmHg", dose_units="native_numeric_scale")
     )
     assert automatic.selected == explicit.selected == ("high",)
+    assert [a.expected_utility for a in automatic.actions] == pytest.approx([-1.0, 1.0], abs=0.03)
     assert [a.expected_utility for a in automatic.actions] == [
         a.expected_utility for a in explicit.actions
     ]
@@ -164,7 +169,13 @@ def test_scalar_effect_evaluates_only_its_original_contrast_coordinate() -> None
     )
     decided = require_success(contract.evaluate(scalar))
     assert decided.selected == ("act",)
-    assert decided.actions[0].expected_utility == pytest.approx(scalar.estimate.ate)
+    # The effect is the least-squares slope of y on a (a -> y is unconfounded), computed here
+    # independently of the product: 1.99407928... (truth 2, noise 0.2).
+    data = _curve_data()
+    slope = float(np.polyfit(data["a"], data["y"], 1)[0])
+    assert scalar.estimate.ate == pytest.approx(slope, abs=1e-9)
+    assert decided.actions[0].expected_utility == pytest.approx(slope, abs=1e-9)
+    assert decided.actions[1].expected_utility == pytest.approx(0.0, abs=1e-12)
     assert decided.original_execution is scalar._raw
     assert decided.original_execution.estimate.se_analytic == scalar.estimate.se_analytic
     assert decided.evpi is None
