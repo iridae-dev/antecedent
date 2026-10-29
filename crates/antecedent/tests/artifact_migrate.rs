@@ -272,7 +272,8 @@ fn wire_round_trip_still_decodes() {
     let mut buf = Vec::new();
     art.write_to(&mut buf).unwrap();
     let migrated = read_and_migrate(buf.as_slice()).unwrap();
-    let _: SchemaWire = from_cbor(&migrated.sections[0].data).unwrap();
+    let schema: SchemaWire = from_cbor(&migrated.sections[0].data).unwrap();
+    assert_eq!(schema.variable_names(), vec!["x".to_string(), "y".to_string()]);
 }
 
 /// The format-0.5 identified-set interval of a class-aware temporal Pulse
@@ -333,6 +334,11 @@ fn class_aware_identified_set_interval_survives_the_result_artifact() {
         .as_ref()
         .and_then(|mixture| mixture.identified_set_interval)
         .expect("a two-completion class publishes an identified-set interval");
+    // The completions bound the effect of t_{t-1} on y_t by the adjusted coefficient 0.8 and
+    // the unadjusted one 0.8 + 0.6 * Cov(z, t) / Var(t) = 0.8 + 0.6 * (1/6) / (5/12) = 1.04.
+    assert!((interval.bound_lower - 0.8).abs() < 0.2, "{interval:?}");
+    assert!((interval.bound_upper - 1.04).abs() < 0.2, "{interval:?}");
+    assert!(interval.lower < interval.bound_lower && interval.bound_upper < interval.upper);
 
     let query_wire = serde_json::json!({"response": {
         "functional": {"average_derivative": {"outcome": 1, "treatment": 0, "weighting": "observed"}},

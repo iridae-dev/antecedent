@@ -174,11 +174,18 @@ fn stationary_bootstrap_refuses_an_expected_length_below_one_or_not_finite() {
     let mut out = Vec::new();
     for bad in [0.0, 0.999, -3.0, f64::NAN, f64::INFINITY] {
         let plan = ResamplingPlan::StationaryBlock { expected_length: bad };
+        let text = fill_resample_index_replicate(plan, 5, None, &ctx, 1, 0, &mut out)
+            .expect_err(&format!("expected_length {bad} was accepted"))
+            .to_string();
         assert!(
-            fill_resample_index_replicate(plan, 5, None, &ctx, 1, 0, &mut out).is_err(),
-            "expected_length {bad} was accepted"
+            text.contains("stationary expected_length") && text.contains("at least 1"),
+            "expected_length {bad}: {text}"
         );
     }
+    // The boundary is admitted: an expected block of one row is an iid draw of full length.
+    let plan = ResamplingPlan::StationaryBlock { expected_length: 1.0 };
+    fill_resample_index_replicate(plan, 5, None, &ctx, 1, 0, &mut out).unwrap();
+    assert_eq!(out.len(), 5);
 }
 
 #[test]

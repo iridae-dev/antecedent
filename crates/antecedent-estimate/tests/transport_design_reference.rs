@@ -277,43 +277,63 @@ fn unusable_weights_and_clusters_are_refused() {
 
     // A single cluster, or a trial that lives in a single cluster, carries no between-cluster
     // variation.
+    fn refused<E: std::fmt::Display>(r: Result<f64, E>, needle: &str, what: &str) {
+        let text = r.err().unwrap_or_else(|| panic!("{what}: accepted")).to_string();
+        assert!(text.contains(needle), "{what}: {text}");
+    }
     let rows = base.view();
-    assert!(rows.ipw_se(ipw, RowDependence::Clusters(&one)).is_err());
+    refused(rows.ipw_se(ipw, RowDependence::Clusters(&one)), "at least two clusters", "one cluster");
     let trial_in_one: Vec<u32> =
         (0..n).map(|i| if base.trial[i] { 0 } else { 1 + u32::try_from(i % 3).unwrap() }).collect();
-    assert!(rows.ipw_se(ipw, RowDependence::Clusters(&trial_in_one)).is_err());
-    assert!(
-        rows.bayesian_bootstrap(
+    refused(
+        rows.ipw_se(ipw, RowDependence::Clusters(&trial_in_one)),
+        "at least two clusters",
+        "trial in one cluster",
+    );
+    let bootstrap = rows
+        .bayesian_bootstrap(
             &identification(),
             RowDependence::Clusters(&trial_in_one),
-            DrawSpec { draws: 10, seed: 1 }
+            DrawSpec { draws: 10, seed: 1 },
         )
-        .is_err()
-    );
+        .unwrap_err()
+        .to_string();
+    assert!(bootstrap.contains("at least two clusters"), "{bootstrap}");
     // Labels that do not cover the rows.
-    assert!(rows.ipw_se(ipw, RowDependence::Clusters(&labels[..n - 1])).is_err());
+    refused(
+        rows.ipw_se(ipw, RowDependence::Clusters(&labels[..n - 1])),
+        "cluster labels length mismatch",
+        "short labels",
+    );
 
     // Negative, non-finite and misaligned weights, and weights that leave no target row.
     for bad in [-1.0, f64::NAN, f64::INFINITY] {
         let mut owned = Owned::read(&case["rows"]);
         owned.weights.as_mut().unwrap()[3] = bad;
-        assert!(owned.view().ipw(&identification()).is_err(), "{bad}");
+        let text = owned.view().ipw(&identification()).unwrap_err().to_string();
+        assert!(
+            text.contains("sampling_weights_invalid") && text.contains("finite and non-negative"),
+            "{bad}: {text}"
+        );
     }
     let mut short = Owned::read(&case["rows"]);
     short.weights.as_mut().unwrap().pop();
-    assert!(short.view().ipw(&identification()).is_err());
+    let text = short.view().ipw(&identification()).unwrap_err().to_string();
+    assert!(text.contains("length mismatch"), "{text}");
     let mut no_target = Owned::read(&case["rows"]);
     for i in 0..n {
         if !no_target.trial[i] {
             no_target.weights.as_mut().unwrap()[i] = 0.0;
         }
     }
-    assert!(no_target.view().ipw(&identification()).is_err());
+    let text = no_target.view().ipw(&identification()).unwrap_err().to_string();
+    assert!(text.contains("source-trial and target-population rows"), "{text}");
     let mut no_trial = Owned::read(&case["rows"]);
     for i in 0..n {
         if no_trial.trial[i] {
             no_trial.weights.as_mut().unwrap()[i] = 0.0;
         }
     }
-    assert!(no_trial.view().ipw(&identification()).is_err());
+    let text = no_trial.view().ipw(&identification()).unwrap_err().to_string();
+    assert!(text.contains("source-trial and target-population rows"), "{text}");
 }

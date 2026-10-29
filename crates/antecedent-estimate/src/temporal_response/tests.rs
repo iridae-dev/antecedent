@@ -1020,6 +1020,8 @@ fn joint_horizon_replicates_are_retained_on_request_and_couple_the_horizons() {
     let weighted = diagnostic(&posterior, JOINT_HORIZON_REPLICATES).expect("weighted replicates");
     let weighted_layout = diagnostic(&posterior, JOINT_HORIZON_LAYOUT).expect("layout");
     assert_eq!(weighted_layout[1] as usize, cells);
+    assert_eq!(weighted.len(), weighted_layout[0] as usize * cells, "replicate-major layout");
+    assert!(weighted.iter().all(|v| v.is_finite()));
     let ResponseUncertainty::PointwiseBand { interpretation, lower: wl, upper: wu, .. } =
         &posterior.uncertainty
     else {
@@ -1031,21 +1033,11 @@ fn joint_horizon_replicates_are_retained_on_request_and_couple_the_horizons() {
         assert!((point[cell] - mean[cell]).abs() < 1e-12, "same full-sample point surface");
         let ratio = (wu[cell] - wl[cell]) / (upper[cell] - lower[cell]);
         assert!(
-            ratio.is_finite() && ratio > 0.0,
-            "cell {cell}: weighted over bootstrap width {ratio}"
+            (0.25..4.0).contains(&ratio),
+            "cell {cell}: the weighted posterior must spread about as the bootstrap does, \
+             width ratio {ratio}"
         );
     }
-    let n_weighted = weighted_layout[0] as usize;
-    // Replicates of one horizon pair across the other horizons of the same row: the rows of two
-    // different horizons at one dose are not an independent shuffle of each other.
-    let col = |cell: usize| (0..n_weighted).map(|r| weighted[r * cells + cell]).collect::<Vec<_>>();
-    let (a, b) = (col(0), col(1));
-    let (ma, mb) =
-        (a.iter().sum::<f64>() / n_weighted as f64, b.iter().sum::<f64>() / n_weighted as f64);
-    let cov: f64 =
-        a.iter().zip(&b).map(|(x, y)| (x - ma) * (y - mb)).sum::<f64>() / n_weighted as f64;
-    let (sa, sb) = (antecedent_stats::sample_std(&a), antecedent_stats::sample_std(&b));
-    assert!(cov.abs() <= sa * sb * 1.05, "a covariance is bounded by the product of spreads");
 }
 
 /// `synthetic_series` with `gap` missing time points starting at `at` (both columns).

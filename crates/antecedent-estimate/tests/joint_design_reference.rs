@@ -118,18 +118,24 @@ fn unsupported_programs_and_bad_probabilities_are_refused() {
     };
     let ok = [unit("a", 0, [0.5, 0.5]), unit("b", 1, [0.5, 0.5])];
     assert!(randomized_joint_means(&design(2), &ok).is_ok());
+    let assignment = "invalid joint arm assignment";
+    let refused = |d: &JointRandomizedDesign, units: &[JointRandomizedUnit]| {
+        randomized_joint_means(d, units).expect_err("must be refused")
+    };
     let one_arm = [unit("a", 0, [0.5, 0.5]), unit("b", 0, [0.5, 0.5])];
-    assert!(randomized_joint_means(&design(2), &one_arm).is_err(), "a program with no unit");
+    let text = refused(&design(2), &one_arm).to_string();
+    assert!(text.contains("no observed independent-unit support"), "a program with no unit: {text}");
     let bad_sum = [unit("a", 0, [0.5, 0.4]), unit("b", 1, [0.5, 0.5])];
-    assert!(randomized_joint_means(&design(2), &bad_sum).is_err());
+    assert!(refused(&design(2), &bad_sum).to_string().contains(assignment));
     let duplicate = [unit("a", 0, [0.5, 0.5]), unit("a", 1, [0.5, 0.5])];
-    assert!(randomized_joint_means(&design(2), &duplicate).is_err());
+    assert!(refused(&design(2), &duplicate).to_string().contains(assignment));
     let mut weightless = ok.clone();
     weightless[0].population_weight = 0.0;
-    assert!(randomized_joint_means(&design(2), &weightless).is_err());
+    assert!(refused(&design(2), &weightless).to_string().contains(assignment));
     let mut unstated = design(2);
     unstated.consistency = " ".into();
-    assert!(randomized_joint_means(&unstated, &ok).is_err(), "premises must be stated");
+    let text = refused(&unstated, &ok).to_string();
+    assert!(text.contains("explicit population/consistency/isolation premises"), "{text}");
 }
 
 fn switchback_design(case: &Value) -> JointSwitchbackDesign {
@@ -273,11 +279,18 @@ fn a_history_without_a_declared_posterior_coordinate_or_a_singular_prior_is_refu
     };
     let ctx = ExecutionContext::for_tests(1);
     assert!(switchback_joint_posterior(&design, &sequences, &prior(1.0), &ctx).is_ok());
-    assert!(switchback_joint_posterior(&design, &sequences, &prior(0.0), &ctx).is_err());
+    let proper = "requires proper priors and known nonsingular sequence covariance";
+    let refused = |prior: &SwitchbackGaussianPrior| {
+        switchback_joint_posterior(&design, &sequences, prior, &ctx).unwrap_err().to_string()
+    };
+    let text = refused(&prior(0.0));
+    assert!(text.contains(proper), "improper prior: {text}");
     let mut wrong_rho = prior(1.0);
     wrong_rho.sequence_rho[0] = 1.0;
-    assert!(switchback_joint_posterior(&design, &sequences, &wrong_rho, &ctx).is_err());
+    let text = refused(&wrong_rho);
+    assert!(text.contains(proper), "singular sequence covariance: {text}");
     let mut few = prior(1.0);
     few.draws = 1;
-    assert!(switchback_joint_posterior(&design, &sequences, &few, &ctx).is_err());
+    let text = refused(&few);
+    assert!(text.contains(proper), "one draw: {text}");
 }

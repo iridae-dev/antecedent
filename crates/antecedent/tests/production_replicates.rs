@@ -190,6 +190,11 @@ fn production_static_ate_evaluates_all_199_replicates() {
     let ctx = ExecutionContext::production(5, 1);
     let result = static_run(&data, &dag, CausalQuery::AverageEffect(query), 199, &ctx);
     assert_full(&result, 199, "static ATE");
+    // Structural ATE is 2; adjusting for z removes the confounding (the naive contrast is
+    // biased upward by about 0.4), and the bootstrap SE scores the estimate.
+    let effect = result.estimate().as_effect().unwrap();
+    let se = effect.se_bootstrap().unwrap();
+    assert!((effect.ate - 2.0).abs() < 4.0 * se, "ate {} se {se}", effect.ate);
 }
 
 #[test]
@@ -200,6 +205,14 @@ fn production_static_mediation_evaluates_all_199_replicates() {
         let result = static_run(&data, &dag, mediation_query(contrast), 199, &ctx);
         assert_eq!(result.logical_plan.estimator.as_deref(), Some("mediation.linear"));
         assert_full(&result, 199, "static mediation");
+        // m = 0.8 a + e, y = a + 0.6 m + e': total 1 + 0.6 * 0.8 = 1.48, mediated 0.48.
+        let truth = match contrast {
+            MediationContrast::Total => 1.48,
+            _ => 0.48,
+        };
+        let effect = result.estimate().as_effect().unwrap();
+        let se = effect.se_bootstrap().unwrap();
+        assert!((effect.ate - truth).abs() < 4.0 * se, "{contrast:?}: {} se {se}", effect.ate);
     }
 }
 

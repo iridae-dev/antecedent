@@ -149,9 +149,8 @@ def test_omitted_bayesian_draws_follow_the_backend_default():
 @pytest.mark.parametrize("latency", ["interactive", "standard", "report"])
 def test_a_tier_cuts_the_omitted_draw_budget(latency):
     result = _analyze(inference=ant.Bayesian(), latency=latency, refute="none", bootstrap=0)
-    assert result.performance.n_draws is not None
-    if latency == "interactive":
-        assert result.performance.n_draws < OMITTED["n_draws"]
+    expected = {"interactive": 64, "standard": OMITTED["n_draws"], "report": 4000}[latency]
+    assert result.performance.n_draws == expected
 
 
 def _native_defaults(parameter: str):

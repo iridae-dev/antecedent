@@ -215,6 +215,9 @@ fn simultaneous_multiplicity_widens_every_numerical_interval() {
     // Eight reported intervals: the per-interval level is 1 - 0.05 / 8.
     let a = simultaneous.numerical.utilities.iter().find(|u| u.id == "A").unwrap();
     assert!((a.interval.level - (1.0 - 0.05 / 8.0)).abs() < 1e-12);
+    // The Bonferroni half-width is z(1 - 0.05 / 16) * SE_A, z = 2.734368786533177 (scipy ppf).
+    assert!((width(&simultaneous) - 2.0 * 2.734_368_786_533_177 * SE_A).abs() < 1e-5);
+    assert!((width(&marginal) - 2.0 * Z_975 * SE_A).abs() < 1e-6);
 }
 
 #[test]
@@ -241,10 +244,11 @@ fn a_fresh_consumer_rederives_from_the_carried_draws() {
         decided_id: Some("B".into()),
         ..DecisionReliabilityExpectation::default()
     };
-    assert!(
+    let refusal =
         consume_derived_uncertainty(&bytes, &wrong, &IntervalRequest::marginal(0.95), &ctx())
-            .is_err()
-    );
+            .unwrap_err();
+    assert_eq!(refusal.detail, "decision_reliability.artifact", "{refusal:?}");
+    assert!(refusal.message.contains("decision_mismatch"), "{refusal:?}");
 }
 
 fn cohort_output(joint_law: JointLawDeclaration) -> CohortUtilityDraws {

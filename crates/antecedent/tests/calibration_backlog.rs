@@ -107,6 +107,18 @@ fn assert_posterior_quantile(study: &Study, result: &StudyResult) {
     );
 }
 
+/// A published interval must sit on the derived truth: within twice its own half-width of the
+/// midpoint (about 3.9 standard errors at the 95% level), so an unadjusted or biased estimate
+/// that merely produces some interval fails.
+fn assert_on_truth(label: &str, lower: f64, upper: f64, truth: f64) {
+    let (mid, half) = ((lower + upper) / 2.0, (upper - lower) / 2.0);
+    assert!(half > 0.0, "{label}: degenerate interval [{lower}, {upper}]");
+    assert!(
+        (mid - truth).abs() <= 2.0 * half,
+        "{label}: interval [{lower}, {upper}] is not centred on the derived truth {truth}"
+    );
+}
+
 fn uniform(seed: u64) -> impl FnMut() -> f64 {
     common::calibration::uniform(seed, 0xF0_0D00_0F0D)
 }
@@ -267,7 +279,8 @@ fn publishes_mediation(kappa: f64, seed: u64) {
         run_mediation(kappa, n, false, RefuteSuite::None, seed).expect("mediation runs");
     assert_posterior_quantile(&study, &result);
     let intervals = posterior_intervals(&result);
-    assert!(intervals[0].is_some());
+    let (lower, upper) = intervals[0].expect("agreeing completions publish the posterior");
+    assert_on_truth("mediated effect", lower, upper, fixtures::mediation_truth());
     same_interval(|accepted, suite| run_mediation(kappa, n, accepted, suite, seed), intervals);
 }
 
@@ -290,7 +303,8 @@ fn intervention_response_admg_bayesian_publishes_posterior_quantile() {
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("functional.effect"));
     assert_posterior_quantile(&study, &result);
     let intervals = posterior_intervals(&result);
-    assert!(intervals[0].is_some());
+    let (lower, upper) = intervals[0].expect("the intervention publishes the posterior");
+    assert_on_truth("P(Y=1 | do(T=1))", lower, upper, P_Y1_DO_T1);
     same_interval(|accepted, suite| run_intervention(n, accepted, suite, seed), intervals);
 }
 
@@ -525,7 +539,9 @@ fn intervention_response_pag_frequentist_publishes_analytic_se() {
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("response.intervention_gcomp"));
     assert_interval_method(&study, &result, "analytic_se");
     let interval = response_scalar(&result);
-    assert!(interval.is_some());
+    // y = 1 + 2 t + 0.8 z + e with z mean zero: E[Y | do(t = 1)] = 3.
+    let (lower, upper, ..) = interval.expect("scalar interval");
+    assert_on_truth("E[Y | do(t=1)]", lower, upper, 3.0);
     let (_, accepted) = run_pag(pag_level_query(1.0), 800, true, seed).expect("accepted pag");
     assert_eq!(response_scalar(&accepted), interval);
 }
@@ -538,6 +554,9 @@ fn response_curve_pag_frequentist_publishes_analytic_se() {
     assert_interval_method(&study, &result, "analytic_se");
     let band = response_band(&result).expect("pointwise band");
     assert_eq!(band.0.len(), PAG_GRID.len());
+    for (i, dose) in PAG_GRID.iter().enumerate() {
+        assert_on_truth(&format!("E[Y | do(t={dose})]"), band.0[i], band.1[i], 1.0 + 2.0 * dose);
+    }
     let (_, accepted) = run_pag(pag_curve_query(), 800, true, seed).expect("accepted pag");
     assert_eq!(response_band(&accepted), Some(band));
 }
@@ -550,6 +569,9 @@ fn response_curve_admg_bayesian_publishes_posterior_quantile() {
     assert_interval_method(&study, &result, "posterior_quantile");
     let band = response_band(&result).expect("pointwise credible band");
     assert_eq!(band.0.len(), ADMG_CURVE.len());
+    for (i, truth) in ADMG_CURVE_TRUTH.iter().enumerate() {
+        assert_on_truth("front-door curve", band.0[i], band.1[i], *truth);
+    }
     let (_, accepted) = run_admg_curve(400, true, seed).expect("accepted admg");
     assert_eq!(response_band(&accepted), Some(band));
 }
@@ -1206,7 +1228,10 @@ fn average_effect_unknown_publishes_simultaneous_band() {
     let (study, result) = run_unknown(400, 0x110_0430).expect("unknown orientation runs");
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("linear.adjustment.ate"));
     assert_interval_method(&study, &result, "simultaneous_band");
-    assert!(joint_band_interval(&result).is_some());
+    // Both scenario truths lie inside their simultaneous bands: the joint interval is the
+    // covered branch, which brackets zero.
+    let (lower, upper) = joint_band_interval(&result).expect("two scenario bands");
+    assert!(lower < 0.0 && 0.0 < upper, "scenario truths {UNKNOWN_TRUTH:?} not covered: [{lower}, {upper}]");
 }
 
 #[test]

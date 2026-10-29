@@ -57,6 +57,11 @@ def test_complete_observation_runs_through_analyze_like_no_mechanism():
         np.asarray(explicit_complete.response.values),
         np.asarray(bare.response.values),
     )
+    # Equivalence is not correctness: y = 2a + x + e with x confounding a, so the adjusted
+    # dose-response slope is 2.0 (the unadjusted slope would be 2 + 0.7/1.49 = 2.47).
+    values = np.asarray(bare.response.values, dtype=float)
+    assert (values[2] - values[0]) == pytest.approx(2.0, abs=0.2)
+    assert (values[1] - values[0]) == pytest.approx(1.0, abs=0.15)
 
 
 def test_complete_observation_refuses_scalar_refute_like_no_mechanism():
