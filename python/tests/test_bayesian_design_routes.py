@@ -64,8 +64,8 @@ def test_bayesian_panel_did_matches_the_closed_form_and_stays_unlicensed():
     mean, sd = _nig_reference(changes, groups)
     assert result.estimate.estimator_id == "bayesian.panel_did"
     assert result.posterior is not None and result.posterior.n_draws == 20000
-    assert result.posterior.effect_mean == pytest.approx(mean, abs=0.02)
-    assert result.posterior.effect_sd == pytest.approx(sd, rel=0.03)
+    assert result.posterior.effect_mean == pytest.approx(mean, abs=0.004)
+    assert result.posterior.effect_sd == pytest.approx(sd, rel=0.015)
     assert result.posterior.q025 < mean < result.posterior.q975
     assert result.evidence_status != "licensed"
     assert result.panel_did is None
@@ -114,6 +114,11 @@ def test_bayesian_local_ratio_recovers_truth_and_withholds_a_weak_interval():
     )
     assert strong.estimate.estimator_id == "bayesian.local_ratio"
     assert strong.posterior.q025 < 2.0 < strong.posterior.q975
+    # The jump in the outcome (2 per unit of dose) over the jump in the dose is 2; the interval
+    # alone would admit a wide posterior, so hold the centre and the width too (observed error
+    # 9e-4, sd 8e-3).
+    assert strong.posterior.effect_mean == pytest.approx(2.0, abs=0.01)
+    assert strong.posterior.q975 - strong.posterior.q025 < 0.08
     weak = require_success(
         antecedent.analyze(
             _ratio(False), query=query, inference=bayes, execution=antecedent.Execution(seed=5)

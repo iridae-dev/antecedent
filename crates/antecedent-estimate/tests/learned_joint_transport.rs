@@ -560,6 +560,11 @@ fn learned_joint_linear_basis_reproduces_joint_bayesian_moments() {
                 &ctx,
             )
             .unwrap();
+            // Independent anchor: both paths are checked against the hand-written closed form.
+            let vc = varying == VaryingBlock::InterceptAndCovariates;
+            let shared = sharing == SourceSharing::SharedVaryingBlock;
+            let raws = [&r1, &r2];
+            assert_matches_oracle(&learned, &oracle(&iso_spec(1, &raws, vc, shared)), 1, &raws);
             assert_eq!(learned.parameter_names, joint.parameter_names);
             assert_eq!(learned.effect_names, joint.effect_names);
             for (a, b) in learned.posterior_mean.iter().zip(&joint.posterior_mean) {

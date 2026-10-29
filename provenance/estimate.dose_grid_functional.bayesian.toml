@@ -53,7 +53,7 @@ sha256 = "41f2eaef2dd900f95159d59a1c239fce104ca8afd0440d6f064e64545c41e94d"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/dose_grid_functional_bayesian_reference.rs"
-sha256 = "efbca1ee32eb7bb6a7a7a89e459e480240981f8e23b65423ffe14ae22729fc9e"
+sha256 = "cda3269bc1c0c0fd097e3c06d7479b5a8b82b5db41994b71c276e45bff4a183d"
 
 [[method_review.artifacts]]
 role = "reference"

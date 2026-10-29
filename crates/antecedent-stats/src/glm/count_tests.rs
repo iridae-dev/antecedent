@@ -50,7 +50,10 @@ fn poisson_recovers_positive_association() {
     )
     .unwrap();
     assert!(fit.converged);
-    assert!(fit.coefficients[1] > 0.3);
+    // Each group is constant (2 and 4), so the maximum-likelihood means are the group values:
+    // intercept ln 2 and slope ln 4 - ln 2 = ln 2.
+    assert!((fit.coefficients[0] - 2.0_f64.ln()).abs() < 1e-8, "{}", fit.coefficients[0]);
+    assert!((fit.coefficients[1] - 2.0_f64.ln()).abs() < 1e-8, "{}", fit.coefficients[1]);
 }
 
 #[test]
@@ -100,7 +103,17 @@ fn negbin_fixed_alpha_recovers_positive_association() {
     )
     .unwrap();
     assert!(fit.converged);
-    assert!(fit.coefficients[1] > 0.3, "slope={}", fit.coefficients[1]);
+    // With a group indicator the log-link score equations give each fitted mean as its group
+    // mean whatever the fixed alpha: group 0 has 6 spikes of 8 among 60 rows, mean
+    // (6*8 + 54*2)/60 = 2.6; group 1 has 5 spikes of 15, mean (5*15 + 55*5)/60 = 35/6.
+    let mean0: f64 = (6.0 * 8.0 + 54.0 * 2.0) / 60.0;
+    let mean1: f64 = (5.0 * 15.0 + 55.0 * 5.0) / 60.0;
+    assert!((fit.coefficients[0] - mean0.ln()).abs() < 1e-7, "b0={}", fit.coefficients[0]);
+    assert!(
+        (fit.coefficients[1] - (mean1 / mean0).ln()).abs() < 1e-7,
+        "slope={}",
+        fit.coefficients[1]
+    );
 }
 
 #[test]
@@ -123,6 +136,10 @@ fn negbin_mom_alpha_matches_pearson_formula() {
     )
     .unwrap();
     assert!(fit.converged);
+    // The default policy is the Pearson method of moments, so the reported alpha is the
+    // hand formula (observed 0.0925925...: (19.5 / 2.25 - 7) / 18).
+    let reported = fit.nb_alpha.expect("the method-of-moments alpha is reported");
+    assert!((reported - expected).abs() < 1e-8, "alpha={reported} expected={expected}");
     // Recompute MoM from the same Poisson μ path used internally.
     let poisson = fit_glm(
         GlmFamily::PoissonLog,
@@ -181,8 +198,10 @@ fn negbin_nested_mle_recovers_overdispersion() {
     .unwrap();
     assert!(fit.converged);
     let alpha = fit.nb_alpha.expect("nb alpha");
-    assert!(alpha > 0.05, "alpha={alpha}");
-    assert!(alpha < 5.0, "alpha={alpha}");
+    // Intercept-only, so the mean MLE is 3 and alpha maximizes the negative-binomial
+    // likelihood of 50 tens and 350 twos at that mean: 0.2308731 (scipy bounded search on
+    // gammaln, 1e-12 in log alpha). The method of moments gives 0.4452778 for the same data.
+    assert!((alpha - 0.230_873_094_5).abs() < 1e-4, "alpha={alpha}");
     // Nested MLE α should be in the ballpark of MoM.
     let mom = fit_glm(
         GlmFamily::NegativeBinomial,
@@ -193,6 +212,7 @@ fn negbin_nested_mle_recovers_overdispersion() {
     )
     .unwrap();
     let mom_a = mom.nb_alpha.unwrap();
+    assert!((mom_a - 0.445_277_777_8).abs() < 1e-8, "mom={mom_a}");
     assert!((alpha - mom_a).abs() / mom_a.max(1e-6) < 2.0, "nested={alpha} mom={mom_a}");
 }
 
@@ -226,6 +246,9 @@ fn negbin_nested_mle_recovers_alpha_above_two() {
     assert!(fit.converged);
     let alpha = fit.nb_alpha.expect("nb alpha");
     assert!(alpha > 2.0, "expected alpha > 2 for trigamma reflection path, got {alpha}");
+    // The likelihood maximizer for 100 thirties and 400 ones at the mean 6.8 is 2.0139012
+    // (scipy bounded search on gammaln).
+    assert!((alpha - 2.013_901_247).abs() < 1e-4, "alpha={alpha}");
     // MoM should also land in the same high-α regime.
     let mom = fit_glm(
         GlmFamily::NegativeBinomial,
@@ -236,6 +259,6 @@ fn negbin_nested_mle_recovers_alpha_above_two() {
     )
     .unwrap();
     let mom_a = mom.nb_alpha.unwrap();
-    assert!(mom_a > 2.0, "mom alpha={mom_a}");
+    assert!((mom_a - 2.763_269_896).abs() < 1e-7, "mom alpha={mom_a}");
     assert!((alpha - mom_a).abs() / mom_a.max(1e-6) < 2.0, "nested={alpha} mom={mom_a}");
 }

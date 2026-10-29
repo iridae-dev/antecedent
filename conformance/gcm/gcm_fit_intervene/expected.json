@@ -65,7 +65,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/gcm.rs",
-          "sha256": "5b1c91a20d6d65c423932634df2911707f820f8c2d0d0d0beafc698aba488817"
+          "sha256": "5d1264e46dc8e5720ebd868d2984158a806a03a51960c0246b30a8bdd18dd545"
         }
       ],
       "fixture_payload_sha256": "e3a23a0fdbf3a916eea352d60c038d2177372757a0871e1c034fd72c242196fb"

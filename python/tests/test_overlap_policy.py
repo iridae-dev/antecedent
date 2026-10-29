@@ -68,8 +68,12 @@ def test_overlap_reaches_rust_changes_the_answer_and_the_binding(estimator: Any)
     # The spelled-out default is the default construction.
     assert spelled.answer == default.answer
     assert s["inference_binding_id"] == d["inference_binding_id"]
-    assert trimmed.answer.value != default.answer.value
     assert t["inference_binding_id"] != d["inference_binding_id"]
+    # The effect is 1 + z with mean 1. Heavy tail weights bias the default (observed 1.19 to
+    # 1.47); trimming moves each estimator by 0.08 to 0.38 and brings it within 0.21 of 1.
+    assert abs(trimmed.answer.value - default.answer.value) > 0.05
+    assert abs(trimmed.answer.value - 1.0) < 0.25
+    assert abs(trimmed.answer.value - 1.0) < abs(default.answer.value - 1.0)
 
 
 def test_a_non_default_overlap_never_borrows_default_calibration() -> None:
@@ -155,6 +159,10 @@ def test_a_declared_overlap_policy_governs_saturated_propensities(
 ) -> None:
     result = require_success(_saturated_outcome(estimator(bootstrap=0, overlap=overlap)))
     assert np.isfinite(result.answer.value)
+    # The effect is exactly 1. Observed: AIPW 0.92 (trim) and 1.07 (clip); weighting 0.97
+    # (trim) and 1.95 (clip 0.01 caps weights at 100, so its tail bias is large but bounded).
+    bound = 0.2 if estimator is Aipw or overlap.trim is not None else 1.1
+    assert abs(result.answer.value - 1.0) < bound, result.answer.value
 
 
 @pytest.mark.parametrize("estimator", [DML, DRLearner])
@@ -164,3 +172,4 @@ def test_cross_fitted_learners_follow_the_same_overlap_rule(estimator: Any) -> N
     assert refused.refusal.code == "positivity_violated"
     governed = require_success(_saturated_outcome(estimator(overlap=Overlap(trim=0.01))))
     assert np.isfinite(governed.answer.value)
+    assert abs(governed.answer.value - 1.0) < 0.2, governed.answer.value  # observed 0.9075

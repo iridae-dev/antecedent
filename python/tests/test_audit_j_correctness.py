@@ -108,6 +108,7 @@ def test_canonical_form_refuses_non_finite_and_keeps_finite_values() -> None:
         "b": 1,
         "c": True,
     }
-    finite = np.array([1.0, -2.5])
-    # The finite array reaches the byte digest only after this check passes.
-    assert np.isfinite(finite).all()
+    # Finite floats, including a negative one and a NumPy scalar, pass through unchanged.
+    assert digest._plain([1.0, -2.5, np.float64(0.0)]) == [1.0, -2.5, 0.0]
+    with pytest.raises(ValueError, match="JSON"):
+        digest._plain({"nested": [1.0, {"deep": float("-inf")}]})

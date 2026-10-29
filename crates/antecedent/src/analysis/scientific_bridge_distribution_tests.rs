@@ -151,6 +151,33 @@ fn a_bridge_of_draws_is_prepared_derived_exported_and_consumed_independently() {
     assert!(inspection.unavailable.iter().any(|item| item == "calibrated_interval"));
     // The covariance of the slope and the source moves the mean by the covariance: 0.5 + 2 + 0.01.
     assert!((inspection.mean - 2.51).abs() < 0.05, "{}", inspection.mean);
+    // The band above cannot see the 0.01 covariance (Monte Carlo error is about 0.012), so
+    // the declared dependence is checked by a symmetric pair on the same seed: the mean is
+    // linear in the covariance with slope one, so +0.01 and -0.01 differ by exactly 0.02.
+    let with_covariance = |covariance: f64| {
+        let declared = contract(
+            BridgeMapping::Affine { intercept: 0.5, slope: 2.0 },
+            Some(MappingUncertainty {
+                id: "calibration-fit".into(),
+                intercept_variance: 0.01,
+                slope_variance: 0.04,
+                intercept_slope_covariance: -0.005,
+            }),
+            Some(SourceMappingDependence::SlopeCovariance {
+                covariance,
+                evidence: "shared-sample".into(),
+            }),
+        );
+        PreparedScientificBridgeDistribution::prepare(declared)
+            .unwrap()
+            .derive(&table, None, 7)
+            .unwrap()
+            .inspect()
+            .mean
+    };
+    let (plus, minus) = (with_covariance(0.01), with_covariance(-0.01));
+    assert!((plus - minus - 0.02).abs() < 1e-6, "{plus} {minus}");
+    assert!((plus - inspection.mean).abs() < 1e-12, "the declared covariance is the one used");
     // The bridged table is the source with the bridged column replaced, under the same alignment.
     assert_eq!(
         result.distribution().alignment_identity().unwrap(),

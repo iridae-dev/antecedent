@@ -207,6 +207,12 @@ fn gaussian_intervals_are_the_normal_quantiles_of_the_exact_moments() {
     }
 }
 
+/// The request is refused, with the typed reason and detail named in `expected`.
+fn refusal(result: Result<DoseGridPosterior, antecedent_estimate::EstimationError>, expected: &str) {
+    let message = result.expect_err("the declaration must be refused").to_string();
+    assert!(message.contains(expected), "{message} lacks {expected}");
+}
+
 #[test]
 fn declarations_are_used_or_refused_never_ignored() {
     let json = reference().into_iter().find(|c| c["name"] == "level_known").unwrap();
@@ -242,58 +248,40 @@ fn declarations_are_used_or_refused_never_ignored() {
     assert_eq!(reseeded.exact_mean, base.exact_mean);
     assert_ne!(reseeded.draws, base.draws);
     // An observational dose is refused, not adjusted for.
-    assert!(
-        estimate_dose_grid_posterior(&DoseGridPosteriorRequest {
+    refusal(estimate_dose_grid_posterior(&DoseGridPosteriorRequest {
             design: DoseDesign::Observational,
             ..case.request()
-        })
-        .is_err()
-    );
+        }), "effect_not_identified: dose_grid.graph_not_certified");
     // A grid dose outside the observed range, a dose outside the support, a derivative of a
     // constant curve, too few rows, too few draws and a bad prior scale are all refused.
     let outside = [case.dose[0] - 0.01];
-    assert!(
-        estimate_dose_grid_posterior(&DoseGridPosteriorRequest {
+    refusal(estimate_dose_grid_posterior(&DoseGridPosteriorRequest {
             grid: &outside,
             ..case.request()
-        })
-        .is_err()
-    );
+        }), "cell_not_licensed: dose_grid.unsupported_dose");
     let narrow = (case.dose[1], case.dose[2]);
-    assert!(
-        estimate_dose_grid_posterior(&DoseGridPosteriorRequest {
+    refusal(estimate_dose_grid_posterior(&DoseGridPosteriorRequest {
             support: narrow,
             ..case.request()
-        })
-        .is_err()
-    );
+        }), "invalid_argument: dose_grid.invalid_request: rows must be aligned");
     let constant = [3.0];
-    assert!(
-        estimate_dose_grid_posterior(&DoseGridPosteriorRequest {
+    refusal(estimate_dose_grid_posterior(&DoseGridPosteriorRequest {
             coefficient_scales: &constant,
             functional: DoseFunctional::Derivative,
             ..case.request()
-        })
-        .is_err()
-    );
-    assert!(
-        estimate_dose_grid_posterior(&DoseGridPosteriorRequest {
+        }), "invalid_argument: dose_grid.invalid_request: a derivative needs");
+    refusal(estimate_dose_grid_posterior(&DoseGridPosteriorRequest {
             dose: &case.dose[..2],
             outcome: &case.outcome[..2],
             ..case.request()
-        })
-        .is_err()
-    );
-    assert!(
-        estimate_dose_grid_posterior(&DoseGridPosteriorRequest { draws: 10, ..case.request() })
-            .is_err()
+        }), "invalid_argument: dose_grid.invalid_request: rows must be aligned");
+    refusal(
+        estimate_dose_grid_posterior(&DoseGridPosteriorRequest { draws: 10, ..case.request() }),
+        "posterior draws must be between 200 and 100000",
     );
     let bad = [3.0, -2.0, 1.0];
-    assert!(
-        estimate_dose_grid_posterior(&DoseGridPosteriorRequest {
+    refusal(estimate_dose_grid_posterior(&DoseGridPosteriorRequest {
             coefficient_scales: &bad,
             ..case.request()
-        })
-        .is_err()
-    );
+        }), "coefficient prior scales must be finite and positive");
 }

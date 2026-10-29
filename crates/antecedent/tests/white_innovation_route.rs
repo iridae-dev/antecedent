@@ -151,6 +151,12 @@ fn without_the_declaration_the_posterior_keeps_its_tempered_meaning() {
         &record.assumption,
         Assumption::ParametricRestriction(p) if p.id.as_ref() == ASSUMPTION
     )));
+    // No white-innovation test was run, and the default posterior is centred on the same
+    // least-squares coefficient (tempering rescales the likelihood, it does not move the mean).
+    assert!(!posterior.diagnostics.notes.iter().any(|note| note.starts_with("white_innovation")));
+    let (beta, se) = ols(&x, &y);
+    let column = posterior.effect_column().expect("effect column");
+    assert!((posterior.summaries.mean[column] - beta).abs() < 3.0 * se / (DRAWS as f64).sqrt() + 2e-3);
 }
 
 #[test]

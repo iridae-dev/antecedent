@@ -156,8 +156,11 @@ def test_rollout_unsupported_state_meaning_support_weighting_and_missing_source_
     source, ranked, _ = fixture()
     with pytest.raises(CausalValueError, match="state_interpretation_mismatch"):
         require_success(terminal().derive_rollout(source, quantity(), ranked))
-    for source in [law(weights=(0.5, 0.5)), law(supported=(False, True))]:
-        with pytest.raises((CausalValueError, CausalSerializationError)):
+    for source, error, code in [
+        (law(weights=(0.5, 0.5)), CausalValueError, "rollout.unweighted_joint_state_required"),
+        (law(supported=(False, True)), CausalSerializationError, "distribution coordinate unsupported"),
+    ]:
+        with pytest.raises(error, match=code):
             require_success(
                 terminal().derive_rollout(
                     source, quantity(), ranking(source), interpretation="interventional_state"
@@ -219,9 +222,9 @@ print(json.dumps({'identity':value.identity, 'trust':value.source_trust, 'calibr
 
 def test_rollout_truncated_and_oversized_artifacts_refuse_before_replay() -> None:
     _, _, rollout = fixture()
-    with pytest.raises(CausalSerializationError):
+    with pytest.raises(CausalSerializationError, match="failed to fill whole buffer"):
         dr.consume_rollout(bytes(rollout.export())[:100], expected_identity=rollout.expectation())
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="exceeds its byte bound"):
         dr.consume_rollout(bytes(32 * 1024 * 1024 + 1), expected_identity=rollout.expectation())
 
 

@@ -73,7 +73,11 @@ def test_the_table_flows_into_a_chain_as_ordinary_sources():
     # Var(b - a) = 0.04 + 0.01 - 2 * 0.01 = 0.03, with the shared evidence counted once.
     gap = np.asarray(table.sources[1].values) - np.asarray(table.sources[0].values)
     assert gap.var(ddof=1) == pytest.approx(0.03, rel=2e-3)
-    assert chain.program_identity
+    # The chain itself, not only the table, carries the shared evidence once: mean 0.9 - 0.4
+    # and variance 0.03 (independent would be 0.05).
+    assert chain.answer.values["mean"] == pytest.approx(0.5, abs=1e-9)
+    assert chain.answer.values["variance"] == pytest.approx(0.03, abs=1e-9)
+    assert chain.answer.values["n_rows"] == ROWS
 
 
 def test_independence_claimed_over_shared_evidence_is_refused():
@@ -119,17 +123,18 @@ def test_a_covariance_term_without_a_declared_shared_factor_is_refused():
 
 
 def test_a_covariance_diagonal_that_is_not_the_published_variance_is_refused():
-    with pytest.raises(pc.PropagationChainRefusal):
+    with pytest.raises(pc.PropagationChainRefusal, match="family_covariance") as info:
         pc.family_table(
             [pc.FamilyEstimate("a", 0.4, 0.1), pc.FamilyEstimate("b", 0.9, 0.2)],
             alignment="family-7",
             dependence="covariance",
             covariance=[[0.02, 0.0], [0.0, 0.04]],
         )
+    assert info.value.code == "invalid_argument"
 
 
 def test_a_ledger_overlap_needs_the_ledger_that_holds_the_authorizing_sources():
-    with pytest.raises(pc.PropagationChainRefusal):
+    with pytest.raises(pc.PropagationChainRefusal, match="family_authority"):
         pc.family_table(
             [
                 pc.FamilyEstimate("a", 0.4, 0.1, authority="0" * 64),
@@ -142,11 +147,11 @@ def test_a_ledger_overlap_needs_the_ledger_that_holds_the_authorizing_sources():
 
 def test_malformed_declarations_are_refused_before_the_native_call():
     estimate = pc.FamilyEstimate("a", 0.4, 0.1)
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="dependence must be independent"):
         pc.family_table([estimate], alignment="family-9", dependence="correlated")
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="needs a covariance matrix"):
         pc.family_table([estimate], alignment="family-9", dependence="covariance")
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="applies only to dependence"):
         pc.family_table([estimate], alignment="family-9", covariance=[[0.01]])
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="meaning must be"):
         pc.family_table([pc.FamilyEstimate("a", 0.4, 0.1, meaning="belief")], alignment="x")

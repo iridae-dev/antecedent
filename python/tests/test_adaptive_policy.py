@@ -198,6 +198,9 @@ def test_a_fitted_model_is_a_response_source_with_hold_between_decisions():
     result = ap.search_model(fitted, families, model, baseline=0, seed=1, max_evaluations=250)
     assert result.standing.label == "fitted_model_optimization"
     # Tracking loss is bounded below by the demand noise variance (about 1 per step).
-    held = result.families[0].held_out
-    assert held is not None and held["mean_utility"] < 0.0
-    assert held["mean_utility"] > -6.0 * 3.0
+    # Six steps at unit noise variance bound the tracking loss at -6; the declared stages reach
+    # it (observed -5.95 for the schedule, -6.09 for the feedback rule, standard error 0.12).
+    for family in result.families:
+        held = family.held_out
+        assert held is not None
+        assert abs(held["mean_utility"] + 6.0) < 3 * held["standard_error"], held

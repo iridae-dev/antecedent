@@ -90,6 +90,9 @@ fn gcm_fit_intervene() {
     let y = batch.column(1).unwrap();
     let mean = y.iter().sum::<f64>() / y.len() as f64;
     assert!((mean - true_mean).abs() < tol, "mean={mean} true={true_mean}");
+    // The 40 points are noiseless, so the fitted mechanism is y = 1 + 2x to rounding and the
+    // declared band is loose; hold the sampled mean to the closed form far tighter.
+    assert!((mean - true_mean).abs() < 1e-6, "mean={mean} true={true_mean}");
 }
 
 #[test]
@@ -112,6 +115,7 @@ fn gcm_interventional_distribution_query() {
     let y = batch.column(1).unwrap();
     let mean = y.iter().sum::<f64>() / y.len() as f64;
     assert!((mean - true_mean).abs() < tol, "mean={mean} true={true_mean}");
+    assert!((mean - true_mean).abs() < 1e-6, "mean={mean} true={true_mean}");
 }
 
 /// Additive shift `do(X := X + delta)` moves the downstream mean by `coefficient * delta`
@@ -143,7 +147,7 @@ fn gcm_shift_intervention_differs_from_hard_set() {
     let observed_delta = shifted_mean - baseline_mean;
     let expected_delta = 2.0 * delta;
     assert!(
-        (observed_delta - expected_delta).abs() < 0.5,
+        (observed_delta - expected_delta).abs() < 1e-6,
         "observed={observed_delta} expected={expected_delta}"
     );
 
@@ -160,6 +164,8 @@ fn gcm_shift_intervention_differs_from_hard_set() {
         (hard_mean - shifted_mean).abs() > 1.0,
         "hard={hard_mean} shifted={shifted_mean} should differ"
     );
+    // The hard set pins x = 5, so y = 1 + 2 * 5 exactly for the noiseless fit.
+    assert!((hard_mean - 11.0).abs() < 1e-6, "hard={hard_mean}");
 }
 
 #[test]
@@ -209,8 +215,13 @@ fn gcm_path_specific_query() {
     let q = PathSpecificEffectQuery::binary(VariableId::from_raw(0), VariableId::from_raw(2))
         .with_path_nodes([VariableId::from_raw(1)]);
     let result = attribute_path_specific(&model, &q, &ExecutionContext::for_tests(1)).unwrap();
-    assert!(!result.path_breakdown.is_empty());
-    assert!(result.total_change != 0.0);
+    // One directed path t -> m -> y. The m mechanism is m = 0.5 t and y = m + 0.25 t = 1.5 m
+    // on the data, so the binary (0 -> 1) contribution along the path is 0.5 * 1.5.
+    assert_eq!(result.path_breakdown.len(), 1);
+    let ids: Vec<u32> = result.path_breakdown[0].path.iter().map(|v| v.raw()).collect();
+    assert_eq!(ids, [0, 1, 2]);
+    assert!((result.path_breakdown[0].contribution - 0.75).abs() < 1e-9);
+    assert!((result.total_change - 0.75).abs() < 1e-9, "{}", result.total_change);
 }
 
 #[test]
@@ -221,11 +232,36 @@ fn gcm_anomaly() {
     let fitted = fit_gcm(g, &data).unwrap();
     let scores = anomaly_attribution(&fitted.model, &data, [VariableId::from_raw(1)], 100).unwrap();
     assert!(scores[0].scores[idx] > scores[0].scores[0]);
+    // Reference values from the definition: score = -ln P(|Z| >= |z|), z = (y - median) /
+    // (1.4826 MAD). y = 1 + 0.2 i for i < 29 and 100 at the plant: the median is 3.9 and the
+    // MAD 1.5, so rows 7 and 22 sit exactly one MAD out, z = 1/1.4826 = 0.6745, tail 1/2.
+    let s = &scores[0].scores;
+    for row in [7, 22] {
+        assert!((s[row] - std::f64::consts::LN_2).abs() < 1e-3, "row {row}: {}", s[row]);
+    }
+    assert!(s[idx] > 900.0, "planted outlier score {}", s[idx]);
+    assert!(s.iter().enumerate().all(|(i, v)| i == idx || *v < 2.0));
+    // The median rows 14 and 15 are 0.1 from the centre, z = 0.1 / (1.4826 * 1.5).
+    assert!(s[14] < 0.05 && s[15] < 0.05);
     let arrows = arrow_strengths(&fitted.model).unwrap();
-    assert!(
-        arrows.iter().any(|a| a.variance_contribution > 0.5)
-            && arrows.iter().all(|a| a.strength.is_finite() && a.strength >= 0.0)
-    );
+    assert_eq!(arrows.len(), 1);
+    // Least squares on the contaminated series: beta = cov(x, y) / var(x), variance
+    // contribution beta^2 var(x) (sample variance of x = 0.1 i), residual variance with two
+    // fitted parameters, strength = 1/2 ln(1 + beta^2 var(x) / sigma^2).
+    let n = 30.0_f64;
+    let xs: Vec<f64> = (0..30).map(|i| f64::from(i) * 0.1).collect();
+    let ys: Vec<f64> =
+        xs.iter().enumerate().map(|(i, x)| if i == 29 { 100.0 } else { 1.0 + 2.0 * x }).collect();
+    let (mx, my) = (xs.iter().sum::<f64>() / n, ys.iter().sum::<f64>() / n);
+    let sxx: f64 = xs.iter().map(|x| (x - mx).powi(2)).sum();
+    let sxy: f64 = xs.iter().zip(&ys).map(|(x, y)| (x - mx) * (y - my)).sum();
+    let beta = sxy / sxx;
+    let rss: f64 = xs.iter().zip(&ys).map(|(x, y)| (y - my - beta * (x - mx)).powi(2)).sum();
+    let vc = beta * beta * sxx / (n - 1.0);
+    let strength = 0.5 * (1.0 + vc / (rss / (n - 2.0))).ln();
+    assert!((arrows[0].coefficient - beta).abs() < 1e-9, "{}", arrows[0].coefficient);
+    assert!((arrows[0].variance_contribution - vc).abs() < 1e-9);
+    assert!((arrows[0].strength - strength).abs() < 1e-9, "{} vs {strength}", arrows[0].strength);
 }
 
 #[test]
@@ -247,6 +283,8 @@ fn gcm_cf_ite() {
     )
     .unwrap();
     assert!((ite.mean_ite - true_ite).abs() < tol, "mean_ite={} true={true_ite}", ite.mean_ite);
+    // Noiseless y = 1 + 2x is recovered by an invertible mechanism, so the ITE is exact.
+    assert!((ite.mean_ite - true_ite).abs() < 1e-9, "mean_ite={}", ite.mean_ite);
     assert_eq!(format!("{:?}", ite.noise_inference), "Invertible");
 
     let engine = CounterfactualEngine::new(fitted.model);
@@ -339,6 +377,11 @@ fn do_sampling_kde() {
     if expected["require_finite_draws"].as_bool().unwrap() {
         assert!(kde.values.iter().all(|v| v.is_finite()));
     }
+    // y = 2 t with no noise: do(t = 1) is a point mass at 2.
+    let treated = load_expected_json(&fixture_dir("do_sampling_weighting"))["expected_treated_mean"]
+        .as_f64()
+        .unwrap();
+    assert!(kde.values.iter().all(|v| (v - treated).abs() < 1e-6), "{:?}", kde.values);
 }
 
 #[test]
@@ -357,4 +400,8 @@ fn do_sampling_mcmc() {
     if expected["require_positive_accept_rate"].as_bool().unwrap() {
         assert!(mcmc.accept_rate.unwrap() > 0.0);
     }
+    let treated = load_expected_json(&fixture_dir("do_sampling_weighting"))["expected_treated_mean"]
+        .as_f64()
+        .unwrap();
+    assert!(mcmc.values.iter().all(|v| (v - treated).abs() < 1e-6), "{:?}", mcmc.values);
 }

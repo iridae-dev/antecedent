@@ -186,7 +186,10 @@ fn portable_failure_replay_reproduces_obligations_and_repair() {
     assert_eq!(run(&a), run(&b));
     let mut edited = wire;
     edited.catalog_digest = "changed".into();
-    assert!(ZTransportFailureSnapshot::from_wire(&edited, SidLimits::default(), &ctx()).is_err());
+    assert!(matches!(
+        ZTransportFailureSnapshot::from_wire(&edited, SidLimits::default(), &ctx()),
+        Err(antecedent_design::ZTransportPlanningError::DigestMismatch)
+    ));
 }
 
 #[test]

@@ -56,13 +56,13 @@ def test_the_declaration_is_validated_and_carried_to_the_native_option():
             "assumption": "missing_at_random",
         },
     }
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="unknown imputation model 'hot_deck'"):
         ImputationSpec(model="hot_deck")
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="unknown missingness assumption 'unknown'"):
         ImputationSpec(assumption="unknown")
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match="imputations must be a non-negative integer"):
         ImputationSpec(imputations=-1)
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match="read only by 'multiple_imputation'"):
         MissingPolicy("complete_case", imputation=ImputationSpec())
 
 
@@ -140,7 +140,9 @@ def test_matching_and_stratification_estimators_are_pooled_by_rubins_rules(estim
     assert pooled.total == pytest.approx(pooled.within + (1.0 + 1.0 / 6.0) * pooled.between)
     lam = (1.0 + 1.0 / 6.0) * pooled.between / pooled.total
     assert pooled.df == pytest.approx(5.0 / lam**2, rel=1e-6)
-    assert result.estimate.ate == pytest.approx(TRUE_EFFECT, abs=0.5)
+    # Observed errors are 0.03 to 0.04; the complete-case estimate of the same table is
+    # attenuated to about 0.72-0.78, which a 0.15 band excludes.
+    assert result.estimate.ate == pytest.approx(TRUE_EFFECT, abs=0.15)
 
 
 def test_an_estimator_without_a_pooled_variance_is_refused_with_the_next_attempt():
@@ -159,7 +161,7 @@ def test_the_within_table_bootstrap_setting_is_declared_and_carried_to_the_nativ
     # Absent when unset, so the native option of an ordinary declaration is unchanged.
     plain = native_declaration(MissingPolicy.multiple_imputation(), ["t", "y"])
     assert "bootstrap_replicates" not in plain["imputation"]
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match="bootstrap_replicates must be a non-negative"):
         ImputationSpec(bootstrap_replicates=-1)
 
 
