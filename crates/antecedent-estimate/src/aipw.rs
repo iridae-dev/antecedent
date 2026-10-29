@@ -1062,6 +1062,7 @@ impl AipwAte {
             IpwTarget::from_population(&problem.target_population).ok(),
         ));
         Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
+            .with_n_obs(u64::try_from(problem.nrows).unwrap_or(u64::MAX))
             .with_preparation(Some(problem.preparation_summary()))
             .with_se_kind(self.inference.se_kind)
             .with_sampling_weights(rows.sampling.as_ref().map(|s| s.record))
@@ -1141,6 +1142,7 @@ impl AipwAte {
         let cluster_se = self.cluster_dml_se(problem, &table, &influence)?;
         let mut result =
             EffectEstimate::new(contrast.value, se_analytic, assumptions, problem.overlap)
+                .with_n_obs(u64::try_from(problem.nrows).unwrap_or(u64::MAX))
                 .with_preparation(Some(problem.preparation_summary()))
                 .with_se_kind(self.inference.se_kind)
                 .with_sampling_weights(problem.sampling_weights.as_ref().map(|s| s.record))

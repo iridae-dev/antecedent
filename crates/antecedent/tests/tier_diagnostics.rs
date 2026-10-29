@@ -123,7 +123,8 @@ fn codetermined_diagnostics_consume_the_executed_design_overlap_and_point_evalue
         panic!("a CoDetermined study reports the closure design, got {:?}", diagnostics.design);
     };
     assert_eq!(adjustment, &[schema.id_of("z").unwrap(), schema.id_of("u").unwrap()]);
-    assert_eq!(*rows, result.estimate().as_effect().unwrap().provenance.n_obs);
+    // Every one of the 3 000 generated rows is complete, so the fit used all of them.
+    assert_eq!(*rows, Some(3_000));
     // Known truth: y = 2 t + z - 0.5 u + e with z, u adjusted.
     assert!(
         (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.12,

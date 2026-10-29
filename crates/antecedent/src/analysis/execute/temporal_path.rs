@@ -3301,16 +3301,12 @@ impl super::Study {
                 posterior
             };
             fits.envelope_conflict = fits.envelope_conflict.take().or(conflict);
-            let mean = posterior.summaries.mean.first().copied().unwrap_or_else(|| {
-                posterior
-                    .effect_column()
-                    .and_then(|col| {
-                        posterior.draws.column(col).ok().map(|draws| {
-                            draws.iter().copied().sum::<f64>() / draws.len().max(1) as f64
-                        })
-                    })
-                    .unwrap_or(f64::NAN)
-            });
+            // The completion's effect is the posterior's effect column, which is not
+            // necessarily the first reported quantity.
+            let mean = posterior
+                .effect_column()
+                .and_then(|col| posterior.summaries.mean.get(col).copied())
+                .unwrap_or(f64::NAN);
             fits.atom_means.push(mean);
             let draws = posterior
                 .effect_column()

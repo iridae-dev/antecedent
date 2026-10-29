@@ -188,7 +188,10 @@ def test_temporal_class_single_step_sustained_matches_pulse(class_name: str, gra
         )
     )
     assert pulse.ate == pytest.approx(sustained.ate, abs=1e-10)
-    assert class_name in {"cpdag", "pag"}
+    # Both equal the pinned closed-form envelope mean, not only each other.
+    assert pulse.ate == pytest.approx(
+        float(_PIN[class_name]["pulse"]["ate"]), abs=float(_PIN[class_name]["pulse"]["absolute_tolerance"])
+    )
 
 
 @pytest.mark.parametrize("class_name,graph_fn", [("cpdag", _cpdag), ("pag", _pag)])
@@ -223,3 +226,22 @@ def test_temporal_class_bayesian_builds(class_name: str, graph_fn) -> None:
         "estimate.temporal_class.enumeration_not_probability" in diagnostic
         for diagnostic in result.diagnostics
     )
+
+
+def test_temporal_cpdag_bayesian_identified_set_matches_the_closed_form_completions() -> None:
+    """The two completions' effects are exactly 2 and 2 + 0.5 Cov(z, t) / Var(t) = 3.2136
+    on this noise-free series; the Bayesian identified set is their posterior means."""
+    result = require_success(
+        antecedent.analyze(
+            _series(_PIN),
+            graph=_cpdag(accepted=False),
+            query=_pulse(_PIN),
+            inference=antecedent.Bayesian(n_draws=64, backend="conjugate"),
+            refute=False,
+            execution=antecedent.Execution(seed=1),
+        )
+    )
+    lower, upper = result.answer.bounds
+    expected_upper = 2.0 * float(_PIN["cpdag"]["pulse"]["ate"]) - 2.0
+    assert lower == pytest.approx(2.0, abs=0.05)
+    assert upper == pytest.approx(expected_upper, abs=0.05)
