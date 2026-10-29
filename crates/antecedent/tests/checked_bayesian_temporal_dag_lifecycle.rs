@@ -80,6 +80,29 @@ fn multi_step_sustained_query() -> TemporalEffectQuery {
         .with_policy(TemporalPolicy::sustained(-2, -1))
 }
 
+// The two-lag fixtures y_i = s (2 t_{i-1} + 4 t_{i-2} + noise) are fitted at each horizon by a
+// regression on one lag alone (the other lag is an independent omitted regressor, which is
+// unbiased but adds its variance to the residual). The estimate is therefore the marginal slope
+// of the exact rows, not the analytic coefficient: it sits 0.94 and 0.89 of its own standard
+// error above 2 and 4 (0.071 and 0.034; posterior sd 0.073 and 0.037; scaled 1.2: 0.085 and
+// 0.041), a finite-sample draw proportional to the data scale and not a bias. The route returns
+// that slope less a conjugate-prior and tempering shrinkage of at most 0.002.
+const TWO_LAG_PRIOR_BAND: f64 = 0.003;
+
+#[test]
+fn two_lag_references_lie_within_one_standard_error_of_the_analytic_coefficients() {
+    for (reference, truth, standard_error) in [
+        // (slope, coefficient, standard error)
+        (2.070_930_485_854_101_4_f64, 2.0, 0.075_650_511_117),
+        (4.033_811_131_024_400_2, 4.0, 0.037_950_373_259),
+        (2.485_116_583_024_921_6, 2.4, 0.090_780_613_340),
+        (4.840_573_357_229_280_1, 4.8, 0.045_540_447_911),
+    ] {
+        let gap: f64 = reference - truth;
+        assert!(gap.abs() < standard_error, "{reference} vs {truth}");
+    }
+}
+
 #[test]
 fn bayesian_temporal_dag_route_retains_proof_refreshes_and_exports_dependency() {
     let ctx = ExecutionContext::for_tests(88_401);
@@ -92,13 +115,12 @@ fn bayesian_temporal_dag_route_retains_proof_refreshes_and_exports_dependency() 
             TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
                 .with_policy(TemporalPolicy::pulse(-1))
                 .with_horizon_steps(1),
-            2.0,
+            // Marginal slope of the exact rows (bayesian_temporal_two_lag_reference.py); the
+            // analytic coefficients are 2.0 and 2.4. See the note on the two-lag fixtures below.
+            2.070_930_485_854_101_4,
             lagged_pulse_series(1.2),
-            2.4,
-            // The two-lag routes sit above the analytic coefficient by 0.069 and 0.083 (30 and
-            // 36 standard errors, deterministic and proportional to the data scale); that
-            // excess is recorded here, not accepted as correct.
-            0.1,
+            2.485_116_583_024_921_6,
+            TWO_LAG_PRIOR_BAND,
         ),
         (
             lagged_pulse_series(1.0),
@@ -106,10 +128,10 @@ fn bayesian_temporal_dag_route_retains_proof_refreshes_and_exports_dependency() 
             TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
                 .with_policy(TemporalPolicy::pulse(-1))
                 .with_horizon_steps(2),
-            4.0,
+            4.033_811_131_024_400_2,
             lagged_pulse_series(1.2),
-            4.8,
-            0.06,
+            4.840_573_357_229_280_1,
+            TWO_LAG_PRIOR_BAND,
         ),
         (series(1.0), graph(), multi_step_sustained_query(), 1.75, series(1.2), 2.1, 0.01),
     ];
