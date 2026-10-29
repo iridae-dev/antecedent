@@ -186,7 +186,7 @@ def test_refusals_carry_reason_codes() -> None:
         assert f"counterfactual_id.{detail}" in str(error)
     # Identification has no count cap on levels: five levels are decided, not refused.
     five = ett(levels={"x": [0.0, 1.0], "m": [0.0, 1.0, 2.0, 3.0, 4.0], "y": [0.0, 1.0]})()
-    assert five is not None
+    assert five.names == ("x", "m", "y")
     error = refusal(ett(Cpdag.from_edges(["x", "m", "y"], [])))
     assert error.reason_code == "cell_not_licensed"
     # A law without positivity for this functional.

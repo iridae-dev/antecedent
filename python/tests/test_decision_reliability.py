@@ -273,8 +273,10 @@ def test_validation_must_be_independent_of_the_selection_draws() -> None:
         stream=_stream("validation"),
         repeated_evaluations=1,
     )
-    with pytest.raises(DR):
+    with pytest.raises(DR) as repeated:
         require_success(dr.assess(selection, request, validation=reused))
+    assert repeated.value.reason_code == "validation_stream_not_independent"
+    assert repeated.value.detail == "decision_reliability.validation_not_independent"
 
 
 def test_sample_splitting_records_disjoint_segments() -> None:
@@ -330,8 +332,10 @@ def test_every_published_ranking_or_interval_route_is_closed() -> None:
             require_success(result.publish(route))
         assert refused.value.reason_code == "cell_not_licensed"
         assert refused.value.detail == "decision_reliability.cell_not_licensed"
-        with pytest.raises(DR):
+        with pytest.raises(DR) as direct:
             require_success(dr.publish(route, result.report.coordinate))
+        assert direct.value.reason_code == "cell_not_licensed"
+        assert direct.value.detail == "decision_reliability.cell_not_licensed"
     with pytest.raises(CausalValueError):
         require_success(dr.publish("not_a_route", result.report.coordinate))
 
@@ -377,21 +381,25 @@ def test_artifact_round_trips_and_retained_expectations_are_enforced() -> None:
     )
     assert consumed.report.raw == result.report.raw
     assert consumed.inspection["standing"] == "uncalibrated_point_diagnostic"
-    for kwargs in (
-        {"decided_id": "not-the-decision"},
-        {"draws_digest": "0" * 64},
-        {"selection_stream": _stream("selection", 9)},
+    for kwargs, mismatch in (
+        ({"decided_id": "not-the-decision"}, "decision_mismatch"),
+        ({"draws_digest": "0" * 64}, "draws_digest_mismatch"),
+        ({"selection_stream": _stream("selection", 9)}, "selection_stream_mismatch"),
     ):
-        with pytest.raises(DR):
+        with pytest.raises(DR) as refused:
             require_success(
                 dr.consume_decision_reliability_artifact(bytes(result.export()), **kwargs)
             )
+        assert refused.value.reason_code == "invalid_argument", mismatch
+        assert f"decision_reliability.{mismatch}" in str(refused.value), mismatch
     damaged = bytearray(bytes(result.export()))
     damaged[len(damaged) // 2] ^= 0xFF
-    with pytest.raises(DR):
+    with pytest.raises(DR) as corrupted:
         require_success(dr.consume_decision_reliability_artifact(bytes(damaged)))
-    with pytest.raises(DR):
+    assert "checksum mismatch" in str(corrupted.value)
+    with pytest.raises(DR) as garbage:
         require_success(dr.consume_decision_reliability_artifact(b"not an artifact"))
+    assert "bad artifact magic" in str(garbage.value)
 
 
 def test_a_fresh_process_consumes_the_artifact_and_recomputes_the_report(tmp_path) -> None:

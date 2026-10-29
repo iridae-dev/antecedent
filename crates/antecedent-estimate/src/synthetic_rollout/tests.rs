@@ -56,6 +56,7 @@ fn exchangeable_panel(seed: u64, periods: i64, intervention: i64, effect: f64) -
 fn conformal_period_intervals_cover_the_effect_at_the_nominal_rate() {
     let seeds = 100;
     let mut covered = 0usize;
+    let mut width_sum = 0.0;
     for seed in 0..seeds {
         let rows = exchangeable_panel(500 + seed, 40, 40, 1.0);
         let fit = conformal_synthetic_control(
@@ -67,7 +68,13 @@ fn conformal_period_intervals_cover_the_effect_at_the_nominal_rate() {
         .unwrap();
         let interval = fit.periods[0].interval.unwrap();
         covered += usize::from(interval[0] <= 1.0 && 1.0 <= interval[1]);
+        width_sum += interval[1] - interval[0];
     }
+    let mean_width = width_sum / seeds as f64;
+    assert!(
+        (1.2..3.0).contains(&mean_width),
+        "mean interval width {mean_width} (observed 2.19; residual sd 0.5 gives about 4 sd)"
+    );
     // Exact 95% under exchangeable residuals; a sanity floor, not a coverage record.
     assert!(covered >= 88, "covered {covered} of {seeds}");
 }
@@ -79,10 +86,12 @@ fn conformal_point_and_constant_effect_interval_recover_a_known_effect() {
         conformal_synthetic_control(&rows.panel(), "treated", 41, &ExecutionContext::for_tests(1))
             .unwrap();
     assert_eq!(fit.post_periods, 5);
-    assert!((fit.overall.estimate - 3.0).abs() < 0.8, "{}", fit.overall.estimate);
+
+    assert!((fit.overall.estimate - 3.0).abs() < 0.5, "{}", fit.overall.estimate);
     let interval = fit.overall.interval.unwrap();
     assert!(interval[0] < fit.overall.estimate && fit.overall.estimate < interval[1]);
     assert!(interval[0] > 0.0, "{interval:?}");
+    assert!(interval[0] < 3.0 && 3.0 < interval[1], "the true effect 3 lies in {interval:?}");
     let donor_mass: f64 = fit.donor_weights.iter().map(|(_, w)| w).sum();
     assert!((donor_mass - 1.0).abs() < 1e-8);
 }
@@ -152,8 +161,9 @@ fn multi_unit_synthetic_did_recovers_a_staggered_effect_with_placebo_intervals()
         )
         .unwrap();
         assert_eq!(serial, parallel);
+
         assert!(
-            (serial.overall.estimate - 2.0).abs() < 0.6,
+            (serial.overall.estimate - 2.0).abs() < 0.25,
             "{method:?}: {}",
             serial.overall.estimate
         );

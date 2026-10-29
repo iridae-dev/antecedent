@@ -894,7 +894,9 @@ fn withdrawing_a_source_classifies_dependents_and_refuses_their_use() {
     assert_eq!(s.session.standing(recomputed.result), Some(Revalidation::StillValid));
     assert_eq!(s.session.standing(s.r_all), Some(Revalidation::Withdrawn));
     assert!(s.session.result(s.r_all).is_some());
-    assert!(s.session.synthesis(s.r_all).is_err());
+    let refusal = s.session.synthesis(s.r_all).unwrap_err();
+    assert_eq!(refusal.detail, "evidence_ledger.result_not_valid");
+    assert!(refusal.message.contains("is withdrawn"), "{refusal:?}");
     // y = (2, 6), v = (2, 4): estimate (1 + 1.5) / (3/4) = 10/3, variance 4/3.
     let SynthesisValue::FixedEffect(fit) = &recomputed.value else { panic!("fixed effect") };
     close(fit.estimate, 10.0 / 3.0, "estimate");
@@ -968,7 +970,9 @@ fn refresh_is_all_or_nothing_and_keeps_untouched_results() {
     // Kept: results whose sources are untouched, with their numbers.
     assert!(refreshed.session.synthesis(s.r_s2_s3).unwrap().is_some());
     // Not served: results whose input changed, until a recompute replaces them.
-    assert!(refreshed.session.synthesis(s.r_all).is_err());
+    let refusal = refreshed.session.synthesis(s.r_all).unwrap_err();
+    assert_eq!(refusal.detail, "evidence_ledger.result_not_valid");
+    assert!(refusal.message.contains("is recompute"), "{refusal:?}");
     let class = |id: ResultId| {
         refreshed.classification.iter().find(|r| r.result == id).expect("classified").class
     };
@@ -1030,7 +1034,9 @@ fn the_artifact_replays_and_a_consumer_refuses_another_history() {
     let mut damaged = export.bytes.clone();
     let at = damaged.len() / 2;
     damaged[at] ^= 0x55;
-    assert!(consume_evidence_ledger_artifact(&damaged, None).is_err());
+    let refusal = consume_evidence_ledger_artifact(&damaged, None).unwrap_err();
+    assert_eq!(refusal.detail, "evidence_ledger.replay_mismatch");
+    assert!(refusal.message.contains("checksum mismatch"), "{refusal:?}");
 }
 
 #[test]
@@ -1232,6 +1238,10 @@ fn equal_study_gaussian_pool_has_a_distinct_conservative_interval_and_durable_re
     assert!(
         session.pooled_interval(result).is_err(),
         "new method cannot borrow old precision-weighted records"
+    );
+    assert_eq!(
+        session.pooled_interval(result).unwrap_err().detail,
+        "evidence_ledger.interval_not_measured"
     );
     let export = session.export("equal-study").unwrap();
     let consumed = consume_evidence_ledger_artifact(&export.bytes, Some(&export.identity)).unwrap();

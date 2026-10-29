@@ -183,9 +183,11 @@ fn gaussian_conditional_design_supports_multiple_declared_modifiers() {
     let mut duplicate = query.inner.clone();
     duplicate.effect_modifiers = Arc::from(vec![w1, w1]);
     let duplicate = antecedent_core::ConditionalEffectQuery::try_new(duplicate).unwrap();
-    assert!(
-        BayesianGComputationAte::new().prepare_conditional(&data, &estimand, &duplicate).is_err()
-    );
+    let error = BayesianGComputationAte::new()
+        .prepare_conditional(&data, &estimand, &duplicate)
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("distinct modifiers"), "{error}");
 }
 
 #[test]
@@ -346,8 +348,11 @@ fn bayesian_and_frequentist_share_ate() {
         .unwrap();
     let eq = post.effect_column().unwrap();
     let mean = post.summaries.mean[eq];
+    // Noise-free y = 2 T + 0.5 Z: the least-squares effect is exactly 2 and the diffuse
+    // (scale 100) prior shrinks the posterior mean by about 2e-6 only.
     assert!((freq_est.ate - 2.0).abs() < 1e-6, "frequentist ate={}", freq_est.ate);
-    assert!((mean - freq_est.ate).abs() < 0.05, "bayes={mean} freq={}", freq_est.ate);
+    assert!((mean - 2.0).abs() < 1e-4, "bayes={mean} truth=2");
+    assert!((mean - freq_est.ate).abs() < 1e-4, "bayes={mean} freq={}", freq_est.ate);
     assert_eq!(post.identification, IdentificationStatus::NonparametricallyIdentified);
     let coef_names: Vec<_> = post
         .draws
@@ -459,17 +464,17 @@ fn prior_predictive_effect_follows_the_explicit_effect_prior_not_the_intercept()
     assert!((mean + 3.0).abs() < 0.04, "mean={mean}");
     assert!((sd - 0.5).abs() < 0.03, "sd={sd}");
     for (mean, sd) in [(f64::NAN, 1.0), (0.0, 0.0), (0.0, f64::INFINITY), (0.0, -1.0)] {
-        assert!(
-            nonidentified_with_prior(
-                &prior,
-                mean,
-                sd,
-                InferenceDiagnostics::analytic("none"),
-                8,
-                1
-            )
-            .is_err()
-        );
+        let error = nonidentified_with_prior(
+            &prior,
+            mean,
+            sd,
+            InferenceDiagnostics::analytic("none"),
+            8,
+            1,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("finite mean and a positive finite sd"), "{error}");
     }
 }
 
@@ -574,8 +579,10 @@ fn temporal_prepared_design_conjugate_recovers_pulse() {
         .unwrap();
     let eq = post.effect_column().unwrap();
     let mean = post.summaries.mean[eq];
-    assert!((mean - 0.8).abs() < 0.05, "bayesian temporal pulse mean={mean}");
-    assert!(post.probability_below(0.0).unwrap().is_finite());
+    // y_t = 0.8 x_{t-1} exactly, so the effect posterior sits at 0.8 (observed gap 8e-6)
+    // and puts no mass below zero.
+    assert!((mean - 0.8).abs() < 1e-4, "bayesian temporal pulse mean={mean}");
+    assert_eq!(post.probability_below(0.0).unwrap(), 0.0);
 }
 
 #[test]
@@ -687,6 +694,37 @@ fn hierarchical_unit_effects_widen_posterior_vs_stacked() {
     let sd_s = post_s.summaries.sd[eq];
     let sd_h = post_h.summaries.sd[eq];
     assert!(sd_s.is_finite() && sd_h.is_finite(), "sd stacked={sd_s} hierarchical={sd_h}");
+    // Independent reference: with whole units in one arm and no covariates, the effect is
+    // the difference of the arm means of the 40 unit means, whose standard error is
+    // sqrt(s1^2/20 + s0^2/20) from the between-unit sample variances (0.369 here).
+    let unit_means = |even: bool| -> Vec<f64> {
+        (0..n_units)
+            .filter(|u| (u % 2 == 0) == even)
+            .map(|u| {
+                let unit_eff = 1.6 * ((u as f64) * 0.31).sin();
+                let a = if even { 1.0 } else { 0.0 };
+                (0..t_len)
+                    .map(|k| 2.0 * a + unit_eff + 0.15 * ((k + 1) as f64).sin())
+                    .sum::<f64>()
+                    / t_len as f64
+            })
+            .collect()
+    };
+    let sample_var = |x: &[f64]| {
+        let m = x.iter().sum::<f64>() / x.len() as f64;
+        x.iter().map(|v| (v - m).powi(2)).sum::<f64>() / (x.len() - 1) as f64
+    };
+    let (treated_means, control_means) = (unit_means(true), unit_means(false));
+    let cluster_se = (sample_var(&treated_means) / treated_means.len() as f64
+        + sample_var(&control_means) / control_means.len() as f64)
+        .sqrt();
+    // Observed sd_h / se = 0.96 (the variance components are moment estimates); the
+    // stacked iid posterior is 0.36 of it.
+    assert!(
+        (0.9..1.02).contains(&(sd_h / cluster_se)),
+        "hierarchical sd {sd_h} vs between-unit standard error {cluster_se}"
+    );
+    assert!(sd_s < 0.5 * cluster_se, "stacked sd {sd_s} must understate {cluster_se}");
     let pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../../conformance/estimate/panel_hierarchical_vs_stacked/expected.json"
     ))
@@ -1440,7 +1478,9 @@ fn hydrate_prior_from_posterior_and_refit() {
                 && pa.description.contains("covariance"))
     }));
     let eq = post2.effect_column().unwrap();
-    assert!(post2.summaries.mean[eq].is_finite());
+    // The noise-free ATE is 2; refitting the same data under its own hydrated posterior
+    // keeps the mean there (observed 1.9994).
+    assert!((post2.summaries.mean[eq] - 2.0).abs() < 2e-3, "refit mean {}", post2.summaries.mean[eq]);
 }
 
 /// Earns `estimate-bayes-transport-response-1`: absolute SD² must not be stored as V0.
@@ -1596,6 +1636,20 @@ fn strong_prior_moves_posterior_away_from_flat_and_data_moves_away_from_prior() 
     let eq = post_flat.effect_column().unwrap();
     let m_flat = post_flat.summaries.mean[eq];
     let m_strong = post_strong.summaries.mean[eq];
+    // True ATE = 2 on noise-free data; the flat prior recovers it (observed gap 4e-6).
+    assert!((m_flat - 2.0).abs() < 1e-4, "flat posterior mean {m_flat}");
+    // The strong prior N(0, 0.05^2 I) gives the ridge mean (X'X + I/0.05^2)^-1 X'y; the
+    // treatment coefficient (design columns: intercept, T, Z) is the ATE.
+    let zs: Vec<f64> = (0..n).map(|i| (i as f64) * 0.1).collect();
+    let ts: Vec<f64> = (0..n).map(|i| if i % 2 == 0 { 1.0 } else { 0.0 }).collect();
+    let ys: Vec<f64> = (0..n).map(|i| 2.0 * ts[i] + 0.5 * zs[i]).collect();
+    let ridge = solve_normal_equations(&[&vec![1.0; n], &ts, &zs], &ys, 1.0 / (0.05 * 0.05));
+    let eq_sd = post_strong.summaries.sd[eq];
+    assert!(
+        (m_strong - ridge[1]).abs() < 5.0 * eq_sd / 300.0_f64.sqrt() + 1e-9,
+        "strong posterior mean {m_strong} vs ridge {}",
+        ridge[1]
+    );
     // True ATE ≈ 2; flat recovers it; strong isotropic prior at 0 pulls toward 0.
     assert!((m_flat - m_strong).abs() > 0.15, "prior ignored? flat={m_flat} strong={m_strong}");
     assert!(
@@ -1652,58 +1706,47 @@ fn hydrate_mapping_hard_errors() {
     let names3: Vec<Arc<str>> =
         vec![Arc::from("intercept"), Arc::from("coef_t"), Arc::from("coef_w")];
     let baseline3 = PriorSet::weakly_informative(3);
-    assert!(
-        hydrate_prior(
-            &HydrateMapping::IdenticalCoefficientSubspace,
-            &HydrateSource::summaries(&quantities, &mean, &sd),
-            &HydrateTarget { baseline: &baseline3, coef_names: &names3, treatment_col: None },
-        )
-        .is_err()
-    );
+    let hydrate_error = |result: Result<PriorSet, EstimationError>| result.unwrap_err().to_string();
+    let error = hydrate_error(hydrate_prior(
+        &HydrateMapping::IdenticalCoefficientSubspace,
+        &HydrateSource::summaries(&quantities, &mean, &sd),
+        &HydrateTarget { baseline: &baseline3, coef_names: &names3, treatment_col: None },
+    ));
+    assert!(error.contains("prior_dimension_mismatch") && error.contains("dimension 2 != expected n_coef 3"), "{error}");
 
-    assert!(
-        hydrate_prior(
+    let error = hydrate_error(hydrate_prior(
             &HydrateMapping::EffectFunctional { source_quantity: "missing".into() },
             &HydrateSource::summaries(&quantities, &mean, &sd).with_source_contrast(Some(1.0)),
             &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: Some(1) },
-        )
-        .is_err()
-    );
+        ));
+    assert!(error.contains("missing quantity `missing`"), "{error}");
 
-    assert!(
-        hydrate_prior(
+    let error = hydrate_error(hydrate_prior(
             &HydrateMapping::EffectFunctional { source_quantity: "ate".into() },
             &HydrateSource::summaries(&quantities, &mean, &sd),
             &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: Some(1) },
-        )
-        .is_err()
-    );
-    assert!(
-        hydrate_prior(
+        ));
+    assert!(error.contains("requires a finite nonzero source contrast"), "{error}");
+    let error = hydrate_error(hydrate_prior(
             &HydrateMapping::EffectFunctional { source_quantity: "ate".into() },
             &HydrateSource::summaries(&quantities, &mean, &sd).with_source_contrast(Some(0.0)),
             &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: Some(1) },
-        )
-        .is_err()
-    );
+        ));
+    assert!(error.contains("requires a finite nonzero source contrast"), "{error}");
 
-    assert!(
-        hydrate_prior(
+    let error = hydrate_error(hydrate_prior(
             &HydrateMapping::NamedParameters { pairs: vec![("ate".into(), "no_such_coef".into())] },
             &HydrateSource::summaries(&quantities, &mean, &sd),
             &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: None },
-        )
-        .is_err()
-    );
+        ));
+    assert!(error.contains("unknown target coefficient name `no_such_coef`"), "{error}");
 
-    assert!(
-        hydrate_prior(
+    let error = hydrate_error(hydrate_prior(
             &HydrateMapping::NamedParameters { pairs: vec![("no_src".into(), "coef_t".into())] },
             &HydrateSource::summaries(&quantities, &mean, &sd),
             &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: None },
-        )
-        .is_err()
-    );
+        ));
+    assert!(error.contains("source quantity `no_src` must be uniquely named"), "{error}");
 }
 
 #[test]
@@ -2169,6 +2212,32 @@ fn arm_effect_table(n: usize) -> (TabularData, f64, f64) {
     (data, att, atc)
 }
 
+/// Solves `(X'X + ridge I) b = X'y` by Gaussian elimination with partial pivoting.
+fn solve_normal_equations(columns: &[&[f64]], y: &[f64], ridge: f64) -> Vec<f64> {
+    let p = columns.len();
+    let mut a = vec![vec![0.0; p + 1]; p];
+    for i in 0..p {
+        for j in 0..p {
+            a[i][j] = columns[i].iter().zip(columns[j]).map(|(u, v)| u * v).sum::<f64>()
+                + if i == j { ridge } else { 0.0 };
+        }
+        a[i][p] = columns[i].iter().zip(y).map(|(u, v)| u * v).sum::<f64>();
+    }
+    for c in 0..p {
+        let pivot = (c..p).max_by(|&i, &j| a[i][c].abs().total_cmp(&a[j][c].abs())).unwrap();
+        a.swap(c, pivot);
+        for r in 0..p {
+            if r != c {
+                let f = a[r][c] / a[c][c];
+                for k in c..=p {
+                    a[r][k] -= f * a[c][k];
+                }
+            }
+        }
+    }
+    (0..p).map(|i| a[i][p] / a[i][i]).collect()
+}
+
 fn arm_effect_posterior_mean(population: antecedent_core::TargetPopulation) -> (f64, usize) {
     let (data, _, _) = arm_effect_table(400);
     let estimand = IdentifiedEstimand::backdoor(
@@ -2208,10 +2277,19 @@ fn bayesian_gcomp_on_the_treated_and_untreated_recovers_each_arms_model_based_ef
     let (all, all_cols) = arm_effect_posterior_mean(antecedent_core::TargetPopulation::AllObserved);
     // Intercept, treatment, z, and one centred treatment-by-z interaction on an arm.
     assert_eq!((treated_cols, all_cols), (4, 3));
-    assert!((treated - att).abs() < 0.05, "treated {treated} vs {att}");
-    assert!((untreated - atc).abs() < 0.05, "untreated {untreated} vs {atc}");
+    assert!((treated - att).abs() < 0.03, "treated {treated} vs {att}");
+    assert!((untreated - atc).abs() < 0.04, "untreated {untreated} vs {atc}");
     assert!((att - atc).abs() > 0.3, "the arms must differ for the check to bite");
-    assert!(all.is_finite());
+    // All-observed: the main-effects model's treatment coefficient, i.e. the OLS slope of
+    // y on (1, t, z).
+    let n = 400;
+    let z: Vec<f64> = (0..n).map(|i| (i as f64 / 7.0).sin() * 1.5).collect();
+    let t: Vec<f64> =
+        (0..n).map(|i| if z[i] + (i as f64 / 3.0).cos() > 0.0 { 1.0 } else { 0.0 }).collect();
+    let y: Vec<f64> =
+        (0..n).map(|i| t[i] * (1.0 + 2.0 * z[i]) + z[i] + (i as f64 / 5.0).sin() * 0.1).collect();
+    let ols = solve_normal_equations(&[&vec![1.0; n], &t, &z], &y, 0.0);
+    assert!((all - ols[1]).abs() < 5e-3, "all-observed {all} vs OLS {}", ols[1]);
 }
 
 #[test]

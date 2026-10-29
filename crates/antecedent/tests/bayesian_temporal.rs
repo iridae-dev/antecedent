@@ -647,7 +647,14 @@ fn bayesian_temporal_mediation_tempers_both_mechanisms() {
         })
         .collect();
     assert_eq!(kappas.len(), 2, "one tempering note per mechanism: {:?}", post.diagnostics.notes);
-    assert!(kappas.iter().all(|k| *k > 1.5), "rho 0.9 must temper both mechanisms: {kappas:?}");
+    // AR(1) rho = 0.9 inflates the variance of a regression coefficient by about
+    // (1 + rho^2) / (1 - rho^2) (4.3) to (1 + rho) / (1 - rho) (19) depending on the
+    // regressor's own autocorrelation; the observed 9.9 and 9.5 sit inside, and the
+    // posterior moments are pinned against the reference in the sibling test.
+    assert!(
+        kappas.iter().all(|k| (4.3..19.0).contains(k)),
+        "rho 0.9 must temper both mechanisms: {kappas:?}"
+    );
     assert!(
         post.diagnostics
             .notes
@@ -947,6 +954,13 @@ fn bayesian_multi_step_bootstrap_refuter_resamples_aligned_rows() {
         .find(|r| r.refuter.as_ref() == "bootstrap.ci_coverage")
         .expect("the composed Bayesian contrast runs bootstrap.ci_coverage");
     assert!(report.replicates > 0 && report.refuted_ate.is_finite(), "{report:?}");
+    // Resampling lag-aligned rows keeps the replicate contrast centred on the fitted one
+    // (observed 0.010 apart) and near the true sustained contrast BETA1 + BETA2 = 1.2
+    // (observed 0.13 away, about 1.2 standard errors at n = 160); pairing outcomes with
+    // regressors from unrelated blocks would shrink it toward zero.
+    assert_eq!(report.replicates, 200, "{report:?}");
+    assert!((report.refuted_ate - report.original_ate).abs() < 0.05, "{report:?}");
+    assert!((report.refuted_ate - (BETA1 + BETA2)).abs() < 0.3, "{report:?}");
     assert!(
         !result.diagnostics.iter().any(|d| d.code.as_ref() == "refute.validator.not_applicable"
             && d.message.contains("bootstrap")),

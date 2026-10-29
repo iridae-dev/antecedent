@@ -46,4 +46,4 @@ sha256 = "68041846370d0dc9960c5f44675a3c1dca583f8c985e9a983df05d63b94d6852"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/evidence_ledger_facade.rs"
-sha256 = "f5896ff26f137e93ecaa8d584834cc36f9df7279b9c0c6504cbedbb140ab4b0e"
+sha256 = "0e7ee85c4ec1e6399e365c1d35c81f8d392916652fb6e0891bbfff23bca12bc9"

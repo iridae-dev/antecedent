@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import math
 
 import antecedent
 import numpy as np
@@ -157,6 +158,12 @@ def test_response_curve_runs_through_public_analyze_api():
     assert tuple(result.estimand.grid) == tuple(query.grid)
     assert result.response is not None
     assert [list(point) for point in result.response.points] == [[-0.5], [0.0], [0.5]]
+    # Structural truth E[Y | do(a)] = 2 a + E[x] for y = 2 a + x + e (observed error 0.015).
+    np.testing.assert_allclose(
+        np.asarray(result.response.values).ravel(),
+        [2.0 * g + confounder.mean() for g in (-0.5, 0.0, 0.5)],
+        atol=0.05,
+    )
     assert result.provenance["operation_id"] == "estimate.response.kennedy_dr"
     assert result.identification.status == "NonparametricallyIdentified"
     tail = next(d for d in result.support.diagnostics if d.id == "response.outcome_tail_ratio")
@@ -211,17 +218,19 @@ def test_heavy_tailed_outcome_warns_without_demoting_license():
     assert len(by_id["response.pseudo_outcome_winsor_shift"].values) == 3
 
 
+# Truth for y = 1 + 2 a + 0.8 x + e: E[Y | do(a ~ spec)] = 1 + 2 E[a under spec] + 0.8 E[x],
+# with the sample means of x and a standing in for the population means (observed error 0.007).
 @pytest.mark.parametrize(
-    "spec",
+    ("spec", "mean_a"),
     [
-        intervention.Set("a", 0.25),
-        intervention.Shift("a", 0.25),
-        intervention.Bernoulli("a", 0.4),
-        intervention.Gaussian("a", 0.25, 0.01),
-        intervention.Categorical("a", [0.2, 0.8]),
+        (intervention.Set("a", 0.25), lambda a_bar: 0.25),
+        (intervention.Shift("a", 0.25), lambda a_bar: a_bar + 0.25),
+        (intervention.Bernoulli("a", 0.4), lambda a_bar: 0.4),
+        (intervention.Gaussian("a", 0.25, 0.01), lambda a_bar: 0.25),
+        (intervention.Categorical("a", [0.2, 0.8]), lambda a_bar: 0.8),
     ],
 )
-def test_intervention_response_runs_through_public_analyze_api(spec):
+def test_intervention_response_runs_through_public_analyze_api(spec, mean_a):
     rng = np.random.default_rng(1701)
     x = rng.normal(size=400)
     a = 0.7 * x + rng.normal(size=400)
@@ -234,7 +243,8 @@ def test_intervention_response_runs_through_public_analyze_api(spec):
             graph=[("x", "a"), ("x", "y"), ("a", "y")],
         )
     )
-    assert np.isfinite(result.estimate)
+    truth = 1.0 + 2.0 * mean_a(a.mean()) + 0.8 * x.mean()
+    assert result.estimate == pytest.approx(truth, abs=0.03)
     assert result.provenance["operation_id"] == "estimate.response.intervention_gcomp"
 
 
@@ -368,7 +378,10 @@ def test_pag_mean_curve_is_licensed_mass_weighted_envelope():
         )
     )
     assert result.response is not None
-    assert np.isfinite(result.response.values).all()
+    # y = 2 a + e with a unconfounded: E[Y | do(a)] = 2 a (observed error 0.024).
+    np.testing.assert_allclose(
+        np.asarray(result.response.values).ravel(), [-1.0, 0.0, 1.0], atol=0.08
+    )
     assert result.evidence_status == "licensed"
     assert any("identify.pag.envelope" in diagnostic for diagnostic in result.diagnostics)
 
@@ -420,9 +433,11 @@ def test_response_analyze_derivative_and_jacobian_shapes():
         )
     )
 
-    assert point.estimate is not None
-    assert average.estimate is not None
-    assert jacobian.estimate is not None
+    # y = 8 + 1.5 a - 0.75 b + x + e is linear: dy/da = 1.5 everywhere and the Jacobian
+    # row is (1.5, -0.75) (observed errors 0.04, 0.04, 0.03).
+    assert point.estimate == pytest.approx(1.5, abs=0.08)
+    assert average.estimate == pytest.approx(1.5, abs=0.08)
+    assert np.asarray(jacobian.estimate).ravel() == pytest.approx([1.5, -0.75], abs=0.08)
 
 
 def test_response_analyze_refuses_unwired_semantic_options():
@@ -589,7 +604,10 @@ def test_response_cpdag_mean_curve_is_licensed():
         )
     )
     assert result.response is not None
-    assert np.isfinite(result.response.values).all()
+    # y = 1.5 a + e: E[Y | do(a)] = 1.5 a (observed error 0.026).
+    np.testing.assert_allclose(
+        np.asarray(result.response.values).ravel(), [-0.75, 0.0, 0.75], atol=0.06
+    )
     assert result.evidence_status == "licensed"
 
 
@@ -618,8 +636,13 @@ def test_elasticity_and_semi_elasticity_analyze_execute():
         )
     )
 
-    assert elasticity.estimate is not None
-    assert semi.estimate is not None
+    # y = a^0.5 exp(e): the elasticity d log y / d log a is 0.5 everywhere (observed 0.454),
+    # and dE[y]/d log a at the median is 0.5 sqrt(a) E[exp(e)] (observed 0.464).
+    assert elasticity.estimate == pytest.approx(0.5, abs=0.1)
+    median = float(np.median(a))
+    assert semi.estimate == pytest.approx(
+        0.5 * math.sqrt(median) * math.exp(0.15**2 / 2.0), abs=0.1
+    )
 
 
 def test_response_refuses_discovery_and_runs_bayesian():

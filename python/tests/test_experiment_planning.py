@@ -7,10 +7,27 @@ estimator and is the same at every thread count.
 
 from __future__ import annotations
 
+import math
+
 import pytest
 from antecedent import Execution, design
 from antecedent.design import planning
 from antecedent.errors import CausalError, CausalTypeError
+
+
+def _phi(x: float) -> float:
+    return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
+
+
+def _phi_inverse(p: float) -> float:
+    low, high = -10.0, 10.0
+    for _ in range(200):
+        mid = 0.5 * (low + high)
+        if _phi(mid) < p:
+            low = mid
+        else:
+            high = mid
+    return 0.5 * (low + high)
 
 
 def _continuous(**declared: object) -> planning.Assumptions:
@@ -33,6 +50,11 @@ def test_minimum_detectable_effect_inverts_the_sample_size() -> None:
     mde = planning.minimum_detectable_effect(planning.Complete(), _continuous(), planned.units)
     assert mde.effect is not None and mde.effect <= 0.4 + 1e-9
     assert mde.analytic.value == pytest.approx(0.8, abs=1e-6)
+    # The normal approximation (z_.975 + z_.8) sqrt(4 / N) is 0.3972 at N = 199 units; the
+    # noncentral-t effect is slightly larger (observed 0.3992).
+    normal_approx = (_phi_inverse(0.975) + _phi_inverse(0.8)) * math.sqrt(4.0 / planned.units)
+    assert mde.effect == pytest.approx(normal_approx, abs=0.004)
+    assert mde.effect >= normal_approx
     again = planning.operating_characteristics(
         planning.Complete(), _continuous(effect=0.4), planned.units
     )
@@ -94,6 +116,20 @@ def test_multi_arm_and_sequential_characteristics_are_typed() -> None:
     looks = sequential.analytic.sequential
     assert looks is not None and len(looks.critical) == 3
     assert looks.expected_units_alternative < sequential.units
+    # Lan-DeMets O'Brien-Fleming spending: the cumulative type I error at information
+    # fraction t is 2 - 2 Phi(z_.975 / sqrt(t)) and the boundary at that look is z / sqrt(t)
+    # for the first look; the fixed design needs (z_.975 + z_.9)^2 * 4 / 0.3^2 = 467 units.
+    z = _phi_inverse(0.975)
+    fractions = (1 / 3, 2 / 3, 1.0)
+    assert looks.critical[0] == pytest.approx(z / math.sqrt(fractions[0]), abs=1e-5)
+    assert looks.critical[0] > looks.critical[1] > looks.critical[2] > z
+    cumulative = 0.0
+    for fraction, stop in zip(fractions, looks.stop_probability_null, strict=True):
+        cumulative += stop
+        assert cumulative == pytest.approx(2.0 - 2.0 * _phi(z / math.sqrt(fraction)), abs=1e-4)
+    assert sum(looks.stop_probability_alternative) == pytest.approx(0.9, abs=1e-3)
+    assert looks.fixed_design_units == 467
+    assert looks.look_units == (159, 318, 477)
 
 
 def test_bayesian_criteria_plan_through_the_same_entry() -> None:
@@ -113,7 +149,13 @@ def test_bayesian_criteria_plan_through_the_same_entry() -> None:
             planning.PosteriorSuccess(prior, threshold=0.0, probability=0.95),
         ),
     )
-    assert 0.0 < assurance.analytic.value < 1.0
+    # Closed form: with N = 200 units the estimate has variance se^2 = 4 / N, the posterior
+    # under N(0, 1) has precision 1 + 1 / se^2 and succeeds when
+    # delta_hat >= z_.95 se^2 sqrt(precision); delta_hat ~ N(0.3, 0.15^2 + se^2) marginally.
+    se2 = 4.0 / 200
+    cutoff = _phi_inverse(0.95) * se2 * math.sqrt(1.0 + 1.0 / se2)
+    expected = 1.0 - _phi((cutoff - 0.3) / math.sqrt(0.15**2 + se2))
+    assert assurance.analytic.value == pytest.approx(expected, abs=1e-9)
 
 
 def test_unplannable_designs_are_refused_with_the_next_attempt() -> None:

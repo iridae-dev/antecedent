@@ -124,6 +124,12 @@ fn codetermined_diagnostics_consume_the_executed_design_overlap_and_point_evalue
     };
     assert_eq!(adjustment, &[schema.id_of("z").unwrap(), schema.id_of("u").unwrap()]);
     assert_eq!(*rows, result.estimate().as_effect().unwrap().provenance.n_obs);
+    // Known truth: y = 2 t + z - 0.5 u + e with z, u adjusted.
+    assert!(
+        (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.12,
+        "AIPW effect {}",
+        result.estimate().as_effect().unwrap().ate
+    );
     assert!(*propensity_scored);
 
     // Overlap is the estimator's own report on that design, never a refit.
@@ -157,9 +163,13 @@ fn an_evalue_refuter_value_embeds_an_interval_endpoint_and_is_not_a_point_value(
     let ctx = ExecutionContext::for_tests(41);
     // A tiered study refuses the Cheap refuter suite (no licensed scalar-refuter state), so a
     // refuter-mirrored E-value is constructed on an executed result the way the mirror sets it.
+    let refusal = codetermined_study(&data, RefuteSuite::Cheap)
+        .build()
+        .expect_err("the Cheap suite is not licensed on a tiered study");
     assert!(
-        codetermined_study(&data, RefuteSuite::Cheap).build().is_err(),
-        "the Cheap suite is not licensed on a tiered study"
+        refusal.to_string().starts_with("not_applicable:")
+            && refusal.to_string().contains("no licensed scalar-refuter state"),
+        "{refusal}"
     );
     let mut result =
         codetermined_study(&data, RefuteSuite::None).build().unwrap().run(&ctx).unwrap();
@@ -207,6 +217,10 @@ fn unknown_scenarios_state_the_declared_orientations_and_no_fabricated_diagnosti
     let effects = result.estimate().as_effect().unwrap().scenarios.effects.as_ref().unwrap();
     assert_eq!(scenarios[0].effect, effects[0]);
     assert_eq!(scenarios[1].effect, effects[1]);
+    // Known truths of the generator: the pretreatment scenario (adjust era) recovers the
+    // total effect -1 + 2 = 1, the closure scenario (adjust era and m) the direct effect -1.
+    assert!((effects[0] - 1.0).abs() < 0.15, "pretreatment scenario effect {}", effects[0]);
+    assert!((effects[1] + 1.0).abs() < 0.15, "closure scenario effect {}", effects[1]);
 
     // No propensity, no single effect: each is a typed absence with its own detail.
     let overlap = diagnostics.overlap.unavailable().expect("no overlap on the Unknown cell");

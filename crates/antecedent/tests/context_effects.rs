@@ -205,6 +205,19 @@ fn jpcmci_plus_space_dummy_mv_pin() {
             result.diagnostics
         );
     }
+    let observed_pairs: std::collections::BTreeSet<(u32, u32, u32)> = result
+        .evidence
+        .links
+        .iter()
+        .filter(|s| s.link.source.raw() < 2 && s.link.target.raw() < 2)
+        .map(|s| (s.link.source.raw(), s.link.source_lag.raw(), s.link.target.raw()))
+        .collect();
+    // Truth of toy_env: y_t = 0.7 x_t + ..., a contemporaneous x -> y link (either orientation
+    // of the contemporaneous pair counts).
+    assert!(
+        observed_pairs.contains(&(0, 0, 1)) || observed_pairs.contains(&(1, 0, 0)),
+        "the true contemporaneous x-y link is missing: {observed_pairs:?}"
+    );
     let max_space = expected["max_logical_space_dummy_ids"].as_u64().unwrap_or(1) as usize;
     let space_ids: std::collections::BTreeSet<u32> = result
         .evidence
@@ -250,6 +263,21 @@ fn rpcmci_two_regime_pin() {
     let min_nodes = expected["min_nodes_per_regime"].as_u64().unwrap_or(2) as usize;
     for (i, (_regime, g)) in result.graphs.graphs.iter().enumerate() {
         assert!(g.node_count() >= min_nodes, "regime {i} node_count too small");
+    }
+    for (i, regime) in result.per_regime.iter().enumerate() {
+        let links: Vec<_> = regime
+            .evidence
+            .links
+            .iter()
+            .map(|s| (s.link.source.raw(), s.link.source_lag.raw(), s.link.target.raw()))
+            .collect();
+        // The generator links x to y contemporaneously in both halves (coefficient +0.5 and
+        // -0.4), so each regime's graph must retain exactly that link and no lagged one.
+        assert!(
+            links.contains(&(0, 0, 1)) || links.contains(&(1, 0, 0)),
+            "regime {i} lost the contemporaneous x-y link: {links:?}"
+        );
+        assert!(links.iter().all(|&(_, lag, _)| lag == 0), "regime {i} spurious lag: {links:?}");
     }
 }
 
