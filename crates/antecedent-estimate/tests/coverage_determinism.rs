@@ -248,9 +248,12 @@ fn grid_point_fingerprint_probe() {
 }
 
 fn probe(point: Option<usize>) -> String {
+    let prefix =
+        module_path!().split_once("::").map_or(String::new(), |(_, rest)| format!("{rest}::"));
+    let test_name = format!("{prefix}grid_point_fingerprint_probe");
     let mut command = std::process::Command::new(std::env::current_exe().unwrap());
     command
-        .args(["--exact", "grid_point_fingerprint_probe", "--nocapture", "--test-threads", "1"])
+        .args(["--exact", &test_name, "--nocapture", "--test-threads", "1"])
         .env("ANTECEDENT_GRID_DETERMINISM_PROBE", "1")
         .env_remove(GRID_POINT_ENV);
     if let Some(point) = point {
@@ -258,6 +261,10 @@ fn probe(point: Option<usize>) -> String {
     }
     let output = command.output().unwrap();
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("running 1 test"),
+        "the probe child selected no test"
+    );
     String::from_utf8_lossy(&output.stdout)
         .lines()
         .find_map(|line| line.find("grid-probe ").map(|at| line[at..].to_string()))

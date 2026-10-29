@@ -18526,6 +18526,13 @@ path = "scripts/test_ignored_test_lanes.py"
 gates = ["inventory"]
 
 [[test]]
+id = "check-child-test-selectors"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_check_child_test_selectors.py"
+gates = ["inventory"]
+
+[[test]]
 id = "vector-treatment-reference"
 crate = "antecedent-estimate"
 cargo_target = "vector_treatment_reference"

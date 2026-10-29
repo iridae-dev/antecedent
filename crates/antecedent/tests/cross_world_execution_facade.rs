@@ -139,13 +139,23 @@ fn a_fresh_process_consumes_only_the_bytes_and_matches_the_oracle() {
     let path = std::env::temp_dir()
         .join(format!("antecedent-cross-world-{}-{unique}.bin", std::process::id()));
     std::fs::write(&path, sealed.to_bytes("natural-direct").unwrap()).unwrap();
+    // The child must select this very test: under a suite crate it is a module member, so its
+    // libtest name carries the module path (a bare name would match nothing and "pass").
+    let prefix =
+        module_path!().split_once("::").map_or(String::new(), |(_, rest)| format!("{rest}::"));
+    let test_name = format!("{prefix}a_fresh_process_consumes_only_the_bytes_and_matches_the_oracle");
     let output = std::process::Command::new(std::env::current_exe().unwrap())
         .arg("--exact")
-        .arg("a_fresh_process_consumes_only_the_bytes_and_matches_the_oracle")
+        .arg(&test_name)
         .env(PATH, &path)
         .output()
         .unwrap();
     std::fs::remove_file(path).unwrap();
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("running 1 test"),
+        "the child selected no test: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
 }
 

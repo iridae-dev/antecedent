@@ -1946,9 +1946,12 @@ fn composition_artifact_reload_in_separate_process() {
     let path = std::env::temp_dir().join(format!("antecedent-i6-{}.bin", std::process::id()));
     std::fs::write(&path, bytes).unwrap();
 
+    let prefix =
+        module_path!().split_once("::").map_or(String::new(), |(_, rest)| format!("{rest}::"));
+    let test_name = format!("{prefix}composition_artifact_reload_in_separate_process");
     let output = std::process::Command::new(std::env::current_exe().unwrap())
         .env(FLAG, &path)
-        .args(["composition_artifact_reload_in_separate_process", "--exact", "--nocapture"])
+        .args([test_name.as_str(), "--exact", "--nocapture"])
         .output()
         .unwrap();
     let _ = std::fs::remove_file(&path);
@@ -1959,6 +1962,7 @@ fn composition_artifact_reload_in_separate_process() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("running 1 test"), "the child selected no test: {stdout}");
     assert!(stdout.contains("I6_RELOAD_OK"), "{stdout}");
     let consumed = consume_analysis_result(
         &prepared.encode_contracted_result(&result, "i6-parent", &ctx).unwrap(),

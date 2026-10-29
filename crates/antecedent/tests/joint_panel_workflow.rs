@@ -833,15 +833,21 @@ fn assert_fresh_panel_replay(
     );
     std::fs::write(directory.join("expected.json"), serde_json::to_vec(&expected).unwrap())
         .unwrap();
-    let status = std::process::Command::new(std::env::current_exe().unwrap())
-        .args([
-            "--exact",
-            "joint_panel_workflow::fresh_process_panel_artifact_consumer",
-            "--nocapture",
-        ])
+    // The child must select this very test; its libtest name carries the module path.
+    let prefix =
+        module_path!().split_once("::").map_or(String::new(), |(_, rest)| format!("{rest}::"));
+    let test_name = format!("{prefix}fresh_process_panel_artifact_consumer");
+    let output = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", &test_name, "--nocapture"])
         .env("ANTECEDENT_PANEL_REPLAY_DIRECTORY", &directory)
-        .status()
+        .output()
         .unwrap();
+    let status = output.status;
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("running 1 test"),
+        "the child selected no test: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
     assert!(
         directory.join("consumer-ran").exists(),
         "fresh process must select and execute its consumer test"

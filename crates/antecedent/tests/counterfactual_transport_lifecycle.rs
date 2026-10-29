@@ -873,9 +873,12 @@ fn a_fresh_process_consumes_only_the_bytes_and_matches_the_oracle() {
     let path = std::env::temp_dir()
         .join(format!("antecedent-counterfactual-transport-{}-{unique}.bin", std::process::id()));
     std::fs::write(&path, &export.bytes).unwrap();
+    let prefix =
+        module_path!().split_once("::").map_or(String::new(), |(_, rest)| format!("{rest}::"));
+    let test_name = format!("{prefix}a_fresh_process_consumes_only_the_bytes_and_matches_the_oracle");
     let output = std::process::Command::new(std::env::current_exe().unwrap())
         .arg("--exact")
-        .arg("a_fresh_process_consumes_only_the_bytes_and_matches_the_oracle")
+        .arg(&test_name)
         .env(PATH, &path)
         .env(PREMISES, export.identity.premises_digest.clone().unwrap())
         .env(DATA, export.identity.data_digest.clone().unwrap())
@@ -883,6 +886,11 @@ fn a_fresh_process_consumes_only_the_bytes_and_matches_the_oracle() {
         .output()
         .unwrap();
     std::fs::remove_file(path).unwrap();
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("running 1 test"),
+        "the child selected no test: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
     assert!(
         output.status.success(),
         "{}{}",

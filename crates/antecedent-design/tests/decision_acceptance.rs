@@ -164,6 +164,11 @@ fn run_fresh_consumer(test: &str, files: &[(String, Vec<u8>)]) {
     let consumed = dir.join("consumed.ok").exists();
     std::fs::remove_dir_all(&dir).unwrap();
     assert!(
+        String::from_utf8_lossy(&output.stdout).contains("running 1 test"),
+        "the child selected no test: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    assert!(
         output.status.success(),
         "{}{}",
         String::from_utf8_lossy(&output.stdout),

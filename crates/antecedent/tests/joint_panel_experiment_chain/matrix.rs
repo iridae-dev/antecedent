@@ -1557,12 +1557,12 @@ fn assert_fresh_native_law_replay(
     );
     std::fs::write(directory.join("expected.json"), serde_json::to_vec(&expected).unwrap())
         .unwrap();
+    // The child must select this very test; its libtest name carries the module path.
+    let prefix =
+        module_path!().split_once("::").map_or(String::new(), |(_, rest)| format!("{rest}::"));
+    let test_name = format!("{prefix}native_law_fresh_process_consumer");
     let child = std::process::Command::new(std::env::current_exe().unwrap())
-        .args([
-            "--exact",
-            "joint_panel_workflow::experiment_chain::matrix::native_law_fresh_process_consumer",
-            "--nocapture",
-        ])
+        .args(["--exact", &test_name, "--nocapture"])
         .env("ANTECEDENT_NATIVE_EXPERIMENT_REPLAY", &directory)
         .output()
         .unwrap();
@@ -1570,6 +1570,11 @@ fn assert_fresh_native_law_replay(
         child.status.success(),
         "independent native experiment replay: {}",
         String::from_utf8_lossy(&child.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&child.stdout).contains("running 1 test"),
+        "the child selected no test: {}",
+        String::from_utf8_lossy(&child.stdout)
     );
     assert!(directory.join("consumer-ran").exists());
     std::fs::remove_dir_all(directory).unwrap();

@@ -273,13 +273,23 @@ fn fresh_process_replays_mapped_prior() {
     let path =
         std::env::temp_dir().join(format!("antecedent-f19-{}-{unique}.bin", std::process::id()));
     std::fs::write(&path, exact_source().to_bytes("batch-a-posterior").unwrap()).unwrap();
+    // The child must select this very test: under a suite crate it is a module member, so its
+    // libtest name carries the module path (a bare name would match nothing and "pass").
+    let prefix =
+        module_path!().split_once("::").map_or(String::new(), |(_, rest)| format!("{rest}::"));
+    let test_name = format!("{prefix}fresh_process_replays_mapped_prior");
     let output = std::process::Command::new(std::env::current_exe().unwrap())
         .arg("--exact")
-        .arg("fresh_process_replays_mapped_prior")
+        .arg(&test_name)
         .env(PATH, &path)
         .output()
         .unwrap();
     std::fs::remove_file(path).unwrap();
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("running 1 test"),
+        "the child selected no test: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
 }
 

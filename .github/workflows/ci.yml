@@ -711,6 +711,7 @@ jobs:
           python3 scripts/test_assertion_scan.py --self-test
           python3 scripts/check_v3_test_registry.py --self-test
           python3 scripts/check_ignored_tests.py
+          python3 scripts/check_child_test_selectors.py
           python3 scripts/check_python_internal_lane.py sources
           mkdir -p target
           python3 scripts/evidence_audit.py report > target/evidence-audit-report.md

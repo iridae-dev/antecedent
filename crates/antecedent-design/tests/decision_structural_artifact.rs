@@ -285,13 +285,24 @@ fn fresh_process_consumer_rebuilds_atoms_from_constants_and_replays() {
         std::env::temp_dir().join(format!("antecedent-structural-{}-{unique}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(dir.join("structural.bin"), artifact.to_bytes("s").unwrap()).unwrap();
+    // The child must select this very test: under a suite crate it is a module member, so its
+    // libtest name carries the module path (a bare name would match nothing and "pass").
+    let prefix =
+        module_path!().split_once("::").map_or(String::new(), |(_, rest)| format!("{rest}::"));
+    let test_name =
+        format!("{prefix}fresh_process_consumer_rebuilds_atoms_from_constants_and_replays");
     let output = std::process::Command::new(std::env::current_exe().unwrap())
         .arg("--exact")
-        .arg("fresh_process_consumer_rebuilds_atoms_from_constants_and_replays")
+        .arg(&test_name)
         .env(PATH_ENV, &dir)
         .output()
         .unwrap();
     std::fs::remove_dir_all(&dir).unwrap();
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("running 1 test"),
+        "the child selected no test: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
     assert!(
         output.status.success(),
         "{}{}",

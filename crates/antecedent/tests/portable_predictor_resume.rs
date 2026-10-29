@@ -88,12 +88,22 @@ fn portable_predictor_zero_refits_and_fresh_process_match_full_run() {
     std::fs::create_dir_all(&directory).unwrap();
     let path = directory.join("model.ant");
     std::fs::write(&path, &bytes).unwrap();
+    // The child must select this very test: under a suite crate it is a module member, so its
+    // libtest name carries the module path (a bare name would match nothing and "pass").
+    let prefix =
+        module_path!().split_once("::").map_or(String::new(), |(_, rest)| format!("{rest}::"));
+    let test_name = format!("{prefix}portable_predictor_child");
     let output = std::process::Command::new(std::env::current_exe().unwrap())
-        .args(["--exact", "portable_predictor_child", "--nocapture"])
+        .args(["--exact", &test_name, "--nocapture"])
         .env("ANTECEDENT_PORTABLE_TEST_ARTIFACT", &path)
         .output()
         .unwrap();
     std::fs::remove_dir_all(&directory).unwrap();
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("running 1 test"),
+        "the child selected no test: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
     assert!(
         output.status.success(),
         "{}\n{}",

@@ -707,12 +707,12 @@ fn assert_fresh_experiment_replay(
     );
     std::fs::write(directory.join("expected.json"), serde_json::to_vec(&expected).unwrap())
         .unwrap();
+    // The child must select this very test; its libtest name carries the module path.
+    let prefix =
+        module_path!().split_once("::").map_or(String::new(), |(_, rest)| format!("{rest}::"));
+    let test_name = format!("{prefix}fresh_process_experiment_artifact_consumer");
     let child = std::process::Command::new(std::env::current_exe().unwrap())
-        .args([
-            "--exact",
-            "joint_panel_workflow::experiment_chain::fresh_process_experiment_artifact_consumer",
-            "--nocapture",
-        ])
+        .args(["--exact", &test_name, "--nocapture"])
         .env("ANTECEDENT_PANEL_EXPERIMENT_REPLAY", &directory)
         .output()
         .unwrap();
@@ -720,6 +720,11 @@ fn assert_fresh_experiment_replay(
         child.status.success(),
         "fresh experiment replay failed: {}",
         String::from_utf8_lossy(&child.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&child.stdout).contains("running 1 test"),
+        "the child selected no test: {}",
+        String::from_utf8_lossy(&child.stdout)
     );
     assert!(directory.join("consumer-ran").exists(), "fresh consumer must actually execute");
     std::fs::remove_dir_all(directory).unwrap();
