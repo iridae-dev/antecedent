@@ -78,18 +78,6 @@ locator = "^X02\\.static\\."
 owner = "P20"
 
 [[owner]]
-name = "manifest_diff_audited_by_release_closure"
-kind = "^narrowed_promise$"
-locator = "^P19\\."
-owner = "P20"
-
-[[owner]]
-name = "closure_report_zero_rows_gates_the_breadth_milestone"
-kind = "^narrowed_promise$"
-locator = "^P20\\."
-owner = "K2"
-
-[[owner]]
 name = "interference_observational_contrast_row"
 kind = "^narrowed_promise$"
 locator = "interference"

@@ -38,6 +38,9 @@ python3 scripts/reconcile_method_specs.py --self-test
 python3 scripts/derive_milestone_readiness.py --self-test
 python3 scripts/closure_audit.py --self-test
 python3 scripts/test_closure_audit.py
+python3 scripts/test_closure_report_rows.py
+python3 scripts/test_route_manifest_diff.py
+python3 scripts/test_scenario_matrix_pending.py
 python3 scripts/test_gate_compiler_bypass.py
 python3 scripts/test_check_architecture.py
 python3 scripts/test_gate_retained_routes.py

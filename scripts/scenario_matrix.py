@@ -7,6 +7,12 @@ the curated cells of parity/scenario_matrix.toml. A cell is `delivered` only whe
 exact compiled, non-ignored test (or a conformance fixture) that exists; a file named without a
 test, a test whose name says smoke or limit, and a measurement-only test do not count. A cell no
 registry derives and the curated file does not record is a gap.
+
+A cell that executes and is tested but owes a calibration measurement is `pending_measurement`,
+never a gap, and only through parity/pending_measurement.toml: the entry names the calibration facet
+of scripts/calibration_surface.list whose records will close it and the kind of measurement owed.
+An entry without a defined facet or a known kind, an entry that names no open cell, and an axis
+other than design_inference or uncertainty are findings, and the cell stays a gap.
 """
 
 from __future__ import annotations
@@ -21,6 +27,16 @@ from _repo import REPO_ROOT
 from test_evidence import static_python_test, static_rust_test
 
 DELIVERED, UNAVAILABLE, GAP = "delivered", "unavailable", "gap"
+# A cell whose only open element is a calibration measurement the pending frozen candidate owes.
+PENDING = "pending_measurement"
+OWED_KINDS = (
+    "interval_coverage",
+    "posterior_calibration",
+    "selected_decision_reliability",
+    "refuter_error_rates",
+    "band_coverage",
+)
+PENDING_AXES = ("design_inference", "uncertainty")
 QUADRANTS = tuple(
     f"{design}.{inference}"
     for design in ("static", "temporal")
@@ -44,6 +60,11 @@ DERIVED_AXES = {
 # Derived axes whose registry gaps a curated cell may settle; the quadrant axes (design x inference,
 # uncertainty) stay tied to their counterpart rows and their measured closure.
 OVERRIDABLE_AXES = ("graph_class", "missing_data_policy")
+# The uncertainty axis may additionally be settled by a curated cell, but only where the counterpart
+# row executes with its claim whole and reports no interval (note "uncertainty=none"): a family whose
+# product is not a sampled estimate says so as unavailable with its reason. A cell open for another
+# reason, such as an owed calibration, is not settled that way.
+UNCERTAINTY_NONE = "uncertainty=none"
 NOT_EVIDENCE = re.compile(r"smoke|limit", re.IGNORECASE)
 
 
@@ -187,6 +208,59 @@ def _curated(root: Path, family, axis_id, value, src, checked, findings) -> dict
                  src.get("what") or src.get("reason", ""))
 
 
+def surface_facets(root: Path) -> set[str]:
+    """The facet names scripts/calibration_surface.list defines (a path, key or key_all line)."""
+    facets: set[str] = set()
+    path = root / "scripts/calibration_surface.list"
+    if not path.is_file():
+        return facets
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        parts = raw.split()
+        if not parts or parts[0].startswith("#") or parts[0] in ("allow", "testmod"):
+            continue
+        facets.add(parts[1] if parts[0] in ("key", "key_all") and len(parts) > 1 else parts[0])
+    return facets
+
+
+def _apply_pending(root: Path, cells: list[dict], findings: list[str]) -> None:
+    """Turn the gap cells a registered entry owes to calibration into `pending_measurement`."""
+    path = root / "parity/pending_measurement.toml"
+    if not path.is_file():
+        return
+    entries = tomllib.loads(path.read_text(encoding="utf-8")).get("pending", [])
+    facets = surface_facets(root)
+    seen: set[str] = set()
+    for entry in entries:
+        row = entry.get("row", "")
+        where = f"pending_measurement {row!r}"
+        if row in seen:
+            findings.append(f"{where}: duplicated")
+            continue
+        seen.add(row)
+        facet, owed = str(entry.get("facet", "")).strip(), entry.get("owed")
+        axes = entry.get("axes") or list(PENDING_AXES)
+        if not facet:
+            findings.append(f"{where}: no calibration facet that will close it")
+        elif facet not in facets:
+            findings.append(f"{where}: facet {facet} is not defined in scripts/calibration_surface.list")
+        if owed not in OWED_KINDS:
+            findings.append(f"{where}: owed {owed!r} is not one of {', '.join(OWED_KINDS)}")
+        if any(axis not in PENDING_AXES for axis in axes):
+            findings.append(f"{where}: axes {axes} are not among {', '.join(PENDING_AXES)}")
+        if not facet or facet not in facets or owed not in OWED_KINDS:
+            continue
+        hit = [
+            c for c in cells
+            if c.get("row") == row and c["status"] == GAP and c["axis"] in axes
+        ]
+        if not hit:
+            findings.append(f"{where}: names no open cell on {axes}; remove the entry")
+        for c in hit:
+            c["status"] = PENDING
+            c["facet"], c["owed"] = facet, owed
+            c["gap_kind"] = ""
+
+
 def build(root: Path = REPO_ROOT) -> dict:
     root = root.resolve()
     counterparts = tomllib.loads((root / "parity/counterparts.toml").read_text(encoding="utf-8"))
@@ -207,7 +281,7 @@ def build(root: Path = REPO_ROOT) -> dict:
         key = (cell.get("family"), cell.get("axis"), cell.get("value"))
         if cell.get("family") not in by_family:
             findings.append(f"curated cell names unknown family: {key}")
-        elif cell.get("axis") in OVERRIDABLE_AXES:
+        elif cell.get("axis") in OVERRIDABLE_AXES + ("uncertainty",):
             if cell.get("value") not in DERIVED_AXES[cell["axis"]][1]:
                 findings.append(f"curated cell names unknown axis value: {key}")
             elif cell.get("status") == GAP:
@@ -254,8 +328,13 @@ def build(root: Path = REPO_ROOT) -> dict:
     # an exact test: delivered, or unavailable with the reason and the refusal that shows it.
     for index, c in enumerate(cells):
         key = (c["family"], c["axis"], c["value"])
-        if c["axis"] in OVERRIDABLE_AXES and c["status"] == GAP and key in derived_overrides:
+        settles = c["axis"] in OVERRIDABLE_AXES or (
+            c["axis"] == "uncertainty" and c["note"] == UNCERTAINTY_NONE
+        )
+        if settles and c["status"] == GAP and key in derived_overrides:
             cells[index] = _curated(root, *key, derived_overrides[key], checked, findings)
+        elif key in derived_overrides and c["axis"] == "uncertainty":
+            findings.append(f"curated uncertainty cell does not settle an open 'uncertainty=none' cell: {key}")
     for c in cells:
         if c["status"] != GAP:
             continue
@@ -269,6 +348,7 @@ def build(root: Path = REPO_ROOT) -> dict:
             if note.startswith(("no delivered", "no route cell", "no counterpart"))
             else "narrowed_promise"
         )
+    _apply_pending(root, cells, findings)
     counts = Counter(c["status"] for c in cells)
     per_axis: dict[str, Counter] = defaultdict(Counter)
     for c in cells:
@@ -290,6 +370,10 @@ def build(root: Path = REPO_ROOT) -> dict:
 
 def gaps(matrix: dict) -> list[dict]:
     return [c for c in matrix["cells"] if c["status"] == GAP]
+
+
+def pending(matrix: dict) -> list[dict]:
+    return [c for c in matrix["cells"] if c["status"] == PENDING]
 
 
 if __name__ == "__main__":

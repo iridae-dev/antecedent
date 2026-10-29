@@ -136,14 +136,6 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 | `P16.static.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
 | `P16.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
 | `P16.temporal.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `P19.static.frequentist` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
-| `P19.static.bayesian` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
-| `P19.temporal.frequentist` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
-| `P19.temporal.bayesian` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
-| `P20.static.frequentist` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
-| `P20.static.bayesian` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
-| `P20.temporal.frequentist` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
-| `P20.temporal.bayesian` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
 | `X02.static.frequentist` | executing | build the missing route through the compiler with the same uncertainty ports |
 | `X02.static.bayesian` | executing | build the missing route through the compiler with the same uncertainty ports |
 | `X02.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |

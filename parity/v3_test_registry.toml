@@ -19952,3 +19952,24 @@ crate = "python"
 cargo_target = "script"
 path = "python/tests/test_unavailable_a_refusals.py"
 gates = ["inventory"]
+
+[[test]]
+id = "route-manifest-diff"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_route_manifest_diff.py"
+gates = ["inventory"]
+
+[[test]]
+id = "closure-report-rows"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_closure_report_rows.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scenario-matrix-pending"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_scenario_matrix_pending.py"
+gates = ["inventory"]

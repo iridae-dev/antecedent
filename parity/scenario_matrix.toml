@@ -612,6 +612,22 @@ what = "sequential cross-fit contrast refusals are typed"
 
 [[cell]]
 family = "P15.conditional"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "unavailable"
+test = "crates/antecedent/tests/static_route_table_weights.rs::table_weights_are_never_silently_ignored_on_any_static_effect_route"
+reason = "the conditional effect has no sampling-weighted construction; observation weights on the table and weights declared on an estimator it does not run are refused with sampling_weights.route_unsupported and a next attempt, never estimated as unweighted rows"
+
+[[cell]]
+family = "P15.conditional"
+axis = "weights_missingness"
+value = "missing_data"
+status = "delivered"
+test = "crates/antecedent/tests/missing_imputation_routes.rs::a_conditional_effect_pools_to_the_hand_pooled_reference"
+what = "multiple imputation on the conditional effect equals Rubin's rules applied by hand to the route run on each completed table (point, within, between and total variance), recovers the marginal effect 2 where the missing outcomes depend on the modifier, and its assumptions digest replays and moves with any change"
+
+[[cell]]
+family = "P15.conditional"
 axis = "unsupported_input"
 value = "typed_refusal"
 status = "delivered"
@@ -3591,6 +3607,118 @@ value = "temporal_graph"
 status = "delivered"
 test = "crates/antecedent/tests/temporal_conditional_effect.rs::temporal_dag_conditional_pulse_and_sustained_publish_the_marginal_point"
 what = "the temporal conditional pulse and sustained effects on a temporal DAG recover the closed-form marginal effect 1.9 of conformance/estimate/temporal_conditional (an exact-rational generator), frequentist and Bayesian, explicit and accepted graph; the route cell executes unlicensed"
+
+[[cell]]
+family = "P05"
+axis = "uncertainty"
+value = "static.bayesian"
+status = "unavailable"
+reason = "the product is a discovered graph, a discrete structure with no sampling interval or posterior of its own; uncertainty about the structure enters an effect through the accepted-graph or graph-posterior structures of the effect routes, which publish the effect interval"
+
+[[cell]]
+family = "P05"
+axis = "uncertainty"
+value = "static.frequentist"
+status = "unavailable"
+reason = "the product is a discovered graph, a discrete structure with no sampling interval or posterior of its own; uncertainty about the structure enters an effect through the accepted-graph or graph-posterior structures of the effect routes, which publish the effect interval"
+
+[[cell]]
+family = "P05"
+axis = "uncertainty"
+value = "temporal.bayesian"
+status = "unavailable"
+reason = "the product is a discovered graph, a discrete structure with no sampling interval or posterior of its own; uncertainty about the structure enters an effect through the accepted-graph or graph-posterior structures of the effect routes, which publish the effect interval"
+
+[[cell]]
+family = "P05"
+axis = "uncertainty"
+value = "temporal.frequentist"
+status = "unavailable"
+reason = "the product is a discovered graph, a discrete structure with no sampling interval or posterior of its own; uncertainty about the structure enters an effect through the accepted-graph or graph-posterior structures of the effect routes, which publish the effect interval"
+
+[[cell]]
+family = "P17"
+axis = "uncertainty"
+value = "static.frequentist"
+status = "unavailable"
+reason = "the product is the expected utility of a declared decision contract over already-estimated summaries; the interval or posterior belongs to the estimator that produced the summaries and the contract publishes no interval of its own"
+
+[[cell]]
+family = "P17"
+axis = "uncertainty"
+value = "temporal.frequentist"
+status = "unavailable"
+reason = "the product is the expected utility of a declared decision contract over already-estimated summaries; the interval or posterior belongs to the estimator that produced the summaries and the contract publishes no interval of its own"
+
+[[cell]]
+family = "P18"
+axis = "uncertainty"
+value = "static.frequentist"
+status = "unavailable"
+reason = "the product is the maintained least-squares summary (Gram, cross-product, coefficients, residual variance), proved equal to a rebuild from the retained rows; it is a refresh of a fit, not a sampled estimate, and the interval belongs to the estimator that consumes the summary"
+
+[[cell]]
+family = "P18"
+axis = "uncertainty"
+value = "temporal.frequentist"
+status = "unavailable"
+reason = "the product is the maintained least-squares summary (Gram, cross-product, coefficients, residual variance), proved equal to a rebuild from the retained rows; it is a refresh of a fit, not a sampled estimate, and the interval belongs to the estimator that consumes the summary"
+
+[[cell]]
+family = "P19"
+axis = "uncertainty"
+value = "static.bayesian"
+status = "unavailable"
+reason = "the product is a diff of the declared support registries against the published predecessor tag, a comparison of declarations with no statistical estimate and so no uncertainty to report"
+
+[[cell]]
+family = "P19"
+axis = "uncertainty"
+value = "static.frequentist"
+status = "unavailable"
+reason = "the product is a diff of the declared support registries against the published predecessor tag, a comparison of declarations with no statistical estimate and so no uncertainty to report"
+
+[[cell]]
+family = "P19"
+axis = "uncertainty"
+value = "temporal.bayesian"
+status = "unavailable"
+reason = "the product is a diff of the declared support registries against the published predecessor tag, a comparison of declarations with no statistical estimate and so no uncertainty to report"
+
+[[cell]]
+family = "P19"
+axis = "uncertainty"
+value = "temporal.frequentist"
+status = "unavailable"
+reason = "the product is a diff of the declared support registries against the published predecessor tag, a comparison of declarations with no statistical estimate and so no uncertainty to report"
+
+[[cell]]
+family = "P20"
+axis = "uncertainty"
+value = "static.bayesian"
+status = "unavailable"
+reason = "the product is the closure report over the registries, a listing of unresolved rows with no statistical estimate and so no uncertainty to report"
+
+[[cell]]
+family = "P20"
+axis = "uncertainty"
+value = "static.frequentist"
+status = "unavailable"
+reason = "the product is the closure report over the registries, a listing of unresolved rows with no statistical estimate and so no uncertainty to report"
+
+[[cell]]
+family = "P20"
+axis = "uncertainty"
+value = "temporal.bayesian"
+status = "unavailable"
+reason = "the product is the closure report over the registries, a listing of unresolved rows with no statistical estimate and so no uncertainty to report"
+
+[[cell]]
+family = "P20"
+axis = "uncertainty"
+value = "temporal.frequentist"
+status = "unavailable"
+reason = "the product is the closure report over the registries, a listing of unresolved rows with no statistical estimate and so no uncertainty to report"
 
 # OPEN P15.conditional held_out_regime held_out_intervention: refusal evidence exists (cells_04_attribution_conditional.rs::the_conditional_effect_refuses_a_modifier_stratum_or_a_table_with_no_treated_rows:
 # a modifier stratum with no treated rows, or a table with none, is refused with design_rank_deficient; the answer 2.0 is recovered on the full table), but a declared

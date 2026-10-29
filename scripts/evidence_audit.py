@@ -782,22 +782,31 @@ def render(report: dict) -> str:
                 f"{len(matrix['families'])} families, {len(matrix['cells'])} cells: "
                 + ", ".join(f"{k} {v}" for k, v in sorted(matrix["counts"].items()))
                 + ". Only an exact compiled, non-ignored test or fixture counts as delivered; "
-                "unavailable cells state a reason; every other cell is a gap."
+                "unavailable cells state a reason; a cell that executes and is tested but owes a "
+                "calibration measurement is pending_measurement and names the facet that closes "
+                "it; every other cell is a gap."
             ),
             "",
-            "| Axis | Delivered | Unavailable | Gap |",
-            "| --- | ---: | ---: | ---: |",
+            "| Axis | Delivered | Unavailable | Pending measurement | Gap |",
+            "| --- | ---: | ---: | ---: | ---: |",
         ]
         for axis, counts in matrix["by_axis"].items():
             lines.append(
                 f"| {axis} | {counts.get('delivered', 0)} | {counts.get('unavailable', 0)} "
-                f"| {counts.get('gap', 0)} |"
+                f"| {counts.get('pending_measurement', 0)} | {counts.get('gap', 0)} |"
             )
         lines += ["", "Gaps by kind:", ""]
         kinds = Counter(
             (c["axis"], c["gap_kind"]) for c in matrix["cells"] if c["status"] == "gap"
         )
         lines += [f"- {axis} / {kind}: {n}" for (axis, kind), n in sorted(kinds.items())]
+        owed = Counter(
+            (c["facet"], c["owed"]) for c in matrix["cells"] if c["status"] == "pending_measurement"
+        )
+        lines += ["", "Pending measurement by closing facet:", ""]
+        lines += [f"- {facet} ({kind}): {n}" for (facet, kind), n in sorted(owed.items())] or [
+            "- none"
+        ]
         lines += ["", "Matrix findings (invalid curated cells):", ""]
         lines += [f"- {finding}" for finding in matrix["findings"]] or ["- none"]
         lines += ["", "Gap cells (family, axis, value):", ""]

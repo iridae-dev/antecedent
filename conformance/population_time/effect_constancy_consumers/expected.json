@@ -40,7 +40,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/effect_constancy_consumers.rs",
-          "sha256": "f4eba95ed04ba9fa41c1f3619aeb18f96ddb6ea82d6e192b99e5aad02db50e86"
+          "sha256": "e0feb4858bd2f1e2e4aa4bbee34910a0cf8a33926c4cf29dbbd0b20df2db66e6"
         }
       ],
       "fixture_payload_sha256": "5b6728def5921c142f5ddbe8c79b80bf4ed49ad1da93ca080f4616f2dec199e5"

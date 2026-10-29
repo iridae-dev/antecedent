@@ -1,0 +1,301 @@
+# Cells owed to a later calibration measurement.
+#
+# A method-family scenario cell (design x inference, uncertainty) whose only open element is the
+# measured calibration of a procedure that already executes is `pending_measurement`, not a gap:
+# the route runs unlicensed, its point and interval are tested against known truth, and no coverage
+# or error-rate record exists yet. Each entry names the counterpart row, the calibration facet of
+# scripts/calibration_surface.list whose records will close it, and what is owed. Nothing here is
+# an attestation, waiver or licence: calibration stays pending until a frozen candidate is
+# measured, and a record that carries the facet then closes the entry (the entry is removed and the
+# cell is delivered). scripts/scenario_matrix.py rejects an entry with no facet, a facet the
+# surface does not define, an unknown `owed` kind, or a row with no open cell on its axes.
+
+schema = 1
+
+[[pending]]
+row = "P07.derivative.temporal.bayesian"
+facet = "suite.derivative_calibration"
+owed = "posterior_calibration"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "P07.derivative.temporal.frequentist"
+facet = "suite.derivative_calibration"
+owed = "interval_coverage"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "P07.dose_grid.static.frequentist"
+facet = "suite.smoothed_dose_calibration"
+owed = "band_coverage"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "P10.temporal.frequentist"
+facet = "suite.temporal_frequentist"
+owed = "interval_coverage"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "P11.augmented_panel_did.temporal.frequentist"
+facet = "suite.panel_calibration"
+owed = "interval_coverage"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "P11.synthetic_control.temporal.frequentist"
+facet = "suite.panel_calibration"
+owed = "interval_coverage"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "P12.counterfactual.static.frequentist"
+facet = "suite.calibration_counterfactual"
+owed = "interval_coverage"
+axes = ["uncertainty"]
+
+[[pending]]
+row = "P13.attribution.static.bayesian"
+facet = "suite.calibration_attribution_bayesian"
+owed = "posterior_calibration"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "P13.attribution.static.frequentist"
+facet = "suite.calibration_estimate"
+owed = "interval_coverage"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "P13.attribution.temporal.bayesian"
+facet = "suite.calibration_attribution_bayesian"
+owed = "posterior_calibration"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "P13.attribution.temporal.frequentist"
+facet = "suite.calibration_temporal"
+owed = "interval_coverage"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "P13.refuter.static.bayesian"
+facet = "suite.calibration_bayesian_static"
+owed = "refuter_error_rates"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "P13.refuter.static.frequentist"
+facet = "suite.calibration_estimate"
+owed = "refuter_error_rates"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "P13.refuter.temporal.bayesian"
+facet = "suite.bayesian_temporal"
+owed = "refuter_error_rates"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "P13.refuter.temporal.frequentist"
+facet = "suite.temporal_frequentist"
+owed = "refuter_error_rates"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "P14.temporal.bayesian"
+facet = "suite.transport_statistical_calibration"
+owed = "posterior_calibration"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "P14.temporal.frequentist"
+facet = "suite.transport_statistical_calibration"
+owed = "interval_coverage"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "P15.conditional.temporal.bayesian"
+facet = "suite.temporal_class_calibration"
+owed = "posterior_calibration"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "P15.conditional.temporal.frequentist"
+facet = "suite.temporal_class_calibration"
+owed = "interval_coverage"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "P15.pulse.temporal.bayesian"
+facet = "suite.temporal_class_calibration"
+owed = "posterior_calibration"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "P15.pulse.temporal.frequentist"
+facet = "suite.temporal_class_calibration"
+owed = "interval_coverage"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "P15.sustained.temporal.bayesian"
+facet = "suite.temporal_class_calibration"
+owed = "posterior_calibration"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "P15.sustained.temporal.frequentist"
+facet = "suite.temporal_class_calibration"
+owed = "interval_coverage"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "P16.static.bayesian"
+facet = "suite.joint_law_composed_interval_calibration"
+owed = "posterior_calibration"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "P16.static.frequentist"
+facet = "suite.joint_law_composed_interval_calibration"
+owed = "interval_coverage"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "P16.temporal.bayesian"
+facet = "suite.joint_law_composed_interval_calibration"
+owed = "posterior_calibration"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "P16.temporal.frequentist"
+facet = "suite.joint_law_composed_interval_calibration"
+owed = "interval_coverage"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "X02.broader.static.bayesian"
+facet = "suite.calibration_bayesian_static"
+owed = "posterior_calibration"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "X02.broader.static.frequentist"
+facet = "suite.static_calibration"
+owed = "interval_coverage"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "X02.broader.temporal.bayesian"
+facet = "suite.bayesian_temporal"
+owed = "posterior_calibration"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "X02.broader.temporal.frequentist"
+facet = "suite.temporal_frequentist"
+owed = "interval_coverage"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "X02.static.bayesian"
+facet = "suite.calibration_bayesian_static"
+owed = "posterior_calibration"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "X02.static.frequentist"
+facet = "suite.static_calibration"
+owed = "interval_coverage"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "X02.temporal.bayesian"
+facet = "suite.bayesian_temporal"
+owed = "posterior_calibration"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "X02.temporal.frequentist"
+facet = "suite.temporal_frequentist"
+owed = "interval_coverage"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "X03.temporal.bayesian"
+facet = "suite.bayesian_temporal"
+owed = "posterior_calibration"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "X03.temporal.frequentist"
+facet = "suite.temporal_frequentist"
+owed = "interval_coverage"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "X04.1.static.bayesian"
+facet = "suite.decision_reliability_calibration"
+owed = "selected_decision_reliability"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "X04.1.static.frequentist"
+facet = "suite.decision_reliability_calibration"
+owed = "selected_decision_reliability"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "X04.1.temporal.bayesian"
+facet = "suite.decision_reliability_calibration"
+owed = "selected_decision_reliability"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "X04.1.temporal.frequentist"
+facet = "suite.decision_reliability_calibration"
+owed = "selected_decision_reliability"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "X04.2.static.bayesian"
+facet = "suite.decision_reliability_calibration"
+owed = "selected_decision_reliability"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "X04.2.static.frequentist"
+facet = "suite.decision_reliability_calibration"
+owed = "selected_decision_reliability"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "X04.2.temporal.bayesian"
+facet = "suite.decision_reliability_calibration"
+owed = "selected_decision_reliability"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "X04.2.temporal.frequentist"
+facet = "suite.decision_reliability_calibration"
+owed = "selected_decision_reliability"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "X05.temporal.bayesian"
+facet = "suite.bayesian_temporal"
+owed = "posterior_calibration"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "X06.temporal.bayesian"
+facet = "suite.bayesian_temporal"
+owed = "posterior_calibration"
+axes = ["design_inference", "uncertainty"]
+
+[[pending]]
+row = "X06.temporal.frequentist"
+facet = "suite.temporal_frequentist"
+owed = "interval_coverage"
+axes = ["design_inference", "uncertainty"]

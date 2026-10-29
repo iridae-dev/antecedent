@@ -15056,7 +15056,7 @@ status = "execution_only"
 structures = []
 validations = []
 coordinates = 0
-uncertainty = "none"
+uncertainty = "analytic"
 uncertainty_structure = "none"
 uncertainty_basis = "declared_and_corroborated"
 uncertainty_by_structure = []
@@ -15064,7 +15064,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent-estimate/src/quantile.rs"
 implementation = ["crates/antecedent-estimate/src/quantile.rs"]
 provenance = []
-evidence = ["crates/antecedent-estimate/src/quantile.rs"]
+evidence = ["crates/antecedent-estimate/src/quantile.rs", "crates/antecedent-estimate/tests/quantile_inversion_reference.rs"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/compiler_consistency.rs"]
 
 [[method]]
