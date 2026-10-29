@@ -163,7 +163,9 @@ pub trait TargetRefit {
 pub struct TargetRefutationConfig {
     /// Refits per replicate-based refuter.
     pub replicates: u32,
-    /// Pass when the joint tail probability is at least this.
+    /// Tolerance level: a replicate refuter passes when the reference tail of its joint
+    /// discrepancy is at least this. It sets a fixed yardstick on a diagnostic, not the size of
+    /// a hypothesis test (see [`super::joint`]).
     pub alpha: f64,
     /// Fraction of units each subset refit keeps.
     pub subset_fraction: f64,
@@ -406,8 +408,9 @@ fn replicate_check(
     let passed = p >= config.alpha;
     let failure = (!passed).then(|| {
         Arc::from(format!(
-            "`{}`: the {} vector lies outside the refuted replicate law (joint chi-square \
-             {:.4} on {} df, p = {p:.4} < {})",
+            "`{}`: the {} vector is further from the replicate centre than the tolerance \
+             (standardised discrepancy {:.4} on {} df, reference tail {p:.4} < {}); a resampling \
+             diagnostic, not a hypothesis test",
             kind.as_str(),
             match expectation {
                 RefuterExpectation::Null => "zero",

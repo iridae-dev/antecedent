@@ -37,7 +37,7 @@ record_sha256 = "ece87533165b4133afa174367b0f2bd17b6669391010adfb41accd251e40cb5
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/target_native/joint.rs"
-sha256 = "7701ca80bc921805f4aa3c365066375e43af20cc653ae71d05217c5651c1f531"
+sha256 = "ec4ae713b77a05ddf36be7ca57a427a5e3fd073b18d9999365ece364e47497d2"
 
 [[method_review.artifacts]]
 role = "implementation"

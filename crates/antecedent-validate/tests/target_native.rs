@@ -227,7 +227,7 @@ fn a_procedure_that_invents_a_dose_trend_fails_the_placebo_on_the_whole_vector()
     let run = run_target_plan(&plan, &refit, &config(), &ExecutionContext::for_tests(5)).unwrap();
     let placebo = report(&run, TargetRefuterKind::PlaceboTreatment);
     assert!(!placebo.passed);
-    assert!(placebo.failure.as_deref().unwrap().contains("joint chi-square"));
+    assert!(placebo.failure.as_deref().unwrap().contains("standardised discrepancy"));
 }
 
 #[test]

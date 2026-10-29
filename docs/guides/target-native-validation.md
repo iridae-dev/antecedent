@@ -45,14 +45,23 @@ For every family and quadrant, `target_refutation_plan` lists the refuters:
 | `target.finite_difference_consistency`, `target.local_linearity` | derivatives: the reported derivative against the fitted response | consistent; locally linear at the step |
 | `target.prior_sensitivity`, `target.posterior_predictive` | Bayesian quadrants: alternative priors; replicated data | small posterior shift; observed target inside the predictive law |
 
-Replicate refuters test the **whole vector** with one joint statistic: the
-squared Mahalanobis distance of the expected vector from the replicate mean
-under the replicate covariance, referred to a chi-square law on the target
-dimension. On one coordinate this is the squared z-score of the scalar
-refuters; on several it keeps their correlation instead of running marginal
-tests. Each refit's random stream is keyed by refuter and replicate, so a
-report does not depend on the thread count, and the replicate buffer is leased
-from the admission pool before it is allocated.
+Replicate refuters judge the **whole vector** with one joint discrepancy: the
+squared Mahalanobis distance of the expected vector from the replicate mean,
+in units of the replicate covariance (one replicate's spread, not the Monte
+Carlo error of the mean). On one coordinate it is the squared standardised
+shift; on several it keeps the correlation instead of running marginal checks.
+The check passes when the discrepancy stays within the tolerance set by `alpha`
+(its tail probability under a chi-square law on the target dimension is at
+least `alpha`). This is a fixed yardstick on a stability or placebo
+diagnostic, **not a hypothesis test with a nominal rejection rate**: for
+bootstrap and subset stability the replicate mean minus the original estimates
+the resampling bias, and with an unbiased procedure the discrepancy is about
+`k / replicates` rather than chi-square with `k` degrees of freedom, so a clean
+case rejects far below `alpha`. Its rejection rate on clean data and its power
+against planted violations are measured separately; nothing here is a
+calibration claim. Each refit's random stream is keyed by refuter and replicate,
+so a report does not depend on the thread count, and the replicate buffer is
+leased from the admission pool before it is allocated.
 
 ## Refuting a prepared study's own target
 

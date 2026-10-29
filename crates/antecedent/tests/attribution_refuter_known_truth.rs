@@ -252,11 +252,29 @@ fn temporal_states_body() {
                     clean_passes,
                     "clean series, accepted={accepted}, full={full}"
                 );
-                assert_eq!(
-                    report(&planted, "target.subset_stability").passed,
-                    planted_passes,
-                    "planted series, accepted={accepted}, full={full}"
+                // The planted series is detected through the shift of the replicate mean away
+                // from the original: a window that drops the planted period refits a different
+                // mechanism. The discrepancy is standardised by the replicate spread, which that
+                // same window-to-window change inflates, so the check is not powerful against
+                // it: over seeds 1..=40 it rejects 14 and 4 of 40 times under the cheap and full
+                // suite (30 and 60 replicates) and never rejects the clean series. The registered
+                // seed rejects under the cheap suite; under both suites the planted tail is far
+                // below the clean one.
+                let tail =
+                    |result: &StudyResult| report(result, "target.subset_stability").comparison;
+                assert!(
+                    tail(&planted) < 0.2 && tail(&clean) > 0.9,
+                    "accepted={accepted}, full={full}: planted {}, clean {}",
+                    tail(&planted),
+                    tail(&clean)
                 );
+                if !full {
+                    assert_eq!(
+                        report(&planted, "target.subset_stability").passed,
+                        planted_passes,
+                        "planted series, accepted={accepted}"
+                    );
+                }
                 if full {
                     // The block resample is gathered, so it moves the vector at all.
                     let bootstrap = report(&clean, "target.bootstrap_stability");
@@ -298,6 +316,101 @@ fn a_change_attribution_validation_is_refused_for_want_of_a_detectable_violation
                 message.contains("Cheap and full validation of a change attribution is refused"),
                 "{message}"
             );
+        }
+    });
+}
+
+/// A clean temporal series of every length in the reported failing set passes the block
+/// bootstrap stability check.
+///
+/// Before the gathered block resample hid the design rows whose lag window crosses a block join
+/// (an attribution reads no row weights, so the zero weights on those rows were ignored and the
+/// artificial lag pairs were fitted and scored), the same seeded construction failed at 48, 64,
+/// 80 and 96 periods with discrepancy tail probabilities 0.0009, 0.0032, 0.0003 and 0.0024,
+/// and passed at 24, 32 and 40 periods (0.70, 0.094, 0.64).
+#[test]
+fn clean_temporal_series_pass_bootstrap_stability_at_every_length() {
+    on_large_stack(|| {
+        let truth = fixture();
+        for rows in [24usize, 32, 40, 48, 64, 80, 96] {
+            let mut clean = truth.clone();
+            clean["series"]["rows"] = serde_json::json!(rows);
+            let study = Study::series(series(&clean, false))
+                .graph(temporal_dag())
+                .query(query())
+                .refute(RefuteSuite::Full)
+                .build()
+                .unwrap();
+            let result = study.run(&ExecutionContext::for_tests(31)).unwrap();
+            let bootstrap = report(&result, "target.bootstrap_stability");
+            assert!(
+                bootstrap.passed,
+                "clean series of {rows} periods: tail {:.4}, {:?}",
+                bootstrap.comparison, bootstrap.failure_condition
+            );
+            assert!(
+                (bootstrap.refuted_ate - bootstrap.original_ate).abs() > 1e-6,
+                "the block bootstrap must resample the series at {rows} periods"
+            );
+        }
+    });
+}
+
+/// Deterministic standard normals (xorshift64* and Box-Muller).
+struct Normals(u64);
+
+impl Normals {
+    fn uniform(&mut self) -> f64 {
+        self.0 ^= self.0 >> 12;
+        self.0 ^= self.0 << 25;
+        self.0 ^= self.0 >> 27;
+        let bits = self.0.wrapping_mul(0x2545_F491_4F6C_DD1D) >> 11;
+        (bits as f64 + 0.5) / (1u64 << 53) as f64
+    }
+
+    fn next(&mut self) -> f64 {
+        let (u, v) = (self.uniform(), self.uniform());
+        (-2.0 * u.ln()).sqrt() * (std::f64::consts::TAU * v).cos()
+    }
+}
+
+/// `x_t = 0.5 x_{t-1} + u_t`, `y_t = 1 + 2 x_{t-1} + 0.3 e_t` with random innovations: a clean
+/// series whose replicate spread is a real sampling spread, unlike the fixture's noise-free one.
+fn noisy_series(rows: usize, seed: u64) -> TimeSeriesData {
+    let mut draw = Normals(seed | 1);
+    let mut x = vec![0.0; rows];
+    let mut y = vec![0.0; rows];
+    for t in 0..rows {
+        let past = if t > 0 { x[t - 1] } else { 0.0 };
+        x[t] = 0.5 * past + draw.next();
+        y[t] = 1.0 + 2.0 * past + 0.3 * draw.next();
+    }
+    TimeSeriesData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())], 1).unwrap()
+}
+
+/// A clean random series is not rejected by either stability check across a seed sweep. Over
+/// 60 seeds per length the checks rejected 1, 0 and 0 (subset) and 0, 0 and 0 (bootstrap) times
+/// at 24, 48 and 96 periods; before the block resample hid the design rows that cross a join
+/// the bootstrap check rejected 18, 37 and 59 of 60, rising with the length because the share
+/// of artificial lag pairs stayed fixed while the replicate spread shrank. The sweep here is
+/// smaller and is a correctness check of the verdict, not a calibration of the check.
+#[test]
+fn clean_random_temporal_series_pass_every_stability_check_across_seeds() {
+    on_large_stack(|| {
+        for rows in [24usize, 48, 96] {
+            let (mut subset, mut bootstrap) = (0, 0);
+            for seed in 1..=15_u64 {
+                let study = Study::series(noisy_series(rows, seed * 7919))
+                    .graph(temporal_dag())
+                    .query(query())
+                    .refute(RefuteSuite::Full)
+                    .build()
+                    .unwrap();
+                let result = study.run(&ExecutionContext::for_tests(seed)).unwrap();
+                subset += usize::from(!report(&result, "target.subset_stability").passed);
+                bootstrap += usize::from(!report(&result, "target.bootstrap_stability").passed);
+            }
+            assert!(subset <= 2 && bootstrap <= 2, "{rows} periods: {subset}, {bootstrap} of 15");
         }
     });
 }

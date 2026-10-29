@@ -597,6 +597,45 @@ mod repack_tests {
 
     use super::*;
 
+    /// A gathered circular-block series, with a series whose every value names its own period:
+    /// the lag pair a design row reads is `(source of row - k, source of row)`, and a pair is
+    /// an observed one exactly when its sources are `k` periods apart. Built here from the
+    /// block definition, not from the product's alignment test.
+    #[test]
+    fn a_gathered_block_bootstrap_hides_every_design_row_whose_lag_window_crosses_a_join() {
+        let n = 60;
+        for (seed, span) in [(1_u64, 2_usize), (2, 3), (3, 2), (4, 4)] {
+            let mut rng = antecedent_core::RngFactory::from_seed(seed)
+                .stream_for(antecedent_core::StreamDomain::Test, 9);
+            let length = antecedent_data::circular_block_length(span, n);
+            let mut map = vec![0_usize; n];
+            antecedent_data::fill_circular_block_indexes(n, length, &mut rng, &mut map).unwrap();
+            let free = join_free_rows(&map, span);
+            let mut joins = 0;
+            for row in 0..n {
+                // Brute force from the definition: the window of `row` is the original's when
+                // each earlier member is the source period exactly its lag before (the wrap of
+                // a block past the last period joins the last period to the first, so it is a
+                // join); the first rows have no earlier member to cross a join with.
+                let observed = row + 1 < span
+                    || (1..span).all(|k| map[row] >= k && map[row - k] == map[row] - k);
+                assert_eq!(free[row], observed, "row {row}, span {span}");
+                joins += usize::from(!free[row]);
+            }
+            assert!(joins > 0, "the construction must contain joins to be a test");
+            // The mask carries it: the rows an attribution fits are the join-free ones.
+            let storage = TimeSeriesData::from_f64_columns(
+                [("x", vec![0.0; n].as_slice()), ("y", vec![0.0; n].as_slice())],
+                1,
+            )
+            .unwrap();
+            let mask = join_free_mask(storage.storage(), &map, span).unwrap();
+            for row in 0..n {
+                assert_eq!(mask.is_valid(row), free[row]);
+            }
+        }
+    }
+
     #[test]
     fn multi_environment_refutation_quadrant_preserves_the_retained_structure_kind() {
         let data = DataClassification::MultiEnvironment;
@@ -1167,6 +1206,39 @@ fn block_weights(
         weights[i] += 1.0;
     }
     Ok(weights.into())
+}
+
+/// Whether each design row of a gathered series (`map[row]` is the source position of `row`)
+/// reads a lag window that was observed together: a row whose lag window crosses a join of the
+/// map pairs values observed apart, an artificial lag relationship. The first `span - 1` rows
+/// have no complete window in the replicate or in the original series (whose lag-aligned table
+/// repeats the first observation there, one such row per fit), so they are kept: the replicate
+/// then fits the same number of padded rows the original does, which keeps the target of the
+/// replicates the target of the original.
+fn join_free_rows(map: &[usize], span: usize) -> Vec<bool> {
+    (0..map.len())
+        .map(|row| row + 1 < span || (1..span).all(|k| map[row - k] + k == map[row]))
+        .collect()
+}
+
+/// The analysis mask of a gathered series for a route that fits row-wise lag-aligned tables
+/// (an attribution): the gathered original mask with every row whose lag window crosses a join
+/// hidden, because such a route reads no row weights and would otherwise fit and score the
+/// artificial lag pairs of the join.
+fn join_free_mask(
+    storage: &antecedent_data::OwnedColumnarStorage,
+    map: &[usize],
+    span: usize,
+) -> Result<ValidityBitmap, TargetRefitError> {
+    let free = join_free_rows(map, span);
+    let keep: Vec<bool> = free
+        .iter()
+        .zip(map)
+        .map(|(&free, &source)| {
+            free && storage.analysis_mask().is_none_or(|mask| mask.is_valid(source))
+        })
+        .collect();
+    mask_from(&keep)
 }
 
 fn series_with(
@@ -2252,11 +2324,15 @@ impl PreparedRefit<'_> {
                     .map_err(data_failed)?,
             ));
         }
-        let mask = storage
-            .analysis_mask()
-            .map(|mask| mask.gather_rows(map))
-            .transpose()
-            .map_err(data_failed)?;
+        let mask = if self.target.family() == TargetFamily::Attribution {
+            Some(join_free_mask(storage, map, span)?)
+        } else {
+            storage
+                .analysis_mask()
+                .map(|mask| mask.gather_rows(map))
+                .transpose()
+                .map_err(data_failed)?
+        };
         let weights: Arc<[f64]> = (0..n)
             .map(|row| {
                 let aligned = row + 1 >= span && (1..span).all(|k| map[row - k] + k == map[row]);
@@ -2278,8 +2354,10 @@ impl PreparedRefit<'_> {
     /// The bootstrap of a series drawn as a gathered circular-block series, with a zero row
     /// weight on every design row whose lag window crosses a block join (such a row pairs values
     /// observed apart and would attenuate a lagged effect). A route that reads row weights
-    /// recovers the replicate the multiplicities define; a route that reads none keeps the
-    /// attenuation, of order `(span - 1) / block length`.
+    /// recovers the replicate the multiplicities define. An attribution reads none, so those
+    /// rows are hidden by the analysis mask, which it applies by deleting them before fitting
+    /// and scoring; any other route that reads neither keeps the attenuation, of order
+    /// `(span - 1) / block length`.
     fn gathered_bootstrap(
         &self,
         series: &TimeSeriesData,
@@ -2309,11 +2387,15 @@ impl PreparedRefit<'_> {
                     .map_err(data_failed)?,
             ));
         }
-        let mask = storage
-            .analysis_mask()
-            .map(|mask| mask.gather_rows(&map))
-            .transpose()
-            .map_err(data_failed)?;
+        let mask = if self.target.family() == TargetFamily::Attribution {
+            Some(join_free_mask(storage, &map, span)?)
+        } else {
+            storage
+                .analysis_mask()
+                .map(|mask| mask.gather_rows(&map))
+                .transpose()
+                .map_err(data_failed)?
+        };
         // A design row whose lag window crosses a block join pairs values observed apart, which
         // attenuates a lagged effect by about the share of such rows. Their weight is zero, so
         // a route that reads row weights recovers the replicate the multiplicities define; a
