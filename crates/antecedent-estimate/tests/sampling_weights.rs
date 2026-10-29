@@ -965,7 +965,7 @@ fn population_linear_weighting_interval_matches_independent_dense_noise_projecto
 
 /// The documented stratification rule: cut at the sample quantiles of the propensity, assign
 /// by `score <= cut`; pool within-stratum weighted contrasts by weighted stratum mass.
-fn stratification_oracle(study: &Study, k: usize) -> (f64, f64) {
+fn stratification_oracle(study: &Study, k: usize) -> (f64, f64, Vec<f64>) {
     let mass = normalized(&study.w);
     let beta = weighted_logit(&study.z, &study.t, &mass);
     let n = study.len();
@@ -1028,12 +1028,14 @@ fn stratification_oracle(study: &Study, k: usize) -> (f64, f64) {
     let epsilon = 1e-5;
     let mut full_variance = 0.0;
     let mut conditional_variance = 0.0;
+    let mut scores = Vec::with_capacity(n);
     for i in 0..n {
         let (mut plus, mut minus) = (mass.clone(), mass.clone());
         plus[i] *= 1.0 + epsilon;
         minus[i] *= 1.0 - epsilon;
         let derivative = (point(&plus) - point(&minus)) / (2.0 * epsilon);
         full_variance += derivative.powi(2);
+        scores.push(derivative);
         let s = stratum[i];
         let arm = study.t[i];
         let arm_rows: Vec<usize> =
@@ -1047,13 +1049,13 @@ fn stratification_oracle(study: &Study, k: usize) -> (f64, f64) {
         conditional_variance += residual.powi(2);
     }
     variance += (full_variance - conditional_variance) * n as f64 / (n - 1) as f64;
-    (effect, variance.sqrt())
+    (effect, variance.sqrt(), scores)
 }
 
 #[test]
 fn stratification_pools_weighted_strata_and_matches_the_oracle() {
     let study = small_study(400, 13);
-    let (effect, se) = stratification_oracle(&study, 5);
+    let (effect, se, _) = stratification_oracle(&study, 5);
     let fit = stratification(&study, 5, true);
     close(fit.ate, effect, 1e-7, "weighted stratified effect");
     close(fit.se_analytic(), se, 1e-7, "linearized stratum variance");
@@ -1077,7 +1079,14 @@ fn stratification_cluster_se_sums_the_stratified_influence_within_clusters() {
     assert_eq!(fit.uncertainty.analytic.kind, Some(AnalyticSeKind::Cluster));
     let iid = stratification(&study, 5, true);
     close(fit.ate, iid.ate, 1e-12, "clusters do not move the point");
-    assert!(fit.se_analytic().is_finite() && fit.se_analytic() > 0.0);
+    let (_, _, scores) = stratification_oracle(&study, 5);
+    let mut totals = std::collections::BTreeMap::<u32, f64>::new();
+    for (score, group) in scores.iter().zip(&groups) {
+        *totals.entry(*group).or_default() += score;
+    }
+    let g = totals.len() as f64;
+    let expected = (g / (g - 1.0) * totals.values().map(|v| v * v).sum::<f64>()).sqrt();
+    close(fit.se_analytic(), expected, 1e-6, "cluster sandwich of the stratified case-mass scores");
     assert!((fit.se_analytic() - iid.se_analytic()).abs() > 1e-9);
 }
 
@@ -1476,6 +1485,14 @@ fn the_negative_binomial_glm_reads_weights_through_a_weighted_dispersion() {
     };
     let weighted = glm(&counts, GlmFamily::NegativeBinomial, true, |e| e);
     assert!(weighted.ate.is_finite() && weighted.se_analytic() > 0.0);
+    let replicated_fit = glm(&replicated(&counts), GlmFamily::NegativeBinomial, false, |e| e);
+    let unweighted_fit = glm(&counts, GlmFamily::NegativeBinomial, false, |e| e);
+    assert!(
+        (weighted.ate - unweighted_fit.ate).abs() > 0.05,
+        "the weights must move the negative-binomial point"
+    );
+    // The weighted fit is the replicated-rows fit (integer weights), up to the dispersion update.
+    close(weighted.ate, replicated_fit.ate, 2e-3, "weighted negative-binomial point");
     let unit = Study { w: vec![1.0; counts.len()], ..counts.clone() };
     let (a, b) = (
         glm(&unit, GlmFamily::NegativeBinomial, true, |e| e),
@@ -1749,8 +1766,12 @@ fn the_stratification_bootstrap_resamples_whole_clusters() {
         .fit(&prepared, &mut PropensityEstimationWorkspace::default(), &ctx(), AssumptionSet::new())
         .unwrap();
     let bootstrap = fit.se_bootstrap().expect("bootstrap SE");
-    assert!(bootstrap.is_finite() && bootstrap > 0.0);
+    let analytic = fit.se_analytic();
     assert!(fit.uncertainty.bootstrap.replicates_ok.unwrap() >= 100);
+    assert!(
+        bootstrap > 0.8 * analytic && bootstrap < 1.25 * analytic,
+        "bootstrap {bootstrap} vs cluster sandwich {analytic}"
+    );
 }
 
 #[test]
@@ -1780,7 +1801,8 @@ fn a_clustered_causal_forest_subsamples_whole_clusters_and_reports_a_cluster_se(
 
     // Labels without a declared unit (or the reverse) are not a declaration.
     let half = CausalForest::new().with_source_cluster_ids(labels);
-    assert!(half.prepare(&data, &estimand, &query()).is_err());
+    let error = half.prepare(&data, &estimand, &query()).unwrap_err().to_string();
+    assert!(error.contains("need both the unit labels and the cluster declaration"), "{error}");
 }
 
 /// Public producer contracts on a complete factorial table with constant causal effect 2.
@@ -1877,7 +1899,7 @@ fn assert_explicit_population_interval_contract(method: usize) {
         let scaled = scaled.unwrap();
         assert!(point.is_finite() && lower.is_finite() && upper.is_finite(), "method {index}");
         assert!(lower < upper, "method {index}");
-        close(point, 2.0, 0.15, "known constant-effect factorial table");
+        close(point, 2.0, 1e-3, "known constant-effect factorial table");
         close(scaled.0, point, 1e-8, "weight-scale invariant point");
         close(scaled.1, lower, 1e-8, "weight-scale invariant lower endpoint");
         close(scaled.2, upper, 1e-8, "weight-scale invariant upper endpoint");

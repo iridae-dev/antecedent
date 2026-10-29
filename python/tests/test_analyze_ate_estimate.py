@@ -2,8 +2,8 @@
 
 IPW ATE dual: shares structural confounded SCM (true ATE=2) and acceptance band
 with Rust `end_to_end_propensity_weighting_recovers_confounded_effect`
-(`crates/causal/src/lib.rs`). Cross-language floor: |ate − 2| < 0.4
-(Rust unit test uses a tighter 0.3 on its RNG stream).
+(`crates/causal/src/lib.rs`). The adjusted estimators land within 0.05 of 2 on these
+seeds; the band is 0.15, well below the 0.66 bias of the unadjusted contrast.
 """
 
 from __future__ import annotations
@@ -33,6 +33,8 @@ def test_analyze_default_pair_schema_and_fields():
     assert result.estimate.estimator_id in ("", "linear.adjustment.ate")
     assert result.estimate.overlap_ess is None
     assert result.validation.count >= 0
+    # The structural effect is 2; the unadjusted contrast is pulled well above it by z.
+    assert abs(result.ate - 2.0) < 0.15, result.ate
 
 
 def test_analyze_propensity_weighting_recovers_ate_and_overlap():
@@ -49,7 +51,7 @@ def test_analyze_propensity_weighting_recovers_ate_and_overlap():
             execution=antecedent.Execution(seed=1),
         )
     )
-    assert abs(result.ate - 2.0) < 0.4, result.ate
+    assert abs(result.ate - 2.0) < 0.15, result.ate
     assert result.estimate.estimator_id == "propensity.weighting"
     assert result.estimate.overlap_ess is not None
     assert result.estimate.overlap_propensity_min is not None
@@ -65,7 +67,7 @@ def test_analyze_propensity_weighting_recovers_ate_and_overlap():
         "distance.matching",
     ],
 )
-def test_analyze_estimate_estimators_smoke(estimator):
+def test_analyze_estimate_estimators_recover_the_confounded_effect(estimator):
     data, edges = confounded_scm(n=1000, seed=9)
     result = require_success(
         antecedent.analyze(
@@ -78,7 +80,7 @@ def test_analyze_estimate_estimators_smoke(estimator):
             refute=False,
         )
     )
-    assert np.isfinite(result.ate)
+    assert abs(result.ate - 2.0) < 0.15, (estimator, result.ate)
 
 
 def test_bayesian_robust_ate_recovers_the_confounded_effect_of_a_binary_treatment():
@@ -96,10 +98,10 @@ def test_bayesian_robust_ate_recovers_the_confounded_effect_of_a_binary_treatmen
     )
     assert result.estimate.estimator_id == "bayesian.robust_ate"
     assert result.posterior is not None and result.posterior.n_draws == 200
-    assert abs(result.posterior.effect_mean - 2.0) < 0.5, result.posterior.effect_mean
+    assert abs(result.posterior.effect_mean - 2.0) < 0.15, result.posterior.effect_mean
 
 
-def test_analyze_iv_2sls_smoke():
+def test_analyze_iv_2sls_recovers_the_structural_effect():
     rng = random.Random(2)
     n = 800
     z = np.array([rng.gauss(0, 1) for _ in range(n)], dtype=np.float64)
@@ -118,7 +120,8 @@ def test_analyze_iv_2sls_smoke():
             refute=False,
         )
     )
-    assert np.isfinite(result.ate)
+    # Structural effect 1.5; the confounder u biases the naive contrast, 2SLS removes it.
+    assert abs(result.ate - 1.5) < 0.15, result.ate
 
 
 def _frontdoor_interaction_table() -> dict[str, np.ndarray]:

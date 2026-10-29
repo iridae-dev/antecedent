@@ -469,7 +469,8 @@ def test_observation_channels_pass_through_the_measurement_model_checks():
     error = pytest.raises(
         se.SequentialEvaluationRefusal, se.evaluate, with_channel(differential), inspect_only
     ).value
-    assert error.reason_code in {"differential_error_not_pooled", "measurement_model_invalid"}
+    assert error.reason_code == "differential_error_not_pooled"
+    assert error.detail == "measurement_model.structure_parameters"
 
 
 def test_malformed_declarations_raise_before_any_native_call():
@@ -857,10 +858,12 @@ def test_a_resealed_other_evaluation_corruption_and_wrong_kinds_are_refused():
     # damaged and truncated bytes, and bytes that are not an artifact
     damaged = bytearray(data)
     damaged[len(damaged) // 2] ^= 0x55
-    with pytest.raises(se.SequentialEvaluationRefusal):
-        require_success(se.consume_artifact(bytes(damaged)))
-    with pytest.raises(se.SequentialEvaluationRefusal):
-        require_success(se.consume_artifact(data[:30]))
+    for broken in (bytes(damaged), data[:30]):
+        refused(
+            lambda broken=broken: require_success(se.consume_artifact(broken)),
+            "invalid_argument",
+            "sequential_evaluation.malformed",
+        )
     with pytest.raises(CausalTypeError):
         require_success(se.consume_artifact("not bytes"))  # type: ignore[arg-type]
     # logged trajectories need the logging policy that generated them

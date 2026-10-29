@@ -299,7 +299,11 @@ mod envelope_refuter_target_tests {
             .unwrap()
             .run(&ExecutionContext::for_tests(2))
             .unwrap();
-        assert!(result.estimate.as_effect().unwrap().se_analytic().is_finite());
+        let effect = result.estimate.as_effect().unwrap();
+        assert!(effect.se_analytic().is_finite());
+        // The only atom is T -> Y with no adjustment; the table's unadjusted contrast is exactly
+        // 2 + 2 * (3/4 - 1/4) = 3 (the paired residuals cancel in every cell).
+        assert!((effect.ate - 3.0).abs() < 1e-9, "{}", effect.ate);
         assert!(result.diagnostics.iter().all(|d| {
             d.code.as_ref() != "estimate.envelope.se_omits_between_atom_variance"
                 && d.code.as_ref() != "estimate.graph_posterior.joint_if_se"

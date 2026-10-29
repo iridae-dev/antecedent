@@ -492,7 +492,9 @@ fn categorical_inversion_recovers_proportions_and_outcome_means() {
         .unwrap();
     assert_eq!(record.parameter_uncertainty, ParameterUncertainty::Propagated);
     assert_eq!(record.model_identity, m.identities().model);
-    assert!(out.functional(&CategoricalFunctional::Proportion("absent")).is_err());
+    let unknown = out.functional(&CategoricalFunctional::Proportion("absent")).unwrap_err();
+    assert_eq!(unknown.code, "invalid_argument");
+    assert_eq!(unknown.detail, "measurement_model.unknown_level");
 
     // A confusion matrix worse conditioned than declared refuses.
     let singular = model(
@@ -864,11 +866,13 @@ fn artifact_replays_independently_and_refuses_semantic_mutation() {
         let err = MeasurementModelArtifact::from_bytes(&forged, &identity).unwrap_err();
         assert_eq!(err.reason_code(), Some("measurement_binding_mismatch"));
         // And the original result cannot be attached to the mutated model.
-        assert!(MeasurementModelArtifact::new(&mutated, Some(&result)).is_err());
+        let attached = MeasurementModelArtifact::new(&mutated, Some(&result)).unwrap_err();
+        assert_eq!(attached.reason_code(), Some("measurement_binding_mismatch"));
     }
     // Bytes damaged in transit are refused by the container checksums.
     let mut damaged = bytes.clone();
     let at = damaged.len() / 2;
     damaged[at] ^= 0x55;
-    assert!(MeasurementModelArtifact::from_bytes(&damaged, &identity).is_err());
+    let damaged_error = MeasurementModelArtifact::from_bytes(&damaged, &identity).unwrap_err();
+    assert!(damaged_error.to_string().contains("checksum mismatch"), "{damaged_error}");
 }

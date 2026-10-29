@@ -30,4 +30,4 @@ sha256 = "ccdf3ac5379f5bead1ec195e5749160f8bfdb8c2d08fb01b0a9813eb088d0b92"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/src/analysis/execute/tests.rs"
-sha256 = "45c599d72e7105b230b899e0fc90d15c2621e2340e643fa605005b679abf8366"
+sha256 = "75675be5c8fd3cedae2888912825aa40f1f98a4c189238e300dfc5fcac2f57e9"

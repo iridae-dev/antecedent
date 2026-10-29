@@ -236,6 +236,16 @@ fn posterior_predictive_replicates_are_the_replicates_the_check_summarizes() {
         count += draws.len();
     }
     assert!((total / count as f64 - report.predictive_mean).abs() < 1e-9);
+    // The toy outcome is exactly linear in the design, so the predictive mean is the data mean.
+    let data_mean = (0..60)
+        .map(|i| 1.0 + 2.0 * f64::from(i % 2) + 0.3 * (f64::from(i) * 0.05))
+        .sum::<f64>()
+        / 60.0;
+    assert!(
+        (report.predictive_mean - data_mean).abs() < 0.01,
+        "{} vs {data_mean}",
+        report.predictive_mean
+    );
 }
 
 #[test]
@@ -288,6 +298,13 @@ fn prior_sensitivity_grid() {
     let (summary, posts) = sens
         .evaluate(&bayes, &prep, IdentificationStatus::NonparametricallyIdentified, &mut ws, &ctx)
         .unwrap();
+    // The toy data have an exact effect of 2. A unit-scale prior shrinks the posterior mean a
+    // little toward zero; the diffuse priors recover the exact effect.
+    let means = &summary.effect_means;
+    assert!((1.80..1.95).contains(&means[0]), "scale 1 mean {}", means[0]);
+    assert!((means[1] - 2.0).abs() < 0.01, "scale 10 mean {}", means[1]);
+    assert!((means[2] - 2.0).abs() < 0.01, "scale 50 mean {}", means[2]);
+    assert!((means[2] - 2.0).abs() < (means[1] - 2.0).abs() + 1e-3);
     assert_eq!(summary.prior_scales.len(), 3);
     assert!(summary.alphas.is_empty());
     assert_eq!(posts.len(), 3);
@@ -346,6 +363,15 @@ fn prior_sensitivity_external_alpha_pulls_toward_source() {
     assert_eq!(summary.alphas.len(), 5);
     assert!(summary.prior_scales.is_empty());
     assert!(summary.effect_means.iter().all(|m| m.is_finite()));
+    // Weight 0 is the weakly informative baseline, which recovers the data effect of 2; the
+    // posterior mean then rises monotonically toward the source's 8 as the weight grows.
+    assert!((summary.effect_means[0] - 2.0).abs() < 0.02, "{:?}", summary.effect_means);
+    assert!(
+        summary.effect_means.windows(2).all(|pair| pair[1] > pair[0] + 0.3),
+        "{:?}",
+        summary.effect_means
+    );
+    assert!(summary.effect_means.last().is_some_and(|m| (5.0..8.0).contains(m)));
     let m0 = summary.effect_means[0];
     let m1 = *summary.effect_means.last().unwrap();
     // Full trust (m=1) should sit closer to the banked treatment mean than baseline (m=0).
@@ -532,7 +558,17 @@ fn sbc_hmc_rank_uses_one_draw_per_independent_chain() {
     ];
     assert_eq!(sbc_rank_draws(&states, &diagnostics).unwrap(), [1.0, 11.0, 21.0, 31.0]);
     diagnostics.n_chains = None;
-    assert!(sbc_rank_draws(&states, &diagnostics).is_err());
+    // Without a chain count the draws must be independent: bulk ESS 5 < 16 draws is refused.
+    assert!(matches!(
+        sbc_rank_draws(&states, &diagnostics),
+        Err(ValidationError::NotApplicable { message }) if message.contains("bulk ESS")
+    ));
+    // Three chains is not the four-chain scheme the rank theorem is applied to.
+    diagnostics.n_chains = Some(3);
+    assert!(matches!(
+        sbc_rank_draws(&states, &diagnostics),
+        Err(ValidationError::NotApplicable { message }) if message.contains("four independent chains")
+    ));
 }
 
 /// Calibration-gate tests for [`SimulationBasedCalibration`]. The slow gate is
@@ -1267,17 +1303,13 @@ mod predictive_null_calibration {
             .unwrap();
         assert_eq!(summary.family, PriorSensitivityFamily::ResolvedPriorVariance);
         // ...and the isotropic grid refuses to replace it.
-        assert!(
-            PriorSensitivity::standard_grid()
-                .evaluate(
-                    &supplied,
-                    &prep,
-                    IdentificationStatus::NonparametricallyIdentified,
-                    &mut ws,
-                    &ctx,
-                )
-                .is_err()
-        );
+        let refused = PriorSensitivity::standard_grid()
+        .evaluate(&supplied, &prep, IdentificationStatus::NonparametricallyIdentified, &mut ws, &ctx)
+        .unwrap_err();
+    assert!(
+        matches!(&refused, ValidationError::Refused { message } if message.contains("supplied prior")),
+        "{refused:?}"
+    );
     }
 
     #[test]
@@ -1329,7 +1361,7 @@ mod predictive_null_calibration {
         {
             let variance = 0.01 * multiplier;
             let expected = 400.0 / (100.0 + 1.0 / variance);
-            assert!((observed - expected).abs() < 0.12, "{multiplier}: {observed} vs {expected}");
+            assert!((observed - expected).abs() < 0.03, "{multiplier}: {observed} vs {expected}");
         }
     }
 }

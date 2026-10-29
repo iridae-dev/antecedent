@@ -28,7 +28,8 @@ fn cancelled_bootstrap_retains_actual_failures() {
     assert!(!result.early_stopped);
     assert_eq!(result.replicates_ok, 2);
     assert_eq!(result.replicates_failed, 2);
-    assert!(result.se.is_some());
+    // The SE is the sample standard deviation (n - 1) of the two retained estimates 1 and 2.
+    assert!((result.se.unwrap() - 0.5_f64.sqrt()).abs() < 1e-12, "{:?}", result.se);
 }
 
 #[test]
@@ -61,7 +62,8 @@ fn bootstrap_nonfinite_estimates_are_failures() {
     .unwrap();
     assert_eq!(result.replicates_ok, 2);
     assert_eq!(result.replicates_failed, 2);
-    assert!(result.se.is_some());
+    // Only the finite estimates 1 and 2 enter the SE: sample sd = sqrt(1/2).
+    assert!((result.se.unwrap() - 0.5_f64.sqrt()).abs() < 1e-12, "{:?}", result.se);
 }
 
 #[test]
@@ -95,7 +97,8 @@ fn finalize_refuses_se_when_too_few_or_too_many_failures() {
     assert_eq!(many_fail.replicates_failed, 8);
     assert!(many_fail.se.is_none(), "80% failure must refuse SE");
     let ok = finalize_bootstrap_se(&[1.0, 1.2, 0.9, 1.1], 4);
-    assert!(ok.se.is_some());
+    // mean 1.05, squared deviations sum to 0.05, sample variance 0.05 / 3.
+    assert!((ok.se.unwrap() - (0.05_f64 / 3.0).sqrt()).abs() < 1e-12, "{:?}", ok.se);
     assert_eq!(ok.replicates_failed, 0);
     assert!(!ok.early_stopped);
 }
@@ -106,7 +109,8 @@ fn finalize_early_stop_does_not_count_unattempted_as_failures() {
     assert_eq!(r.replicates_ok, 4);
     assert_eq!(r.replicates_failed, 0);
     assert!(r.early_stopped);
-    assert!(r.se.is_some());
+    // mean 1.0125, squared deviations sum to 0.021875, sample variance 0.021875 / 3.
+    assert!((r.se.unwrap() - (0.021_875_f64 / 3.0).sqrt()).abs() < 1e-12, "{:?}", r.se);
 }
 
 #[test]
@@ -212,7 +216,14 @@ fn cluster_bootstrap_replicates_are_unions_of_whole_clusters_with_variable_lengt
     // Same seed, same draws.
     assert_eq!(run().se, first.se);
     // One cluster is not resamplable.
-    assert!(ClusterRows::new(&[7, 7, 7]).is_err());
+    assert!(matches!(
+        ClusterRows::new(&[7, 7, 7]),
+        Err(EstimationError::Stats(antecedent_stats::StatsError::FewClusters {
+            clusters: 1,
+            minimum: 2,
+            ..
+        }))
+    ));
 }
 
 #[test]
@@ -230,7 +241,8 @@ fn cluster_replicate_ceiling_covers_the_sample_and_is_enforced_when_skewed() {
         ctx: &ctx,
         stream_base: 7,
     };
-    assert!(tight.fill(0, &mut Vec::new(), &mut Vec::new()).is_err());
+    let refused = tight.fill(0, &mut Vec::new(), &mut Vec::new()).unwrap_err();
+    assert!(refused.to_string().contains("exceeds the admitted index buffer"), "{refused}");
     let admitted =
         ReplicateRows::Clusters { members: clusters.members(), ceiling, ctx: &ctx, stream_base: 7 };
     let mut out = Vec::new();
