@@ -316,6 +316,52 @@ fn visible_mediation_static_pag() -> Pag {
     g
 }
 
+fn is_attribution(cell: antecedent::SupportCell) -> bool {
+    matches!(cell.query.as_str(), "AnomalyAttribution" | "ChangeAttribution")
+}
+
+/// `0 o-> 1` among `n` variables: one MAG completion makes the target a root, which identifies
+/// its attribution, and the other is the invisible directed edge whose mechanism a hedge leaves
+/// unidentified, so the class attribution is partly identified.
+fn attribution_pag(n: u32) -> Pag {
+    let mut g = Pag::with_variables(n);
+    g.insert_circle_arrow(nid(0), nid(1)).unwrap();
+    g
+}
+
+/// `x(t-1) o-> y(t)`: the same two completions on a one-lag template.
+fn attribution_temporal_pag() -> TemporalPag {
+    let mut g = TemporalPag::empty();
+    let cause = g.add_lagged(vid(0), Lag::from_raw(1)).unwrap();
+    let effect = g.add_lagged(vid(1), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_circle_arrow(cause, effect).unwrap();
+    g
+}
+
+/// A lag-template posterior whose single atom is `x o-> y` with the lagged edge `x(t-1) -> y(t)`.
+fn attribution_temporal_pag_gp(n_vars: usize) -> GraphPosterior {
+    let adjacency = set_edge(0, n_vars, 0, 1, true);
+    GraphPosterior::from_atoms(
+        n_vars,
+        vec![1.0],
+        vec![adjacency.clone()],
+        vec![0.0; n_vars * n_vars],
+        vec![0.0; n_vars * n_vars],
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("licensed-compiler-attribution-pag-gp"),
+            rejected_invalid: 0,
+        },
+    )
+    .unwrap()
+    .with_mark_atoms(vec![adjacency])
+    .unwrap()
+    .with_lagged_marginals(1, vec![0.0; n_vars * n_vars])
+    .unwrap()
+    .with_lag_masks(vec![1_u64 << 1])
+    .unwrap()
+}
+
 fn pag_envelope_pin() -> serde_json::Value {
     serde_json::from_str(include_str!(
         "../../../conformance/estimate/pag_ate_envelope_identified/expected.json"
@@ -369,6 +415,7 @@ fn uses_pag_envelope(cell: antecedent::SupportCell) -> bool {
 fn uses_identified_temporal_pag(cell: antecedent::SupportCell) -> bool {
     cell.graph_class.as_str() == "TemporalPag"
         && cell.structure.as_str() != "graph_posterior"
+        && !is_attribution(cell)
         && !matches!(
             cell.query.as_str(),
             "TemporalConditionalPulse"
@@ -962,11 +1009,229 @@ struct CellSetup {
     data: CellData,
 }
 
+
+/// The counterfactual and nested-effect cells on mixed, class and graph-posterior structures read
+/// the enumerated count tables of their conformance fixtures: a table with few levels, and a
+/// graph that describes exactly its columns.
+fn cross_world_setup(cell: antecedent::SupportCell) -> Option<Result<CellSetup, String>> {
+    let class = cell.graph_class.as_str();
+    let counterfactual = cell.query.as_str() == "Counterfactual"
+        && matches!(class, "Admg" | "TemporalAdmg" | "Pag")
+        && cell.structure.as_str() != "graph_posterior";
+    let nested = cell.query.as_str() == "NestedCounterfactualEffect"
+        && (matches!(class, "Admg" | "TemporalAdmg" | "Pag" | "Cpdag")
+            || (cell.structure.as_str() == "graph_posterior" && class == "Dag"));
+    if !(counterfactual || nested) {
+        return None;
+    }
+    let pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/estimate/cross_world_class_truth/expected.json"
+    ))
+    .expect("class fixture");
+    let table = |name: &str| {
+        let spec = &pin["tables"][name];
+        let names: Vec<String> = spec["columns"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| c.as_str().unwrap().to_owned())
+            .collect();
+        let mut data: Vec<Vec<f64>> = vec![Vec::new(); names.len()];
+        for cell in spec["counts"].as_array().unwrap() {
+            let levels: Vec<f64> =
+                cell["levels"].as_array().unwrap().iter().map(|l| l.as_f64().unwrap()).collect();
+            for _ in 0..cell["count"].as_u64().unwrap() {
+                for (column, level) in data.iter_mut().zip(&levels) {
+                    column.push(*level);
+                }
+            }
+        }
+        TabularData::from_f64_columns(
+            names.iter().zip(&data).map(|(n, c)| (n.as_str(), c.as_slice())),
+        )
+        .unwrap()
+    };
+    let expected = cell_coordinate(cell);
+    let inference = inference_of(cell.inference.as_str());
+    let refute = refute_of(cell.validation.as_str());
+    let accepted = cell.structure.as_str() == "accepted";
+    let admg = |directed: &[(u32, u32)], bidirected: &[(u32, u32)]| {
+        let mut g = Admg::with_variables(3);
+        for &(a, b) in directed {
+            g.insert_directed(nid(a), nid(b)).unwrap();
+        }
+        for &(a, b) in bidirected {
+            g.insert_bidirected(nid(a), nid(b)).unwrap();
+        }
+        g
+    };
+    let counterfactual_query = |treatment: u32, outcome: u32| {
+        CausalQuery::Counterfactual(CounterfactualQuery::new(
+            vid(outcome),
+            [Intervention::set(vid(treatment), Value::f64(1.0))],
+        ))
+    };
+    let nested_query = |t: u32, m: u32, y: u32| {
+        CausalQuery::NestedCounterfactual(NestedCounterfactualQuery::new(vid(t), vid(m), vid(y)).unwrap())
+    };
+    let static_pag = |n: u32, directed: &[(u32, u32)]| {
+        let mut g = Pag::with_variables(n);
+        for &(a, b) in directed {
+            g.insert_directed(nid(a), nid(b)).unwrap();
+        }
+        g
+    };
+    let (data, query) = match (cell.query.as_str(), class, cell.structure.as_str()) {
+        ("Counterfactual", "Pag", _) => (table("side_path_chain"), counterfactual_query(1, 3)),
+        ("Counterfactual", _, _) => (table("front_door"), counterfactual_query(0, 2)),
+        ("NestedCounterfactualEffect", "Pag", _) => {
+            (table("mediated_two_parents"), nested_query(2, 3, 4))
+        }
+        ("NestedCounterfactualEffect", "Cpdag", "graph_posterior") => {
+            (table("front_door"), nested_query(0, 1, 2))
+        }
+        ("NestedCounterfactualEffect", "Cpdag", _) => (table("two_mediators"), nested_query(0, 1, 3)),
+        _ => (table("front_door"), nested_query(0, 1, 2)),
+    };
+    let builder = Study::tabular(data.clone())
+        .query(query)
+        .refute(refute)
+        .inference(inference)
+        .bootstrap_replicates(0);
+    let a = [(0, 1), (0, 2), (1, 2)];
+    let b = [(0, 2), (1, 2)];
+    let builder = if cell.structure.as_str() == "graph_posterior" {
+        let kind = match class {
+            "Dag" => GraphPosteriorAtomKind::Dag,
+            "Admg" => GraphPosteriorAtomKind::Admg,
+            "TemporalAdmg" => GraphPosteriorAtomKind::TemporalAdmg,
+            "Cpdag" => GraphPosteriorAtomKind::Cpdag,
+            _ => GraphPosteriorAtomKind::Pag,
+        };
+        let edge_mask = |n: usize, edges: &[(usize, usize)]| {
+            edges.iter().fold(0_u64, |m, &(x, z)| antecedent_discovery::set_edge(m, n, x, z, true))
+        };
+        let (n, weights, masks): (usize, Vec<f64>, Vec<u64>) = match class {
+            "Pag" => (
+                5,
+                vec![0.8, 0.2],
+                vec![
+                    edge_mask(5, &[(0, 2), (1, 3), (2, 3), (2, 4), (3, 4)]),
+                    edge_mask(5, &[(2, 0), (1, 3), (2, 3), (2, 4), (3, 4)]),
+                ],
+            ),
+            "Admg" | "TemporalAdmg" => (
+                3,
+                vec![0.5, 0.3, 0.2],
+                vec![
+                    antecedent_discovery::adjacency_mask_from_admg(&admg(&a, &[])).unwrap(),
+                    antecedent_discovery::adjacency_mask_from_admg(&admg(&b, &[])).unwrap(),
+                    edge_mask(3, &[(0, 1), (1, 2), (2, 0)]),
+                ],
+            ),
+            "Cpdag" => {
+                let mut da = Dag::with_variables(3);
+                for (x, z) in a {
+                    da.insert_directed(nid(x), nid(z)).unwrap();
+                }
+                let mut db = Dag::with_variables(3);
+                for (x, z) in b {
+                    db.insert_directed(nid(x), nid(z)).unwrap();
+                }
+                (
+                    3,
+                    vec![0.5, 0.3, 0.2],
+                    vec![
+                        antecedent_discovery::adjacency_mask_from_cpdag(&Cpdag::from_dag(&da)).unwrap(),
+                        antecedent_discovery::adjacency_mask_from_cpdag(&Cpdag::from_dag(&db)).unwrap(),
+                        edge_mask(3, &[(0, 1), (1, 2), (2, 0)]),
+                    ],
+                )
+            }
+            _ => (
+                3,
+                vec![0.5, 0.3, 0.2],
+                vec![
+                    edge_mask(3, &a.map(|(x, z)| (x as usize, z as usize))),
+                    edge_mask(3, &b.map(|(x, z)| (x as usize, z as usize))),
+                    edge_mask(3, &[(0, 1), (1, 2), (2, 0)]),
+                ],
+            ),
+        };
+        let gp = GraphPosterior::new(
+            n,
+            weights,
+            masks,
+            vec![0.0; n * n],
+            vec![0.0; n * n],
+            SamplingSummary {
+                ess: 1.0,
+                diagnostics: InferenceDiagnostics::analytic("cross_world_compiler"),
+                rejected_invalid: 0,
+            },
+        )
+        .unwrap()
+        .with_atom_kind(kind);
+        let gp = if class == "Pag" { gp.with_mark_masks(vec![0, 0]).unwrap() } else { gp };
+        builder.graph_posterior(gp)
+    } else {
+        match (class, cell.query.as_str()) {
+            ("Admg", "Counterfactual") => bind_graph(builder, admg(&[(0, 1), (1, 2)], &[(0, 2)]), accepted),
+            ("Admg", _) => bind_graph(builder, admg(&a, &[]), accepted),
+            ("TemporalAdmg", "Counterfactual") => bind_graph(
+                builder,
+                TemporalAdmg::from_static_contemporaneous(&admg(&[(0, 1), (1, 2)], &[(0, 2)])).unwrap(),
+                accepted,
+            ),
+            ("TemporalAdmg", _) => bind_graph(
+                builder,
+                TemporalAdmg::from_static_contemporaneous(&admg(&a, &[])).unwrap(),
+                accepted,
+            ),
+            ("Pag", "Counterfactual") => bind_graph(
+                builder,
+                static_pag(4, &[(0, 1), (0, 2), (2, 3), (1, 3)]),
+                accepted,
+            ),
+            ("Pag", _) => bind_graph(
+                builder,
+                static_pag(5, &[(0, 2), (1, 3), (2, 3), (2, 4), (3, 4)]),
+                accepted,
+            ),
+            ("Cpdag", _) => {
+                let mut g = Cpdag::with_variables(4);
+                for (x, z) in [(0, 1), (0, 2), (1, 3), (2, 3)] {
+                    g.insert_directed(nid(x), nid(z)).unwrap();
+                }
+                bind_graph(builder, g, accepted)
+            }
+            _ => bind_graph(builder, {
+                let mut d = Dag::with_variables(3);
+                for (x, z) in a {
+                    d.insert_directed(nid(x), nid(z)).unwrap();
+                }
+                d
+            }, accepted),
+        }
+    };
+    Some(Ok(CellSetup { expected, builder, data: CellData::Tabular(data) }))
+}
+
+fn bind_graph<G>(builder: StudyBuilder, graph: G, accepted: bool) -> StudyBuilder
+where
+    G: antecedent::IntoGraphInput + Into<AcceptedGraph>,
+{
+    if accepted { builder.graph(graph.into()) } else { builder.graph(graph) }
+}
+
 #[allow(
     clippy::too_many_lines,
     reason = "one arm per support-matrix cell maps the cell to its builder setup"
 )]
 fn cell_setup(cell: antecedent::SupportCell) -> Result<CellSetup, String> {
+    if let Some(setup) = cross_world_setup(cell) {
+        return setup;
+    }
     let expected = cell_coordinate(cell);
     let query = query_for(cell);
     let n = n_vars(cell);
@@ -1121,12 +1386,26 @@ fn cell_setup(cell: antecedent::SupportCell) -> Result<CellSetup, String> {
                     && matches!(cell.graph_class.as_str(), "TemporalCpdag" | "TemporalPag")
                 {
                     temporal_gp(n as usize)
+                } else if cell.graph_class.as_str() == "TemporalPag" && is_attribution(cell) {
+                    attribution_temporal_pag_gp(n as usize)
                 } else if matches!(cell.graph_class.as_str(), "TemporalCpdag" | "TemporalPag") {
                     if point_family_query(cell) {
                         point_family_gp(n as usize, cell.graph_class.as_str() == "TemporalPag")
                     } else {
                         temporal_class_gp(n as usize)
                     }
+                } else if cell.graph_class.as_str() == "TemporalDag"
+                    && matches!(
+                        cell.query.as_str(),
+                        "AverageDerivative"
+                            | "PointDerivative"
+                            | "Elasticity"
+                            | "SemiElasticity"
+                            | "DirectionalDerivative"
+                            | "ResponseJacobian"
+                    )
+                {
+                    point_family_gp(n as usize, false)
                 } else {
                     temporal_gp(n as usize)
                 }
@@ -1215,6 +1494,8 @@ fn cell_setup(cell: antecedent::SupportCell) -> Result<CellSetup, String> {
                         )
                     {
                         derivative_pag()
+                    } else if is_attribution(cell) && cell.structure.as_str() != "graph_posterior" {
+                        attribution_pag(n)
                     } else {
                         pag_from_dag(&dag_for(cell, n))
                     };
@@ -1229,7 +1510,9 @@ fn cell_setup(cell: antecedent::SupportCell) -> Result<CellSetup, String> {
                     if accepted { builder.graph(AcceptedGraph::from(g)) } else { builder.graph(g) }
                 }
                 "TemporalPag" => {
-                    let g = if uses_identified_temporal_pag(cell) {
+                    let g = if is_attribution(cell) {
+                        attribution_temporal_pag()
+                    } else if uses_identified_temporal_pag(cell) {
                         identified_pag(&identified_pag_pin())
                     } else {
                         visible_mediation_pag()
@@ -1666,7 +1949,7 @@ fn every_licensed_cell_inspects_as_a_first_class_contract() {
             failures.push(err);
         }
     }
-    assert_eq!(n, 1948, "licensed inventory drifted");
+    assert_eq!(n, 2340, "licensed inventory drifted");
     assert!(
         failures.is_empty(),
         "{} licensed cells are not first-class on inspect:\n{}",
@@ -1739,7 +2022,7 @@ fn every_licensed_cell_completes_the_compiler_path() {
     if let Ok(scratch) = std::env::var("SCRATCH_ROUTES") {
         std::fs::write(scratch, render_routes(&routes)).unwrap();
     }
-    assert_eq!(n, 1948, "licensed inventory drifted");
+    assert_eq!(n, 2340, "licensed inventory drifted");
     assert!(
         failures.is_empty(),
         "{} licensed cells did not finish inspect→preview→execute→claim→consume:\n{}",
@@ -1872,7 +2155,7 @@ fn diagnostic_registry_closure_after_builder_and_study_drop() {
         not_inspectable.len(),
         not_inspectable.join("\n")
     );
-    assert_eq!(count, 1790, "licensed support inventory drifted");
+    assert_eq!(count, 2340, "licensed support inventory drifted");
 }
 
 /// Probe for the separately licensed alternate estimators. It keeps

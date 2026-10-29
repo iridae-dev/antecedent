@@ -634,6 +634,10 @@ name = "temporal_graph_posterior_derivative_known_truth"
 path = "tests/temporal_graph_posterior_derivative_known_truth.rs"
 
 [[test]]
+name = "class_graph_posterior_derivative_known_truth"
+path = "tests/class_graph_posterior_derivative_known_truth.rs"
+
+[[test]]
 name = "derivative_refuter_known_truth"
 path = "tests/derivative_refuter_known_truth.rs"
 
@@ -1215,5 +1219,5 @@ name = "class_attribution_known_truth"
 path = "tests/class_attribution_known_truth.rs"
 
 [[test]]
-name = "zz_probe_f"
-path = "tests/zz_probe_f.rs"
+name = "cross_world_temporal_truth"
+path = "tests/cross_world_temporal_truth.rs"

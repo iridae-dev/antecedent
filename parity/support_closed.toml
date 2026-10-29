@@ -87,20 +87,6 @@ executes_unlicensed = true
 reason = "Natural mediation on one series under a TemporalPag is identified on the finite window of its template, as a pulse contrast is: the treatment is the pulse period's coordinate, the outcome the horizon period's coordinate, and the mediators are the declared mediator variables at every period from the pulse to the outcome. Each stationary MAG completion of the template is unfolded over the window one template lag further back and marginalized onto it by the inducing-path rule, so a cause that precedes the window stays a bidirected edge between its in-window effects, and is then read through every ADMG that shares the marginal MAG, because a MAG fixes a latent projection only up to its m-separation model and a path-specific effect is not a function of that model. The path-specific identifier decides the total, natural direct and natural indirect effects on each candidate (the edge g-formula, or Shpitser's district formula with the recanting-district criterion); the requested contrast is reported only when every candidate of every completion identifies it, as one estimate when they yield the same functional and as the identified set over the distinct functionals otherwise, and a refused candidate refuses the effect. A component other than the requested one that the identifier refuses is reported absent. The decomposition is estimated by the discrete plug-in on the lag-aligned window table with circular blocks of consecutive windows (frequentist) or one Dirichlet weight per block (Bayesian), the components on the same resampled tables when each is identified by one functional, and the result discloses estimate.mediation.joint and estimate.temporal_pag.window. The series is read as stationary over the template, and history deeper than one further template lag is the initial state. One outcome horizon per study; discrete data only. Cheap and full run the mediation-native suite on the window table (sequential-ignorability sensitivity of the indirect effect, a mediator placebo that rotates the mediator columns by whole windows, and the joint stability of the three components on contiguous stretches of windows and, under full, 50% stretches and a joint block bootstrap range); when the completions identify different functionals the suite runs on every distinct member. The result keeps support status refused: no evidence row or coverage record names the cell."
 
 [[closed]]
-queries = [
-  "AverageDerivative",
-  "DirectionalDerivative",
-  "Elasticity",
-  "PointDerivative",
-  "ResponseJacobian",
-  "SemiElasticity",
-]
-graph_classes = ["Admg", "TemporalAdmg", "Cpdag", "Pag"]
-structures = ["graph_posterior"]
-executes_unlicensed = true
-reason = "A derivative, elasticity, Jacobian or counterfactual over a graph posterior is answered on every atom by the executor the query has on a supplied structure of the atom's kind (the continuous response estimator or the structural-mechanism counterfactual on a DAG, the derivative identifier or ID* plug-in of a latent-confounded graph on an ADMG, the completion envelope on a CPDAG or a PAG), and the atoms mix by posterior probability coordinate by coordinate: the value is the posterior-weighted mean over the atoms that identify and evaluate it, and an atom that publishes an identified set contributes its range to the mixture's identified set. An atom the identifier refuses is unidentified posterior mass and an atom whose estimator cannot be evaluated is unevaluable mass; neither is redistributed, the result states both and resolves its status to graph-dependent when either exceeds the tolerance. The uncertainty of a mixture: one contributing atom carries its own interval and posterior; several atoms that report row influence publish the interval of the weighted influence on one shared sample, and otherwise are re-run on shared resampled tables with the standard error the spread of the draw-wise posterior-weighted mixture (Frequentist), or their draws are pooled draw by draw because every atom runs in one context (Bayesian); an interval that cannot be formed is withheld with the reason stated (estimate.graph_posterior.uncertainty_withheld). Cheap and full run each atom's own refuter suite against that atom's own estimate and mix the reports of each refuter by the posterior weight of the atoms that produced them; a mixed verdict passes only if every contributing atom passes, and a refuter that ran on only part of the contributing mass says so (refute.envelope.partial_coverage). The result keeps support status refused; no evidence row or coverage record names the cell."
-
-[[closed]]
 queries = ["Counterfactual"]
 graph_classes = ["Dag", "Admg", "TemporalAdmg", "Cpdag", "Pag"]
 structures = ["graph_posterior"]
@@ -149,34 +135,6 @@ graph_classes = ["TemporalAdmg"]
 structures = ["graph_posterior"]
 executes_unlicensed = true
 reason = "A graph posterior over lagged TemporalAdmg atoms mixes the mediation decomposition of the rule above over the posterior: each atom (a stationary template with lagged directed and lagged latent-confounder edges) decomposes into the total, natural direct and natural indirect effects on the unrolled window of its own template by the path-specific identifier, each component is evaluated by the discrete plug-in on the lag-aligned window table of the atom's window length, and the atoms that identify a component are mixed by posterior weight for that component. An atom that leaves the requested contrast unidentified (a recanting district, a hedge) keeps its mass as unidentified mass and the mixture is graph-dependent; a component other than the requested one is mixed over the atoms that identify it and reported absent when none does. Uncertainty is that of the supplied-template window route (circular blocks of consecutive windows, or one Dirichlet weight per block), and the aggregate posterior of a mixture of several atoms is withheld. One outcome horizon per study; discrete data only. Cheap and full run the mediation-native suite on every atom that carries posterior weight (all three components of the atom refitted together on the window table of its own template) and mix the per-atom reports by posterior weight: the mixed check passes only when every contributing atom passed. The result keeps support status refused and discloses estimate.graph_posterior.temporal_admg_window."
-
-[[closed]]
-queries = [
-  "Counterfactual",
-  "InterventionalDistribution",
-  "NestedCounterfactualEffect",
-  "PathSpecificEffect",
-]
-graph_classes = ["TemporalDag"]
-structures = ["graph_posterior"]
-executes_unlicensed = true
-reason = "A temporal cross-world effect (counterfactual, interventional distribution, nested counterfactual or path-specific effect) on a graph posterior of TemporalDag atoms is answered on every atom by the temporal cross-world route of that template, and the atoms mix by posterior probability. An atom the identifier refuses is unidentified posterior mass and an atom whose estimator cannot be evaluated is unevaluable mass; neither is redistributed, the result states both and resolves its status to graph-dependent when either exceeds the tolerance. The uncertainty of a mixture: one contributing atom carries its own interval and posterior; several atoms that report row influence publish the interval of the weighted influence on one shared sample, and otherwise are re-run on shared resampled tables with the standard error the spread of the draw-wise posterior-weighted mixture (Frequentist), or their draws are pooled draw by draw because every atom runs in one context (Bayesian); an interval that cannot be formed is withheld with the reason stated (estimate.graph_posterior.uncertainty_withheld). Cheap and full run each atom's own refuter suite against that atom's own estimate and mix the reports of each refuter by the posterior weight of the atoms that produced them; a mixed verdict passes only if every contributing atom passes, and a refuter that ran on only part of the contributing mass says so (refute.envelope.partial_coverage). The result keeps support status refused; no evidence row or coverage record names the cell."
-
-[[closed]]
-queries = ["Counterfactual", "InterventionalDistribution", "NestedCounterfactualEffect", "PathSpecificEffect"]
-graph_classes = ["TemporalDag", "TemporalCpdag", "TemporalPag"]
-structures = ["explicit", "accepted"]
-validations = ["cheap", "full"]
-executes_unlicensed = true
-reason = "Cheap and full validation of a temporal cross-world effect run the functional refuter state and stay unlicensed. The effect executes as at validation none (in every completion of a class); its value is refuted on the series by the circular-shift placebo treatment (an interventional distribution: its vector of atom probabilities by subset and bootstrap stability), contiguous-window subset stability and, under full, the placebo outcome and circular-block bootstrap stability of the whole procedure. The result keeps support status refused: no evidence row or coverage record names the cell, and the verdicts are diagnostics, not a calibration claim."
-
-[[closed]]
-queries = ["Counterfactual", "InterventionalDistribution", "NestedCounterfactualEffect", "PathSpecificEffect"]
-graph_classes = ["TemporalCpdag", "TemporalPag"]
-structures = ["graph_posterior"]
-validations = ["cheap", "full"]
-executes_unlicensed = true
-reason = "Cheap and full validation of a graph-posterior temporal cross-world effect on a TemporalCpdag or TemporalPag run the functional refuter state on the posterior-mixed value, refitting the whole graph-posterior procedure, and stay unlicensed. The result keeps support status refused: no evidence row or coverage record names the cell, and the verdicts are diagnostics, not a calibration claim."
 
 [[closed]]
 queries = ["Counterfactual"]

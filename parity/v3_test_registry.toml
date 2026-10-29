@@ -6904,6 +6904,41 @@ path = "crates/antecedent/tests/class_derivative_known_truth.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "temporal-admg-derivative-known-truth"
+crate = "antecedent"
+cargo_target = "temporal_admg_derivative_known_truth"
+path = "crates/antecedent/tests/temporal_admg_derivative_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "graph-posterior-derivative-known-truth"
+crate = "antecedent"
+cargo_target = "graph_posterior_derivative_known_truth"
+path = "crates/antecedent/tests/graph_posterior_derivative_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "class-graph-posterior-derivative-known-truth"
+crate = "antecedent"
+cargo_target = "class_graph_posterior_derivative_known_truth"
+path = "crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-graph-posterior-derivative-known-truth"
+crate = "antecedent"
+cargo_target = "temporal_graph_posterior_derivative_known_truth"
+path = "crates/antecedent/tests/temporal_graph_posterior_derivative_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-class-derivative-known-truth"
+crate = "antecedent"
+cargo_target = "temporal_class_derivative_known_truth"
+path = "crates/antecedent/tests/temporal_class_derivative_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "derivative-refuter-known-truth"
 crate = "antecedent"
 cargo_target = "derivative_refuter_known_truth"
@@ -20119,4 +20154,11 @@ id = "class-attribution-known-truth"
 crate = "antecedent"
 cargo_target = "class_attribution_known_truth"
 path = "crates/antecedent/tests/class_attribution_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cross-world-temporal-truth"
+crate = "antecedent"
+cargo_target = "cross_world_temporal_truth"
+path = "crates/antecedent/tests/cross_world_temporal_truth.rs"
 gates = ["inventory", "named"]

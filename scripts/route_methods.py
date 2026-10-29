@@ -1221,16 +1221,6 @@ def implementation_extra(rid: str) -> list[str]:
 # the declared procedure is the design-aware resample the executing sources construct.
 X = "crates/antecedent/src/analysis/execute/"
 CLOSED_IMPLEMENTATION = {
-    "AnomalyAttribution": [
-        X + "attribution_path.rs",
-        X + "class_attribution.rs",
-        X + "temporal_attribution.rs",
-    ],
-    "ChangeAttribution": [
-        X + "attribution_path.rs",
-        X + "class_attribution.rs",
-        X + "temporal_attribution.rs",
-    ],
     "Counterfactual": [X + "class_counterfactual.rs", X + "cross_world_posterior.rs"],
     "MediationEffect": [X + "mediation_mixed.rs", X + "mediation_refutation.rs"],
     "TemporalMediationEffect": [
@@ -1286,52 +1276,6 @@ TA = T + "temporal_admg_route_evidence.rs::"
 CD = T + "class_and_design_validation_suites.rs::"
 # The tests that run each closed route and encode its contracted result for an independent reader.
 CLOSED_EVIDENCE = {
-    ("AnomalyAttribution", "Admg"): [
-        CP + "an_admg_anomaly_is_attributed_to_the_noise_blocks",
-        ARTIFACTS + "static_class_attributions_publish_an_artifact_a_consumer_reads",
-    ],
-    ("AnomalyAttribution", "Cpdag"): [
-        CP + "a_cpdag_anomaly_is_the_mean_of_its_dag_completions",
-        CP + "a_bayesian_cpdag_publishes_a_shared_posterior_and_never_a_mixture",
-        ARTIFACTS + "static_class_attributions_publish_an_artifact_a_consumer_reads",
-    ],
-    ("AnomalyAttribution", "Pag"): [
-        CP + "a_pag_with_a_hedged_completion_keeps_the_identified_mass",
-        ARTIFACTS + "static_class_attributions_publish_an_artifact_a_consumer_reads",
-    ],
-    ("AnomalyAttribution", "TemporalCpdag"): [
-        CP + "a_temporal_cpdag_is_the_mean_of_its_temporal_dag_completions",
-        ARTIFACTS + "temporal_class_attributions_publish_an_artifact_a_consumer_reads",
-    ],
-    ("AnomalyAttribution", "TemporalPag"): [
-        ARTIFACTS + "temporal_class_attributions_publish_an_artifact_a_consumer_reads"
-    ],
-    ("AnomalyAttribution", "TemporalAdmg"): [
-        CP + "a_temporal_admg_whose_latent_edge_misses_the_ancestors_is_the_temporal_dag_route",
-        ARTIFACTS + "temporal_class_attributions_publish_an_artifact_a_consumer_reads",
-    ],
-    ("ChangeAttribution", "Admg"): [
-        CP + "an_admg_change_matches_the_known_shift_of_each_block",
-        ARTIFACTS + "static_class_attributions_publish_an_artifact_a_consumer_reads",
-    ],
-    ("ChangeAttribution", "Cpdag"): [
-        CP + "a_cpdag_change_that_every_member_agrees_on_keeps_one_value",
-        ARTIFACTS + "static_class_attributions_publish_an_artifact_a_consumer_reads",
-    ],
-    ("ChangeAttribution", "Pag"): [
-        GP + "a_change_attribution_carries_the_graph_sensitivity_across_the_atoms",
-        ARTIFACTS + "static_class_attributions_publish_an_artifact_a_consumer_reads",
-    ],
-    ("ChangeAttribution", "TemporalCpdag"): [
-        CP + "a_temporal_cpdag_is_the_mean_of_its_temporal_dag_completions",
-        ARTIFACTS + "temporal_class_attributions_publish_an_artifact_a_consumer_reads",
-    ],
-    ("ChangeAttribution", "TemporalPag"): [
-        ARTIFACTS + "temporal_class_attributions_publish_an_artifact_a_consumer_reads"
-    ],
-    ("ChangeAttribution", "TemporalAdmg"): [
-        ARTIFACTS + "temporal_class_attributions_publish_an_artifact_a_consumer_reads"
-    ],
     ("Counterfactual", "Admg"): [
         CF + "an_admg_counterfactual_is_the_enumerated_effect_on_the_treated",
         CF + "the_bayesian_bootstrap_posterior_centres_on_the_identified_functional",
