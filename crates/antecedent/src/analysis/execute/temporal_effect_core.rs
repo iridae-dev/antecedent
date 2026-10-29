@@ -321,6 +321,7 @@ fn fit_sustained(
         "the contrast propagates through all intervened times in topological order; no \
          one-node collapse",
     ));
+    diagnostics.extend(intervention_level_support_diagnostics(data, query));
     let estimate = if bayes.is_none() {
         diagnostics.extend(super::temporal_path::sequential_dependence_se_diagnostics(
             &estimate,
@@ -628,6 +629,47 @@ fn single_window_predictive_checks(
     Ok((predictive_checks, posterior))
 }
 
+/// A hard intervention level the treatment series never visited is a regime the window
+/// regression reaches only by linear extrapolation; the support slot names it instead of
+/// presenting the contrast as observed.
+fn intervention_level_support_diagnostics(
+    data: &TimeSeriesData,
+    query: &TemporalEffectQuery,
+) -> Vec<Diagnostic> {
+    use antecedent_core::Intervention;
+    use antecedent_data::TableView;
+    let Ok(values) = data.float64_values(query.treatment) else {
+        return Vec::new();
+    };
+    let (min, max) = values
+        .iter()
+        .filter(|value| value.is_finite())
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &v| (lo.min(v), hi.max(v)));
+    if !(min.is_finite() && max.is_finite()) {
+        return Vec::new();
+    }
+    [("control", &query.control), ("active", &query.active)]
+        .into_iter()
+        .filter_map(|(role, intervention)| match intervention {
+            Intervention::Set { value, .. } => value.as_f64().map(|level| (role, level)),
+            _ => None,
+        })
+        .filter(|(_, level)| !(min..=max).contains(level))
+        .map(|(role, level)| {
+            Diagnostic::new(
+                "estimate.temporal.window.level_outside_support",
+                DiagnosticKind::Support,
+                DiagnosticSeverity::Warning,
+                format!(
+                    "the {role} intervention level {level} lies outside the observed treatment \
+                     range [{min}, {max}]: the window contrast reaches it by linear \
+                     extrapolation of the fitted lag coefficients, not from observed rows"
+                ),
+            )
+        })
+        .collect()
+}
+
 /// The refutation suite of a single-window effect with its dependence-honest
 /// SE and PAG-completion notes.
 fn single_window_refutations(
@@ -666,6 +708,7 @@ fn single_window_refutations(
         diagnostics
             .extend(super::temporal_path::single_window_dependence_se_diagnostics(estimate, info));
     }
+    diagnostics.extend(intervention_level_support_diagnostics(data, query));
     if inputs.completed_to_dag {
         diagnostics.push(Diagnostic::new(
             "temporal.pag.completed_to_dag",

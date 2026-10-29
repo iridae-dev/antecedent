@@ -457,6 +457,19 @@ fn prepare_iv_problem(
             ),
         ));
     }
+    if let Some(level) = unobserved_discrete_level(&t, active, control) {
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("arm_not_populated"),
+            "iv.unobserved_level",
+            &format!(
+                "the contrasted level {level} is not taken by any row of the discrete treatment \
+                 ({}); the instrumental fit would return the slope scaled by the gap to a level \
+                 the data never visited. Next attempt: contrast levels the treatment takes, or \
+                 use a continuous dose whose range spans them",
+                crate::propensity::levels::describe_observed_levels(&t)
+            ),
+        ));
+    }
     let y = data.float64_selected_arc(outcome, &row_mask).map_err(EstimationError::from)?;
     let nrows = t.len();
 
@@ -495,6 +508,29 @@ fn prepare_iv_problem(
         treatment_delta,
         preparation,
     })
+}
+
+/// The first contrasted level that a discrete treatment never takes (at most the discrete-level
+/// cap of distinct values, all integer-coded); `None` for a continuous dose or when both levels
+/// occur.
+#[allow(
+    clippy::float_cmp,
+    reason = "declared treatment levels are exact category labels, not computed values"
+)]
+fn unobserved_discrete_level(values: &[f64], active: f64, control: f64) -> Option<f64> {
+    let mut distinct: Vec<f64> = Vec::new();
+    for &value in values {
+        if !distinct.iter().any(|seen| *seen == value) {
+            distinct.push(value);
+            if distinct.len() > crate::prepare::MAX_DISCRETE_LEVELS {
+                return None;
+            }
+        }
+    }
+    if distinct.iter().any(|value| value.fract() != 0.0) {
+        return None;
+    }
+    [control, active].into_iter().find(|level| !distinct.iter().any(|seen| seen == level))
 }
 
 /// The unique contents of a freshly built shared design slice.

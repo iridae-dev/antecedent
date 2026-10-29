@@ -1247,3 +1247,7 @@ mod tests {
         assert!(next.next_attempt.contains("coarser total response contrast"));
     }
 }
+
+#[cfg(test)]
+#[path = "time_varying_dependence_reference_tests.rs"]
+mod dependence_reference_tests;
