@@ -488,11 +488,42 @@ fn scheduled_contrast_is_assembled_on_every_shared_draw_for_both_inferences() {
 }
 
 #[test]
-fn confounded_panel_does_not_acquire_a_causal_license_from_a_finite_mechanism() {
+fn a_panel_whose_channels_never_move_apart_is_refused_as_collinear() {
     let ctx = cached_context(20_261_021);
-    let data = fixture::source(true);
-    let request = fixture::request(&data, true, PanelInference::Frequentist { draws: 0 });
-    let prepared = Study::prepare_joint_panel(data, request, &ctx).unwrap();
+    // The retained confounded panel assigns both channels together in every observed period,
+    // so their separate effects are not identified and the panel is refused before any claim.
+    let together = fixture::source(true);
+    let refusal = Study::prepare_joint_panel(
+        together.clone(),
+        fixture::request(&together, true, PanelInference::Frequentist { draws: 0 }),
+        &ctx,
+    )
+    .err()
+    .expect("channels that never move separately are refused");
+    assert!(
+        refusal.to_string().contains(
+            "channel 1 is exactly collinear with the earlier channels; separate effects are not identified"
+        ),
+        "{refusal}"
+    );
+}
+
+#[test]
+fn confounded_panel_does_not_acquire_a_causal_license_from_a_finite_mechanism() {
+    use antecedent::analysis::joint_panel::{
+        JointPanelDesignOutcome, declare_joint_panel_exogenous_context,
+    };
+    let ctx = cached_context(20_261_021);
+    // Both channels are driven by an unobserved context and move separately (independent
+    // noise), so the interaction fit is well-posed yet biased by that context.
+    let data = fixture::source_confounded_varied();
+    let mut request = fixture::request(&data, false, PanelInference::Frequentist { draws: 0 });
+    request.options.optimizer =
+        antecedent_estimate::joint_panel::PanelOptimizerOptions {
+            max_iterations: 600,
+            gradient_tolerance: 1e-2,
+        };
+    let prepared = Study::prepare_joint_panel(data, request.clone(), &ctx).unwrap();
     let inspection = prepared.inspect();
     assert_eq!(inspection.fits_performed, 0);
     assert!(!inspection.identification.is_identified_claim());
@@ -502,12 +533,28 @@ fn confounded_panel_does_not_acquire_a_causal_license_from_a_finite_mechanism() 
         .iter()
         .find(|attempt| attempt.id == "joint_adjustment.observational")
         .unwrap();
-    assert!(matches!(
-        observational.outcome,
-        antecedent::analysis::joint_panel::JointPanelDesignOutcome::Unsupported
-    ));
+    assert!(matches!(observational.outcome, JointPanelDesignOutcome::Unsupported));
     assert!(observational.detail.contains("not identified through general ID"));
     assert!(observational.detail.contains("accepted point graph"));
+    // The fit runs, and a fitted mechanism earns no causal license.
+    let fitted = prepared.estimate(&ctx).unwrap();
+    assert!(fitted.require_identified().is_err());
+    // The same family on the same panel gets none either.
+    let mut broader = request;
+    broader.family = broader_family();
+    let fitted = Study::prepare_joint_panel(fixture::source_confounded_varied(), broader, &ctx)
+        .unwrap()
+        .estimate(&ctx)
+        .unwrap();
+    assert!(fitted.require_identified().is_err());
+    // The discriminating twin: whole-program randomized assignment of the same outcome model
+    // does earn the design-based claim through the same machinery.
+    let data = fixture::whole_program_source();
+    let mut randomized = fixture::request(&data, false, PanelInference::Frequentist { draws: 0 });
+    randomized.target = declare_joint_panel_exogenous_context(&randomized.target);
+    randomized.assignment = Some(fixture::whole_program_randomization());
+    let twin = Study::prepare_joint_panel(data, randomized, &ctx).unwrap();
+    assert!(twin.inspect().identification.is_identified_claim());
 }
 
 #[test]
@@ -1166,9 +1213,10 @@ fn broader_families_inherit_the_randomized_design_claim_and_leave_confounded_pan
     assert!(result.point.iter().all(|world| world.means.iter().all(|value| value.is_finite())));
     assert_eq!(broader.estimate(&ctx).unwrap().point, result.point);
     assert_eq!(broader.fits_performed(), 1);
-    // The same family on the confounded panel still earns no causal license from its fit.
-    let data = fixture::source(true);
-    let mut request = fixture::request(&data, true, PanelInference::Frequentist { draws: 0 });
+    // The same family on the confounded panel (channels driven by an unobserved context, moving
+    // separately) still earns no causal license from its fit.
+    let data = fixture::source_confounded_varied();
+    let mut request = fixture::request(&data, false, PanelInference::Frequentist { draws: 0 });
     request.family = broader_family();
     request.options.optimizer = bounded;
     let confounded = Study::prepare_joint_panel(data, request, &ctx).unwrap();

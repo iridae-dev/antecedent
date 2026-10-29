@@ -470,3 +470,70 @@ pub fn lag_zero_sampling() -> antecedent_estimate::joint_panel::PanelSamplingOpt
         ..antecedent_estimate::joint_panel::PanelSamplingOptions::default()
     }
 }
+
+/// Groups and observed periods of the confounded panel with separately moving channels.
+pub const CONFOUNDED_VARIED_GROUPS: u32 = 4;
+pub const CONFOUNDED_VARIED_PERIODS: usize = 40;
+
+/// A confounded panel whose channels move separately.
+///
+/// Generating truth (known exactly, by construction): per period the outcome mean is `2 +
+/// group + season + 0.7 z + 3 s(a) + 2 s(b) + 1.5 s(a) s(b) + 0.8 u` plus an AR(1) error with
+/// coefficient 0.45, where `s(x) = x / (x + 2)` and `a`, `b` are the lag-weighted exposures
+/// (weights 0.6/0.3/0.1 and 0.5/0.35/0.15) of the two 0/4 dose channels. The latent `u` is
+/// not a column of the table. Both channels are driven by `u`: `channel_a = 4 [u + 0.8 e_a >
+/// 0]` and `channel_b = 4 [u + 0.8 e_b > 0]` with independent noises `e_a`, `e_b`. The channels
+/// therefore co-move with the outcome's unobserved driver yet are not collinear, so the
+/// interaction fit is well-posed and its estimate is biased by `u`: the true interaction
+/// contrast is the `1.5` term, and no observational reading of this panel may carry a causal
+/// claim. The deterministic stream makes the panel the same on every platform and run.
+pub fn source_confounded_varied() -> PanelData {
+    let mut stream = FixtureStream(20_261_104);
+    let saturate = |x: f64| x / (x + 2.0);
+    let units: Vec<_> = (0..CONFOUNDED_VARIED_GROUPS)
+        .map(|group| {
+            let intercept = 0.35 * stream.normal();
+            let n = CONFOUNDED_VARIED_PERIODS;
+            let mut a = vec![0.0; 2];
+            let mut b = vec![0.0; 2];
+            let mut z = vec![f64::NAN; 2];
+            let mut u = vec![0.0; 2];
+            for _ in 0..n {
+                let latent = stream.normal();
+                u.push(latent);
+                z.push(stream.normal());
+                a.push(if latent + 0.8 * stream.normal() > 0.0 { 4.0 } else { 0.0 });
+                b.push(if latent + 0.8 * stream.normal() > 0.0 { 4.0 } else { 0.0 });
+            }
+            let mut y = vec![f64::NAN; 2];
+            let mut error = 0.0;
+            for t in 0..n {
+                let k = t + 2;
+                let la = 0.6 * a[k] + 0.3 * a[k - 1] + 0.1 * a[k - 2];
+                let lb = 0.5 * b[k] + 0.35 * b[k - 1] + 0.15 * b[k - 2];
+                let (sa, sb) = (saturate(la), saturate(lb));
+                error = 0.45 * error + 0.2 * stream.normal();
+                y.push(
+                    2.0 + intercept
+                        + [0.0, 0.2, -0.1, 0.1][t % 4]
+                        + 0.7 * z[k]
+                        + 3.0 * sa
+                        + 2.0 * sb
+                        + 1.5 * sa * sb
+                        + 0.8 * u[k]
+                        + error,
+                );
+            }
+            let season: Vec<f64> = (0..n + 2).map(|t| ((t + 2) % 4) as f64).collect();
+            let series = TimeSeriesData::from_f64_columns(
+                ["channel_a", "channel_b", "outcome", "z", "season"]
+                    .into_iter()
+                    .zip([&a, &b, &y, &z, &season].map(|column| column.as_slice())),
+                604_800_000_000_000,
+            )
+            .unwrap();
+            PanelUnit { unit_id: group, series }
+        })
+        .collect();
+    PanelData::try_new(Arc::from(units)).unwrap()
+}
