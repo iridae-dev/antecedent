@@ -336,7 +336,7 @@ fn bayesian_static_mediation_plan_body() {
                 let result = prepared.estimate(&base, &context).unwrap();
                 assert!(result.posterior.is_some());
                 assert!(
-                    (result.estimate().as_effect().unwrap().ate - expected).abs() < 0.5,
+                    (result.estimate().as_effect().unwrap().ate - expected).abs() < 0.03,
                     "{accepted} {suite:?}: {}",
                     result.estimate().as_effect().unwrap().ate
                 );

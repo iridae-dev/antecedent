@@ -109,6 +109,53 @@ fn front_door_probability(t: f64) -> f64 {
     [0.0, 1.0].into_iter().map(|m| p_m(m, t) * inner(m)).sum()
 }
 
+/// Independent nonparametric-bootstrap reference for the table: the standard deviation, over
+/// `replicates` row resamples drawn with a splitmix64 stream of the test's own, of the total effect
+/// (`share_front = 0`) or of the equal-weight mixture of the total effect (latent-free atom) and the
+/// front-door contrast (`share_front = 0.5`), both recomputed from each resample's cell counts.
+fn bootstrap_reference_se(share_front: f64, replicates: usize) -> f64 {
+    let n: usize = CELLS.iter().map(|c| c.3).sum();
+    let mut state = 0x9E37_79B9_7F4A_7C15_u64;
+    let mut next = || {
+        state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = state;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        ((z ^ (z >> 31)) >> 11) as f64 / (1u64 << 53) as f64
+    };
+    let mut values = Vec::new();
+    for _ in 0..replicates {
+        let mut c = [0.0_f64; 8];
+        for _ in 0..n {
+            let mut u = next() * n as f64;
+            for (i, cell) in CELLS.iter().enumerate() {
+                u -= cell.3 as f64;
+                if u < 0.0 || i == 7 {
+                    c[i] += 1.0;
+                    break;
+                }
+            }
+        }
+        // Index of (t, m, y) is 4 t + 2 m + y, the order of `CELLS`.
+        let at = |t: usize, m: usize, y: usize| c[4 * t + 2 * m + y];
+        let row = |t: usize| (0..2).map(|m| at(t, m, 0) + at(t, m, 1)).sum::<f64>();
+        let total = (0..2).map(|m| at(1, m, 1)).sum::<f64>() / row(1)
+            - (0..2).map(|m| at(0, m, 1)).sum::<f64>() / row(0);
+        let ey = |t: usize, m: usize| at(t, m, 1) / (at(t, m, 0) + at(t, m, 1));
+        let pm = |m: usize, t: usize| (at(t, m, 0) + at(t, m, 1)) / row(t);
+        let pt = |t: usize| row(t) / n as f64;
+        let front = |t: usize| -> f64 {
+            (0..2).map(|m| pm(m, t) * (0..2).map(|u| ey(u, m) * pt(u)).sum::<f64>()).sum()
+        };
+        let value = (1.0 - share_front) * total + share_front * (front(1) - front(0));
+        if value.is_finite() {
+            values.push(value);
+        }
+    }
+    let mean = values.iter().sum::<f64>() / values.len() as f64;
+    (values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (values.len() - 1) as f64).sqrt()
+}
+
 fn sampling() -> SamplingSummary {
     SamplingSummary {
         ess: 1.0,
@@ -553,7 +600,7 @@ fn a_bayesian_mixture_keeps_one_atoms_posterior_and_pools_several() {
         .unwrap();
         let posterior = single.posterior.as_ref().expect("the atom's own posterior");
         assert_eq!(posterior.draws.n_draws, 400);
-        assert!((single.effect() - counted_direct()).abs() < 0.05, "{}", single.effect());
+        assert!((single.effect() - counted_direct()).abs() < 0.005, "{}", single.effect());
 
         // With posterior mass the identifier refuses, the aggregate is conditional on the
         // atoms that identify; the one contributing atom carries its own posterior, with the
@@ -574,7 +621,7 @@ fn a_bayesian_mixture_keeps_one_atoms_posterior_and_pools_several() {
             posterior.unidentified_mass
         );
         assert_eq!(lost.identification.status, IdentificationStatus::GraphDependent);
-        assert!((lost.effect() - counted_total()).abs() < 0.05, "{}", lost.effect());
+        assert!((lost.effect() - counted_total()).abs() < 0.005, "{}", lost.effect());
 
         // Several contributing atoms run in one context, so draw `d` of each is the same draw of
         // the row weights and the pooled posterior is the draw-wise weighted mixture.
@@ -591,7 +638,7 @@ fn a_bayesian_mixture_keeps_one_atoms_posterior_and_pools_several() {
         assert_eq!(posterior.draws.n_draws, 400);
         let front = front_door_probability(1.0) - front_door_probability(0.0);
         let expected = 0.5 * (counted_total() + front);
-        assert!((pooled.effect() - expected).abs() < 0.05, "{} vs {expected}", pooled.effect());
+        assert!((pooled.effect() - expected).abs() < 0.005, "{} vs {expected}", pooled.effect());
         assert!((posterior.summaries.mean[0] - pooled.effect()).abs() < 1e-9);
     });
 }
@@ -618,7 +665,10 @@ fn a_frequentist_mixture_of_several_atoms_has_the_standard_error_of_its_shared_r
             run(admg_posterior(&[0.5, 0.5], &[mask_of(&latent_free()), mask_of(&front_door())]));
         let effect = mixture.estimate().as_effect().unwrap();
         let se = effect.se_bootstrap().expect("the spread of the shared replicates");
-        assert!(se > 0.0 && se < 0.5, "{se}");
+        // Forty replicates estimate a standard deviation to about 11%; the band is three sigma
+        // around an independent 4000-resample reference.
+        let reference = bootstrap_reference_se(0.5, 4000);
+        assert!(se > 0.65 * reference && se < 1.4 * reference, "{se} vs reference {reference}");
         let accounting = &effect.uncertainty.bootstrap;
         assert!(accounting.replicates_ok.unwrap() >= 30, "{accounting:?}");
         assert!(
@@ -630,7 +680,8 @@ fn a_frequentist_mixture_of_several_atoms_has_the_standard_error_of_its_shared_r
         // One atom carries its own bootstrap interval, which the mixture of a single atom keeps.
         let single = run(admg_posterior(&[1.0], &[mask_of(&latent_free())]));
         let own = single.estimate().as_effect().unwrap().se_bootstrap().expect("a bootstrap SE");
-        assert!(own > 0.0 && own < 0.5, "{own}");
+        let own_reference = bootstrap_reference_se(0.0, 4000);
+        assert!(own > 0.8 * own_reference && own < 1.25 * own_reference, "{own} vs {own_reference}");
     });
 }
 

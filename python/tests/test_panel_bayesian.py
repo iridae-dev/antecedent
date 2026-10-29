@@ -46,7 +46,14 @@ def test_panel_bayesian_pulse_smoke():
     assert np.isfinite(result.ate)
     assert abs(result.ate - result.posterior.effect_mean) < 1e-12
     assert "bayesian" in result.estimate.estimator_id.lower()
-    assert abs(result.posterior.effect_mean - 0.9) < 0.15
+    # Independent pooled least squares of y_t on x_{t-1} over the three units' rows.
+    units = [_lag1_unit(seed=seed) for seed in (3, 4, 5)]
+    lagged = np.concatenate([u["x"][:-1] for u in units])
+    response = np.concatenate([u["y"][1:] for u in units])
+    slope = np.linalg.lstsq(np.column_stack([np.ones_like(lagged), lagged]), response, rcond=None)[
+        0
+    ][1]
+    assert abs(result.posterior.effect_mean - slope) < 1e-3
 
 
 def test_panel_frequentist_pulse_baseline():
@@ -67,5 +74,11 @@ def test_panel_frequentist_pulse_baseline():
             execution=antecedent.Execution(seed=1),
         )
     )
-    assert np.isfinite(result.ate)
+    units = [_lag1_unit(seed=seed) for seed in (3, 4)]
+    lagged = np.concatenate([u["x"][:-1] for u in units])
+    response = np.concatenate([u["y"][1:] for u in units])
+    slope = np.linalg.lstsq(np.column_stack([np.ones_like(lagged), lagged]), response, rcond=None)[
+        0
+    ][1]
+    assert abs(result.ate - slope) < 1e-9
     assert result.posterior is None

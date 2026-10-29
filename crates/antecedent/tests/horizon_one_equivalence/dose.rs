@@ -352,9 +352,18 @@ fn scalar_response(result: &StudyResult) -> f64 {
 /// The temporal average derivative at one lag is the slope of the unfolded linear mechanism, so on
 /// the shared lag-aligned rows it is exactly the least-squares slope. The static average
 /// derivative estimates the same population derivative with a cross-fitted additive nuisance and
-/// a Riesz correction, so it agrees with the slope to the semiparametric tolerance of its own
-/// evidence (0.15) but not to the least-squares closed form. The temporal route discloses the
-/// linear-mechanism premise it rests on.
+/// a Riesz correction, so it does not reproduce the least-squares closed form. Its value is pinned
+/// to an independent evaluation of the documented estimator on these exact rows (index-modulo
+/// five folds, a six-function cubic B-spline outcome smooth at quantile knots with the
+/// second-difference coefficient penalty at lambda 1, the derivative of that smooth at each
+/// held-out dose, plus the Gaussian-score Riesz residual correction; numpy/scipy, agreeing with
+/// the product to 1e-13). It is 6.5% above the true slope 2.001 of this linear mean: the
+/// quantile knots are not equispaced, so the coefficient-space second-difference penalty is not
+/// zero on a straight line and the smooth's derivative carries the shrinkage (plug-in mean
+/// 2.1218; the same reference at lambda 0 gives 1.9804), and the Gaussian-score correction
+/// recovers only 0.0097 of it because the dose is not Gaussian. That bias is the documented
+/// fixed-nuisance behaviour of the route, not a mis-evaluation. The temporal route discloses
+/// the linear-mechanism premise it rests on.
 #[test]
 fn horizon_one_average_derivative_is_the_least_squares_slope_where_the_static_route_is_semiparametric()
  {
@@ -383,7 +392,10 @@ fn horizon_one_average_derivative_is_the_least_squares_slope_where_the_static_ro
     let temporal_value = scalar_response(&temporal);
     let static_value = scalar_response(&static_result);
     assert!((temporal_value - slope).abs() < 1e-8, "{temporal_value} vs {slope}");
-    assert!((static_value - slope).abs() < 0.15, "{static_value} vs {slope}");
+    const STATIC_REFERENCE: f64 = 2.131_463_469_599_77;
+    assert!((static_value - STATIC_REFERENCE).abs() < 1e-6, "{static_value} vs {STATIC_REFERENCE}");
+    // The documented smoothing bias, bounded by the bias-free reference.
+    assert!(static_value - slope > 0.1 && static_value - slope < 0.15, "{static_value}");
     assert!(has_diagnostic(&temporal, "estimate.temporal.linear_derivative"));
     assert!(!has_diagnostic(&static_result, "estimate.temporal.linear_derivative"));
 }

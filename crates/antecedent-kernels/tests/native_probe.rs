@@ -65,6 +65,11 @@ fn the_probe_reads_the_allocator_and_the_resident_set_around_real_work() {
     assert!(built.allocation_bytes >= 4 * MIB, "allocated {}", built.allocation_bytes);
     assert!(built.peak_live_bytes >= 4 * MIB, "live peak {}", built.peak_live_bytes);
     assert!(built.allocation_count >= 1);
+    // The window allocates the buffer and only the probe's own bookkeeping (observed 4 MiB plus
+    // under 1 KiB), so an overcounting probe cannot pass.
+    assert!(built.allocation_bytes < 4 * MIB + 64 * 1024, "allocated {}", built.allocation_bytes);
+    assert!(built.peak_live_bytes < 4 * MIB + 64 * 1024, "live peak {}", built.peak_live_bytes);
+    assert!(built.allocation_count <= 16, "{} allocation calls", built.allocation_count);
 
     // The bytes follow the work: a buffer four times as large allocates at least three
     // buffers' worth more.
@@ -76,6 +81,8 @@ fn the_probe_reads_the_allocator_and_the_resident_set_around_real_work() {
         built.allocation_bytes
     );
     assert!(larger.peak_live_bytes >= 16 * MIB);
+    assert!(larger.allocation_bytes < 16 * MIB + 64 * 1024, "{}", larger.allocation_bytes);
+    assert!(larger.peak_live_bytes < 16 * MIB + 64 * 1024, "{}", larger.peak_live_bytes);
 
     // Gather into a pre-sized output buffer must not allocate; the window sees only the
     // observer's own bookkeeping.

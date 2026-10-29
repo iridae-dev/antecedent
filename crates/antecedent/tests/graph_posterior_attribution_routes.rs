@@ -228,7 +228,7 @@ fn a_change_attribution_carries_the_graph_sensitivity_across_the_atoms() {
         let result = posterior_study(&data, graphs, &query).run(&ctx).unwrap();
         let change = result.change_attribution().expect("change payload");
         // The mechanism of `y` shifts by 5 and `x` does not move.
-        assert!((change.total_change - 5.0).abs() < 0.5, "total {}", change.total_change);
+        assert!((change.total_change - 5.0).abs() < 1e-9, "total {}", change.total_change);
         let share = |id: u32| {
             change
                 .contributions
@@ -240,13 +240,14 @@ fn a_change_attribution_carries_the_graph_sensitivity_across_the_atoms() {
         assert!((share(1) - change.total_change).abs() < 1e-6);
         let spread = change.graph_sensitivity.as_ref().expect("graph sensitivity");
         assert_eq!(spread.len(), change.contributions.len());
-        assert!(spread.iter().all(|s| *s < 0.5), "{spread:?}");
+        // Both orientations attribute the whole shift to `y` here, so the atoms do not disagree.
+        assert!(spread.iter().all(|s| *s < 1e-9), "{spread:?}");
 
         // The same change through the explicit forward DAG: the posterior mean of two atoms
         // that agree is that value.
         let forward = explicit_study(&data, dag_of(&[(0, 1)]), &query).run(&ctx).unwrap();
         let forward = forward.change_attribution().unwrap();
-        assert!((forward.total_change - change.total_change).abs() < 0.5);
+        assert!((forward.total_change - change.total_change).abs() < 1e-9);
     });
 }
 

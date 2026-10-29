@@ -124,7 +124,14 @@ def test_nondefault_populations_are_refused_by_native_science_instead_of_erased(
         study, queries=[replace(study.queries[0], target_population=population.AllRows())]
     )
     accepted = require_success(branch.estimate())
-    assert require_success(accepted.member(0)).effect == pytest.approx(5, abs=0.4)
+    # Independent reference: the least-squares fit of y on (1, t1, t2, z) predicted at
+    # t1 = t2 = 1 and averaged over the observed z; the doubly robust cell estimate differs from
+    # it only by cross-fitting variation (observed 0.014).
+    data = inputs()
+    design = np.column_stack([np.ones(600), data["t1"], data["t2"], data["z"]])
+    beta = np.linalg.lstsq(design, data["y"], rcond=None)[0]
+    reference = beta[0] + beta[1] + beta[2] + beta[3] * data["z"].mean()
+    assert require_success(accepted.member(0)).effect == pytest.approx(reference, abs=0.05)
     assert study.estimate().refusal.code == "population_not_estimable"
 
 

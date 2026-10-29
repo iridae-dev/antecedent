@@ -34,6 +34,63 @@ mod common;
 // The confounded static ATE study five suites run, in one owner.
 use common::fixtures::confounded_scm;
 
+/// Independent reference for the confounded fixture: the coefficient on `t` in the ordinary
+/// least-squares fit of `y` on `[1, t, z]`, solved from the normal equations in-test. `adjusted =
+/// false` drops `z`, giving the naive difference of means that the confounding biases.
+fn ols_treatment_coefficient(data: &TabularData, adjusted: bool) -> f64 {
+    use antecedent_data::TableView;
+    let col = |i: u32| data.float64_slice(VariableId::from_raw(i)).unwrap().to_vec();
+    let (t, y, z) = (col(0), col(1), col(2));
+    let k = if adjusted { 3 } else { 2 };
+    let row = |i: usize| if adjusted { vec![1.0, t[i], z[i]] } else { vec![1.0, t[i]] };
+    let mut a = vec![vec![0.0; k + 1]; k];
+    for i in 0..t.len() {
+        let x = row(i);
+        for r in 0..k {
+            for c in 0..k {
+                a[r][c] += x[r] * x[c];
+            }
+            a[r][k] += x[r] * y[i];
+        }
+    }
+    for p in 0..k {
+        let piv = (p..k).max_by(|&u, &v| a[u][p].abs().total_cmp(&a[v][p].abs())).unwrap();
+        a.swap(p, piv);
+        for r in 0..k {
+            if r != p {
+                let f = a[r][p] / a[p][p];
+                for c in p..=k {
+                    let v = a[p][c];
+                    a[r][c] -= f * v;
+                }
+            }
+        }
+    }
+    a[1][k] / a[1][1]
+}
+
+/// Front-door functional `E[Y | do(T = level)] = sum_m P(m | t = level) sum_t' P(t') E[Y | t', m]`
+/// computed by exact counting over the observed rows, independent of the product's estimators.
+fn frontdoor_do_mean(t: &[f64], m: &[f64], y: &[f64], level: f64) -> f64 {
+    let n = t.len() as f64;
+    let mut total = 0.0;
+    for mv in [0.0, 1.0] {
+        let (in_level, with_m) = (
+            t.iter().filter(|&&x| x == level).count() as f64,
+            t.iter().zip(m).filter(|&(&x, &mi)| x == level && mi == mv).count() as f64,
+        );
+        let mut inner = 0.0;
+        for tv in [0.0, 1.0] {
+            let p_t = t.iter().filter(|&&x| x == tv).count() as f64 / n;
+            let cell: Vec<f64> =
+                (0..t.len()).filter(|&i| t[i] == tv && m[i] == mv).map(|i| y[i]).collect();
+            inner += p_t * cell.iter().sum::<f64>() / cell.len() as f64;
+        }
+        total += with_m / in_level * inner;
+    }
+    total
+}
+
 fn build_analysis(data: TabularData, dag: Dag, query: AverageEffectQuery) -> Study {
     Study::tabular(data)
         .graph(dag)
@@ -60,9 +117,13 @@ fn prepared_reestimate_matches_fresh_analyze() {
     let second = prepared.estimate(&data, &ctx).unwrap();
 
     assert!(first.estimate().as_effect().unwrap().ate.is_finite());
+    // Independent z-adjusted OLS reference; the confounded naive contrast is far from it, so a
+    // dropped adjustment cannot pass.
+    let reference = ols_treatment_coefficient(&data, true);
+    assert!((ols_treatment_coefficient(&data, false) - reference).abs() > 0.2);
     assert!(
-        (first.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.5,
-        "ate={}",
+        (first.estimate().as_effect().unwrap().ate - reference).abs() < 1e-8,
+        "ate={} reference={reference}",
         first.estimate().as_effect().unwrap().ate
     );
     assert!(
@@ -256,9 +317,11 @@ fn prepared_bayesian_reestimate_matches_fresh_analyze() {
     assert_eq!(checked.estimand().adjustment_set, first.estimand.adjustment_set);
 
     assert!(first.estimate().as_effect().unwrap().ate.is_finite());
+    let reference = ols_treatment_coefficient(&data, true);
     assert!(
-        (first.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.5,
-        "ate={}",
+        // Conjugate-prior shrinkage and draw noise move the posterior mean by < 0.01 here.
+        (first.estimate().as_effect().unwrap().ate - reference).abs() < 0.03,
+        "ate={} reference={reference}",
         first.estimate().as_effect().unwrap().ate
     );
     // Bit-identical ATE and posterior summaries between the prepared click and
@@ -391,7 +454,7 @@ fn prepare_accepts_temporal_effect_query_and_reuses_identification() {
         "prepared TemporalEffect estimate_series must reuse identification"
     );
     assert!(click.estimate().as_effect().unwrap().ate.is_finite());
-    assert!((click.effect() - 0.5).abs() < 0.15);
+    assert!((click.effect() - 0.5).abs() < 1e-8, "effect={}", click.effect());
     let contract = prepared.contract().unwrap();
     assert!(contract.identities.identification_product.is_some());
     let bytes = prepared.encode_contracted_result(&click, "prepared-pulse", &ctx).unwrap();
@@ -414,16 +477,18 @@ fn refresh_updates_retained_data() {
     let (data1, dag, query) = confounded_scm(400, 41);
     let (data2, _, _) = confounded_scm(400, 43);
     let ctx = ExecutionContext::for_tests(1);
+    let (data1_ref, data2_ref) = (data1.clone(), data2.clone());
     let mut prepared: PreparedStudy =
         build_analysis(data1.clone(), dag, query).prepare(&ctx).unwrap();
     let a =
         rebind_estimate(&mut prepared, data1, &ctx).unwrap().estimate().as_effect().unwrap().ate;
     let b =
         rebind_estimate(&mut prepared, data2, &ctx).unwrap().estimate().as_effect().unwrap().ate;
-    // Different seeds → different finite ATEs (not identical bit-for-bit).
-    assert!(a.is_finite() && b.is_finite());
-    assert!((a - 2.0).abs() < 0.6);
-    assert!((b - 2.0).abs() < 0.6);
+    // Each refresh estimates its own data: both match the independent adjusted OLS reference of
+    // the data bound at that moment, and the two differ.
+    assert!((a - ols_treatment_coefficient(&data1_ref, true)).abs() < 1e-8, "a={a}");
+    assert!((b - ols_treatment_coefficient(&data2_ref, true)).abs() < 1e-8, "b={b}");
+    assert!((a - b).abs() > 1e-6);
 }
 
 // -- ConditionalEffect / PathSpecific / InterventionalDistribution staging -----------------
@@ -748,7 +813,7 @@ fn prepared_conditional_bayesian_records_bayesian_estimator() {
         fresh.estimate().as_effect().unwrap().ate.to_bits()
     );
     assert_cached_only_on_prepared(&fresh, &[&click]);
-    assert!((click.effect() - 3.0).abs() < 0.15);
+    assert!((click.effect() - 3.0).abs() < 0.03, "effect={}", click.effect());
     assert_prepared_contract_consume(
         &prepared,
         &click,
@@ -1282,6 +1347,14 @@ fn prepared_pag_ate_reuses_identification_envelope() {
             .count(),
         0
     );
+    // y = 2 t + z exactly, so the {z}-adjusted contrast is 2.
+    for result in [&fresh, &first, &second] {
+        assert!(
+            (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 1e-9,
+            "pag ate={}",
+            result.estimate().as_effect().unwrap().ate
+        );
+    }
     for click in [&first, &second] {
         assert_eq!(
             click
@@ -1381,6 +1454,7 @@ fn prepared_admg_ate_reuses_general_id_result() {
         m.push(f64::from(mi));
         y.push(f64::from(yi));
     }
+    let (t_ref, m_ref, y_ref) = (t.clone(), m.clone(), y.clone());
     let mut b = CausalSchemaBuilder::new();
     for name in nodes.observed() {
         b.add_variable(
@@ -1458,6 +1532,13 @@ fn prepared_admg_ate_reuses_general_id_result() {
         );
         assert_eq!(click.support_status().unwrap().as_str(), "licensed");
     }
+    let frontdoor_ate = frontdoor_do_mean(&t_ref, &m_ref, &y_ref, 1.0)
+        - frontdoor_do_mean(&t_ref, &m_ref, &y_ref, 0.0);
+    assert!(
+        (fresh.estimate().as_effect().unwrap().ate - frontdoor_ate).abs() < 1e-9,
+        "ate={} front-door counts={frontdoor_ate}",
+        fresh.estimate().as_effect().unwrap().ate
+    );
 
     let accepted = Study::tabular(data.clone())
         .graph(AcceptedGraph::from(admg))
@@ -1625,11 +1706,12 @@ fn bayesian_conditional_staged_known_truth() {
                 .unwrap()
                 .estimate(&data, &ctx)
                 .unwrap();
-            assert!(
-                (result.estimate().as_effect().unwrap().ate - pin["effect"].as_f64().unwrap())
-                    .abs()
-                    < pin["tolerance"].as_f64().unwrap()
-            );
+            let deviation = (result.estimate().as_effect().unwrap().ate
+                - pin["effect"].as_f64().unwrap())
+            .abs();
+            assert!(deviation < pin["tolerance"].as_f64().unwrap());
+            // The fixture is noise-free, so only prior shrinkage and draw noise remain (< 0.02).
+            assert!(deviation < 0.03, "deviation {deviation}");
             assert_ne!(
                 result.estimate().as_effect().unwrap().ate.to_bits(),
                 frequentist.estimate().as_effect().unwrap().ate.to_bits()
@@ -1676,6 +1758,7 @@ fn prepared_admg_distribution_reuses_identification() {
         m.push(f64::from(mi));
         y.push(f64::from(yi));
     }
+    let (t_ref, m_ref, y_ref) = (t.clone(), m.clone(), y.clone());
     let mut b = CausalSchemaBuilder::new();
     for name in nodes.observed() {
         b.add_variable(
@@ -1723,6 +1806,8 @@ fn prepared_admg_distribution_reuses_identification() {
     let fresh_dist = fresh.distribution().expect("fresh ADMG distribution");
     let first_dist = first.distribution().expect("prepared ADMG distribution");
     assert!((first_dist.mean - fresh_dist.mean).abs() < 1e-12);
+    let truth = frontdoor_do_mean(&t_ref, &m_ref, &y_ref, 1.0);
+    assert!((fresh_dist.mean - truth).abs() < 1e-9, "mean={} counts={truth}", fresh_dist.mean);
     assert_eq!(first.support_status().unwrap().as_str(), "licensed");
     assert!(fresh.refutations.is_empty());
 
@@ -1791,11 +1876,14 @@ fn admg_distribution_nonidentified_bidirected_pair_refuses() {
         .unwrap()
         .run(&ExecutionContext::for_tests(1))
         .unwrap_err();
-    let text = err.to_string();
-    assert!(
-        text.contains("identif") || text.contains("NotIdentified") || text.contains("Unsupported"),
-        "{text}"
-    );
+    match err {
+        antecedent::CausalError::NotIdentified { status, search_capped, message } => {
+            assert_eq!(status, antecedent_core::IdentificationStatus::NotIdentified);
+            assert!(!search_capped, "the search must complete, not be capped");
+            assert!(message.contains("effect_not_identified"), "{message}");
+        }
+        other => panic!("a t <-> y bidirected pair must refuse as NotIdentified, got {other:?}"),
+    }
 }
 
 /// Unconditional ADMG `InterventionalDistribution` against a known SCM truth.

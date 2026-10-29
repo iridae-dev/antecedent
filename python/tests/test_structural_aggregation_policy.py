@@ -30,6 +30,17 @@ def _data() -> dict[str, np.ndarray]:
     return {"t": t, "y": y, "z": z}
 
 
+def _ols_slopes() -> tuple[float, float]:
+    """Independent least squares: the `t` slope adjusted for `z`, and the unadjusted slope."""
+    data = _data()
+    ones = np.ones_like(data["t"])
+    adjusted = np.linalg.lstsq(
+        np.column_stack([ones, data["t"], data["z"]]), data["y"], rcond=None
+    )[0][1]
+    naive = np.linalg.lstsq(np.column_stack([ones, data["t"]]), data["y"], rcond=None)[0][1]
+    return float(adjusted), float(naive)
+
+
 def _confounded() -> ant.Dag:
     return ant.Dag.from_edges(_NAMES, [("z", "t"), ("z", "y"), ("t", "y")])
 
@@ -60,7 +71,7 @@ def test_atoms_naming_one_estimand_are_mixed_by_probability():
     assert result.structural_aggregation_policy == "same_estimand_weighted_mean"
     assert result.structural_aggregation_policy == _stated_policy(result)
     # The scalar is published: both atoms adjust for z, so it is the confounded truth 2.
-    assert result.estimate.ate == pytest.approx(2.0, abs=0.1)
+    assert result.estimate.ate == pytest.approx(_ols_slopes()[0], abs=1e-9)
     assert result.structural_identified_mass == pytest.approx(1.0)
 
 
@@ -72,8 +83,10 @@ def test_atoms_naming_different_estimands_are_never_mixed_into_a_scalar():
     assert result.estimate.ate is None
     lower, upper = result.structural_identified_set
     assert lower < upper
-    assert lower == pytest.approx(2.0, abs=0.1), "the adjusted atom recovers the true effect"
-    assert upper > lower + 0.3, "the unadjusted atom absorbs the confounding"
+    adjusted, naive = _ols_slopes()
+    assert lower == pytest.approx(adjusted, abs=1e-9), "the adjusted atom's own effect"
+    assert upper == pytest.approx(naive, abs=1e-9), "the unadjusted atom absorbs the confounding"
+    assert naive > adjusted + 0.3
 
 
 def test_a_route_that_aggregates_nothing_reports_no_policy():

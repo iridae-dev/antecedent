@@ -125,7 +125,7 @@ fn staggered_rollout_recovers_heterogeneous_effects_where_two_way_fixed_effects_
         assert_eq!(rollout.calibration.as_ref(), "unmeasured");
         assert!(!rollout.licensed);
         let overall = rollout.overall().unwrap();
-        assert!((overall.estimate - 3.5).abs() < 0.35, "{estimator:?}: {}", overall.estimate);
+        assert!((overall.estimate - 3.5).abs() < 0.15, "{estimator:?}: {}", overall.estimate);
         assert!(overall.interval.is_some());
         let twfe = rollout.diagnostic("twfe_static_coefficient").unwrap();
         assert!((twfe - 3.5).abs() > 2.0, "two-way fixed effects {twfe}");
@@ -162,7 +162,7 @@ fn dynamic_aggregation_publishes_simultaneous_bands_and_is_thread_invariant() {
         let (interval, band) = (effect.interval.unwrap(), effect.band.unwrap());
         assert!(band[0] <= interval[0] && band[1] >= interval[1]);
         if effect.event_time.unwrap() >= 0 {
-            assert!((effect.estimate - 3.0 * effect.event_time.unwrap() as f64).abs() < 0.7);
+            assert!((effect.estimate - 3.0 * effect.event_time.unwrap() as f64).abs() < 0.5);
         }
     }
     assert!(rollout.critical_value.is_some());
@@ -180,7 +180,7 @@ fn an_unbalanced_panel_runs_for_every_estimator_and_an_informative_process_is_re
     );
     let result = Study::tabular(data.clone()).query(query).build().unwrap().run(&ctx).unwrap();
     let rollout = result.quasi_rollout().unwrap();
-    assert!((rollout.overall().unwrap().estimate - 3.5).abs() < 0.4);
+    assert!((rollout.overall().unwrap().estimate - 3.5).abs() < 0.2);
     assert_eq!(rollout.diagnostic("balanced_panel"), Some(0.0));
     let mut spec = robust(RolloutDidEstimator::SunAbraham, DidAggregation::Simple);
     spec.comparison = DidComparisonGroup::NeverTreated;
@@ -191,7 +191,7 @@ fn an_unbalanced_panel_runs_for_every_estimator_and_an_informative_process_is_re
         .run(&ctx)
         .unwrap();
     let rollout = result.quasi_rollout().unwrap();
-    assert!((rollout.overall().unwrap().estimate - 3.5).abs() < 0.4);
+    assert!((rollout.overall().unwrap().estimate - 3.5).abs() < 0.2);
     assert_eq!(rollout.diagnostic("balanced_panel"), Some(0.0));
     // Per-cohort support and the dropped rows are reported with the fit.
     assert_eq!(rollout.diagnostic("cohort_2_units"), Some(150.0));
@@ -295,7 +295,38 @@ fn covariate_adjusted_two_period_did_recovers_the_effect_under_conditional_trend
         let result = Study::tabular(data.clone()).query(query).build().unwrap().run(&ctx).unwrap();
         let rollout = result.quasi_rollout().unwrap();
         assert_eq!(rollout.design.as_ref(), "covariate_adjusted_did");
-        assert!((rollout.overall().unwrap().estimate - 2.0).abs() < 0.2, "{nuisance:?}");
+        if nuisance == DidNuisanceMethod::OutcomeRegression {
+            // Independent outcome-regression ATT: the treated mean change minus the treated mean of
+            // the control-group linear prediction of the change on the covariate.
+            let (mut sx, mut sy, mut sxx, mut sxy, mut nc) = (0.0, 0.0, 0.0, 0.0, 0.0);
+            let (mut treated_change, mut treated_pred_x, mut nt) = (0.0, 0.0, 0.0);
+            let mut changes = Vec::new();
+            for i in 0..3000 {
+                changes.push((x[2 * i], y[2 * i + 1] - y[2 * i], treated[2 * i]));
+            }
+            for &(cx, dy, is_treated) in &changes {
+                if is_treated {
+                    treated_change += dy;
+                    treated_pred_x += cx;
+                    nt += 1.0;
+                } else {
+                    sx += cx;
+                    sy += dy;
+                    sxx += cx * cx;
+                    sxy += cx * dy;
+                    nc += 1.0;
+                }
+            }
+            let slope = (sxy - sx * sy / nc) / (sxx - sx * sx / nc);
+            let intercept = (sy - slope * sx) / nc;
+            let reference = (treated_change - nt * intercept - slope * treated_pred_x) / nt;
+            assert!(
+                (rollout.overall().unwrap().estimate - reference).abs() < 1e-6,
+                "outcome regression {} vs reference {reference}",
+                rollout.overall().unwrap().estimate
+            );
+        }
+        assert!((rollout.overall().unwrap().estimate - 2.0).abs() < 0.15, "{nuisance:?}");
         assert!(has_assumption(
             &result,
             "conditional_parallel_untreated_trends_given_baseline_covariates"
@@ -329,7 +360,7 @@ fn the_bayesian_rollout_is_a_joint_bayesian_bootstrap_posterior_with_credible_ba
     assert!(rollout.uncertainty.starts_with("bayesian_"));
     assert_eq!(rollout.calibration.as_ref(), "unmeasured");
     let overall = rollout.overall().unwrap();
-    assert!((overall.estimate - 4.5).abs() < 0.5, "{}", overall.estimate);
+    assert!((overall.estimate - 4.5).abs() < 0.35, "{}", overall.estimate);
     for effect in rollout.effects.iter().filter(|effect| effect.kind == DesignEffectKind::EventTime)
     {
         let (interval, band) = (effect.interval.unwrap(), effect.band.unwrap());
@@ -396,7 +427,7 @@ fn the_augmented_panel_publishes_a_whole_cluster_resample_interval() {
     assert!(section.standard_error.is_some_and(|se| se > 0.0));
     assert_eq!(section.interval_95, result.panel_did().unwrap().interval_95);
     let fit = result.panel_did().unwrap();
-    assert!((fit.effect - 1.5).abs() < 0.15, "{}", fit.effect);
+    assert!((fit.effect - 1.5).abs() < 0.12, "{}", fit.effect);
     let interval = fit.interval_95.unwrap();
     assert!(interval[0] < fit.effect && fit.effect < interval[1]);
     assert!(fit.uncertainty.contains("calibration_unmeasured"));
@@ -449,7 +480,7 @@ fn conformal_synthetic_control_reports_period_intervals_and_refuses_a_bayesian_r
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("quasi.synthetic_control_conformal"));
     let rollout = result.quasi_rollout().unwrap();
     let overall = rollout.overall().unwrap();
-    assert!((overall.estimate - 3.0).abs() < 0.8);
+    assert!((overall.estimate - 3.0).abs() < 0.4);
     assert!(overall.interval.unwrap()[0] > 0.0);
     assert_eq!(
         rollout.effects.iter().filter(|effect| effect.kind == DesignEffectKind::Period).count(),
@@ -476,7 +507,7 @@ fn conformal_synthetic_control_reports_period_intervals_and_refuses_a_bayesian_r
         .collect();
     assert_eq!(periods.len(), 5);
     assert!(periods.iter().all(|effect| effect.interval.is_some()));
-    assert!((predictive.overall().unwrap().estimate - 3.0).abs() < 1.0);
+    assert!((predictive.overall().unwrap().estimate - 3.0).abs() < 0.25);
 }
 
 #[test]

@@ -120,6 +120,65 @@ fn field(diagnostic: &antecedent_core::Diagnostic, key: &str) -> f64 {
         .unwrap()
 }
 
+/// Independent resampling reference for the table: `(sd_total, sd_direct, sd_indirect,
+/// corr_direct_indirect)` of the counted decomposition over `replicates` multinomial row
+/// resamples drawn from a splitmix64 stream of the test's own. With `dirichlet` the row weights
+/// are instead exponential (Bayesian bootstrap) draws normalised over the cells.
+fn resampling_reference(replicates: usize, dirichlet: bool) -> (f64, f64, f64, f64) {
+    let n: usize = CELLS.iter().map(|c| c.3).sum();
+    let mut state = 0xD1B5_4A32_D192_ED03_u64;
+    let mut next = || {
+        state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = state;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        ((z ^ (z >> 31)) >> 11) as f64 / (1u64 << 53) as f64
+    };
+    let mut draws: Vec<[f64; 3]> = Vec::new();
+    for _ in 0..replicates {
+        let mut c = [0.0_f64; 8];
+        if dirichlet {
+            // Each row carries an Exp(1) weight: a cell's weight is the sum over its rows.
+            for (i, cell) in CELLS.iter().enumerate() {
+                for _ in 0..cell.3 {
+                    c[i] -= (1.0 - next()).ln();
+                }
+            }
+        } else {
+            for _ in 0..n {
+                let mut u = next() * n as f64;
+                for (i, cell) in CELLS.iter().enumerate() {
+                    u -= cell.3 as f64;
+                    if u < 0.0 || i == 7 {
+                        c[i] += 1.0;
+                        break;
+                    }
+                }
+            }
+        }
+        // Index of (t, m, y) is 4 t + 2 m + y, the order of `CELLS`.
+        let at = |t: usize, m: usize, y: usize| c[4 * t + 2 * m + y];
+        let row = |t: usize, m: usize| at(t, m, 0) + at(t, m, 1);
+        let ey = |t: usize, m: usize| at(t, m, 1) / row(t, m);
+        let pm = |m: usize, t: usize| row(t, m) / (row(t, 0) + row(t, 1));
+        let mean_y = |t: usize| (at(t, 0, 1) + at(t, 1, 1)) / (row(t, 0) + row(t, 1));
+        let total = mean_y(1) - mean_y(0);
+        let direct: f64 = (0..2).map(|m| (ey(1, m) - ey(0, m)) * pm(m, 0)).sum();
+        let indirect: f64 = (0..2).map(|m| ey(0, m) * (pm(m, 1) - pm(m, 0))).sum();
+        if total.is_finite() && direct.is_finite() && indirect.is_finite() {
+            draws.push([total, direct, indirect]);
+        }
+    }
+    let k = draws.len() as f64;
+    let mean = |j: usize| draws.iter().map(|d| d[j]).sum::<f64>() / k;
+    let (mt, md, mi) = (mean(0), mean(1), mean(2));
+    let cov = |a: usize, ma: f64, b: usize, mb: f64| {
+        draws.iter().map(|d| (d[a] - ma) * (d[b] - mb)).sum::<f64>() / (k - 1.0)
+    };
+    let (vt, vd, vi) = (cov(0, mt, 0, mt), cov(1, md, 1, md), cov(2, mi, 2, mi));
+    (vt.sqrt(), vd.sqrt(), vi.sqrt(), cov(1, md, 2, mi) / (vd * vi).sqrt())
+}
+
 #[test]
 fn an_admg_decomposition_is_the_counted_total_direct_and_indirect_effect() {
     let ctx = ExecutionContext::for_tests(61);
@@ -142,10 +201,24 @@ fn an_admg_decomposition_is_the_counted_total_direct_and_indirect_effect() {
         // The components were bootstrapped on the same resampled tables.
         let diagnostic = joint(&result).expect("joint disclosure");
         assert!(field(diagnostic, "draws") >= 40.0);
-        assert!(field(diagnostic, "total_sd") > 0.0);
-        assert!(field(diagnostic, "direct_sd") > 0.0);
+        // The resampled component spreads and their correlation match an independent
+        // 4000-resample reference; 60 replicates know a standard deviation to about 10% (observed 8%).
+        let (sd_total, sd_direct, sd_indirect, reference_correlation) =
+            resampling_reference(4000, false);
+        for (key, reference) in
+            [("total_sd", sd_total), ("direct_sd", sd_direct), ("indirect_sd", sd_indirect)]
+        {
+            let published = field(diagnostic, key);
+            assert!(
+                published > 0.8 * reference && published < 1.25 * reference,
+                "{key}: {published} vs reference {reference}"
+            );
+        }
         let correlation = field(diagnostic, "corr_direct_indirect");
-        assert!((-1.0..=1.0).contains(&correlation), "{correlation}");
+        assert!(
+            (correlation - reference_correlation).abs() < 0.15,
+            "corr_direct_indirect {correlation} vs reference {reference_correlation}"
+        );
         // The requested contrast carries its own standard error.
         let se = result.estimate().as_effect().unwrap().se_bootstrap().expect("a bootstrap SE");
         let reported = field(
@@ -168,12 +241,21 @@ fn the_bayesian_bootstrap_pairs_the_component_posteriors() {
         study(latent_free(), MediationContrast::NaturalDirect, inference, 0).run(&ctx).unwrap();
     let posterior = result.posterior.as_ref().expect("a posterior");
     assert_eq!(posterior.draws.n_draws, 400);
-    assert!((result.effect() - counted_direct()).abs() < 0.05, "{}", result.effect());
+    assert!((result.effect() - counted_direct()).abs() < 0.01, "{}", result.effect());
     let diagnostic = joint(&result).expect("joint disclosure");
     assert_eq!(field(diagnostic, "draws"), 400.0);
-    assert!((field(diagnostic, "total_mean") - counted_total()).abs() < 0.05);
-    assert!((field(diagnostic, "indirect_mean") - counted_indirect()).abs() < 0.05);
-    assert!(field(diagnostic, "direct_sd") > 0.0);
+    assert!((field(diagnostic, "total_mean") - counted_total()).abs() < 0.015);
+    assert!((field(diagnostic, "indirect_mean") - counted_indirect()).abs() < 0.015);
+    let (sd_total, sd_direct, _, _) = resampling_reference(4000, true);
+    // Bayesian-bootstrap spreads equal an independent exponential-weight reference to Monte Carlo
+    // error (400 draws, 4000 reference resamples).
+    for (key, reference) in [("total_sd", sd_total), ("direct_sd", sd_direct)] {
+        let published = field(diagnostic, key);
+        assert!(
+            published > 0.9 * reference && published < 1.1 * reference,
+            "{key}: {published} vs reference {reference}"
+        );
+    }
 }
 
 #[test]

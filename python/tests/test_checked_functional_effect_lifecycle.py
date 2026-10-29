@@ -40,7 +40,13 @@ def test_path_specific_program_refreshes_and_replays_independently() -> None:
     )
     original_inspection = prepared.inspect()
     first = require_success(prepared.estimate())
-    assert np.isfinite(first.effect)
+    # The chain has no direct edge, so the all-path natural effect is the total effect: the
+    # difference of the observed outcome means (0.8 - 0.5), unconfounded in this table.
+    treated = data["t"] == 1.0
+    assert first.effect == pytest.approx(
+        data["y"][treated].mean() - data["y"][~treated].mean(), abs=1e-12
+    )
+    assert first.effect == pytest.approx(0.3, abs=1e-12)
     first_replay = ant.artifacts.accept(bytes(first.export()))
     assert first_replay["accepts_as_verified_program"] == "true"
 

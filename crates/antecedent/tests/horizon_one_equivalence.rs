@@ -402,14 +402,16 @@ fn bayesian_linear_pulse_is_a_tempered_generalized_posterior_not_the_ordinary_on
     assert!(kappa >= 1.0 - 1e-9, "tempering never sharpens the likelihood: {kappa}");
 
     // Same point functional: the posterior mean is the least-squares contrast.
-    assert!((ordinary_mean - contrast).abs() < 0.25 * se, "{ordinary_mean} vs {contrast}");
+    assert!((ordinary_mean - contrast).abs() < 0.08 * se, "{ordinary_mean} vs {contrast}");
     assert!(
-        (temporal_mean - contrast).abs() < 0.25 * se * kappa.sqrt(),
+        (temporal_mean - contrast).abs() < 0.1 * se,
         "{temporal_mean} vs {contrast}"
     );
     // Not the same posterior: the temporal one carries the tempering.
-    assert!(temporal_sd > 0.9 * ordinary_sd * kappa.sqrt(), "{temporal_sd} {ordinary_sd}");
-    assert!(temporal_sd < 1.5 * ordinary_sd * kappa.sqrt(), "{temporal_sd} {ordinary_sd}");
+    // The power posterior's spread is the ordinary spread times sqrt(kappa) (observed ratio
+    // 1.0045), up to Monte Carlo error in the two draw sets.
+    assert!(temporal_sd > 0.96 * ordinary_sd * kappa.sqrt(), "{temporal_sd} {ordinary_sd}");
+    assert!(temporal_sd < 1.04 * ordinary_sd * kappa.sqrt(), "{temporal_sd} {ordinary_sd}");
 
     assert!(has_diagnostic(&temporal, "estimate.bayesian.temporal.dependence_correction"));
     assert!(!has_diagnostic(&ordinary, "estimate.bayesian.temporal.dependence_correction"));
@@ -483,7 +485,7 @@ fn bayesian_mediation_path_product_is_tempered_per_mechanism_in_the_temporal_rou
     for (label, result) in [("static", &ordinary), ("temporal", &temporal)] {
         let (mean, sd) = mean_sd(&draws_of(result));
         assert!(
-            (mean - product).abs() < 0.2 * sd,
+            (mean - product).abs() < 0.06 * sd,
             "{label}: mean {mean} vs a*b {product}, sd {sd}"
         );
     }
@@ -575,7 +577,7 @@ fn temporal_counterfactual_is_a_population_average_without_unit_effects_or_poste
         .unwrap();
     let unit = static_result.counterfactual().expect("static unit-level payload");
     assert_eq!(unit.unit_effects.len(), N - 1);
-    assert!((unit.mean_ite - slope).abs() < 0.1, "{} vs {slope}", unit.mean_ite);
+    assert!((unit.mean_ite - slope).abs() < 1e-9, "{} vs {slope}", unit.mean_ite);
 
     let context = ctx();
     let static_bayes = Study::tabular(static_data.clone())
@@ -614,7 +616,7 @@ fn temporal_counterfactual_is_a_population_average_without_unit_effects_or_poste
             .unwrap();
         // The Bayesian twin publishes the posterior mean of the slope times the contrast
         // from eight draws, so it agrees with the fitted slope to Monte Carlo error only.
-        let tolerance = if bayes { 0.2 } else { TOLERANCE };
+        let tolerance = if bayes { 0.04 } else { TOLERANCE };
         let ate = result.estimate().as_effect().unwrap().ate;
         assert!((ate - slope).abs() <= tolerance, "bayes={bayes}: {ate} vs {slope}");
         assert!(has_diagnostic(&result, "estimate.temporal.cross_world"));

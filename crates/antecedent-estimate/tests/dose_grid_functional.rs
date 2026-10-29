@@ -64,6 +64,64 @@ fn request<'a>(
     }
 }
 
+/// Independent local-quadratic reference at `x0`: Gaussian-kernel weighted least squares of the
+/// outcome on `[1, d - x0, (d - x0)^2]`, solved from the 3 by 3 normal equations. Returns the
+/// level, the derivative, and the HC0 sandwich standard errors `sqrt(sum_i (l_i e_i)^2)` of each,
+/// where `l_i` are the equivalent-kernel weights of the coefficient and `e_i` the residuals.
+fn local_quadratic_reference(
+    dose: &[f64],
+    outcome: &[f64],
+    x0: f64,
+    bandwidth: f64,
+) -> (f64, f64, f64, f64, Vec<f64>) {
+    let w: Vec<f64> = dose.iter().map(|d| (-0.5 * ((d - x0) / bandwidth).powi(2)).exp()).collect();
+    let basis = |d: f64| [1.0, d - x0, (d - x0).powi(2)];
+    let mut a = [[0.0_f64; 3]; 3];
+    let mut b = [0.0_f64; 3];
+    for i in 0..dose.len() {
+        let x = basis(dose[i]);
+        for r in 0..3 {
+            for c in 0..3 {
+                a[r][c] += w[i] * x[r] * x[c];
+            }
+            b[r] += w[i] * x[r] * outcome[i];
+        }
+    }
+    let inverse = invert3(a);
+    let beta: Vec<f64> =
+        (0..3).map(|r| (0..3).map(|c| inverse[r][c] * b[c]).sum::<f64>()).collect();
+    let mut var = [0.0_f64; 2];
+    let mut influence = Vec::with_capacity(dose.len());
+    for i in 0..dose.len() {
+        let x = basis(dose[i]);
+        let fitted: f64 = (0..3).map(|k| beta[k] * x[k]).sum();
+        let e = outcome[i] - fitted;
+        for (slot, row) in [0_usize, 1].into_iter().enumerate() {
+            let l: f64 = (0..3).map(|c| inverse[row][c] * w[i] * x[c]).sum();
+            var[slot] += (l * e).powi(2);
+            if row == 0 {
+                influence.push(l * e);
+            }
+        }
+    }
+    (beta[0], beta[1], var[0].sqrt(), var[1].sqrt(), influence)
+}
+
+fn invert3(m: [[f64; 3]; 3]) -> [[f64; 3]; 3] {
+    let det = m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+        - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+        + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+    let mut out = [[0.0; 3]; 3];
+    for r in 0..3 {
+        for c in 0..3 {
+            let (r1, r2) = ((c + 1) % 3, (c + 2) % 3);
+            let (c1, c2) = ((r + 1) % 3, (r + 2) % 3);
+            out[r][c] = (m[r1][c1] * m[r2][c2] - m[r1][c2] * m[r2][c1]) / det;
+        }
+    }
+    out
+}
+
 fn reason(error: &EstimationError) -> String {
     error.refusal_fields().and_then(|fields| fields.reason.clone()).unwrap_or_default()
 }
@@ -105,10 +163,14 @@ fn derivative_recovers_closed_form_exactly_without_noise() {
 
 #[test]
 fn level_and_derivative_recover_truth_under_alternating_noise_within_tolerance() {
+    let (dose, outcome) = design(0.1);
     let level_row = run(DoseFunctional::Level, claims(true, false), 0.1);
     for level in &level_row.levels {
         assert!((level.level - truth_level(level.dose)).abs() < 0.02, "level at {}", level.dose);
-        assert!(level.standard_error.is_finite() && level.standard_error > 0.0);
+        // Independent Gaussian-kernel local-quadratic fit and HC0 sandwich on the same rows.
+        let (reference, _, se, _, _) = local_quadratic_reference(&dose, &outcome, level.dose, 0.4);
+        assert!((level.level - reference).abs() < 1e-9, "level {} vs {reference}", level.level);
+        assert!((level.standard_error - se).abs() < 1e-9, "se {} vs {se}", level.standard_error);
     }
     let derivative_row = run(DoseFunctional::Derivative, claims(false, true), 0.1);
     for item in &derivative_row.derivatives {
@@ -117,7 +179,9 @@ fn level_and_derivative_recover_truth_under_alternating_noise_within_tolerance()
             "derivative at {}",
             item.dose
         );
-        assert!(item.standard_error.is_finite() && item.standard_error > 0.0);
+        let (_, reference, _, se, _) = local_quadratic_reference(&dose, &outcome, item.dose, 0.4);
+        assert!((item.derivative - reference).abs() < 1e-9, "{} vs {reference}", item.derivative);
+        assert!((item.standard_error - se).abs() < 1e-9, "se {} vs {se}", item.standard_error);
     }
 }
 
@@ -150,7 +214,14 @@ fn contrast_between_named_doses_matches_closed_form() {
     assert!(noisy.is_ok());
     let noisy = noisy.unwrap().contrast.unwrap();
     assert!((noisy.estimate - 3.0).abs() < 0.02);
-    assert!(noisy.standard_error.is_finite() && noisy.standard_error > 0.0);
+    let (to, from) = (
+        local_quadratic_reference(&dose, &outcome, 3.0, 0.4),
+        local_quadratic_reference(&dose, &outcome, 1.0, 0.4),
+    );
+    let difference = to.0 - from.0;
+    assert!((noisy.estimate - difference).abs() < 1e-9, "{} vs {difference}", noisy.estimate);
+    let se = to.4.iter().zip(&from.4).map(|(a, b)| (a - b).powi(2)).sum::<f64>().sqrt();
+    assert!((noisy.standard_error - se).abs() < 1e-9, "se {} vs {se}", noisy.standard_error);
     assert_eq!(noisy.interval.calibration, IntervalCalibration::Unmeasured);
     assert!(noisy.interval.lower < noisy.estimate && noisy.estimate < noisy.interval.upper);
     assert!(!noisy.interval.smoothing_bias_included);

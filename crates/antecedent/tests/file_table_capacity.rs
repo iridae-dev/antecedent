@@ -175,6 +175,40 @@ fn resident_design(skip: Option<usize>) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
     (design, response, weights)
 }
 
+/// Independent weighted least squares of `y` on `[1, x1, x2]` over the generated rows (optionally
+/// leaving one row out), from the weighted normal equations solved by Gaussian elimination.
+fn weighted_ols_reference(skip: Option<usize>) -> Vec<f64> {
+    let (design, response, weights) = resident_design(skip);
+    let mut a = vec![vec![0.0_f64; 3]; 3];
+    let mut b = vec![0.0_f64; 3];
+    for (k, row) in design.chunks(3).enumerate() {
+        for r in 0..3 {
+            b[r] += weights[k] * row[r] * response[k];
+            for c in 0..3 {
+                a[r][c] += weights[k] * row[r] * row[c];
+            }
+        }
+    }
+    for p in 0..3 {
+        let piv = (p..3).max_by(|&u, &v| a[u][p].abs().total_cmp(&a[v][p].abs())).unwrap();
+        a.swap(p, piv);
+        b.swap(p, piv);
+        for r in p + 1..3 {
+            let f = a[r][p] / a[p][p];
+            for c in p..3 {
+                let v = a[p][c];
+                a[r][c] -= f * v;
+            }
+            b[r] -= f * b[p];
+        }
+    }
+    let mut x = vec![0.0; 3];
+    for r in (0..3).rev() {
+        x[r] = (b[r] - (r + 1..3).map(|c| a[r][c] * x[c]).sum::<f64>()) / a[r][r];
+    }
+    x
+}
+
 fn spec() -> GaussianSummarySpec {
     let mut spec = GaussianSummarySpec::new(vec!["x1".into(), "x2".into()], "y");
     spec.weight = Some("w".into());
@@ -239,6 +273,11 @@ fn a_table_above_the_pool_is_refused_resident_and_streamed_as_a_summary() {
     assert_eq!(streamed.coefficients, reference.coefficients, "the same rows, the same summary");
     assert_eq!(streamed.content_identity, reference.content_identity);
     assert_eq!(streamed.cross_products, reference.cross_products);
+    // Independent weighted normal equations over the same generated rows.
+    let independent = weighted_ols_reference(None);
+    for (got, want) in streamed.coefficients.iter().zip(&independent) {
+        assert!((got - want).abs() < 1e-8, "{:?} vs {independent:?}", streamed.coefficients);
+    }
     assert!((streamed.coefficients[1] - 2.0).abs() < 0.05);
 }
 
@@ -275,6 +314,18 @@ fn missing_values_are_refused_or_left_out_as_declared() {
         .into_resident()
         .unwrap();
     assert_eq!(streamed.coefficients, reference.coefficients);
+    // Left-out row 123 changes the independent weighted fit; the summary matches the one without it.
+    let independent = weighted_ols_reference(Some(123));
+    for (got, want) in streamed.coefficients.iter().zip(&independent) {
+        assert!((got - want).abs() < 1e-8, "{:?} vs {independent:?}", streamed.coefficients);
+    }
+    assert!(
+        weighted_ols_reference(None)
+            .iter()
+            .zip(&independent)
+            .any(|(with_row, without)| (with_row - without).abs() > 1e-6),
+        "the dropped row must matter to the fit"
+    );
 
     let absent = GaussianSummarySpec::new(vec!["nope".into()], "y");
     let refused =
@@ -462,6 +513,9 @@ fn both_controls_agree_through_the_file_route_in_both_retentions() {
         .into_resident()
         .unwrap();
         assert_eq!(glm.coefficients, reference.coefficients);
+        for (got, want) in glm.coefficients.iter().zip(&weighted_ols_reference(None)) {
+            assert!((got - want).abs() < 1e-8, "{:?}", glm.coefficients);
+        }
         assert_eq!(glm.cross_products, reference.cross_products);
         assert_eq!(bayes.content_identity, reference.content_identity);
     }
