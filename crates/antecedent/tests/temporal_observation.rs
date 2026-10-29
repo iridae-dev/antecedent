@@ -87,6 +87,14 @@ fn surface_of(result: &antecedent::result::StudyResult) -> Vec<f64> {
     mean.to_vec()
 }
 
+/// The tolerance the corrected surfaces are held to: about twice the largest error observed on
+/// the pinned data (0.076), against the fixture's declared 0.35 ceiling.
+const SURFACE_ATOL: f64 = 0.15;
+
+/// The smallest margin by which a complete-on-proxy surface must miss the truth beyond the
+/// corrected one (observed at least 1.19).
+const NAIVE_MISS: f64 = 1.0;
+
 fn max_abs(got: &[f64], truth: &[f64]) -> f64 {
     got.iter().zip(truth).map(|(a, b)| (a - b).abs()).fold(0.0, f64::max)
 }
@@ -141,8 +149,8 @@ fn temporal_observation_pairs_match_fixture_and_beat_complete_proxy() {
     }
     let truth: Vec<f64> =
         pin["surface"]["mean"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
-    let atol = pin["atol"].as_f64().unwrap();
-    let naive_gap = pin["naive_gap_min"].as_f64().unwrap();
+    let atol = SURFACE_ATOL.min(pin["atol"].as_f64().unwrap());
+    let naive_gap = NAIVE_MISS.max(pin["naive_gap_min"].as_f64().unwrap());
     let id = VariableId::from_raw;
 
     let cases: Vec<(&str, Vec<f64>, ObservationSpec, ObservationAssumption)> = vec![
@@ -298,7 +306,7 @@ fn temporal_observation_pairs_match_fixture_and_beat_complete_proxy() {
     let km_error = max_abs(&surface_of(&km_on_cox), &truth);
     let cox_error = right_cox_error.unwrap();
     assert!(
-        km_error > cox_error + 0.05,
+        km_error > cox_error + 0.3,
         "temporal Cox must beat marginal KM: cox={cox_error} km={km_error}"
     );
 }
@@ -344,7 +352,7 @@ fn temporal_right_censor_intervention_matches_fixture_path() {
         .map(|v| v.as_f64().unwrap())
         .collect();
     let error = max_abs(&got, &truth);
-    assert!(error <= pin["atol"].as_f64().unwrap(), "Set(0.5) {got:?} vs {truth:?}");
+    assert!(error <= SURFACE_ATOL, "Set(0.5) {got:?} vs {truth:?} error={error}");
     assert_eq!(
         result.response().unwrap().provenance_id.as_ref(),
         "estimate.temporal_response.observation_adjusted"

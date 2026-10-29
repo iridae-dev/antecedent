@@ -342,16 +342,24 @@ fn artifact_refuses_a_stored_number_or_constraint_changed_under_the_same_identit
 
     let mut tampered: DecisionResult = result.clone();
     tampered.actions[1].expected_utility = 2.0;
-    assert!(DecisionResultArtifact::new(tampered, &source).replay(&contract, &source).is_err());
+    let refusal = |outcome: Result<(), antecedent_io_core::error::IoError>| {
+        format!("{:?}", outcome.unwrap_err())
+    };
+    let message =
+        refusal(DecisionResultArtifact::new(tampered, &source).replay(&contract, &source));
+    assert!(message.contains("decision_artifact.replay_mismatch"), "{message}");
     let mut flipped = result;
     flipped.verdict = Verdict::UniquelyOptimal("A".into());
-    assert!(DecisionResultArtifact::new(flipped, &source).replay(&contract, &source).is_err());
+    let message =
+        refusal(DecisionResultArtifact::new(flipped, &source).replay(&contract, &source));
+    assert!(message.contains("decision_artifact.replay_mismatch"), "{message}");
 
     // A different constraint is a different contract: the stored result is not its answer.
     let tighter =
         admissibility_contract(vec![constraint("y-cap", UtilityExpr::Input(1), 1.0, &["A"])]);
     assert_ne!(tighter.identity().unwrap(), contract.identity().unwrap());
-    assert!(artifact.replay(&tighter, &source).is_err());
+    let message = refusal(artifact.replay(&tighter, &source));
+    assert!(message.contains("decision_artifact.replay_contract"), "{message}");
 }
 
 // ---------------------------------------------------------------------------

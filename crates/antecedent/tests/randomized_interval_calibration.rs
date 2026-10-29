@@ -240,18 +240,222 @@ fn measure(
     tally.assert();
 }
 
-/// A balanced trial publishes a finite ordered interval around the known effect.
-#[test]
-fn the_scored_intervals_are_ordered_and_centred_near_the_known_effect() {
-    for adjustment in [Adjustment::Score, Adjustment::Ancova] {
-        let (interval, _, truth) = published(300, adjustment, Assignment::Bernoulli(0.5), 7);
-        let [lower, upper] = interval.expect("300 balanced rows publish an interval");
-        assert!(lower.is_finite() && upper.is_finite() && lower < upper);
-        assert!(((lower + upper) / 2.0 - truth).abs() < 0.5);
+/// The simulated trial's outcomes and assignment, rebuilt from the generating equations
+/// (independent of the route).
+fn simulated(
+    n: usize,
+    adjustment: Adjustment,
+    assignment: Assignment,
+    seed: u64,
+) -> (Vec<bool>, Vec<f64>) {
+    let units = units(n);
+    let assignment = match (assignment, adjustment) {
+        (Assignment::WeakArm { treated }, Adjustment::Score) => Assignment::Complete(treated),
+        (Assignment::WeakArm { treated }, Adjustment::Ancova) => {
+            Assignment::DeclaredBernoulli { probability: treated as f64 / n as f64, treated }
+        }
+        (other, _) => other,
+    };
+    let assigned = assign(n, assignment, seed);
+    let outcome = (0..n)
+        .map(|i| {
+            2.0 + 1.2 * units.x1[i] - 0.7 * units.x2[i]
+                + 0.5 * (0.29 * i as f64).sin()
+                + f64::from(assigned[i]) * (1.4 + 0.2 * units.x1[i])
+        })
+        .collect();
+    (assigned, outcome)
+}
+
+/// Arm means and unbiased arm variances `(treated mean, control mean, treated var, control var,
+/// treated n, control n)`.
+fn arm_summary(assigned: &[bool], y: &[f64]) -> (f64, f64, f64, f64, f64, f64) {
+    let side = |flag: bool| {
+        let values: Vec<f64> =
+            assigned.iter().zip(y).filter(|(a, _)| **a == flag).map(|(_, v)| *v).collect();
+        let m = values.len() as f64;
+        let mean = values.iter().sum::<f64>() / m;
+        let var = values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (m - 1.0);
+        (mean, var, m)
+    };
+    let (m1, v1, n1) = side(true);
+    let (m0, v0, n0) = side(false);
+    (m1, m0, v1, v0, n1, n0)
+}
+
+/// OLS of `y` on `[1, assigned, x1, x2]` by Gauss-Jordan inversion of the normal matrix:
+/// the treatment coefficient, its HC0 standard error and its HC2 standard error.
+fn ancova_oracle(assigned: &[bool], y: &[f64]) -> (f64, f64, f64) {
+    let n = y.len();
+    let u = units(n);
+    let rows: Vec<[f64; 4]> =
+        (0..n).map(|i| [1.0, f64::from(assigned[i]), u.x1[i], u.x2[i]]).collect();
+    let mut aug = [[0.0_f64; 8]; 4];
+    for r in &rows {
+        for i in 0..4 {
+            for j in 0..4 {
+                aug[i][j] += r[i] * r[j];
+            }
+        }
     }
-    let (interval, _, truth) = published(300, Adjustment::Score, Assignment::Complete(150), 7);
-    let [lower, upper] = interval.expect("a complete randomization publishes an interval");
-    assert!(lower < truth + 0.5 && truth - 0.5 < upper);
+    for (i, row) in aug.iter_mut().enumerate() {
+        row[4 + i] = 1.0;
+    }
+    for col in 0..4 {
+        let pivot =
+            (col..4).max_by(|&a, &b| aug[a][col].abs().total_cmp(&aug[b][col].abs())).unwrap();
+        aug.swap(col, pivot);
+        let d = aug[col][col];
+        for v in &mut aug[col] {
+            *v /= d;
+        }
+        for r in 0..4 {
+            if r != col {
+                let f = aug[r][col];
+                let pivot_row = aug[col];
+                for (v, p) in aug[r].iter_mut().zip(pivot_row) {
+                    *v -= f * p;
+                }
+            }
+        }
+    }
+    let inv: Vec<Vec<f64>> = (0..4).map(|i| aug[i][4..].to_vec()).collect();
+    let xty: Vec<f64> =
+        (0..4).map(|i| rows.iter().zip(y).map(|(r, v)| r[i] * v).sum::<f64>()).collect();
+    let beta: Vec<f64> = (0..4).map(|i| (0..4).map(|j| inv[i][j] * xty[j]).sum()).collect();
+    let (mut meat0, mut meat2) = (0.0, 0.0);
+    for (r, v) in rows.iter().zip(y) {
+        let residual = v - (0..4).map(|k| beta[k] * r[k]).sum::<f64>();
+        let leverage: f64 =
+            (0..4).map(|i| (0..4).map(|j| r[i] * inv[i][j] * r[j]).sum::<f64>()).sum();
+        let weight: f64 = (0..4).map(|i| inv[1][i] * r[i]).sum();
+        meat0 += (weight * residual).powi(2);
+        meat2 += (weight * residual).powi(2) / (1.0 - leverage);
+    }
+    (beta[1], meat0.sqrt(), meat2.sqrt())
+}
+
+/// The 97.5th percentile of the standard normal.
+const Z975: f64 = 1.959_963_984_540_054;
+
+/// Student-t quantile by bisection on the integrated density (`ln_gamma` normalization).
+fn student_quantile_975(df: f64) -> f64 {
+    let ln_norm = antecedent_stats::ln_gamma((df + 1.0) / 2.0)
+        - antecedent_stats::ln_gamma(df / 2.0)
+        - 0.5 * (df * std::f64::consts::PI).ln();
+    let pdf = |t: f64| (ln_norm - (df + 1.0) / 2.0 * (1.0 + t * t / df).ln()).exp();
+    // P(0 < T < x) by Simpson's rule; the target is 0.475.
+    let half_mass = |x: f64| {
+        let steps = 4000;
+        let h = x / f64::from(steps);
+        let mut sum = pdf(0.0) + pdf(x);
+        for k in 1..steps {
+            sum += pdf(h * f64::from(k)) * if k % 2 == 1 { 4.0 } else { 2.0 };
+        }
+        sum * h / 3.0
+    };
+    let (mut lo, mut hi) = (0.0_f64, 10.0_f64);
+    for _ in 0..80 {
+        let mid = 0.5 * (lo + hi);
+        if half_mass(mid) < 0.475 {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    0.5 * (lo + hi)
+}
+
+/// Each published interval is the estimator a reader would write down: the difference in means
+/// with Neyman's variance and the normal 1.96 for a complete randomization, the
+/// Horvitz-Thompson score contrast for independent assignment, ANCOVA with the HC0 sandwich, and
+/// Welch-type Student intervals for a weak arm. Each is recomputed here from the generating
+/// equations, so a wrong divisor, weighting, variance or reference quantile is caught to the
+/// last digits, not by a band around the known effect.
+#[test]
+fn the_scored_intervals_equal_their_hand_computed_constructions() {
+    let n = 300;
+    let nf = n as f64;
+    let u = units(n);
+
+    // Complete randomization, 150 treated: difference in means, Neyman variance, z = 1.96.
+    let (assigned, y) = simulated(n, Adjustment::Score, Assignment::Complete(150), 7);
+    let (m1, m0, v1, v0, n1, n0) = arm_summary(&assigned, &y);
+    let (_, result, truth) = run_trial(n, Adjustment::Score, Assignment::Complete(150), 7);
+    let fit = result.randomized_effect().expect("a randomized effect result");
+    let se = (v1 / n1 + v0 / n0).sqrt();
+    assert!((fit.effect - (m1 - m0)).abs() < 1e-12, "{} vs {}", fit.effect, m1 - m0);
+    assert!((fit.standard_error.unwrap() - se).abs() < 1e-12, "{:?} vs {se}", fit.standard_error);
+    let [lower, upper] = fit.interval_95.expect("a complete randomization publishes an interval");
+    assert!(
+        (lower - (m1 - m0 - Z975 * se)).abs() < 1e-12
+            && (upper - (m1 - m0 + Z975 * se)).abs() < 1e-12
+    );
+    assert!(lower < truth && truth < upper, "[{lower}, {upper}] vs {truth}");
+
+    // Independent assignment, p = 1/2: the Horvitz-Thompson contrast and the standard error of
+    // its per-unit scores.
+    let (assigned, y) = simulated(n, Adjustment::Score, Assignment::Bernoulli(0.5), 7);
+    let scores: Vec<f64> =
+        (0..n).map(|i| if assigned[i] { y[i] / 0.5 } else { -y[i] / 0.5 }).collect();
+    let effect = scores.iter().sum::<f64>() / nf;
+    let spread = scores.iter().map(|s| (s - effect).powi(2)).sum::<f64>();
+    let (_, result, _) = run_trial(n, Adjustment::Score, Assignment::Bernoulli(0.5), 7);
+    let fit = result.randomized_effect().unwrap();
+    let se = (spread / (nf * (nf - 1.0))).sqrt();
+    assert!((fit.effect - effect).abs() < 1e-12, "{} vs {effect}", fit.effect);
+    assert!((fit.standard_error.unwrap() - se).abs() < 1e-12, "{:?} vs {se}", fit.standard_error);
+    let [lower, upper] = fit.interval_95.unwrap();
+    assert!(
+        (lower - (effect - Z975 * se)).abs() < 1e-12
+            && (upper - (effect + Z975 * se)).abs() < 1e-12
+    );
+
+    // ANCOVA on both baselines with the HC0 sandwich, normal reference.
+    let (assigned, y) = simulated(n, Adjustment::Ancova, Assignment::Bernoulli(0.5), 7);
+    let (beta, hc0, _) = ancova_oracle(&assigned, &y);
+    let (_, result, truth) = run_trial(n, Adjustment::Ancova, Assignment::Bernoulli(0.5), 7);
+    let fit = result.randomized_effect().unwrap();
+    assert!((fit.effect - beta).abs() < 1e-9, "{} vs {beta}", fit.effect);
+    assert!((fit.standard_error.unwrap() - hc0).abs() < 1e-9, "{:?} vs {hc0}", fit.standard_error);
+    let [lower, upper] = fit.interval_95.unwrap();
+    assert!(
+        (lower - (beta - Z975 * hc0)).abs() < 1e-9 && (upper - (beta + Z975 * hc0)).abs() < 1e-9
+    );
+    assert!(lower < truth && truth < upper, "[{lower}, {upper}] vs {truth}");
+
+    // Weak arm, 20 treated of 300, difference in means: Neyman's standard error and a Student
+    // reference near Welch's (the Bell-McCaffrey degrees of freedom are within a unit of
+    // Welch's here), far from the normal 1.96.
+    let (assigned, y) = simulated(n, Adjustment::Score, Assignment::WeakArm { treated: 20 }, 7);
+    let (m1, m0, v1, v0, n1, n0) = arm_summary(&assigned, &y);
+    let (a, b) = (v1 / n1, v0 / n0);
+    let welch = (a + b).powi(2) / (a * a / (n1 - 1.0) + b * b / (n0 - 1.0));
+    let (_, result, truth) =
+        run_trial(n, Adjustment::Score, Assignment::WeakArm { treated: 20 }, 7);
+    let fit = result.randomized_effect().unwrap();
+    assert!((fit.effect - (m1 - m0)).abs() < 1e-12);
+    assert!((fit.standard_error.unwrap() - (a + b).sqrt()).abs() < 1e-12);
+    let [lower, upper] = fit.interval_95.unwrap();
+    let ratio = (upper - lower) / (2.0 * fit.standard_error.unwrap());
+    assert!(((upper + lower) / 2.0 - (m1 - m0)).abs() < 1e-12);
+    assert!(
+        (ratio - student_quantile_975(welch)).abs() < 0.01,
+        "reference {ratio} vs Welch t {} at {welch} degrees of freedom",
+        student_quantile_975(welch)
+    );
+    assert!(lower < truth && truth < upper, "[{lower}, {upper}] vs {truth}");
+
+    // The same arm under ANCOVA: the HC2 standard error and a Student reference.
+    let (assigned, y) = simulated(n, Adjustment::Ancova, Assignment::WeakArm { treated: 20 }, 7);
+    let (beta, _, hc2) = ancova_oracle(&assigned, &y);
+    let (_, result, _) = run_trial(n, Adjustment::Ancova, Assignment::WeakArm { treated: 20 }, 7);
+    let fit = result.randomized_effect().unwrap();
+    assert!((fit.effect - beta).abs() < 1e-9, "{} vs {beta}", fit.effect);
+    assert!((fit.standard_error.unwrap() - hc2).abs() < 1e-9, "{:?} vs {hc2}", fit.standard_error);
+    let [lower, upper] = fit.interval_95.unwrap();
+    let ratio = (upper - lower) / (2.0 * hc2);
+    assert!((ratio - student_quantile_975(welch)).abs() < 0.02, "reference {ratio}");
 }
 
 #[test]

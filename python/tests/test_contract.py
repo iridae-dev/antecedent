@@ -210,7 +210,9 @@ def test_mediation_contracted_artifact_names_missing_checked_operation() -> None
     assert accepted["treatment"] == "0"
     assert accepted["outcome"] == "2"
     assert outcome.inspect().support.payload["matrix_coordinate"].startswith("MediationEffect:")
-    assert np.isfinite(result.estimate.ate)
+    # The direct effect of a with the mediator held at its natural value is the structural
+    # coefficient 3 (y = 3a + 4m + small noise); the indirect path 4 * 2 is not in it.
+    assert abs(result.estimate.ate - 3.0) < 0.01, result.estimate.ate
 
 
 def test_response_curve_contracted_artifact_names_missing_checked_grid() -> None:
@@ -233,7 +235,12 @@ def test_response_curve_contracted_artifact_names_missing_checked_grid() -> None
             query=ResponseCurve("treatment", "outcome", grid=[-0.5, 0.0, 0.5]),
         )
     )
-    require_success(outcome)
+    result = require_success(outcome)
+    # Deterministic linear outcome 1 + 2 treatment + 0.8 z: the curve at g is 1 + 2 g + 0.8 mean(z).
+    grid = np.array([-0.5, 0.0, 0.5])
+    np.testing.assert_allclose(
+        np.asarray(result.response.values).ravel(), 1.0 + 2.0 * grid + 0.8 * z.mean(), atol=0.05
+    )
     contract = outcome.inspect().contract
     accepted = artifacts.accept(bytes(outcome.export()))
     assert accepted["accepts_as_verified_program"] == "false"
@@ -276,7 +283,10 @@ def test_intervention_response_contracted_artifact_names_missing_checked_operati
     assert (
         outcome.inspect().support.payload["matrix_coordinate"].startswith("InterventionResponse:")
     )
-    assert abs(float(np.asarray(result.response.values).ravel()[0]) - 1.5) < 0.25
+    # Outcome 1 + 2 treatment + 0.8 z under do(treatment = 0.25): 1.5 + 0.8 mean(z), exactly the
+    # structural value up to the estimator's smoothing.
+    expected = 1.5 + 0.8 * z.mean()
+    assert abs(float(np.asarray(result.response.values).ravel()[0]) - expected) < 0.01
 
 
 def test_four_slots_agree_between_inspect_and_prepared_contract() -> None:

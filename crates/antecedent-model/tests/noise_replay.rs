@@ -242,8 +242,20 @@ fn coalitions_replay_from_two_tables_without_copying_or_growing_scratch() {
     assert_eq!(replayer.scratch_footprint(), footprint, "coalitions reuse one set of buffers");
 
     let narrow = NoiseTable::sample(&view, n - 1, &ctx).unwrap();
-    assert!(NoiseSource::coalition(&observed, &narrow, &[true; 3]).is_err());
-    assert!(NoiseSource::coalition(&observed, &redraw, &[true; 2]).is_err());
+    assert!(
+        matches!(
+            NoiseSource::coalition(&observed, &narrow, &[true; 3]),
+            Err(ModelError::Shape { message }) if message.contains("share a shape")
+        ),
+        "tables of different heights"
+    );
+    assert!(
+        matches!(
+            NoiseSource::coalition(&observed, &redraw, &[true; 2]),
+            Err(ModelError::Shape { message }) if message.contains("one flag per node")
+        ),
+        "a mask with too few flags"
+    );
 }
 
 #[test]
@@ -330,7 +342,10 @@ fn abducted_noise_carries_its_inference_mode_into_the_table() {
 
     let assumed = NoiseTable::from_abducted(&model, n, vec![0.5; 8], &[true, false]).unwrap();
     assert_eq!(assumed.origin(0), Some(NoiseOrigin::Assumed));
-    assert!(NoiseTable::from_abducted(&model, n, vec![0.5; 7], &[false, false]).is_err());
+    assert!(matches!(
+        NoiseTable::from_abducted(&model, n, vec![0.5; 7], &[false, false]),
+        Err(ModelError::Shape { message }) if message.contains("n_rows x n_nodes")
+    ));
 
     // Categorical noise is a uniform: an additive reference is refused and leaves the table intact.
     let mut table = table;
@@ -348,7 +363,10 @@ fn a_hard_set_node_without_a_fitted_mechanism_needs_no_noise() {
     let model = chain_with(vec![MechanismSlot::Vacant, linear(0.0, &[1.0], 1.0)]);
     let ctx = ExecutionContext::for_tests(2);
     let observational = ModelView::observational(&model);
-    assert!(NoiseTable::sample(&observational, 10, &ctx).is_err());
+    assert!(matches!(
+        NoiseTable::sample(&observational, 10, &ctx),
+        Err(ModelError::Unsupported { message }) if message == "mechanism not fitted"
+    ));
 
     let mut overlay = InterventionOverlay::observational(2);
     overlay.hard_set[0] = Some(3.0);

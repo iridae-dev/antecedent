@@ -75,7 +75,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_observation.rs",
-          "sha256": "91e3d54da97146886757429ae4d67825a37b9526f674bd6266c3a3f264ee7a53"
+          "sha256": "59e6d9e8ecf1ddb4dc28078adfe7487724bf587ea919da5dc942fd98f922c825"
         }
       ],
       "fixture_payload_sha256": "b6e36541fc6267d2ce996e43e78d4d861f456a36319e967d67d4baedc8be3a02"

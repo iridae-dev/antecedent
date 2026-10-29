@@ -36,6 +36,10 @@ def test_one_call_study_and_frozen_export():
         )
     )
     assert first.study.inspect().identification.available
+    # With no confounder to adjust for, the effect of the randomized arm is the difference in
+    # arm means, recomputed here from the data.
+    by_hand = data["y"][data["t"] == 1].mean() - data["y"][data["t"] == 0].mean()
+    assert first.effect == pytest.approx(by_hand, abs=1e-9)
     before = bytes(first.export())
     assert ant.artifacts.accept(before)["accepts_as_verified_program"] == "true"
     assert ant.artifacts.loads(before).contract["execution"]["seed"] == 19
@@ -438,6 +442,17 @@ def test_prepare_entry_points_share_omitted_defaults():
     )
     assert one_shot.inspect().identification.available
     assert prepared.inspect().identification.available
+    # Both entry points resolve the omitted arguments to the same study: every identity layer of
+    # their inspections coincides.
+    first, second = one_shot.inspect(), prepared.inspect()
+    for layer in ("target_id", "identification_id", "program_id", "inference_binding_id"):
+        assert getattr(first, layer) == getattr(second, layer), layer
+        assert getattr(first, layer)
+    # ... and a study that differs in one declared argument has a different inference binding.
+    bootstrapped = ant.prepare(
+        data, graph=GRAPH, query=QUERY, inference=ant.Frequentist(bootstrap=3), refute="none"
+    )
+    assert bootstrapped.inspect().inference_binding_id != first.inference_binding_id
 
 
 def test_analyze_is_prepare_then_estimate():
