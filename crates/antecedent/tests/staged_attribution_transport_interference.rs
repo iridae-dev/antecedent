@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use antecedent::{
-    BayesianConfig, CellStatus, InferenceMode, InterferenceSpec, RefuteSuite, Study,
+    AcceptedGraph, BayesianConfig, CellStatus, InferenceMode, InterferenceSpec, RefuteSuite, Study,
     TransportTrialSpec,
 };
 use antecedent_core::{
@@ -213,6 +213,71 @@ fn bayesian_attribution_shared_row_weight_known_truth() {
     assert!((last - expected_change).abs() < 1e-6, "carrying component {last}");
     assert!(rest.iter().all(|c| c.abs() < tolerance), "uncarrying components {rest:?}");
     assert!(change.diagnostics.iter().any(|d| d.code.as_ref() == "gcm.attribution.bayesian"));
+}
+
+/// An accepted structure is attributed exactly as a supplied one: the accepted record is the
+/// structure's provenance, not a different graph. Both queries, both inference modes, against the
+/// same independently derived truth the supplied-graph cells are held to.
+#[test]
+fn accepted_dag_attribution_known_truth() {
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/estimate/staged_attribution/expected.json"
+    ))
+    .unwrap();
+    let top_row = usize::try_from(truth["anomaly"]["top_row"].as_u64().unwrap()).unwrap();
+    let expected_change = truth["change"]["total_change"].as_f64().unwrap();
+    let anomaly_query = || {
+        CausalQuery::AnomalyAttribution(AnomalyAttributionQuery::new([VariableId::from_raw(1)], 100))
+    };
+    let change_query = || {
+        CausalQuery::ChangeAttribution(ChangeAttributionQuery::new(
+            VariableId::from_raw(1),
+            PopulationSelector::TimeRange { start: 0, end: 40 },
+            PopulationSelector::TimeRange { start: 40, end: 80 },
+        ))
+    };
+    let bayesian = || InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(24));
+
+    for inference in [InferenceMode::Frequentist, bayesian()] {
+        let (data, dag) = outlier_chain();
+        let study = Study::tabular(data.clone())
+            .graph(AcceptedGraph::from(dag))
+            .query(anomaly_query())
+            .inference(inference.clone())
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+        assert_eq!(study.support_status(), Some(CellStatus::Licensed));
+        let result = study.prepare(&ctx()).unwrap().estimate(&data, &ctx()).unwrap();
+        assert_eq!(result.support_status(), Some(CellStatus::Licensed));
+        let scores = result.anomaly().expect("anomaly scores");
+        let y = scores.iter().find(|s| s.target == VariableId::from_raw(1)).expect("y target");
+        let (top_i, top) = y.scores.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1)).unwrap();
+        assert_eq!(y.rows[top_i], top_row);
+        assert!(*top >= truth["anomaly"]["score_min"].as_f64().unwrap());
+        assert_eq!(result.posterior.is_some(), matches!(inference, InferenceMode::Bayesian(_)));
+
+        let (data, dag) = two_period_chain();
+        let study = Study::tabular(data.clone())
+            .graph(AcceptedGraph::from(dag))
+            .query(change_query())
+            .inference(inference.clone())
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+        assert_eq!(study.support_status(), Some(CellStatus::Licensed));
+        let result = study.prepare(&ctx()).unwrap().estimate(&data, &ctx()).unwrap();
+        assert_eq!(result.support_status(), Some(CellStatus::Licensed));
+        let total = result.change_attribution().expect("change attribution").total_change;
+        // The frequentist mean-difference allocation of the planted shift is exact to 1.6e-10;
+        // the Bayesian row-weight posterior shrinks it by 0.016 (prior), inside the fixture band.
+        let tolerance = if matches!(inference, InferenceMode::Frequentist) {
+            truth["change"]["tolerance"].as_f64().unwrap().min(1e-6)
+        } else {
+            truth["change"]["tolerance"].as_f64().unwrap().min(0.05)
+        };
+        assert!((total - expected_change).abs() <= tolerance, "total_change={total}");
+    }
 }
 
 #[test]
@@ -649,13 +714,9 @@ fn interference_is_stated_under_every_static_structure_class_with_the_design_ide
         );
         assert_eq!(result.estimand.method.as_ref(), "interference.design", "{class}");
         assert_eq!(result.identification.status, IdentificationStatus::NonparametricallyIdentified);
-        if class == "Dag" {
-            assert_eq!(result.support_status(), Some(CellStatus::Licensed));
-        } else {
-            // No evidence row names the structure class: it executes and stays unlicensed.
-            assert_eq!(study.support_status(), Some(CellStatus::Refused), "{class}");
-            assert_eq!(result.support_status(), Some(CellStatus::Refused), "{class}");
-        }
+        // Every structure class has a licensed cell: the structure binds only the unit schema.
+        assert_eq!(study.support_status(), Some(CellStatus::Licensed), "{class}");
+        assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{class}");
         // The prepared handle seals the checked operation against the structure.
         let prepared = study.prepare(&ctx()).unwrap_or_else(|e| panic!("{class}: {e}"));
         let again = prepared.estimate(&units, &ctx()).unwrap();

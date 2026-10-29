@@ -1,0 +1,971 @@
+{
+  "schema_version": 1,
+  "case": "cross_world_class_truth",
+  "tables": {
+    "front_door": {
+      "columns": [
+        "t",
+        "m",
+        "y"
+      ],
+      "counts": [
+        {
+          "levels": [
+            0,
+            0,
+            0
+          ],
+          "count": 1008
+        },
+        {
+          "levels": [
+            0,
+            0,
+            1
+          ],
+          "count": 112
+        },
+        {
+          "levels": [
+            0,
+            1,
+            0
+          ],
+          "count": 112
+        },
+        {
+          "levels": [
+            0,
+            1,
+            1
+          ],
+          "count": 168
+        },
+        {
+          "levels": [
+            1,
+            0,
+            0
+          ],
+          "count": 60
+        },
+        {
+          "levels": [
+            1,
+            0,
+            1
+          ],
+          "count": 60
+        },
+        {
+          "levels": [
+            1,
+            1,
+            0
+          ],
+          "count": 48
+        },
+        {
+          "levels": [
+            1,
+            1,
+            1
+          ],
+          "count": 432
+        }
+      ]
+    },
+    "two_mediators": {
+      "columns": [
+        "t",
+        "a",
+        "b",
+        "y"
+      ],
+      "counts": [
+        {
+          "levels": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "count": 798
+        },
+        {
+          "levels": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "count": 42
+        },
+        {
+          "levels": [
+            0,
+            0,
+            1,
+            0
+          ],
+          "count": 270
+        },
+        {
+          "levels": [
+            0,
+            0,
+            1,
+            1
+          ],
+          "count": 90
+        },
+        {
+          "levels": [
+            0,
+            1,
+            0,
+            0
+          ],
+          "count": 126
+        },
+        {
+          "levels": [
+            0,
+            1,
+            0,
+            1
+          ],
+          "count": 84
+        },
+        {
+          "levels": [
+            0,
+            1,
+            1,
+            0
+          ],
+          "count": 18
+        },
+        {
+          "levels": [
+            0,
+            1,
+            1,
+            1
+          ],
+          "count": 72
+        },
+        {
+          "levels": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "count": 114
+        },
+        {
+          "levels": [
+            1,
+            0,
+            0,
+            1
+          ],
+          "count": 6
+        },
+        {
+          "levels": [
+            1,
+            0,
+            1,
+            0
+          ],
+          "count": 210
+        },
+        {
+          "levels": [
+            1,
+            0,
+            1,
+            1
+          ],
+          "count": 70
+        },
+        {
+          "levels": [
+            1,
+            1,
+            0,
+            0
+          ],
+          "count": 108
+        },
+        {
+          "levels": [
+            1,
+            1,
+            0,
+            1
+          ],
+          "count": 72
+        },
+        {
+          "levels": [
+            1,
+            1,
+            1,
+            0
+          ],
+          "count": 84
+        },
+        {
+          "levels": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "count": 336
+        }
+      ]
+    },
+    "mediated_two_parents": {
+      "columns": [
+        "c",
+        "w",
+        "t",
+        "m",
+        "y"
+      ],
+      "counts": [
+        {
+          "levels": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "count": 486
+        },
+        {
+          "levels": [
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "count": 54
+        },
+        {
+          "levels": [
+            0,
+            0,
+            0,
+            1,
+            0
+          ],
+          "count": 24
+        },
+        {
+          "levels": [
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "count": 36
+        },
+        {
+          "levels": [
+            0,
+            0,
+            1,
+            0,
+            0
+          ],
+          "count": 40
+        },
+        {
+          "levels": [
+            0,
+            0,
+            1,
+            0,
+            1
+          ],
+          "count": 40
+        },
+        {
+          "levels": [
+            0,
+            0,
+            1,
+            1,
+            0
+          ],
+          "count": 12
+        },
+        {
+          "levels": [
+            0,
+            0,
+            1,
+            1,
+            1
+          ],
+          "count": 108
+        },
+        {
+          "levels": [
+            0,
+            1,
+            0,
+            0,
+            0
+          ],
+          "count": 378
+        },
+        {
+          "levels": [
+            0,
+            1,
+            0,
+            0,
+            1
+          ],
+          "count": 42
+        },
+        {
+          "levels": [
+            0,
+            1,
+            0,
+            1,
+            0
+          ],
+          "count": 72
+        },
+        {
+          "levels": [
+            0,
+            1,
+            0,
+            1,
+            1
+          ],
+          "count": 108
+        },
+        {
+          "levels": [
+            0,
+            1,
+            1,
+            0,
+            0
+          ],
+          "count": 20
+        },
+        {
+          "levels": [
+            0,
+            1,
+            1,
+            0,
+            1
+          ],
+          "count": 20
+        },
+        {
+          "levels": [
+            0,
+            1,
+            1,
+            1,
+            0
+          ],
+          "count": 16
+        },
+        {
+          "levels": [
+            0,
+            1,
+            1,
+            1,
+            1
+          ],
+          "count": 144
+        },
+        {
+          "levels": [
+            1,
+            0,
+            0,
+            0,
+            0
+          ],
+          "count": 162
+        },
+        {
+          "levels": [
+            1,
+            0,
+            0,
+            0,
+            1
+          ],
+          "count": 18
+        },
+        {
+          "levels": [
+            1,
+            0,
+            0,
+            1,
+            0
+          ],
+          "count": 8
+        },
+        {
+          "levels": [
+            1,
+            0,
+            0,
+            1,
+            1
+          ],
+          "count": 12
+        },
+        {
+          "levels": [
+            1,
+            0,
+            1,
+            0,
+            0
+          ],
+          "count": 120
+        },
+        {
+          "levels": [
+            1,
+            0,
+            1,
+            0,
+            1
+          ],
+          "count": 120
+        },
+        {
+          "levels": [
+            1,
+            0,
+            1,
+            1,
+            0
+          ],
+          "count": 36
+        },
+        {
+          "levels": [
+            1,
+            0,
+            1,
+            1,
+            1
+          ],
+          "count": 324
+        },
+        {
+          "levels": [
+            1,
+            1,
+            0,
+            0,
+            0
+          ],
+          "count": 126
+        },
+        {
+          "levels": [
+            1,
+            1,
+            0,
+            0,
+            1
+          ],
+          "count": 14
+        },
+        {
+          "levels": [
+            1,
+            1,
+            0,
+            1,
+            0
+          ],
+          "count": 24
+        },
+        {
+          "levels": [
+            1,
+            1,
+            0,
+            1,
+            1
+          ],
+          "count": 36
+        },
+        {
+          "levels": [
+            1,
+            1,
+            1,
+            0,
+            0
+          ],
+          "count": 60
+        },
+        {
+          "levels": [
+            1,
+            1,
+            1,
+            0,
+            1
+          ],
+          "count": 60
+        },
+        {
+          "levels": [
+            1,
+            1,
+            1,
+            1,
+            0
+          ],
+          "count": 48
+        },
+        {
+          "levels": [
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "count": 432
+        }
+      ]
+    },
+    "side_path_chain": {
+      "columns": [
+        "w",
+        "x",
+        "z",
+        "y"
+      ],
+      "counts": [
+        {
+          "levels": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "count": 864
+        },
+        {
+          "levels": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "count": 96
+        },
+        {
+          "levels": [
+            0,
+            0,
+            1,
+            0
+          ],
+          "count": 120
+        },
+        {
+          "levels": [
+            0,
+            0,
+            1,
+            1
+          ],
+          "count": 120
+        },
+        {
+          "levels": [
+            0,
+            1,
+            0,
+            0
+          ],
+          "count": 192
+        },
+        {
+          "levels": [
+            0,
+            1,
+            0,
+            1
+          ],
+          "count": 128
+        },
+        {
+          "levels": [
+            0,
+            1,
+            1,
+            0
+          ],
+          "count": 16
+        },
+        {
+          "levels": [
+            0,
+            1,
+            1,
+            1
+          ],
+          "count": 64
+        },
+        {
+          "levels": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "count": 72
+        },
+        {
+          "levels": [
+            1,
+            0,
+            0,
+            1
+          ],
+          "count": 8
+        },
+        {
+          "levels": [
+            1,
+            0,
+            1,
+            0
+          ],
+          "count": 160
+        },
+        {
+          "levels": [
+            1,
+            0,
+            1,
+            1
+          ],
+          "count": 160
+        },
+        {
+          "levels": [
+            1,
+            1,
+            0,
+            0
+          ],
+          "count": 144
+        },
+        {
+          "levels": [
+            1,
+            1,
+            0,
+            1
+          ],
+          "count": 96
+        },
+        {
+          "levels": [
+            1,
+            1,
+            1,
+            0
+          ],
+          "count": 192
+        },
+        {
+          "levels": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "count": 768
+        }
+      ]
+    },
+    "weak_front_door": {
+      "columns": [
+        "t",
+        "m",
+        "y"
+      ],
+      "counts": [
+        {
+          "levels": [
+            0,
+            0,
+            0
+          ],
+          "count": 15750
+        },
+        {
+          "levels": [
+            0,
+            0,
+            1
+          ],
+          "count": 1750
+        },
+        {
+          "levels": [
+            0,
+            1,
+            0
+          ],
+          "count": 7000
+        },
+        {
+          "levels": [
+            0,
+            1,
+            1
+          ],
+          "count": 10500
+        },
+        {
+          "levels": [
+            1,
+            0,
+            0
+          ],
+          "count": 6141
+        },
+        {
+          "levels": [
+            1,
+            0,
+            1
+          ],
+          "count": 759
+        },
+        {
+          "levels": [
+            1,
+            1,
+            0
+          ],
+          "count": 3159
+        },
+        {
+          "levels": [
+            1,
+            1,
+            1
+          ],
+          "count": 4941
+        }
+      ]
+    }
+  },
+  "cases": {
+    "admg_counterfactual": {
+      "formula": "ett_front_door",
+      "table": "front_door",
+      "treatment": "t",
+      "mediator": "m",
+      "outcome": "y",
+      "active": 1,
+      "control": 0,
+      "expected": 0.3
+    },
+    "admg_natural_direct": {
+      "formula": "nde_markov",
+      "table": "front_door",
+      "treatment": "t",
+      "mediator": "m",
+      "outcome": "y",
+      "active": 1,
+      "control": 0,
+      "expected": 0.38
+    },
+    "pag_natural_direct": {
+      "formula": "nde_markov",
+      "table": "mediated_two_parents",
+      "treatment": "t",
+      "mediator": "m",
+      "outcome": "y",
+      "active": 1,
+      "control": 0,
+      "expected": 0.38
+    },
+    "cpdag_path_specific": {
+      "formula": "path_specific_two_mediators",
+      "table": "two_mediators",
+      "treatment": "t",
+      "mediator": "a",
+      "other": "b",
+      "outcome": "y",
+      "active": 1,
+      "control": 0,
+      "expected": 0.096
+    },
+    "pag_counterfactual": {
+      "formula": "ett_adjust_one",
+      "table": "side_path_chain",
+      "treatment": "x",
+      "adjust": "z",
+      "outcome": "y",
+      "active": 1,
+      "control": 0,
+      "expected": 0.3
+    },
+    "admg_counterfactual_weak": {
+      "formula": "ett_front_door",
+      "table": "weak_front_door",
+      "treatment": "t",
+      "mediator": "m",
+      "outcome": "y",
+      "active": 1,
+      "control": 0,
+      "expected": 0.02
+    },
+    "admg_natural_direct_weak": {
+      "formula": "nde_markov",
+      "table": "weak_front_door",
+      "treatment": "t",
+      "mediator": "m",
+      "outcome": "y",
+      "active": 1,
+      "control": 0,
+      "expected": 0.01
+    }
+  },
+  "line": {
+    "rows": 80,
+    "intercept": 1,
+    "slope": 2,
+    "completion_slopes": [
+      2.0,
+      0.0
+    ],
+    "mean": 1.0,
+    "identified_set": [
+      0.0,
+      2.0
+    ]
+  },
+  "oracle": {
+    "kind": "closed_form",
+    "method": "count-table functionals evaluated in rational arithmetic (README)",
+    "formula": "effect on the treated of the front-door ADMG, unconfounded contrast, natural direct effect of a Markovian mediator model, path-specific effect of a two-mediator model, exact least-squares slope",
+    "generator": "conformance/estimate/cross_world_class_truth/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/cross_world_class_truth/reference.py --check",
+    "environment_lock": "conformance/estimate/cross_world_class_truth/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "cases.*.expected",
+      "line.completion_slopes",
+      "line.mean",
+      "line.identified_set"
+    ],
+    "context_only_outputs": [
+      "graph structures",
+      "table cell counts"
+    ],
+    "independence_basis": "The generator reads the declared cell counts and evaluates the identified functionals with rational arithmetic; it imports no Antecedent code and no statistics package. The shared objects are the identification formulas themselves (front-door effect on the treated, the mediation formula, the edge g-formula), which the product also implements; a misreading common to both would not be detected. Exact enumeration of a latent-variable model that produces the front-door law is checked separately in crates/antecedent/tests/counterfactual_class_route.rs.",
+    "historical_exposure": "Written for this fixture from the published functional forms and the declared counts; no product implementation source was consulted.",
+    "reference_review": {
+      "scope": "Count-table functionals of enumerated tables, the posterior-weighted mixture of two atoms' closed forms, and the exact slopes of a noiseless line.",
+      "independence_basis": "The generator reads the declared cell counts and evaluates the identified functionals with rational arithmetic; it imports no Antecedent code and no statistics package. The shared objects are the identification formulas themselves (front-door effect on the treated, the mediation formula, the edge g-formula), which the product also implements; a misreading common to both would not be detected. Exact enumeration of a latent-variable model that produces the front-door law is checked separately in crates/antecedent/tests/counterfactual_class_route.rs.",
+      "historical_exposure": "Written for this fixture from the published functional forms and the declared counts; no product implementation source was consulted.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Population functionals of the empirical count tables, not sampling variability: the Bayesian posteriors are compared within a stated tolerance. The tables need not come from a latent-variable model for which the identification assumptions hold; the unidentified cases are checked as typed refusals.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/cross_world_class_truth/reference.py",
+          "sha256": "1f78e0a9819f850e7a47bbc20d2e5ec830963e96dc459c7259475a0db1cc00b7"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/cross_world_class_truth/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/cross_world_class_truth.rs",
+          "sha256": "8959f852290b86874ed0e61e6ef12a3647b231b94f1ccece76d4b79290a89cbe"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/cross_world_posterior_truth.rs",
+          "sha256": "5a9b44554ee853ff6536f1b48e44fefb335095dba19bb2414d35db166fec05cf"
+        }
+      ],
+      "fixture_payload_sha256": "26d5ee8dbbb3d74eae56438b5dfba36779307f0032990070c3515fc07d40af9f"
+    }
+  },
+  "posterior": {
+    "query": "natural direct effect of t on y through m",
+    "atoms": [
+      {
+        "name": "mediator_child",
+        "weight": "1/2",
+        "formula": "nde_markov",
+        "case": {
+          "table": "front_door",
+          "treatment": "t",
+          "mediator": "m",
+          "outcome": "y",
+          "active": 1,
+          "control": 0,
+          "formula": "nde_markov"
+        }
+      },
+      {
+        "name": "mediator_root",
+        "weight": "3/10",
+        "formula": "nde_root_mediator",
+        "case": {
+          "table": "front_door",
+          "treatment": "t",
+          "mediator": "m",
+          "outcome": "y",
+          "active": 1,
+          "control": 0,
+          "formula": "nde_root_mediator"
+        }
+      },
+      {
+        "name": "unidentified",
+        "weight": "1/5",
+        "formula": null,
+        "case": null
+      }
+    ],
+    "expected": 0.37325,
+    "unidentified_mass": 0.2
+  }
+}

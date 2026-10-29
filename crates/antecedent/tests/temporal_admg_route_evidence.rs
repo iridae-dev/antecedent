@@ -953,8 +953,8 @@ fn response_curve_refuters_are_not_applicable_on_temporal_admg() {
         .expect("support axis"),
     );
     assert!(
-        matches!(curve_posterior_cheap, CellStatus::Refused),
-        "graph-posterior curve refuters stay closed: {curve_posterior_cheap:?}"
+        matches!(curve_posterior_cheap, CellStatus::Licensed),
+        "the graph-posterior curve refuter state is licensed: {curve_posterior_cheap:?}"
     );
 }
 

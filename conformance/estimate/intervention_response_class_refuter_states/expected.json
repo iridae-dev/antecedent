@@ -1,0 +1,139 @@
+{
+  "schema_version": 1,
+  "case": "intervention_response_class_refuter_states",
+  "closed_form": {
+    "adjusted_level": 3.0,
+    "adjusted_witness": 2.0,
+    "static_unadjusted": 3.4411764705882355,
+    "temporal_unadjusted": 3.2094182825484765,
+    "temporal_witness_unadjusted": 2.299168975069252
+  },
+  "tolerance": {
+    "level": 0.15,
+    "null_refuter": 0.1,
+    "stability": 0.1
+  },
+  "refuter_contract": {
+    "Frequentist": {
+      "static": {
+        "cheap": [
+          "overlap.continuous_support"
+        ],
+        "full": [
+          "overlap.continuous_support",
+          "overlap.continuous_rule"
+        ]
+      },
+      "temporal": {
+        "cheap": [
+          "sensitivity.evalue"
+        ],
+        "full": [
+          "unobserved.common_cause",
+          "sensitivity.evalue",
+          "sensitivity.linear",
+          "sensitivity.partial_linear",
+          "sensitivity.nonparametric",
+          "placebo.treatment",
+          "random.common_cause",
+          "dummy.outcome",
+          "bootstrap.ci_coverage",
+          "data.subset"
+        ]
+      }
+    },
+    "Bayesian": {
+      "static": {
+        "cheap": [
+          "overlap.continuous_support"
+        ],
+        "full": [
+          "overlap.continuous_support",
+          "overlap.continuous_rule"
+        ]
+      },
+      "temporal": {
+        "cheap": [
+          "sensitivity.evalue",
+          "prior_predictive",
+          "posterior_predictive"
+        ],
+        "full": [
+          "unobserved.common_cause",
+          "sensitivity.evalue",
+          "sensitivity.linear",
+          "sensitivity.partial_linear",
+          "sensitivity.nonparametric",
+          "placebo.treatment",
+          "random.common_cause",
+          "dummy.outcome",
+          "bootstrap.ci_coverage",
+          "data.subset",
+          "prior_predictive",
+          "posterior_predictive",
+          "prior_sensitivity"
+        ]
+      }
+    },
+    "null_expected": [
+      "placebo.treatment",
+      "dummy.outcome"
+    ],
+    "original_expected": [
+      "random.common_cause",
+      "bootstrap.ci_coverage",
+      "data.subset"
+    ],
+    "verdict_not_asserted": [
+      "sensitivity.evalue",
+      "data.subset",
+      "prior_predictive"
+    ]
+  },
+  "oracle": {
+    "kind": "closed_form",
+    "method": "Closed forms of the stated linear laws (see reference.py): the completion that adjusts for the confounder identifies the level 3 with the unit-contrast witness 2; the completion that does not identifies the association 3.441 (static law) or 3.209 (temporal law) with witness 2.299, by the omitted-variable-bias slope evaluated in exact rationals from the stated moments. The refuter contract lists the refuters each level study runs at each depth and inference mode (validation-suite design, not derivable); placebo and dummy outcome have the exact null 0, the random common cause, bootstrap and subset refuters the original value. The e-value, subset and prior-predictive verdicts depend on the sample, the interval and the prior scale and are not asserted; the posterior predictive verdict is.",
+    "formula": "adjusted: 1 + 2 + b E z; unadjusted: E y + (2 + b cov(t,z)/var(t)) (1 - E t)",
+    "generator": "conformance/estimate/intervention_response_class_refuter_states/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/intervention_response_class_refuter_states/reference.py --check",
+    "environment_lock": "conformance/estimate/intervention_response_class_refuter_states/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "closed_form.* (completion levels and witnesses within tolerance.level)",
+      "refuter_contract (refuters that run, null and original expectations)",
+      "tolerance.*"
+    ],
+    "context_only_outputs": [
+      "oracle method and scope text",
+      "verdict_not_asserted (documents which verdicts are sample dependent)"
+    ],
+    "independence_basis": "The generator evaluates the stated moments and the omitted-variable-bias formula in exact rationals; it imports no Antecedent code and no statistics package. The shared object is the stated laws.",
+    "historical_exposure": "Written for this fixture from the stated law and the declared inputs; no product implementation source was consulted to obtain the values.",
+    "reference_review": {
+      "scope": "The interventional level of each completion of a class graph and the unit-contrast witness the temporal refuters run on, with the refuter contract of the level study.",
+      "independence_basis": "The generator evaluates the stated moments and the omitted-variable-bias formula in exact rationals; it imports no Antecedent code and no statistics package. The shared object is the stated laws.",
+      "historical_exposure": "Written for this fixture from the stated law and the declared inputs; no product implementation source was consulted to obtain the values.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Law-level truth for simulated samples; sampling error is covered by the stated 0.15 band. Each completion is checked on its own level or witness; the refuter contract, tolerance bands and the unasserted verdicts are validation-suite design choices asserted by the executing tests. No coverage or calibration claim.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/intervention_response_class_refuter_states/reference.py",
+          "sha256": "829550f864b0ad8c596cf3ae64df358dc51b79c0485f296c0fad7f1f02465422"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/intervention_response_class_refuter_states/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/intervention_response_class_validation_truth.rs",
+          "sha256": "f9c3bd6865682c75a143b0e54c36934bd764b07467d7448ff483d501bdd1ae47"
+        }
+      ],
+      "fixture_payload_sha256": "675a49a43a8d1544fc5bd3c4c5ee391163aa5ddc9a67c55f690167ca2c1f44f9"
+    }
+  }
+}

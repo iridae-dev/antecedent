@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::RetainedOperation;
-use antecedent::{BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study};
+use antecedent::{AcceptedGraph, BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     AnomalyAttributionQuery, CausalQuery, ChangeAttributionQuery, ExecutionContext,
     PopulationSelector, VariableId,
@@ -240,6 +240,85 @@ fn bayesian_static_dag_attribution_plans_body() {
             .any(|reason| { reason.as_ref() == "dependencies.checked_attribution_operation" })
     );
     assert!(!consumed.acceptance.accepts_as_verified_program());
+}
+
+#[test]
+fn accepted_dag_attribution_plans_are_sealed_for_both_inference_modes() {
+    // Debug builds of the shared prepared dispatcher carry frames close to the
+    // default test-thread stack, so the evidence body runs on its own thread.
+    std::thread::Builder::new()
+        .name("checked-accepted-attribution-evidence".into())
+        .stack_size(16 * 1024 * 1024)
+        .spawn(accepted_dag_attribution_plans_body)
+        .expect("spawn evidence thread")
+        .join()
+        .expect("evidence body panicked");
+}
+
+fn accepted_dag_attribution_plans_body() {
+    let ctx = ExecutionContext::for_tests(15);
+    let change_query = ChangeAttributionQuery::new(
+        VariableId::from_raw(1),
+        PopulationSelector::TimeRange { start: 0, end: 40 },
+        PopulationSelector::TimeRange { start: 40, end: 80 },
+    );
+    for (inference, anomaly_estimator, change_estimator) in [
+        (InferenceMode::Frequentist, EstimatorId::GcmFit, EstimatorId::GcmFit),
+        (
+            InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(8)),
+            EstimatorId::GcmFitBayesian,
+            EstimatorId::GcmAttributionBayesian,
+        ),
+    ] {
+        let anomaly = anomaly_data(200.0);
+        let anomaly_query = CausalQuery::AnomalyAttribution(AnomalyAttributionQuery::new(
+            [VariableId::from_raw(1)],
+            100,
+        ));
+        let anomaly_builder = Study::tabular(anomaly.clone())
+            .graph(AcceptedGraph::from(dag()))
+            .query(anomaly_query.clone())
+            .inference(inference.clone())
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+        let anomaly_prepared = anomaly_builder.prepare(&ctx).unwrap();
+        let RetainedOperation::Attribution(plan) = anomaly_prepared.retained_operation() else {
+            panic!("sealed anomaly operation")
+        };
+        assert_eq!(plan.query, anomaly_query);
+        assert_eq!(plan.identifier, IdentifierId::GcmParametric);
+        assert_eq!(plan.estimator, anomaly_estimator);
+        assert_eq!(plan.graph_edges.as_ref(), &[(0, 1)]);
+        drop(anomaly_builder);
+        let result = anomaly_prepared.estimate(&anomaly, &ctx).unwrap();
+        let scores = result.anomaly().expect("anomaly result");
+        let score = scores.iter().find(|score| score.target == VariableId::from_raw(1)).unwrap();
+        let maximum = score.scores.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1)).unwrap();
+        assert_eq!(score.rows[maximum.0], 19, "the injected outlier is the top anomaly");
+
+        let change = change_data(0.0);
+        let change_target = CausalQuery::ChangeAttribution(change_query.clone());
+        let change_builder = Study::tabular(change.clone())
+            .graph(AcceptedGraph::from(dag()))
+            .query(change_target.clone())
+            .inference(inference)
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+        let change_prepared = change_builder.prepare(&ctx).unwrap();
+        let RetainedOperation::Attribution(plan) = change_prepared.retained_operation() else {
+            panic!("sealed change operation")
+        };
+        assert_eq!(plan.query, change_target);
+        assert_eq!(plan.identifier, IdentifierId::GcmParametric);
+        assert_eq!(plan.estimator, change_estimator);
+        assert_eq!(plan.graph_edges.as_ref(), &[(0, 1)]);
+        drop(change_builder);
+        let result = change_prepared.estimate(&change, &ctx).unwrap();
+        let total = result.change_attribution().expect("change result").total_change;
+        assert!((total - 5.0).abs() < 0.15, "known population mean shift: {total}");
+    }
 }
 
 /// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.

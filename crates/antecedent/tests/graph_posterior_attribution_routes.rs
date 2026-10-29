@@ -164,9 +164,9 @@ fn an_anomaly_is_the_posterior_weighted_mean_of_the_atoms_dag_attributions() {
         );
         let keys = graphs.graph_keys().clone();
         let built = posterior_study(&data, graphs, &query);
-        assert_eq!(built.support_status(), Some(CellStatus::Refused));
+        assert_eq!(built.support_status(), Some(CellStatus::Licensed));
         let result = built.run(&ctx).unwrap();
-        assert_eq!(result.support_status(), Some(CellStatus::Refused));
+        assert_eq!(result.support_status(), Some(CellStatus::Licensed));
         let merged = &result.anomaly().expect("anomaly payload")[0];
 
         let forward = explicit_study(&data, dag_of(&[(0, 1)]), &query).run(&ctx).unwrap();
@@ -416,7 +416,7 @@ fn a_series_posterior_attributes_each_template_as_a_supplied_temporal_dag() {
             .refute(RefuteSuite::None)
             .build()
             .unwrap();
-        assert_eq!(built.support_status(), Some(CellStatus::Refused));
+        assert_eq!(built.support_status(), Some(CellStatus::Licensed));
         let result = built.run(&ctx).unwrap();
         let merged = &result.anomaly().expect("anomaly payload")[0];
         let (driven, empty) =

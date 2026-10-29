@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "case": "temporal_conditional_refuter_states",
+  "law": {
+    "series": "r_t,e_t,u_t ~ N(0,1) independent; x_t = treatment_loading r_t + e_t; w_t ~ Bernoulli(modifier_probability); y_t = slope x_{t-1} + modifier_main w_t + interaction x_{t-1} w_t + noise_sd u_t",
+    "slope": 1.5,
+    "modifier_main": 0.2,
+    "interaction": 0.8,
+    "modifier_probability": 0.4,
+    "treatment_loading": 0.8,
+    "noise_sd": 0.5
+  },
+  "marginal_effect": 1.82,
+  "tolerance": {
+    "effect": 0.1,
+    "null_refuter": 0.1,
+    "stability_refuter": 0.1
+  },
+  "refuter_contract": {
+    "Frequentist": {
+      "cheap": [
+        "target.placebo_treatment",
+        "target.subset_stability"
+      ],
+      "full": [
+        "target.placebo_treatment",
+        "target.subset_stability",
+        "target.placebo_outcome",
+        "target.negative_control_outcome",
+        "target.pre_trend",
+        "target.anticipation"
+      ]
+    },
+    "Bayesian": {
+      "cheap": [
+        "target.placebo_treatment",
+        "target.prior_sensitivity"
+      ],
+      "full": [
+        "target.placebo_treatment",
+        "target.prior_sensitivity",
+        "target.placebo_outcome",
+        "target.posterior_predictive",
+        "target.negative_control_outcome",
+        "target.pre_trend",
+        "target.anticipation"
+      ]
+    },
+    "null_expected": [
+      "target.placebo_treatment",
+      "target.placebo_outcome",
+      "target.negative_control_outcome",
+      "target.pre_trend",
+      "target.anticipation"
+    ],
+    "original_expected": [
+      "target.subset_stability",
+      "target.prior_sensitivity"
+    ],
+    "planted": {
+      "pre_trend": "adding 1.5 x_t to y_t (the outcome moves with the treatment of the period the pulse is read from) is detected by target.pre_trend; the clean law passes it"
+    }
+  },
+  "oracle": {
+    "kind": "closed_form",
+    "method": "Closed form of the stated structural law: the slope of the pulse in x_{t-1} at the modifier w_t is slope + interaction w_t, so the effect marginal over the modifier law is slope + interaction p = 1.5 + 0.8 * 0.4 = 1.82. The unmoderated slope 1.5 is a different number. The refuter contract lists the refuters the temporal conditional study runs at each depth and inference mode (validation-suite design, not derivable); the placebo, control, pre-trend and anticipation checks have the exact null 0 and the stability and prior-sensitivity checks the original value as expectation.",
+    "formula": "slope + interaction * modifier_probability",
+    "generator": "conformance/estimate/temporal_conditional_refuter_states/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/temporal_conditional_refuter_states/reference.py --check",
+    "environment_lock": "conformance/estimate/temporal_conditional_refuter_states/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "marginal_effect (within tolerance.effect; the identified-set ends for a class Bayesian study)",
+      "refuter_contract (refuters that run and pass)",
+      "tolerance.*"
+    ],
+    "context_only_outputs": [
+      "law text",
+      "oracle method and scope text"
+    ],
+    "independence_basis": "The generator evaluates the stated slope, interaction and modifier probability in exact rationals; it imports no Antecedent code and no statistics package. The shared object is the stated law.",
+    "historical_exposure": "Written for this fixture from the stated law and the declared inputs; no product implementation source was consulted to obtain the values.",
+    "reference_review": {
+      "scope": "The marginal conditional effect of a lagged treatment on an outcome over a binary modifier, and the refuter contract of the temporal conditional study.",
+      "independence_basis": "The generator evaluates the stated slope, interaction and modifier probability in exact rationals; it imports no Antecedent code and no statistics package. The shared object is the stated law.",
+      "historical_exposure": "Written for this fixture from the stated law and the declared inputs; no product implementation source was consulted to obtain the values.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Law-level truth for a simulated series; the finite series weights the modifier by its sample mean, and sampling error is covered by the stated tolerance. The refuter contract and tolerance bands are validation-suite design choices asserted by the executing tests. The circular-block bootstrap stability is refused for a conditional effect (the interaction design reads no sampling weights). No coverage or calibration claim.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/temporal_conditional_refuter_states/reference.py",
+          "sha256": "e39861ced1fd33ef164cabb50361f1e37fd6735f04339640ab962711b66a5776"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/temporal_conditional_refuter_states/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/temporal_conditional_validation_truth.rs",
+          "sha256": "7dccf5521e9ce0d342277c3c1b591b3b5649413112e1fd02b7cfc49eee58b3e8"
+        }
+      ],
+      "fixture_payload_sha256": "5429e5a117cb27ea96f0f06a59935c0ebd7f1c7b49a464d70a9dc0732a3ea49b"
+    }
+  }
+}

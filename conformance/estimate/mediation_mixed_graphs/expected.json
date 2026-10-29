@@ -1,0 +1,523 @@
+{
+  "oracle": {
+    "kind": "enumeration",
+    "method": "enumeration of the structural noise cells with exact rational arithmetic",
+    "independence_basis": "Enumerating the 4^5 equally likely noise cells of each declared binary SCM, with exact rational arithmetic, evaluates the outcome equation under the treatment argument and the mediator's treatment argument set separately on every cell, which gives the total, natural direct and pure natural indirect effects with no identification formula involved. The contingency tables are rebuilt from the same cells (each cell one observed row, counts divided by their gcd) and the textbook mediation functionals (the covariate-adjusted ones for the latent-confounded covariate case) are applied to the table alone and must reproduce the structural truths exactly. It imports no Antecedent code and no statistics package. The shared object is the stated SCM, so a wrong coefficient in the fixture would be inherited.",
+    "generator": "conformance/estimate/mediation_mixed_graphs/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/mediation_mixed_graphs/reference.py --check",
+    "environment_lock": "conformance/estimate/mediation_mixed_graphs/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "truth.total_effect, natural_direct_effect and natural_indirect_effect of covariate_latent and markov_parents",
+      "contingency_table counts (the identification input)"
+    ],
+    "context_only_outputs": [
+      "frequentist and bayesian estimator ids and tolerances",
+      "graph edge lists"
+    ],
+    "historical_exposure": "The generator and its numbers were written during this review from the declared structural equations; the product's output was not consulted. Thresholds, tables and every value here are new.",
+    "reference_review": {
+      "scope": "Two binary structural models (a covariate with a latent common cause of the covariate and the outcome, and a Markovian model with a root parent of the treatment and of the mediator): contingency tables and the total, natural direct and pure natural indirect effects.",
+      "independence_basis": "Enumerating the 4^5 equally likely noise cells of each declared binary SCM, with exact rational arithmetic, evaluates the outcome equation under the treatment argument and the mediator's treatment argument set separately on every cell, which gives the total, natural direct and pure natural indirect effects with no identification formula involved. The contingency tables are rebuilt from the same cells (each cell one observed row, counts divided by their gcd) and the textbook mediation functionals (the covariate-adjusted ones for the latent-confounded covariate case) are applied to the table alone and must reproduce the structural truths exactly. It imports no Antecedent code and no statistics package. The shared object is the stated SCM, so a wrong coefficient in the fixture would be inherited.",
+      "historical_exposure": "The generator and its numbers were written during this review from the declared structural equations; the product's output was not consulted. Thresholds, tables and every value here are new.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Exact arithmetic on fixed tables; no sampling variability, no uncertainty or coverage claim, and the paired-draw joint disclosure is not part of what this reference asserts. Graph classes, identification rules and estimator tolerances are context the generator cannot derive. No calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/mediation_mixed_graphs/reference.py",
+          "sha256": "a20c6715ce37f695c0d648e44910efa49009005e39499ae02934f6660d11ae82"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/mediation_mixed_graphs/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/mediation_mixed_graph_route_evidence.rs",
+          "sha256": "e18cd9f0a77fb998304bbdc0ba763120831537fadf6c1473d25a2615bdc3409e"
+        }
+      ],
+      "fixture_payload_sha256": "c982ccdc9f9b66b8e3f73fb50087f8cc52dc26af389d1d66e2f57d3831b376b8"
+    }
+  },
+  "schema_version": 1,
+  "case": "mediation_mixed_graphs",
+  "query": {
+    "treatment": "t",
+    "outcome": "y",
+    "mediators": [
+      "m"
+    ]
+  },
+  "covariate_latent": {
+    "columns": [
+      "w",
+      "t",
+      "m",
+      "y"
+    ],
+    "graph": {
+      "class": "Admg",
+      "directed_edges": [
+        [
+          "w",
+          "t"
+        ],
+        [
+          "w",
+          "m"
+        ],
+        [
+          "w",
+          "y"
+        ],
+        [
+          "t",
+          "m"
+        ],
+        [
+          "t",
+          "y"
+        ],
+        [
+          "m",
+          "y"
+        ]
+      ],
+      "bidirected_edges": [
+        [
+          "w",
+          "y"
+        ]
+      ]
+    },
+    "contingency_table": [
+      {
+        "w": 0.0,
+        "t": 0.0,
+        "m": 0.0,
+        "y": 0.0,
+        "count": 99
+      },
+      {
+        "w": 0.0,
+        "t": 0.0,
+        "m": 0.0,
+        "y": 1.0,
+        "count": 45
+      },
+      {
+        "w": 0.0,
+        "t": 0.0,
+        "m": 1.0,
+        "y": 0.0,
+        "count": 21
+      },
+      {
+        "w": 0.0,
+        "t": 0.0,
+        "m": 1.0,
+        "y": 1.0,
+        "count": 27
+      },
+      {
+        "w": 0.0,
+        "t": 1.0,
+        "m": 0.0,
+        "y": 0.0,
+        "count": 14
+      },
+      {
+        "w": 0.0,
+        "t": 1.0,
+        "m": 0.0,
+        "y": 1.0,
+        "count": 18
+      },
+      {
+        "w": 0.0,
+        "t": 1.0,
+        "m": 1.0,
+        "y": 0.0,
+        "count": 14
+      },
+      {
+        "w": 0.0,
+        "t": 1.0,
+        "m": 1.0,
+        "y": 1.0,
+        "count": 18
+      },
+      {
+        "w": 1.0,
+        "t": 0.0,
+        "m": 0.0,
+        "y": 0.0,
+        "count": 16
+      },
+      {
+        "w": 1.0,
+        "t": 0.0,
+        "m": 0.0,
+        "y": 1.0,
+        "count": 16
+      },
+      {
+        "w": 1.0,
+        "t": 0.0,
+        "m": 1.0,
+        "y": 0.0,
+        "count": 8
+      },
+      {
+        "w": 1.0,
+        "t": 0.0,
+        "m": 1.0,
+        "y": 1.0,
+        "count": 24
+      },
+      {
+        "w": 1.0,
+        "t": 1.0,
+        "m": 0.0,
+        "y": 0.0,
+        "count": 12
+      },
+      {
+        "w": 1.0,
+        "t": 1.0,
+        "m": 0.0,
+        "y": 1.0,
+        "count": 36
+      },
+      {
+        "w": 1.0,
+        "t": 1.0,
+        "m": 1.0,
+        "y": 0.0,
+        "count": 36
+      },
+      {
+        "w": 1.0,
+        "t": 1.0,
+        "m": 1.0,
+        "y": 1.0,
+        "count": 108
+      }
+    ],
+    "truth": {
+      "total_effect": 0.15625,
+      "natural_direct_effect": 0.15625,
+      "natural_indirect_effect": 0.0625
+    }
+  },
+  "markov_parents": {
+    "columns": [
+      "c",
+      "w",
+      "t",
+      "m",
+      "y"
+    ],
+    "graph": {
+      "class": "Dag",
+      "directed_edges": [
+        [
+          "c",
+          "t"
+        ],
+        [
+          "w",
+          "m"
+        ],
+        [
+          "t",
+          "m"
+        ],
+        [
+          "t",
+          "y"
+        ],
+        [
+          "m",
+          "y"
+        ]
+      ]
+    },
+    "contingency_table": [
+      {
+        "c": 0.0,
+        "w": 0.0,
+        "t": 0.0,
+        "m": 0.0,
+        "y": 0.0,
+        "count": 27
+      },
+      {
+        "c": 0.0,
+        "w": 0.0,
+        "t": 0.0,
+        "m": 0.0,
+        "y": 1.0,
+        "count": 9
+      },
+      {
+        "c": 0.0,
+        "w": 0.0,
+        "t": 0.0,
+        "m": 1.0,
+        "y": 0.0,
+        "count": 3
+      },
+      {
+        "c": 0.0,
+        "w": 0.0,
+        "t": 0.0,
+        "m": 1.0,
+        "y": 1.0,
+        "count": 9
+      },
+      {
+        "c": 0.0,
+        "w": 0.0,
+        "t": 1.0,
+        "m": 0.0,
+        "y": 0.0,
+        "count": 2
+      },
+      {
+        "c": 0.0,
+        "w": 0.0,
+        "t": 1.0,
+        "m": 0.0,
+        "y": 1.0,
+        "count": 2
+      },
+      {
+        "c": 0.0,
+        "w": 0.0,
+        "t": 1.0,
+        "m": 1.0,
+        "y": 0.0,
+        "count": 3
+      },
+      {
+        "c": 0.0,
+        "w": 0.0,
+        "t": 1.0,
+        "m": 1.0,
+        "y": 1.0,
+        "count": 9
+      },
+      {
+        "c": 0.0,
+        "w": 1.0,
+        "t": 0.0,
+        "m": 0.0,
+        "y": 0.0,
+        "count": 18
+      },
+      {
+        "c": 0.0,
+        "w": 1.0,
+        "t": 0.0,
+        "m": 0.0,
+        "y": 1.0,
+        "count": 6
+      },
+      {
+        "c": 0.0,
+        "w": 1.0,
+        "t": 0.0,
+        "m": 1.0,
+        "y": 0.0,
+        "count": 6
+      },
+      {
+        "c": 0.0,
+        "w": 1.0,
+        "t": 0.0,
+        "m": 1.0,
+        "y": 1.0,
+        "count": 18
+      },
+      {
+        "c": 0.0,
+        "w": 1.0,
+        "t": 1.0,
+        "m": 0.0,
+        "y": 0.0,
+        "count": 2
+      },
+      {
+        "c": 0.0,
+        "w": 1.0,
+        "t": 1.0,
+        "m": 0.0,
+        "y": 1.0,
+        "count": 2
+      },
+      {
+        "c": 0.0,
+        "w": 1.0,
+        "t": 1.0,
+        "m": 1.0,
+        "y": 0.0,
+        "count": 3
+      },
+      {
+        "c": 0.0,
+        "w": 1.0,
+        "t": 1.0,
+        "m": 1.0,
+        "y": 1.0,
+        "count": 9
+      },
+      {
+        "c": 1.0,
+        "w": 0.0,
+        "t": 0.0,
+        "m": 0.0,
+        "y": 0.0,
+        "count": 9
+      },
+      {
+        "c": 1.0,
+        "w": 0.0,
+        "t": 0.0,
+        "m": 0.0,
+        "y": 1.0,
+        "count": 3
+      },
+      {
+        "c": 1.0,
+        "w": 0.0,
+        "t": 0.0,
+        "m": 1.0,
+        "y": 0.0,
+        "count": 1
+      },
+      {
+        "c": 1.0,
+        "w": 0.0,
+        "t": 0.0,
+        "m": 1.0,
+        "y": 1.0,
+        "count": 3
+      },
+      {
+        "c": 1.0,
+        "w": 0.0,
+        "t": 1.0,
+        "m": 0.0,
+        "y": 0.0,
+        "count": 6
+      },
+      {
+        "c": 1.0,
+        "w": 0.0,
+        "t": 1.0,
+        "m": 0.0,
+        "y": 1.0,
+        "count": 6
+      },
+      {
+        "c": 1.0,
+        "w": 0.0,
+        "t": 1.0,
+        "m": 1.0,
+        "y": 0.0,
+        "count": 9
+      },
+      {
+        "c": 1.0,
+        "w": 0.0,
+        "t": 1.0,
+        "m": 1.0,
+        "y": 1.0,
+        "count": 27
+      },
+      {
+        "c": 1.0,
+        "w": 1.0,
+        "t": 0.0,
+        "m": 0.0,
+        "y": 0.0,
+        "count": 6
+      },
+      {
+        "c": 1.0,
+        "w": 1.0,
+        "t": 0.0,
+        "m": 0.0,
+        "y": 1.0,
+        "count": 2
+      },
+      {
+        "c": 1.0,
+        "w": 1.0,
+        "t": 0.0,
+        "m": 1.0,
+        "y": 0.0,
+        "count": 2
+      },
+      {
+        "c": 1.0,
+        "w": 1.0,
+        "t": 0.0,
+        "m": 1.0,
+        "y": 1.0,
+        "count": 6
+      },
+      {
+        "c": 1.0,
+        "w": 1.0,
+        "t": 1.0,
+        "m": 0.0,
+        "y": 0.0,
+        "count": 6
+      },
+      {
+        "c": 1.0,
+        "w": 1.0,
+        "t": 1.0,
+        "m": 0.0,
+        "y": 1.0,
+        "count": 6
+      },
+      {
+        "c": 1.0,
+        "w": 1.0,
+        "t": 1.0,
+        "m": 1.0,
+        "y": 0.0,
+        "count": 9
+      },
+      {
+        "c": 1.0,
+        "w": 1.0,
+        "t": 1.0,
+        "m": 1.0,
+        "y": 1.0,
+        "count": 27
+      }
+    ],
+    "truth": {
+      "total_effect": 0.25,
+      "natural_direct_effect": 0.15625,
+      "natural_indirect_effect": 0.1875
+    }
+  },
+  "frequentist": {
+    "estimator": "functional.effect",
+    "absolute_tolerance": 1e-09
+  },
+  "bayesian": {
+    "estimator": "functional.effect",
+    "posterior_mean_tolerance": 0.03,
+    "note": "Bayesian-bootstrap posterior mean within tolerance of the truth; declared acceptance band"
+  }
+}

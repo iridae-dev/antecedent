@@ -224,7 +224,7 @@ fn frequentist_transport_mixes_certified_atoms_and_states_the_lost_mass() {
         assert!((effect.ate - 2.0).abs() < 1e-12, "{}", effect.ate);
         assert!((effect.se_analytic() - reference_se()).abs() < 1e-12);
         assert!((result.transport().unwrap().ipw - 2.0).abs() < 1e-12);
-        assert_eq!(result.support_status(), Some(CellStatus::Refused));
+        assert_eq!(result.support_status(), Some(CellStatus::Licensed));
         assert_eq!(result.logical_plan.estimator.as_deref(), Some("transport.trial_ipw"));
 
         // The posterior mass splits as sID decided each atom.
@@ -541,7 +541,7 @@ fn the_bernoulli_contrast_is_the_enumerated_design_value_whatever_the_posterior(
                 < 1e-12,
             "the posterior does not change the contrast"
         );
-        assert_eq!(result.support_status(), Some(CellStatus::Refused));
+        assert_eq!(result.support_status(), Some(CellStatus::Licensed));
 
         // The cyclic mask is not a DAG: its weight is the unidentified mass.
         let mixture = result.structural_response.as_ref().expect("a structural mixture");
@@ -781,7 +781,7 @@ fn a_cpdag_whose_members_certify_different_formulas_is_partially_identified() {
             .expect("the case rules are disclosed");
         assert!(rules.message.contains("transport.sid.direct=2"), "{}", rules.message);
         assert!(rules.message.contains("transport.sid.standardize=1"), "{}", rules.message);
-        assert_eq!(result.support_status(), Some(CellStatus::Refused));
+        assert_eq!(result.support_status(), Some(CellStatus::Licensed));
     });
 }
 
@@ -949,7 +949,7 @@ fn a_posterior_of_cpdag_atoms_mixes_the_class_envelope_of_sid_outcomes() {
         let effect = result.estimate().as_effect().unwrap();
         assert!((effect.ate - 2.0).abs() < 1e-12, "{}", effect.ate);
         assert!((effect.se_analytic() - reference_se()).abs() < 1e-12);
-        assert_eq!(result.support_status(), Some(CellStatus::Refused));
+        assert_eq!(result.support_status(), Some(CellStatus::Licensed));
 
         // Every atom identifies and evaluates: no lost mass, and the value of each atom equals
         // the explicit class route on the same data.

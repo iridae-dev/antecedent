@@ -154,7 +154,7 @@ fn a_cpdag_and_a_pag_run_the_transport_suite_on_both_inferences() {
                         ClassGraph::Pag(circle_pair())
                     };
                     let built = class_study(graph, inference.clone(), suite);
-                    assert_eq!(built.support_status(), Some(CellStatus::Refused), "{name}");
+                    assert_eq!(built.support_status(), Some(CellStatus::Licensed), "{name}");
                     let result =
                         built.run(&ctx).unwrap_or_else(|e| panic!("{name} {suite:?}: {e}"));
                     let found = ids(&result);
@@ -356,7 +356,9 @@ fn supplied_exposure_probabilities_are_checked_against_the_realized_exposures_on
             // The smallest supplied probability is the overlap statistic.
             let overlap = report(&result, "interference.exposure_overlap");
             assert!((overlap.comparison - 0.5).abs() < 1e-12, "{class}");
-            assert_eq!(result.support_status(), Some(CellStatus::Refused), "{class}");
+            // The supplied-propensity estimator is off the matrix's estimator axis: the design
+            // checks run, and the result carries no matrix status of its own.
+            assert_eq!(result.support_status(), None, "{class}");
         }
     }
 }

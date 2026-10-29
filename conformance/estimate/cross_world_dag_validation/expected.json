@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "case": "cross_world_dag_validation",
+  "counterfactual": {
+    "graph": {
+      "class": "Dag",
+      "directed_edges": [
+        [
+          "z",
+          "t"
+        ],
+        [
+          "z",
+          "y"
+        ],
+        [
+          "t",
+          "y"
+        ]
+      ]
+    },
+    "structural_equation": {
+      "outcome": "y",
+      "intercept": 1.0,
+      "coefficients": {
+        "t": 2.0,
+        "z": 1.0
+      }
+    },
+    "control_level": 0.0,
+    "active_level": 1.5,
+    "mean_unit_effect": 3.0,
+    "null_slope_mean_unit_effect": 0.0,
+    "absolute_tolerance": 0.05
+  },
+  "nested": {
+    "graph": {
+      "class": "Dag",
+      "directed_edges": [
+        [
+          "t",
+          "m"
+        ],
+        [
+          "t",
+          "y"
+        ],
+        [
+          "m",
+          "y"
+        ]
+      ]
+    },
+    "mediator_equation": {
+      "t": 0.8
+    },
+    "outcome_equation": {
+      "t": 0.3,
+      "m": 1.2
+    },
+    "mediator_error_scale": 0.5,
+    "outcome_error_scale": 0.5,
+    "error_coupling": 0.3,
+    "structural_direct_effect": 0.3,
+    "total_effect": 1.26,
+    "shared_exogenous_read_under_coupling": 0.06,
+    "absolute_tolerance": 0.02
+  },
+  "oracle": {
+    "kind": "closed_form",
+    "method": "the generating structural equations evaluated in rational arithmetic (README)",
+    "formula": "mean unit effect = outcome coefficient on the treatment times the contrast; sequential-ignorability read of the direct effect = direct coefficient - kappa * mediator coefficient, kappa = cov(u, e_m) / var(e_m)",
+    "generator": "conformance/estimate/cross_world_dag_validation/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/cross_world_dag_validation/reference.py --check",
+    "environment_lock": "conformance/estimate/cross_world_dag_validation/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "counterfactual.mean_unit_effect",
+      "counterfactual.null_slope_mean_unit_effect",
+      "nested.structural_direct_effect",
+      "nested.total_effect",
+      "nested.shared_exogenous_read_under_coupling"
+    ],
+    "context_only_outputs": [
+      "graph edge lists",
+      "absolute tolerances"
+    ],
+    "independence_basis": "The generator reads the structural coefficients, contrast, error scales and coupling and evaluates the closed forms with rational arithmetic; it imports no Antecedent code and no statistics package. The data the tests simulate are generated from the same equations, so the fixture checks that the product recovers the generating effect, not that the equations are right.",
+    "historical_exposure": "Written for this fixture from the generating equations of the existing refuter tests; no product implementation source was consulted for the closed forms.",
+    "reference_review": {
+      "scope": "The closed-form mean unit effect of a linear outcome equation and the direct, total and coupled-read effects of a linear mediation model.",
+      "independence_basis": "The generator reads the structural coefficients, contrast, error scales and coupling and evaluates the closed forms with rational arithmetic; it imports no Antecedent code and no statistics package. The data the tests simulate are generated from the same equations, so the fixture checks that the product recovers the generating effect, not that the equations are right.",
+      "historical_exposure": "Written for this fixture from the generating equations of the existing refuter tests; no product implementation source was consulted for the closed forms.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Population effects of the generating equations, not sampling variability: the tests simulate seeded Gaussian disturbances and compare within the stated tolerances. Which refuter verdicts flag the planted violations is asserted by the test, not derived here.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/cross_world_dag_validation/reference.py",
+          "sha256": "238721a7489d2d7d51b03c5a38dee09047cd4725e0a2062335f849382188bfea"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/cross_world_dag_validation/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/cross_world_dag_validation_truth.rs",
+          "sha256": "139c73a1d77e7465c68f811437aec2d7884e8dea868d3be6b65f8af677f19c68"
+        }
+      ],
+      "fixture_payload_sha256": "bdecc80305a7711f09a694d84be09dfccd037c605f07e0b2bbfb443d538f854b"
+    }
+  }
+}

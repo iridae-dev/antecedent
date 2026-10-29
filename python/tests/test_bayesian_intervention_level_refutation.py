@@ -2,9 +2,9 @@
 
 Bayesian ``InterventionResponse`` with ``refute="cheap"`` or ``"full"`` runs the
 Bayesian refuter state (plugin-level overlap on the posterior-mean level and the
-prior and posterior predictive checks; full adds prior sensitivity), and a static
-derivative runs its derivative refuter state; neither is licensed:
-``evidence_status`` is not ``"licensed"``.
+prior and posterior predictive checks; full adds prior sensitivity) and is licensed
+(``evidence_status`` is ``"licensed"``); a static derivative runs its derivative
+refuter state.
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ def _level_query():
 
 
 @pytest.mark.parametrize("suite", ["cheap", "full"])
-def test_bayesian_level_refuter_state_runs_and_is_unlicensed(suite):
+def test_bayesian_level_refuter_state_runs_and_is_licensed(suite):
     data, mean_z = _data()
     result = require_success(
         antecedent.analyze(
@@ -53,7 +53,7 @@ def test_bayesian_level_refuter_state_runs_and_is_unlicensed(suite):
             execution=antecedent.Execution(seed=3),
         )
     )
-    assert result.evidence_status != "licensed"
+    assert result.evidence_status == "licensed"
     refuters = _refuter_names(result)
     assert any(name.startswith("overlap") for name in refuters), refuters
     assert "prior_predictive" in refuters and "posterior_predictive" in refuters, refuters

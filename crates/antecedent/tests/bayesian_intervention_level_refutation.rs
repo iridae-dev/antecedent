@@ -161,7 +161,7 @@ fn has_refuter(result: &StudyResult, prefix: &str) -> bool {
 }
 
 #[test]
-fn bayesian_level_cheap_and_full_execute_unlicensed_on_every_dag_structure() {
+fn bayesian_level_cheap_and_full_execute_licensed_on_every_dag_structure() {
     let (table, mean_z) = data(41);
     let truth = 3.0 + 1.5 * mean_z;
     for structure in [Structure::Explicit, Structure::Accepted, Structure::GraphPosterior] {
@@ -170,7 +170,7 @@ fn bayesian_level_cheap_and_full_execute_unlicensed_on_every_dag_structure() {
             let result =
                 study(table.clone(), structure, Some(suite)).run(&ExecutionContext::for_tests(5));
             let result = result.unwrap_or_else(|error| panic!("{label}: {error}"));
-            assert_eq!(result.support_status(), Some(CellStatus::Refused), "{label}");
+            assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
             let level = published_level(&result);
             assert!((level - truth).abs() < 0.03, "{label}: level {level} vs truth {truth}");
             assert!(has_refuter(&result, "overlap"), "{label}: plugin-level overlap runs");
@@ -181,7 +181,7 @@ fn bayesian_level_cheap_and_full_execute_unlicensed_on_every_dag_structure() {
                 .diagnostics
                 .iter()
                 .any(|diagnostic| diagnostic.code.as_ref() == "refute.response.bayesian_state");
-            assert!(disclosed, "{label}: the state discloses that it is unlicensed");
+            assert!(disclosed, "{label}: the state is disclosed");
             let sensitivity = result
                 .refutations
                 .iter()
@@ -205,14 +205,18 @@ fn bayesian_level_cheap_and_full_execute_unlicensed_on_every_dag_structure() {
 }
 
 #[test]
-fn the_default_suite_keeps_the_licensed_validation_none() {
+fn the_default_suite_is_the_licensed_cheap_state() {
+    // The Bayesian level's cheap state is licensed, so the default suite is no longer
+    // downgraded to validation none: it runs the cheap state.
     let (table, _) = data(43);
     for structure in [Structure::Explicit, Structure::GraphPosterior] {
         let result = study(table.clone(), structure, None).run(&ExecutionContext::for_tests(6));
         let result = result.unwrap();
         assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{structure:?}");
-        assert!(result.refutations.is_empty(), "{structure:?}");
-        assert!(result.predictive_checks.is_empty(), "{structure:?}");
+        assert!(has_refuter(&result, "overlap"), "{structure:?}");
+        if matches!(structure, Structure::Explicit) {
+            assert_eq!(result.predictive_checks.len(), 2, "{structure:?}");
+        }
     }
 }
 

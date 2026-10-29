@@ -80,11 +80,10 @@ def test_the_lag_zero_average_effect_is_the_explicit_pulse(graph_factory, bayesi
     )
     assert _same(average.ate, pulse.ate)
     assert average.structural_identified_set_interval == pulse.structural_identified_set_interval
-    # ``evidence_status`` names licensed or allow-listed results only; an executing,
-    # unlicensed cell reports None there and ``refused`` in the support slot.
-    assert average.evidence_status is None
+    # The lag-0 cell is licensed by known-truth evidence, like the pulse it compiles to.
+    assert average.evidence_status == "licensed"
     support = average.reasoning.support.payload
-    assert support["matrix_status"] == "refused"
+    assert support["matrix_status"] == "licensed"
     assert str(support["matrix_coordinate"]).startswith("AverageEffect:")
     assert str(pulse.reasoning.support.payload["matrix_coordinate"]).startswith("PulseEffect:")
     assert any(DISCLOSURE in str(diagnostic) for diagnostic in average.diagnostics)

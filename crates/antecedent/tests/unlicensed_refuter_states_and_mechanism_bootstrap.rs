@@ -214,7 +214,7 @@ fn cpdag_intervention_level_runs_its_per_completion_refuter_state() {
             .unwrap_or_else(|error| panic!("{suite:?}: {error}"))
             .run(&ExecutionContext::for_tests(13))
             .unwrap_or_else(|error| panic!("{suite:?}: {error}"));
-        assert_eq!(result.support_status(), Some(CellStatus::Refused), "{suite:?}");
+        assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{suite:?}");
         assert!(!result.refutations.is_empty(), "{suite:?}");
         assert!(has_diagnostic(&result, "refute.response.class_envelope_disagreement"));
         assert!(has_diagnostic(&result, "refute.response.class_state"));
@@ -254,7 +254,7 @@ fn temporal_dag_intervention_level_runs_its_pulse_witness_state() {
             .unwrap_or_else(|error| panic!("{label}: {error}"))
             .run(&ExecutionContext::for_tests(17))
             .unwrap_or_else(|error| panic!("{label}: {error}"));
-        assert_eq!(result.support_status(), Some(CellStatus::Refused), "{label}");
+        assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
         assert!(!result.refutations.is_empty(), "{label}");
         assert!(has_diagnostic(&result, "refute.temporal_response.pulse_witness_state"), "{label}");
     }
@@ -306,7 +306,7 @@ fn codetermined_bayesian_joint_level_executes_unlicensed() {
         .unwrap()
         .run(&ExecutionContext::for_tests(19))
         .unwrap();
-    assert_eq!(result.support_status(), Some(CellStatus::Refused));
+    assert_eq!(result.support_status(), Some(CellStatus::Licensed));
     let level = match &result.response().expect("response").estimate {
         ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) => *value,
         other => panic!("expected a scalar joint level, got {other:?}"),
@@ -364,7 +364,7 @@ fn temporal_class_intervention_level_runs_per_completion_witness_state() {
             .unwrap_or_else(|error| panic!("{label}: {error}"))
             .run(&ExecutionContext::for_tests(23))
             .unwrap_or_else(|error| panic!("{label}: {error}"));
-        assert_eq!(result.support_status(), Some(CellStatus::Refused), "{label}");
+        assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
         assert!(!result.refutations.is_empty(), "{label}");
         assert!(
             has_diagnostic(&result, "refute.temporal_response.class_envelope_disagreement"),

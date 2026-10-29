@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "case": "codetermined_joint_level",
+  "design": {
+    "columns": [
+      "z",
+      "t1",
+      "t2"
+    ],
+    "rows": 960,
+    "mean_z": 0.6875,
+    "cells": [
+      {
+        "z": 0,
+        "t1": 0,
+        "t2": 0,
+        "count": 150
+      },
+      {
+        "z": 0,
+        "t1": 0,
+        "t2": 1,
+        "count": 60
+      },
+      {
+        "z": 0,
+        "t1": 1,
+        "t2": 0,
+        "count": 60
+      },
+      {
+        "z": 0,
+        "t1": 1,
+        "t2": 1,
+        "count": 30
+      },
+      {
+        "z": 1,
+        "t1": 0,
+        "t2": 0,
+        "count": 60
+      },
+      {
+        "z": 1,
+        "t1": 0,
+        "t2": 1,
+        "count": 120
+      },
+      {
+        "z": 1,
+        "t1": 1,
+        "t2": 0,
+        "count": 120
+      },
+      {
+        "z": 1,
+        "t1": 1,
+        "t2": 1,
+        "count": 360
+      }
+    ]
+  },
+  "outcome_law": "y = 0.2 + 0.4 t1 + 0.3 t2 + 0.2 z, plus 0.01 sin(0.31 i) on the row index i",
+  "level": {
+    "t1": 1,
+    "t2": 1,
+    "value": 1.0375
+  },
+  "tolerance": {
+    "posterior_mean": 0.01
+  },
+  "oracle": {
+    "kind": "closed_form",
+    "method": "Closed form of the stated additive structural law. The tier closure {z} | {t1, t2} | {y} adjusts for z, so E[y | do(t1 = 1, t2 = 1)] = 0.2 + 0.4 + 0.3 + 0.2 mean(z); mean(z) = 660/960 = 11/16 from the exact cell counts, giving 83/80 = 1.0375. The wiggle 0.01 sin(0.31 i) is only asymptotically orthogonal to the design, which is what the posterior-mean tolerance covers.",
+    "formula": "0.2 + 0.4 + 0.3 + 0.2 * mean(z), mean(z) = sum(count * z) / sum(count)",
+    "generator": "conformance/estimate/codetermined_joint_level/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/codetermined_joint_level/reference.py --check",
+    "environment_lock": "conformance/estimate/codetermined_joint_level/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "level.value (the posterior mean is asserted within tolerance.posterior_mean)",
+      "design.cells"
+    ],
+    "context_only_outputs": [
+      "design.rows",
+      "design.mean_z",
+      "outcome_law text",
+      "oracle method and scope text"
+    ],
+    "independence_basis": "The generator evaluates the stated additive law and the exact count average in rationals; it imports no Antecedent code and no statistics package. The shared object is the stated law and the design counts.",
+    "historical_exposure": "Written for this fixture from the stated law and the declared inputs; no product implementation source was consulted to obtain the values.",
+    "reference_review": {
+      "scope": "The joint level of a same-tier do(t1 = 1, t2 = 1) under an additive law with a confounded design.",
+      "independence_basis": "The generator evaluates the stated additive law and the exact count average in rationals; it imports no Antecedent code and no statistics package. The shared object is the stated law and the design counts.",
+      "historical_exposure": "Written for this fixture from the stated law and the declared inputs; no product implementation source was consulted to obtain the values.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The additive law is the specification of the Bayesian cell's outcome regression; for a law with a treatment interaction the published level is the additive model's level, not the saturated cell mean, and this fixture does not speak to that. Law-level truth, no interval or calibration claim.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/codetermined_joint_level/reference.py",
+          "sha256": "465bc03bc5fb86bd5e37e0bdf90d6fdbe75977120fab5ec5174c3f974ea1d06b"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/codetermined_joint_level/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/codetermined_bayesian_response_truth.rs",
+          "sha256": "a4fe746ad275535c3434aecf41d9cf7b6e2b38b68f33913dba0c7e5917685b0a"
+        }
+      ],
+      "fixture_payload_sha256": "a12d3983c5261ff408fa27d4dc5444f78e3d9b3511ee26e2ed8695ea2bdb750a"
+    }
+  }
+}

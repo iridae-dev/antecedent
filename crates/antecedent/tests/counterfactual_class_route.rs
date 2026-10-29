@@ -134,8 +134,8 @@ fn an_admg_counterfactual_is_the_enumerated_effect_on_the_treated() {
     let (scm, data) = front_door();
     let truth = enumerated_effect(&scm, 0, 2);
     let built = study(data, front_door_admg(), query(2, 0), InferenceMode::Frequentist, 0);
-    // The cell executes unlicensed: no evidence row names it.
-    assert_eq!(built.support_status(), Some(CellStatus::Refused));
+    // The cell is licensed on the exact count-table functional of its fixture.
+    assert_eq!(built.support_status(), Some(CellStatus::Licensed));
     let result = built.run(&ctx()).unwrap();
     assert!((result.effect() - truth).abs() < 5e-4, "{} vs {truth}", result.effect());
     // The estimand is the population-level cross-world mean, not a per-unit counterfactual.

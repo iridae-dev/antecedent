@@ -1,0 +1,76 @@
+{
+  "fixture_id": "attribution_refuter_states",
+  "dgp": {
+    "rows": 24,
+    "planted_row": 7,
+    "planted_x": 40.0,
+    "lift": 60.0,
+    "text": "x_i = sin(1.37 i) + 0.5 cos(0.91 i); y_i = 1 + 2 x_i + 0.3 sin(2.17 i); the planted table sets x_7 = 40 and adds 60 to y_7."
+  },
+  "clean": {
+    "max_leverage_below": 0.3,
+    "slope_within": 0.05
+  },
+  "planted": {
+    "row_leverage_above": 0.9,
+    "slope_without_row_within": 0.05,
+    "slope_shift_above": 1.0
+  },
+  "expected_verdicts": {
+    "clean_subset_stability_passes": true,
+    "planted_subset_stability_passes": false
+  },
+  "oracle": {
+    "kind": "closed_form",
+    "method": "leverage h_i = 1/n + (x_i - mean x)^2 / S_xx of the regression of y on (1, x): the planted row has h above 0.9 and decides the fitted slope (3.49 with it, 2.00 without), the clean table has no row above 0.3; a refit on random subsets drops the planted row one time in five and so refits a different mechanism, while the clean table refits the same one",
+    "generator": "conformance/estimate/attribution_refuter_states/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/attribution_refuter_states/reference.py --check",
+    "environment_lock": "conformance/estimate/attribution_refuter_states/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "expected_verdicts (the clean table passes subset stability, the planted table fails it), by the leverage and slope derivation",
+      "series.* (the same clean-passes / planted-fails verdicts for the lag-aligned design of a series)"
+    ],
+    "context_only_outputs": [
+      "the bounds (0.3, 0.9, 0.05, 1.0), which are the declared margins of the derivation",
+      "fixture_id and dgp text"
+    ],
+    "independence_basis": "The generator rebuilds both tables from the stated formulas, computes every leverage and the least-squares slope with and without the planted row in exact rational arithmetic on the float inputs, and imports no Antecedent code and no statistics package. The shared object is the stated table.",
+    "historical_exposure": "Written for this fixture from the stated tables and the definition of leverage; no product implementation source was consulted and no earlier pinned numbers are reused.",
+    "reference_review": {
+      "scope": "A 24-row clean table and the same table with one planted high-leverage, off-line row. A 20-period series and the same series with one planted high-leverage period.",
+      "independence_basis": "The generator rebuilds both tables from the stated formulas, computes every leverage and the least-squares slope with and without the planted row in exact rational arithmetic on the float inputs, and imports no Antecedent code and no statistics package. The shared object is the stated table.",
+      "historical_exposure": "Written for this fixture from the stated tables and the definition of leverage; no product implementation source was consulted and no earlier pinned numbers are reused.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The reference derives the design property (one row decides the fit) and not the refuter's p-value, which depends on the seeded subsets; the verdicts are asserted against the design. Only the anomaly attribution is held; a change attribution whose populations are position ranges is not (a plain row bootstrap scrambles its populations). No uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/attribution_refuter_states/reference.py",
+          "sha256": "e90cd991adfccb58fad84db8ff1efaead468323cacccde7266a5a2fb1c6b7d18"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/attribution_refuter_states/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/attribution_refuter_known_truth.rs",
+          "sha256": "b2975f7e8311d5b0b410627855c3a564fd55c9db7169e9c45ea62e5000bcebe8"
+        }
+      ],
+      "fixture_payload_sha256": "e62d4b628bc4bb1c9f32540b78193366629e47235ac3569329d3c3b45b32e58a"
+    }
+  },
+  "series": {
+    "rows": 20,
+    "planted_position": 9,
+    "planted_x": 40.0,
+    "lift": 60.0,
+    "clean_max_leverage_below": 0.4,
+    "row_leverage_above": 0.8,
+    "text": "x_t = sin(0.37 t) + 0.5 cos(1.1 t); y_t = 1 + 2 x_{t-1} + 0.3 sin(2.17 t) (x_{-1} = 0); the planted series sets x_9 = 40 and adds 60 to y_10."
+  }
+}

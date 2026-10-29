@@ -1,0 +1,121 @@
+{
+  "schema_version": 1,
+  "case": "response_curve_posterior_refuter_states",
+  "closed_form": {
+    "frontdoor_curve": [
+      0.314,
+      0.596
+    ],
+    "frontdoor_mean_outcome": 0.386,
+    "cpdag_curve": [
+      0.0,
+      1.0
+    ],
+    "pag_curve": [
+      1.0,
+      3.0
+    ],
+    "grid": [
+      0.0,
+      1.0
+    ]
+  },
+  "tolerance": {
+    "exact": 1e-09,
+    "frontdoor_bayesian": 0.08,
+    "sampled_curve": 0.25,
+    "placebo_level": 0.1
+  },
+  "refuter_contract": {
+    "Frequentist": {
+      "cheap": [
+        "target.placebo_treatment",
+        "target.subset_stability",
+        "curve.atom_support"
+      ],
+      "full": [
+        "target.placebo_treatment",
+        "target.subset_stability",
+        "curve.atom_support",
+        "target.placebo_outcome",
+        "target.bootstrap_stability"
+      ]
+    },
+    "Bayesian_admg": {
+      "cheap": [
+        "target.placebo_treatment",
+        "curve.atom_support"
+      ],
+      "full": [
+        "target.placebo_treatment",
+        "curve.atom_support",
+        "target.placebo_outcome"
+      ]
+    },
+    "Bayesian_class": {
+      "cheap": [
+        "target.placebo_treatment",
+        "target.prior_sensitivity",
+        "curve.atom_support"
+      ],
+      "full": [
+        "target.placebo_treatment",
+        "target.prior_sensitivity",
+        "curve.atom_support",
+        "target.placebo_outcome",
+        "target.posterior_predictive"
+      ]
+    },
+    "flat_expected": [
+      "target.placebo_treatment"
+    ],
+    "atom_support": "the support report's identified mass equals the posterior weight of the atoms the identifier accepts (1 when all are, 0.65 when a 0.35 atom is a directed cycle)"
+  },
+  "oracle": {
+    "kind": "closed_form",
+    "method": "Closed forms: the front-door curve E[Y | do(t)] = sum_m P(m | t) g(m), g(m) = sum_t' P(t') P(Y=1 | m, t') of the exact 1000-row table gives [0.314, 0.596] and the mean outcome 0.386, the level of the flat curve a permuted treatment must give; the Cpdag law y = t + z + e has the curve a and the PAG law y = 1 + 2 t + 0.8 z + e the curve 1 + 2 a on the grid [0, 1] (population values, E z = 0; the doubly robust sampled curve is checked within 0.25 on 1500 rows). The refuter contract lists the refuters each graph-posterior curve study runs at each depth and inference mode (validation-suite design, not derivable); some refuters are refused for a curve and recorded as such.",
+    "formula": "front door: sum_m P(m | t) sum_t' P(t') P(y | m, t'); cpdag: a; pag: 1 + 2 a",
+    "generator": "conformance/estimate/response_curve_posterior_refuter_states/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/response_curve_posterior_refuter_states/reference.py --check",
+    "environment_lock": "conformance/estimate/response_curve_posterior_refuter_states/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "closed_form.* (curves within tolerance.*)",
+      "refuter_contract (refuters that run and pass; the placebo curve is flat at the mean outcome)",
+      "atom_support (identified mass)",
+      "tolerance.*"
+    ],
+    "context_only_outputs": [
+      "oracle method and scope text",
+      "closed_form.grid"
+    ],
+    "independence_basis": "The generator evaluates the front-door formula on the stated table probabilities in exact rationals; it imports no Antecedent code and no statistics package. The shared object is the stated table and laws.",
+    "historical_exposure": "Written for this fixture from the stated law and the declared inputs; no product implementation source was consulted to obtain the values.",
+    "reference_review": {
+      "scope": "The identified curve over the atoms of a graph posterior and the refuter contract of the curve study.",
+      "independence_basis": "The generator evaluates the front-door formula on the stated table probabilities in exact rationals; it imports no Antecedent code and no statistics package. The shared object is the stated table and laws.",
+      "historical_exposure": "Written for this fixture from the stated law and the declared inputs; no product implementation source was consulted to obtain the values.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The Cpdag and PAG curves are population values for a simulated sample, checked within a wide band because the Frequentist curve is a doubly robust estimate; the front-door curve is exact for the Frequentist plug-in and within a stated band for the Dirichlet posterior mean. The refuter contract is a validation-suite design choice asserted by the executing tests. No coverage or calibration claim.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/response_curve_posterior_refuter_states/reference.py",
+          "sha256": "01d0deb7cb2583ebf3ca0656953325c2a31075409ddfa440bfdbd895155d4b95"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/response_curve_posterior_refuter_states/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/response_curve_posterior_validation_truth.rs",
+          "sha256": "0f81fdb01ae2ed80b9f7c64250fd59b75574473ffa2badf0edc978a25b6df742"
+        }
+      ],
+      "fixture_payload_sha256": "943dcd0b253ead959224436338ad30d8618c602fc29e835414b60884baa67771"
+    }
+  }
+}

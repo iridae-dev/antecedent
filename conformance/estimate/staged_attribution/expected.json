@@ -51,12 +51,12 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/staged_attribution_transport_interference.rs",
-          "sha256": "8ef12ae2309b7f8d4bf0c5dde0b93de24766e7e617f6386a736639944672a831"
+          "sha256": "3dc9dfbe700a4f3166768c8d9dff626c9a4658d383f371ef41fe0a35772f9915"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_attribution_route_evidence.rs",
-          "sha256": "5dda65d29442b0a9a03141afd8d1ace24ea3520a72dd51d27f25ec19c17fe59b"
+          "sha256": "a6b7fc33f3d425f02f94d58a9b0e9335bf33e4e27f8c8c61e2b9f4a32d23b176"
         }
       ],
       "fixture_payload_sha256": "d762b9058d4e5214260c8d2bdcd4f9c6026f6700e6c2bb476b03bd905416791a"

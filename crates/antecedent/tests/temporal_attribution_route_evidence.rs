@@ -250,6 +250,89 @@ fn frequentist_body() {
     );
 }
 
+/// An accepted `TemporalDag` is attributed as a supplied one: the accepted record is the
+/// structure's provenance, not a different graph. Both queries and both inference modes hold
+/// the lag-aligned truth of the staged fixture.
+#[test]
+fn temporal_accepted_attribution_known_truth() {
+    std::thread::Builder::new()
+        .name("temporal-accepted-attribution".into())
+        .stack_size(16 * 1024 * 1024)
+        .spawn(accepted_body)
+        .expect("spawn evidence thread")
+        .join()
+        .expect("evidence body panicked");
+}
+
+fn accepted_body() {
+    let ctx = ExecutionContext::for_tests(13);
+    let truth = staged_attribution();
+    let top_row = usize::try_from(truth["anomaly"]["top_row"].as_u64().unwrap()).unwrap();
+    let expected = truth["change"]["total_change"].as_f64().unwrap();
+    for (inference, anomaly_estimator, change_estimator) in [
+        (InferenceMode::Frequentist, EstimatorId::GcmFit, EstimatorId::GcmFit),
+        (
+            InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(4)),
+            EstimatorId::GcmFitBayesian,
+            EstimatorId::GcmAttributionBayesian,
+        ),
+    ] {
+        let anomaly = anomaly_series(200.0);
+        let anomaly_query = CausalQuery::AnomalyAttribution(AnomalyAttributionQuery::new(
+            [VariableId::from_raw(1)],
+            100,
+        ));
+        let anomaly_builder = Study::series(anomaly.clone())
+            .graph(AcceptedGraph::from(temporal_chain()))
+            .query(anomaly_query.clone())
+            .inference(inference.clone())
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+        let anomaly_prepared = anomaly_builder.prepare(&ctx).unwrap();
+        let RetainedOperation::Attribution(plan) = anomaly_prepared.retained_operation() else {
+            panic!("sealed anomaly operation")
+        };
+        assert_eq!(plan.query, anomaly_query);
+        assert_eq!(plan.identifier, IdentifierId::GcmParametric);
+        assert_eq!(plan.estimator, anomaly_estimator);
+        assert_eq!(plan.graph_edges.as_ref(), &[(2, 1)]);
+        drop(anomaly_builder);
+        let result = anomaly_prepared.estimate_series(&anomaly, &ctx).unwrap();
+        assert_eq!(result.posterior.is_some(), matches!(inference, InferenceMode::Bayesian(_)));
+        let scores = result.anomaly().expect("anomaly result");
+        let score = scores.iter().find(|score| score.target == VariableId::from_raw(1)).unwrap();
+        let top = score.scores.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1)).unwrap();
+        assert_eq!(score.rows[top.0], top_row, "the injected outlier is the top anomaly");
+        assert!(score.scores[top.0] >= truth["anomaly"]["score_min"].as_f64().unwrap());
+
+        let change = change_series(0.0);
+        let change_target = CausalQuery::ChangeAttribution(ChangeAttributionQuery::new(
+            VariableId::from_raw(1),
+            PopulationSelector::TimeRange { start: 0, end: 40 },
+            PopulationSelector::TimeRange { start: 40, end: 80 },
+        ));
+        let change_builder = Study::series(change.clone())
+            .graph(AcceptedGraph::from(temporal_chain()))
+            .query(change_target.clone())
+            .inference(inference.clone())
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+        let change_prepared = change_builder.prepare(&ctx).unwrap();
+        let RetainedOperation::Attribution(plan) = change_prepared.retained_operation() else {
+            panic!("sealed change operation")
+        };
+        assert_eq!(plan.query, change_target);
+        assert_eq!(plan.estimator, change_estimator);
+        drop(change_builder);
+        let result = change_prepared.estimate_series(&change, &ctx).unwrap();
+        let total = result.change_attribution().unwrap().total_change;
+        let tolerance = truth["change"]["tolerance"].as_f64().unwrap().min(0.1);
+        assert!((total - expected).abs() < tolerance, "known population mean shift: {total}");
+    }
+}
+
 #[test]
 fn temporal_attribution_bayesian_known_truth() {
     std::thread::Builder::new()

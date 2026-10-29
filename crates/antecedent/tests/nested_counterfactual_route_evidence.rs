@@ -248,7 +248,7 @@ fn bayesian_natural_direct_effect_publishes_the_posterior_mean_without_an_interv
             .any(|d| d.code.as_ref() == "counterfactual.nested.shared_exogenous")
     );
 
-    let refused = Study::tabular(
+    let accepted = Study::tabular(
         TabularData::from_f64_columns([
             ("x", x.as_slice()),
             ("m", m.as_slice()),
@@ -261,8 +261,8 @@ fn bayesian_natural_direct_effect_publishes_the_posterior_mean_without_an_interv
     .inference(InferenceMode::Bayesian(BayesianConfig::conjugate()))
     .build()
     .expect("an accepted Dag executes the nested natural effect as a supplied one does");
-    // The cell is not licensed: it runs and the study states `refused`, with no coverage claim.
-    assert_eq!(refused.support_status(), Some(antecedent::support::CellStatus::Refused));
+    // The accepted-structure cell is licensed beside the supplied one (validation none).
+    assert_eq!(accepted.support_status(), Some(antecedent::support::CellStatus::Licensed));
 }
 
 /// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.

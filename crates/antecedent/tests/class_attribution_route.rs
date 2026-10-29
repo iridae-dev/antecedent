@@ -144,10 +144,10 @@ fn cpdag_anomaly_body() {
     let mut cpdag = Cpdag::with_variables(2);
     cpdag.insert_undirected(node(0), node(1)).unwrap();
     let study = tabular_study(&data, cpdag, &query, &frequentist());
-    // No evidence row or coverage record names the cell: it executes and stays unlicensed.
-    assert_eq!(study.support_status(), Some(CellStatus::Refused));
+    // The class cell is licensed by the known-truth evidence of class_attribution_known_truth.
+    assert_eq!(study.support_status(), Some(CellStatus::Licensed));
     let result = study.run(&ctx).unwrap();
-    assert_eq!(result.support_status(), Some(CellStatus::Refused));
+    assert_eq!(result.support_status(), Some(CellStatus::Licensed));
     let merged = &result.anomaly().expect("anomaly payload")[0];
 
     // The two DAGs of the Markov class, attributed by the licensed DAG route.
@@ -255,7 +255,7 @@ fn cpdag_bayesian_body() {
     let draws = |result: &antecedent::StudyResult| result.posterior.as_ref().unwrap().draws.clone();
     assert_eq!(draws(&forward), draws(&backward));
     assert_eq!(draws(&class), draws(&forward));
-    assert_eq!(class.support_status(), Some(CellStatus::Refused));
+    assert_eq!(class.support_status(), Some(CellStatus::Licensed));
 
     // A change attribution differs between the DAGs of the class: the class publishes no
     // mixture of the two posteriors, keeps each on its atom, and states the envelope of their
@@ -302,7 +302,7 @@ fn admg_anomaly_body() {
     let data = collider_table(80, 6.0);
     let query = anomaly_query(2);
     let study = tabular_study(&data, latent_collider(), &query, &frequentist());
-    assert_eq!(study.support_status(), Some(CellStatus::Refused));
+    assert_eq!(study.support_status(), Some(CellStatus::Licensed));
     let result = study.run(&ctx).unwrap();
     assert_eq!(
         result.identification.status,
@@ -519,7 +519,7 @@ fn temporal_cpdag_single_body() {
     dag.insert_directed(parent, child).unwrap();
     let study = series_study(&data, cpdag.clone());
     let class = study.run(&ctx).unwrap();
-    assert_eq!(class.support_status(), Some(CellStatus::Refused));
+    assert_eq!(class.support_status(), Some(CellStatus::Licensed));
     let reference = series_study(&data, dag).run(&ctx).unwrap();
     assert_eq!(class.anomaly().unwrap(), reference.anomaly().unwrap());
     let mut prepared = study.prepare(&ctx).unwrap();
@@ -588,7 +588,7 @@ fn temporal_admg_outside_body() {
     template.insert_directed(lagged_x, y).unwrap();
     template.insert_bidirected(x, y).unwrap();
     let class = series_study(&data, template).run(&ctx).unwrap();
-    assert_eq!(class.support_status(), Some(CellStatus::Refused));
+    assert_eq!(class.support_status(), Some(CellStatus::Licensed));
 
     let mut dag = TemporalDag::empty();
     let parent = dag.add_lagged(variable(0), Lag::from_raw(1)).unwrap();

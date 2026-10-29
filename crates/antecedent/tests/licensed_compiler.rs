@@ -31,7 +31,7 @@ use antecedent_core::{
 use antecedent_data::{
     NetworkData, NetworkEdge, SamplingRegularity, TableView, TabularData, TimeIndex, TimeSeriesData,
 };
-use antecedent_discovery::adjacency_mask::set_edge;
+use antecedent_discovery::adjacency_mask::{adjacency_mask_from_admg, set_edge};
 use antecedent_discovery::{
     AdjacencyMask, GraphPosterior, GraphPosteriorAtomKind, SamplingSummary,
 };
@@ -107,6 +107,24 @@ fn discrete_joint_table(names: &[&str]) -> TabularData {
     let mut columns: Vec<Vec<f64>> = vec![Vec::new(); names.len()];
     for bits in 0..(1 << names.len()) {
         let count = 8 + (bits % 5);
+        for _ in 0..count {
+            for (j, column) in columns.iter_mut().enumerate() {
+                column.push(f64::from((bits >> j) & 1));
+            }
+        }
+    }
+    let refs: Vec<(&str, &[f64])> =
+        names.iter().zip(columns.iter()).map(|(n, v)| (*n, v.as_slice())).collect();
+    TabularData::from_f64_columns(refs).unwrap()
+}
+
+/// [`discrete_joint_table`] with the second column following the first, so a permuted first
+/// column changes the table.
+fn dependent_joint_table(names: &[&str]) -> TabularData {
+    let mut columns: Vec<Vec<f64>> = vec![Vec::new(); names.len()];
+    for bits in 0..(1 << names.len()) {
+        let agree = names.len() < 2 || (bits & 1) == ((bits >> 1) & 1);
+        let count = 6 + if agree { 9 } else { 0 } + (bits % 3);
         for _ in 0..count {
             for (j, column) in columns.iter_mut().enumerate() {
                 column.push(f64::from((bits >> j) & 1));
@@ -251,10 +269,50 @@ fn dag_for(cell: antecedent::SupportCell, n: u32) -> Dag {
     }
 }
 
+/// Four-variable ADMG of the derivative queries: both treatments cause both outcomes and a latent
+/// common cause of the two outcomes stays in the graph, so the back-door set is empty.
+fn derivative_admg() -> Admg {
+    let mut g = Admg::with_variables(4);
+    for (from, to) in [(0, 2), (1, 2), (0, 3), (1, 3)] {
+        g.insert_directed(nid(from), nid(to)).unwrap();
+    }
+    g.insert_bidirected(nid(2), nid(3)).unwrap();
+    g
+}
+
+/// Five-variable PAG of the derivative queries: `r -> a`, `r -> b`, and both treatments cause both
+/// outcomes. `r` is a parent of each treatment and not adjacent to an outcome, so every
+/// treatment-to-outcome edge is visible and the back-door set is empty.
+fn derivative_pag() -> Pag {
+    let mut g = Pag::with_variables(5);
+    for (from, to) in [(4, 0), (4, 1), (0, 2), (1, 2), (0, 3), (1, 3)] {
+        g.insert_directed(nid(from), nid(to)).unwrap();
+    }
+    g
+}
+
 fn confounder_admg() -> Admg {
     let mut g = Admg::with_variables(3);
     g.insert_directed(nid(0), nid(1)).unwrap();
     g.insert_bidirected(nid(0), nid(2)).unwrap();
+    g
+}
+
+/// `t -> m -> y` and `t -> y`, no latent cause: every component of the mediation is identified.
+fn mediation_admg() -> Admg {
+    let mut g = Admg::with_variables(3);
+    for (from, to) in [(0, 1), (0, 2), (1, 2)] {
+        g.insert_directed(nid(from), nid(to)).unwrap();
+    }
+    g
+}
+
+/// Columns `t, m, y, c, w`: `c -> t` and `w -> m` make every edge out of `t` and into `y` visible.
+fn visible_mediation_static_pag() -> Pag {
+    let mut g = Pag::with_variables(5);
+    for (from, to) in [(3, 0), (4, 1), (0, 1), (0, 2), (1, 2)] {
+        g.insert_directed(nid(from), nid(to)).unwrap();
+    }
     g
 }
 
@@ -545,6 +603,51 @@ fn point_family_gp(n_vars: usize, pag: bool) -> GraphPosterior {
     .unwrap()
 }
 
+/// One latent-confounded atom `z -> t -> y`, `z <-> y` (no bow, so an ADMG posterior can encode
+/// it): conditioning on the modifier `z` closes `t <- z <-> y`, so the conditional effect is
+/// identified by IDC on the atom.
+fn conditional_admg_gp() -> GraphPosterior {
+    let mut g = Admg::with_variables(3);
+    g.insert_directed(nid(2), nid(0)).unwrap();
+    g.insert_directed(nid(0), nid(1)).unwrap();
+    g.insert_bidirected(nid(2), nid(1)).unwrap();
+    GraphPosterior::from_atoms(
+        3,
+        vec![1.0],
+        vec![adjacency_mask_from_admg(&g).unwrap()],
+        vec![0.0; 9],
+        vec![0.0; 9],
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("licensed-compiler-conditional-admg-gp"),
+            rejected_invalid: 0,
+        },
+    )
+    .unwrap()
+}
+
+/// One front-door atom `t -> y -> z`, `t <-> z` over `(t, y, z)`: the curve of `t` on `z` is
+/// identified through the mediator `y` and its placebo (a permuted treatment) has spread.
+fn frontdoor_curve_gp() -> GraphPosterior {
+    let mut g = Admg::with_variables(3);
+    g.insert_directed(nid(0), nid(1)).unwrap();
+    g.insert_directed(nid(1), nid(2)).unwrap();
+    g.insert_bidirected(nid(0), nid(2)).unwrap();
+    GraphPosterior::from_atoms(
+        3,
+        vec![1.0],
+        vec![adjacency_mask_from_admg(&g).unwrap()],
+        vec![0.0; 9],
+        vec![0.0; 9],
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("licensed-compiler-frontdoor-curve-gp"),
+            rejected_invalid: 0,
+        },
+    )
+    .unwrap()
+}
+
 fn temporal_class_gp(n_vars: usize) -> GraphPosterior {
     let cell = n_vars * n_vars;
     let mut lagged = vec![0.0; cell];
@@ -688,6 +791,16 @@ fn query_for(cell: antecedent::SupportCell) -> CausalQuery {
                 .with_max_history_lag(Some(1))
                 .with_effect_modifiers([vid(2)]),
         ),
+        // The refuters of a graph-posterior curve over mixed atoms permute the treatment; a curve
+        // whose outcome is a child of the treatment alone has a placebo with no spread, so the
+        // validated cells read the front-door outcome `z` through the mediator `y`.
+        "ResponseCurve"
+            if cell.structure.as_str() == "graph_posterior"
+                && matches!(cell.graph_class.as_str(), "Admg" | "TemporalAdmg")
+                && cell.validation.as_str() != "none" =>
+        {
+            mean_curve(0, 2, temporal_graph)
+        }
         "ResponseCurve" => mean_curve(0, 1, temporal_graph),
         "InterventionResponse" if cell.graph_class.as_str() == "CoDetermined" => {
             intervention_response(&[1, 2], 3, false)
@@ -943,14 +1056,29 @@ fn cell_setup(cell: antecedent::SupportCell) -> Result<CellSetup, String> {
             .unwrap()
         } else if cell.query.as_str() == "InterferenceQuery" {
             static_table(&[("y", 0), ("x", 1)])
+        } else if matches!(
+            cell.query.as_str(),
+            "MediationEffect" | "PathSpecificEffect" | "InterventionalDistribution"
+        ) && cell.graph_class.as_str() == "Pag"
+            && cell.structure.as_str() != "graph_posterior"
+        {
+            // The treatment and the mediator each need a parent for their edges to be visible.
+            discrete_joint_table(&["t", "m", "y", "c", "w"])
         } else if cell.query.as_str() == "InterventionalDistribution"
             || (matches!(
                 cell.query.as_str(),
                 "AverageEffect" | "ResponseCurve" | "InterventionResponse"
             ) && matches!(cell.graph_class.as_str(), "Admg" | "TemporalAdmg"))
-            || (cell.query.as_str() == "ConditionalEffect" && cell.graph_class.as_str() == "Admg")
+            || (cell.query.as_str() == "ConditionalEffect"
+                && matches!(cell.graph_class.as_str(), "Admg" | "TemporalAdmg"))
         {
-            discrete_joint_table(&["t", "y", "z"][..n.min(3) as usize])
+            if cell.query.as_str() == "ResponseCurve" && cell.structure.as_str() == "graph_posterior" {
+                // A treatment independent of the outcome in every cell leaves a permuted
+                // treatment's refit identical to the data: the placebo has no spread.
+                dependent_joint_table(&["t", "y", "z"][..n.min(3) as usize])
+            } else {
+                discrete_joint_table(&["t", "y", "z"][..n.min(3) as usize])
+            }
         } else if matches!(
             cell.query.as_str(),
             "AverageDerivative"
@@ -960,7 +1088,17 @@ fn cell_setup(cell: antecedent::SupportCell) -> Result<CellSetup, String> {
                 | "DirectionalDerivative"
                 | "ResponseJacobian"
         ) {
-            static_table(&[("a", 0), ("b", 1), ("y", 2), ("v", 3)])
+            if cell.graph_class.as_str() == "Pag" && cell.structure.as_str() != "graph_posterior" {
+                static_table(&[("a", 0), ("b", 1), ("y", 2), ("v", 3), ("r", 4)])
+            } else {
+                static_table(&[("a", 0), ("b", 1), ("y", 2), ("v", 3)])
+            }
+        } else if cell.query.as_str() == "MediationEffect"
+            && cell.graph_class.as_str() == "Pag"
+            && cell.structure.as_str() != "graph_posterior"
+        {
+            // The treatment and the mediator each need a parent for their edges to be visible.
+            discrete_joint_table(&["t", "m", "y", "c", "w"])
         } else if matches!(cell.query.as_str(), "MediationEffect" | "PathSpecificEffect") {
             discrete_joint_table(&["t", "m", "y"])
         } else if matches!(
@@ -992,6 +1130,15 @@ fn cell_setup(cell: antecedent::SupportCell) -> Result<CellSetup, String> {
                 } else {
                     temporal_gp(n as usize)
                 }
+            } else if cell.query.as_str() == "ConditionalEffect"
+                && matches!(cell.graph_class.as_str(), "Admg" | "TemporalAdmg")
+            {
+                conditional_admg_gp()
+            } else if cell.query.as_str() == "ResponseCurve"
+                && matches!(cell.graph_class.as_str(), "Admg" | "TemporalAdmg")
+                && cell.validation.as_str() != "none"
+            {
+                frontdoor_curve_gp()
             } else {
                 static_gp(n as usize)
             };
@@ -1012,20 +1159,31 @@ fn cell_setup(cell: antecedent::SupportCell) -> Result<CellSetup, String> {
                     if accepted { builder.graph(AcceptedGraph::from(g)) } else { builder.graph(g) }
                 }
                 "Admg" => {
-                    let g = if cell.query.as_str() == "TransportQuery" {
-                        transport_admg()
-                    } else {
-                        confounder_admg()
+                    let g = match cell.query.as_str() {
+                        "TransportQuery" => transport_admg(),
+                        "InterferenceQuery" => Admg::with_variables(2),
+                        "MediationEffect" | "PathSpecificEffect" | "InterventionalDistribution" => {
+                            mediation_admg()
+                        }
+                        _ if point_family_query(cell) => derivative_admg(),
+                        _ => confounder_admg(),
                     };
                     if accepted { builder.graph(AcceptedGraph::from(g)) } else { builder.graph(g) }
                 }
                 "TemporalAdmg" => {
-                    let g = TemporalAdmg::from_static_contemporaneous(&if cell.query.as_str()
-                        == "TransportQuery"
-                    {
-                        transport_admg()
-                    } else {
-                        confounder_admg()
+                    let g = TemporalAdmg::from_static_contemporaneous(&match cell.query.as_str() {
+                        "TransportQuery" => transport_admg(),
+                        "InterferenceQuery" => Admg::with_variables(2),
+                        "MediationEffect" | "PathSpecificEffect" | "InterventionalDistribution" => {
+                            mediation_admg()
+                        }
+                        "AverageDerivative"
+                        | "PointDerivative"
+                        | "Elasticity"
+                        | "SemiElasticity"
+                        | "DirectionalDerivative"
+                        | "ResponseJacobian" => derivative_admg(),
+                        _ => confounder_admg(),
                     })
                     .map_err(|e| format!("{expected}: {e}"))?;
                     if accepted { builder.graph(AcceptedGraph::from(g)) } else { builder.graph(g) }
@@ -1035,10 +1193,28 @@ fn cell_setup(cell: antecedent::SupportCell) -> Result<CellSetup, String> {
                     if accepted { builder.graph(AcceptedGraph::from(g)) } else { builder.graph(g) }
                 }
                 "Pag" => {
-                    let g = if uses_pag_response_curve(cell) {
+                    let g = if matches!(
+                        cell.query.as_str(),
+                        "MediationEffect" | "PathSpecificEffect" | "InterventionalDistribution"
+                    ) && cell.structure.as_str() != "graph_posterior"
+                    {
+                        visible_mediation_static_pag()
+                    } else if uses_pag_response_curve(cell) {
                         pag_response_curve_fixture().1
                     } else if uses_pag_envelope(cell) {
                         pag_envelope_fixture().1
+                    } else if cell.structure.as_str() != "graph_posterior"
+                        && matches!(
+                            cell.query.as_str(),
+                            "AverageDerivative"
+                                | "PointDerivative"
+                                | "Elasticity"
+                                | "SemiElasticity"
+                                | "DirectionalDerivative"
+                                | "ResponseJacobian"
+                        )
+                    {
+                        derivative_pag()
                     } else {
                         pag_from_dag(&dag_for(cell, n))
                     };
@@ -1440,6 +1616,7 @@ fn consume_setup(setup: CellSetup) -> Result<Route, String> {
         && !functional_effect_replay_dependency_only(&consumed)
         && !linear_replay_dependency_only(&consumed)
         && !bayesian_distribution_replay_dependency_only(&consumed)
+        && !class_distribution_replay_dependency_only(&consumed)
     {
         return Err(format!(
             "{expected}: consume did not accept a verified program: {:?}",
@@ -1489,7 +1666,7 @@ fn every_licensed_cell_inspects_as_a_first_class_contract() {
             failures.push(err);
         }
     }
-    assert_eq!(n, 723, "licensed inventory drifted");
+    assert_eq!(n, 1948, "licensed inventory drifted");
     assert!(
         failures.is_empty(),
         "{} licensed cells are not first-class on inspect:\n{}",
@@ -1559,7 +1736,10 @@ fn every_licensed_cell_completes_the_compiler_path() {
             Err(err) => failures.push(err),
         }
     }
-    assert_eq!(n, 723, "licensed inventory drifted");
+    if let Ok(scratch) = std::env::var("SCRATCH_ROUTES") {
+        std::fs::write(scratch, render_routes(&routes)).unwrap();
+    }
+    assert_eq!(n, 1948, "licensed inventory drifted");
     assert!(
         failures.is_empty(),
         "{} licensed cells did not finish inspect→preview→execute→claim→consume:\n{}",
@@ -1692,7 +1872,7 @@ fn diagnostic_registry_closure_after_builder_and_study_drop() {
         not_inspectable.len(),
         not_inspectable.join("\n")
     );
-    assert_eq!(count, 723, "licensed support inventory drifted");
+    assert_eq!(count, 1790, "licensed support inventory drifted");
 }
 
 /// Probe for the separately licensed alternate estimators. It keeps
@@ -1932,6 +2112,27 @@ fn linear_replay_dependency_only(consumed: &antecedent_io::AnalysisResultConsump
                     .program
                     .as_ref()
                     .is_some_and(|program| program.checked_linear_adjustment_lowering.is_some())
+        })
+}
+
+/// A distribution over the completions of a CPDAG or the ADMGs of a PAG publishes the class
+/// envelope, not one member's factor laws, so an independent replay lacks those laws (and, under
+/// the Bayesian bootstrap, the posterior factor draws); the program itself is verified.
+fn class_distribution_replay_dependency_only(
+    consumed: &antecedent_io::AnalysisResultConsumption,
+) -> bool {
+    !consumed.acceptance.unresolved.is_empty()
+        && consumed.acceptance.unresolved.iter().all(|item| {
+            matches!(
+                item.as_ref(),
+                "dependencies.distribution_factor_laws"
+                    | "dependencies.distribution_posterior_factor_draws"
+            )
+        })
+        && consumed.contract.as_ref().is_some_and(|contract| {
+            contract.estimator.as_deref() == Some("functional.distribution")
+                && matches!(contract.graph_class.as_str(), "Cpdag" | "Pag")
+                && matches!(contract.target.query, antecedent_io::CausalQueryWire::Distribution(_))
         })
 }
 

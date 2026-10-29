@@ -329,7 +329,7 @@ fn a_post_treatment_modifier_is_refused_and_names_the_distribution_query() {
 
 /// Tabular rows carry no time index, so a ConditionalEffect on a TemporalAdmg is the conditional
 /// contrast of its contemporaneous projection: the same stratified difference the static ADMG
-/// gives, executing unlicensed (the temporal conditional contrast is TemporalConditionalPulse).
+/// gives, a licensed cell (the temporal conditional contrast is TemporalConditionalPulse).
 #[test]
 fn a_temporal_admg_conditional_is_the_contemporaneous_projection_contrast() {
     let graph = confounded_modifier_graph();
@@ -346,11 +346,11 @@ fn a_temporal_admg_conditional_is_the_contemporaneous_projection_contrast() {
             .refute(RefuteSuite::None)
             .build()
             .unwrap();
-        assert_eq!(study.support_status(), Some(antecedent::CellStatus::Refused));
+        assert_eq!(study.support_status(), Some(antecedent::CellStatus::Licensed));
         let result = study.run(&ctx).unwrap();
         let tolerance = if bayesian { 0.05 } else { 1e-12 };
         assert!((ate(&result) - expected).abs() < tolerance, "{} vs {expected}", ate(&result));
-        assert_eq!(result.support_status(), Some(antecedent::CellStatus::Refused));
+        assert_eq!(result.support_status(), Some(antecedent::CellStatus::Licensed));
         let prepared = study.prepare(&ctx).unwrap();
         let again = prepared.estimate(&data, &ctx).unwrap();
         assert!((ate(&again) - ate(&result)).abs() < 1e-9);
@@ -464,6 +464,13 @@ fn verify_conditional_coordinate(coordinate: &str, accepted: bool, bayesian: boo
         result.effect()
     );
     assert_eq!(result.posterior.is_some(), bayesian, "{coordinate} posterior presence");
+    if bayesian {
+        assert_eq!(
+            result.interval().as_ref().map(|binding| binding.method),
+            Some(antecedent_core::IntervalMethod::PosteriorQuantile),
+            "{coordinate} publishes the posterior-quantile interval"
+        );
+    }
     let refreshed = rebind_estimate(&mut prepared, data, &ctx).unwrap();
     assert_eq!(refreshed.effect().to_bits(), result.effect().to_bits(), "{coordinate} refresh");
     // The artifact a consumer reads carries the scalar the route published.

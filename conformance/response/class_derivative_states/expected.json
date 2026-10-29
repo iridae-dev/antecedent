@@ -1,0 +1,58 @@
+{
+  "fixture_id": "response.class_derivative_states",
+  "dgp": "latent=cos(.77*i+2); w=sin(1.7*i+.3)+.8*latent; r=sin(.29*i+1); z=cos(.41*i)+.5*w; a=2+.6*z+.5*r+sin(.71*i)+.2*cos(.13*i); y=5+2*a+3*z+.7*latent+.5*e; v=1+.25*a-1.5*z+.5*e; i=0..799; e=sum of 12 uniforms minus 6 from one 64-bit LCG stream (y then v per row)",
+  "at": 2.0,
+  "off_support_at": 4.7,
+  "slope_y": 1.974596577669423,
+  "slope_v": 0.2948515063975708,
+  "level_y": 8.995806793255788,
+  "naive_y": 3.4829498555543523,
+  "elasticity": 0.43900377654837813,
+  "semi_treatment": 3.949193155338846,
+  "semi_outcome": 0.21950188827418907,
+  "value_relative_tolerance": 0.1,
+  "finite_difference_relative_tolerance": 0.25,
+  "oracle": {
+    "kind": "closed_form",
+    "method": "confounded linear law in `dgp`: the structural derivative of y (and v) in a is the coefficient of a in the least-squares regression on (1, a, z), solved by the exact rational normal equations on the regenerated rows; the level at a = 2 averages z over the rows and the scaled derivatives follow",
+    "generator": "conformance/response/class_derivative_states/reference.py",
+    "command": "uv run --frozen --script conformance/response/class_derivative_states/reference.py --check",
+    "environment_lock": "conformance/response/class_derivative_states/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "slope_y, slope_v, level_y, naive_y (the confounded slope the routes must not publish), elasticity, semi_treatment, semi_outcome, the planted off-support point"
+    ],
+    "context_only_outputs": [
+      "value_relative_tolerance 0.1 and finite_difference_relative_tolerance 0.25 (declared estimation bands)",
+      "fixture_id and dgp text (checked only as a guard on the model used)"
+    ],
+    "independence_basis": "The generator regenerates the stated rows from their trigonometric recurrences and solves the exact rational normal equations; it imports no Antecedent code and no statistics package. The shared object is the stated law and the evaluation point.",
+    "historical_exposure": "Written for this fixture from the stated law and declared inputs; no product implementation source was consulted and no earlier pinned numbers are reused.",
+    "reference_review": {
+      "scope": "Adjusted and unadjusted least-squares slopes, the level and the scaled derivatives of a confounded linear law, and the position of a planted evaluation point relative to the observed treatment range.",
+      "independence_basis": "The generator regenerates the stated rows from their trigonometric recurrences and solves the exact rational normal equations; it imports no Antecedent code and no statistics package. The shared object is the stated law and the evaluation point.",
+      "historical_exposure": "Written for this fixture from the stated law and declared inputs; no product implementation source was consulted and no earlier pinned numbers are reused.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The law is linear, so every derivative is constant and the fixture cannot detect curvature errors. The finite-sample regression slope, not the population coefficient, is the reference, so the tolerances are declared estimation bands. The refuter verdicts (support, finite difference, resampling stability, predictive checks) are asserted against these references, not derived by the reference. No uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/response/class_derivative_states/reference.py",
+          "sha256": "2f422d01820c8b680473534ed98340963ffc00e2efd1301bbe601989964ef213"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/response/class_derivative_states/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/class_derivative_known_truth.rs",
+          "sha256": "b70f68d2d6e47de7a0a5989f097fc86d8f7c487f02bb310e2855a6b524249ceb"
+        }
+      ],
+      "fixture_payload_sha256": "554cbebe073c84964f9ec480ece4c5f74704c93137cd798f1e21a062662c2c59"
+    }
+  }
+}

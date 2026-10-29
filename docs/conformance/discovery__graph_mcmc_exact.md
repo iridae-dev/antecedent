@@ -4,4 +4,4 @@
 
 ## Expected summary
 
-Top-level keys: `acceptance, cases, oracle, schema_version, score` (5 fields).
+Top-level keys: `acceptance, cases, historical_oracle, oracle, schema_version, score` (6 fields).

@@ -243,10 +243,10 @@ fn a_dag_is_the_confounder_free_selection_diagram_of_a_transport_query() {
         for accepted in [false, true] {
             for bayesian in [false, true] {
                 let built = dag_study(&data, accepted, bayesian, RefuteSuite::None);
-                // No evidence row names the cell: it executes and stays unlicensed.
-                assert_eq!(built.support_status(), Some(CellStatus::Refused));
+                // The cell is licensed: the Dag reads as the confounder-free selection diagram.
+                assert_eq!(built.support_status(), Some(CellStatus::Licensed));
                 let result = built.run(&ctx).unwrap();
-                assert_eq!(result.support_status(), Some(CellStatus::Refused));
+                assert_eq!(result.support_status(), Some(CellStatus::Licensed));
                 let reference = build(&data, bayesian).run(&ctx).unwrap();
                 let (got, want) = (
                     result.estimate().as_effect().unwrap().ate,
@@ -277,7 +277,7 @@ fn a_dag_is_the_confounder_free_selection_diagram_of_a_transport_query() {
                 assert!((again.estimate().as_effect().unwrap().ate - got).abs() < 1e-12);
             }
         }
-        // A CPDAG or PAG stands for several selection diagrams and still refuses.
+        // A CPDAG or PAG stands for several selection diagrams, each decided by sID.
         for class in ["Cpdag", "Pag"] {
             let status = antecedent::support::classify(
                 antecedent::SupportCell::from_labels(
@@ -289,7 +289,7 @@ fn a_dag_is_the_confounder_free_selection_diagram_of_a_transport_query() {
                 )
                 .unwrap(),
             );
-            assert!(matches!(status, CellStatus::Refused), "{class}: {status:?}");
+            assert!(matches!(status, CellStatus::Licensed), "{class}: {status:?}");
         }
     });
 }

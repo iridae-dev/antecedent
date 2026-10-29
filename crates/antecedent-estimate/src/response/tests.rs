@@ -1478,7 +1478,7 @@ fn plugin_jacobian_recovers_low_dimensional_slopes() {
     {
         assert!((got - expected).abs() < tolerance, "got={got}, expected={expected}");
     }
-    assert_eq!(response.support.status, SupportStatus::Extrapolative);
+    assert_eq!(response.support.status, SupportStatus::Supported);
     assert_eq!(response.provenance_id.as_ref(), "estimate.response.gam_derivative");
 }
 

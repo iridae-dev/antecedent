@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "case": "lag_zero_average_effect",
+  "law": {
+    "series": "z_t ~ N(0,1) independent; x_t = treatment_loading z_{t-1} + e_t; y_t = beta x_t + confounder_to_outcome z_{t-1} + 0.5 u_t",
+    "beta": 2.0,
+    "treatment_loading": 0.6,
+    "confounder_to_outcome": 0.8,
+    "confounder_to_outcome_when_graph_omits_the_edge": 0.0
+  },
+  "effect": 2.0,
+  "unadjusted_plim": 2.3529411764705883,
+  "tolerance": {
+    "effect": 0.05,
+    "null_refuter": 0.06,
+    "stability_refuter": 0.1
+  },
+  "refuter_contract": {
+    "Frequentist": {
+      "cheap": [
+        "sensitivity.evalue"
+      ],
+      "full": [
+        "unobserved.common_cause",
+        "sensitivity.evalue",
+        "sensitivity.linear",
+        "sensitivity.partial_linear",
+        "sensitivity.nonparametric",
+        "placebo.treatment",
+        "random.common_cause",
+        "dummy.outcome",
+        "bootstrap.ci_coverage",
+        "data.subset"
+      ]
+    },
+    "Bayesian": {
+      "cheap": [
+        "sensitivity.evalue",
+        "prior_predictive",
+        "posterior_predictive"
+      ],
+      "full": [
+        "unobserved.common_cause",
+        "sensitivity.evalue",
+        "sensitivity.linear",
+        "sensitivity.partial_linear",
+        "sensitivity.nonparametric",
+        "placebo.treatment",
+        "random.common_cause",
+        "dummy.outcome",
+        "bootstrap.ci_coverage",
+        "data.subset",
+        "prior_predictive",
+        "posterior_predictive",
+        "prior_sensitivity"
+      ]
+    },
+    "null_expected": [
+      "placebo.treatment",
+      "dummy.outcome"
+    ],
+    "original_expected": [
+      "random.common_cause",
+      "data.subset",
+      "bootstrap.ci_coverage"
+    ],
+    "Bayesian_class_graph_posterior": {
+      "cheap": [
+        "sensitivity.evalue"
+      ],
+      "full": [
+        "unobserved.common_cause",
+        "sensitivity.evalue",
+        "sensitivity.linear",
+        "sensitivity.partial_linear",
+        "sensitivity.nonparametric",
+        "placebo.treatment",
+        "random.common_cause",
+        "dummy.outcome",
+        "bootstrap.ci_coverage",
+        "data.subset"
+      ]
+    }
+  },
+  "oracle": {
+    "kind": "closed_form",
+    "method": "Closed form of the stated linear structural law: the lag-0 contrast E[y_t | do(x_t = 1)] - E[y_t | do(x_t = 0)] is the structural coefficient beta = 2 whatever the confounder strength, because do(x_t) cuts z_{t-1} -> x_t; adjusting for the confounder recovers it and omitting it converges to beta + gamma a/(a^2 + 1) = 2.3529 for gamma = 0.8, a = 0.6 (the PAG whose graph omits z_{t-1} -> y_t is fitted on the law with gamma = 0). The refuter contract lists the refuters the lag-zero study runs at each depth and inference mode (validation-suite design, not derivable); the placebo treatment and the dummy outcome have the exact null 0, the random common cause, subset and bootstrap refuters the original value as expectation. The e-value passes only through the confidence limit of the effect, so a study without a standard error reports it uninformative and failed (asserted); the prior-predictive verdict depends on the prior scale and is not asserted.",
+    "formula": "beta (the structural coefficient of x_t in y_t); unadjusted slope beta + gamma a / (a^2 + 1)",
+    "generator": "conformance/estimate/lag_zero_average_effect/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/lag_zero_average_effect/reference.py --check",
+    "environment_lock": "conformance/estimate/lag_zero_average_effect/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "effect (within tolerance.effect; the identified-set ends for a class Bayesian study)",
+      "refuter_contract.Frequentist and Bayesian (the refuters that run)",
+      "refuter_contract.null_expected and original_expected (placebo and stability refuter values)",
+      "tolerance.*"
+    ],
+    "context_only_outputs": [
+      "law text",
+      "unadjusted_plim (documents what omitting the confounder would give)",
+      "oracle method and scope text"
+    ],
+    "independence_basis": "The generator evaluates the stated structural coefficient and the omitted-variable slope in exact rationals; it imports no Antecedent code and no statistics package. The shared object is the stated linear law.",
+    "historical_exposure": "Written for this fixture from the stated law and the declared inputs; no product implementation source was consulted to obtain the values.",
+    "reference_review": {
+      "scope": "The lag-0 average effect of one series on another under a temporal graph, and the refuter contract of the lag-zero study.",
+      "independence_basis": "The generator evaluates the stated structural coefficient and the omitted-variable slope in exact rationals; it imports no Antecedent code and no statistics package. The shared object is the stated linear law.",
+      "historical_exposure": "Written for this fixture from the stated law and the declared inputs; no product implementation source was consulted to obtain the values.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Law-level truth for a long simulated series; the estimators' sampling error is covered by the stated tolerance (the estimate on the pinned series is within 0.012 of beta). The refuter contract and tolerance bands are validation-suite design choices asserted by the executing tests. No coverage or calibration claim.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/lag_zero_average_effect/reference.py",
+          "sha256": "80aae54021eb3cfdf10088b5a4b706a852792fcce3a0b9604212423948158230"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/lag_zero_average_effect/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/lag_zero_average_effect_truth.rs",
+          "sha256": "7aa5d6915577350fe7087d368455ebcbf62ee9668783bdd4f6f86496165efac5"
+        }
+      ],
+      "fixture_payload_sha256": "d29755e882019a29f2e68a2d3cfe7dc259fd65d5d2145f99620b030b2196d698"
+    }
+  }
+}

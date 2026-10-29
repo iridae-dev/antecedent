@@ -40,7 +40,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/nested_counterfactual_route_evidence.rs",
-          "sha256": "168d56087387375da3c880c20514ab31751ab5184cf03e3b40616be13065f65d"
+          "sha256": "d8d68faf10874e4d82eddff55d6e5cb543f5f807c6da0b0a665dbd5a99cd47e0"
         },
         {
           "role": "assertion_source",

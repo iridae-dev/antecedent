@@ -289,7 +289,7 @@ fn an_attribution_is_refitted_whole_and_its_contributions_keep_the_efficiency_id
     assert!(
         (mean_score - mean_baseline - mean_contributions).abs() < 1e-6 * (1.0 + mean_score.abs())
     );
-    assert_eq!(validated.support_status(), Some(CellStatus::Refused));
+    assert_eq!(validated.support_status(), Some(CellStatus::Licensed));
     for refuter in ["target.subset_stability", "target.bootstrap_stability"] {
         let check = report(&validated, refuter);
         assert!((check.original_ate - mean_score).abs() < 1e-9, "{refuter}");
@@ -317,7 +317,7 @@ fn an_attribution_is_refitted_whole_and_its_contributions_keep_the_efficiency_id
     for (a, b) in accepted_scores.scores.iter().zip(reference.scores.iter()) {
         assert!((a - b).abs() < 1e-12);
     }
-    assert_eq!(accepted.support_status(), Some(CellStatus::Refused));
+    assert_eq!(accepted.support_status(), Some(CellStatus::Licensed));
 }
 
 #[test]
@@ -341,7 +341,7 @@ fn a_counterfactual_is_refuted_against_the_structural_slope() {
     let truth = 2.0 * (active - control);
     let mean_ite = result.counterfactual().unwrap().mean_ite;
     assert!((mean_ite - truth).abs() < 0.1, "{mean_ite} vs {truth}");
-    assert_eq!(result.support_status(), Some(CellStatus::Refused));
+    assert_eq!(result.support_status(), Some(CellStatus::Licensed));
     let placebo = report(&result, "target.placebo_treatment");
     assert!((placebo.original_ate - mean_ite).abs() < 1e-9);
     // With the treatment permuted the fitted y-mechanism carries no slope in t.
@@ -417,7 +417,7 @@ fn a_natural_direct_effect_is_bounded_by_its_cross_world_dependence_and_placebo(
         .unwrap();
     let nde = result.estimate().as_effect().unwrap().ate;
     assert!((nde - 0.06).abs() < 0.02, "{nde}");
-    assert_eq!(result.support_status(), Some(CellStatus::Refused));
+    assert_eq!(result.support_status(), Some(CellStatus::Licensed));
     // At rho = 0.3 the sensitivity curve returns the structural direct effect, 0.3.
     let range = result
         .diagnostics
@@ -520,7 +520,7 @@ fn a_temporal_conditional_pulse_is_refuted_on_the_series_for_a_dag_and_its_class
         run(Study::series(conditional_series()).graph(dag.clone())),
         run(Study::series(conditional_series()).graph(class)),
     ] {
-        assert_eq!(result.support_status(), Some(CellStatus::Refused));
+        assert_eq!(result.support_status(), Some(CellStatus::Licensed));
         let ate = result.estimate().as_effect().unwrap().ate;
         assert!((ate - truth).abs() < 0.05, "{ate}");
         // The circular shift of the treatment removes the lagged dependence.

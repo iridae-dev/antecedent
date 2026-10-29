@@ -1,0 +1,158 @@
+{
+  "schema_version": 1,
+  "case": "admg_conditional_strata",
+  "columns": [
+    "z",
+    "x",
+    "y"
+  ],
+  "query": {
+    "treatment": "x",
+    "outcome": "y",
+    "modifier": "z",
+    "control_level": 0,
+    "active_level": 1
+  },
+  "table": [
+    {
+      "z": 0,
+      "x": 0,
+      "y": 0,
+      "count": 30
+    },
+    {
+      "z": 0,
+      "x": 0,
+      "y": 1,
+      "count": 10
+    },
+    {
+      "z": 0,
+      "x": 1,
+      "y": 0,
+      "count": 15
+    },
+    {
+      "z": 0,
+      "x": 1,
+      "y": 1,
+      "count": 25
+    },
+    {
+      "z": 1,
+      "x": 0,
+      "y": 0,
+      "count": 12
+    },
+    {
+      "z": 1,
+      "x": 0,
+      "y": 1,
+      "count": 28
+    },
+    {
+      "z": 1,
+      "x": 1,
+      "y": 0,
+      "count": 8
+    },
+    {
+      "z": 1,
+      "x": 1,
+      "y": 1,
+      "count": 52
+    }
+  ],
+  "expected_ate": 0.25925925925925924,
+  "expected_ate_exact": "7/27",
+  "stratum_effects": {
+    "0": 0.375,
+    "1": 0.16666666666666666
+  },
+  "tolerance": {
+    "frequentist": 1e-09,
+    "bayesian_posterior_mean": 0.03,
+    "placebo_null": 0.05,
+    "stability": 0.05
+  },
+  "graph_posterior": {
+    "weights": [
+      0.8,
+      0.2
+    ],
+    "unidentified_mass": 0.2
+  },
+  "refuter_contract": {
+    "Frequentist": {
+      "cheap": [
+        "target.placebo_treatment",
+        "target.subset_stability"
+      ],
+      "full": [
+        "target.placebo_treatment",
+        "target.placebo_outcome",
+        "target.subset_stability",
+        "target.bootstrap_stability"
+      ]
+    },
+    "Bayesian": {
+      "cheap": [
+        "target.placebo_treatment",
+        "target.prior_sensitivity"
+      ],
+      "full": [
+        "target.placebo_treatment",
+        "target.placebo_outcome",
+        "target.prior_sensitivity"
+      ]
+    }
+  },
+  "oracle": {
+    "kind": "closed_form",
+    "method": "Closed form by counting: the modifier z blocks every back-door path of x -> y, so the modifier-conditioned contrast is the stratified difference sum_z P(z) (E[y | x=1, z] - E[y | x=0, z]) over the eight-cell table, evaluated in exact rationals (7/27). The two strata have different effects, so a pooled difference or a one-stratum answer is a different number. The refuter contract lists the refuters a functional-effect study runs at each depth and inference mode (validation-suite design, not derivable); the placebo refuters have the exact null 0 and the stability refuters the original value as expectation.",
+    "formula": "sum over z of P(z) * (P(y=1 | x=1, z) - P(y=1 | x=0, z))",
+    "generator": "conformance/estimate/admg_conditional_strata/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/admg_conditional_strata/reference.py --check",
+    "environment_lock": "conformance/estimate/admg_conditional_strata/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "expected_ate and expected_ate_exact (the published effect)",
+      "table",
+      "refuter_contract (the refuters that run and pass)",
+      "tolerance.*",
+      "graph_posterior (weights and unidentified mass)"
+    ],
+    "context_only_outputs": [
+      "stratum_effects",
+      "oracle method and scope text"
+    ],
+    "independence_basis": "The generator counts the stated table and applies the stratified-difference formula in exact rationals; it imports no Antecedent code and no statistics package. The shared object is the stated table and the identification claim that z is a sufficient adjustment set under both graphs the tests use.",
+    "historical_exposure": "Written for this fixture from the stated law and the declared inputs; no product implementation source was consulted to obtain the values.",
+    "reference_review": {
+      "scope": "The modifier-conditioned effect of a binary treatment on a binary outcome from an eight-cell table, and the refuter contract of the functional-effect study.",
+      "independence_basis": "The generator counts the stated table and applies the stratified-difference formula in exact rationals; it imports no Antecedent code and no statistics package. The shared object is the stated table and the identification claim that z is a sufficient adjustment set under both graphs the tests use.",
+      "historical_exposure": "Written for this fixture from the stated law and the declared inputs; no product implementation source was consulted to obtain the values.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Exact table, no sampling. The Bayesian posterior mean is a Dirichlet posterior of the same contrast and is checked within a stated tolerance, not exactly. The refuter contract and the tolerance bands are validation-suite design choices asserted by the executing tests. No interval, coverage or calibration claim.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/admg_conditional_strata/reference.py",
+          "sha256": "92340d17eaf834fcceb79a5e933021674a8bf880e257b5c34a28bdc117aff74e"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/admg_conditional_strata/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/conditional_effect_admg_validation_truth.rs",
+          "sha256": "cb188ec5fe82c6afa215adbc4199c154b629b4e7ea1c0ffaa25412d5969614f1"
+        }
+      ],
+      "fixture_payload_sha256": "1301ab96fa774dbfb888e8c4296db28064ffab3c9fd96cb2984eb4e969a5884a"
+    }
+  }
+}

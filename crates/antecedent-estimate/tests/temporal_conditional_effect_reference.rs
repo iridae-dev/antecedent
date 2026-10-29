@@ -280,3 +280,44 @@ fn a_repeated_treatment_or_outcome_modifier_a_weighted_series_and_a_bootstrap_ar
     let (_, message) = error.coded_refusal().unwrap();
     assert_eq!(message.detail(), Some("temporal_adjustment.conditional_covariance_kind"));
 }
+
+/// The float function reads no sampling weights, so a weighted series is refused with the same
+/// coded refusal as the prepared problem, never answered unweighted: a circular-block bootstrap
+/// carried as row multiplicities would otherwise return the unweighted point for every replicate.
+#[test]
+fn the_float_conditional_function_refuses_a_weighted_series_like_the_prepared_problem() {
+    let g = graph();
+    let reference = reference();
+    let case = &reference["cases"].as_array().unwrap()[0];
+    let base = query_for(case);
+    let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &base).unwrap();
+    let estimand = id_res.result.estimands.first().unwrap();
+    let ctx = antecedent_core::ExecutionContext::for_tests(1);
+    let plain = series(case, None);
+    let weights: Vec<f64> = (0..plain.time_index().length).map(|i| 1.0 + (i % 3) as f64).collect();
+    let weighted = series(case, Some(weights));
+    assert!(
+        temporal_conditional_marginal_effect_with_gaps(
+            &plain,
+            estimand,
+            &base,
+            &id_res.indexer,
+            &ctx.kernel_policy,
+            None,
+            false,
+        )
+        .is_ok()
+    );
+    let error = temporal_conditional_marginal_effect_with_gaps(
+        &weighted,
+        estimand,
+        &base,
+        &id_res.indexer,
+        &ctx.kernel_policy,
+        None,
+        false,
+    )
+    .unwrap_err();
+    let (_, message) = error.coded_refusal().expect("a coded refusal");
+    assert_eq!(message.detail(), Some("sampling_weights.route_unsupported"));
+}

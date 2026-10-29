@@ -67,7 +67,7 @@ const OUTSIDE_LICENSED_ROUTES: [&str; 35] = [
 ];
 
 /// Licensed routes the support matrix executes.
-const LICENSED_ROUTE_COUNT: usize = 723;
+const LICENSED_ROUTE_COUNT: usize = 1790;
 
 /// The `lowering` value of every `[[route]]` in the licensed-route record, in order.
 fn licensed_route_lowerings() -> Vec<Option<String>> {
