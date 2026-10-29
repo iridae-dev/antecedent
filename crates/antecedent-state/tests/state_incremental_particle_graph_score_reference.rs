@@ -112,7 +112,10 @@ fn degenerate_parents_and_fits_are_refused_not_scored() {
     let local = |cache: &mut LocalScoreCache, node: u32, parents: &[u32]| {
         cache.local_score(&data, node, &Arc::from(parents))
     };
-    assert!(local(&mut cache, 3, &[0, 1]).is_err(), "a repeated parent column is rank deficient");
+    assert!(
+        matches!(local(&mut cache, 3, &[0, 1]), Err(StateError::Numerical(m)) if m.contains("rank-deficient parents")),
+        "a repeated parent column is rank deficient"
+    );
     assert!(
         matches!(local(&mut cache, 2, &[0]), Err(StateError::DegenerateScore(_))),
         "a child that is an exact linear function of its parent has no finite likelihood"
@@ -120,23 +123,26 @@ fn degenerate_parents_and_fits_are_refused_not_scored() {
     assert!(local(&mut cache, 3, &[0]).is_ok());
     let before = cache.score_graph(&data).unwrap();
     assert!(
-        cache
-            .delta_score(&data, ParentSetOp::SetParents { node: 3, parents: Arc::from([3u32]) })
-            .is_err(),
+        matches!(
+            cache.delta_score(&data, ParentSetOp::SetParents { node: 3, parents: Arc::from([3u32]) }),
+            Err(StateError::Shape(m)) if m.contains("node 3 cannot be its own parent")
+        ),
         "a node cannot be its own parent"
     );
-    assert!(
-        cache
-            .delta_score(&data, ParentSetOp::SetParents { node: 2, parents: Arc::from([0u32]) })
-            .is_err()
-    );
+    assert!(matches!(
+        cache.delta_score(&data, ParentSetOp::SetParents { node: 2, parents: Arc::from([0u32]) }),
+        Err(StateError::DegenerateScore(m)) if m.contains("zero residual variance")
+    ));
     assert_eq!(
         cache.score_graph(&data).unwrap().to_bits(),
         before.to_bits(),
         "a refused edit leaves the total"
     );
     let one_row = GraphScoreData::new(1, 1, Arc::from([1.0])).unwrap();
-    assert!(self::cache(&one_row).local_score(&one_row, 0, &Arc::from([])).is_err());
+    assert!(matches!(
+        self::cache(&one_row).local_score(&one_row, 0, &Arc::from([])),
+        Err(StateError::Numerical(m)) if m.contains("need n")
+    ));
 }
 
 /// The definition of one bootstrap step, written against the random stream only.

@@ -212,6 +212,10 @@ fn cells_00_time_varying_panel_refuses_a_categorical_treatment_channel() {
     let categorical = categorical_panel(&data);
     let error = refusal(Study::prepare_joint_panel(categorical, request, &ctx()));
     assert!(matches!(&error, JointPanelError::Compile(_)), "{error}");
+    assert_eq!(
+        error.to_string(),
+        "joint panel compilation refused: variable V0 is not of type float64 (or coercible int64/boolean)"
+    );
 }
 
 #[test]

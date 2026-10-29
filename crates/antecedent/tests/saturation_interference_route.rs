@@ -117,7 +117,8 @@ fn saturation_direct_spillover_total_retain_truth_without_interval() {
         let mut tampered = artifact.clone();
         let middle = tampered.len() / 2;
         tampered[middle] ^= 0x40;
-        assert!(consume_analysis_result(&tampered).is_err());
+        let error = consume_analysis_result(&tampered).err().expect("tampered artifact refused");
+        assert!(format!("{error:?}").contains("ChecksumMismatch"), "{error:?}");
     }
 }
 
@@ -133,7 +134,11 @@ fn saturation_rejects_cross_cluster_edges_at_prepare() {
         .refute(RefuteSuite::None)
         .build()
         .unwrap();
-    assert!(study.prepare(&ExecutionContext::for_tests(241)).is_err());
+    let error = study.prepare(&ExecutionContext::for_tests(241)).err().expect("refused at prepare");
+    assert!(
+        format!("{error:?}").contains("partial interference requires nonnegative within-cluster edges only"),
+        "{error:?}"
+    );
 }
 
 #[test]
@@ -217,6 +222,7 @@ fn supported_saturation_interval_survives_retained_artifact_round_trip() {
         let mut tampered = artifact;
         let middle = tampered.len() / 2;
         tampered[middle] ^= 0x40;
-        assert!(consume_analysis_result(&tampered).is_err(), "{name}");
+        let error = consume_analysis_result(&tampered).err().expect("tampered artifact refused");
+        assert!(format!("{error:?}").contains("ChecksumMismatch"), "{name}: {error:?}");
     }
 }

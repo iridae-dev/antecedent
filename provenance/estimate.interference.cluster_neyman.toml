@@ -43,4 +43,4 @@ sha256 = "830bfadc1899a020788b60c993fa6f813ce8f65d69a242885caddf3b61c761a4"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/interference_interval_route.rs"
-sha256 = "eacc881c767395681d2dc0ca5a5ee1d6948b0f62722d306dcd18a08a6d52d715"
+sha256 = "18874769a41744ff8d69cad1aebbf3829777214697ab1fe92684a0a9dfcc60d5"

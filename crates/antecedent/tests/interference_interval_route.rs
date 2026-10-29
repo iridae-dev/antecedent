@@ -25,6 +25,16 @@ use antecedent_graph::Dag;
 #[path = "common/retained_graphless.rs"]
 mod retained_graphless;
 
+/// Mean of `outcomes` over the units picked by `to` minus the mean over those picked by
+/// `from`: the exposure contrast written out from its definition.
+fn group_mean_contrast(outcomes: &[f64], to: impl Fn(usize) -> bool, from: impl Fn(usize) -> bool) -> f64 {
+    let mean = |pick: &dyn Fn(usize) -> bool| {
+        let chosen = (0..outcomes.len()).filter(|&u| pick(u)).map(|u| outcomes[u]).collect::<Vec<_>>();
+        chosen.iter().sum::<f64>() / chosen.len() as f64
+    };
+    mean(&to) - mean(&from)
+}
+
 fn run(
     data: &TabularData,
     query: InterferenceQuery,
@@ -71,14 +81,15 @@ fn assert_license_round_trips_and_refuses_forgery(
     let forged_inference = forged.interference_inference.as_mut().unwrap();
     forged_inference.interval = None;
     forged_inference.interval_unavailable_reason = Some("forged withheld interval".into());
+    let error = antecedent_io::encode_analysis_result_artifact(
+        &forged,
+        header.variable_names.clone(),
+        "forged-interference-license",
+    )
+    .unwrap_err();
     assert!(
-        antecedent_io::encode_analysis_result_artifact(
-            &forged,
-            header.variable_names.clone(),
-            "forged-interference-license",
-        )
-        .is_err(),
-        "{label}: forged license on a withheld interval must be refused",
+        format!("{error:?}").contains("graphless license does not match the published interval support"),
+        "{label}: forged license on a withheld interval must be refused for that reason: {error:?}",
     );
 }
 
@@ -125,6 +136,11 @@ fn licensed_cluster_total_interval_round_trips_and_refuses_forgery() {
         &result,
         &ctx,
     );
+    // Treated clusters 0..8 against control 8..16: the constant effect 3 plus the base shift
+    // 0.5 * (3.5 - 11.5) = -4, so the contrast is -1 exactly.
+    let expected = group_mean_contrast(&outcomes, |u| u / 2 < TREATED, |u| u / 2 >= TREATED);
+    assert!((expected - -1.0).abs() < 1e-12, "{expected}");
+    assert!((result.effect() - expected).abs() < 1e-9, "{} vs {expected}", result.effect());
     let inference = result.interference_inference().unwrap();
     assert_eq!(inference.method, "cluster_total_neyman_welch");
     assert_eq!(inference.interval.as_ref().unwrap().first_stage_arm_clusters, [8, 8]);
@@ -172,13 +188,16 @@ fn thin_cluster_total_cannot_forge_a_license() {
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     body.interference_inference.as_mut().unwrap().graphless_support_status =
         Some("licensed".into());
+    let error = antecedent_io::encode_analysis_result_artifact(
+        &body,
+        header.variable_names,
+        "forged-thin-cluster",
+    )
+    .unwrap_err();
     assert!(
-        antecedent_io::encode_analysis_result_artifact(
-            &body,
-            header.variable_names,
-            "forged-thin-cluster"
-        )
-        .is_err()
+        format!("{error:?}")
+            .contains("interference graphless license does not match the published interval support"),
+        "{error:?}"
     );
 }
 
@@ -240,6 +259,22 @@ fn licensed_saturation_interval_round_trips_and_refuses_forgery() {
         &result,
         &ctx,
     );
+    // Exposure (own 0, neighbours 0) is a unit of a no-treatment cluster (cluster % 4 == 0);
+    // (own 1, neighbours 1) is a unit of an all-treated cluster (cluster % 4 == 3). Half the
+    // clusters are low (0.2) and half high (0.8), so each exposure has marginal probability
+    // (0.8^3 + 0.2^3) / 2 = 0.26 and the Horvitz-Thompson contrast over the 144 units is
+    // sum(1[all treated] y - 1[none treated] y) / (0.26 * 144).
+    let pi = (0.8_f64.powi(3) + 0.2_f64.powi(3)) / 2.0;
+    let total: f64 = (0..outcomes.len())
+        .map(|u| match u / 3 % 4 {
+            3 => outcomes[u],
+            0 => -outcomes[u],
+            _ => 0.0,
+        })
+        .sum();
+    let expected = total / (pi * outcomes.len() as f64);
+    assert!((expected - 4.807_692_307_692_3).abs() < 1e-9, "{expected}");
+    assert!((result.effect() - expected).abs() < 1e-9, "{} vs {expected}", result.effect());
     let inference = result.interference_inference().unwrap();
     assert_eq!(inference.method, "saturation_cluster_neyman_welch");
     assert_eq!(inference.interval.as_ref().unwrap().first_stage_arm_clusters, [24, 24]);
@@ -290,6 +325,10 @@ fn licensed_observational_known_interval_round_trips_and_refuses_forgery() {
         &result,
         &ctx,
     );
+    // Known propensity 1/2 for both exposures: the contrast is the treated minus untreated
+    // mean, 2 plus the baseline difference between odd and even clusters.
+    let expected = group_mean_contrast(&outcomes, |u| (u / 2) % 2 == 1, |u| (u / 2) % 2 == 0);
+    assert!((result.effect() - expected).abs() < 1e-9, "{} vs {expected}", result.effect());
     let inference = result.interference_inference().unwrap();
     assert_eq!(inference.method, "observational_known_exposure_cluster_t");
     assert_eq!(inference.interval.as_ref().unwrap().first_stage_arm_clusters, [30, 30]);
@@ -344,13 +383,16 @@ fn externally_estimated_observational_stays_point_only() {
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     body.interference_inference.as_mut().unwrap().graphless_support_status =
         Some("licensed".into());
+    let error = antecedent_io::encode_analysis_result_artifact(
+        &body,
+        header.variable_names,
+        "forged-external-obs",
+    )
+    .unwrap_err();
     assert!(
-        antecedent_io::encode_analysis_result_artifact(
-            &body,
-            header.variable_names,
-            "forged-external-obs"
-        )
-        .is_err()
+        format!("{error:?}")
+            .contains("interference graphless license does not match the published interval support"),
+        "{error:?}"
     );
 }
 
@@ -424,12 +466,15 @@ fn cluster_bayesian_bootstrap_centres_on_the_design_estimate_with_a_matching_spr
     let column = posterior.effect_column().unwrap();
     let design_effect = frequentist.effect();
     // The Bayesian bootstrap of the arm means centres on the design-based contrast.
-    assert!((posterior.summaries.mean[column] - design_effect).abs() < 0.25);
+    // Treated clusters 0..8 have mean (7c mod 16) 6.5 and control clusters 8..16 have 8.5,
+    // so the contrast is 3 + 0.5 * (6.5 - 8.5) = 2.
+    assert!((design_effect - 2.0).abs() < 1e-9, "{design_effect}");
+    assert!((posterior.summaries.mean[column] - design_effect).abs() < 0.05, "{}", posterior.summaries.mean[column]);
     // Its spread is of the order of the conservative cluster Neyman standard error.
     let neyman_se =
         frequentist.interference_inference().unwrap().interval.as_ref().unwrap().standard_error;
     let sd = posterior.summaries.sd[column];
-    assert!(sd > 0.4 * neyman_se && sd < 1.6 * neyman_se, "{sd} vs {neyman_se}");
+    assert!(sd > 0.7 * neyman_se && sd < 1.1 * neyman_se, "{sd} vs {neyman_se}");
 }
 
 #[test]
@@ -451,5 +496,9 @@ fn cluster_bayesian_bootstrap_refuses_a_thin_arm_at_prepare() {
         .refute(RefuteSuite::None)
         .build()
         .and_then(|study| study.prepare(&ctx));
-    assert!(outcome.is_err(), "a thin arm must be refused at prepare");
+    let error = outcome.err().expect("a thin arm must be refused at prepare");
+    assert!(
+        format!("{error:?}").contains("at least two observed clusters in each arm"),
+        "{error:?}"
+    );
 }

@@ -131,13 +131,34 @@ fn declarations_that_would_be_ignored_are_refused() {
         )
     };
     assert!(run(&[0.5, 0.5], 0.01, &p, &observed, 2).is_ok());
-    assert!(run(&[0.5, 0.5, 0.5], 0.01, &p, &observed, 2).is_err(), "numerator length");
-    assert!(run(&[0.5, 0.005], 0.01, &p, &observed, 2).is_err(), "numerator below the floor");
-    assert!(run(&[0.5, 0.5], 0.6, &p, &observed, 2).is_err(), "floor above one half");
-    assert!(run(&[0.5, 0.5], 0.01, &p, &observed[1..], 2).is_err(), "observed length");
+    let message = |error: antecedent_estimate::longitudinal_regime::RegimeKernelError| error.message().to_owned();
+    assert_eq!(
+        message(run(&[0.5, 0.5, 0.5], 0.01, &p, &observed, 2).unwrap_err()),
+        "MSM arrays must have matching subject and period dimensions",
+        "numerator length"
+    );
+    assert_eq!(
+        message(run(&[0.5, 0.005], 0.01, &p, &observed, 2).unwrap_err()),
+        "stabilizing numerator probabilities violate the declared positivity floor"
+    );
+    assert_eq!(
+        message(run(&[0.5, 0.5], 0.6, &p, &observed, 2).unwrap_err()),
+        "minimum probability must be finite and in (0, 0.5]"
+    );
+    assert_eq!(
+        message(run(&[0.5, 0.5], 0.01, &p, &observed[1..], 2).unwrap_err()),
+        "MSM arrays must have matching subject and period dimensions",
+        "observed length"
+    );
     let mut low = p.clone();
     low[7] = 0.005;
-    assert!(run(&[0.5, 0.5], 0.01, &low, &observed, 2).is_err(), "propensity below the floor");
+    assert_eq!(
+        message(run(&[0.5, 0.5], 0.01, &low, &observed, 2).unwrap_err()),
+        "sequential treatment positivity is violated"
+    );
     let none = vec![false; observed.len()];
-    assert!(run(&[0.5, 0.5], 0.01, &p, &none, 2).is_err(), "no observed subjects");
+    assert_eq!(
+        message(run(&[0.5, 0.5], 0.01, &p, &none, 2).unwrap_err()),
+        "MSM requires more observed subjects than coefficients"
+    );
 }

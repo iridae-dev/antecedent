@@ -95,3 +95,5 @@ def test_derivative_cheap_runs_its_refuter_state():
     assert result.evidence_status != "licensed"
     refuters = _refuter_names(result)
     assert "derivative.support" in refuters and "derivative.finite_difference" in refuters
+    # The outcome is linear in t with slope 2 after adjusting for z.
+    assert float(result.effect) == pytest.approx(2.0, abs=0.05)

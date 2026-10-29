@@ -323,6 +323,12 @@ fn class_aware_intervention_pins_against_ate_envelope() {
             let lo = response_values(&low)[0];
             let hi = response_values(&fresh)[0];
             assert!((lo - do0).abs() < tol, "{class} do(0) {lo}");
+            // The pins above are recorded outputs; the counts determine the same numbers. The
+            // two completions give do(1) = 0.6 (adjust for z: (0.5 + 0.7) / 2) and 0.66
+            // (no adjustment: 330 / 500), do(0) = 0.2 and 0.14, so the equal-mass mixture is
+            // 0.63 and 0.17 up to the response smoothing (4e-7).
+            assert!((hi - 0.63).abs() < 1e-5, "{class} do(1) {hi} against the count-derived 0.63");
+            assert!((lo - 0.17).abs() < 1e-5, "{class} do(0) {lo} against the count-derived 0.17");
             assert!(
                 (hi - lo - ate).abs()
                     < section["intervention"]["contrast_tolerance"].as_f64().unwrap(),
@@ -529,6 +535,9 @@ fn class_aware_bayesian_intervention_pins_against_ate_envelope() {
                     "{class} Bayesian contrast {} vs {expected}",
                     hi - lo
                 );
+                // Independent anchor: the equal-mass mixture of the adjusted (0.4) and the
+                // unadjusted (0.52) completions of the hand-derived counts is 0.46.
+                assert!((hi - lo - 0.46).abs() < 5e-3, "{class} contrast {} vs 0.46", hi - lo);
             }
         }
     }
@@ -580,6 +589,11 @@ fn class_aware_bayesian_curve_pins_against_ate_envelope() {
             assert!(
                 (values[1] - values[0] - expected).abs() < tol,
                 "accepted={accepted}: Bayesian curve contrast {} vs {expected}",
+                values[1] - values[0]
+            );
+            assert!(
+                (values[1] - values[0] - 0.46).abs() < 5e-3,
+                "accepted={accepted}: contrast {} vs the count-derived 0.46",
                 values[1] - values[0]
             );
         }

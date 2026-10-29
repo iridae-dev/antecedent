@@ -136,4 +136,5 @@ def test_propensity_weighting_accepts_two_valued_float():
             execution=ac.Execution(seed=9),
         )
     )
-    assert np.isfinite(result.ate)
+    # y = 1 + 2 t + 0.01 i: the treated rows are the odd indices, 0.01 later on average.
+    assert result.ate == pytest.approx(2.01, abs=1e-9)

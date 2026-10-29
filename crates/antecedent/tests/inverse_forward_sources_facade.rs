@@ -374,6 +374,7 @@ fn a_point_composition_refuses_laws_intervals_and_the_wrong_family() {
     let wrong = finite_actions(&[("0".into(), 0.0), ("1".into(), 1.0)]);
     let error = prepared.inverse_forward_source(&wrong, None, native(), &ctx()).unwrap_err();
     assert!(matches!(error, ForwardSourceRefusal::Artifact { .. }), "{error:?}");
+    assert_eq!(error.code(), "route_not_supported");
 }
 
 #[test]

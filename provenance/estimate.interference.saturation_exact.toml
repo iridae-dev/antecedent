@@ -49,7 +49,7 @@ sha256 = "7f383d786158a103f2adcbb2ed2008f74774bda85a676ec18aedfd74293fc20d"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/saturation_interference_route.rs"
-sha256 = "98f78038cd124ea4f3734b01280231963888d43bed89cc0c8016d8f7d4250063"
+sha256 = "98fea7a1b62ded9dbb8644d7f13c61561e7046b0ae1b13f633ae2b0d55359d67"
 
 [[method_review.artifacts]]
 role = "assertion"

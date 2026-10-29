@@ -56,7 +56,7 @@ sha256 = "a3dc3a0c7a5a442c48c9591673d1565c35c7208b59c3a3dfad65a0071d45f7e3"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-counterfactual/tests/transported_additive_reference.rs"
-sha256 = "144939420bb15245c262dc4fcaf6570fd76cbd17dfd93adcc7ad6b7840027a61"
+sha256 = "2e11eabca018909a468d88017249efc1f1b432a5c13100232649e8f8ce789e82"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -50,7 +50,7 @@ sha256 = "c677bf88fec95fdd866bc16ee14b430e2c695e3c94d57bd02cc402508f7c3770"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-state/tests/state_incremental_particle_graph_score_reference.rs"
-sha256 = "0c644e59aaf33cfa0edff4fe2b5bcdea6560ed39193fd35a1eb25196f99efc6e"
+sha256 = "cccbb041aa949f327636d4c696a08644005f9455db58cf02de1c496dea75f022"
 
 [[method_review.artifacts]]
 role = "reference"

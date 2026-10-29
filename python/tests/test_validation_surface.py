@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import antecedent
 import numpy as np
+import pytest
 from antecedent import Execution
 from antecedent.outcomes import require_success
 
@@ -36,6 +37,12 @@ def test_analyze_refute_full_runs():
     reports = result.validation.reports
     assert len(reports) == result.validation.count
     refuter_names = {r.refuter for r in reports}
+    # The graph adjusts for the confounder z and the generating effect is 2: the estimate
+    # recovers it, and the two refuters that a correct adjustment must survive pass.
+    assert result.ate == pytest.approx(2.0, abs=0.06)
+    by_name = {r.refuter: r for r in reports}
+    assert by_name["placebo.treatment"].passed is True
+    assert by_name["random.common_cause"].passed is True
     assert "placebo.treatment" in refuter_names
     assert "random.common_cause" in refuter_names
     for r in reports:

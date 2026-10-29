@@ -232,7 +232,7 @@ fn selection_on_a_mediator_returns_the_reference_witness_or_no_witness() {
                 assert_eq!(got.perturbed_slope_covariate.as_deref(), w["slope"].as_str());
                 assert!((got.target_contrast_a - f(&w["base"])).abs() < 1e-12, "{name}");
                 assert!((got.target_contrast_b - f(&w["moved"])).abs() < 1e-12, "{name}");
-                assert_eq!(got.source_contrast, got.source_contrast);
+                assert!((got.source_contrast - f(&case["source_contrast"])).abs() < 1e-12, "{name}");
             }
             None => {
                 assert_eq!(err.refusal.code, "cell_not_licensed", "{name}");

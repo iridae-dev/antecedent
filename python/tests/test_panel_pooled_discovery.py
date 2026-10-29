@@ -122,3 +122,8 @@ def test_panel_dbn_posterior_pools_per_unit_rows():
         panel, execution=antecedent.Execution(seed=1)
     )
     assert posterior.n_graphs >= 1
+    # Lag-one edge marginals in (source, target) order x->x, x->y, y->x, y->y: the planted
+    # x[t-1] -> y[t] link is certain and the three absent links are improbable.
+    x_x, x_y, y_x, y_y = posterior.lagged_edge_marginals
+    assert x_y > 0.99
+    assert max(x_x, y_x, y_y) < 0.3

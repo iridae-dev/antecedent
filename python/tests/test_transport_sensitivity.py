@@ -119,7 +119,8 @@ def test_a_response_that_cannot_be_shifted_is_refused_with_its_own_reason() -> N
 
     # A proportional shift of zero is no range.
     zero = refusal_of(lambda: sensitivity(point(0.0), family="proportional_shift", bound=0.5))
-    assert zero.reason_code in {"invalid_argument", "route_not_supported"}
+    assert zero.reason_code == "invalid_argument"
+    assert zero.detail == "transport_sensitivity.proportional_at_zero"
 
 
 def test_a_transported_law_has_no_single_point_to_shift() -> None:

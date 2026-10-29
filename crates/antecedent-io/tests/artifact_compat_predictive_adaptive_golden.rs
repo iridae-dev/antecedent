@@ -205,6 +205,20 @@ fn the_adaptive_inference_result_golden_is_replayed_and_gated() {
         assert!((stored - current).abs() <= 1e-12 * 1.0_f64.max(stored.abs()));
     }
 
+    // Closed form of the look-1 posterior (all twelve units: arm a failed six times, arm b
+    // succeeded six times, Beta(1, 1) priors): Beta(1, 7) and Beta(7, 1), means 1/8 and 7/8,
+    // variance 7 / (64 * 9), and P(b best) = 1 - 7 B(7, 8) = 1 - 1/3432.
+    let variance = 7.0 / 576.0;
+    let best_b = 3431.0 / 3432.0;
+    let arm_a = [1.0, 7.0, 0.125, variance, 1.0 - best_b];
+    let arm_b = [7.0, 1.0, 0.875, variance, best_b];
+    for (stored, exact) in consumed.result().values[..5].iter().zip(arm_a) {
+        assert!((stored - exact).abs() < 1e-12, "arm a: {stored} vs {exact}");
+    }
+    for (stored, exact) in consumed.result().values[6..11].iter().zip(arm_b) {
+        assert!((stored - exact).abs() < 1e-12, "arm b: {stored} vs {exact}");
+    }
+
     let meta = Artifact::decode_unchecked(&bytes).expect("inspectable");
     assert_eq!(meta.version, ADAPTIVE_INFERENCE_RESULT_ARTIFACT_VERSION);
     assert_eq!(meta.feature, ADAPTIVE_INFERENCE_RESULT_ARTIFACT_FEATURE);

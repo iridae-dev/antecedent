@@ -98,8 +98,14 @@ fn group_time_cells_match_the_exact_rational_reference() {
 fn a_missing_unit_period_refuses_without_available_case_and_one_cluster_group_refuses() {
     let case = cases().into_iter().find(|c| c["name"] == "unbalanced_available_case").unwrap();
     let p = panel(&case);
-    assert!(estimate(&p.y, &p.unit, &p.period, &p.cohort, &p.cluster).is_err());
-    assert!(group_time_att(&p.y, &p.unit, &p.period, &p.cohort, &p.cluster).is_err());
+    assert_eq!(
+        estimate(&p.y, &p.unit, &p.period, &p.cohort, &p.cluster).unwrap_err(),
+        "event study requires a balanced panel with at least two common periods"
+    );
+    assert_eq!(
+        group_time_att(&p.y, &p.unit, &p.period, &p.cohort, &p.cluster).unwrap_err(),
+        "staggered group-time ATT requires a balanced panel with the same periods for every subject"
+    );
     // Every treated unit in one cluster: the sandwich is undefined and is refused.
     let case = cases().into_iter().find(|c| c["name"] == "two_clusters_per_group").unwrap();
     let mut p = panel(&case);
@@ -108,5 +114,8 @@ fn a_missing_unit_period_refuses_without_available_case_and_one_cluster_group_re
             *cluster = "all".into();
         }
     }
-    assert!(estimate(&p.y, &p.unit, &p.period, &p.cohort, &p.cluster).is_err());
+    assert_eq!(
+        estimate(&p.y, &p.unit, &p.period, &p.cohort, &p.cluster).unwrap_err(),
+        "cluster-robust standard error requires at least two clusters in each cohort/control group"
+    );
 }

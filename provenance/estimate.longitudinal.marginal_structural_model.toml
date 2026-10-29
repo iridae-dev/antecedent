@@ -42,7 +42,7 @@ sha256 = "07bcf2644d1b0e06d6dc79b0d26a2148e297c80da0f198febc3d0b3081b89127"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/marginal_structural_model_reference.rs"
-sha256 = "9d209d75a6c98aca4cb4bbb232245afa280a7c166d8ae5120395f6841cca8a1b"
+sha256 = "789ca65d4eed29ae21a1f002d5621ec7e0b35d6b2e7283adfeef7262f74ddc8a"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -16,7 +16,7 @@ use antecedent_core::{
 };
 use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
 use antecedent_identify::{
-    SidLimits, ZTransportBudgetKind, ZTransportDecision, ZTransportNotCertifiedKind,
+    SidLimits, ZTransportBudgetKind, ZTransportDecision, ZTransportMissingEvidence, ZTransportNotCertifiedKind,
     ZTransportOutcome, ZTransportQuery, ZTransportResult, decide_z_transport_inspecting,
     decide_z_transport_with_catalog, identify_z_transport,
 };
@@ -147,7 +147,15 @@ fn missing_evidence_names_the_unbound_cited_factor() {
         panic!("a checked formula whose cited joint is absent is missing evidence: {decision:?}");
     };
     // The structured object names the missing cited factor, not just a string.
-    assert!(format!("{missing:?}").contains("CitedFactor"));
+    let ZTransportMissingEvidence::CitedFactor { detail } = missing else {
+        panic!("the absent cited joint is a cited-factor gap: {missing:?}");
+    };
+    // The missing factor is the source's do(Z = false) joint over {Y, W, X}.
+    assert!(detail.starts_with("z_transport.missing_evidence: source joint law under do("), "{detail}");
+    assert!(detail.contains("VariableId(1)") && detail.contains("Bool(false)"), "{detail}");
+    for margin in ["VariableId(3)", "VariableId(0)", "VariableId(2)"] {
+        assert!(detail.contains(margin), "{detail}");
+    }
 }
 
 #[test]

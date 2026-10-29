@@ -63,6 +63,29 @@ fn survival_report_states_its_estimands_assumptions_and_standing() {
     assert!(report.assumptions.iter().any(|a| a.contains("exchangeability")));
     assert!(report.survival_difference.se > 0.0);
     assert_eq!(report.n_obs, 1500);
+    // Truth by Gauss-Hermite over z ~ N(0, 1) of the exponential model with rate
+    // 0.3 exp(-0.5 a + 0.5 z): S_1(2) = 0.67648, S_0(2) = 0.53525, difference 0.14123, and the
+    // restricted mean survival difference E[(1 - exp(-2 rate)) / rate] gives 0.17509.
+    // The estimates are sampling estimates from 1500 rows: each must sit within 3 of its own
+    // reported standard errors of the truth.
+    for (what, got, se, truth) in [
+        ("S_1(2)", report.active.survival, report.active.survival_se, 0.676_479_797),
+        ("S_0(2)", report.control.survival, report.control.survival_se, 0.535_250_383),
+        (
+            "S difference",
+            report.survival_difference.estimate,
+            report.survival_difference.se,
+            0.141_229_414,
+        ),
+        (
+            "RMST difference",
+            report.rmst_difference.estimate,
+            report.rmst_difference.se,
+            0.175_086_738,
+        ),
+    ] {
+        assert!((got - truth).abs() < 3.0 * se, "{what}: {got} vs {truth} (se {se})");
+    }
     // The wire round-trips.
     let json = serde_json::to_string(&report).unwrap();
     let back: ObservationalSurvivalReportWire = serde_json::from_str(&json).unwrap();
@@ -151,6 +174,19 @@ fn policy_value_reports_the_declared_support_evaluation_and_standing() {
         assert_eq!(report.evaluation_rows, expected_rows);
         assert_eq!(report.calibration, "unmeasured");
         assert_eq!(report.action_values.len(), 2);
+        // E[Y(a)] = 1 + E[z] + 1.5 a E[z] = 1 for both actions.
+        for action in &report.action_values {
+            assert!((action.value - 1.0).abs() < 3.0 * action.se, "{evaluation}: {action:?}");
+        }
+        // Treating exactly the units with z > 0 is worth 1 + 1.5 E[z+] = 1 + 1.5 / sqrt(2 pi).
+        if evaluation == "prespecified" {
+            assert!(
+                (report.value - 1.598_413_421).abs() < 3.0 * report.se,
+                "{} vs 1.5984 (se {})",
+                report.value,
+                report.se
+            );
+        }
         assert!(report.assumptions.iter().any(|a| a.contains("positivity")));
         let json = serde_json::to_string(&report).unwrap();
         let back: ObservationalPolicyReportWire = serde_json::from_str(&json).unwrap();

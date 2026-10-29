@@ -130,6 +130,6 @@ fn pairwise_available_recovers_the_chain_and_reports_pairs_and_repair() {
     assert!(accounting.groups.iter().any(|g| g.label.starts_with("psd_repair:")));
     // The weights come from a covariance close to the complete-data one.
     for (a, b) in pairwise.weights.iter().zip(complete.weights.iter()) {
-        assert!((a - b).abs() < 0.1, "{a} vs {b}");
+        assert!((a - b).abs() < 0.02, "{a} vs {b}");
     }
 }
