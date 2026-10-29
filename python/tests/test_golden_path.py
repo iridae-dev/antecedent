@@ -111,6 +111,8 @@ class Case:
     query: Any
     kind: str
     options: dict[str, Any] = field(default_factory=dict)
+    #: The generating value of a scalar answer (``None`` when the answer is not a point).
+    truth: float | None = None
 
 
 CASES = [
@@ -120,6 +122,7 @@ CASES = [
         STATIC_DAG,
         ant.AverageEffect("treatment", "outcome"),
         "point",
+        truth=1.5,
     ),
     Case(
         "dag-average-bayesian",
@@ -128,6 +131,7 @@ CASES = [
         ant.AverageEffect("treatment", "outcome"),
         "point",
         {"inference": ant.Bayesian(n_draws=200)},
+        truth=1.5,
     ),
     Case(
         "dag-average-treated",
@@ -136,6 +140,7 @@ CASES = [
         ant.AverageEffect("treatment", "outcome", target_population=ant.population.Treated()),
         "point",
         {"estimator": "aipw"},
+        truth=1.5,
     ),
     Case(
         "cpdag-average-bounds",
@@ -155,6 +160,7 @@ CASES = [
         ant.AverageEffect("treatment", "outcome"),
         "point",
         {"discovery": ant.discovery.PC(alpha=0.05)},
+        truth=1.5,
     ),
     Case(
         "temporal-pulse",
@@ -162,9 +168,15 @@ CASES = [
         [("pressure", 1, "defect", 0)],
         ant.PulseEffect("pressure", "defect", treatment_lag=1, horizon_steps=1),
         "point",
+        truth=0.9,
     ),
     Case(
-        "counterfactual", _static, STATIC_DAG, ant.Counterfactual("treatment", "outcome"), "point"
+        "counterfactual",
+        _static,
+        STATIC_DAG,
+        ant.Counterfactual("treatment", "outcome"),
+        "point",
+        truth=1.5,
     ),
     Case(
         "mediation",
@@ -172,6 +184,7 @@ CASES = [
         [("treatment", "mediator"), ("treatment", "outcome"), ("mediator", "outcome")],
         ant.MediationEffect("treatment", "outcome", mediators=["mediator"]),
         "point",
+        truth=0.96,
     ),
     Case(
         "conditional",
@@ -179,6 +192,7 @@ CASES = [
         [("treatment", "outcome"), ("w", "outcome")],
         ant.ConditionalEffect("treatment", "outcome", "w"),
         "point",
+        truth=2.5,
     ),
     Case(
         "transport-trial-ipw",
@@ -252,6 +266,11 @@ def test_golden_path(case: Case) -> None:
         # Live and loaded answers agree.
         assert_answer_kept(loaded)
         assert result.answer.kind == case.kind
+        if case.truth is not None:
+            # The point answer is the generating value (the confounded contrast would be off by
+            # about 0.9 in the static cases), on the first data and on the refreshed data.
+            for answer in (result.answer, updated.answer):
+                assert answer.value == pytest.approx(case.truth, abs=0.12), case.name
         assert loaded.answer == result.answer
         assert report["answer"] == loaded_report["answer"]
         assert loaded.program_id == result.program_id

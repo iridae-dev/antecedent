@@ -58,15 +58,18 @@ fn block_preserving_requests_honoured_or_refused_per_conditioning_set() {
     for block_size in [5usize, 20] {
         // Conditioned: the stratifying tests must refuse; Gpdc must not.
         let req = req_for(conditional, block_size);
+        let refusal = "block-preserving permutation (block_size > 1) is not supported for this CI test when the conditioning set is non-empty";
+        let knn = KnnDependence::new(3).test_batch_adhoc(&req, &mut ws, &ctx).err();
         assert!(
-            KnnDependence::new(3).test_batch_adhoc(&req, &mut ws, &ctx).is_err(),
+            knn.as_ref().is_some_and(|error| error.to_string().contains(refusal)),
             "KnnDependence accepted block_size={block_size} with a conditioning set, \
-             which it cannot honour"
+             which it cannot honour: {knn:?}"
         );
+        let symbolic = SymbolicCmi::new().test_batch_adhoc(&req, &mut ws, &ctx).err();
         assert!(
-            SymbolicCmi::new().test_batch_adhoc(&req, &mut ws, &ctx).is_err(),
+            symbolic.as_ref().is_some_and(|error| error.to_string().contains(refusal)),
             "SymbolicCmi accepted block_size={block_size} with a conditioning set, \
-             which it cannot honour"
+             which it cannot honour: {symbolic:?}"
         );
         assert!(
             Gpdc::new().test_batch_adhoc(&req, &mut ws, &ctx).is_ok(),
@@ -117,13 +120,15 @@ fn nonfinite_z_and_rank_path_return_errors() {
     };
     let mut ws = CiWorkspace::default();
     let ctx = ExecutionContext::for_tests(1);
+    let knn = KnnDependence::new(3).test_batch_adhoc(&req, &mut ws, &ctx).err();
     assert!(
-        KnnDependence::new(3).test_batch_adhoc(&req, &mut ws, &ctx).is_err(),
-        "KnnDependence must refuse non-finite Z"
+        knn.as_ref().is_some_and(|error| error.to_string().contains("must be finite")),
+        "KnnDependence must refuse non-finite Z: {knn:?}"
     );
+    let strata = coarse_z_strata(&cols, &[2], n).err();
     assert!(
-        coarse_z_strata(&cols, &[2], n).is_err(),
-        "coarse_z_strata / z_permutation_strata must refuse non-finite Z"
+        strata.as_ref().is_some_and(|error| error.to_string().contains("non-finite Z")),
+        "coarse_z_strata / z_permutation_strata must refuse non-finite Z: {strata:?}"
     );
 
     let mut x_nan = x.clone();
@@ -137,9 +142,10 @@ fn nonfinite_z_and_rank_path_return_errors() {
         significance: SignificanceMethod::Analytic,
         confidence: ConfidenceMethod::default(),
     };
+    let mixed = MixedKnnDependence::new(3).test_batch_adhoc(&req_rank, &mut ws, &ctx).err();
     assert!(
-        MixedKnnDependence::new(3).test_batch_adhoc(&req_rank, &mut ws, &ctx).is_err(),
-        "MixedKnnDependence rank path must refuse non-finite input"
+        mixed.as_ref().is_some_and(|error| error.to_string().contains("non-finite value")),
+        "MixedKnnDependence rank path must refuse non-finite input: {mixed:?}"
     );
 }
 

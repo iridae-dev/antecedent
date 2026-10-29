@@ -40,6 +40,21 @@ def design(noise: float = 0.0):
     return dose, truth_level(dose) + noise * sign
 
 
+def local_quadratic(dose, outcome, at, bandwidth=0.4):
+    """Independent Gaussian-kernel local quadratic fit at ``at``.
+
+    Returns the fitted level, the influence weights of that level on each outcome, and the
+    residuals, so the sandwich standard error is ``sqrt(sum((weights * residuals) ** 2))``.
+    """
+    u = (dose - at) / bandwidth
+    kernel = np.exp(-0.5 * u * u)
+    basis = np.column_stack([np.ones_like(dose), dose - at, (dose - at) ** 2])
+    gram = basis.T @ (kernel[:, None] * basis)
+    beta = np.linalg.solve(gram, basis.T @ (kernel * outcome))
+    weights = np.linalg.solve(gram, (basis * kernel[:, None]).T)[0]
+    return beta[0], weights, outcome - basis @ beta
+
+
 def run(functional="level", noise=0.0, **kwargs):
     dose, outcome = design(noise)
     kwargs.setdefault("bandwidth", 0.4)
@@ -95,10 +110,17 @@ def test_derivative_recovers_closed_form() -> None:
 
 def test_noisy_rows_give_finite_pointwise_intervals_without_a_coverage_claim() -> None:
     result = run("level", noise=0.1)
+    dose, outcome = design(0.1)
     for point in result.levels:
         assert point.value == pytest.approx(truth_level(point.dose), abs=0.05)
-        assert np.isfinite(point.standard_error) and point.standard_error > 0.0
-        assert point.lower < point.value < point.upper
+        # The level and its standard error are the local quadratic intercept and its
+        # heteroskedasticity-robust sandwich, computed independently here.
+        level, weights, residuals = local_quadratic(dose, outcome, point.dose)
+        assert point.value == pytest.approx(level, abs=1e-9)
+        sandwich = float(np.sqrt(np.sum((weights * residuals) ** 2)))
+        assert point.standard_error == pytest.approx(sandwich, rel=1e-8)
+        assert point.lower == pytest.approx(point.value - 1.959963984540054 * sandwich, rel=1e-8)
+        assert point.upper == pytest.approx(point.value + 1.959963984540054 * sandwich, rel=1e-8)
         assert point.nominal_level == 0.95
         assert point.calibration == "unmeasured"
 
@@ -111,7 +133,14 @@ def test_contrast_between_named_doses_matches_closed_form() -> None:
     noisy = run("contrast", noise=0.1)
     assert noisy.contrast is not None
     assert noisy.contrast.estimate == pytest.approx(3.0, abs=0.05)
-    assert noisy.contrast.standard_error > 0.0
+    dose, outcome = design(0.1)
+    low, low_weights, low_residuals = local_quadratic(dose, outcome, 1.0)
+    high, high_weights, high_residuals = local_quadratic(dose, outcome, 3.0)
+    assert noisy.contrast.estimate == pytest.approx(high - low, abs=1e-9)
+    influence = high_weights * high_residuals - low_weights * low_residuals
+    assert noisy.contrast.standard_error == pytest.approx(
+        float(np.sqrt(np.sum(influence**2))), rel=1e-8
+    )
     assert noisy.contrast.lower < noisy.contrast.estimate < noisy.contrast.upper
     assert noisy.contrast.calibration == "unmeasured"
     assert noisy.levels == () and noisy.derivatives == ()

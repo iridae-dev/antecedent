@@ -256,7 +256,11 @@ fn the_mixture_standard_error_resamples_blocks_of_windows_at_one_table() {
         .unwrap();
     let estimate = result.estimate().as_effect().unwrap();
     let se = estimate.se_bootstrap().expect("a mixture standard error");
-    assert!(se > 0.0 && se < 0.1, "{se}");
+    // Delta-method standard errors of the two plug-in contrasts from the generating law (about
+    // 8000 windows): 0.0122 for the adjusted atom, 0.0094 for the raw difference of the
+    // omitting atom. The 0.6 / 0.4 mixture lies between the uncorrelated combination (0.0082)
+    // and the perfectly correlated one (0.0111); the band allows block resampling a little slack.
+    assert!(se > 0.007 && se < 0.0125, "{se}");
     assert_eq!(estimate.uncertainty.bootstrap.replicates_ok, Some(60));
     let expected = 0.6 * STRUCTURAL_EFFECT + 0.4 * observational_contrast();
     assert!((estimate.ate - expected).abs() < 0.06, "{} vs {expected}", estimate.ate);

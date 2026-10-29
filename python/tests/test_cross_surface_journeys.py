@@ -94,9 +94,11 @@ def _prepare(horizon: bool, bayesian: bool):
 
 
 def _tolerance(horizon: bool, bayesian: bool) -> float:
+    # The fixture lines are exact, so a frequentist fit recovers the contrast to rounding and the
+    # conjugate posterior mean differs only by its weak prior's shrinkage (observed 8e-5).
     if bayesian:
-        return 0.1
-    return 1e-7 if horizon else 1e-9
+        return 1e-3
+    return 1e-9
 
 
 def _fact(markdown: str, key: str) -> str:

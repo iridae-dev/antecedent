@@ -79,7 +79,8 @@ fn a_derivative_target_is_refuted_by_refits_of_its_own_program() {
     assert_eq!(result_target_family(&result), TargetFamily::ResponseDerivative);
     let (_, labels, values) = result_target_values(&result).unwrap();
     assert_eq!(labels.len(), 1);
-    assert!((values[0] - 2.0).abs() < 0.5, "derivative {values:?}");
+    // The true derivative is the coefficient 2 of `a`; the local fit lands within 0.007 of it.
+    assert!((values[0] - 2.0).abs() < 0.03, "derivative {values:?}");
     let target = result_refutation_target(&result).unwrap();
     assert_eq!(
         target.source(),
@@ -106,7 +107,9 @@ fn a_derivative_target_is_refuted_by_refits_of_its_own_program() {
         .find(|r| r.kind == TargetRefuterKind::PlaceboTreatment)
         .expect("placebo report");
     assert!(placebo.passed, "{:?}", placebo.failure);
-    assert!(placebo.refuted[0].abs() < 0.5, "placebo derivative {:?}", placebo.refuted);
+    // A permuted treatment has no effect on the outcome: the placebo derivative is near 0
+    // (observed -0.06), far from the real derivative 2.
+    assert!(placebo.refuted[0].abs() < 0.25, "placebo derivative {:?}", placebo.refuted);
     // The derivative diagnostics read the study's own fitted response curve.
     let refused: Vec<_> = outcome.run.refused.iter().map(|r| r.kind).collect();
     assert!(

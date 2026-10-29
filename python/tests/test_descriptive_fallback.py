@@ -156,7 +156,14 @@ def test_an_unmeasured_confounder_returns_the_refusal_the_description_and_the_ev
     # column adjusted arithmetically and not reported. The treatment coefficient (about 2.0,
     # against about 2.8 unadjusted) shows the parent was held fixed.
     assert [term.label for term in section.terms] == ["intercept", "t"]
-    assert section.terms[1].estimate == pytest.approx(2.0, abs=0.15)
+    # The coefficient is the ordinary-least-squares coefficient of y on an intercept, t and the
+    # held-fixed parent z (computed independently here), not the unadjusted difference.
+    design = np.column_stack([np.ones(len(data["y"])), data["t"], data["z"]])
+    oracle = np.linalg.lstsq(design, data["y"], rcond=None)[0]
+    assert section.terms[1].estimate == pytest.approx(oracle[1], abs=1e-8)
+    assert section.terms[0].estimate == pytest.approx(oracle[0], abs=1e-8)
+    unadjusted = np.polyfit(data["t"], data["y"], 1)[0]
+    assert abs(section.terms[1].estimate - unadjusted) > 0.5
     assert outcome.noncausal and not outcome.answers_causal_question
     assert outcome.ranks_actions is False
 
@@ -409,7 +416,20 @@ def test_a_bayesian_study_is_described_with_its_posterior():
     )
     assert isinstance(outcome, AnalysisWithFallback)
     assert outcome.refusal.reason_code == "effect_not_identified"
-    assert _association(outcome).posterior is not None
+    association = _association(outcome)
+    posterior = association.posterior
+    assert posterior is not None
+    assert posterior.method == "conjugate_normal_inverse_gamma" and posterior.level == 0.95
+    # The posterior of the treatment coefficient is centred on the least-squares fit of y on an
+    # intercept, t and the held-fixed parent z (computed independently), and its interval holds it.
+    data = _confounded_data()
+    design = np.column_stack([np.ones(len(data["y"])), data["t"], data["z"]])
+    oracle = np.linalg.lstsq(design, data["y"], rcond=None)[0][1]
+    term = association.terms[1]
+    assert term.label == "t"
+    assert term.posterior_mean == pytest.approx(oracle, abs=1e-3)
+    assert term.posterior_lower < oracle < term.posterior_upper
+    assert 0.04 < term.posterior_upper - term.posterior_lower < 0.3
 
 
 def test_the_report_reads_every_figure_from_the_description_and_renders_markdown_and_html():

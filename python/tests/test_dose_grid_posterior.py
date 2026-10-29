@@ -121,7 +121,7 @@ def test_artifact_replays_in_a_fresh_process_and_refuses_corruption(tmp_path):
 def test_refusals_are_typed():
     with pytest.raises(DoseGridRefusal) as caught:
         _run(design="observational")
-    assert isinstance(caught.value, CausalUnsupportedError) or caught.value.detail
+    assert isinstance(caught.value, CausalUnsupportedError)
     assert caught.value.detail == "dose_grid.graph_not_certified"
     with pytest.raises(DoseGridRefusal) as caught:
         _run(grid=(0.01,))

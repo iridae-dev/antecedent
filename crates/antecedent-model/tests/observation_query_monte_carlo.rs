@@ -251,6 +251,11 @@ fn gaussian_conditionals_match_regressions_on_simulated_structural_draws() {
 
     // Y | M = 3: a one-regressor population regression.
     let exact = condition_gaussian(&model, "Y", &[], &[("M", 3.0)], &ctx).unwrap();
+    // Closed form of the jointly Gaussian law: E[M] = 2.5, Var(M) = 17, E[Y] = 7,
+    // Cov(Y, M) = 0.5 * 8 + 3 * 17 = 55 and Var(Y) = 1 + 153 + 24 + 0.25 = 178.25, so
+    // E[Y | M = 3] = 7 + (55 / 17) * 0.5 and Var(Y | M = 3) = 178.25 - 55^2 / 17.
+    assert!((exact.mean - (7.0 + 55.0 / 17.0 * 0.5)).abs() < 1e-9, "{}", exact.mean);
+    assert!((exact.variance - (178.25 - 55.0 * 55.0 / 17.0)).abs() < 1e-9, "{}", exact.variance);
     let (mean, variance) = regression_at(&observational, 2, &[1], &[3.0]);
     assert!((mean - exact.mean).abs() < 0.05, "{mean} vs {}", exact.mean);
     assert!((variance / exact.variance - 1.0).abs() < 0.03, "{variance} vs {}", exact.variance);
@@ -401,6 +406,11 @@ fn an_intervened_observation_redraw_differs_from_conditioning_without_the_interv
     let seen = run(vec![]);
     // Conditioning alone keeps the S-Z association, so P(Z = 1 | Y = 1) is not the
     // cut-graph value, in the point value and in the posterior mean.
+    // The hand enumerations: cutting S gives 0.54 / 0.70 (Z-weights 0.4 * 0.4 and 0.6 * 0.9);
+    // conditioning alone weighs each Z by P(Y = 1 | Z) = sum_S P(S | Z) P(Y = 1 | S, Z):
+    // 0.4 * (0.75 * 0.1 + 0.25 * 0.4) = 0.07 and 0.6 * (0.2 * 0.5 + 0.8 * 0.9) = 0.492.
+    assert!((set.point[1] - 0.54 / 0.70).abs() < 1e-12, "{}", set.point[1]);
+    assert!((seen.point[1] - 0.492 / 0.562).abs() < 1e-12, "{}", seen.point[1]);
     assert!((set.point[1] - seen.point[1]).abs() > 0.02);
     assert!((set.mean(1) - seen.mean(1)).abs() > 0.02);
 }

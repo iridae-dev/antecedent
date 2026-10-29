@@ -215,7 +215,12 @@ fn checked_aipw_refuses_target_with_wrong_roles() {
         identification.estimands[0].functional,
     );
     let estimator = AipwAte::new().with_bootstrap_replicates(0);
-    assert!(estimator.prepare_checked(&data, &identification, 0).is_err());
+    let err = estimator.prepare_checked(&data, &identification, 0).unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("adjustment roles must be unique and exclude treatment and outcome"),
+        "the treatment listed as an adjustment role must be refused for that reason, got: {err}"
+    );
 }
 
 /// A trimming policy lowers to the full-sample common-support procedure and
@@ -324,6 +329,29 @@ fn aipw_recovers_att_two() {
     assert!((fit.ate - 2.0).abs() < 0.35, "att={}", fit.ate);
 }
 
+const TOL: f64 = 0.1;
+
+/// Population effect of the heterogeneous design `Y = Z + T (2 + Z) + noise`, `Z ~ N(0,1)`,
+/// `P(T=1|Z) = sigmoid(-0.5 + Z)`: `tau(z) = 2 + z`, so the effect on the treated is
+/// `2 + E[Z e(Z)] / E[e(Z)]` and on the controls `2 + E[Z (1-e(Z))] / E[1 - e(Z)]`. Evaluated
+/// by trapezoid quadrature of the normal density (an independent oracle of the target).
+fn heterogeneous_group_effect(treated: bool) -> f64 {
+    let (mut num, mut den) = (0.0, 0.0);
+    let steps = 40_000usize;
+    let (lo, hi) = (-10.0_f64, 10.0_f64);
+    let h = (hi - lo) / steps as f64;
+    for k in 0..=steps {
+        let z = lo + k as f64 * h;
+        let w = if k == 0 || k == steps { 0.5 } else { 1.0 };
+        let density = (-0.5 * z * z).exp() / (2.0 * std::f64::consts::PI).sqrt();
+        let e = 1.0 / (1.0 + (-(-0.5 + z)).exp());
+        let share = if treated { e } else { 1.0 - e };
+        num += w * density * share * z;
+        den += w * density * share;
+    }
+    2.0 + num / den
+}
+
 /// ATT IF remains unbiased when μ₁ is misspecified but propensity is correct.
 /// The old formula divided the treated residual by `e`, breaking double robustness.
 #[test]
@@ -342,18 +370,23 @@ fn att_if_doubly_robust_under_mu1_misspecification() {
         let ti = if rng.next_f64() < pi_i { 1.0 } else { 0.0 };
         let noise = standard_normal(&mut rng) * 0.5;
         t[i] = ti;
-        y[i] = 2.0 * ti + z + noise;
+        y[i] = z + ti * (2.0 + z) + noise;
         e[i] = pi_i;
-        // Correct μ₀; deliberately wrong μ₁ (constant 0 instead of 2+z).
+        // Correct μ₀; deliberately wrong μ₁ (constant 0 instead of 2+2z).
         mu0[i] = z;
         mu1[i] = 0.0;
     }
     let mut psi = Vec::new();
     aipw_psi(&t, &y, &e, &mu0, &mu1, &TargetPopulation::Treated, &mut psi).unwrap();
     let att = psi.iter().sum::<f64>() / psi.len() as f64;
+    let truth = heterogeneous_group_effect(true);
     assert!(
-        (att - 2.0).abs() < 0.15,
-        "ATT IF mean under μ₁ misspecification should stay near 2; got {att}"
+        (truth - 2.0).abs() > 0.3,
+        "the effect on the treated ({truth}) must differ from the ATE 2"
+    );
+    assert!(
+        (att - truth).abs() < TOL,
+        "ATT IF mean under μ₁ misspecification should stay near {truth}; got {att}"
     );
 }
 
@@ -370,6 +403,26 @@ fn atc_if_deterministic_counterexample() {
     aipw_psi(&t, &y, &e, &mu0, &mu1, &TargetPopulation::Untreated, &mut psi).unwrap();
     let atc = psi.iter().sum::<f64>() / psi.len() as f64;
     assert!((atc - 2.0).abs() < 1e-12, "deterministic ATC IF mean should be 2; got {atc}");
+
+    // Hand-evaluated heterogeneous panel (exact rational arithmetic, rows t, y, e, mu0, mu1):
+    //   (1, 4, 2/5, 1, 3), (0, 1, 1/4, 2, 5), (1, 2, 1/2, 0, 2), (0, 3, 4/5, 1, 3).
+    // Treated share 1/2. Mean scores: ATT = -4/3, ATC = 11/4, ATE = 17/24; the three
+    // targets differ, so a wrong arm share or a swapped target cannot pass.
+    let t = [1.0, 0.0, 1.0, 0.0];
+    let y = [4.0, 1.0, 2.0, 3.0];
+    let e = [0.4, 0.25, 0.5, 0.8];
+    let mu0 = [1.0, 2.0, 0.0, 1.0];
+    let mu1 = [3.0, 5.0, 2.0, 3.0];
+    for (target, expected) in [
+        (TargetPopulation::Treated, -4.0 / 3.0),
+        (TargetPopulation::Untreated, 11.0 / 4.0),
+        (TargetPopulation::AllObserved, 17.0 / 24.0),
+    ] {
+        let mut psi = Vec::new();
+        aipw_psi(&t, &y, &e, &mu0, &mu1, &target, &mut psi).unwrap();
+        let mean = psi.iter().sum::<f64>() / 4.0;
+        assert!((mean - expected).abs() < 1e-12, "{target:?}: mean score {mean} vs {expected}");
+    }
 }
 
 /// ATC IF remains unbiased when μ₀ is misspecified but propensity is correct.
@@ -389,18 +442,19 @@ fn atc_if_doubly_robust_under_mu0_misspecification() {
         let ti = if rng.next_f64() < pi_i { 1.0 } else { 0.0 };
         let noise = standard_normal(&mut rng) * 0.5;
         t[i] = ti;
-        y[i] = 2.0 * ti + z + noise;
+        y[i] = z + ti * (2.0 + z) + noise;
         e[i] = pi_i;
         // Correct μ₁; deliberately wrong μ₀ (constant 0 instead of z).
         mu0[i] = 0.0;
-        mu1[i] = 2.0 + z;
+        mu1[i] = 2.0 + 2.0 * z;
     }
     let mut psi = Vec::new();
     aipw_psi(&t, &y, &e, &mu0, &mu1, &TargetPopulation::Untreated, &mut psi).unwrap();
     let atc = psi.iter().sum::<f64>() / psi.len() as f64;
+    let truth = heterogeneous_group_effect(false);
     assert!(
-        (atc - 2.0).abs() < 0.15,
-        "ATC IF mean under μ₀ misspecification should stay near 2; got {atc}"
+        (atc - truth).abs() < TOL,
+        "ATC IF mean under μ₀ misspecification should stay near {truth}; got {atc}"
     );
 }
 
@@ -421,18 +475,19 @@ fn atc_if_doubly_robust_under_propensity_misspecification() {
         let ti = if rng.next_f64() < pi_i { 1.0 } else { 0.0 };
         let noise = standard_normal(&mut rng) * 0.5;
         t[i] = ti;
-        y[i] = 2.0 * ti + z + noise;
+        y[i] = z + ti * (2.0 + z) + noise;
         // Deliberately wrong propensity (constant 0.5).
         e[i] = 0.5;
         mu0[i] = z;
-        mu1[i] = 2.0 + z;
+        mu1[i] = 2.0 + 2.0 * z;
     }
     let mut psi = Vec::new();
     aipw_psi(&t, &y, &e, &mu0, &mu1, &TargetPopulation::Untreated, &mut psi).unwrap();
     let atc = psi.iter().sum::<f64>() / psi.len() as f64;
+    let truth = heterogeneous_group_effect(false);
     assert!(
-        (atc - 2.0).abs() < 0.15,
-        "ATC IF mean under propensity misspecification should stay near 2; got {atc}"
+        (atc - truth).abs() < TOL,
+        "ATC IF mean under propensity misspecification should stay near {truth}; got {atc}"
     );
 }
 
@@ -453,40 +508,61 @@ fn atc_if_doubly_robust_when_both_correct() {
         let ti = if rng.next_f64() < pi_i { 1.0 } else { 0.0 };
         let noise = standard_normal(&mut rng) * 0.5;
         t[i] = ti;
-        y[i] = 2.0 * ti + z + noise;
+        y[i] = z + ti * (2.0 + z) + noise;
         e[i] = pi_i;
         mu0[i] = z;
-        mu1[i] = 2.0 + z;
+        mu1[i] = 2.0 + 2.0 * z;
     }
     let mut psi = Vec::new();
     aipw_psi(&t, &y, &e, &mu0, &mu1, &TargetPopulation::Untreated, &mut psi).unwrap();
     let atc = psi.iter().sum::<f64>() / psi.len() as f64;
+    let truth = heterogeneous_group_effect(false);
     assert!(
-        (atc - 2.0).abs() < 0.15,
-        "ATC IF mean with both models correct should stay near 2; got {atc}"
+        (atc - truth).abs() < TOL,
+        "ATC IF mean with both models correct should stay near {truth}; got {atc}"
     );
 }
 
 #[test]
 fn aipw_hc1_multiway_newey_west_finite_se() {
-    let (data, estimand) = confounded_scm(400, 8);
-    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    // The rows are independent and the cluster / lag structure is unrelated to them, so every
+    // robust analytic SE estimates the same sampling spread; the leave-one-out jackknife of the
+    // whole estimator is the independent yardstick for it.
     let n = 400;
+    let (t, y, z) = confounded_columns(n, 8);
+    let (data, estimand) = build_dataset(t.clone(), y.clone(), z.clone());
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let dim_a: Vec<u32> = (0..n).map(|i| u32::try_from(i % 20).unwrap_or(0)).collect();
     let dim_b: Vec<u32> = (0..n).map(|i| u32::try_from(i % 15).unwrap_or(0)).collect();
+    // A trim below every score keeps all rows on the full-sample path, whose refit is
+    // deterministic under row deletion (the cross-fit fold plan is not).
+    let base = AipwAte {
+        overlap: OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: Some(1e-9) },
+        ..AipwAte::new()
+    }
+    .with_bootstrap_replicates(0);
+    let jackknife = jackknife_se(&t, &y, &z, &base);
     for kind in
         [AnalyticSeKind::Hc1, AnalyticSeKind::Multiway, AnalyticSeKind::NeweyWest { lag: 2 }]
     {
-        let est = AipwAte::new()
-            .with_bootstrap_replicates(0)
+        let est = base
+            .clone()
             .with_se_kind(kind)
-            .with_multiway_ids(vec![dim_a.clone(), dim_b.clone()]);
+            .with_multiway_ids(vec![dim_a.clone(), dim_b.clone()])
+            .with_panel_times((0..n as i64).collect());
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = AipwWorkspace::default();
         let fit = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
-        assert!(fit.se_analytic().is_finite() && fit.se_analytic() > 0.0, "kind={kind:?}");
+        let rel = (fit.se_analytic() - jackknife).abs() / jackknife;
+        assert!(
+            rel < BAND,
+            "kind={kind:?}: analytic {} vs jackknife {jackknife} (relative gap {rel})",
+            fit.se_analytic()
+        );
     }
 }
+
+const BAND: f64 = 0.2;
 
 #[test]
 fn aipw_trim_excludes_extreme_propensity_unit() {

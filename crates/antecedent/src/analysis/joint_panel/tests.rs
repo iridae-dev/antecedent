@@ -151,7 +151,12 @@ fn inspection_retains_actual_failed_design_and_exact_history_without_fitting() {
 fn changed_program_cannot_borrow_old_scientific_target() {
     let (source, mut request) = fixture();
     request.worlds[3].program.channels[0].values[0] = 2.0;
-    assert!(Study::prepare_joint_panel(source, request, &ExecutionContext::for_tests(1)).is_err());
+    match Study::prepare_joint_panel(source, request, &ExecutionContext::for_tests(1)) {
+        Err(JointPanelError::Compile(message)) => {
+            assert!(message.contains("differs from the retained program"), "{message}");
+        }
+        other => panic!("a changed program must be refused as differing, got {:?}", other.map(|_| ())),
+    }
 }
 #[test]
 fn memory_refusal_precedes_source_materialization() {

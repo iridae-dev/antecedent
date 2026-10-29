@@ -561,7 +561,10 @@ fn class_posterior_known_truth_mixture_pin() {
     let weights: Vec<f64> =
         pin["posterior_weights"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
     let unidentified_truth = pin["expected_unidentified_mass"].as_f64().unwrap();
-    let tolerance = pin["effect_abs_tolerance"].as_f64().unwrap();
+    // The design is balanced with zero-mean noise in every cell, so the estimates equal the
+    // closed forms 3 and 2 to rounding (observed gap far below 1e-9); the pin's published
+    // tolerance is far wider than the 1.0 spacing of the atoms needs.
+    let tolerance = 1e-9;
     let data = mixture_data(n);
     let cpdag =
         cpdag_posterior(&weights, &[oriented(false), oriented(true), reverse_causal_cpdag()]);
@@ -608,7 +611,10 @@ fn class_posterior_known_truth_mixture_pin() {
 fn class_posterior_same_estimand_two_atom_mixture_pin() {
     let pin = known_truth_mixture_pin();
     let n = usize::try_from(pin["n"].as_u64().unwrap()).unwrap();
-    let tolerance = pin["effect_abs_tolerance"].as_f64().unwrap();
+    // The design is balanced with zero-mean noise in every cell, so the estimates equal the
+    // closed forms 3 and 2 to rounding (observed gap far below 1e-9); the pin's published
+    // tolerance is far wider than the 1.0 spacing of the atoms needs.
+    let tolerance = 1e-9;
     let direct_effect = pin["identified_atom_effects"][0].as_f64().unwrap();
     let data = mixture_data(n);
     let weights = [0.6, 0.4];
@@ -658,7 +664,10 @@ fn class_posterior_frequentist_numeric_pins() {
     let weights: Vec<f64> =
         pin["posterior_weights"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
     let unidentified_truth = pin["expected_unidentified_mass"].as_f64().unwrap();
-    let tolerance = pin["effect_abs_tolerance"].as_f64().unwrap();
+    // The design is balanced with zero-mean noise in every cell, so the estimates equal the
+    // closed forms 3 and 2 to rounding (observed gap far below 1e-9); the pin's published
+    // tolerance is far wider than the 1.0 spacing of the atoms needs.
+    let tolerance = 1e-9;
     let direct_effect = atom_effects[0];
     let data = mixture_data(n);
     let disagree =
@@ -708,6 +717,24 @@ fn two_completion_cpdag_mask_identifies() {
         envelope.cases.iter().any(|case| !case.result.estimands.is_empty()),
         "identified completions must carry an estimand"
     );
+    // The CPDAG z -> y <- t with z - t undirected has exactly two Markov-equivalent DAGs:
+    // z -> t (the back-door path t <- z -> y must be blocked: adjust for z) and t -> z (no
+    // back-door path: the empty set). Both identify, with unit weight each.
+    assert_eq!(envelope.cases.len(), 2, "one case per completion");
+    assert!((envelope.identified_weight.0 - 2.0).abs() < 1e-12, "{}", envelope.identified_weight.0);
+    let mut sets: Vec<Vec<u32>> = envelope
+        .cases
+        .iter()
+        .map(|case| {
+            assert_eq!(case.result.estimands.len(), 1);
+            let mut set: Vec<u32> =
+                case.result.estimands[0].adjustment_set.iter().map(|v| v.raw()).collect();
+            set.sort_unstable();
+            set
+        })
+        .collect();
+    sets.sort();
+    assert_eq!(sets, vec![vec![], vec![2]]);
 }
 
 #[test]
@@ -722,6 +749,7 @@ fn identified_pag_mask_roundtrips() {
         antecedent_discovery::adjacency_mask::pag_from_adjacency_mask(mask, mark_mask, 3).unwrap();
     assert!(back.has_edge(d(2), d(0)));
     assert!(back.has_edge(d(0), d(1)));
+    assert!(!back.has_edge(d(2), d(1)), "the round trip must not invent a z - y edge");
     let envelope = antecedent_identify::GeneralizedAdjustmentIdentifier::new()
         .identify_pag_envelope(&back, &ate());
     assert!(envelope.is_ok(), "{envelope:?}");
@@ -732,6 +760,11 @@ fn identified_pag_mask_roundtrips() {
         envelope.status,
         envelope.identified_weight.0
     );
+    // The decoded graph is the same PAG, so its envelope is the original's.
+    let original = original.unwrap();
+    assert_eq!(envelope.status, original.status);
+    assert!((envelope.identified_weight.0 - original.identified_weight.0).abs() < 1e-12);
+    assert_eq!(envelope.cases.len(), original.cases.len());
 }
 
 #[test]

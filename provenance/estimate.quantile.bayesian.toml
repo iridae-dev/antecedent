@@ -48,7 +48,7 @@ sha256 = "1aa447af8179bf0de890914053fa7fa96d8dbbbbd16da13eb2f8ee7c37ac148d"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/quantile_posterior_reference.rs"
-sha256 = "cd6cfb6387cbe91a6ecabb91ac713e7f5f9364a8d7814a5541f6528fd94666d7"
+sha256 = "3bc053eacf513ce307391f5959f78d5ffb0f62ee81acb260bfdf016d1d14b635"
 
 [[method_review.artifacts]]
 role = "reference"
