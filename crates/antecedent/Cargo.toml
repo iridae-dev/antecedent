@@ -610,6 +610,34 @@ name = "temporal_admg_derivative"
 path = "tests/temporal_admg_derivative.rs"
 
 [[test]]
+name = "temporal_derivative_refuter_known_truth"
+path = "tests/temporal_derivative_refuter_known_truth.rs"
+
+[[test]]
+name = "class_derivative_known_truth"
+path = "tests/class_derivative_known_truth.rs"
+
+[[test]]
+name = "temporal_admg_derivative_known_truth"
+path = "tests/temporal_admg_derivative_known_truth.rs"
+
+[[test]]
+name = "temporal_class_derivative_known_truth"
+path = "tests/temporal_class_derivative_known_truth.rs"
+
+[[test]]
+name = "graph_posterior_derivative_known_truth"
+path = "tests/graph_posterior_derivative_known_truth.rs"
+
+[[test]]
+name = "temporal_graph_posterior_derivative_known_truth"
+path = "tests/temporal_graph_posterior_derivative_known_truth.rs"
+
+[[test]]
+name = "derivative_refuter_known_truth"
+path = "tests/derivative_refuter_known_truth.rs"
+
+[[test]]
 name = "staged_derivatives"
 path = "tests/staged_derivatives.rs"
 
@@ -716,6 +744,18 @@ path = "tests/path_specific_admg_route.rs"
 [[test]]
 name = "path_specific_pag_route"
 path = "tests/path_specific_pag_route.rs"
+
+[[test]]
+name = "path_specific_mixed_graph_route_evidence"
+path = "tests/path_specific_mixed_graph_route_evidence.rs"
+
+[[test]]
+name = "interventional_distribution_class_route_evidence"
+path = "tests/interventional_distribution_class_route_evidence.rs"
+
+[[test]]
+name = "mediation_mixed_graph_route_evidence"
+path = "tests/mediation_mixed_graph_route_evidence.rs"
 
 [[test]]
 name = "temporal_pag_mediation"
@@ -1117,3 +1157,63 @@ path = "tests/build_small_gaps_class_nonfinite.rs"
 [[test]]
 name = "build_quasi_experimental_synthetic_dependence"
 path = "tests/build_quasi_experimental_synthetic_dependence.rs"
+
+[[test]]
+name = "transport_interference_cell_evidence"
+path = "tests/transport_interference_cell_evidence.rs"
+
+[[test]]
+name = "cross_world_dag_validation_truth"
+path = "tests/cross_world_dag_validation_truth.rs"
+
+[[test]]
+name = "codetermined_bayesian_response_truth"
+path = "tests/codetermined_bayesian_response_truth.rs"
+
+[[test]]
+name = "bayesian_intervention_response_refuter_truth"
+path = "tests/bayesian_intervention_response_refuter_truth.rs"
+
+[[test]]
+name = "conditional_effect_admg_validation_truth"
+path = "tests/conditional_effect_admg_validation_truth.rs"
+
+[[test]]
+name = "lag_zero_average_effect_truth"
+path = "tests/lag_zero_average_effect_truth.rs"
+
+[[test]]
+name = "cross_world_class_truth"
+path = "tests/cross_world_class_truth.rs"
+
+[[test]]
+name = "attribution_refuter_known_truth"
+path = "tests/attribution_refuter_known_truth.rs"
+
+[[test]]
+name = "cross_world_posterior_truth"
+path = "tests/cross_world_posterior_truth.rs"
+
+[[test]]
+name = "temporal_conditional_validation_truth"
+path = "tests/temporal_conditional_validation_truth.rs"
+
+[[test]]
+name = "intervention_response_class_validation_truth"
+path = "tests/intervention_response_class_validation_truth.rs"
+
+[[test]]
+name = "response_curve_posterior_validation_truth"
+path = "tests/response_curve_posterior_validation_truth.rs"
+
+[[test]]
+name = "conditional_effect_admg_bayesian_interval"
+path = "tests/conditional_effect_admg_bayesian_interval.rs"
+
+[[test]]
+name = "class_attribution_known_truth"
+path = "tests/class_attribution_known_truth.rs"
+
+[[test]]
+name = "zz_probe_f"
+path = "tests/zz_probe_f.rs"

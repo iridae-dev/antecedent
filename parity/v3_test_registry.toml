@@ -713,6 +713,13 @@ path = "crates/antecedent/tests/class_and_design_validation_suites.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "transport-interference-cell-evidence"
+crate = "antecedent"
+cargo_target = "transport_interference_cell_evidence"
+path = "crates/antecedent/tests/transport_interference_cell_evidence.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "unlicensed-refuter-states-and-mechanism-bootstrap"
 crate = "antecedent"
 cargo_target = "unlicensed_refuter_states_and_mechanism_bootstrap"
@@ -6217,6 +6224,27 @@ path = "crates/antecedent/tests/path_specific_pag_route.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "path-specific-mixed-graph-route-evidence"
+crate = "antecedent"
+cargo_target = "path_specific_mixed_graph_route_evidence"
+path = "crates/antecedent/tests/path_specific_mixed_graph_route_evidence.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "interventional-distribution-class-route-evidence"
+crate = "antecedent"
+cargo_target = "interventional_distribution_class_route_evidence"
+path = "crates/antecedent/tests/interventional_distribution_class_route_evidence.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "mediation-mixed-graph-route-evidence"
+crate = "antecedent"
+cargo_target = "mediation_mixed_graph_route_evidence"
+path = "crates/antecedent/tests/mediation_mixed_graph_route_evidence.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "per-population-discovery-facade"
 crate = "antecedent"
 cargo_target = "suite_06"
@@ -6859,6 +6887,34 @@ crate = "antecedent"
 cargo_target = "suite_07"
 path = "crates/antecedent/tests/staged_bayesian_basis_gcomp.rs"
 suite_map_line = "suite_07: refute_validator_not_applicable, repeated_measures_posterior_facade, rollout_artifact, route_evidence_joint_law_propagation, route_evidence_observation_query, sample_split_analysis_facade, sample_split_effect_facade, sample_split_parent_set_effect_facade, sample_split_weighted_acceptance, saturation_interference_route, schema_binding, scientific_bridge_facade, scientific_bridge_interval_facade, selective_discovery_facade, sequential_evaluation_facade, short_series_measurement, smoothed_dose_lifecycle, smoothed_dose_posterior_facade, source_evidence, source_projection, specification_conformance, staged_attribution_transport_interference, staged_bayesian_basis_gcomp, static_class_bounds, statistical_transport_numeric, survival_route, switchback_interval_route, synthetic_control_route, synthetic_did_randomization_route, temporal_admg_route_evidence, temporal_attribution_route_evidence, temporal_class_bayesian_envelope, temporal_class_envelope_numeric_pins, temporal_class_observation"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-derivative-refuter-known-truth"
+crate = "antecedent"
+cargo_target = "temporal_derivative_refuter_known_truth"
+path = "crates/antecedent/tests/temporal_derivative_refuter_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "class-derivative-known-truth"
+crate = "antecedent"
+cargo_target = "class_derivative_known_truth"
+path = "crates/antecedent/tests/class_derivative_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "derivative-refuter-known-truth"
+crate = "antecedent"
+cargo_target = "derivative_refuter_known_truth"
+path = "crates/antecedent/tests/derivative_refuter_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "attribution-refuter-known-truth"
+crate = "antecedent"
+cargo_target = "attribution_refuter_known_truth"
+path = "crates/antecedent/tests/attribution_refuter_known_truth.rs"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -19979,4 +20035,88 @@ id = "estimate-dependence-aware-interval-reference"
 crate = "antecedent-estimate"
 cargo_target = "dependence_aware_interval_reference"
 path = "crates/antecedent-estimate/tests/dependence_aware_interval_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cross-world-dag-validation-truth"
+crate = "antecedent"
+cargo_target = "cross_world_dag_validation_truth"
+path = "crates/antecedent/tests/cross_world_dag_validation_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "codetermined-bayesian-response-truth"
+crate = "antecedent"
+cargo_target = "codetermined_bayesian_response_truth"
+path = "crates/antecedent/tests/codetermined_bayesian_response_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "bayesian-intervention-response-refuter-truth"
+crate = "antecedent"
+cargo_target = "bayesian_intervention_response_refuter_truth"
+path = "crates/antecedent/tests/bayesian_intervention_response_refuter_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "conditional-effect-admg-validation-truth"
+crate = "antecedent"
+cargo_target = "conditional_effect_admg_validation_truth"
+path = "crates/antecedent/tests/conditional_effect_admg_validation_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "lag-zero-average-effect-truth"
+crate = "antecedent"
+cargo_target = "lag_zero_average_effect_truth"
+path = "crates/antecedent/tests/lag_zero_average_effect_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cross-world-class-truth"
+crate = "antecedent"
+cargo_target = "cross_world_class_truth"
+path = "crates/antecedent/tests/cross_world_class_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cross-world-posterior-truth"
+crate = "antecedent"
+cargo_target = "cross_world_posterior_truth"
+path = "crates/antecedent/tests/cross_world_posterior_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-conditional-validation-truth"
+crate = "antecedent"
+cargo_target = "temporal_conditional_validation_truth"
+path = "crates/antecedent/tests/temporal_conditional_validation_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "intervention-response-class-validation-truth"
+crate = "antecedent"
+cargo_target = "intervention_response_class_validation_truth"
+path = "crates/antecedent/tests/intervention_response_class_validation_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "response-curve-posterior-validation-truth"
+crate = "antecedent"
+cargo_target = "response_curve_posterior_validation_truth"
+path = "crates/antecedent/tests/response_curve_posterior_validation_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "conditional-effect-admg-bayesian-interval"
+crate = "antecedent"
+cargo_target = "conditional_effect_admg_bayesian_interval"
+path = "crates/antecedent/tests/conditional_effect_admg_bayesian_interval.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "class-attribution-known-truth"
+crate = "antecedent"
+cargo_target = "class_attribution_known_truth"
+path = "crates/antecedent/tests/class_attribution_known_truth.rs"
 gates = ["inventory", "named"]

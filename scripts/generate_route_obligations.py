@@ -117,7 +117,7 @@ def licensed_row(cell: dict, matrix_cell: dict | None) -> dict:
         "kind": "licensed",
         **{axis: cell.get(axis) for axis in AXES},
         "estimators": list(cell.get("estimators") or []),
-        "route_estimator": (matrix_cell or {}).get("route_estimator", ""),
+        "route_estimator": (matrix_cell or {}).get("route_estimator") or "",
         "matrix_digest": digest(matrix_cell) if matrix_cell else "",
         "license_basis": "explicit_license",
         "compiler_execution": citations,

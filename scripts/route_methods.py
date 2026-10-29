@@ -463,17 +463,7 @@ CONSUMER_OVERRIDE = {
 
 # Executing-unlicensed coordinates that name a method but no support cell: the manifest route
 # records them in its notes and the test below runs them.
-EXECUTING_UNLICENSED = (
-    {
-        "query": "InterventionResponse",
-        "graph": "CoDetermined",
-        "estimator": "response.bayesian",
-        "inference": "Bayesian",
-        "evidence": [
-            "crates/antecedent/tests/unlicensed_refuter_states_and_mechanism_bootstrap.rs::codetermined_bayesian_joint_level_executes_unlicensed"
-        ],
-    },
-)
+EXECUTING_UNLICENSED: tuple[dict, ...] = ()
 
 
 def quote(value: object) -> str:

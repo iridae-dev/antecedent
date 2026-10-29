@@ -24,7 +24,7 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 | `P03.policy` | executing | executing | executing | executing |
 | `P04` | licensed | executing | executing | executing |
 | `P05` | executing | executing | executing | executing |
-| `P06` | licensed | licensed | executing | executing |
+| `P06` | licensed | licensed | licensed | licensed |
 | `P07.continuous_dose` | executing | executing | executing | executing |
 | `P07.curve` | licensed | licensed | licensed | licensed |
 | `P07.derivative` | licensed | licensed | licensed | licensed |
