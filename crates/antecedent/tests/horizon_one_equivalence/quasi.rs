@@ -69,8 +69,14 @@ fn horizon_one_time_discontinuity_local_ratio_matches_the_static_fit_with_block_
         .run(&ctx())
         .unwrap();
     let fixed = static_result.local_polynomial_ratio().expect("the static local ratio payload");
-    assert!((fixed.effect - 1.0).abs() < 0.6, "the fixture must carry the jump: {}", fixed.effect);
     assert!(fixed.standard_error > 0.0);
+    // The local-linear fit absorbs the 0.001 t trend, so the jump of 1 is recovered to its SE.
+    assert!(
+        (fixed.effect - 1.0).abs() < 4.0 * fixed.standard_error,
+        "the fixture must carry the jump: {} (se {})",
+        fixed.effect,
+        fixed.standard_error
+    );
 
     let temporal_result = Study::tabular(data)
         .query(ratio_query(2, 1, 0, 1000.0, 300.0, Some(199)))

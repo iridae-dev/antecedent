@@ -202,7 +202,9 @@ fn conditional_refresh_refuses_column_reordering_that_changes_semantic_ids() {
         ("t", t.as_slice()),
     ])
     .unwrap();
-    assert!(rebind_estimate(&mut prepared, reordered, &ctx).is_err());
+    let error = rebind_estimate(&mut prepared, reordered, &ctx).unwrap_err();
+    assert!(matches!(&error, antecedent::CausalError::Compile { message }
+            if message.contains("requires the same schema (variable names, types, and order)")), "{error:?}");
 }
 
 #[test]
@@ -232,8 +234,21 @@ fn conditional_grid_and_quantile_retain_distribution_score_procedure() {
         assert_eq!(plan.procedure.as_ref(), "crossfit_aipw_distribution_scores");
         assert_eq!(plan.query.inner.outcome_functional, functional);
         let result = prepared.estimate(&route_data, &ctx).unwrap();
-        assert!(result.estimate().as_effect().unwrap().joint.exceedance_cdf.is_some());
+        let cdf = result.estimate().as_effect().unwrap().joint.exceedance_cdf.clone().unwrap();
         assert!(result.estimate().as_effect().unwrap().joint.covariance.is_some());
+        if matches!(functional, OutcomeFunctional::Quantile(_)) {
+            // Y = 2 T + 0.3 W + 0.5 noise: a pure location shift of 2, so the median effect is 2.
+            assert!((result.effect() - 2.0).abs() < 0.1, "median effect {}", result.effect());
+        } else {
+            // Y(0) = 1 and Y(1) = 3 + W/2 for W uniform on 0..4 (values 3, 3.5, 4, 4.5, 5), so
+            // F_a(c) = 1 - P(Y(a) > c) at c = 1.5, 2.5, 3.5 is (1, 0), (1, 0), (1, 2/5), in
+            // threshold-major, arm-minor order.
+            let truth = [1.0, 0.0, 1.0, 0.0, 1.0, 0.4];
+            assert_eq!(cdf.len(), truth.len(), "{cdf:?}");
+            for (got, want) in cdf.iter().zip(truth) {
+                assert!((got - want).abs() < 0.005, "{cdf:?} vs {truth:?}");
+            }
+        }
         let refreshed_data = if matches!(functional, OutcomeFunctional::Quantile(_)) {
             quantile_data()
         } else {
@@ -244,7 +259,17 @@ fn conditional_grid_and_quantile_retain_distribution_score_procedure() {
             panic!("retained conditional distribution operation after refresh")
         };
         assert_eq!(rebound.query, plan.query);
-        assert!(refreshed.estimate().as_effect().unwrap().joint.exceedance_cdf.is_some());
+        let refreshed_cdf =
+            refreshed.estimate().as_effect().unwrap().joint.exceedance_cdf.clone().unwrap();
+        assert_eq!(refreshed_cdf.len(), cdf.len());
+        if !matches!(functional, OutcomeFunctional::Quantile(_)) {
+            // Shifting the outcome by 0.2 leaves Y(1) = 3.2, 3.7, 4.2, 4.7, 5.2: four of five
+            // exceed 3.5, so F_1(3.5) moves from 2/5 to 1/5 and nothing else changes.
+            let truth = [1.0, 0.0, 1.0, 0.0, 1.0, 0.2];
+            for (got, want) in refreshed_cdf.iter().zip(truth) {
+                assert!((got - want).abs() < 0.005, "{refreshed_cdf:?} vs {truth:?}");
+            }
+        }
     }
 }
 

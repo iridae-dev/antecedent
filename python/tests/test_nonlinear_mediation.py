@@ -169,14 +169,16 @@ def test_mediation_reports_integration_error_and_refuses_above_tolerance() -> No
     # rounding-level disagreement refuses, and one at or above it returns the estimate with
     # the error reported.
     tiny = sys.float_info.min
-    try:
-        strict = run(g, outcome_degree=3, quadrature_nodes=1, integration_tolerance=tiny)
-    except MediationRefusal as caught:
-        assert caught.detail == "nonlinear_mediation.integration_error"
-        assert caught.reason_code == "mechanism_fit_not_converged"
-        assert_registered_refusal(caught)
-    else:
-        assert strict.integration_error <= tiny
+    with pytest.raises(MediationRefusal) as strict:
+        run(g, outcome_degree=3, quadrature_nodes=1, integration_tolerance=tiny)
+    assert strict.value.detail == "nonlinear_mediation.integration_error"
+    assert strict.value.reason_code == "mechanism_fit_not_converged"
+    assert_registered_refusal(strict.value)
+    # At a tolerance above the rounding-level disagreement the estimate is returned with the
+    # error it was checked at (the two node counts agree to rounding).
+    lenient = run(g, outcome_degree=3, quadrature_nodes=1, integration_tolerance=1e-12)
+    assert 0.0 < lenient.integration_error <= 1e-12
+    assert lenient.natural_indirect == pytest.approx(nie, abs=1e-8)
 
 
 @pytest.mark.parametrize(

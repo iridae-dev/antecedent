@@ -70,7 +70,11 @@ fn retained_fixed_dose_policy_intervals_round_trip_and_refuse_tampering() {
     let response = result.continuous_dose_response().unwrap();
     assert!(response.points.is_empty());
     let value = response.fixed_policy.as_ref().unwrap();
-    assert!((value.incremental_value - 0.7).abs() < 0.15);
+    // Truth: the mean over the two equal groups of slope * (policy dose - reference dose), that
+    // is (1.5 * 0.4 + 2.0 * 0.4) / 2 = 0.7; the sine term averages out.
+    assert!((value.incremental_value - 0.7).abs() < 0.03, "inc={}", value.incremental_value);
+    let incremental = value.incremental_interval_95.unwrap();
+    assert!(incremental[0] < 0.7 && 0.7 < incremental[1], "{incremental:?}");
     assert!(value.policy_interval_95.is_some());
     assert!(value.reference_interval_95.is_some());
     assert!(value.incremental_interval_95.is_some());

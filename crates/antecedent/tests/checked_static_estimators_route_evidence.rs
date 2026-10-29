@@ -73,7 +73,7 @@ fn checked_glm_accepted_and_explicit_retain_design_and_dependency_refusal() {
                 assert_eq!(plan.adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
                 assert_eq!(plan.target_population, population);
                 let result = prepared.estimate(&data, &ctx).unwrap();
-                assert!((result.effect() - 2.0).abs() < 0.05, "effect={}", result.effect());
+                assert!((result.effect() - 2.0).abs() < 1e-8, "effect={}", result.effect());
                 if suite != RefuteSuite::None {
                     assert!(!result.refutations.is_empty());
                 }

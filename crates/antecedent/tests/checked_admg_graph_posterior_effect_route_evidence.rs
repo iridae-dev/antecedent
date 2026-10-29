@@ -109,7 +109,7 @@ fn admg_graph_posterior_effect_is_sealed_for_both_inference_modes() {
             assert_eq!(plan.weights.as_ref(), &[0.8, 0.2]);
             assert_eq!(plan.graph_keys.as_ref(), graphs.graph_keys().as_ref());
             let result = prepared.estimate(&data, &context).unwrap();
-            let tolerance = if bayesian { 0.05 } else { 1e-9 };
+            let tolerance = if bayesian { 0.003 } else { 1e-9 };
             assert!(
                 (result.estimate().as_effect().unwrap().ate - truth).abs() < tolerance,
                 "bayesian={bayesian} suite={suite:?}: {} vs {truth}",

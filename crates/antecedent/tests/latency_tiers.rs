@@ -34,7 +34,7 @@ fn interactive_vs_standard_records_mode_and_effort() {
 
     assert!(interactive.estimate().as_effect().unwrap().ate.is_finite());
     assert!(
-        (interactive.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.5,
+        (interactive.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.15,
         "ate={}",
         interactive.estimate().as_effect().unwrap().ate
     );
@@ -58,7 +58,7 @@ fn interactive_vs_standard_records_mode_and_effort() {
         .unwrap();
 
     assert!(standard.estimate().as_effect().unwrap().ate.is_finite());
-    assert!((standard.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.5);
+    assert!((standard.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.15, "std ate={}", standard.estimate().as_effect().unwrap().ate);
     assert_eq!(standard.performance.latency_mode.as_deref(), Some("standard"));
     assert_eq!(standard.performance.bootstrap_replicates_requested, Some(199));
     let ok = standard

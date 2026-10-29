@@ -119,6 +119,33 @@ fn refuters_and_sensitivity_smoke() {
         None,
     );
 
+    // Known answers on this fixture, derived from the construction and not from the product.
+    // OLS recovers the coefficient 2 exactly (the noise is orthogonal to the design).
+    assert!((original.ate - 2.0).abs() < 1e-9, "ate {}", original.ate);
+    // E-value of a continuous outcome (VanderWeele and Ding): d = ATE / sigma with sigma the
+    // residual SD of y on (1, t, z), RR = exp(0.91 d), E = RR + sqrt(RR (RR - 1)); the reported
+    // value is the smaller of the point E-value and the E-value of the 95% interval limit nearest
+    // the null, ATE -/+ 1.959964 se with se = sigma / sqrt(S_tt), S_tt the sum of squares of t
+    // after removing the constant and the linear trend z.
+    let n = 400.0_f64;
+    let t: Vec<f64> = (0..400).map(|i| f64::from(i % 2)).collect();
+    let z: Vec<f64> = (0..400).map(|i| f64::from(i) / n).collect();
+    let (mean_t, mean_z) = (t.iter().sum::<f64>() / n, z.iter().sum::<f64>() / n);
+    let slope = t.iter().zip(&z).map(|(a, b)| (a - mean_t) * (b - mean_z)).sum::<f64>()
+        / z.iter().map(|b| (b - mean_z).powi(2)).sum::<f64>();
+    let s_tt: f64 =
+        t.iter().zip(&z).map(|(a, b)| ((a - mean_t) - slope * (b - mean_z)).powi(2)).sum();
+    let sigma = (400.0_f64 * 0.25 / (n - 3.0)).sqrt();
+    let e_value = |effect: f64| {
+        let rr = (0.91 * effect / sigma).exp();
+        let rr = if rr < 1.0 { 1.0 / rr } else { rr };
+        rr + (rr * (rr - 1.0)).sqrt()
+    };
+    let limit = 2.0 - 1.959_963_984_540_054 * sigma / s_tt.sqrt();
+    let want = e_value(2.0).min(e_value(limit));
+    let reported = EValue::new().refute(&problem).unwrap().comparison;
+    assert!((reported - want).abs() < 1e-6 * want, "e-value {reported} vs {want}");
+
     // OLS-gated noise/subset refuters have no power against the causal claim: they
     // must report informative=false, as does the descriptive leave-one-out check. The remaining
     // validators keep informative=true.

@@ -211,7 +211,12 @@ fn a_shifted_coding_with_declared_levels_gives_the_identical_estimate() {
 
     // The estimate is the contrast between the levels, not scaled by their distance, and
     // lands on the simulated truth of 2.
-    assert!((aipw_shifted.ate - 2.0).abs() < 0.3, "ate={}", aipw_shifted.ate);
+    assert!(
+        (aipw_shifted.ate - 2.0).abs() < 4.0 * aipw_shifted.se_analytic(),
+        "ate={} se={}",
+        aipw_shifted.ate,
+        aipw_shifted.se_analytic()
+    );
 }
 
 #[test]
@@ -535,7 +540,12 @@ fn assert_declared_two_over_one_matches_zero_one(
     assert_eq!(base.ate.to_bits(), declared.ate.to_bits(), "{} vs {}", base.ate, declared.ate);
     // It is the contrast of the arms, not scaled by the distance between the labels, and it
     // lands on the simulated effect.
-    assert!((declared.ate - BINARY_EFFECT).abs() < 0.25, "ate={}", declared.ate);
+    assert!(
+        (declared.ate - BINARY_EFFECT).abs() < 4.0 * declared.se_analytic(),
+        "ate={} se={}",
+        declared.ate,
+        declared.se_analytic()
+    );
 
     // The estimand states the declared levels and the arms they selected.
     let (active, control, at_active, at_control, excluded) = stated_contrast(&declared);
@@ -575,7 +585,12 @@ fn reversing_the_declared_contrast_negates_the_aipw_estimate() {
         fit_aipw(&aipw(), &data, &estimand, &AverageEffectQuery::with_levels(T, Y, 1.0, 2.0));
     let reversed =
         fit_aipw(&aipw(), &data, &estimand, &AverageEffectQuery::with_levels(T, Y, 2.0, 1.0));
-    assert!((forward.ate - BINARY_EFFECT).abs() < 0.25, "ate={}", forward.ate);
+    assert!(
+        (forward.ate - BINARY_EFFECT).abs() < 4.0 * forward.se_analytic(),
+        "ate={} se={}",
+        forward.ate,
+        forward.se_analytic()
+    );
     // The cross-fit folds are dealt on the column's own levels, so swapping the arms refits
     // the same models and the contrasts are exact negatives, as are the influence-function
     // standard errors' squares.

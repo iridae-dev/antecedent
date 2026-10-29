@@ -407,7 +407,7 @@ def test_a_spread_claim_names_its_composed_coordinate_from_its_sealed_artifact()
     # The coordinate is rebuilt from the retained artifact bytes: operation, route and roles.
     assert contrast.coordinate_id() == "contrast|aligned_joint_law|estimate,estimate"
     assert total.coordinate_id() == "sum|aligned_joint_law|estimate,estimate"
-    assert contrast.coordinate_id() == contrast.coordinate_id()
+    assert contrast.coordinate_id() != total.coordinate_id()
     # An envelope declares no licensed dependence, so it has no composed coordinate.
     env = require_success(
         jl.dependence_envelope(

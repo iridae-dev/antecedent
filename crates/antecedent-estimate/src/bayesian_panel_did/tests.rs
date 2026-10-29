@@ -59,20 +59,20 @@ fn cross_section_posterior_matches_the_analytic_normal_inverse_gamma_posterior()
         DrawSpec::new(DRAWS, 5),
     )
     .unwrap();
-    assert!((diffuse.mean - 1.316_600_562_8).abs() < 0.01, "{}", diffuse.mean);
+    assert!((diffuse.mean - 1.316_600_562_8).abs() < 0.006, "{}", diffuse.mean);
     assert!((diffuse.sd - 0.266_700_253_3).abs() < 0.008, "{}", diffuse.sd);
     assert!(diffuse.lower < diffuse.mean && diffuse.mean < diffuse.upper);
     assert_eq!((diffuse.n_treated, diffuse.n_comparison), (12, 12));
     // The cell-mean DiD of the data is 1.3166667: a diffuse prior must reproduce it.
-    assert!((diffuse.mean - 1.316_666_667).abs() < 0.01);
+    assert!((diffuse.mean - 1.316_666_667).abs() < 0.006);
     // An informative prior shrinks the effect toward zero and widens nothing silently: the
     // posterior must move to the analytic value for that prior, not stay at the data value.
     let tight = DidPrior { coefficient_scale: 0.5, ..DidPrior::diffuse() };
     let shrunk =
         fit_bayesian_cross_section_did(&y, &group, &post, &ids, tight, DrawSpec::new(DRAWS, 6))
             .unwrap();
-    assert!((shrunk.mean - 0.773_636_363_6).abs() < 0.015, "{}", shrunk.mean);
-    assert!((shrunk.sd - 0.423_209_862_4).abs() < 0.015, "{}", shrunk.sd);
+    assert!((shrunk.mean - 0.773_636_363_6).abs() < 0.006, "{}", shrunk.mean);
+    assert!((shrunk.sd - 0.423_209_862_4).abs() < 0.012, "{}", shrunk.sd);
 }
 
 #[test]
@@ -88,8 +88,8 @@ fn panel_posterior_matches_the_analytic_change_score_posterior() {
         DrawSpec::new(DRAWS, 7),
     )
     .unwrap();
-    assert!((fit.mean - 1.944_424_884_6).abs() < 0.01, "{}", fit.mean);
-    assert!((fit.sd - 0.247_048_411_7).abs() < 0.008, "{}", fit.sd);
+    assert!((fit.mean - 1.944_424_884_6).abs() < 0.006, "{}", fit.mean);
+    assert!((fit.sd - 0.247_048_411_7).abs() < 0.003, "{}", fit.sd);
     assert_eq!((fit.n_treated, fit.n_comparison), (12, 12));
 }
 
@@ -109,8 +109,8 @@ fn augmented_posterior_matches_the_analytic_two_arm_regression_posterior() {
     .unwrap();
     // Reference: per-arm NIG regressions on [1, x], contrast evaluated at the treated x mean,
     // variance the sum of the two independent Student-t marginal variances.
-    assert!((fit.mean - 1.964_181_490_1).abs() < 0.01, "{}", fit.mean);
-    assert!((fit.sd - 0.140_912_027_5).abs() < 0.006, "{}", fit.sd);
+    assert!((fit.mean - 1.964_181_490_1).abs() < 0.003, "{}", fit.mean);
+    assert!((fit.sd - 0.140_912_027_5).abs() < 0.003, "{}", fit.sd);
     // Adjusting for the covariate that drives the change score must tighten the posterior
     // relative to the unadjusted change-score model.
     let unadjusted = fit_bayesian_panel_did(
@@ -177,21 +177,24 @@ fn dependent_units_and_thin_designs_are_refused_with_the_next_attempt() {
 fn invalid_priors_and_non_finite_outcomes_are_refused() {
     let (pre, post, treated, _) = panel();
     let ids = unit_ids(24);
-    let bad = DidPrior { coefficient_scale: 0.0, ..DidPrior::diffuse() };
-    assert!(
-        fit_bayesian_panel_did(&pre, &post, &treated, &ids, bad, DrawSpec::new(100, 1)).is_err()
-    );
+    for scale in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+        let bad = DidPrior { coefficient_scale: scale, ..DidPrior::diffuse() };
+        let error = fit_bayesian_panel_did(&pre, &post, &treated, &ids, bad, DrawSpec::new(100, 1))
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("bayesian_did_prior"), "scale {scale}: {error}");
+    }
     let mut broken = post.clone();
     broken[3] = f64::NAN;
-    assert!(
-        fit_bayesian_panel_did(
-            &pre,
-            &broken,
-            &treated,
-            &ids,
-            DidPrior::diffuse(),
-            DrawSpec::new(100, 1)
-        )
-        .is_err()
-    );
+    let error = fit_bayesian_panel_did(
+        &pre,
+        &broken,
+        &treated,
+        &ids,
+        DidPrior::diffuse(),
+        DrawSpec::new(100, 1),
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(error.contains("bayesian_did_columns"), "{error}");
 }
