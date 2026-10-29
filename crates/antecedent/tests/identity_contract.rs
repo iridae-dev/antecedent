@@ -349,7 +349,8 @@ fn refresh_same_shape_changes_snapshot_and_expires_preview() {
     assert!((refreshed.effect() - original.effect() - 1.0).abs() < 1e-10);
     assert!((refreshed.effect() - 3.0).abs() < 0.2);
     let failure = data.with_replaced_float(VariableId::from_raw(0), vec![0.0; 256].into()).unwrap();
-    assert!(rebind_estimate(&mut prepared, failure, &ctx).is_err());
+    let refused = rebind_estimate(&mut prepared, failure, &ctx).err().expect("a constant treatment");
+    assert!(refused.to_string().contains("reason=arm_not_populated"), "{refused}");
     assert_eq!(after.identities, prepared.contract().unwrap().identities);
 }
 
@@ -493,7 +494,7 @@ fn dag_average_effect_vertical_path_binds_functional_after_retarget() {
     );
     assert!(retargeted.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
     assert!(retargeted.estimate().as_effect().unwrap().se_analytic().is_finite());
-    assert!((retargeted.effect() - 2.0).abs() < 0.35);
+    assert!((retargeted.effect() - 2.0).abs() < 0.1);
     assert!((retargeted.effect() - estimated.effect()).abs() < 1e-10);
     let bytes = prepared.encode_contracted_result(&retargeted, "dag-ate-retarget", &ctx).unwrap();
     let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
@@ -752,7 +753,11 @@ fn apply_refresh_requires_a_bound_preview() {
     let mut prepared = study(data.clone(), dag, query).prepare(&ctx).unwrap();
     let preview = prepared.preview_transform(TransformIntent::CompatibleDataReplace).unwrap();
     let stale = prepared.preview_transform(TransformIntent::ChangeGraph).unwrap();
-    assert!(prepared.apply_refresh(&stale, data.clone(), &ctx).is_err());
+    let refused = prepared.apply_refresh(&stale, data.clone(), &ctx).err().expect("a stale preview");
+    assert!(
+        refused.to_string().contains("refresh preview does not bind the current prepared contract"),
+        "{refused}"
+    );
     let refreshed = prepared.apply_refresh(&preview, data, &ctx).unwrap();
     assert!(refreshed.effect().is_finite());
 }
@@ -964,7 +969,7 @@ fn licensed_family_conditional_effect_bayesian_consumes() {
         "ce-b",
         &ctx,
     );
-    assert!((result.effect() - 3.0).abs() < 0.15);
+    assert!((result.effect() - 3.0).abs() < 0.04);
     assert!(result.posterior.is_some());
     assert_eq!(consumed.body.estimate, Some(result.effect()));
 }
@@ -1142,7 +1147,9 @@ fn licensed_family_path_specific_frequentist_consumes() {
         "path-f",
         &ctx,
     );
-    assert!(result.effect().is_finite());
+    // t has no parent, so the path through m carries the whole effect: P(y | t = 1) - P(y | t = 0)
+    // = 80/100 - 50/100.
+    assert!((result.effect() - 0.3).abs() < 1e-9, "{}", result.effect());
     assert_eq!(consumed.body.estimate, Some(result.effect()));
     let labels: std::collections::HashMap<_, _> =
         executed_functional_labels(&consumed.contract.as_ref().unwrap().target.query)
@@ -1211,7 +1218,7 @@ fn licensed_family_distribution_frequentist_consumes() {
         &ctx,
     );
     let dist = result.distribution().expect("distribution payload");
-    assert!((dist.mean - 0.7).abs() < 0.08);
+    assert!((dist.mean - 0.7).abs() < 1e-9);
     assert_eq!(consumed.body.estimate, Some(result.effect()));
     let contract = consumed.contract.as_ref().unwrap();
     let retained = contract.program.as_ref().unwrap().functional_program.as_ref().unwrap();
@@ -1323,7 +1330,7 @@ fn licensed_family_distribution_bayesian_consumes() {
         &ctx,
     );
     let dist = result.distribution().expect("distribution payload");
-    assert!((dist.mean - 0.7).abs() < 0.08);
+    assert!((dist.mean - 0.7).abs() < 0.01);
     assert!(result.posterior.is_some());
     assert_eq!(consumed.body.estimate, Some(result.effect()));
 }
@@ -1482,7 +1489,7 @@ fn licensed_family_cpdag_conditional_refuses_unweighted_average() {
         "ce-cpdag",
         &ctx,
     );
-    assert!((result.effect() - 3.0).abs() < 0.2);
+    assert!((result.effect() - 3.0).abs() < 1e-8);
     let prepared = built.prepare(&ctx).unwrap();
     let preview = prepared.preview_transform(TransformIntent::AverageUnweightedClass).unwrap();
     assert!(preview.refused);
@@ -1570,8 +1577,7 @@ fn licensed_family_pulse_temporal_consumes() {
     let (series, graph) = lag1_series();
     let (result, consumed) =
         consume_series_family(&series, graph, pulse_query(), "pulse-f", InferenceMode::Frequentist);
-    assert!(result.effect().is_finite());
-    assert!((result.effect() - 0.5).abs() < 0.15);
+    assert!((result.effect() - 0.5).abs() < 1e-9);
     assert_eq!(
         consumed.acceptance.unresolved.as_ref(),
         &[std::sync::Arc::<str>::from("dependencies.checked_temporal_dag_effect_operation")]
@@ -1592,7 +1598,7 @@ fn licensed_family_sustained_temporal_consumes() {
         .with_horizon_steps(1);
     let (result, consumed) =
         consume_series_family(&series, graph, query, "sustained-f", InferenceMode::Frequentist);
-    assert!((result.effect() - 0.5).abs() < 0.15);
+    assert!((result.effect() - 0.5).abs() < 1e-9);
     assert_eq!(
         consumed.acceptance.unresolved.as_ref(),
         &[std::sync::Arc::<str>::from("dependencies.checked_temporal_dag_effect_operation")]
@@ -1901,9 +1907,13 @@ fn composition_score_table_retarget_reuses_scores_and_refuses_illegal_weights() 
     );
     assert_eq!(prepared.score_reuse_identity().unwrap().expect("score key"), score_before);
     assert!(retargeted.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
-    assert!((retargeted.effect() - 2.0).abs() < 0.35);
+    assert!((retargeted.effect() - 2.0).abs() < 0.12);
     let illegal = prepared.retarget(&weights, &[VariableId::from_raw(0)], &ctx);
-    assert!(illegal.is_err(), "treatment-dependent weights must refuse");
+    let illegal = illegal.err().expect("treatment-dependent weights must refuse");
+    assert!(
+        illegal.to_string().contains("retarget depends_on must not include the treatment"),
+        "{illegal}"
+    );
 
     let (other, _, _) = confounded_scm(256, 42);
     assert_eq!(other.row_count(), data.row_count());
@@ -2062,7 +2072,8 @@ fn composition_prior_transfer_keeps_identification_and_refuses_mismatch() {
         .expect("same-design ATE catalog");
     let wrong_outcome = catalog
         .require_usable(&TargetDesign::new(EstimandFingerprint::new("ate", "t", "z"), ["t", "z"]));
-    assert!(wrong_outcome.is_err(), "outcome mismatch must refuse");
+    let wrong_outcome = wrong_outcome.err().expect("outcome mismatch must refuse").to_string();
+    assert!(wrong_outcome.contains("EstimandMismatch"), "{wrong_outcome}");
 
     let (series, graph) = lag1_series();
     let pulse_bytes = pulse_prior_bytes(&series, &graph, &ctx);
@@ -2083,7 +2094,8 @@ fn composition_prior_transfer_keeps_identification_and_refuses_mismatch() {
         EstimandFingerprint::new("pulse", "x", "y").with_temporal(TemporalCoordinates::new([2], 2)),
         ["x", "y"],
     ));
-    assert!(lag_mismatch.is_err(), "lag mismatch must refuse");
+    let lag_mismatch = lag_mismatch.err().expect("lag mismatch must refuse").to_string();
+    assert!(lag_mismatch.contains("TemporalCoordinatesMismatch"), "{lag_mismatch}");
 
     let bad_map = Study::series(series.clone())
         .graph(graph.clone())
@@ -2672,7 +2684,7 @@ fn licensed_family_response_curve_bayesian_consumes() {
         panic!("expected a point-identified Bayesian response surface");
     };
     for (got, truth) in mean.iter().zip([0.0, 1.0, 2.0]) {
-        assert!((got - truth).abs() < 0.35, "grid point {got} vs {truth}");
+        assert!((got - truth).abs() < 0.15, "grid point {got} vs {truth}");
     }
     let uncertainty = consumed
         .contract
@@ -2722,7 +2734,7 @@ fn licensed_family_counterfactual_bayesian_consumes() {
     );
     assert!(result.posterior.is_some());
     let cf = result.counterfactual().expect("counterfactual payload");
-    assert!((cf.mean_ite - pin["counterfactual_mean"].as_f64().unwrap()).abs() < 0.15);
+    assert!((cf.mean_ite - pin["counterfactual_mean"].as_f64().unwrap()).abs() < 0.09);
     assert_eq!(consumed.body.estimate, Some(result.effect()));
     assert!(
         consumed
@@ -3235,7 +3247,7 @@ fn licensed_family_pulse_bayesian_consumes() {
         InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)),
     );
     assert!(result.posterior.is_some());
-    assert!((result.effect() - 0.5).abs() < 0.2);
+    assert!((result.effect() - 0.5).abs() < 0.005);
     let labels: std::collections::HashMap<_, _> =
         executed_functional_labels(&consumed.contract.as_ref().unwrap().target.query)
             .into_iter()
@@ -3258,7 +3270,7 @@ fn licensed_family_sustained_bayesian_consumes() {
         InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)),
     );
     assert!(result.posterior.is_some());
-    assert!((result.effect() - 0.5).abs() < 0.2);
+    assert!((result.effect() - 0.5).abs() < 0.005);
     let labels: std::collections::HashMap<_, _> =
         executed_functional_labels(&consumed.contract.as_ref().unwrap().target.query)
             .into_iter()
@@ -3286,7 +3298,7 @@ fn licensed_family_pulse_cheap_validation_consumes() {
         RefuteSuite::Cheap,
     );
     assert!(!result.refutations.is_empty());
-    assert!((result.effect() - 0.5).abs() < 0.15);
+    assert!((result.effect() - 0.5).abs() < 1e-9);
     assert_eq!(consumed.body.estimate, Some(result.effect()));
 }
 
@@ -3310,7 +3322,7 @@ fn licensed_family_pulse_full_validation_consumes() {
         RefuteSuite::Full,
     );
     assert!(!result.refutations.is_empty());
-    assert!((result.effect() - 0.5).abs() < 0.15);
+    assert!((result.effect() - 0.5).abs() < 1e-9);
     assert_eq!(consumed.body.estimate, Some(result.effect()));
 }
 
@@ -3398,7 +3410,7 @@ fn licensed_family_path_specific_bayesian_consumes() {
         &ctx,
     );
     assert!(result.posterior.is_some());
-    assert!(result.effect().is_finite());
+    assert!((result.effect() - 0.3).abs() < 0.02, "{}", result.effect());
     assert_eq!(consumed.body.estimate, Some(result.effect()));
     let labels: std::collections::HashMap<_, _> =
         executed_functional_labels(&consumed.contract.as_ref().unwrap().target.query)
@@ -3428,7 +3440,7 @@ fn licensed_family_path_specific_cheap_validation_consumes() {
         &ctx,
     );
     assert!(!result.refutations.is_empty());
-    assert!(result.effect().is_finite());
+    assert!((result.effect() - 0.3).abs() < 1e-9, "{}", result.effect());
     assert_eq!(consumed.body.estimate, Some(result.effect()));
 }
 
@@ -3442,7 +3454,7 @@ fn licensed_family_temporal_cpdag_pulse_consumes() {
         "pulse-tcpdag",
         InferenceMode::Frequentist,
     );
-    assert!((result.effect() - 0.5).abs() < 0.15);
+    assert!((result.effect() - 0.5).abs() < 1e-9);
     assert_eq!(consumed.contract.as_ref().unwrap().graph_class.as_str(), "TemporalCpdag");
     let labels: std::collections::HashMap<_, _> =
         executed_functional_labels(&consumed.contract.as_ref().unwrap().target.query)
@@ -3641,7 +3653,7 @@ fn licensed_family_gp_pulse_temporal_consumes() {
         "pulse-gp",
         InferenceMode::Frequentist,
     );
-    assert!((result.effect() - 0.5).abs() < 0.15);
+    assert!((result.effect() - 0.5).abs() < 1e-9);
 }
 
 #[test]
@@ -3655,7 +3667,7 @@ fn licensed_family_gp_pulse_bayesian_consumes() {
         InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)),
     );
     assert!(result.posterior.is_some());
-    assert!((result.effect() - 0.5).abs() < 0.2);
+    assert!((result.effect() - 0.5).abs() < 0.005);
 }
 
 #[test]
@@ -4299,8 +4311,9 @@ fn failed_series_refresh_then_estimate_on_old_data() {
         .unwrap();
     let before = prepared.contract().unwrap().identities;
     let first = prepared.estimate_series(&series, &ctx).unwrap();
-    assert!((first.effect() - 0.5).abs() < 0.15);
-    assert!(prepared.refresh_series(xy_series_len(2), &ctx).is_err());
+    assert!((first.effect() - 0.5).abs() < 1e-9);
+    let refused = prepared.refresh_series(xy_series_len(2), &ctx).err().expect("a two-row series");
+    assert!(refused.to_string().contains("reason=positivity_violated"), "{refused}");
     assert_eq!(before, prepared.contract().unwrap().identities);
     let recovered = prepared.estimate_series(&series, &ctx).unwrap();
     assert!((recovered.effect() - first.effect()).abs() < 1e-12);
@@ -4338,7 +4351,7 @@ fn temporal_state_events_keep_lineage_and_refuse_stale_publish() {
     let curve_id = curve.contract().unwrap().identities;
     let pulse_est = pulse.estimate_series(&pulse_series, &ctx).unwrap();
     let curve_est = curve.estimate_series(&curve_series, &ctx).unwrap();
-    assert!(pulse_est.effect().is_finite());
+    assert!((pulse_est.effect() - 0.5).abs() < 1e-9, "{}", pulse_est.effect());
     assert!(curve_est.response().is_some());
 
     let mut state = new_antecedent_state(CacheBudget::new(1 << 20));
@@ -4377,7 +4390,8 @@ fn temporal_state_events_keep_lineage_and_refuse_stale_publish() {
     assert!(stale_publish.to_string().contains("stale commit"));
     assert!(state.is_stale(pulse_q));
 
-    assert!(pulse.refresh_series(xy_series_len(2), &ctx).is_err());
+    let refused = pulse.refresh_series(xy_series_len(2), &ctx).err().expect("a two-row series");
+    assert!(refused.to_string().contains("rank deficient"), "{refused}");
     assert_eq!(pulse.contract().unwrap().identities, pulse_id);
     assert!(state.is_stale(pulse_q), "failed recompute must not publish freshness");
 
@@ -4440,7 +4454,7 @@ fn temporal_state_events_keep_lineage_and_refuse_stale_publish() {
     assert!(format!("{not_recomputed}").contains("before the latest data event"));
     assert!(state.is_stale(pulse_q) && state.is_stale(curve_q));
     let recomputed = pulse.refresh_series(xy_series_len(90), &ctx).unwrap();
-    assert!(recomputed.effect().is_finite());
+    assert!((recomputed.effect() - 0.5).abs() < 1e-9, "{}", recomputed.effect());
     let pulse_recomputed = pulse.contract().unwrap().identities;
     publish_recomputed_results(&mut state, after_replace, &[(pulse_q, &pulse_recomputed, 32)])
         .unwrap();
@@ -5871,7 +5885,14 @@ fn encoder_refuses_result_population_mismatch() {
     // A genuine retarget does not become the target of another handle.
     let retargeted =
         average.retarget(&z_weights(&data, 3.0), &[VariableId::from_raw(2)], &ctx).unwrap();
-    assert!(treated.encode_contracted_result(&retargeted, "mismatch", &ctx).is_err());
+    let refused = treated
+        .encode_contracted_result(&retargeted, "mismatch", &ctx)
+        .err()
+        .expect("a retargeted result is not the treated handle's");
+    assert!(
+        refused.to_string().contains("row-weight target requires a prepared score table"),
+        "{refused}"
+    );
     assert!(treated.encode_contracted_result(&treated_result, "ok", &ctx).is_ok());
 }
 
@@ -6484,13 +6505,16 @@ fn claim_id_binds_the_data_snapshot_and_the_whole_result() {
     assert!(body.estimate.is_none());
     let mut forged_se = body.clone();
     forged_se.standard_error = Some(0.01);
+    let forged = antecedent_io::encode_analysis_result_artifact(
+        &forged_se,
+        header.variable_names.clone(),
+        "tampered",
+    )
+    .err()
+    .expect("a standard error without its estimate");
     assert!(
-        antecedent_io::encode_analysis_result_artifact(
-            &forged_se,
-            header.variable_names.clone(),
-            "tampered"
-        )
-        .is_err()
+        forged.to_string().contains("analysis standard error requires the estimate it describes"),
+        "{forged}"
     );
     let edits: [fn(&mut antecedent_io::AnalysisResultWire); 3] = [
         |body| {
@@ -6587,14 +6611,17 @@ fn a_tampered_verified_artifact_is_refused() {
     // Re-encoding a tampered section through the writer is refused too.
     let mut tampered = section;
     tampered.claim.as_mut().unwrap().support_domain = "supported".into();
+    let rewritten = antecedent_io::encode_analysis_result_artifact_with_contract(
+        &original.body,
+        names,
+        "tampered",
+        Some(&tampered),
+    )
+    .err()
+    .expect("a tampered section");
     assert!(
-        antecedent_io::encode_analysis_result_artifact_with_contract(
-            &original.body,
-            names,
-            "tampered",
-            Some(&tampered)
-        )
-        .is_err()
+        rewritten.to_string().contains("contract does not verify against analysis_result body"),
+        "{rewritten}"
     );
 }
 

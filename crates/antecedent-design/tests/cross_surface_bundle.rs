@@ -379,7 +379,8 @@ fn xsurface_python_built_bundle_refuses_another_identity_and_changed_bytes() {
         &identity,
         &SuppliedSources::default(),
     );
-    assert!(changed.is_err());
+    let e = changed.unwrap_err().to_string();
+    assert!(e.contains("checksum mismatch for section `embedded.contract`"), "{e}");
 }
 
 /// The Rust-assembled bundle round-trips through its own bytes, so the Python

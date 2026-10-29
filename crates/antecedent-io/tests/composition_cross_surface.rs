@@ -211,7 +211,8 @@ fn joint_draw_round_trips_and_refuses_marginals_and_wrong_meaning() {
         }
     }
     for bytes in [&python_bytes, &rust_bytes] {
-        assert!(DistributionArtifact::from_bytes(&flip_last_byte(bytes), &expected).is_err());
+        let e = DistributionArtifact::from_bytes(&flip_last_byte(bytes), &expected).unwrap_err();
+        assert!(e.to_string().contains("checksum mismatch for section `distribution.draws`"), "{e}");
     }
 }
 
@@ -428,8 +429,10 @@ fn external_response_binds_exports_and_refuses_with_structured_details() {
         let mut other = expected.clone();
         other.snapshot_id = "other-snapshot".into();
         other.provider_fingerprint = other.compute_fingerprint();
-        assert!(ExternalClaimArtifact::from_bytes(&bytes, &other).is_err(), "{name}");
-        assert!(ExternalClaimArtifact::from_bytes(&flip_last_byte(&bytes), &expected).is_err());
+        let e1 = ExternalClaimArtifact::from_bytes(&bytes, &other).unwrap_err();
+        assert!(e1.to_string().contains("external_claim.identity_expected"), "{name}: {e1}");
+        let e2 = ExternalClaimArtifact::from_bytes(&flip_last_byte(&bytes), &expected).unwrap_err();
+        assert!(e2.to_string().contains("checksum mismatch for section `external_claim.values`"), "{e2}");
     }
 
     external_response_refusals_and_verification();
@@ -711,8 +714,10 @@ fn gaussian_line_rows_keep_their_alignment_through_the_artifact() {
     assert!(error.contains("aligned_joint_draws.marginals_not_joint"), "{error}");
 
     let wrong = joint_identity(DistributionMeaningWire::Bootstrap, DrawAlignment::Joint, "y");
-    assert!(DistributionArtifact::from_bytes(&bytes, &wrong).is_err());
-    assert!(DistributionArtifact::from_bytes(&flip_last_byte(&bytes), &identity).is_err());
+    let e = DistributionArtifact::from_bytes(&bytes, &wrong).unwrap_err();
+    assert!(e.to_string().contains("aligned_joint_draws.identity_expected"), "{e}");
+    let e = DistributionArtifact::from_bytes(&flip_last_byte(&bytes), &identity).unwrap_err();
+    assert!(e.to_string().contains("checksum mismatch"), "{e}");
 }
 
 /// Feedback is the named modular policy. A coherent joint stores no cut, and a blank

@@ -78,7 +78,10 @@ def test_typed_world_branch_selects_units_population_and_replays_without_live_so
     outcome = branch.evidence(schema, [WorldSelector(2, "B")])
     assert isinstance(outcome, Outcome) and outcome.accepted
     evidence = require_success(outcome)
-    assert evidence.to_dict()["columns"][0]["samples"] == pytest.approx([1.0])
+    column = evidence.to_dict()["columns"][0]
+    # World 2 hard-clamps A at 2, so B = 0.5 * 2 = 1 with unit structural noise variance.
+    assert column["samples"] == pytest.approx([1.0])
+    assert column["diagnostics"]["variance"] == pytest.approx(1.0)
     assert evidence.quantities[0].units == "meter"
     assert evidence.quantities[0].population_id == "specified population"
     expected = evidence.identity

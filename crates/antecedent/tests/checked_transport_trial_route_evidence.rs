@@ -175,7 +175,10 @@ fn transport_trial_executes_from_retained_sid_proof_after_builder_drop_body() {
             assert!((refreshed.transport().unwrap().ipw - ipw).abs() <= ipw_tolerance);
         }
         assert!(matches!(prepared.retained_operation(), RetainedOperation::TransportTrial(..)));
-        assert!(rebind_estimate(&mut prepared, widened(), &ctx).is_err());
+        let refused = rebind_estimate(&mut prepared, widened(), &ctx).err().expect("widened");
+        assert!(refused.to_string().contains("requires the same schema"), "{refused}");
+        // The refused refresh leaves the handle on its last good branch.
+        assert!(rebind_estimate(&mut prepared, shifted.clone(), &ctx).is_ok());
     }
 }
 

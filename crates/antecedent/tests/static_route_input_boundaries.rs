@@ -127,7 +127,8 @@ fn every_static_route_recovers_its_closed_form_effect_on_the_baseline_design() {
     for (name, query) in routes() {
         let truth = if name == "mediation" { 3.0 } else { 11.0 };
         let got = headline(name, &run(&query, false, false).unwrap());
-        assert!((got - truth).abs() < 0.3, "{name}: {got} vs {truth}");
+        // Observed deviation at most 0.02 (the 0.1 sine outcome noise): a few times that.
+        assert!((got - truth).abs() < 0.06, "{name}: {got} vs {truth}");
     }
 }
 
@@ -230,7 +231,7 @@ fn the_equivalence_class_and_latent_variable_average_effect_routes_share_the_deg
     for class in ["cpdag", "admg"] {
         let effect = run_class(class, false, false).unwrap();
         let ate = effect.estimate().as_effect().unwrap().ate;
-        assert!((ate - 11.0).abs() < 0.3, "{class}: baseline effect {ate}");
+        assert!((ate - 11.0).abs() < 0.06, "{class}: baseline effect {ate}");
         for (constant, collinear, what) in [(true, false, "constant treatment"), (false, true, "duplicated confounder")] {
             let error = run_class(class, constant, collinear)
                 .err()

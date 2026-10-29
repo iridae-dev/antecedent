@@ -33,7 +33,12 @@ fn multinomial_binary_matches_logistic_slope_sign() {
     assert!(fit.converged);
     assert!(!fit.separated);
     assert!(fit.coefficients[..2].iter().all(|&c| c == 0.0));
-    assert!(fit.coefficients[3] > 0.5, "slope={}", fit.coefficients[3]);
+    // Saturated two-group model: P(y = 1 | t = 0) = 4/40, P(y = 1 | t = 1) = 36/40, so the
+    // maximum-likelihood intercept is logit(0.1) = -ln 9 and the slope is logit(0.9) - logit(0.1)
+    // = 2 ln 9.
+    let ln9 = 9.0_f64.ln();
+    assert!((fit.coefficients[2] + ln9).abs() < 1e-5, "intercept={}", fit.coefficients[2]);
+    assert!((fit.coefficients[3] - 2.0 * ln9).abs() < 1e-5, "slope={}", fit.coefficients[3]);
 }
 
 #[test]
@@ -64,8 +69,9 @@ fn multinomial_intercept_only_three_class() {
     .unwrap();
     assert!(fit.converged);
     // Equal class sizes → free intercepts ≈ 0.
-    assert!(fit.coefficients[1].abs() < 0.2, "{:?}", fit.coefficients);
-    assert!(fit.coefficients[2].abs() < 0.2, "{:?}", fit.coefficients);
+    assert!(fit.coefficients[0].abs() == 0.0, "{:?}", fit.coefficients);
+    assert!(fit.coefficients[1].abs() < 1e-6, "{:?}", fit.coefficients);
+    assert!(fit.coefficients[2].abs() < 1e-6, "{:?}", fit.coefficients);
 }
 
 #[test]
@@ -102,18 +108,14 @@ fn multinomial_three_class_recovers_parent_signal() {
     .unwrap();
     assert!(fit.converged, "iters={} deviance={}", fit.iterations, fit.deviance);
     assert!(fit.coefficients[..2].iter().all(|&c| c == 0.0));
-    // Class 2 vs 0: positive slope on X.
-    let slope_class2 = fit.coefficients[2 * 2 + 1];
-    assert!(slope_class2 > 0.5, "class2 slope={slope_class2}");
-    // Softmax at X=1 should put most mass on class 2.
-    let eta1 = fit.coefficients[2] + fit.coefficients[3];
-    let eta2 = fit.coefficients[4] + fit.coefficients[5];
-    let m = eta1.max(eta2).max(0.0);
-    let p0 = (-m).exp();
-    let p1 = (eta1 - m).exp();
-    let p2 = (eta2 - m).exp();
-    let z = p0 + p1 + p2;
-    assert!(p2 / z > p0 / z && p2 / z > p1 / z, "p={:?}", [p0 / z, p1 / z, p2 / z]);
+    // The design is saturated (two groups of 90), so the maximum likelihood is the log count
+    // ratio against class 0. X = 0: counts (54, 18, 18); X = 1: counts (18, 18, 54). Class 1:
+    // intercept ln(18/54) = -ln 3, slope ln 3. Class 2: intercept -ln 3, slope 2 ln 3.
+    let ln3 = 3.0_f64.ln();
+    let expected = [-ln3, ln3, -ln3, 2.0 * ln3];
+    for (got, want) in fit.coefficients[2..].iter().zip(expected) {
+        assert!((got - want).abs() < 1e-5, "{:?} vs {expected:?}", fit.coefficients);
+    }
 }
 
 #[test]
