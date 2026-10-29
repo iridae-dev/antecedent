@@ -312,9 +312,10 @@ def test_simulating_an_estimated_correlation_needs_the_true_correlation():
             enrolment=(15, 15, 15),
         )
     )
-    with pytest.raises(AdaptiveInferenceRefusal) as caught:
-        procedure.simulate(TRUTH, replications=2, seed=1)
-    assert_registered_refusal(caught.value)
+    error = refused(
+        lambda: procedure.simulate(TRUTH, replications=2, seed=1), code="invalid_argument"
+    )
+    assert "needs the true correlation" in str(error)
     simulation = procedure.simulate(TRUTH, replications=3, seed=1, true_correlation=0.3)
     assert simulation.claim == "derived_unmeasured"
     assert len(simulation.replicates) == 3

@@ -65,7 +65,14 @@ fn response_curve_runs_through_public_study_facade() {
         panic!("expected a point-identified response surface");
     };
     assert_eq!(mean.len(), 3);
-    assert!(mean.iter().all(|value| value.is_finite()));
+    // The structural curve is E[Y | do(t)] = 1 + 2 t + 0.8 E[z] + 0.05 E[sin(i / 13)], linear in
+    // t, with the sample means of the confounder and the noise term computed here.
+    let mean_z = z.iter().sum::<f64>() / n as f64;
+    let mean_noise = (0..n).map(|i| (i as f64 / 13.0).sin() * 0.05).sum::<f64>() / n as f64;
+    for (value, t) in mean.iter().zip([-0.5, 0.0, 0.5]) {
+        let truth = 1.0 + 2.0 * t + 0.8 * mean_z + mean_noise;
+        assert!((value - truth).abs() < 1e-1, "curve at {t}: {value} vs {truth}");
+    }
 }
 
 #[test]
@@ -110,10 +117,31 @@ fn simultaneous_curve_band_runs_through_public_study_facade() {
         .unwrap()
         .run(&ExecutionContext::for_tests(50))
         .unwrap();
-    assert!(matches!(
-        result.response().unwrap().uncertainty,
-        ResponseUncertainty::SimultaneousBand { replicates: 100, .. }
-    ));
+    let response = result.response().unwrap();
+    let ResponseUncertainty::SimultaneousBand { lower, upper, replicates: 100, .. } =
+        &response.uncertainty
+    else {
+        panic!("expected a 100-replicate simultaneous band, got {:?}", response.uncertainty);
+    };
+    let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
+        &response.estimate
+    else {
+        panic!("expected a point-identified response surface");
+    };
+    // The structural curve is 1 + 2 t plus the sample mean of the residual term; the band must
+    // bracket the estimate and the truth at every grid point, with a positive width.
+    let mean_noise = (0..n).map(|i| 0.15 * (f64::from(i) / 7.0).sin()).sum::<f64>() / f64::from(n);
+    for (g, t) in [-0.5, 0.0, 0.5].into_iter().enumerate() {
+        let truth = 1.0 + 2.0 * t + mean_noise;
+        assert!(
+            lower[g] < truth && truth < upper[g],
+            "grid {g}: [{}, {}] vs {truth}",
+            lower[g],
+            upper[g]
+        );
+        assert!(lower[g] < mean[g] && mean[g] < upper[g]);
+        assert!(upper[g] - lower[g] < 0.2, "band at {g} is unreasonably wide");
+    }
     assert!(result.provenance.get("estimate.response.kennedy_dr_simultaneous").is_some());
 }
 
@@ -190,6 +218,19 @@ fn selected_outcome_curve_runs_through_facade_without_complete_data_bands() {
     let response = result.response().unwrap();
     assert_eq!(response.uncertainty, ResponseUncertainty::None);
     assert_eq!(response.provenance_id.as_ref(), "estimate.response.observation_adjusted");
+    // Every row is selected and the outcome is noiseless, so the adjusted curve is the
+    // structural curve 1 + 2 t + 0.8 E[confounder].
+    let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
+        &response.estimate
+    else {
+        panic!("expected a point-identified response surface");
+    };
+    let mean_c = confounder.iter().sum::<f64>() / n as f64;
+    for (value, t) in mean.iter().zip([-0.5, 0.0, 0.5]) {
+        let truth = 1.0 + 2.0 * t + 0.8 * mean_c;
+        eprintln!("DBG4 {value} {truth}");
+        assert!((value - truth).abs() < 1e-1, "selected curve at {t}: {value} vs {truth}");
+    }
     assert!(result.provenance.get("estimate.response.observation_adjusted").is_some());
 }
 
@@ -230,7 +271,9 @@ fn intervention_response_runs_through_public_study_facade_with_its_own_strategy(
     else {
         panic!("expected scalar intervention response");
     };
-    assert!((value - 1.5).abs() < 0.25, "value={value}");
+    let mean_z = z.iter().sum::<f64>() / n as f64;
+    let truth = 1.0 + 2.0 * 0.25 + 0.8 * mean_z;
+    assert!((value - truth).abs() < 1e-2, "value={value} truth={truth}");
 }
 
 /// Known-truth pin for `response.intervention_gcomp`: see

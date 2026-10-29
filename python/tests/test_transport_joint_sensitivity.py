@@ -203,6 +203,15 @@ def test_the_endpoint_bootstrap_interval_replays():
     lower, upper, coverage_target = first
     assert lower <= upper
     assert coverage_target.startswith("one_sided:")
+    # The interval is a one-sided bound on each endpoint of the assumption range: it contains the
+    # plug-in range of the counted law and the population range of the exact closed form.
+    plug_in = transport.joint_mechanism_sensitivity(prepared, DEVIATION)["assumption_range"]
+    population_lower, population_upper = closed_form(0.2, 0.3)
+    assert lower < plug_in["minimum"] < plug_in["maximum"] < upper
+    assert lower < population_lower < population_upper < upper
+    # The counted law (n = 80) is a sample of the population: its range is near, not on, the closed form.
+    assert plug_in["minimum"] == pytest.approx(population_lower, abs=0.05)
+    assert plug_in["maximum"] == pytest.approx(population_upper, abs=0.05)
     assert first == second
     for kwargs in ({"replicates": 198}, {"replicates": 1}, {"replicates": 2001}, {"level": 0.9}):
         with pytest.raises(CausalUnsupportedError) as caught:

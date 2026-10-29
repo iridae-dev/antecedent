@@ -48,6 +48,36 @@ def test_summary_only_refusal_is_a_value_naming_everything_it_cannot_serve():
     assert mode.refusal(_native.RetainedOperation.reuse_summary()) is None
 
 
+# The served operations of each mode, written from the documented definition: full reusable
+# state serves everything but an undeclared disk read, summary-only serves only the summary,
+# disk-backed output serves only the artifact read.
+SERVED = {
+    "full reusable state": set(OPERATIONS) - {"read_disk_artifact"},
+    "summary-only": {"reuse_summary"},
+    "disk-backed output": {"read_disk_artifact"},
+}
+
+
+def test_each_mode_serves_exactly_its_documented_operations():
+    modes = [
+        _native.RetentionMode.full_reusable(),
+        _native.RetentionMode.summary_only(),
+        _native.RetentionMode.disk_backed(),
+    ]
+    for mode in modes:
+        served = {name for name in OPERATIONS if mode.serves(_operation(name))}
+        assert served == SERVED[mode.as_str()], mode.as_str()
+        # What a mode no longer serves is what full state served and it does not.
+        expected_lost = (
+            (SERVED["full reusable state"] - served)
+            if mode.as_str() != "full reusable state"
+            else set()
+        )
+        assert set(_names(mode.no_longer_serves())) == {
+            _operation(name).as_str() for name in expected_lost
+        }, mode.as_str()
+
+
 def test_every_operation_is_served_or_refused_consistently_by_every_mode():
     modes = [
         _native.RetentionMode.full_reusable(),

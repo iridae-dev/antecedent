@@ -100,8 +100,10 @@ fn pag_ate_via_generalized_adjustment() {
         .unwrap();
     let ctx = ExecutionContext::for_tests(1);
     let result = analysis.run(&ctx).unwrap();
-    assert!(result.estimate().as_effect().unwrap().ate.is_finite());
-    assert!((result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.2);
+    // y = 1 + 2 t + 0.01 i with t = i mod 2: the adjusted slope on t is 2 plus 0.01 times the
+    // arm difference of the trend i (a gap of exactly 1), i.e. 2.01.
+    let ate = result.estimate().as_effect().unwrap().ate;
+    assert!((ate - 2.01).abs() < 1e-6, "PAG ATE {ate}");
     assert!(!matches!(result.identification.status, IdentificationStatus::NotIdentified));
 }
 
@@ -167,7 +169,8 @@ fn pag_with_circles_ate_via_generalized_adjustment() {
     // Same `chain_table(80)` fixture and estimator as `pag_ate_via_generalized_adjustment`
     // above (only the input PAG's mark differs: circle-arrow here vs. directed there), so
     // the identified ATE must match that known ground truth, not merely be finite.
-    assert!((result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.2);
+    let ate = result.estimate().as_effect().unwrap().ate;
+    assert!((ate - 2.01).abs() < 1e-6, "PAG-with-circles ATE {ate}");
 }
 
 #[test]
@@ -260,6 +263,7 @@ fn counterfactual_and_anomaly_via_causal_analysis() {
     let blocks = result.anomaly().expect("anomaly result");
     assert_eq!(blocks.len(), 1);
     assert_eq!(blocks[0].scores.len(), blocks[0].rows.len());
+    assert_eq!(&*blocks[0].rows, (0..60).collect::<Vec<usize>>().as_slice(), "one score per row, in order");
     assert!(!blocks[0].scores.is_empty() && blocks[0].scores.iter().all(|s| s.is_finite()));
 }
 
@@ -324,7 +328,7 @@ fn static_mediation_natural_rejected() {
         .unwrap()
         .prepare(&ExecutionContext::for_tests(1))
         .unwrap_err();
-    assert!(err.to_string().contains("identif"), "{err}");
+    assert!(err.to_string().contains("reason=effect_not_identified"), "{err}");
 }
 
 #[test]
@@ -332,12 +336,11 @@ fn auto_multi_estimand_requires_unique_match() {
     let (data, g) = chain_table(40);
     let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let id = identify_static_query(IdentifierId::Auto, &g, &CausalQuery::AverageEffect(q)).unwrap();
-    if id.estimands.len() > 1 {
-        // `RdSharp` is a real estimator that an auto backdoor identification on a chain
-        // never produces an estimand for, so selection must refuse rather than guess.
-        let err = select_estimand(&id, EstimatorId::RdSharp).unwrap_err();
-        assert!(err.to_string().contains("estimands"));
-    }
+    assert!(id.estimands.len() > 1, "back-door and general ID both identify the chain");
+    // `RdSharp` is a real estimator that an auto backdoor identification on a chain
+    // never produces an estimand for, so selection must refuse rather than guess.
+    let err = select_estimand(&id, EstimatorId::RdSharp).unwrap_err();
+    assert!(err.to_string().contains("estimands"), "{err}");
     let _ = data;
 }
 

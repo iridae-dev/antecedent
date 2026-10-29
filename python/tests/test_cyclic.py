@@ -10,6 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
 from antecedent.cyclic import (
     CyclicRefusal,
@@ -114,7 +115,12 @@ def test_uncertified_roots_are_numerical_only() -> None:
             [[]], [[0.0, 0.0]], initial=[1.0, 1.0], policy=SolvePolicy(require_contraction=False)
         ).execute()
     )
-    assert numerical.to_dict()["worlds"][0][0]["values"][0] > 0.9
+    # With the saturating link the equations are a = tanh(2 b), b = tanh(2 a): the symmetric
+    # nonzero roots solve x = tanh(2 x), found here by iterating from the same start.
+    root = 1.0
+    for _ in range(200):
+        root = math.tanh(2.0 * root)
+    assert numerical.to_dict()["worlds"][0][0]["values"] == pytest.approx([root, root], abs=1e-9)
     assert numerical.to_dict()["worlds"][0][0]["globally_unique"] is False
 
 
@@ -313,7 +319,21 @@ def test_dynamic_fitting_and_explicit_selection_equation_likelihood() -> None:
         ode.fit([{"kind": "decay", "equation": 0}], [observation], score_tolerance=1e-5).execute()
     )
     assert fit.to_dict()["answer"]["result"]["converged"]
-    assert fit.to_dict()["answer"]["result"]["model"]["decay"][0] == pytest.approx(2.0, abs=0.05)
+    # Equal variances make the likelihood least squares in the decay k of x(t) = 2 exp(-k t):
+    # minimise the sum of squared errors by ternary search (convex near the optimum).
+    times = np.array([0.5, 1.0])
+    seen = np.array([2.0 * math.exp(-1.0) + 0.01, 2.0 * math.exp(-2.0) - 0.01])
+    low, high = 0.0, 5.0
+    for _ in range(200):
+        a, b = low + (high - low) / 3.0, high - (high - low) / 3.0
+        if ((seen - 2.0 * np.exp(-a * times)) ** 2).sum() < (
+            (seen - 2.0 * np.exp(-b * times)) ** 2
+        ).sum():
+            high = b
+        else:
+            low = a
+    assert fit.to_dict()["answer"]["result"]["model"]["decay"][0] == pytest.approx(low, abs=1e-5)
+    assert abs(low - 2.0) > 1e-3, "the noise moves the optimum off the generating value"
     ou = OrnsteinUhlenbeck((-1.0,), (0.0,), (4.0,))
     rows = [{"values": [value], "clamps": []} for value in [-0.5, 1.5] * 10]
     fitted_ou = require_success(
@@ -2086,8 +2106,13 @@ def test_dynamic_inference_shares_its_fit_across_methods_and_binds_its_port(
     first = require_success(information.execute()).to_dict()["answer"]["result"]
     observed = first["inference"]["result"]
     assert first["inference"]["method"] == "information"
-    assert observed["quantity_estimates"][0] == pytest.approx(0.5, abs=0.25)
-    assert observed["quantity_standard_errors"][0] is not None
+    # The rows are independent draws, so the stationary mean is the sample mean and its standard
+    # error is the sample standard deviation over sqrt(n).
+    values = np.array([row["values"][0] for row in rows])
+    assert observed["quantity_estimates"][0] == pytest.approx(values.mean(), abs=1e-4)
+    assert observed["quantity_standard_errors"][0] == pytest.approx(
+        values.std() / math.sqrt(len(values)), abs=1e-6
+    )
 
     bootstrap = require_success(
         information.reconfigure(method=DynamicBootstrap(20), execution=Execution(seed=11))

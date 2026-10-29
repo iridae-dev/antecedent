@@ -25,8 +25,11 @@ def test_dag_from_edges_parents_children():
     g = antecedent.Dag.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")])
     assert set(g.nodes()) == {"z", "t", "y"}
     assert ("z", "t") in g.edges()
-    assert g.parents("y") == ["z", "t"] or set(g.parents("y")) == {"z", "t"}
-    assert "t" in g.children("z")
+    assert set(g.edges()) == {("z", "t"), ("z", "y"), ("t", "y")}
+    assert set(g.parents("y")) == {"z", "t"}
+    assert g.parents("z") == []
+    assert set(g.children("z")) == {"t", "y"}
+    assert g.children("y") == []
 
 
 def test_analyze_with_dag_object_and_levels():
@@ -50,6 +53,11 @@ def test_analyze_with_dag_object_and_levels():
             inference=antecedent.Frequentist(bootstrap=0),
         )
     )
+    # The back-door adjusted contrast of a linear outcome is the treatment coefficient of the
+    # least-squares fit of y on an intercept, t and z, computed here.
+    design_matrix = np.column_stack([np.ones(len(data["y"])), data["t"], data["z"]])
+    coefficients, *_ = np.linalg.lstsq(design_matrix, data["y"], rcond=None)
+    assert r0.ate == pytest.approx(coefficients[1], abs=1e-9)
     # Naming the arms in the other order negates the contrast.
     assert swapped.ate == pytest.approx(-r0.ate, rel=1e-9)
     # A contrast level that no row carries is refused, not read as a dose.
@@ -68,10 +76,10 @@ def test_analyze_with_dag_object_and_levels():
 def test_sustained_vs_pulse_policy_accepted():
     rng = np.random.default_rng(1)
     n = 120
-    data = {
-        "a": rng.normal(size=n),
-        "b": rng.normal(size=n),
-    }
+    a = rng.normal(size=n)
+    b = np.zeros(n)
+    b[1:] = 0.8 * a[:-1]
+    data = {"a": a, "b": b}
     # a@1 → b@0
     edges = [("a", 1, "b", 0)]
     pulse = require_success(
@@ -94,8 +102,9 @@ def test_sustained_vs_pulse_policy_accepted():
             refute=False,
         )
     )
-    assert np.isfinite(pulse.ate)
-    assert np.isfinite(sustained.ate)
+    # b[t] = 0.8 a[t-1] exactly, so a unit step of a at lag 1 moves b by 0.8 under either policy.
+    assert pulse.ate == pytest.approx(0.8, abs=1e-9)
+    assert sustained.ate == pytest.approx(0.8, abs=1e-9)
     assert sustained.ate == pytest.approx(pulse.ate, abs=1e-10)
     assert pulse.validation.passed is False
     assert pulse.validation.ran is False
@@ -171,7 +180,7 @@ def test_temporal_accepts_bayesian_pulse():
     )
     assert result.posterior is not None
     assert np.isfinite(result.posterior.p_below_zero)
-    assert abs(result.posterior.effect_mean - 0.8) < 0.15
+    assert abs(result.posterior.effect_mean - 0.8) < 0.01
     assert result.estimate.estimator_id == "bayesian.temporal.gcomp"
 
 
@@ -183,7 +192,10 @@ def test_fitted_gcm_sample_do():
     gcm = antecedent.model.fit_gcm(names, cols, edges)
     out = gcm.sample_do({"t": 1.0}, n=50, execution=antecedent.Execution(seed=3))
     assert out.n_draws == 50
-    assert out.draws.shape[1] == 50
+    assert out.draws.shape == (3, 50)
+    # Rows follow the node order z, t, y; the intervened node is pinned to its value in every draw.
+    assert np.all(out.draws[1] == 1.0)
+    assert out.draws[0].std() > 0.0 and out.draws[2].std() > 0.0
 
 
 def test_antecedent_state_append_data():
@@ -456,8 +468,14 @@ def test_exact_dag_posterior_tiny():
     data = {"x": x, "y": y}
     post = antecedent.discovery.ExactDagPosterior().run(data)
     assert post.n_vars == 2
-    assert post.n_graphs >= 1
-    assert len(post.weights) == post.n_graphs
+    # Two variables have exactly three DAGs: empty, x -> y and y -> x. The two directed graphs are
+    # Markov equivalent so BIC scores them identically; the empty graph is negligible at rho ~ 0.92.
+    assert post.n_graphs == 3
+    weights = sorted(post.weights)
+    assert sum(weights) == pytest.approx(1.0, abs=1e-12)
+    assert weights[0] < 1e-12
+    assert weights[1] == pytest.approx(0.5, abs=1e-9) and weights[2] == pytest.approx(0.5, abs=1e-9)
+    assert list(post.edge_marginals) == pytest.approx([0.0, 0.5, 0.5, 0.0], abs=1e-9)
 
 
 def test_discovery_result_alias_and_ges_config():
@@ -509,7 +527,8 @@ def test_path_specific_and_distribution_queries():
             inference=antecedent.Frequentist(bootstrap=0),
         )
     )
-    assert np.isfinite(dist.ate)
+    # No confounder: P(y = 1 | do(t = 1)) = P(y = 1 | t = 1) = (10 + 70) / 100.
+    assert dist.ate == pytest.approx(0.8, abs=1e-9)
 
 
 def test_extensibility_exported():

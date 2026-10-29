@@ -276,10 +276,11 @@ fn do_samplers_calibrate_to_analytic_linear_gaussian_target() {
             (mean - mean_target).abs()
                 <= expected["acceptance"]["mean_atol"]["kde"].as_f64().unwrap()
         );
-        assert!(
-            (variance - variance_target).abs()
-                <= expected["acceptance"]["variance_atol"]["kde"].as_f64().unwrap()
-        );
+        let variance_atol = expected["acceptance"]["variance_atol"]["kde"].as_f64().unwrap();
+        assert!((variance - variance_target).abs() <= variance_atol);
+        // Observed deviation across the seeds is <= 0.007: a KDE sampler that inflates or deflates
+        // the spread by 10% (0.025 of variance) must not pass.
+        assert!((variance - variance_target).abs() <= 0.02, "seed {seed}: KDE variance={variance}");
 
         let mut rng = CausalRng::from_seed(seed);
         let mcmc = McmcDoSampler::new(VariableId::from_raw(1))
@@ -292,11 +293,16 @@ fn do_samplers_calibrate_to_analytic_linear_gaussian_target() {
                 &ctx,
             )
             .unwrap();
-        let (mean, _) = moments(&mcmc.values);
+        let (mean, mcmc_variance) = moments(&mcmc.values);
         assert!(
             (mean - mean_target).abs()
                 <= expected["acceptance"]["mean_atol"]["mcmc"].as_f64().unwrap(),
             "seed {seed}: MCMC mean={mean}"
+        );
+        // The chain's spread is the analytic 0.5^2; observed deviation across seeds <= 0.006.
+        assert!(
+            (mcmc_variance - variance_target).abs() <= 0.03,
+            "seed {seed}: MCMC variance={mcmc_variance} vs {variance_target}"
         );
         let rate = mcmc.accept_rate.unwrap();
         let band = expected["acceptance"]["mcmc_accept_rate"].as_array().unwrap();

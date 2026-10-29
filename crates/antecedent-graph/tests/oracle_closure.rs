@@ -212,17 +212,37 @@ fn latent_projection_oracle() {
     chain.insert_directed(x, latent).unwrap();
     chain.insert_directed(latent, y).unwrap();
     let projected = latent_project(&chain, &[x, y]).unwrap();
-    assert!(projected.children(DenseNodeId::from_raw(0)).contains(&DenseNodeId::from_raw(1)));
+    let ids = |v: &[DenseNodeId]| v.iter().map(|n| n.raw()).collect::<Vec<_>>();
+    // X->L->Y projects to exactly X->Y: no other directed edge and no bidirected edge.
+    assert_eq!(ids(projected.children(DenseNodeId::from_raw(0))), [1]);
+    assert!(projected.children(DenseNodeId::from_raw(1)).is_empty());
+    assert!(projected.bidirected_neighbors(DenseNodeId::from_raw(0)).is_empty());
+    assert!(projected.bidirected_neighbors(DenseNodeId::from_raw(1)).is_empty());
 
     let mut fork = Dag::with_variables(3);
     fork.insert_directed(latent, x).unwrap();
     fork.insert_directed(latent, y).unwrap();
     let projected = latent_project(&fork, &[x, y]).unwrap();
-    assert!(
-        projected
-            .bidirected_neighbors(DenseNodeId::from_raw(0))
-            .contains(&DenseNodeId::from_raw(1))
-    );
+    // X<-L->Y projects to exactly X<->Y and no directed edge.
+    assert_eq!(ids(projected.bidirected_neighbors(DenseNodeId::from_raw(0))), [1]);
+    assert_eq!(ids(projected.bidirected_neighbors(DenseNodeId::from_raw(1))), [0]);
+    assert!(projected.children(DenseNodeId::from_raw(0)).is_empty());
+    assert!(projected.children(DenseNodeId::from_raw(1)).is_empty());
+
+    // X->M->L->Y with M observed projects to X->M and M->Y only: the observed mediator blocks
+    // the shortcut X->Y.
+    let [x, m, l, y] = [0, 1, 2, 3].map(DenseNodeId::from_raw);
+    let mut blocked = Dag::with_variables(4);
+    blocked.insert_directed(x, m).unwrap();
+    blocked.insert_directed(m, l).unwrap();
+    blocked.insert_directed(l, y).unwrap();
+    let projected = latent_project(&blocked, &[x, m, y]).unwrap();
+    assert_eq!(ids(projected.children(DenseNodeId::from_raw(0))), [1]);
+    assert_eq!(ids(projected.children(DenseNodeId::from_raw(1))), [2]);
+    assert!(projected.children(DenseNodeId::from_raw(2)).is_empty());
+    for node in 0..3 {
+        assert!(projected.bidirected_neighbors(DenseNodeId::from_raw(node)).is_empty());
+    }
 }
 
 /// Parses the fixture's `AoB` / `A->B` / `A<->B` edge strings into a PAG.
