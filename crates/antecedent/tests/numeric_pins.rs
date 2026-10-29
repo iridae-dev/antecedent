@@ -73,29 +73,26 @@ fn ate_study(
 
 const PIN_ABS: f64 = 1e-12;
 
+/// Standard normal CDF from the Maclaurin series of erf (exact to f64 for the |x| < 4 used here).
+fn normal_cdf(x: f64) -> f64 {
+    let z = x / std::f64::consts::SQRT_2;
+    let (mut term, mut sum) = (z, z);
+    for n in 1..80 {
+        term *= -z * z / f64::from(n);
+        sum += term / f64::from(2 * n + 1);
+    }
+    0.5 * (1.0 + 2.0 / std::f64::consts::PI.sqrt() * sum)
+}
+
 /// A batch member and a standalone `Study` both draw their cross-fit folds from
 /// `crossfit_fold_plan` (`learn_nuisance.rs`), stratified by this query's own treatment
 /// arm / joint cell and keyed by the same run master seed, so they are bit-identical for
 /// the same query, seed, and rows (`SharedBatchDesign::apply_to_propensity` deliberately
-/// leaves `fold_assignment` unset for exactly this reason; see `batch.rs`). This generous,
-/// SE-scaled tolerance is kept as a loose sanity bound rather than tightened to float noise,
-/// so a real future divergence still fails loudly without this pin being brittle.
-fn fold_split_tol(batch: &antecedent::StudyResult, solo: &antecedent::StudyResult) -> f64 {
-    let se = batch
-        .estimate()
-        .as_effect()
-        .unwrap()
-        .se_analytic()
-        .max(solo.estimate().as_effect().unwrap().se_analytic());
-    if se.is_finite() && se > 0.0 {
-        (0.25 * se).max(PIN_ABS)
-    } else {
-        // A grid/CDF row's scalar `ate` is NaN by contract (it has no single level), so
-        // `se_analytic` carries no scalar-SE signal either. Exceedance CDF coordinates are
-        // themselves probabilities in [0, 1]; two percentage points is generous slack for a
-        // fold-split gap while still catching a materially wrong per-threshold estimate.
-        0.03_f64.max(PIN_ABS)
-    }
+/// leaves `fold_assignment` unset for exactly this reason; see `batch.rs`). The pin is
+/// therefore float noise (`PIN_ABS`), not a fraction of the standard error: a fold-split gap
+/// of any size is a real divergence.
+fn fold_split_tol(_batch: &antecedent::StudyResult, _solo: &antecedent::StudyResult) -> f64 {
+    PIN_ABS
 }
 
 fn assert_estimates_pin_eq(
@@ -401,7 +398,10 @@ fn retarget_refuses_treatment_dependence() {
     let prepared = ate_study(data, graph, query, EstimatorId::Aipw).prepare(&ctx).unwrap();
     let err = prepared.retarget(&weights, &[VariableId::from_raw(0)], &ctx).unwrap_err();
     let msg = err.to_string();
-    assert!(msg.contains("treatment") || msg.contains("depends_on"), "{msg}");
+    assert!(
+        msg.contains("depends_on must not include the treatment, an intervened coordinate"),
+        "{msg}"
+    );
 }
 
 #[test]
@@ -492,6 +492,15 @@ fn exceedance_grid_on_fresh_estimate_fills_cdf() {
         .expect("fresh estimate must publish F_a(c)");
     assert_eq!(cdf.len(), thresholds.len() * 2, "one F_a(c) per (arm, threshold)");
     assert!(cdf.iter().all(|v| v.is_finite() && *v >= 0.0 && *v <= 1.0));
+    // Closed-form truth of the generating equations: Y(0) = 0.4 z + 0.35 e ~ N(0, 0.2825) and
+    // Y(1) = 1 + 1.4 z + 0.35 e ~ N(1, 2.0825). Columns are (arm0, c), (arm1, c) per threshold.
+    let (sd0, sd1) = ((0.16_f64 + 0.1225).sqrt(), (1.96_f64 + 0.1225).sqrt());
+    for (k, c) in thresholds.iter().enumerate() {
+        let truth0 = normal_cdf(c / sd0);
+        let truth1 = normal_cdf((c - 1.0) / sd1);
+        assert!((cdf[2 * k] - truth0).abs() < 0.07, "F_0({c}) {} vs {truth0}", cdf[2 * k]);
+        assert!((cdf[2 * k + 1] - truth1).abs() < 0.07, "F_1({c}) {} vs {truth1}", cdf[2 * k + 1]);
+    }
     assert!(fresh.estimate().as_effect().unwrap().scores.table.is_some());
     assert!(fresh.estimate().as_effect().unwrap().joint.covariance.is_some());
     assert!(
@@ -673,6 +682,8 @@ fn cell_aipw_k3_and_empty_cell_refuse() {
             .as_ref()
             .is_some_and(|t| t.n_columns() == 8)
     );
+    // E[Y | do(a = b = c = 1)] = 0.9 + 0.2 E[z] = 0.9 (observed 0.9039, SE 0.015).
+    assert!((response_value(&ok) - 0.9).abs() < 0.02, "k=3 cell {}", response_value(&ok));
 
     let mut rng = ExecutionContext::for_tests(21).rng.stream_for(StreamDomain::Test, 4);
     let n = 600usize;
@@ -1846,9 +1857,22 @@ fn class_aware_conditional_grid_mixes_envelope_atoms() {
     );
 }
 
-/// `E[Y | do(a = 1, d = 1)]` under [`interaction_dgp`]: `1.5·a·d` with mean-zero `z`
-/// and noise.
-const JOINT_CELL_TRUTH: f64 = 1.5;
+/// `E[Y | do(a = 1, d = 1)]` under [`interaction_dgp`] with [`JOINT_OFFSET`] added to `y`:
+/// `offset + 1.5·a·d` with mean-zero `z` and noise. The offset keeps the cell level apart from
+/// the cell-versus-control contrast (1.5), so a route that returned the contrast would miss.
+const JOINT_OFFSET: f64 = 2.0;
+const JOINT_CELL_TRUTH: f64 = JOINT_OFFSET + 1.5;
+
+fn offset_interaction_dgp(n: usize, seed: u64) -> (TabularData, Dag) {
+    let (data, graph) = interaction_dgp(n, seed);
+    let shifted: Vec<f64> = data
+        .float64_values(VariableId::from_raw(2))
+        .unwrap()
+        .iter()
+        .map(|y| y + JOINT_OFFSET)
+        .collect();
+    (data.with_replaced_float(VariableId::from_raw(2), shifted.into()).unwrap(), graph)
+}
 
 /// Explicit (`accepted = false`) or accepted `Dag` structure.
 fn dag_study(data: TabularData, graph: Dag, accepted: bool) -> antecedent::StudyBuilder {
@@ -1862,7 +1886,7 @@ fn dag_study(data: TabularData, graph: Dag, accepted: bool) -> antecedent::Study
 
 #[test]
 fn dag_intervention_response_cheap_runs_overlap_and_evalue() {
-    let (data, graph) = interaction_dgp(800, 206);
+    let (data, graph) = offset_interaction_dgp(800, 206);
     let ctx = ExecutionContext::for_tests(206);
     for accepted in [false, true] {
         let case = format!("accepted={accepted} cheap");
@@ -1877,7 +1901,7 @@ fn dag_intervention_response_cheap_runs_overlap_and_evalue() {
             .unwrap();
         let value = response_value(&cell);
         assert!(
-            (value - JOINT_CELL_TRUTH).abs() < 0.15,
+            (value - JOINT_CELL_TRUTH).abs() < 0.06,
             "{case}: cell.aipw joint cell mean {value} vs known truth {JOINT_CELL_TRUTH}"
         );
         assert!(
@@ -1918,7 +1942,7 @@ fn dag_intervention_response_cheap_runs_overlap_and_evalue() {
 
 #[test]
 fn dag_intervention_response_full_runs_effect_refuters() {
-    let (data, graph) = interaction_dgp(700, 207);
+    let (data, graph) = offset_interaction_dgp(700, 207);
     for accepted in [false, true] {
         let case = format!("accepted={accepted} full");
         let result = dag_study(data.clone(), graph.clone(), accepted)
@@ -1932,7 +1956,7 @@ fn dag_intervention_response_full_runs_effect_refuters() {
             .unwrap();
         let value = response_value(&result);
         assert!(
-            (value - JOINT_CELL_TRUTH).abs() < 0.15,
+            (value - JOINT_CELL_TRUTH).abs() < 0.06,
             "{case}: cell.aipw joint cell mean {value} vs known truth {JOINT_CELL_TRUTH}"
         );
         assert!(
@@ -4339,8 +4363,27 @@ fn three_factor_interaction_batch_publishes_the_three_way_contrast() {
         let (expected, _) =
             antecedent_estimate::family_cell_contrast(table, 7, "interaction").unwrap();
         assert_eq!(family.contrast.unwrap().0.to_bits(), expected.value.to_bits());
-        // The generating law has no three-way term.
-        assert!(expected.value.abs() < 0.5, "three-way interaction {}", expected.value);
+        // The generating law has no three-way term, so the contrast is the third difference of
+        // the exact cell means of the rows (no covariates: the cell AIPW mean is the cell mean).
+        let mut sums = [(0.0_f64, 0.0_f64); 8];
+        for i in 0_u32..1024 {
+            let cell = (i & 7) as usize;
+            sums[cell].0 += columns[3][i as usize];
+            sums[cell].1 += 1.0;
+        }
+        let mean = |cell: usize| sums[cell].0 / sums[cell].1;
+        let third: f64 = (0..8_usize)
+            .map(|cell| {
+                let sign = if (cell.count_ones() % 2) == (3 % 2) { 1.0 } else { -1.0 };
+                sign * mean(cell)
+            })
+            .sum();
+        assert!(
+            (expected.value - third).abs() < 5e-5,
+            "three-way contrast {} vs exact cell-mean third difference {third}",
+            expected.value
+        );
+        assert!(third.abs() < 0.01, "fixture third difference {third}");
         assert!(
             result.response().is_some(),
             "the independently supported cell level remains usable"

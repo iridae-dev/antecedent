@@ -423,6 +423,12 @@ def test_dbn_posterior_response_curve_runs() -> None:
     )
     assert result.evidence_status == "licensed"
     assert result.response is not None
+    # defect_t = 0.9 * pressure_{t-1}: the identified-mixture pulse response at level a is 0.9 * a
+    # (a = 0 is the baseline), so the curve over the grid [0, 1] is [0, 0.9] (observed deviation
+    # 1e-4).
+    assert result.response.points == ((0.0, 1.0), (1.0, 1.0))
+    values = [row[0] for row in result.response.values]
+    assert values == pytest.approx([0.0, 0.9], abs=0.005)
 
 
 def test_frequentist_dbn_mediation_mixture_follows_the_latency_tier() -> None:
@@ -581,7 +587,9 @@ def test_frequentist_discovered_dbn_posterior_pulse_is_routed() -> None:
             execution=antecedent.Execution(seed=11),
         )
     )
-    assert math.isfinite(result.ate)
+    # The DGP is defect_t = 0.9 * pressure_{t-1} with no noise, and every identified atom
+    # recovers that law, so the mixture over identified atoms is 0.9 (observed deviation 2e-16).
+    assert result.ate == pytest.approx(float(TEMPORAL["expected_effect_given_identified"]), abs=1e-6)
     assert result.estimate.se_bootstrap is not None and result.estimate.se_bootstrap > 0
     assert result.structural_weight_basis == "posterior_probability"
     masses = (

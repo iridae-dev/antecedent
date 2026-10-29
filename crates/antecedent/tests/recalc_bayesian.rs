@@ -322,6 +322,48 @@ fn independently_bound_prior_transfer_body() {
         out.law.mean > transfer["source_effect"].as_f64().unwrap()
             && out.law.mean < transfer["target_effect"].as_f64().unwrap()
     );
+    // Exact conjugate transfer with known residual variance 1: the source posterior (precision
+    // 0.01 I + X'X, mean from X'y) is the prior of the target regression on y + 2 t.
+    let design = [[256.0, 128.0], [128.0, 128.0]];
+    let (mut source_moment, mut target_moment) = ([0.0; 2], [0.0; 2]);
+    for (t, y) in source.columns[0].1.iter().zip(&source.columns[1].1) {
+        source_moment[0] += y;
+        source_moment[1] += t * y;
+        target_moment[0] += y + 2.0 * t;
+        target_moment[1] += t * (y + 2.0 * t);
+    }
+    let solve = |precision: [[f64; 2]; 2], moment: [f64; 2]| {
+        let det = precision[0][0] * precision[1][1] - precision[0][1] * precision[1][0];
+        (
+            [
+                (precision[1][1] * moment[0] - precision[0][1] * moment[1]) / det,
+                (precision[0][0] * moment[1] - precision[1][0] * moment[0]) / det,
+            ],
+            precision[0][0] / det,
+        )
+    };
+    let source_precision = [[design[0][0] + 0.01, design[0][1]], [design[1][0], design[1][1] + 0.01]];
+    let (source_mean, _) = solve(source_precision, source_moment);
+    let target_precision = [
+        [source_precision[0][0] + design[0][0], source_precision[0][1] + design[0][1]],
+        [source_precision[1][0] + design[1][0], source_precision[1][1] + design[1][1]],
+    ];
+    let prior_moment = [
+        source_precision[0][0] * source_mean[0] + source_precision[0][1] * source_mean[1],
+        source_precision[1][0] * source_mean[0] + source_precision[1][1] * source_mean[1],
+    ];
+    let (target_mean, target_variance) = solve(
+        target_precision,
+        [prior_moment[0] + target_moment[0], prior_moment[1] + target_moment[1]],
+    );
+    assert!(
+        // The prior is the source posterior as its 512 retained draws summarize it, so the
+        // transferred precision carries Monte Carlo error: observed 0.23 posterior sd.
+        (out.law.mean - target_mean[1]).abs() < 0.5 * target_variance.sqrt(),
+        "transferred posterior mean {} vs exact conjugate {}",
+        out.law.mean,
+        target_mean[1]
+    );
     let consumed = consume_analysis_result(&session.export_result(&ctx).unwrap()).unwrap();
     let source_wire =
         antecedent_io::bayesian_prior_recalc_artifact::BoundBayesianPriorWire::decode(&bytes)

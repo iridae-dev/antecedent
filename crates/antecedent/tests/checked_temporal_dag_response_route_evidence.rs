@@ -107,14 +107,14 @@ fn temporal_mean_curve_is_sealed_refreshable_and_has_precise_artifact_dependency
         }
         for (&dose, &estimate) in [-0.5, 0.0, 0.5].iter().zip(&actual) {
             let truth = 1.2 + 1.8 * dose;
-            assert!((estimate - truth).abs() < 0.08, "{dose}: {estimate} != {truth}");
+            assert!((estimate - truth).abs() < 0.003, "{dose}: {estimate} != {truth}");
         }
 
         let refreshed_data = series(0.4);
         let refreshed = prepared.refresh_series(refreshed_data, &context).unwrap();
         for (&dose, &estimate) in [-0.5, 0.0, 0.5].iter().zip(means(&refreshed).iter()) {
             let truth = 1.6 + 1.8 * dose;
-            assert!((estimate - truth).abs() < 0.08, "refresh {dose}: {estimate}");
+            assert!((estimate - truth).abs() < 0.003, "refresh {dose}: {estimate}");
         }
         let artifact = prepared
             .encode_contracted_result(&refreshed, "checked-temporal-response", &context)
@@ -167,11 +167,11 @@ fn temporal_intervention_response_is_sealed_refreshable_and_has_precise_artifact
         assert_eq!(actual.len(), 1);
         assert!((actual[0] - means(&one_shot)[0]).abs() < 1e-10);
         let truth = 1.2 + 1.8 * 0.5;
-        assert!((actual[0] - truth).abs() < 0.08, "{} != {truth}", actual[0]);
+        assert!((actual[0] - truth).abs() < 0.003, "{} != {truth}", actual[0]);
 
         let refreshed = prepared.refresh_series(series(0.4), &context).unwrap();
         let refreshed_truth = 1.6 + 1.8 * 0.5;
-        assert!((means(&refreshed)[0] - refreshed_truth).abs() < 0.08);
+        assert!((means(&refreshed)[0] - refreshed_truth).abs() < 0.003);
         let widened = TimeSeriesData::from_f64_columns(
             [("treatment", &[0.0; 16][..]), ("outcome", &[0.0; 16][..]), ("extra", &[0.0; 16][..])],
             1,

@@ -419,12 +419,12 @@ fn horizon_one_joint_panel_fit_at_lag_zero_is_the_static_cell_response_and_a_lag
     {
         let reference = panel_cell_reference(a, b);
         assert!(
-            (cells[index] - reference).abs() < 0.08,
+            (cells[index] - reference).abs() < 0.02,
             "cell {index}: fitted {} vs raw-row reference {reference}",
             cells[index]
         );
     }
-    assert!(interaction.abs() < 0.05, "the generating interaction is null: {interaction}");
+    assert!(interaction.abs() < 0.003, "the generating interaction is null: {interaction} (observed cell deviation 0.0066, interaction 8e-5)");
 
     let worlds = cell_worlds(1);
     let static_frame = interaction_target(&panel, 0, &worlds);
@@ -462,12 +462,12 @@ fn horizon_one_broader_panel_family_at_lag_zero_is_the_static_hill_fit_and_geome
     {
         let reference = panel_cell_reference(a, b);
         assert!(
-            (cells[index] - reference).abs() < 0.08,
+            (cells[index] - reference).abs() < 0.06,
             "cell {index}: fitted {} vs raw-row reference {reference}",
             cells[index]
         );
     }
-    assert!(interaction.abs() < 0.05, "the generating interaction is null: {interaction}");
+    assert!(interaction.abs() < 0.03, "the generating interaction is null: {interaction} (observed cell deviation 0.038, interaction 0.0125)");
 
     let mut geometric = broader;
     geometric.family.adstock = PanelAdstock::Geometric;

@@ -60,6 +60,8 @@ def test_label_batches_share_native_numeric_storage_and_preserve_contrasts():
         )
     )
     assert effects(actual) == effects(expected)
+    # y = 3 t - 2 s + z + noise: control -> treated is +3, the reversed contrast -3.
+    assert effects(actual) == pytest.approx((3.0, -3.0), abs=0.3)  # sampling deviation 0.11
     assert effects(actual)[0] == pytest.approx(-effects(actual)[1], abs=1e-10)
     assert actual.member(0).study.query == queries[0]
     assert actual.member(1).study.query == queries[1]
@@ -75,6 +77,8 @@ def test_different_labelled_treatments_use_independent_shared_mappings():
         )
     )
     assert effects(batch) == effects(expected)
+    # y = 3 t - 2 s + z: each labelled treatment keeps its own coefficient and orientation.
+    assert effects(batch) == pytest.approx((3.0, -2.0), abs=0.3)  # sampling deviation 0.19
     # Rebinding a member must encode both its treatment and the other labelled covariate.
     branch = ant.rebind(batch.member(0).study, data=labelled)
     assert require_success(ant.estimate(branch)).effect == effects(batch)[0]
@@ -195,10 +199,11 @@ def test_different_declared_label_pairs_remain_native_scientific_questions():
     assert study.queries[1].active_level == "other"
     mapping = dict(dict(study._source_data._treatment_codes)["t"])
     assert mapping == {"control": 0.0, "treated": 1.0, "other": 2.0}
+    # The second query cannot treat observed 'treated' as 'other': 'other' is never observed, so
+    # the batch refuses with the typed undeclared-level code instead of mapping it to a seen level.
     outcome = study.estimate()
-    if outcome.refusal is None:
-        assert require_success(outcome).member(1).refusal is not None
-    # The second query cannot treat observed 'treated' as 'other'.
+    assert outcome.refusal is not None
+    assert outcome.refusal.code == "treatment_level_undeclared"
 
 
 def test_numeric_and_label_contrasts_on_one_column_are_explicitly_ambiguous():

@@ -64,7 +64,7 @@ fn bayesian_counterfactual_accepted_and_explicit_lifecycle_exposes_dependency_bo
         let result = prepared.estimate(&data, &ctx).unwrap();
         let counterfactual = result.counterfactual().unwrap();
         assert!(
-            (counterfactual.mean_ite - 2.0).abs() < 0.12,
+            (counterfactual.mean_ite - 2.0).abs() < 5e-4,
             "accepted={accepted}: {counterfactual:?}"
         );
         assert_eq!(counterfactual.unit_effects.len(), 120);
@@ -84,7 +84,7 @@ fn bayesian_counterfactual_accepted_and_explicit_lifecycle_exposes_dependency_bo
         let (refreshed_data, _) = fixture(2.5);
         let refreshed = rebind_estimate(&mut prepared, refreshed_data, &ctx).unwrap();
         let refreshed_mean = refreshed.counterfactual().unwrap().mean_ite;
-        assert!((refreshed_mean - 2.5).abs() < 0.12, "mean_ite={refreshed_mean}");
+        assert!((refreshed_mean - 2.5).abs() < 5e-4, "mean_ite={refreshed_mean}");
         assert!(matches!(prepared.retained_operation(), RetainedOperation::Counterfactual(..)));
 
         let artifact = prepared

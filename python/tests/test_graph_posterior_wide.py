@@ -112,6 +112,17 @@ def test_ten_variable_posteriors_recover_the_colliders():
         for src, dst in _TRUE_EDGES:
             forward, backward = matrix[index[src]][index[dst]], matrix[index[dst]][index[src]]
             assert forward + backward >= 0.95, (label, src, dst)
+        true_pairs = {frozenset(edge) for edge in _TRUE_EDGES}
+        # The 35 non-edges must stay (nearly) absent: a dense graph also contains every true edge.
+        absent = [
+            matrix[index[a]][index[b]] + matrix[index[b]][index[a]]
+            for a in _NAMES
+            for b in _NAMES
+            if a < b and frozenset((a, b)) not in true_pairs
+        ]
+        assert len(absent) == 35
+        assert sum(absent) / len(absent) <= 0.25, (label, sum(absent) / len(absent))
+        assert max(absent) <= 0.6, (label, max(absent))
         assert all(0 <= mask < 2 ** (n * (n - 1)) for mask in post.adjacency), label
         # Chain diagnostics per edge indicator, aligned with ``edge_marginals``.
         assert post.edge_rhat is not None and len(post.edge_rhat) == n * n, label

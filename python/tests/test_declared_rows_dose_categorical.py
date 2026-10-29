@@ -274,6 +274,14 @@ def estimate(query, data, seed=7):
 def test_smoothed_dose_declared_rows_are_read_replayed_and_bound_by_the_artifact():
     query, plain_data, total = smoothed_fixture()
     _, plain = estimate(query, plain_data)
+    # Truth of the generating law: y = a^2 + z (1 + a/2) + noise with target E[z] = 0.6, so the
+    # transported dose response is a^2 + 0.6 (1 + a/2) (1.9 at a = 1, 5.2 at a = 2). The band is
+    # three influence standard errors plus the reported smoothing bias (observed 1.8 SE); the
+    # un-transported trial mean (E[z] = 0 -> 1.0 and 4.0) is far outside it.
+    for p in plain.grid:
+        truth = p.dose**2 + 0.6 * (1.0 + p.dose / 2.0)
+        band = 3.0 * p.influence_se_diagnostic + p.smoothing_bias["local_quadratic_bias"]
+        assert abs(p.estimate - truth) <= band, (p.dose, p.estimate, truth, band)
     weights = [0.0 if i % 89 == 3 else 0.6 + (i % 5) * 0.3 for i in range(total)]
     clusters = [i % 30 for i in range(total)]
     for declared in (
