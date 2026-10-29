@@ -108,7 +108,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-stats/tests/discovery_ci_stats.rs",
-          "sha256": "f5be9e174f4c57c15fbdc60342a9b58fbaa38c783f095364dd9241f0d6408b23"
+          "sha256": "cf5b2803a9b9de69c7e81fdbce629bba55ce4f52c7a7bb3cf904d6a3f208dfbf"
         }
       ],
       "fixture_payload_sha256": "45af55a63ecd1559c62ba5dd6140a0c7363286754ead3351fcf84dd8db7075ad"

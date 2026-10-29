@@ -17,6 +17,12 @@ def _confounded(n: int = 120, seed: int = 5):
     return {"z": z, "t": t, "y": y}, [("z", "t"), ("z", "y"), ("t", "y")]
 
 
+def _ols_effect(data) -> float:
+    """Adjusted OLS coefficient of ``t`` in ``y ~ 1 + t + z``: the diffuse-prior posterior mean."""
+    design = np.column_stack([np.ones(len(data["y"])), data["t"], data["z"]])
+    return float(np.linalg.lstsq(design, data["y"], rcond=None)[0][1])
+
+
 def test_bayesian_conjugate_vs_laplace_backend():
     data, edges = _confounded()
     query = antecedent.AverageEffect(treatment="t", outcome="y")
@@ -51,6 +57,12 @@ def test_bayesian_conjugate_vs_laplace_backend():
     assert laplace.posterior.backend == conjugate.posterior.backend
     assert laplace.posterior.backend == "conjugate_gaussian"
     assert abs(laplace.posterior.effect_mean - conjugate.posterior.effect_mean) < 0.05
+    # Independent reference: with the default weak prior the posterior mean sits on the
+    # adjusted least-squares coefficient (observed gap 1e-3); the unadjusted contrast is far
+    # from it, so this fails for a backend that drops the confounder.
+    reference = _ols_effect(data)
+    assert abs(conjugate.posterior.effect_mean - reference) < 0.01
+    assert abs(laplace.posterior.effect_mean - reference) < 0.01
 
 
 def test_bayesian_hmc_smoke():
@@ -71,6 +83,8 @@ def test_bayesian_hmc_smoke():
     assert np.isfinite(result.posterior.effect_mean)
     assert result.posterior.n_draws is not None and result.posterior.n_draws >= 4000
     assert "hmc" in (result.posterior.backend or "").lower() or result.posterior.backend
+    # The sampled posterior mean recovers the adjusted least-squares coefficient (observed gap 1e-3).
+    assert abs(result.posterior.effect_mean - _ols_effect(data)) < 0.02
 
 
 def test_bayesian_unknown_backend_rejected():

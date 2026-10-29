@@ -267,6 +267,16 @@ fn horizon_one_change_attribution_reproduces_the_static_decomposition_with_block
     let (a, b) =
         (temporal.change_attribution().unwrap(), static_result.change_attribution().unwrap());
     assert!((a.total_change - 5.0).abs() < 0.5, "the window mean shifts by 5: {}", a.total_change);
+    // Independent reference: the model reproduces the observed mean shift of the outcome
+    // between the two windows (the mechanisms are linear with an intercept), so the total
+    // change is that raw difference of means up to Monte Carlo error.
+    let mean = |v: &[f64]| v.iter().sum::<f64>() / v.len() as f64;
+    let raw_shift = mean(&y[half..N]) - mean(&y[0..half]);
+    assert!(
+        (a.total_change - raw_shift).abs() < 0.1,
+        "total change {} vs raw mean shift {raw_shift}",
+        a.total_change
+    );
     // The fitted mechanisms are the same, but the unfolded graph holds one more root (the
     // unused lag-zero treatment column), so the two Monte Carlo outcome laws draw their
     // exogenous noise on different streams: the totals and contributions agree to Monte Carlo
@@ -327,6 +337,13 @@ fn horizon_one_change_attribution_reproduces_the_static_decomposition_with_block
 /// `a, y, trial, s, e`: an arm coin, an outcome with effect 1 and independent noise, a trial coin and
 /// the recorded 0.5 selection and treatment probabilities.
 fn transport_rows(n: usize) -> TabularData {
+    let (a, y, trial) = transport_vectors(n);
+    let half = vec![0.5; n];
+    table(&[("a", &a), ("y", &y), ("trial", &trial), ("s", &half), ("e", &half)])
+}
+
+/// The arm, outcome and trial columns of [`transport_rows`].
+fn transport_vectors(n: usize) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
     // Serially independent draws (splitmix64 of the row and a stream salt): the rows of this
     // fixture must carry no autocorrelation for the two uncertainty products to be comparable.
     let unit = |i: usize, salt: u64| -> f64 {
@@ -338,8 +355,7 @@ fn transport_rows(n: usize) -> TabularData {
     let a: Vec<f64> = (0..n).map(|i| f64::from(unit(i, 1) < 0.5)).collect();
     let y: Vec<f64> = (0..n).map(|i| a[i] + 0.5 * (unit(i, 2) - 0.5) * 2.0).collect();
     let trial: Vec<f64> = (0..n).map(|i| f64::from(unit(i, 3) < 0.5)).collect();
-    let half = vec![0.5; n];
-    table(&[("a", &a), ("y", &y), ("trial", &trial), ("s", &half), ("e", &half)])
+    (a, y, trial)
 }
 
 fn transport_result(data: &TabularData, graph: impl antecedent::IntoGraphInput) -> StudyResult {

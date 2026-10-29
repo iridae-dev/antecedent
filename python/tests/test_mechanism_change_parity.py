@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import antecedent
 import numpy as np
+import pytest
 
 
 def _shifted_mechanism(n: int = 160, seed: int = 5):
@@ -54,3 +55,18 @@ def test_mechanism_change_detection_exposes_adjusted_p_value():
         # resolution to report, but the fields must exist.
         assert d.n_permutations is None
         assert d.p_value_floor is None
+    # Independent reference. x's mechanism is its marginal: the statistic is the raw difference
+    # of the second-half and first-half means. y's gains an intercept of 4: the statistic is
+    # the shift of the residual y - x between halves (the fitted slope is within 1e-3 of 1).
+    by_node = {d.node: d for d in detections}
+    x, y = data["x"], data["y"]
+    assert by_node["x"].statistic == pytest.approx(x[half:].mean() - x[:half].mean(), abs=1e-9)
+    residual = y - x
+    assert by_node["y"].statistic == pytest.approx(
+        residual[half:].mean() - residual[:half].mean(), abs=0.01
+    )
+    # Benjamini-Hochberg over two targets: the smaller raw p is multiplied by 2/1, the larger by 2/2.
+    assert by_node["y"].p_value < by_node["x"].p_value
+    assert by_node["y"].adjusted_p_value == pytest.approx(2.0 * by_node["y"].p_value, rel=1e-9)
+    assert by_node["x"].adjusted_p_value == pytest.approx(by_node["x"].p_value, rel=1e-9)
+    assert (by_node["x"].changed, by_node["y"].changed) == (False, True)

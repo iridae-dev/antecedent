@@ -595,7 +595,8 @@ fn the_claim_carries_the_policy_and_assumption_only_when_the_policy_is_not_the_d
 
 #[test]
 fn the_block_bootstrap_on_a_series_with_gaps_runs_on_the_original_time_axis() {
-    let (data, _, _) = series(400, &[120, 121, 122, 250]);
+    let gaps = [120, 121, 122, 250];
+    let (data, x, y) = series(400, &gaps);
     let declaration = declare(MissingPolicy::CompleteCase);
     let result = run_series(&data, Some(declaration), 150).unwrap();
     let estimate = result.estimate().as_effect().unwrap();
@@ -604,6 +605,15 @@ fn the_block_bootstrap_on_a_series_with_gaps_runs_on_the_original_time_axis() {
     // The point estimate is the one the point-only fit gives; the bootstrap adds uncertainty only.
     let point = run_series(&data, Some(declare(MissingPolicy::CompleteCase)), 0).unwrap();
     assert_eq!(estimate.ate, point.estimate().as_effect().unwrap().ate);
+    // And that point estimate is the independent regression slope over the intact windows.
+    let kept: Vec<usize> = (1..400).filter(|t| !gaps.contains(&(t - 1))).collect();
+    let (mx, my) = (
+        kept.iter().map(|&t| x[t - 1]).sum::<f64>() / kept.len() as f64,
+        kept.iter().map(|&t| y[t]).sum::<f64>() / kept.len() as f64,
+    );
+    let slope = kept.iter().map(|&t| (x[t - 1] - mx) * (y[t] - my)).sum::<f64>()
+        / kept.iter().map(|&t| (x[t - 1] - mx).powi(2)).sum::<f64>();
+    assert!((estimate.ate - slope).abs() < 1e-9, "ate {} vs intact-window slope {slope}", estimate.ate);
 }
 
 #[test]

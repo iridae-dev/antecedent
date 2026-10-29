@@ -82,29 +82,24 @@ fn discovery_ci_stats_gpdc_cmiknn_gsquared() {
     let (x, y_dep, y_ind, z, x_disc, y_disc_dep, y_disc_ind) = load_cols();
     assert_eq!(x.len(), expected["n"].as_u64().unwrap() as usize);
 
-    let atol_s = expected["atol_stat"].as_f64().unwrap();
-    let rtol_s = expected["rtol_stat"].as_f64().unwrap();
-    let atol_p = expected["atol_p"].as_f64().unwrap();
-    let rtol_p = expected["rtol_p"].as_f64().unwrap();
     let gpdc_atol = expected["gpdc_atol_stat"].as_f64().unwrap();
     let gpdc_rtol = expected["gpdc_rtol_stat"].as_f64().unwrap();
 
-    // G² (analytic) — strongest parity claim.
+    // G² (analytic) is a closed form the reference reproduces to relative 1e-9; the shared
+    // compatibility bands (0.15/0.35) would admit a different statistic, so compare tightly.
     let g2 = GSquared::new();
     let (s_dep, p_dep) = run_ci(&g2, &[&x_disc, &y_disc_dep], &[], 0, 1);
     let (s_ind, p_ind) = run_ci(&g2, &[&x_disc, &y_disc_ind], &[], 0, 2);
     let ref_dep = &methods["gsquared_dep"];
     let ref_ind = &methods["gsquared_ind"];
-    assert!(
-        close(s_dep, ref_dep["statistic"].as_f64().unwrap(), atol_s, rtol_s),
-        "G² dep stat {s_dep} vs {}",
-        ref_dep["statistic"]
-    );
-    assert!(close(p_dep, ref_dep["p_value"].as_f64().unwrap(), atol_p, rtol_p), "G² dep p {p_dep}");
-    assert!(
-        close(s_ind, ref_ind["statistic"].as_f64().unwrap(), atol_s, rtol_s),
-        "G² ind stat {s_ind}"
-    );
+    for (name, got, want) in [
+        ("dep stat", s_dep, ref_dep["statistic"].as_f64().unwrap()),
+        ("dep p", p_dep, ref_dep["p_value"].as_f64().unwrap()),
+        ("ind stat", s_ind, ref_ind["statistic"].as_f64().unwrap()),
+        ("ind p", p_ind, ref_ind["p_value"].as_f64().unwrap()),
+    ] {
+        assert!(close(got, want, 0.0, 1e-9), "G² {name} {got} vs {want}");
+    }
     assert!(p_dep < p_ind, "G²: dep p should be smaller than ind p ({p_dep} vs {p_ind})");
 
     // CMIknn — native kNN MI proxy differs in sign/scale from discovery; check ordering.

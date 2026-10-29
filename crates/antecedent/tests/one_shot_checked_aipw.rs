@@ -10,6 +10,49 @@ mod common;
 
 use common::fixtures::confounded_scm;
 
+/// Adjusted least-squares coefficient of `t` in `y ~ 1 + t + z` on the rows `confounded_scm`
+/// draws (same generator calls, same order), by the normal equations: an estimator-free reference.
+fn adjusted_ols_effect(n: usize, seed: u64) -> f64 {
+    let mut rng = antecedent_core::CausalRng::from_seed(seed);
+    let mut rows = Vec::with_capacity(n);
+    for _ in 0..n {
+        let u1 = rng.next_f64().max(1e-12);
+        let u2 = rng.next_f64();
+        let z = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
+        let p = 1.0 / (1.0 + (-(-0.4 + 0.9 * z)).exp());
+        let t = if rng.next_f64() < p { 1.0 } else { 0.0 };
+        let e = (-2.0 * rng.next_f64().max(1e-12).ln()).sqrt()
+            * (2.0 * std::f64::consts::PI * rng.next_f64()).cos()
+            * 0.4;
+        rows.push([1.0, t, z, 2.0 * t + z + e]);
+    }
+    let mut a = [[0.0_f64; 4]; 3];
+    for r in &rows {
+        for i in 0..3 {
+            for j in 0..3 {
+                a[i][j] += r[i] * r[j];
+            }
+            a[i][3] += r[i] * r[3];
+        }
+    }
+    for c in 0..3 {
+        let pivot = (c..3).max_by(|&i, &j| a[i][c].abs().total_cmp(&a[j][c].abs())).unwrap();
+        a.swap(c, pivot);
+        for r in c + 1..3 {
+            let f = a[r][c] / a[c][c];
+            for k in c..4 {
+                a[r][k] -= f * a[c][k];
+            }
+        }
+    }
+    let mut beta = [0.0; 3];
+    for r in (0..3).rev() {
+        let tail: f64 = (r + 1..3).map(|k| a[r][k] * beta[k]).sum();
+        beta[r] = (a[r][3] - tail) / a[r][r];
+    }
+    beta[1]
+}
+
 #[test]
 fn one_shot_aipw_matches_prepared_and_nearby_linear_stays_supported() {
     let ctx = ExecutionContext::for_tests(29);
@@ -36,7 +79,10 @@ fn one_shot_aipw_matches_prepared_and_nearby_linear_stays_supported() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    assert!((linear.run(&ctx).unwrap().effect() - 2.0).abs() < 0.2);
+    let reference = adjusted_ols_effect(512, 73);
+    let linear_effect = linear.run(&ctx).unwrap().effect();
+    assert!((linear_effect - reference).abs() < 1e-6, "linear {linear_effect} vs OLS {reference}");
+    assert!((one_shot.effect() - reference).abs() < 0.05, "aipw {} vs OLS {reference}", one_shot.effect());
 }
 
 /// The trimmed cross-fitted AIPW study, sealed. The effect pin is what the

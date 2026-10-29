@@ -245,7 +245,7 @@ fn interval(result: &StudyResult, label: &str) -> (Vec<f64>, Vec<f64>) {
 }
 
 fn close(got: f64, want: f64, label: &str) {
-    let tolerance = 0.12 * want.abs().max(0.5) + 0.1;
+    let tolerance = 0.1 * want.abs().max(0.5) + 0.02;
     assert!((got - want).abs() < tolerance, "{label}: {got} is not within {tolerance} of {want}");
 }
 

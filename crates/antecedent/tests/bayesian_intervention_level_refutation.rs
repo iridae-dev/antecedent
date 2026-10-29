@@ -172,7 +172,7 @@ fn bayesian_level_cheap_and_full_execute_unlicensed_on_every_dag_structure() {
             let result = result.unwrap_or_else(|error| panic!("{label}: {error}"));
             assert_eq!(result.support_status(), Some(CellStatus::Refused), "{label}");
             let level = published_level(&result);
-            assert!((level - truth).abs() < 0.12, "{label}: level {level} vs truth {truth}");
+            assert!((level - truth).abs() < 0.03, "{label}: level {level} vs truth {truth}");
             assert!(has_refuter(&result, "overlap"), "{label}: plugin-level overlap runs");
             assert!(has_refuter(&result, "prior_predictive"), "{label}: prior predictive check");
             assert!(has_refuter(&result, "posterior_predictive"), "{label}: posterior check");
@@ -273,7 +273,7 @@ fn derivative_refuter_state_executes_unlicensed_and_checks_the_finite_difference
             .unwrap_or_else(|| panic!("{label}: finite-difference check"));
         // The law is linear in t with slope 2: the shift difference of the identified
         // levels is the slope.
-        assert!((fd.refuted_ate - 2.0).abs() < 0.15, "{label}: {}", fd.refuted_ate);
+        assert!((fd.refuted_ate - 2.0).abs() < 0.03, "{label}: {}", fd.refuted_ate);
         assert_eq!(
             has_refuter(&result, "derivative.bootstrap_stability"),
             suite == RefuteSuite::Full,

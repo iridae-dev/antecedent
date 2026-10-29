@@ -438,3 +438,7 @@ def test_admg_response_pins_against_distribution(accepted: bool) -> None:
         )
     )
     assert (dist_means[1.0] - dist_means[0.0]) == pytest.approx(ate.ate, abs=tolerance)
+    # The distribution means are not only mutually consistent: their contrast is the
+    # recorded front-door functional (the exact value the frozen law gives).
+    expected_ate = float(_ADMG_PIN["frequentist"]["expected_ate"])
+    assert dist_means[1.0] - dist_means[0.0] == pytest.approx(expected_ate, abs=tolerance)
