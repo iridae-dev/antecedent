@@ -1654,6 +1654,106 @@ fn accept_temporal_class(mut review: TemporalCpdagReview) -> AcceptedGraph {
     AcceptedGraph::accept(review).expect("undirected marks stay on the TemporalCpdag class")
 }
 
+/// Least-squares coefficient of the first regressor in `y ~ 1 + regressors`, by
+/// normal equations and Gauss-Jordan elimination: an independent calculation
+/// of a completion's regression-adjustment effect.
+fn ols_first_coefficient(y: &[f64], regressors: &[&[f64]]) -> f64 {
+    let p = regressors.len() + 1;
+    let column = |j: usize, i: usize| if j == 0 { 1.0 } else { regressors[j - 1][i] };
+    let mut m = vec![vec![0.0; p + 1]; p];
+    for i in 0..y.len() {
+        for a in 0..p {
+            for b in 0..p {
+                m[a][b] += column(a, i) * column(b, i);
+            }
+            m[a][p] += column(a, i) * y[i];
+        }
+    }
+    for pivot in 0..p {
+        let best = (pivot..p).max_by(|&a, &b| m[a][pivot].abs().total_cmp(&m[b][pivot].abs()));
+        m.swap(pivot, best.unwrap());
+        let d = m[pivot][pivot];
+        for c in 0..=p {
+            m[pivot][c] /= d;
+        }
+        for r in 0..p {
+            if r != pivot {
+                let f = m[r][pivot];
+                for c in 0..=p {
+                    m[r][c] -= f * m[pivot][c];
+                }
+            }
+        }
+    }
+    m[1][p]
+}
+
+fn tabular_f64_column(data: &TabularData, index: usize) -> Vec<f64> {
+    tabular_f64_column_of(data.storage(), index)
+}
+
+fn tabular_f64_column_of(storage: &OwnedColumnarStorage, index: usize) -> Vec<f64> {
+    match &storage.columns()[index] {
+        OwnedColumn::Float64(column) => column.values.as_slice().to_vec(),
+        _ => panic!("fixture columns are Float64"),
+    }
+}
+
+/// The identified set a disagreeing static class publishes, read from the result.
+fn assert_class_publishes_envelope_not_a_bare_point(
+    result: &StudyResult,
+    completion_values: &[f64],
+    unidentified: usize,
+) {
+    let mixture = result
+        .structural_response
+        .as_ref()
+        .expect("a class whose completions disagree publishes its structural mixture");
+    let identified: Vec<f64> = mixture
+        .atoms
+        .iter()
+        .filter_map(|atom| match atom.value {
+            Some(antecedent_core::ResponseValue::Scalar(value)) => Some(value),
+            _ => None,
+        })
+        .collect();
+    let mut expected = completion_values.to_vec();
+    let mut observed = identified.clone();
+    expected.sort_by(f64::total_cmp);
+    observed.sort_by(f64::total_cmp);
+    assert_eq!(observed.len(), expected.len());
+    for (got, want) in observed.iter().zip(&expected) {
+        assert!((got - want).abs() < 1e-9, "completion value {got} vs independent OLS {want}");
+    }
+    assert_eq!(mixture.atoms.len(), expected.len() + unidentified);
+    assert_eq!(
+        mixture.atoms.iter().filter(|atom| atom.value.is_none()).count(),
+        unidentified,
+        "unidentified completions carry no value"
+    );
+    let set = mixture.identified_set.as_ref().expect("identified set");
+    assert!((set.lower[0] - expected[0]).abs() < 1e-9);
+    assert!((set.upper[0] - expected[expected.len() - 1]).abs() < 1e-9);
+    assert!(set.upper[0] - set.lower[0] > 0.5, "the completions genuinely disagree");
+    // The scalar the accessor returns is the enumeration-weighted summary of the
+    // identified completions, never one completion's effect, and the result says so.
+    let summary = expected.iter().sum::<f64>() / expected.len() as f64;
+    assert!((result.effect() - summary).abs() < 1e-9);
+    assert!(
+        expected.iter().all(|value| (result.effect() - value).abs() > 0.3),
+        "the summary is not any single completion's effect"
+    );
+    assert!(set.lower[0] < result.effect() && result.effect() < set.upper[0]);
+    let label = result
+        .diagnostics
+        .iter()
+        .find(|d| d.code.contains("identified_set"))
+        .expect("the identified-set label travels with the scalar");
+    assert!(label.message.contains("identified set over identified completions"));
+    assert!(label.message.contains("frozen-weight mixture"));
+    assert!(label.message.contains("enumeration weights, not posterior probabilities"));
+}
+
 #[test]
 fn composition_pc_and_ges_accepted_class_stays_cpdag() {
     let ctx = ExecutionContext::for_tests(7);
@@ -1689,7 +1789,24 @@ fn composition_pc_and_ges_accepted_class_stays_cpdag() {
         "pc-class",
         &ctx,
     );
-    assert!(result.effect().is_finite());
+    // The three variables are pairwise dependent with no collider, so the class
+    // is the fully undirected triangle: six completions (the orderings), of
+    // which three keep t -> y identified and three orient y before t.
+    assert_eq!(undirected, 3);
+    let t = tabular_f64_column(&data, 0);
+    let y = tabular_f64_column(&data, 1);
+    let z = tabular_f64_column(&data, 2);
+    // t is a source (t,z,y / t,y,z): empty adjustment set. z precedes t
+    // (z,t,y): adjust for z. Independent least squares for each.
+    let unadjusted = ols_first_coefficient(&y, &[&t]);
+    let adjusted = ols_first_coefficient(&y, &[&t, &z]);
+    assert!((adjusted - 2.0).abs() < 0.2, "the adjusted completion recovers the truth 2");
+    assert!(unadjusted - adjusted > 0.5, "the unadjusted completion absorbs the confounding");
+    assert_class_publishes_envelope_not_a_bare_point(
+        &result,
+        &[unadjusted, unadjusted, adjusted],
+        3,
+    );
 
     let dag_built = Study::tabular(data.clone())
         .graph(AcceptedGraph::dag(dag))
@@ -1709,6 +1826,14 @@ fn composition_pc_and_ges_accepted_class_stays_cpdag() {
         &ctx,
     );
     assert!((dag_result.effect() - 2.0).abs() < 0.2);
+    assert!(
+        (dag_result.effect() - adjusted).abs() < 1e-9,
+        "the generating DAG's effect is the adjusted completion's effect"
+    );
+    assert!(
+        dag_result.structural_response.is_none(),
+        "a DAG is one graph: a point, with no identified set"
+    );
 
     let ges = discover_ges(&data, &vars, &params, &ctx).unwrap();
     let ges_class = accept_static_class(ges.review);
@@ -1729,7 +1854,13 @@ fn composition_pc_and_ges_accepted_class_stays_cpdag() {
         "ges-class",
         &ctx,
     );
-    assert!(ges_result.effect().is_finite());
+    // GES recovers the same equivalence class, hence the same completions.
+    assert_class_publishes_envelope_not_a_bare_point(
+        &ges_result,
+        &[unadjusted, unadjusted, adjusted],
+        3,
+    );
+    assert!((ges_result.effect() - result.effect()).abs() < 1e-9);
 }
 
 fn lag1_discoverable_series() -> (TimeSeriesData, TemporalDag) {
@@ -1792,7 +1923,28 @@ fn composition_pcmci_plus_accepted_temporal_cpdag_retains_class() {
         "pcmci-plus-class",
         &ctx,
     );
-    assert!(result.effect().is_finite());
+    // The discovered class here has no undirected mark: one completion, so the
+    // class answer is a single effect (the identified set is a point), not a
+    // disagreement to be enumerated.
+    assert_eq!(undirected, 0);
+    let mixture = result.structural_response.as_ref().expect("class mixture");
+    assert_eq!(mixture.atoms.len(), 1);
+    assert!((mixture.identified_mass - 1.0).abs() < 1e-12);
+    let set = mixture.identified_set.as_ref().expect("identified set");
+    assert_eq!(set.lower, set.upper, "a single completion is a point identified set");
+    assert!((set.lower[0] - result.effect()).abs() < 1e-12);
+    // Independent calculation of that completion's effect: y_t on x_{t-1}
+    // (generating coefficient 0.8) by least squares.
+    let x_col = tabular_f64_column_of(series.storage(), 0);
+    let y_col = tabular_f64_column_of(series.storage(), 1);
+    let n = x_col.len();
+    let lagged = ols_first_coefficient(&y_col[1..], &[&x_col[..n - 1]]);
+    assert!(
+        (result.effect() - lagged).abs() < 1e-6,
+        "class effect {} vs independent lag-1 regression {lagged}",
+        result.effect()
+    );
+    assert!((lagged - 0.8).abs() < 0.05);
     let labels: std::collections::HashMap<_, _> =
         executed_functional_labels(&consumed.contract.as_ref().unwrap().target.query)
             .into_iter()

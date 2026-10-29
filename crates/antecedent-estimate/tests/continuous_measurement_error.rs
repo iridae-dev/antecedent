@@ -217,8 +217,19 @@ fn linear_simex_recovers_the_attenuated_slope() {
     );
 }
 
+/// Single-dataset regression pin, not accuracy evidence.
+///
+/// One simulated dataset (n = 4000, seed 13) with the generating logit slope 1 gives a
+/// corrected slope of about 0.880 (regression calibration) and 0.888 (SIMEX), below the truth
+/// and well inside the 0.15 band only because the band is wide. Logistic regression
+/// calibration is a first-order approximation and SIMEX keeps its extrapolation bias; neither
+/// recovers the slope exactly, and this test does not measure how far they miss. The bias of
+/// the two methods across repeated datasets is assessed in the scheduled measurement phase;
+/// no coverage or accuracy claim rests on this test. What it pins is that the corrected
+/// slope moves from the naive slope toward the truth and stays at the recorded values.
+/// Agreement with an independent calculation is asserted by the two reference tests below.
 #[test]
-fn logistic_calibration_and_simex_recover_the_slope() {
+fn logistic_calibration_and_simex_single_dataset_regression_pin() {
     let sim = simulate(4000, 13, true);
     let m = classical(0.25, 0.0);
     let rc = run(
@@ -233,6 +244,7 @@ fn logistic_calibration_and_simex_recover_the_slope() {
     )
     .unwrap();
     assert_recovers(&rc, 1.0, 0.15);
+    assert!((rc.record.point - RC_PIN).abs() < 5e-3, "pinned {RC_PIN}, got {}", rc.record.point);
     assert_eq!(rc.record.functional_id, "logit_coefficient.regression_calibration");
     let sx = run(
         &m,
@@ -242,7 +254,205 @@ fn logistic_calibration_and_simex_recover_the_slope() {
     )
     .unwrap();
     assert_recovers(&sx, 1.0, 0.15);
+    assert!(
+        (sx.record.point - SIMEX_PIN).abs() < 5e-3,
+        "pinned {SIMEX_PIN}, got {}",
+        sx.record.point
+    );
     assert_eq!(sx.record.functional_id, "logit_coefficient.simex");
+}
+
+/// Recorded single-dataset outputs (see the regression pin above).
+const RC_PIN: f64 = 0.880;
+const SIMEX_PIN: f64 = 0.888;
+
+// ---------------------------------------------------------------------------
+// Independent reference on identical inputs
+// ---------------------------------------------------------------------------
+
+/// Solve `A x = b` for a small dense system by Gauss-Jordan elimination with partial pivoting.
+fn solve_small(a: &[Vec<f64>], b: &[f64]) -> Vec<f64> {
+    let n = b.len();
+    let mut m: Vec<Vec<f64>> =
+        a.iter().zip(b).map(|(row, rhs)| row.iter().copied().chain([*rhs]).collect()).collect();
+    for pivot in 0..n {
+        let best = (pivot..n).max_by(|&i, &j| m[i][pivot].abs().total_cmp(&m[j][pivot].abs()));
+        m.swap(pivot, best.unwrap());
+        let d = m[pivot][pivot];
+        for c in 0..=n {
+            m[pivot][c] /= d;
+        }
+        for r in 0..n {
+            if r != pivot {
+                let f = m[r][pivot];
+                for c in 0..=n {
+                    m[r][c] -= f * m[pivot][c];
+                }
+            }
+        }
+    }
+    m.iter().map(|row| row[n]).collect()
+}
+
+/// Maximum-likelihood logistic regression of `y` on the columns of `design` (each a row-length
+/// vector, the first the intercept) by Newton-Raphson to a gradient of 1e-13.
+fn logistic_mle(design: &[Vec<f64>], y: &[f64]) -> Vec<f64> {
+    let d = design.len();
+    let n = y.len();
+    let mut beta = vec![0.0; d];
+    for _ in 0..100 {
+        let mut gradient = vec![0.0; d];
+        let mut hessian = vec![vec![0.0; d]; d];
+        for i in 0..n {
+            let eta: f64 = (0..d).map(|j| beta[j] * design[j][i]).sum();
+            let p = sigmoid(eta);
+            let w = p * (1.0 - p);
+            for a in 0..d {
+                gradient[a] += (y[i] - p) * design[a][i];
+                for b in 0..d {
+                    hessian[a][b] += w * design[a][i] * design[b][i];
+                }
+            }
+        }
+        let step = solve_small(&hessian, &gradient);
+        for (b, s) in beta.iter_mut().zip(&step) {
+            *b += s;
+        }
+        if gradient.iter().all(|g| g.abs() < 1e-9) && step.iter().all(|s| s.abs() < 1e-12) {
+            break;
+        }
+    }
+    beta
+}
+
+/// Regression calibration reference for one error-prone regressor `w`, one covariate `z`, known
+/// error variance `sigma2` and one measurement per row: `X_hat = E[X | W, Z]` as the best linear
+/// predictor from the sample moments (divisor `n`) with `Var(X) = Var(W) - sigma2`, then the
+/// logistic fit on `(1, X_hat, Z)`.
+fn reference_regression_calibration(w: &[f64], z: &[f64], y: &[f64], sigma2: f64) -> Vec<f64> {
+    let n = w.len() as f64;
+    let mean = |v: &[f64]| v.iter().sum::<f64>() / n;
+    let (mw, mz) = (mean(w), mean(z));
+    let cov = |a: &[f64], ma: f64, b: &[f64], mb: f64| {
+        a.iter().zip(b).map(|(x, v)| (x - ma) * (v - mb)).sum::<f64>() / n
+    };
+    let (var_w, var_z, cov_wz) = (cov(w, mw, w, mw), cov(z, mz, z, mz), cov(w, mw, z, mz));
+    // Cov(X, (W, Z)) = (Var(W) - sigma2, Cov(W, Z)); Cov((W, Z)) is the observed moment matrix.
+    let target = [var_w - sigma2, cov_wz];
+    let c = solve_small(&[vec![var_w, cov_wz], vec![cov_wz, var_z]], &target);
+    let x_hat: Vec<f64> =
+        w.iter().zip(z).map(|(wi, zi)| mw + c[0] * (wi - mw) + c[1] * (zi - mz)).collect();
+    logistic_mle(&[vec![1.0; w.len()], x_hat, z.to_vec()], y)
+}
+
+#[test]
+fn logistic_regression_calibration_matches_an_independent_reference_on_identical_inputs() {
+    let sim = simulate(4000, 13, true);
+    let effect = run(
+        &classical(0.25, 0.0),
+        &data(&sim),
+        &spec(
+            ErrorLocation::Treatment,
+            OutcomeLink::Logit,
+            CorrectionMethod::RegressionCalibration,
+        ),
+        &ctx(),
+    )
+    .unwrap();
+    let reference = reference_regression_calibration(&sim.w, &sim.z, &sim.y, 0.25);
+    assert_eq!(effect.coefficients.len(), 3);
+    for (got, want) in effect.coefficients.iter().zip(&reference) {
+        assert!((got - want).abs() < 1e-6, "product {got} vs independent reference {want}");
+    }
+    // The naive fit on the same inputs is the plain logistic regression on (1, W, Z).
+    let naive = logistic_mle(&[vec![1.0; sim.w.len()], sim.w.clone(), sim.z.clone()], &sim.y);
+    for (got, want) in effect.naive_coefficients.iter().zip(&naive) {
+        assert!((got - want).abs() < 1e-6, "naive {got} vs independent reference {want}");
+    }
+    // The approximation is visible against the generating slope and stays a first-order
+    // correction: it improves on the naive slope without recovering 1 on this dataset.
+    let corrected = reference[1];
+    assert!(naive[1] < corrected && corrected < 1.0, "naive {} corrected {corrected}", naive[1]);
+}
+
+#[test]
+fn logistic_simex_matches_an_independent_reference_on_identical_inputs() {
+    let sim = simulate(4000, 13, true);
+    let (sigma2, seed, replicates) = (0.25_f64, 2024_u64, 10_u32);
+    let effect = run(
+        &classical(sigma2, 0.0),
+        &data(&sim),
+        &spec(ErrorLocation::Treatment, OutcomeLink::Logit, simex(replicates)),
+        &ctx(),
+    )
+    .unwrap();
+    let path = effect.simex.as_ref().expect("the SIMEX path");
+    let lambdas = [0.0, 0.5, 1.0, 1.5, 2.0];
+    assert_eq!(path.lambdas, lambdas.to_vec());
+
+    // Identical inputs: the data, the lambda grid, the replicate count and the very stream of
+    // standard-normal remeasurement noise the correction opens for its point estimate (the
+    // keyed stream of the request seed), drawn in grid, replicate, then row order.
+    let mut rng = antecedent_core::RngKey::new(
+        antecedent_core::SemanticOperation::new(0x4D45_5F43_4F4E_5449),
+        antecedent_core::FoldId::new(0),
+        antecedent_core::ChainId::new(0),
+        antecedent_core::ReplicateId::new(0),
+        antecedent_core::ReductionPolicy::Strict,
+    )
+    .open(seed);
+    let n = sim.w.len();
+    let ones = vec![1.0; n];
+    let naive = logistic_mle(&[ones.clone(), sim.w.clone(), sim.z.clone()], &sim.y);
+    let mut means: Vec<Vec<f64>> = vec![naive];
+    for &lambda in &lambdas[1..] {
+        let mut sum = vec![0.0; 3];
+        for _ in 0..replicates {
+            let root = (lambda * sigma2).sqrt();
+            let remeasured: Vec<f64> = sim
+                .w
+                .iter()
+                .map(|w| w + root * antecedent_kernels::standard_normal(&mut rng))
+                .collect();
+            let fit = logistic_mle(&[ones.clone(), remeasured, sim.z.clone()], &sim.y);
+            for (s, c) in sum.iter_mut().zip(&fit) {
+                *s += c;
+            }
+        }
+        means.push(sum.iter().map(|s| s / f64::from(replicates)).collect());
+    }
+    for (got, want) in path.lambda_means.iter().zip(&means) {
+        for (g, w) in got.iter().zip(want) {
+            assert!((g - w).abs() < 1e-6, "lambda mean {g} vs independent reference {w}");
+        }
+    }
+    // Quadratic least-squares extrapolant over the five grid points, evaluated at lambda = -1.
+    let extrapolate = |column: usize| {
+        let basis = |l: f64| [1.0, l, l * l];
+        let mut gram = vec![vec![0.0; 3]; 3];
+        let mut cross = vec![0.0; 3];
+        for (l, mean) in lambdas.iter().zip(&means) {
+            let row = basis(*l);
+            for a in 0..3 {
+                cross[a] += row[a] * mean[column];
+                for b in 0..3 {
+                    gram[a][b] += row[a] * row[b];
+                }
+            }
+        }
+        let coef = solve_small(&gram, &cross);
+        coef.iter().zip(basis(-1.0)).map(|(c, b)| c * b).sum::<f64>()
+    };
+    for column in 0..3 {
+        let want = extrapolate(column);
+        let got = effect.coefficients[column];
+        assert!((got - want).abs() < 1e-6, "SIMEX coefficient {column}: {got} vs {want}");
+    }
+    // Retained extrapolation bias, stated rather than hidden: on this dataset the corrected
+    // slope is above the naive one and still below the generating slope 1.
+    let naive = means[0][1];
+    let corrected = effect.coefficients[1];
+    assert!(naive < corrected && corrected < 1.0, "naive {naive} corrected {corrected}");
 }
 
 #[test]

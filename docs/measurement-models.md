@@ -69,6 +69,23 @@ converts a declared reliability ratio `lambda_r` and the observed `Var(W)` into
 data dependent (computed from the measurement it corrects) and its variance is
 first order.
 
+Limits of the nonlinear corrections: logistic regression calibration is a
+first-order approximation (it fits the logistic model on `E[X | W, Z]`, which is
+exact only for a linear outcome model and accurate when the measurement error or
+the coefficient is moderate), and SIMEX keeps extrapolation bias (the fitted
+path in `lambda` is only an approximation of the true curve, so a quadratic
+extrapolant under-corrects). Neither is shown to recover the generating
+coefficient: on one simulated logistic dataset (generating slope 1, reliability
+0.8) they return about 0.88 and 0.89, and that single-dataset value is a
+regression pin, not accuracy evidence. Each implementation is checked against an
+independent calculation on identical inputs (the same data, `lambda` grid,
+replicates and remeasurement noise), which establishes that the code computes
+the stated approximation, not that the approximation is unbiased. Their bias
+across repeated datasets is assessed in the scheduled measurement phase. Until
+that is measured the route stays approximate and uncalibrated: no coverage or
+accuracy claim is made, the standard error is uncalibrated, and no interval is
+produced.
+
 Uncertainty: linear regression calibration keeps the delta method above.
 Logistic calibration and SIMEX (either link) bootstrap the whole procedure:
 rows are resampled with their replicates, the error variance is redrawn from

@@ -20,10 +20,28 @@ pin.
 ## ResponseCurve (continuous linear law)
 
 `y = 0.10 + 0.40 t + 0.20 z` with continuous `t` so Kennedy-DR is defined.
-The two-point grid is `[0, 1]`. Means are output pins; the contrast is
-checked against AverageEffect on the same graph and table, with a declared
-tolerance. The mixing rule is the claim, not bitwise equality with linear
-ATE.
+The two-point grid is `[0, 1]`, which lies outside the observed treatment
+support `[0.1, 0.9]`; the result reports `OutsideEmpiricalSupport` for both
+coordinates. The recorded means are regression pins of that extrapolation, not
+accuracy evidence, and their contrast is not compared with AverageEffect.
+
+Three separate checks carry the evidence instead:
+
+1. Unambiguous linear case (the DAG `z -> t, z -> y, t -> y`): AverageEffect
+   recovers the generating 0.4, and the curve recovers the generating levels on
+   an in-support grid to within its smoothing error (observed 1.8e-3).
+2. Ambiguous class: each completion's own answer is asserted and their
+   disagreement is preserved. The adjusted completion is the line
+   `0.2 + 0.4 t`; the unadjusted completion's target is
+   `E[Y | T = t] = 0.10 + 0.40 t + 0.20 * 1[t > 0.5]` (here `z = 1` exactly when
+   `t > 0.5`).
+3. The gap between the curve contrast (0.499) and AverageEffect (0.569) is
+   accounted for completion by completion. The adjusted completion differs by
+   about 1e-3 (smoothing). The unadjusted completion differs by 0.137: its OLS
+   slope (0.737) is a linear-projection weight on a line-plus-step, while the
+   contrast between its extrapolated boundary lines is 0.6, and even the
+   in-support secant over `[0.1, 0.9]` is 0.65. These are different
+   functionals, not one estimator erring.
 
 Consumers: `crates/antecedent/tests/class_aware_response_numeric_pins.rs`
 and `python/tests/test_class_aware_response_numeric_pins.py`.

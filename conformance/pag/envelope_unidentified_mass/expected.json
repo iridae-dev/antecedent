@@ -4,14 +4,14 @@
   ],
   "evidence_kind": "internal_cross_check",
   "evidence_source": "crates/antecedent/tests/pag.rs::envelope_unidentified_mass",
-  "evidence_proposition": "The PAG adjustment envelope accounts for every completion: total case mass equals the number of cases.",
-  "limitations": "Mass bookkeeping of one envelope; does not validate identification of any completion or the PAG itself.",
+  "evidence_proposition": "For the PAG `x o-> y`, the generalized-adjustment envelope examines two completions (`x -> y` and `x <-> y`), neither of which carries an adjustment certificate: the effect is not identified by the implemented adjustment method (identified weight 0, unidentified weight 2), and each completion states its own reason.",
+  "limitations": "Conservative refusal of the implemented generalized-adjustment method on one envelope. Two cases means two completions were examined, not that either supplies an adjustment certificate. It does not claim the effect is unidentifiable by any method, and it does not claim a zero effect for any completion: a directed edge in a MAG/PAG can represent influence together with latent confounding. It does not validate the PAG itself.",
   "oracle": {
     "kind": "regression_pin",
     "project": "repository software contract",
     "origin": "Current review of the retained fixture fields and the exact executing consumer; the values are repository-authored inputs and pins, and no external generator or independent numerical origin is asserted.",
     "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
-    "note": "Pins this library's recorded output for the case stated in evidence_proposition (\"The PAG adjustment envelope accounts for every completion: total case mass equals the number of cases\"); envelope_unidentified_mass compares the live result with it. Asserts no independent numerical truth."
+    "note": "Pins this library's recorded output for the case stated in evidence_proposition (\"For the PAG `x o-> y`, the generalized-adjustment envelope examines two completions (`x -> y` and `x <-> y`), neither of which carries an adjustment certificate: the effect is not identified by the implemented adjustment method (identified weight 0, unidentified weight 2), and each completion states its own reason.\"); envelope_unidentified_mass compares the live result with it. Asserts no independent numerical truth."
   },
   "require_mass_accounted": true,
   "tolerance_class": "Exact"

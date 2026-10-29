@@ -198,7 +198,7 @@ When is an envelope useful vs “don’t publish a point”?
 Pinned contracts for the math and refusal behavior:
 
 - [Bayesian graph effect envelope](conformance/bayesian__graph_effect_envelope.md) (`conformance/bayesian/graph_effect_envelope`) — weighted ensemble with known unidentified fraction; `renormalize_identified_only` refuses a 100% mixture after dropping mass.
-- [PAG envelope unidentified mass](conformance/pag__envelope_unidentified_mass.md) (`conformance/pag/envelope_unidentified_mass`) — generalized-adjustment PAG envelope preserves unidentified completion mass.
+- [PAG envelope unidentified mass](conformance/pag__envelope_unidentified_mass.md) (`conformance/pag/envelope_unidentified_mass`) — for `x o-> y`, both completions (`x -> y`, `x <-> y`) lack an adjustment certificate, so the effect is reported as not identified by the implemented adjustment method and the unidentified mass is preserved (this is a refusal of that method, not a claim of a zero effect).
 - [Known-truth mixtures](conformance/bayesian__known_truth_mixtures.md) — analytic `E[τ | identified]` with retained unidentified mass (e.g. static mixture mean `2.625` with mass `0.2`).
 
 ## When `CausalReviewError` is raised

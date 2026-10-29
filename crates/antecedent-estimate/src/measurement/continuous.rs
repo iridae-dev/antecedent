@@ -43,6 +43,14 @@
 //! numbers, and the remaining sampling part. The standard error is
 //! uncalibrated and no interval is produced.
 //!
+//! # Approximation limits
+//!
+//! Logistic regression calibration is a first-order approximation and SIMEX
+//! keeps the bias of its extrapolant; neither is guaranteed to recover the
+//! generating coefficient, and the route stays approximate and uncalibrated.
+//! Their bias across repeated datasets is assessed in the scheduled
+//! measurement phase.
+//!
 //! References: Cook and Stefanski (1994), doi:10.1080/01621459.1994.10476871;
 //! Carroll, Ruppert, Stefanski and Crainiceanu (2006), *Measurement Error in
 //! Nonlinear Models*, 2nd ed.

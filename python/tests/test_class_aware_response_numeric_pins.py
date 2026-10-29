@@ -152,19 +152,6 @@ def test_class_aware_curve_pins(accepted: bool, class_name: str) -> None:
             execution=antecedent.Execution(seed=1),
         )
     )
-    ate = require_success(
-        antecedent.analyze(
-            data,
-            graph=graph,
-            query=antecedent.AverageEffect(
-                _PIN["query"]["treatment"],
-                _PIN["query"]["outcome"],
-            ),
-            refute=False,
-            inference=antecedent.Frequentist(bootstrap=0),
-            execution=antecedent.Execution(seed=1),
-        )
-    )
     prepared = antecedent.prepare(
         data,
         graph=graph,
@@ -180,10 +167,76 @@ def test_class_aware_curve_pins(accepted: bool, class_name: str) -> None:
         assert result.evidence_status == "licensed"
         assert result.identification.status == section["identification"]["status"]
         values = _values(result)
+        # Regression pin of the extrapolated levels: grid [0, 1] lies outside the observed
+        # treatment support [0.1, 0.9]. It is not accuracy evidence, and the contrast is not
+        # compared with AverageEffect (a different functional; see the next test).
         assert values == pytest.approx(expected, abs=section["curve"]["absolute_tolerance"])
-        assert values[1] - values[0] == pytest.approx(
-            ate.ate, abs=section["curve"]["contrast_tolerance"]
+        assert result.response is not None
+
+
+def _completion_levels(data: dict[str, np.ndarray], a: float) -> tuple[float, float]:
+    """Independent closed forms of the two completions' targets at treatment level `a`.
+
+    Adjusting for z: E[Y | do(t=a)] = 0.1 + 0.4 a + 0.2 E[z] with E[z] = mean(z).
+    Not adjusting: E[Y | T=a] by the data's own law, z = 1 exactly when t > 0.5, so
+    0.1 + 0.4 a + 0.2 * 1[a > 0.5].
+    """
+    assert np.all(data["t"][data["z"] == 0.0] <= 0.5 + 1e-12)
+    assert np.all(data["t"][data["z"] == 1.0] >= 0.5 - 1e-12)
+    adjusted = 0.1 + 0.4 * a + 0.2 * float(np.mean(data["z"]))
+    unadjusted = 0.1 + 0.4 * a + (0.2 if a > 0.5 else 0.0)
+    return unadjusted, adjusted
+
+
+def test_class_aware_curve_is_the_envelope_of_the_completion_curves_and_flags_extrapolation():
+    data = _continuous_linear(_PIN)
+    graph = _cpdag(accepted=False)
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=antecedent.ResponseCurve("t", "y", grid=[0.2, 0.8]),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
+    )
+    # The class disagrees (adjusting for z or not): the answer is not a single curve.
+    assert result.answer.kind == "partial"
+    assert result.answer.detail == "identified_set"
+    levels = _values(result)
+    for a, level in zip([0.2, 0.8], levels, strict=True):
+        unadjusted, adjusted = _completion_levels(data, a)
+        assert abs(unadjusted - adjusted) > 0.09
+        # The published levels lie between the completions, strictly inside the envelope.
+        assert min(unadjusted, adjusted) - 3e-3 < level < max(unadjusted, adjusted) + 3e-3
+
+    # Grid [0, 1] is extrapolation: the independent AverageEffect completions explain the gap
+    # between that curve's contrast and the AverageEffect, which are different functionals.
+    t, y, z = data["t"], data["y"], data["z"]
+    ones = np.ones_like(t)
+    unadjusted_slope = np.linalg.lstsq(np.column_stack([ones, t]), y, rcond=None)[0][1]
+    adjusted_slope = np.linalg.lstsq(np.column_stack([ones, t, z]), y, rcond=None)[0][1]
+    assert adjusted_slope == pytest.approx(0.4, abs=1e-9)
+    ate = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=antecedent.AverageEffect("t", "y"),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+        )
+    )
+    assert ate.answer.bounds == pytest.approx((adjusted_slope, unadjusted_slope), abs=1e-9)
+    pinned = _PIN["cpdag"]["curve"]["mean"]
+    curve_contrast = pinned[1] - pinned[0]
+    unadjusted_contrast = _completion_levels(data, 1.0)[0] - _completion_levels(data, 0.0)[0]
+    assert unadjusted_contrast == pytest.approx(0.6, abs=1e-12)
+    # curve contrast = mean of (0.6 unadjusted boundary-line contrast, ~0.4 adjusted line);
+    # AverageEffect = mean of (0.737 projection slope, 0.4).
+    assert curve_contrast == pytest.approx((unadjusted_contrast + adjusted_slope) / 2, abs=2e-3)
+    assert (unadjusted_slope - unadjusted_contrast) / 2 > 0.06
 
 
 @pytest.mark.parametrize("accepted", [False, True], ids=["explicit", "accepted"])

@@ -245,3 +245,26 @@ def test_temporal_cpdag_bayesian_identified_set_matches_the_closed_form_completi
     expected_upper = 2.0 * float(_PIN["cpdag"]["pulse"]["ate"]) - 2.0
     assert lower == pytest.approx(2.0, abs=0.05)
     assert upper == pytest.approx(expected_upper, abs=0.05)
+
+
+def test_temporal_cpdag_frequentist_answer_is_the_identified_set_not_the_pinned_mean() -> None:
+    """The pinned 2.6068 is the enumeration-weighted summary of two disagreeing completions
+    (2 and 3.2136, closed form). The safe answer is their identified set; the scalar is only
+    the weighted summary."""
+    result = require_success(
+        antecedent.analyze(
+            _series(_PIN),
+            graph=_cpdag(accepted=False),
+            query=_pulse(_PIN),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+        )
+    )
+    mean = float(_PIN["cpdag"]["pulse"]["ate"])
+    assert result.answer.kind == "bounds"
+    assert result.answer.detail == "identified_set"
+    lower, upper = result.answer.bounds
+    assert lower == pytest.approx(2.0, abs=1e-9)
+    assert upper == pytest.approx(2.0 * mean - 2.0, abs=1e-8)
+    assert lower < mean < upper

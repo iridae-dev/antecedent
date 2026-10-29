@@ -953,6 +953,11 @@ class ContinuousErrorData:
     ``simex_replicates`` remeasurements per value, ``"quadratic"`` or ``"linear"``
     ``extrapolant``). Logistic calibration and SIMEX report a bootstrap standard error over
     ``bootstrap_replicates`` (at least 50) resamples of the whole procedure, keyed by ``seed``.
+
+    Logistic regression calibration is a first-order approximation and SIMEX retains
+    extrapolation bias; neither is guaranteed to recover the generating coefficient. Their bias
+    across repeated datasets is assessed in the scheduled measurement phase, and until then the
+    result is approximate and uncalibrated.
     """
 
     outcome: Any = None

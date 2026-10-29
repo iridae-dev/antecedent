@@ -107,8 +107,7 @@
         0.1504368640937414,
         0.649441768914599
       ],
-      "absolute_tolerance": 1e-10,
-      "contrast_tolerance": 0.08
+      "absolute_tolerance": 1e-10
     },
     "intervention": {
       "estimator": "response.intervention_gcomp",

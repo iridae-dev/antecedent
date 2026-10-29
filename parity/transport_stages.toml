@@ -6897,7 +6897,7 @@ functional = "corrected_functional_with_uncalibrated_delta_method_or_bootstrap_s
 guarantee = "corrected_point_with_uncalibrated_standard_error_no_interval"
 evidence_test = "python/tests/test_continuous_measurement.py"
 evidence_assertion = "test_linear_calibration_and_simex_recover_the_slope"
-notes = "Python surface route; regression calibration (linear or logistic) or SIMEX; point and an uncalibrated standard error, no interval."
+notes = "Python surface route; regression calibration (linear or logistic) or SIMEX; point and an uncalibrated standard error, no interval. Logistic regression calibration is a first-order approximation and SIMEX retains extrapolation bias; the route stays approximate and uncalibrated, with bias across repeated datasets assessed in the scheduled measurement phase."
 
 [[routes]]
 route = "antecedent.measurement_models.PreparedMeasurementModel.refresh"
