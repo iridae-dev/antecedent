@@ -69,6 +69,25 @@ impl StageVariances {
     }
 }
 
+fn first_stage_f(numerator: f64, residual_variance: f64) -> Result<f64, EstimationError> {
+    let invalid = || EstimationError::stats_msg("Bayesian IV first-stage F is not defined");
+    if !numerator.is_finite()
+        || numerator < 0.0
+        || !residual_variance.is_finite()
+        || residual_variance < 0.0
+    {
+        return Err(invalid());
+    }
+    if residual_variance == 0.0 {
+        return if numerator > 0.0 { Ok(f64::INFINITY) } else { Err(invalid()) };
+    }
+    let result = numerator / residual_variance;
+    if !result.is_finite() {
+        return Err(invalid());
+    }
+    Ok(result)
+}
+
 /// Fit the linear control-function IV model and sample its conditional Gaussian posterior.
 ///
 /// `sample` vectors must be finite and at least 8 rows. The instrument is
@@ -147,7 +166,7 @@ pub fn fit_bayesian_iv_joint_fixed_loading(
     let alpha = tbar - pi * zbar;
     let rss =
         instrument.iter().zip(treatment).map(|(z, t)| (t - alpha - pi * z).powi(2)).sum::<f64>();
-    let first_stage_f = pi * pi * zss / (rss / (n - 2) as f64).max(1e-15);
+    let first_stage_f = first_stage_f(pi * pi * zss, rss / (n - 2) as f64)?;
     if first_stage_f < weak_f_threshold {
         return Err(EstimationError::stats_msg(format!(
             "weak_instrument: first-stage F={first_stage_f:.3} is below threshold {weak_f_threshold:.3}"
@@ -327,8 +346,10 @@ pub fn fit_bayesian_iv_joint_fixed_loading_design(
     let rss_restricted = centred_ols_rss(&restricted, &centred_t).ok_or_else(singular_stage)?;
     let rss_unrestricted = centred_ols_rss(&unrestricted, &centred_t).ok_or_else(singular_stage)?;
     let denominator_df = n - 1 - k - q;
-    let first_stage_f = ((rss_restricted - rss_unrestricted).max(0.0) / k as f64)
-        / (rss_unrestricted / denominator_df as f64).max(1e-15);
+    let first_stage_f = first_stage_f(
+        (rss_restricted - rss_unrestricted).max(0.0) / k as f64,
+        rss_unrestricted / denominator_df as f64,
+    )?;
     if first_stage_f < weak_f_threshold {
         return Err(EstimationError::stats_msg(format!(
             "weak_instrument: first-stage F={first_stage_f:.3} is below threshold {weak_f_threshold:.3}"
@@ -433,7 +454,7 @@ fn fit_bayesian_iv_inner(
     let residual: Vec<f64> =
         instrument.iter().zip(treatment).map(|(z, t)| t - alpha - pi * z).collect();
     let rss = residual.iter().map(|v| v * v).sum::<f64>();
-    let first_stage_f = pi * pi * zss / (rss / (n - 2) as f64).max(1e-15);
+    let first_stage_f = first_stage_f(pi * pi * zss, rss / (n - 2) as f64)?;
     if first_stage_f < weak_f_threshold {
         return Err(EstimationError::stats_msg(format!(
             "weak_instrument: first-stage F={first_stage_f:.3} is below threshold {weak_f_threshold:.3}"
@@ -656,6 +677,46 @@ fn first_stage_draws(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn first_stage_screen_is_scale_invariant_across_three_bayesian_iv_routes() {
+        let z = [0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0];
+        let u = [-0.2, -0.2, 0.2, 0.2, -0.2, -0.2, 0.2, 0.2];
+        let y = [0.0, 1.0, 0.3, 1.3, -0.1, 0.9, 0.2, 1.2];
+        let variances = StageVariances { treatment: 1.0, outcome: 1.0 };
+        let mut all = Vec::new();
+        for scale in [1.0, 1e-9] {
+            let t: Vec<f64> = z.iter().zip(&u).map(|(z, u)| scale * (z + u)).collect();
+            let sample = IvSample { instrument: &z, treatment: &t, outcome: &y };
+            let draw = DrawSpec::new(8, 3);
+            let separate =
+                fit_bayesian_iv_fixed_variances(&sample, 10.0, variances, draw, 10.0).unwrap();
+            let joint =
+                fit_bayesian_iv_joint_fixed_loading(&sample, 10.0, variances, draw, 10.0).unwrap();
+            let design = fit_bayesian_iv_joint_fixed_loading_design(
+                &IvDesignSample {
+                    instruments: &z,
+                    n_instruments: 1,
+                    covariates: &[],
+                    n_covariates: 0,
+                    treatment: &t,
+                    outcome: &y,
+                },
+                10.0,
+                variances,
+                draw,
+                10.0,
+            )
+            .unwrap();
+            all.push([separate.first_stage_f, joint.first_stage_f, design.first_stage_f]);
+        }
+        for (a, b) in all[0].iter().zip(all[1]) {
+            assert!((a - b).abs() < 1e-8);
+        }
+        assert_eq!(first_stage_f(1.0, 0.0).unwrap(), f64::INFINITY);
+        assert!(first_stage_f(0.0, 0.0).is_err());
+        assert!(first_stage_f(f64::NAN, 1.0).is_err());
+    }
+
     #[test]
     fn consecutive_seeds_start_independent_standard_normal_streams() {
         let first: Vec<f64> = (0..4000_u64)

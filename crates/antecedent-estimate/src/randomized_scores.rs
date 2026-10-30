@@ -194,7 +194,7 @@ pub fn complier_wald_effect(
     }
     let intention_to_treat_effect = outcome_scores.iter().sum::<f64>() / n as f64;
     let first_stage = receipt_scores.iter().sum::<f64>() / n as f64;
-    if !first_stage.is_finite() || first_stage <= f64::EPSILON {
+    if !first_stage.is_finite() || first_stage <= 0.0 {
         return None;
     }
     let first_stage_variance =
@@ -767,6 +767,21 @@ mod tests {
                 .interval_95
                 .is_none()
         );
+    }
+
+    #[test]
+    fn complier_point_keeps_finite_positive_sub_epsilon_first_stage() {
+        let p = [0.5, 0.5 - f64::EPSILON / 2.0, 0.5, 0.5];
+        let result = complier_wald_effect(
+            &[2.0, 2.0, 0.0, 0.0],
+            &[true, false, true, false],
+            &[true, true, false, false],
+            &p,
+        )
+        .unwrap();
+        assert!(result.first_stage > 0.0 && result.first_stage <= f64::EPSILON);
+        assert_eq!(result.effect, 2.0);
+        assert!(result.interval_95.is_none());
     }
 
     #[test]
