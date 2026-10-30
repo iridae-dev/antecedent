@@ -91,6 +91,7 @@ Each tutorial follows one scientific task from declaration to what the computati
 - **[Compare a coordinated intervention program with a baseline.](docs/tutorials/joint-interventions.md)** The comparison uses uncertainty from the shared fit, and separates a model that can compute a whole program from a design that identifies its effect.
 - **[Beyond the marketing mix.](docs/tutorials/beyond-marketing-mix.md)** Carry a geographic marketing model through spending proposals, experimental evidence, a business decision and the next study.
 - **[The smallest defensible test.](docs/tutorials/synthetic-users-launch.md)** Combine historical human behavior, a large agent dataset and a small human pilot to support a launch decision; when predictions fail, choose a targeted follow-up.
+- **[Write and replay your own causal policies.](docs/tutorials/programmable-policies.md)** Compare fixed, conditional and history-dependent pricing and inventory rules; replay the same stores, verify portable programs and recover custom callbacks.
 - **[From a new experiment to the next study.](docs/tutorials/experiment-to-next-study.md)** Map experimental evidence into a retained response law, see the response and the decision change, and rank further studies by information value and cost, without promoting the result to identified status.
 - **[Replay and current decisions.](docs/tutorials/replay-and-current-decisions.md)** Change a utility without refitting, export a decision, then withdraw a source: historical replay remains possible while current decision use refuses.
 

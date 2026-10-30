@@ -1,5 +1,7 @@
 # Program interventions
 
+For an end-to-end pricing and inventory investigation, see [write and replay your own causal policies](../tutorials/programmable-policies.md).
+
 Define an intervention whose value is computed, such as a price floor, a cap or a rule that reads other variables, and evaluate it on a fitted structural model. In Python, write expressions with `antecedent.intervention_programs` (`var`, `minimum`, `maximum`, `generated`, `transform`, `assign`); the Rust names below are the same constructs. Two interventions carry a typed expression:
 
 - `Intervention::transform(variable, expr)` runs after the node's mechanism produced its
