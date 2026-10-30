@@ -497,10 +497,10 @@ fn run_retained(family: Family) {
                 let scale = if suite == RefuteSuite::None { 1 } else { 40 };
                 for p in posteriors(family, scale) {
                     let label = format!("{family:?} {} bayesian={bayesian} {suite:?}", p.class);
-                    let b = builder(&p, bayesian, suite);
-                    let study = b.clone().build().unwrap();
+                    let builder = builder(&p, bayesian, suite);
+                    let study = builder.clone().build().unwrap();
                     let prepared = study.prepare(&ctx).unwrap_or_else(|e| panic!("{label}: {e}"));
-                    drop(b);
+                    drop(builder);
                     drop(study);
                     assert!(
                         !matches!(prepared.retained_operation(), RetainedOperation::FreshRun),

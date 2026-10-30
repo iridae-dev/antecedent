@@ -22,27 +22,14 @@ const FAMILIES: [&str; 7] = [
     "associational",
 ];
 
-/// Registered cells no licensed support-matrix coordinate executes: the graphless
-/// design axes, the panel and multi-environment modalities, the latent-confounded
-/// temporal PAG mediation every compile refuses, the temporal ADMG window contrasts, and the
-/// structure-discovery, attribution, simulation and association cells that execute unlicensed, and the
-/// transport and interference graph-posterior cells. Each still lowers
-/// completely through its family; the licensed-route record simply has no row for it.
-const OUTSIDE_LICENSED_ROUTES: [&str; 35] = [
-    "PathSpecificMixed",
-    "PathSpecificCpdag",
-    "PathSpecificPag",
-    "CounterfactualClass",
-    "TemporalMediationAdmg",
+/// Registered cells without a licensed support-matrix coordinate: graphless,
+/// panel and multi-environment modalities, discovery, simulation and association.
+/// Each still lowers completely; the licensed-route record has no row for it.
+const OUTSIDE_LICENSED_ROUTES: [&str; 23] = [
     "DiscoverStatic",
     "DiscoverTemporal",
     "GcmAttributeDag",
     "GcmSimulateDag",
-    "GcmClass",
-    "GcmTemporalClass",
-    "TemporalMediationPag",
-    "TemporalEffectAdmg",
-    "TemporalResponseAdmg",
     "MultiEnvTemporalEffect",
     "PanelTemporalEffectDag",
     "PanelTemporalEffectClass",
@@ -62,8 +49,6 @@ const OUTSIDE_LICENSED_ROUTES: [&str; 35] = [
     "IvBounds",
     "AssociationStatic",
     "AssociationTemporal",
-    "GraphPosteriorTransport",
-    "GraphPosteriorInterference",
 ];
 
 /// Licensed routes the support matrix executes.

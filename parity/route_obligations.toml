@@ -47463,7 +47463,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "b13cdcdfaf412392"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47481,7 +47481,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "0ebd7a793dd103ea"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47499,7 +47499,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "49ccf2c8bdd12578"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47517,7 +47517,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "902ea7adfccbd50f"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47535,7 +47535,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "bf9cc109856d0dc7"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47553,7 +47553,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "57be4d10c58d985f"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47571,7 +47571,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "b0d34bbc55cee612"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47589,7 +47589,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "c7f87c6dfec0a401"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47607,7 +47607,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "dbdca83667040da0"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47625,7 +47625,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "dc26012eebca73b6"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47643,7 +47643,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "5bc5ab6231589b30"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47661,7 +47661,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "285c0c1a6b36baff"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47679,7 +47679,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "ae242b00b2f4c021"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47697,7 +47697,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "267c392be06ee3aa"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47715,7 +47715,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "234c71ff62a75b21"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47733,7 +47733,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "ce18faabb8148544"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47751,7 +47751,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "fb79b3685b19f847"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47769,7 +47769,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "a7e6cfd23a188adc"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47787,7 +47787,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "f4fc6245d47a1cf3"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47805,7 +47805,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "7153c8ba907226dc"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47823,7 +47823,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "481026872a2ad8db"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47841,7 +47841,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "37fe93c5ddf7aa09"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47859,7 +47859,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "69d8011baa5c7d91"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47877,7 +47877,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "1d26f7e750b66de9"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47895,7 +47895,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "bdb8795eb2c7e32d"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47913,7 +47913,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "bd6ae7aff69e853a"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47931,7 +47931,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "9ceb655a65b53518"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47949,7 +47949,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "df1d66d2c21c50b5"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47967,7 +47967,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "277af3b3d9d1a47c"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"
@@ -47985,7 +47985,7 @@ estimators = ["functional.distribution"]
 route_estimator = ""
 matrix_digest = "38e7a6e3c4227d71"
 license_basis = "explicit_license"
-compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.distribution = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_license = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 calibration_license = "reason:estimator_grid_not_measured"
 uncertainty = "estimator_grid_not_measured"

@@ -121,7 +121,8 @@ def limitations(query: str, klass: str, inference: str, validation: str) -> str:
 def rows() -> str:
     out: list[str] = []
     for query, (stem, _, _) in FAMILIES.items():
-        test = f"{stem}_graph_posterior_executes_from_the_retained_plan_without_the_builder"
+        checked_stem = "interventional_distribution" if stem == "distribution" else stem
+        test = f"{checked_stem}_graph_posterior_executes_from_the_retained_plan_without_the_builder"
         evidence = {
             "path_specific": "path_specific_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_functionals_under_every_suite",
             "distribution": "interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite",
