@@ -13,7 +13,7 @@ sentence (the figure must match `observed` within half a unit in the last place)
 
 A *coverage figure* is a three- or four-decimal rate in [0.1, 1] written in a
 sentence about coverage (`cover`, `covers`, `coverage`) that is not a location,
-bias, standard error or pinned value (see `EXEMPT_BEFORE`). Known-truth values,
+bias, standard error or pinned value (see `noncoverage_figure`). Known-truth values,
 standard errors and seeded pins are never coverage figures, and pins with five
 or more decimals are never matched.
 
@@ -53,9 +53,12 @@ COVERAGE_WORD_RE = re.compile(r"(?i)\bcover(?:s|ed|age)?\b")
 # A cited boundary record must be named as a boundary in the surrounding
 # sentence, not only inside a record id or test name.
 BOUNDARY_DISCLOSURE_RE = re.compile(r"(?i)\bboundary\b|below the band|unasserted|floor miss")
-# A number right after one of these words is a location, bias, SE or pin, not a rate.
-EXEMPT_BEFORE = re.compile(
-    r"(?:\bat|\bbias|\bSE(?: is)?|\bSD|\bmean|\btotal|\beffect|\bMixture|draw's|=)\s*$"
+# Model coordinates and parameters have explicit local context; plain "at",
+# "mean", "effect", "total" and "=" alone do not establish that context.
+MODEL_VALUE_RE = re.compile(
+    r"(?i)(?:\b(?:bias|SE|SD)(?:\s+is)?|\b(?:path|treatment|true|causal)\s+effect|"
+    r"\b(?:true|outcome|model)\s+mean|\btotal\s+effect|\bMixture|draw's|"
+    r"(?:\b(?:rho|alpha|beta|x|y|t)\b|ρ|σ|μ)\s*=)\s*$"
 )
 SENTENCE_END_RE = re.compile(r"(?<=[a-z)\]`%])\.\s+(?=[A-Z0-9(`])")
 def figure_tolerance(rendered: str) -> float:
@@ -64,7 +67,25 @@ def figure_tolerance(rendered: str) -> float:
 
 
 def nominal_figure(text: str, lo: int, start: int) -> bool:
-    return re.search(r"(?i)\bnominal(?:\s+(?:coverage|level|of|at|is)){0,3}\s*$", text[lo:start]) is not None
+    return re.search(r"(?i)\bnominal(?:\s+(?:coverage|level|of|at|is)){0,3}[-\s]*$", text[lo:start]) is not None
+
+
+def noncoverage_figure(text: str, lo: int, start: int, end: int) -> bool:
+    """Exempt locally identified model quantities, never generic result wording."""
+    before = text[lo:start]
+    after = text[end:]
+    if MODEL_VALUE_RE.search(before):
+        return True
+    # "coverage 0.851 at 0.965": the second number is a curve location.
+    if re.search(r"(?i)\bcoverage\b[^;]*\b0\.\d{2,4}\s+at\s*$", before):
+        return True
+    # The total in a stated path-effect / total decomposition is a model value.
+    if re.search(r"(?i)\bpath\s+effect\s+0\.\d+\s*,\s*total\s*$", before):
+        return True
+    # A confidence-level adjective before "interval" is not an observed rate.
+    if re.search(r"(?i)\bmean\s*$", before) and re.match(r"\s*interval\b", after):
+        return True
+    return False
 
 
 def sentences(text: str) -> list[tuple[int, int]]:
@@ -86,10 +107,38 @@ def figures(text: str, lo: int, hi: int) -> list[re.Match]:
             continue
         if nominal_figure(text, lo, m.start()):
             continue
-        if EXEMPT_BEFORE.search(text[max(lo, m.start() - 12) : m.start()]):
+        if noncoverage_figure(text, lo, m.start(), m.end()):
             continue
         out.append(m)
     return out
+
+
+def nominal_wide_figure(text: str, lo: int, hi: int, start: int, end: int) -> bool:
+    """Recognize a stated confidence level or nominal target, not its numeric value."""
+    before, after = text[lo:start], text[end:hi]
+    if nominal_figure(text, lo, start):
+        return True
+    if re.search(r"(?i)\bnominal\s+0\.\d+\s+and\s*$", before):
+        return True
+    if re.search(r"(?i)\b(?:confidence|credible|nominal|target|interval|band)\s+(?:level\s*)?(?:of|is|at|=|:)?\s*$", before):
+        return True
+    if re.match(r"(?i)\s*(?:(?:confidence|credible|posterior|logit-scale|delta-method)\s+){0,3}(?:interval|intervals|band|level|quantiles)\b", after):
+        return True
+    # In "400-replicate 90% coverage 0.882", the first number names
+    # the interval's construction; a separate number gives the observed result.
+    if (re.match(r"(?i)\s*(?:pointwise\s+)?coverage\s+0\.\d{3,4}(?!\d)", after)
+            and not re.search(r"(?i)\b(?:observed|measured|empirical|achieved|realized)\s*$", before)):
+        return True
+    if (re.search(r"(?i)\b\d+-replicate\s*$", before)
+            and re.match(r"(?i)\s*(?:pointwise\s+)?coverage\b", after)
+            and (re.search(r"(?<![\w.])0\.\d{3,4}(?!\d)", after.split(";", 1)[0])
+                 or re.search(r"(?i)\bregistry records hold the rates\b", after))):
+        return True
+    if re.search(r"(?i)\basymptotic\s+probability\s+at\s+least\s*$", before):
+        return True
+    if re.search(r"(?i)\bwarning\s+fires\s+on\s+at\s+least\s*$", before) and re.match(r"(?i)\s+of\s+replicates\b", after):
+        return True
+    return False
 
 
 def wide_figures(text: str, lo: int, hi: int) -> list[tuple[re.Match, float, float]]:
@@ -107,9 +156,11 @@ def wide_figures(text: str, lo: int, hi: int) -> list[tuple[re.Match, float, flo
             digits = m.group("pct")
             places = len(digits.split(".", 1)[1]) if "." in digits else 0
             value, tol = float(digits) / 100.0, 0.5 * 10 ** (-(places + 2)) + 1e-9
-        if value < 0.1 or value > 1.0 or round(value, 6) in NOMINAL_LEVELS:
+        if value < 0.1 or value > 1.0:
             continue
-        if EXEMPT_BEFORE.search(text[max(lo, m.start() - 12) : m.start()]):
+        if nominal_wide_figure(text, lo, hi, m.start(), m.end()):
+            continue
+        if noncoverage_figure(text, lo, m.start(), m.end()):
             continue
         out.append((m, value, tol))
     return out

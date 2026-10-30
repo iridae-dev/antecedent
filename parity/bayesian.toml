@@ -344,7 +344,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/bayesian_iv"
 evidence_test = "crates/antecedent/tests/bayesian_iv_rd_staged.rs"
 evidence_assertion = "bayesian_iv_joint_fixed_loading_executes_staged_with_known_truth"
-limitations = "Joint Gaussian structural IV with one instrument, no covariates, fixed unit outcome loading of the treatment disturbance, known unit stage variances, and an isotropic Normal prior. A 300-replicate exact-law check places the nominal 95% interval inside three Monte Carlo standard errors. The former free-loading control-function candidate covered 100% and is not the licensed public route."
+limitations = "Joint Gaussian structural IV with one instrument, no covariates, fixed unit outcome loading of the treatment disturbance, known unit stage variances, and an isotropic Normal prior. A 300-replicate exact-law check places the nominal 95% interval inside three Monte Carlo standard errors. The former free-loading control-function candidate is not the licensed public route."
 notes = "The public staged known-truth execution, repeated-sampling interval, weak-instrument refusal and posterior lifecycle are tested in bayesian_iv_rd_staged.rs; the low-level independent RNG check is in bayesian_iv.rs."
 
 [[capabilities]]

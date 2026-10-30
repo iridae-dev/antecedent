@@ -55,8 +55,7 @@ The draws are the posterior of the frozen-weight mixture functional: each
 completion's own posterior, rank-coupled across completions by their
 influence-function correlation on the shared rows. The SD is therefore
 comparable to the Frequentist joint-IF SE; it is not the spread of
-completion-specific effects (a completion-picking BMA over-covered the
-mixture functional at 99.8–100% in that calibration). ConditionalEffect
+completion-specific effects. ConditionalEffect
 draws also carry Bayesian-bootstrap uncertainty in the modifier mean.
 
 Consumer: `crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs`
