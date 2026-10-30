@@ -6,12 +6,12 @@
 //! mismatch, and a format newer than [`STREAM_ARTIFACT_VERSION`] are refusals.
 //!
 //! [`StreamArtifact::open`] cancels between sections only. [`StreamArtifact::encode_to`] and
-//! [`StreamArtifact::read_to`] are the incremental forms: they lease a chunk-sized working set
-//! from the operation's admission pool before moving a byte, never hold the payload (logical
-//! or on-wire) whole, check cancellation between chunks, and bound decompression by the
-//! declared logical size as the bytes arrive. The writer sizes and checksums the payload in
-//! passes over a re-openable source and then streams it; the reader hashes the on-wire payload
-//! before it decodes it, so a sink only receives bytes whose checksum verified. An accelerator-produced artifact is consumable on CPU when its device payload is
+//! [`StreamArtifact::read_to`] are incremental forms. The writer leases a chunk-sized working
+//! set and streams a re-openable source. The reader leases and holds the full on-wire payload
+//! snapshot alongside its chunk and decoder workspace, and verifies it before delivery. Both
+//! observe cancellation between chunks and bound decompression by the declared logical size.
+//! A sink receives bytes only from the verified snapshot. An accelerator-produced artifact is
+//! consumable on CPU when its device payload is
 //! absent or already materialized as bytes; a live device pointer is refused.
 //! [`StreamArtifact::read_metadata`] does not retain the payload. A payload the caller still
 //! holds is borrowed (`Arc` clone), not copied.
@@ -867,9 +867,10 @@ impl StreamArtifact<'_> {
     /// Validate a seekable stream and hand its payload to `sink` in chunks.
     ///
     /// Header, metadata and payload sizes are checked against `bounds` before the payload
-    /// moves. The on-wire payload is checksummed in a first pass; only then is it decoded,
-    /// so `sink` never sees bytes of a corrupt payload. A Zstandard payload is cut at its
-    /// declared logical size as it decodes. Nothing but one chunk is held.
+    /// moves. The on-wire payload is retained under admission and checksummed before it is
+    /// decoded, so `sink` never sees bytes from an unverified payload. A Zstandard payload
+    /// is cut at its declared logical size as it decodes. The verified on-wire snapshot,
+    /// chunk buffer and decoder workspace are held together through delivery.
     ///
     /// # Errors
     ///
@@ -951,40 +952,48 @@ impl StreamArtifact<'_> {
                 return Err(StreamArtifactError::Malformed("stored length"));
             }
             charge(0, head.logical_len, bounds.max_retained_bytes)?;
-            // Only a compressed payload needs a decoder; a stored one is leased the chunk alone.
-            let _decoder_lease = if head.codec == CODEC_ZSTD {
-                let bytes = work.decoder_workspace_bytes();
+            // Hold the exact bytes checked below until every callback has returned.
+            let snapshot_len = usize::try_from(head.on_wire_len)
+                .map_err(|_| StreamArtifactError::BudgetRefused)?;
+            let _snapshot_lease = work
+                .ctx
+                .acquire_admission(0, head.on_wire_len)
+                .map_err(|_| StreamArtifactError::BudgetRefused)?;
+            let decoder_bytes =
+                if head.codec == CODEC_ZSTD { work.decoder_workspace_bytes() } else { 0 };
+            let _decoder_lease = if decoder_bytes > 0 {
                 Some(
                     work.ctx
-                        .acquire_admission(0, bytes)
+                        .acquire_admission(0, decoder_bytes)
                         .map_err(|_| StreamArtifactError::BudgetRefused)?,
                 )
             } else {
                 None
             };
-            let start = r.stream_position().map_err(|e| from_std(&e))?;
-
-            // Pass one: the on-wire checksum, before any byte reaches the sink.
+            receipt.leased_bytes = receipt
+                .leased_bytes
+                .checked_add(head.on_wire_len)
+                .and_then(|n| n.checked_add(decoder_bytes))
+                .ok_or(StreamArtifactError::BudgetRefused)?;
+            let mut snapshot = Vec::new();
+            snapshot
+                .try_reserve_exact(snapshot_len)
+                .map_err(|_| StreamArtifactError::BudgetRefused)?;
+            snapshot.resize(snapshot_len, 0);
             let mut digest = DomainDigest::new(CHECKSUM_TAG, head.on_wire_len);
-            let mut remaining = head.on_wire_len;
-            while remaining > 0 {
+            for chunk in snapshot.chunks_mut(lease.buffer().len()) {
                 tick(work)?;
-                let want =
-                    usize::try_from(remaining).unwrap_or(usize::MAX).min(lease.buffer().len());
-                let buffer = lease.buffer();
-                read_fixed(&mut r, &mut buffer[..want])?;
-                digest.update(&buffer[..want]);
-                remaining -= lossless_u64(want);
+                read_fixed(&mut r, chunk)?;
+                digest.update(chunk);
                 receipt.chunks += 1;
-                receipt.largest_read = receipt.largest_read.max(want);
+                receipt.largest_read = receipt.largest_read.max(chunk.len());
             }
             if digest.finish() != Some(head.checksum) {
                 return Err(StreamArtifactError::ChecksumMismatch { section: PAYLOAD_SECTION });
             }
             receipt.on_wire_bytes = head.on_wire_len;
 
-            // Pass two: decode the verified bytes into the sink.
-            r.seek(SeekFrom::Start(start)).map_err(|e| from_std(&e))?;
+            // Decode the same bytes that were verified, never a second read of the source.
             let mut failure: Option<StreamArtifactError> = None;
             let mut delivered = 0u64;
             let mut deliver = |chunk: &[u8]| -> Result<(), IoError> {
@@ -999,7 +1008,7 @@ impl StreamArtifact<'_> {
                     }
                 }
             };
-            let on_wire = (&mut r).take(head.on_wire_len);
+            let on_wire = std::io::Cursor::new(snapshot.as_slice());
             let decoded = if head.codec == CODEC_ZSTD {
                 zstd_decompress_chunked(
                     on_wire,
@@ -1018,7 +1027,6 @@ impl StreamArtifact<'_> {
             if total != head.logical_len || delivered != head.logical_len {
                 return Err(StreamArtifactError::Decompress);
             }
-            r.seek(SeekFrom::Start(start + head.on_wire_len)).map_err(|e| from_std(&e))?;
             receipt.logical_bytes = delivered;
             receipt.chunks += delivered.div_ceil(lossless_u64(work.chunk_bytes.max(1)));
         }
@@ -1401,6 +1409,63 @@ mod tests {
 
         fn study(pool: &AdmissionPool) -> ExecutionContext {
             ExecutionContext::for_tests(1).with_admission(pool.clone())
+        }
+
+        #[test]
+        fn read_to_delivers_verified_snapshot_when_source_changes_on_rewind() {
+            struct Changing(std::io::Cursor<Vec<u8>>);
+            impl std::io::Read for Changing {
+                fn read(&mut self, b: &mut [u8]) -> std::io::Result<usize> {
+                    self.0.read(b)
+                }
+            }
+            impl std::io::Seek for Changing {
+                fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
+                    if let std::io::SeekFrom::Start(target) = pos {
+                        if target < self.0.position() {
+                            let bytes = self.0.get_mut();
+                            let last = bytes.len() - 1;
+                            bytes[last] ^= 1;
+                        }
+                    }
+                    std::io::Seek::seek(&mut self.0, pos)
+                }
+            }
+            let payload = b"verified payload";
+            let pool = AdmissionPool::fixed(1, 1 << 20);
+            let ctx = study(&pool);
+            let work = StreamWork::new(&ctx).with_chunk_bytes(8);
+            let mut received = Vec::new();
+            let (_, receipt) = StreamArtifact::read_to(
+                Changing(std::io::Cursor::new(super::host(payload))),
+                &super::bounds(),
+                &work,
+                |chunk| {
+                    received.extend_from_slice(chunk);
+                    Ok(())
+                },
+            )
+            .unwrap();
+            assert_eq!(received, payload);
+            assert_eq!(receipt.leased_bytes, 16 + payload.len() as u64);
+            assert_eq!(pool.available().bytes(), 1 << 20);
+            let pool = AdmissionPool::fixed(1, 16);
+            let ctx = study(&pool);
+            let work = StreamWork::new(&ctx).with_chunk_bytes(8);
+            let mut called = false;
+            let error = StreamArtifact::read_to(
+                std::io::Cursor::new(super::host(payload)),
+                &super::bounds(),
+                &work,
+                |_| {
+                    called = true;
+                    Ok(())
+                },
+            )
+            .unwrap_err();
+            assert_eq!(error, StreamArtifactError::BudgetRefused);
+            assert!(!called);
+            assert_eq!(pool.available().bytes(), 16);
         }
 
         #[test]

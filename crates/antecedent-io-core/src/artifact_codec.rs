@@ -905,10 +905,10 @@ pub fn encode_container(
 
 /// Read a container whose kind and section ids match `section_ids` in order.
 ///
-/// The file length is refused before the reader allocates. A version check, when
-/// the artifact has one, is the caller's [`decode_with_version`] on the returned
-/// section bytes, so a foreign version is still refused before that section is
-/// interpreted as its payload type.
+/// The file length is refused before the reader allocates. The outer container must
+/// use the current format and must not require a newer reader. Older containers need
+/// explicit migration before this raw section decoder. Artifact-specific payload
+/// versions are checked separately by the caller's [`decode_with_version`].
 ///
 /// # Errors
 /// Oversize, truncated, corrupt, or differently laid out containers.
@@ -923,6 +923,23 @@ pub fn decode_container(
     }
     let mut reader = ArtifactReader::open_seek(Cursor::new(bytes)).map_err(CodecError::Decode)?;
     let manifest = reader.manifest();
+    let stable = crate::migrate::STABLE_FORMAT;
+    let minimum = manifest.minimum_reader_version;
+    if minimum.major > stable.major
+        || (minimum.major == stable.major && minimum.minor > stable.minor)
+    {
+        return Err(CodecError::Decode(IoError::UnsupportedFormat {
+            major: minimum.major,
+            minor: minimum.minor,
+        }));
+    }
+    if manifest.format_version != stable {
+        let version = manifest.format_version;
+        return Err(CodecError::Decode(IoError::UnsupportedFormat {
+            major: version.major,
+            minor: version.minor,
+        }));
+    }
     let layout_ok = manifest.artifact_kind == ArtifactKind::Other(kind.into())
         && manifest.sections.len() == section_ids.len()
         && manifest.sections.iter().zip(section_ids).all(|(section, id)| section.id == *id);
@@ -1219,5 +1236,54 @@ mod identity_difference_tests {
         assert_eq!(diff(&base, &identity("s", "d", "x")), Some("identity"));
         assert_eq!(diff(&base, &identity("s", "x", "x")), Some("design"));
         assert_eq!(diff(&base, &identity("x", "x", "x")), Some("row_snapshot"));
+    }
+}
+
+#[cfg(test)]
+mod outer_version_tests {
+    use super::*;
+    use crate::{FormatVersion, IoError};
+
+    fn encoded(format: FormatVersion, minimum: FormatVersion) -> Vec<u8> {
+        let payload = b"abc";
+        let artifact = EncodedArtifact {
+            manifest: ArtifactManifest {
+                format_version: format,
+                minimum_reader_version: minimum,
+                artifact_kind: ArtifactKind::Other("test.outer".into()),
+                library_version: SemanticVersion::from_crate_version("1.0.0").unwrap(),
+                artifact_id: "test".into(),
+                sections: vec![section_descriptor("body", "application/octet-stream", payload)],
+                provenance: ProvenanceWire { note: String::new() },
+            },
+            sections: vec![SectionBytes::new("body", payload.to_vec())],
+        };
+        let mut bytes = Vec::new();
+        artifact.write_to(&mut bytes).unwrap();
+        bytes
+    }
+
+    #[test]
+    fn raw_container_checks_outer_version_and_minimum_reader() {
+        let stable = crate::migrate::STABLE_FORMAT;
+        let current = encoded(stable, stable);
+        assert_eq!(
+            decode_container("test.outer", 100_000, &["body"], &current).unwrap(),
+            vec![b"abc".to_vec()]
+        );
+        let future = FormatVersion { major: stable.major, minor: stable.minor + 1 };
+        let mut newer_reader = encoded(stable, future);
+        let last = newer_reader.len() - 1;
+        newer_reader[last] ^= 1; // Even a corrupt section must not be loaded first.
+        assert!(matches!(
+            decode_container("test.outer", 100_000, &["body"], &newer_reader),
+            Err(CodecError::Decode(IoError::UnsupportedFormat { .. }))
+        ));
+        let older = FormatVersion { major: 0, minor: 1 };
+        let old = encoded(older, older);
+        assert!(matches!(
+            decode_container("test.outer", 100_000, &["body"], &old),
+            Err(CodecError::Decode(IoError::UnsupportedFormat { .. }))
+        ));
     }
 }
