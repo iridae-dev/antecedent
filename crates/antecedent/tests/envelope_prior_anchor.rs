@@ -297,3 +297,13 @@ fn interactive_envelope_public_estimand_anchors_to_first_contributing_atom() {
         );
     }
 }
+
+#[test]
+fn invalid_public_conflict_policy_is_refused_at_study_build() {
+    let data = toy_table(100);
+    let mut cfg = composed_cfg(&data);
+    cfg.external_compose.as_mut().unwrap().conflict_policy =
+        Some(ConflictPolicy { p_min: f64::NAN, kl_scale: 1.0 });
+    let error = Study::tabular(data).inference(InferenceMode::Bayesian(cfg)).build().unwrap_err();
+    assert!(error.to_string().contains("ConflictPolicy p_min"), "{error}");
+}

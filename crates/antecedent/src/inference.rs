@@ -562,6 +562,9 @@ fn resolve_unscaled_prior(
     ctx: Option<&ExecutionContext>,
 ) -> Result<(Option<PriorSet>, Option<ConflictSummary>), CausalError> {
     if let Some(ext) = &cfg.external_compose {
+        if let Some(policy) = ext.conflict_policy {
+            policy.validate().map_err(CausalError::from)?;
+        }
         if ext.conflict_policy.is_some() && ext.baseline.is_none() {
             return Err(CausalError::Unsupported {
                 message: "conflict re-shrink requires the original composition baseline; recompose the prior",

@@ -1958,6 +1958,13 @@ impl StudyBuilder {
         if let Some(error) = self.discovery_query_error.take() {
             return Err(CausalError::from(error));
         }
+        if let InferenceMode::Bayesian(cfg) = &self.settings.inference {
+            if let Some(policy) =
+                cfg.external_compose.as_ref().and_then(|external| external.conflict_policy)
+            {
+                policy.validate().map_err(CausalError::from)?;
+            }
+        }
         self.apply_bootstrap_interval()?;
         if let (Some(CausalQuery::SyntheticControl(query)), InferenceMode::Frequentist) =
             (self.query.as_mut(), &self.settings.inference)
