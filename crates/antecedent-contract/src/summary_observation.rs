@@ -84,14 +84,114 @@ pub struct SummaryCovariance {
     entries: Vec<f64>,
 }
 
+// Dimensionless roundoff allowance in correlation coordinates. It accepts
+// singular PSD matrices and roundoff at rank-deficient pivots without using a
+// floor tied to the units of any covariance entry.
+fn validate_covariance(dimension: usize, entries: &[f64]) -> Result<(), SummaryObservationError> {
+    if entries.iter().any(|entry| !entry.is_finite()) {
+        return Err(SummaryObservationError::non_finite("covariance"));
+    }
+    let tolerance = 64.0 * f64::EPSILON * dimension as f64;
+    let mut scales = Vec::with_capacity(dimension);
+    for i in 0..dimension {
+        let variance = entries[i * dimension + i];
+        if variance < 0.0 {
+            return Err(SummaryObservationError::invalid_covariance());
+        }
+        scales.push(variance.sqrt());
+    }
+    let mut correlation = vec![0.0; entries.len()];
+    for i in 0..dimension {
+        if scales[i] != 0.0 {
+            correlation[i * dimension + i] = 1.0;
+        }
+        for j in 0..i {
+            let a = entries[i * dimension + j];
+            let b = entries[j * dimension + i];
+            if scales[i] == 0.0 || scales[j] == 0.0 {
+                if a != 0.0 || b != 0.0 {
+                    return Err(SummaryObservationError::invalid_covariance());
+                }
+                continue;
+            }
+            let large = scales[i].max(scales[j]);
+            let small = scales[i].min(scales[j]);
+            let x = (a / large) / small;
+            let y = (b / large) / small;
+            if !x.is_finite()
+                || !y.is_finite()
+                || (x - y).abs() > tolerance * x.abs().max(y.abs()).max(1.0)
+            {
+                return Err(SummaryObservationError::invalid_covariance());
+            }
+            let average = x * 0.5 + y * 0.5;
+            correlation[i * dimension + j] = average;
+            correlation[j * dimension + i] = average;
+        }
+    }
+    // Symmetric diagonal pivoting places the largest remaining variance first.
+    // Keep every positive pivot, even one below the roundoff tolerance: treating
+    // it as zero can reject a valid nearly singular covariance. Tolerance is
+    // used only for nonpositive residuals from roundoff.
+    for k in 0..dimension {
+        let pivot_index = (k..dimension)
+            .max_by(|&i, &j| {
+                correlation[i * dimension + i].total_cmp(&correlation[j * dimension + j])
+            })
+            .expect("the trailing submatrix is nonempty");
+        if pivot_index != k {
+            for j in 0..dimension {
+                correlation.swap(k * dimension + j, pivot_index * dimension + j);
+            }
+            for i in 0..dimension {
+                correlation.swap(i * dimension + k, i * dimension + pivot_index);
+            }
+        }
+        let pivot = correlation[k * dimension + k];
+        if !pivot.is_finite() || pivot < -tolerance {
+            return Err(SummaryObservationError::invalid_covariance());
+        }
+        if pivot <= 0.0 {
+            for i in k..dimension {
+                for j in k..dimension {
+                    if !correlation[i * dimension + j].is_finite()
+                        || correlation[i * dimension + j].abs() > tolerance
+                    {
+                        return Err(SummaryObservationError::invalid_covariance());
+                    }
+                }
+            }
+            break;
+        }
+        let scale = pivot.sqrt();
+        for i in (k + 1)..dimension {
+            correlation[i * dimension + k] /= scale;
+        }
+        for i in (k + 1)..dimension {
+            for j in (k + 1)..=i {
+                let residual = correlation[i * dimension + j]
+                    - correlation[i * dimension + k] * correlation[j * dimension + k];
+                if !residual.is_finite() {
+                    return Err(SummaryObservationError::invalid_covariance());
+                }
+                correlation[i * dimension + j] = residual;
+                correlation[j * dimension + i] = residual;
+            }
+        }
+    }
+    Ok(())
+}
+
 impl SummaryCovariance {
     /// Row-major square matrix with `dimension` rows.
     ///
     /// # Errors
     ///
     /// [`SummaryObservationError`] when `dimension` is zero, `entries` has a length other than
-    /// `dimension * dimension`, or any entry is non-finite. The error has no
-    /// next attempt.
+    /// `dimension * dimension`, an entry is non-finite, or the matrix is not
+    /// symmetric positive semidefinite. Symmetry and semidefiniteness use a
+    /// correlation-scale tolerance of `64 * f64::EPSILON * dimension`; a zero
+    /// variance requires an exactly zero cross row. The error has no next attempt.
     #[must_use = "a covariance that is not a finite square matrix is refused"]
     pub fn matrix(dimension: usize, entries: Vec<f64>) -> Result<Self, SummaryObservationError> {
         let Some(cells) = dimension.checked_mul(dimension) else {
@@ -100,9 +200,7 @@ impl SummaryCovariance {
         if dimension == 0 || entries.len() != cells {
             return Err(SummaryObservationError::shape());
         }
-        if entries.iter().any(|entry| !entry.is_finite()) {
-            return Err(SummaryObservationError::non_finite("covariance"));
-        }
+        validate_covariance(dimension, &entries)?;
         Ok(Self { dimension, entries })
     }
 
@@ -203,8 +301,8 @@ impl FrequentistSummary {
     /// # Errors
     ///
     /// [`SummaryObservationError`] when `name` is empty or whitespace, or when
-    /// `estimate` or a covariance entry is non-finite. The error has no next
-    /// attempt.
+    /// `estimate` or a covariance entry is non-finite, or the covariance is not
+    /// symmetric positive semidefinite. The error has no next attempt.
     #[must_use = "a blank name or a non-finite value is refused"]
     pub fn estimate_covariance(
         name: impl Into<Arc<str>>,
@@ -214,9 +312,7 @@ impl FrequentistSummary {
         let name = declared(name, "summary")?;
         let estimate = finite(estimate, "estimate")?;
         let covariance = covariance.into();
-        if covariance.entries.iter().any(|entry| !entry.is_finite()) {
-            return Err(SummaryObservationError::non_finite("covariance"));
-        }
+        validate_covariance(covariance.dimension, &covariance.entries)?;
         Ok(Self { name, body: SummaryBody::EstimateCovariance { estimate, covariance } })
     }
 
@@ -850,6 +946,16 @@ impl SummaryObservationError {
         }
     }
 
+    fn invalid_covariance() -> Self {
+        Self {
+            code: INVALID_CODE,
+            detail: SHAPE_DETAIL,
+            message: String::from("covariance is not symmetric positive semidefinite"),
+            next: None,
+            summary_kind: None,
+        }
+    }
+
     fn checklist(message: String) -> Self {
         Self {
             code: MISMATCH_CODE,
@@ -1201,7 +1307,7 @@ mod tests {
         );
 
         let matrix =
-            SummaryCovariance::matrix(2, vec![1.0_f64, 0.2_f64, 0.3_f64, 4.0_f64]).expect("matrix");
+            SummaryCovariance::matrix(2, vec![1.0_f64, 0.2_f64, 0.2_f64, 4.0_f64]).expect("matrix");
         let joint =
             FrequentistSummary::estimate_covariance("joint", -0.5_f64, matrix).expect("joint");
         let stored = joint.covariance().expect("covariance");
@@ -1209,7 +1315,7 @@ mod tests {
         assert_eq!(stored.dimension(), 2);
         assert_eq!(stored.entries().len(), 4);
         assert_eq!(stored.entries().get(1).map(|entry| entry.to_bits()), Some(0.2_f64.to_bits()));
-        assert_eq!(stored.entries().get(2).map(|entry| entry.to_bits()), Some(0.3_f64.to_bits()));
+        assert_eq!(stored.entries().get(2).map(|entry| entry.to_bits()), Some(0.2_f64.to_bits()));
         assert_eq!(stored.entries().get(3).map(|entry| entry.to_bits()), Some(4.0_f64.to_bits()));
 
         let interval = interval("ate");
@@ -1222,6 +1328,41 @@ mod tests {
         assert_eq!(refusal.next_attempt(), Some(REPORT_AS_FREQUENTIST_INTERVAL));
         assert!(refusal.message().contains("not a Bayesian likelihood"));
         assert!(refusal.message().contains("not a Bayesian law"));
+    }
+
+    #[test]
+    fn covariance_requires_symmetric_positive_semidefinite_matrices() {
+        for entries in
+            [vec![0.0, 0.0, 0.0, 0.0], vec![1.0, 1.0, 1.0, 1.0], vec![1e-300, 1.0, 1.0, 1e300]]
+        {
+            assert!(SummaryCovariance::matrix(2, entries).is_ok());
+        }
+        for entries in [
+            vec![-1.0, 0.0, 0.0, 1.0],
+            vec![0.0, 1e-300, 1e-300, 1.0],
+            vec![1.0, 0.2, 0.3, 1.0],
+            vec![1.0, 1.1, 1.1, 1.0],
+        ] {
+            assert!(SummaryCovariance::matrix(2, entries).is_err());
+        }
+        // A tiny positive Schur pivot must not be treated as zero. The
+        // matrix is positive definite despite being near singular, in every
+        // ordering of its coordinates.
+        let rho = 1.0 - 1e-16;
+        let matrix = [1.0, rho, 0.0, rho, 1.0, 1e-8, 0.0, 1e-8, 1.0];
+        for order in [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]] {
+            let permuted: Vec<f64> =
+                order.iter().flat_map(|&i| order.iter().map(move |&j| matrix[i * 3 + j])).collect();
+            assert!(SummaryCovariance::matrix(3, permuted).is_ok());
+        }
+        // All pairwise correlations are valid; the full 3x3 matrix is indefinite.
+        assert!(
+            SummaryCovariance::matrix(3, vec![1.0, 0.9, 0.9, 0.9, 1.0, -0.9, 0.9, -0.9, 1.0,])
+                .is_err()
+        );
+        // From<f64> is infallible; construction of the summary must still refuse it.
+        assert!(FrequentistSummary::estimate_covariance("bad", 0.0, -1.0).is_err());
+        assert!(FrequentistSummary::estimate_covariance("zero", 0.0, 0.0).is_ok());
     }
 
     #[test]
