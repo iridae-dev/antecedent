@@ -181,6 +181,7 @@ fn audit_identification_inputs(study: &Study) {
     let crate::analysis::execute::StudyConfig {
         // Not read by identification: caller-facing notes and sinks.
         refute_default_downgrade: _,
+        data_diagnostics: _,
         latency_bootstrap_not_applied: _,
         stage_sink: _,
         // Estimation options: identification chooses an estimand, never reads these.

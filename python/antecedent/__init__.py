@@ -226,6 +226,7 @@ if getattr(_native_module, "__build_optimized__", True) is False:
     )
 from ._workflow import load
 from .accepted_graph import AcceptedGraph
+from .data_diagnostics import DataDiagnostics, diagnose_data
 from .drift import staleness
 from .errors import CausalError, ReviewRequired
 from .execution import CachePolicy, Execution, ResourceLimits
@@ -265,6 +266,8 @@ from .query import (
 from .results import Analysis, AnalysisResult
 
 __all__ = [
+    "DataDiagnostics",
+    "diagnose_data",
     "Execution",
     "ResourceLimits",
     "CachePolicy",

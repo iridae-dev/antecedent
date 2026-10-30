@@ -1810,6 +1810,7 @@ impl PyCompletedBatch {
     estimate_rows=None,
     tiers=None,
     within_tier=None,
+    data_diagnostics=None,
 ))]
 fn prepare_ate_batch(
     py: Python<'_>,
@@ -1831,6 +1832,7 @@ fn prepare_ate_batch(
     estimate_rows: Option<Vec<u64>>,
     tiers: Option<Vec<Vec<String>>>,
     within_tier: Option<String>,
+    data_diagnostics: Option<String>,
 ) -> PyResult<PyPreparedBatch> {
     let (data, _) = tabular_from_py_columns(names.clone(), columns)?;
     let suite = refute.as_ref().map(|r| suite_from_refute(Some(r))).transpose()?;
@@ -1857,6 +1859,12 @@ fn prepare_ate_batch(
             within_tier,
         )?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let batch = match data_diagnostics.as_deref() {
+            Some(text) => {
+                batch.data_diagnostics(crate::data_diagnostics_api::policy_setting(text)?)
+            }
+            None => batch,
+        };
         let prepared = batch.prepare_deferred(&ate_queries, &ctx).map_err(py_err)?;
         Ok(PyPreparedBatch::new(prepared, names))
     })
@@ -1885,6 +1893,7 @@ fn prepare_ate_batch(
     within_tier=None,
     family_contrast="cell_minus_control",
     family_posterior_draws=None,
+    data_diagnostics=None,
 ))]
 fn prepare_cells_batch(
     py: Python<'_>,
@@ -1908,6 +1917,7 @@ fn prepare_cells_batch(
     within_tier: Option<String>,
     family_contrast: Option<&str>,
     family_posterior_draws: Option<usize>,
+    data_diagnostics: Option<String>,
 ) -> PyResult<PyPreparedBatch> {
     let (data, _) = tabular_from_py_columns(names.clone(), columns)?;
     let suite = refute.as_ref().map(|r| suite_from_refute(Some(r))).transpose()?;
@@ -1942,6 +1952,12 @@ fn prepare_cells_batch(
             }
         }));
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let batch = match data_diagnostics.as_deref() {
+            Some(text) => {
+                batch.data_diagnostics(crate::data_diagnostics_api::policy_setting(text)?)
+            }
+            None => batch,
+        };
         let prepared = batch.prepare_cells_deferred(&cell_queries, &ctx).map_err(py_err)?;
         Ok(PyPreparedBatch::new(prepared, names))
     })

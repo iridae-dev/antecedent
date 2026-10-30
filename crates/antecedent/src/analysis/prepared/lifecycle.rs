@@ -196,6 +196,15 @@ impl PreparedStudy {
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: "refresh" });
         }
+        candidate.state.data_diagnostics = candidate
+            .analysis
+            .data_diagnostics
+            .as_ref()
+            .map(|policy| {
+                super::super::data_diagnostics::evaluate(&candidate.analysis, policy, ctx, true)
+            })
+            .transpose()?;
+        candidate.inspection_header = std::sync::OnceLock::new();
         candidate.seal_inspection_metadata()?;
         *self = candidate;
         Ok(result)
@@ -461,6 +470,7 @@ impl PreparedStudy {
     pub(crate) fn rebind_static_functional_data(
         &mut self,
         data: TabularData,
+        ctx: &ExecutionContext,
     ) -> Result<(), CausalError> {
         self.ensure_schema_compatible(&data)?;
         let operation = self
@@ -472,7 +482,10 @@ impl PreparedStudy {
             .rebind(&data)?;
         let mut study = self.analysis.clone();
         study.data = DataInput::Tabular(data);
+        let diagnostics = study.data_diagnostics.as_ref()
+            .map(|policy| super::super::data_diagnostics::evaluate(&study, policy, ctx, true)).transpose()?;
         self.replace_study(study);
+        self.state.data_diagnostics = diagnostics;
         self.execution = PreparedExecution::AdmgResponseCurve(operation);
         self.seal_inspection_metadata()?;
         Ok(())

@@ -158,3 +158,8 @@ pub use super::fallback::{
     FallbackRequest, FallbackRoles, FallbackUnavailable, RankedPlan,
 };
 pub use super::{JointResponseResult, PreparedJointResponse};
+
+pub use super::{
+    DataDiagnosticCheck, DataDiagnosticColumn, DataDiagnosticContext, DataDiagnosticFinding,
+    DataDiagnostics, DataDiagnosticsError, DataDiagnosticsReport, diagnose_data,
+};

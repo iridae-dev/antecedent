@@ -20668,3 +20668,31 @@ crate = "antecedent-io"
 cargo_target = "lib"
 path = "crates/antecedent-io/src/predictive_assessment_artifact.rs"
 gates = ["inventory"]
+
+[[test]]
+id = "data-diagnostics-engine"
+crate = "antecedent-validate"
+cargo_target = "lib"
+path = "crates/antecedent-validate/src/data_diagnostics.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "data-diagnostics-lifecycle"
+crate = "antecedent"
+cargo_target = "data_diagnostics"
+path = "crates/antecedent/tests/data_diagnostics.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "data-diagnostics-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_data_diagnostics.py"
+gates = ["inventory"]
+
+[[test]]
+id = "data-diagnostics-prepared-adapter"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/data_diagnostics.rs"
+gates = ["inventory", "named"]

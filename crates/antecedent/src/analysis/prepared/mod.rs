@@ -199,6 +199,7 @@ struct RetainedBranch {
 /// Retained state for sampled-data modalities of the common prepared handle.
 #[derive(Clone, Debug)]
 pub struct SampledPreparedState {
+    pub(super) data_diagnostics: Option<Arc<crate::DataDiagnosticsReport>>,
     /// Frozen analysis config (data slot replaced only by checked refresh).
     analysis: Study,
     /// Whether data-dependent statistical operations have been materialized.

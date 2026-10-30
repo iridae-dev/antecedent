@@ -152,6 +152,7 @@ mod pooled_measurement_api;
 mod posterior;
 mod predictive_assessment_api;
 mod preflight_api;
+mod data_diagnostics_api;
 mod prepared_api;
 mod prepared_options;
 mod prior_bank;
@@ -2024,6 +2025,7 @@ impl PyCancellationToken {
 
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    data_diagnostics_api::register(m)?;
     data_snapshot::register(m)?;
     execution_api::register(m)?;
     tiered_identify_api::register(m)?;

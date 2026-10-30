@@ -413,6 +413,7 @@ enum BatchGraph {
 /// in parallel chunks.
 #[derive(Clone, Debug)]
 pub struct BatchStudy {
+    data_diagnostics: Option<crate::DataDiagnostics>,
     data: TabularData,
     graph: BatchGraph,
     /// `None` leaves the per-query builder's omitted table and latency tier in force.
@@ -446,11 +447,19 @@ pub(crate) fn batch_nuisance_cache(
 }
 
 impl BatchStudy {
+    /// Configure automatic fit-free diagnostics for every member; `None` disables them.
+    #[must_use]
+    pub fn data_diagnostics(mut self, policy: Option<crate::DataDiagnostics>) -> Self {
+        self.data_diagnostics = policy;
+        self
+    }
+
     /// A batch over `data` and `graph` with every option at its default.
     fn with_graph(data: TabularData, graph: BatchGraph) -> Self {
         Self {
             data,
             graph,
+            data_diagnostics: Some(crate::DataDiagnostics::default()),
             bootstrap_replicates: None,
             refute: None,
             latency_mode: None,
@@ -686,6 +695,7 @@ impl BatchStudy {
         ctx: &ExecutionContext,
         materialized: bool,
     ) -> Result<PreparedBatch, CausalError> {
+        let _diagnostic_profiles = super::data_diagnostics::batch_profiles();
         if queries.is_empty() {
             return Err(CausalError::Compile {
                 message: "batch prepare requires at least one query".into(),
@@ -765,6 +775,7 @@ impl BatchStudy {
         ctx: &ExecutionContext,
         materialized: bool,
     ) -> Result<PreparedBatch, CausalError> {
+        let _diagnostic_profiles = super::data_diagnostics::batch_profiles();
         if queries.is_empty() {
             return Err(CausalError::Compile {
                 message: "batch prepare_cells requires at least one query".into(),
@@ -813,6 +824,7 @@ impl BatchStudy {
         mut builder: StudyBuilder,
         default_estimator: Option<EstimatorId>,
     ) -> StudyBuilder {
+        builder = builder.data_diagnostics(self.data_diagnostics.clone());
         if let Some(suite) = self.refute {
             builder = builder.refute(suite);
         }

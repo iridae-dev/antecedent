@@ -2876,3 +2876,10 @@ rust = "antecedent::analysis::api::estimate_with_graph_selection_per_imputation"
 kind = "fn"
 status = "bound"
 python = "antecedent.missing.multiple_imputation_with_graph_selection"
+
+[[entry]]
+rust = "antecedent::analysis::api::diagnose_data"
+kind = "fn"
+status = "bound"
+python = "antecedent.data_diagnostics.diagnose_data"
+reason = "Standalone and prepared fit-free diagnostic reporting; tested in python/tests/test_data_diagnostics.py."

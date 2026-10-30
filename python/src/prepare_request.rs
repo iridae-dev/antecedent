@@ -217,6 +217,10 @@ impl PrepareRequest {
         series: bool,
         ctx: &antecedent_core::ExecutionContext,
     ) -> PyResult<super::PyPreparedAnalysis> {
+        let builder = match &self.opts.data_diagnostics {
+            Some(policy) => builder.data_diagnostics(policy.clone()),
+            None => builder,
+        };
         let analysis = builder.build().map_err(crate::py_err)?;
         let prepared = match analysis.prepare_deferred(ctx) {
             Ok(prepared) => prepared,

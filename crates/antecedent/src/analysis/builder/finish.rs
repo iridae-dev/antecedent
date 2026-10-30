@@ -2185,6 +2185,7 @@ fn into_study(exposure: BoundExposure) -> Study {
     } = carry;
     Study {
         config: Arc::new(StudyConfig {
+            data_diagnostics: Some(crate::DataDiagnostics::default()),
             refute_default_downgrade,
             latency_bootstrap_not_applied,
             estimator_spec_identity: declared

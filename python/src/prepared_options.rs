@@ -18,6 +18,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
 const KEYS: &[&str] = &[
+    "data_diagnostics",
     "refute",
     "bootstrap",
     "latency",
@@ -171,6 +172,7 @@ fn parse_draw_controls(name: &str) -> PyResult<antecedent::PosteriorDrawControls
 /// Parsed shared prepare options.
 #[derive(Default)]
 pub(crate) struct PrepareOptions {
+    pub data_diagnostics: Option<Option<antecedent::DataDiagnostics>>,
     pub refute: Option<RefuteSuite>,
     pub bootstrap: Option<u32>,
     pub latency: Option<LatencyMode>,
@@ -320,6 +322,7 @@ impl PrepareOptions {
             })
             .transpose()?;
         Ok(Self {
+            data_diagnostics: item("data_diagnostics")?.map(|value| crate::data_diagnostics_api::policy_setting(&value.extract::<String>()?)).transpose()?,
             refute,
             bootstrap,
             latency,
@@ -360,6 +363,7 @@ impl PrepareOptions {
 
     /// Apply the declared inference, moving any prior transfer onto the builder.
     pub(crate) fn apply_inference(&mut self, builder: StudyBuilder) -> PyResult<StudyBuilder> {
+        let builder = match &self.data_diagnostics { Some(policy) => builder.data_diagnostics(policy.clone()), None => builder };
         let spec = &mut self.inference;
         let builder = match spec.draw_controls {
             Some(controls) => builder.draw_controls(controls),
@@ -424,6 +428,7 @@ impl PrepareOptions {
 
     /// Write only what the caller supplied onto the builder.
     pub(crate) fn apply(&self, mut builder: StudyBuilder) -> StudyBuilder {
+        if let Some(policy) = &self.data_diagnostics { builder = builder.data_diagnostics(policy.clone()); }
         if let Some(suite) = self.refute {
             builder = builder.refute(suite);
         }
@@ -458,6 +463,7 @@ impl PrepareOptions {
             return self.apply(builder);
         }
         let without_bootstrap = Self {
+            data_diagnostics: self.data_diagnostics.clone(),
             refute: self.refute,
             bootstrap: None,
             latency: self.latency,

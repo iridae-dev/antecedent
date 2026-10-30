@@ -605,3 +605,9 @@ pub mod cyclic_evidence;
 pub mod joint_panel;
 
 pub use prepared::{JointResponseResult, PreparedJointResponse};
+
+mod data_diagnostics;
+pub use data_diagnostics::{
+    DataDiagnosticCheck, DataDiagnosticColumn, DataDiagnosticContext, DataDiagnosticFinding,
+    DataDiagnostics, DataDiagnosticsError, DataDiagnosticsReport, diagnose_data,
+};

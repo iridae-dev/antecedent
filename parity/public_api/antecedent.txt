@@ -12702,6 +12702,7 @@ pub fn <antecedent::BatchStudy>::const fn family_posterior(self, posterior: core
 pub fn <antecedent::BatchStudy>::const fn identifier(self, id: antecedent::IdentifierId) -> Self
 pub fn <antecedent::BatchStudy>::fn bootstrap_replicates(self, n: u32) -> Self
 pub fn <antecedent::BatchStudy>::fn candidate_screen(self, screen: antecedent::CandidateScreen) -> Self
+pub fn <antecedent::BatchStudy>::fn data_diagnostics(self, policy: core::option::Option<antecedent_validate::data_diagnostics::DataDiagnostics>) -> Self
 pub fn <antecedent::BatchStudy>::fn estimate_many(&self, queries: &[antecedent_core::query::average::AverageEffectQuery], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent::StudyResult>, antecedent::CausalError>
 pub fn <antecedent::BatchStudy>::fn estimator(self, id: antecedent::EstimatorId) -> Self
 pub fn <antecedent::BatchStudy>::fn estimator_fingerprint(&self) -> core::result::Result<alloc::string::String, antecedent::CausalError>
@@ -13032,7 +13033,9 @@ pub fn <antecedent::PreparedAdmgConditionalTransport>::fn refresh(&self, data: a
 pub fn <antecedent::PreparedAdmgConditionalTransport>::fn requests(&self) -> &[antecedent_expr::provider::Assignment]
 pub fn <antecedent::PreparedAdmgConditionalTransport>::fn requote_execution(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedBatch>::fn batch_share_identity(&self) -> core::result::Result<core::option::Option<antecedent_core::identity::SemanticDigest>, antecedent::CausalError>
+pub fn <antecedent::PreparedBatch>::fn data_diagnostics(&self) -> alloc::vec::Vec<core::option::Option<&antecedent_validate::data_diagnostics::DataDiagnosticsReport>>
 pub fn <antecedent::PreparedBatch>::fn diagnose(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::BatchPreflightReport, antecedent::CausalError>
+pub fn <antecedent::PreparedBatch>::fn diagnose_data(&self, policy: &antecedent_validate::data_diagnostics::DataDiagnostics, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_validate::data_diagnostics::DataDiagnosticsReport>, antecedent::CausalError>
 pub fn <antecedent::PreparedBatch>::fn diagnose_fit(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent::NuisanceFitDiagnostics>, antecedent::CausalError>
 pub fn <antecedent::PreparedBatch>::fn estimate(&self, data: &antecedent_data::dataset::TabularData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent::StudyResult>, antecedent::CausalError>
 pub fn <antecedent::PreparedBatch>::fn estimate_cost(&self) -> core::result::Result<antecedent::BatchCostEstimate, antecedent::CausalError>
@@ -13303,7 +13306,9 @@ pub fn <antecedent::PreparedStudy>::fn contract(&self) -> core::result::Result<a
 pub fn <antecedent::PreparedStudy>::fn contract_for_result(&self, result: &antecedent::StudyResult) -> core::result::Result<antecedent::CausalContract, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn custom_validator_names(&self) -> alloc::vec::Vec<&str>
 pub fn <antecedent::PreparedStudy>::fn custom_validators(&self) -> &[alloc::sync::Arc<dyn antecedent_validate::custom::CustomEffectValidator>]
+pub fn <antecedent::PreparedStudy>::fn data_diagnostics(&self) -> core::option::Option<&antecedent_validate::data_diagnostics::DataDiagnosticsReport>
 pub fn <antecedent::PreparedStudy>::fn diagnose(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreflightReport, antecedent::CausalError>
+pub fn <antecedent::PreparedStudy>::fn diagnose_data(&self, policy: &antecedent_validate::data_diagnostics::DataDiagnostics, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_validate::data_diagnostics::DataDiagnosticsReport, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn diagnose_fit(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::NuisanceFitDiagnostics, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn encode_contracted_result(&self, result: &antecedent::StudyResult, artifact_id: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn encode_contracted_result_with_quantity_labels(&self, result: &antecedent::StudyResult, artifact_id: &str, ctx: &antecedent_core::execution::context::ExecutionContext, labels: core::option::Option<&antecedent_contract::response_coordinates::ResponseCoordinateLabels<'_>>) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::CausalError>
@@ -13579,6 +13584,7 @@ pub fn <antecedent::StudyBuilder>::fn conditional_transport_scenarios(set: &ante
 pub fn <antecedent::StudyBuilder>::fn continuous_cell(self, variable: antecedent_core::ids::VariableId, grid: impl core::convert::Into<alloc::sync::Arc<[f64]>>) -> Self
 pub fn <antecedent::StudyBuilder>::fn cpdag_completion_scenarios(input: antecedent_identify::sid::cpdag_completion::CpdagCompletionInput, coordinates: alloc::sync::Arc<[antecedent_identify::sid::scenarios::ScenarioCoordinate]>, query: antecedent_identify::sid::ClassicalTransportQuery, evidence: antecedent_identify::sid::cpdag_completion::CpdagEvidence, budget: antecedent_core::search::SearchLimits, evaluation: antecedent::CpdagEvaluation, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedCpdagCompletionScenarios, antecedent_io_core::error::IoError>
 pub fn <antecedent::StudyBuilder>::fn custom_validators(self, validators: alloc::vec::Vec<alloc::sync::Arc<dyn antecedent_validate::custom::CustomEffectValidator>>) -> Self
+pub fn <antecedent::StudyBuilder>::fn data_diagnostics(self, policy: core::option::Option<antecedent_validate::data_diagnostics::DataDiagnostics>) -> Self
 pub fn <antecedent::StudyBuilder>::fn discovery(self, spec: antecedent::DiscoverySpec, variables: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::ids::VariableId]>>) -> Self
 pub fn <antecedent::StudyBuilder>::fn draw_controls(self, controls: antecedent::PosteriorDrawControls) -> Self
 pub fn <antecedent::StudyBuilder>::fn estimator(self, spec: impl core::convert::Into<antecedent::EstimatorSpec>) -> Self
@@ -15255,6 +15261,7 @@ pub fn antecedent::analysis::api::consume_temporal_refresh_artifact(bytes: &[u8]
 pub fn antecedent::analysis::api::consume_temporal_transport_artifact(bytes: &[u8], limits: antecedent_io::temporal_transport_artifact::TemporalTransportConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::temporal_transport::TemporalSequenceReport, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::api::consume_transport_scenarios_artifact(bytes: &[u8], limits: antecedent_io::transport_scenario_artifact::TransportScenarioConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::transport_scenarios::ScenarioSetReport, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::api::consume_z_transport_artifact(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(antecedent_graph::selection::SelectionDiagram, antecedent::ZTransportResult), antecedent_io_core::error::IoError>
+pub fn antecedent::analysis::api::diagnose_data(data: &antecedent_data::dataset::TabularData, policy: &antecedent_validate::data_diagnostics::DataDiagnostics, context: &antecedent_validate::data_diagnostics::DataDiagnosticContext, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_validate::data_diagnostics::DataDiagnosticsReport, antecedent::CausalError>
 pub fn antecedent::analysis::api::estimate_derived_joint_cells(data: &antecedent_data::dataset::TabularData, declaration: &antecedent::DerivedTreatmentDeclaration, outcome: &str, adjustment: &[alloc::string::String], orderings: &[alloc::vec::Vec<usize>], config: &antecedent_estimate::joint_cell_factorized::FactorizedJointConfig, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(antecedent::DerivedTreatmentPlan, antecedent_estimate::joint_cell_factorized::FactorizedJointFit), antecedent::CausalError>
 pub fn antecedent::analysis::api::estimate_joint_cell_cost(config: &antecedent_estimate::joint_cell_factorized::FactorizedJointConfig, components: usize, orderings: &[alloc::vec::Vec<usize>], rows: core::option::Option<usize>) -> core::result::Result<antecedent::JointCellCostEstimate, antecedent::CausalError>
 pub fn antecedent::analysis::api::estimate_with_graph_selection_per_imputation<F>(data: &antecedent_data::dataset::TabularData, spec: antecedent_data::sample_policy::ImputationSpec, selection: &antecedent::GraphSelectionPerImputation, ctx: &antecedent_core::execution::context::ExecutionContext, effect_study: F) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError> where F: core::ops::function::Fn(&antecedent_data::dataset::TabularData, antecedent_discovery::graph_posterior::GraphPosterior) -> antecedent::StudyBuilder
@@ -16806,6 +16813,13 @@ pub use antecedent::ConditionalEffectQuery = query::ConditionalEffectQuery
 pub use antecedent::ContinuousDomain = query::ContinuousDomain
 pub use antecedent::CounterfactualQuery = query::CounterfactualQuery
 pub use antecedent::Dag = graph::Dag
+pub use antecedent::DataDiagnosticCheck = super::DataDiagnosticCheck
+pub use antecedent::DataDiagnosticColumn = super::DataDiagnosticColumn
+pub use antecedent::DataDiagnosticContext = super::DataDiagnosticContext
+pub use antecedent::DataDiagnosticFinding = super::DataDiagnosticFinding
+pub use antecedent::DataDiagnostics = super::DataDiagnostics
+pub use antecedent::DataDiagnosticsError = super::DataDiagnosticsError
+pub use antecedent::DataDiagnosticsReport = super::DataDiagnosticsReport
 pub use antecedent::DecisionClaimKind = super::DecisionClaimKind
 pub use antecedent::DecisionDeclaredExclusion = super::DecisionDeclaredExclusion
 pub use antecedent::DecisionSupportRule = super::DecisionSupportRule
@@ -16981,6 +16995,13 @@ pub use antecedent::analysis::CyclicFitRequest = antecedent_io::cyclic_system_ar
 pub use antecedent::analysis::CyclicInterventionWorld = antecedent_io::cyclic_family_artifact::CyclicInterventionWorld
 pub use antecedent::analysis::CyclicWorldAnswer = antecedent_io::cyclic_family_artifact::CyclicWorldAnswer
 pub use antecedent::analysis::CyclicWorldWire = antecedent_io::cyclic_family_artifact::CyclicWorldWire
+pub use antecedent::analysis::DataDiagnosticCheck = data_diagnostics::DataDiagnosticCheck
+pub use antecedent::analysis::DataDiagnosticColumn = data_diagnostics::DataDiagnosticColumn
+pub use antecedent::analysis::DataDiagnosticContext = data_diagnostics::DataDiagnosticContext
+pub use antecedent::analysis::DataDiagnosticFinding = data_diagnostics::DataDiagnosticFinding
+pub use antecedent::analysis::DataDiagnostics = data_diagnostics::DataDiagnostics
+pub use antecedent::analysis::DataDiagnosticsError = data_diagnostics::DataDiagnosticsError
+pub use antecedent::analysis::DataDiagnosticsReport = data_diagnostics::DataDiagnosticsReport
 pub use antecedent::analysis::DecisionClaimKind = decision_contract_facade::DecisionClaimKind
 pub use antecedent::analysis::DecisionDeclaredExclusion = decision_contract_facade::DecisionDeclaredExclusion
 pub use antecedent::analysis::DecisionFacadeRefusal = antecedent::DecisionFacadeRefusal
@@ -17315,6 +17336,13 @@ pub use antecedent::analysis::api::CounterfactualTransportOptions = antecedent::
 pub use antecedent::analysis::api::CounterfactualTransportPreparation = antecedent::CounterfactualTransportPreparation
 pub use antecedent::analysis::api::CounterfactualTransportResult = antecedent::CounterfactualTransportResult
 pub use antecedent::analysis::api::CpdagEvaluation = antecedent::CpdagEvaluation
+pub use antecedent::analysis::api::DataDiagnosticCheck = super::DataDiagnosticCheck
+pub use antecedent::analysis::api::DataDiagnosticColumn = super::DataDiagnosticColumn
+pub use antecedent::analysis::api::DataDiagnosticContext = super::DataDiagnosticContext
+pub use antecedent::analysis::api::DataDiagnosticFinding = super::DataDiagnosticFinding
+pub use antecedent::analysis::api::DataDiagnostics = super::DataDiagnostics
+pub use antecedent::analysis::api::DataDiagnosticsError = super::DataDiagnosticsError
+pub use antecedent::analysis::api::DataDiagnosticsReport = super::DataDiagnosticsReport
 pub use antecedent::analysis::api::DecisionClaimKind = super::DecisionClaimKind
 pub use antecedent::analysis::api::DecisionDeclaredExclusion = super::DecisionDeclaredExclusion
 pub use antecedent::analysis::api::DecisionFacadeRefusal = antecedent::DecisionFacadeRefusal

@@ -1679,7 +1679,7 @@ pub(super) fn name_run_refusal(
 }
 
 /// The preflight input a prepared plan implies.
-fn input_of(study: &Study) -> Result<PreflightInput<'_>, CausalError> {
+pub(super) fn input_of(study: &Study) -> Result<PreflightInput<'_>, CausalError> {
     let DataInput::Tabular(data) = &study.data else {
         return Err(outside_cell());
     };

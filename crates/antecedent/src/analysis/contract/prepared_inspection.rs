@@ -6,6 +6,7 @@ use serde_json::{Value, json};
 /// Complete proof arenas and numerical replay payloads are not part of this projection.
 #[derive(Clone, Debug)]
 pub struct PreparedInspection {
+    data_diagnostic_counts: Option<(usize, usize, usize)>,
     target: antecedent_core::SemanticDigest,
     identification: antecedent_core::SemanticDigest,
     identification_product: Option<antecedent_core::SemanticDigest>,
@@ -40,6 +41,13 @@ impl PreparedStudy {
         let resolved = self.plan().logical.record.estimator.as_deref();
         let (evidence_obligations, evidence_actions) = evidence_needs::derive(study, proof);
         let header = PreparedInspection {
+            data_diagnostic_counts: self.data_diagnostics().map(|r| {
+                (
+                    r.findings.iter().filter(|f| f.severity == "review").count(),
+                    r.findings.iter().filter(|f| f.severity == "blocking").count(),
+                    r.checks.iter().filter(|c| c.status == "not_evaluated").count(),
+                )
+            }),
             target: program.target_digest,
             identification: program.identification_digest,
             identification_product: program.identification_product_digest,
@@ -162,6 +170,7 @@ impl PreparedInspection {
             json!(self.reasoning.assumptions.as_ref().map_or(0, |s| s.obligations.len()));
         json!({
             "stage":"prepared",
+            "data_diagnostics": self.data_diagnostic_counts.map(|(review, blocking, skipped)| json!({"review": review, "blocking": blocking, "not_evaluated": skipped})),
             "evidence_obligation_count":self.evidence_obligations.len(),
             "evidence_action_count":self.evidence_actions.len(),
             "identities":{

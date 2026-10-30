@@ -706,6 +706,17 @@ class PreparedBatch:
 
         return diagnose(self, execution=execution)
 
+    @property
+    def data_diagnostics(self) -> Any:
+        from .data_diagnostics import retained_report
+
+        return retained_report(self)
+
+    def diagnose_data(self, *, suite: Any = None, execution: Execution | None = None) -> Any:
+        from .data_diagnostics import diagnose_data
+
+        return diagnose_data(self, suite=suite, execution=execution)
+
     def diagnose_fit(self, *, execution: Execution | None = None) -> Outcome[Any]:
         """Explicitly execute nuisance diagnostics, leaving this preparation unchanged."""
         from .preflight import diagnose_fit
@@ -725,6 +736,7 @@ class PreparedBatch:
         return estimate_cost(self, execution=execution)
 
     def inspect(self) -> Any:
+        from .data_diagnostics import _review_count
         from .results._report import InspectionReport, SlotModel
 
         if self._refused is not None:
@@ -742,12 +754,21 @@ class PreparedBatch:
             assumptions=unavailable,
             family="batch",
             stage="prepared",
-            details={"members": len(self._queries), "reuse": self.reuse},
+            details={
+                "members": len(self._queries),
+                "reuse": self.reuse,
+                "data_reviews": _review_count(self),
+            },
             operations=("inspect", "estimate", "rebind", "reconfigure"),
         )
 
     def __repr__(self) -> str:
-        return f"PreparedBatch(members={len(self._queries)}, stage='prepared')"
+        from .data_diagnostics import _review_count
+
+        count = _review_count(self)
+        return (
+            f"PreparedBatch(members={len(self._queries)}, stage='prepared', data_reviews={count})"
+        )
 
     def _repr_html_(self) -> str:
         import html
@@ -768,6 +789,7 @@ def prepare_many(
     execution: Execution | None = None,
     candidate_screen: CandidateScreen | None = None,
     family: CellFamily | None = None,
+    data_diagnostics: Any = True,
 ) -> PreparedBatch:
     """Identify and quote homogeneous effect or joint-cell queries on one owned table.
 
@@ -808,6 +830,7 @@ def prepare_many(
             inference=inference,
             candidate_screen=candidate_screen,
             family=family,
+            data_diagnostics=data_diagnostics,
         )
     )
     queries = declarations["queries"]
@@ -822,7 +845,10 @@ def prepare_many(
 
         owned, native_queries, source_data = policy._call(batch_labels, owned, queries)
     names, columns = owned._native_columns()
+    from .data_diagnostics import _setting_json
+
     kwargs: dict[str, Any] = dict(
+        data_diagnostics=_setting_json(data_diagnostics),
         identifier=identifier,
         estimator=estimator,
         estimator_config=replay_declaration(retain(estimator_config)),

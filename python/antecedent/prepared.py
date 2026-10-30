@@ -108,6 +108,17 @@ class PreparedAnalysis(Generic[T]):
 
         return diagnose(self, execution=execution)
 
+    @property
+    def data_diagnostics(self) -> Any:
+        from .data_diagnostics import retained_report
+
+        return retained_report(self)
+
+    def diagnose_data(self, *, suite: Any = None, execution: Execution | None = None) -> Any:
+        from .data_diagnostics import diagnose_data
+
+        return diagnose_data(self, suite=suite, execution=execution)
+
     def diagnose_fit(self, *, execution: Execution | None = None) -> Outcome[Any]:
         from .preflight import diagnose_fit
 
@@ -337,7 +348,10 @@ class PreparedAnalysis(Generic[T]):
         return self._declarations["query"]
 
     def __repr__(self) -> str:
-        return f"PreparedAnalysis(query={type(self.query).__name__}, stage='prepared')"
+        from .data_diagnostics import _review_count
+
+        count = _review_count(self)
+        return f"PreparedAnalysis(query={type(self.query).__name__}, stage='prepared', data_reviews={count})"
 
     def _repr_html_(self) -> str:
         import html
@@ -367,6 +381,7 @@ def prepare(
     provider: Any = None,
     sampling_design: str | None = None,
     accept_discovered: bool = False,
+    data_diagnostics: Any = True,
     retain_joint_horizons: bool = False,
     on_refusal: Literal["refuse", "describe"] = "refuse",
     evidence_candidates: Sequence[Any] | None = None,
@@ -443,6 +458,7 @@ def prepare(
             "provider": provider,
             "sampling_design": sampling_design,
             "accept_discovered": accept_discovered,
+            "data_diagnostics": data_diagnostics,
             "retain_joint_horizons": retain_joint_horizons,
             "on_refusal": on_refusal,
             "evidence_candidates": evidence_candidates,

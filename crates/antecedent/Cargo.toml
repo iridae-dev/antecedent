@@ -1241,3 +1241,7 @@ path = "tests/distribution_validation_route_evidence.rs"
 [[test]]
 name = "functional_graph_posterior_mixture_truth"
 path = "tests/functional_graph_posterior_mixture_truth.rs"
+
+[[test]]
+name = "data_diagnostics"
+path = "tests/data_diagnostics.rs"

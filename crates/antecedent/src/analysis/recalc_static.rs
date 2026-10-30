@@ -493,7 +493,7 @@ fn static_prepared(
                             .prepared
                             .as_ref()
                             .clone();
-                        p.rebind_static_functional_data(request.data()?)?;
+                        p.rebind_static_functional_data(request.data()?, ctx)?;
                         Ok(p)
                     }
                 })

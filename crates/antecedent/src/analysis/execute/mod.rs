@@ -108,6 +108,7 @@ pub(super) use super::helpers::{
 #[doc(hidden)]
 #[derive(Clone, Debug)]
 pub struct StudyConfig {
+    pub(crate) data_diagnostics: Option<crate::DataDiagnostics>,
     /// Set at [`crate::StudyBuilder::build`] when the caller did not call
     /// `.refute(..)` explicitly and the default refute suite
     /// (`RefuteSuite::PlaceboAndRcc`) was silently downgraded to

@@ -1222,6 +1222,7 @@ class _PreparedEngine(Generic[ResultT]):
             "independent_subject_trajectories", "clustered_panel", "dependent_time_series"
         ]
         | None = None,
+        data_diagnostics: Any = True,
         retain_joint_horizons: bool = False,
         on_refusal: Literal["refuse", "describe"] = "refuse",
         evidence_candidates: Sequence[Any] | None = None,
@@ -1726,6 +1727,9 @@ class _PreparedEngine(Generic[ResultT]):
             "inference": _inference_wire(inference),
             "discovery_algorithm": discovery_algorithm,
         }
+        from .data_diagnostics import _setting_json
+
+        options["data_diagnostics"] = _setting_json(data_diagnostics)
         if retain_joint_horizons:
             options["retain_joint_horizons"] = True
         if on_refusal == "describe":

@@ -156,6 +156,11 @@ impl Study {
         // at compile when the lowered program retains the products, or above
         // when the plan retained none. A sharp-RD prepare builds no cache and
         // reports nothing: its clicks do.
+        let data_diagnostics = analysis
+            .data_diagnostics
+            .as_ref()
+            .map(|policy| super::super::data_diagnostics::evaluate(&analysis, policy, ctx, true))
+            .transpose()?;
         let binding = plan.binding();
         let seal_context = SealContext {
             source: self,
@@ -182,6 +187,7 @@ impl Study {
         };
         let ready = PreparedStudy {
             state: SampledPreparedState {
+                data_diagnostics,
                 analysis,
                 materialized,
                 posterior_programs,

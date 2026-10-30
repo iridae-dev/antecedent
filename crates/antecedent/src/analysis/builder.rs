@@ -603,6 +603,7 @@ pub(super) fn validate_schema_binding(
 /// Builder for static or temporal analysis.
 #[derive(Clone, Debug)]
 pub struct StudyBuilder {
+    data_diagnostics: Option<crate::DataDiagnostics>,
     data: DataInput,
     graph: Option<AcceptedGraph>,
     /// Alternative to [`Self::graph`]: a posterior over structures rather than one
@@ -1249,6 +1250,7 @@ impl StudyBuilder {
             discovery: None,
             mechanisms: None,
             posterior_provenance: None,
+            data_diagnostics: Some(crate::DataDiagnostics::default()),
         }
     }
 
@@ -1879,6 +1881,14 @@ impl StudyBuilder {
         self
     }
 
+    /// Configure automatic fit-free diagnostics; `None` disables collection.
+    #[must_use]
+    pub fn data_diagnostics(mut self, policy: Option<crate::DataDiagnostics>) -> Self {
+        self.data_diagnostics = policy;
+        self
+    }
+
+
     /// Build the analysis object.
     ///
     /// # Errors
@@ -1967,6 +1977,7 @@ impl StudyBuilder {
                 Arc::make_mut(&mut study.config).posterior_provenance = Some(provenance);
             }
         }
+        Arc::make_mut(&mut study.config).data_diagnostics = self.data_diagnostics;
         Ok(study)
     }
 }
