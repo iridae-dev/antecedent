@@ -218,6 +218,37 @@ pub fn estimate_interference(
     if assignment.len() != data.units().row_count() {
         return Err(EstimationError::data_msg("assignment/network row count mismatch"));
     }
+    match &query.assignment {
+        antecedent_core::AssignmentDesign::CompleteRandomization { treated } => {
+            if assignment.iter().filter(|&&assigned| assigned).count() != *treated {
+                return Err(EstimationError::data_msg(
+                    "realized assignment does not match the declared treated-unit count",
+                ));
+            }
+        }
+        antecedent_core::AssignmentDesign::ClusterRandomization { clusters, treated_clusters } => {
+            if clusters.len() != assignment.len() {
+                return Err(EstimationError::data_msg("cluster/assignment length mismatch"));
+            }
+            let mut assigned_clusters = BTreeMap::new();
+            for (&cluster, &assigned) in clusters.iter().zip(assignment) {
+                if let Some(previous) = assigned_clusters.insert(cluster, assigned) {
+                    if previous != assigned {
+                        return Err(EstimationError::data_msg(
+                            "cluster randomized assignment must be constant within each cluster",
+                        ));
+                    }
+                }
+            }
+            if assigned_clusters.values().filter(|&&assigned| assigned).count() != *treated_clusters
+            {
+                return Err(EstimationError::data_msg(
+                    "realized assignment does not match the declared treated-cluster count",
+                ));
+            }
+        }
+        _ => {}
+    }
     let InterferenceFunctional::ExposureContrast { outcome, from, to } = query.functional;
     let outcomes = data.units().float64_values(outcome)?;
     let incoming = (0..assignment.len())
@@ -622,8 +653,22 @@ mod tests {
         // effect is known and the exact sampling variance of the estimator is computable.
         // Theory (Neyman): E[estimate] = tau and E[variance estimate] - Var(estimate) =
         // S_tau^2 / K with S_tau^2 the (K-1)-divisor variance of the scaled cluster effects.
-        let y0: [&[f64]; 6] = [&[1.0, 2.0], &[3.0, 2.0, 4.0], &[0.0, 1.0], &[5.0, 4.0, 6.0], &[2.0, 2.0], &[7.0, 1.0]];
-        let y1: [&[f64]; 6] = [&[4.0, 3.0], &[9.0, 4.0, 5.0], &[2.0, 2.0], &[6.0, 9.0, 7.0], &[3.0, 5.0], &[8.0, 6.0]];
+        let y0: [&[f64]; 6] = [
+            &[1.0, 2.0],
+            &[3.0, 2.0, 4.0],
+            &[0.0, 1.0],
+            &[5.0, 4.0, 6.0],
+            &[2.0, 2.0],
+            &[7.0, 1.0],
+        ];
+        let y1: [&[f64]; 6] = [
+            &[4.0, 3.0],
+            &[9.0, 4.0, 5.0],
+            &[2.0, 2.0],
+            &[6.0, 9.0, 7.0],
+            &[3.0, 5.0],
+            &[8.0, 6.0],
+        ];
         let k = y0.len();
         let sizes = y0.iter().map(|c| c.len()).collect::<Vec<_>>();
         let n = sizes.iter().sum::<usize>();
@@ -654,8 +699,7 @@ mod tests {
         let effects = totals1.iter().zip(&totals0).map(|(a, b)| a - b).collect::<Vec<_>>();
         let tau = effects.iter().sum::<f64>() / k as f64;
         let treated_count = 3_usize;
-        let exact_variance =
-            sv(&totals1) / 3.0 + sv(&totals0) / 3.0 - sv(&effects) / k as f64;
+        let exact_variance = sv(&totals1) / 3.0 + sv(&totals0) / 3.0 - sv(&effects) / k as f64;
         let query = InterferenceQuery::new(
             AssignmentDesign::ClusterRandomization {
                 clusters: Arc::from(clusters.clone()),
@@ -668,7 +712,8 @@ mod tests {
                 to: ExposureLevel { own: 1.0, neighbors: 1.0 },
             },
         );
-        let (mut count, mut mean_estimate, mut mean_square, mut mean_variance) = (0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64);
+        let (mut count, mut mean_estimate, mut mean_square, mut mean_variance) =
+            (0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64);
         for mask in 0_u32..(1 << k) {
             if mask.count_ones() as usize != treated_count {
                 continue;
@@ -694,7 +739,10 @@ mod tests {
         }
         assert!((count - 20.0).abs() < 1e-12);
         assert!((mean_estimate / count - tau).abs() < 1e-12, "HT is unbiased for the total effect");
-        assert!((mean_square / count - exact_variance).abs() < 1e-10, "enumerated variance matches theory");
+        assert!(
+            (mean_square / count - exact_variance).abs() < 1e-10,
+            "enumerated variance matches theory"
+        );
         let gap = mean_variance / count - mean_square / count;
         assert!(gap > 0.0, "variance estimator is conservative under heterogeneous effects");
         assert!((gap - sv(&effects) / k as f64).abs() < 1e-10, "gap equals S_tau^2 / K exactly");
@@ -705,7 +753,8 @@ mod tests {
         // With m clusters in an arm, Dirichlet(1..1) weights give the arm mean of the scaled
         // cluster totals the exact variance (biased variance of the totals) / (m + 1); the two
         // arms are independent, so the contrast variance is the sum over arms.
-        let outcomes = [3.0, 4.0, 1.0, 2.0, 8.0, 6.0, 2.0, 2.0, 5.0, 9.0, 0.0, 1.0, 7.0, 3.0, 4.0, 4.0];
+        let outcomes =
+            [3.0, 4.0, 1.0, 2.0, 8.0, 6.0, 2.0, 2.0, 5.0, 9.0, 0.0, 1.0, 7.0, 3.0, 4.0, 4.0];
         let k = 8_usize;
         let clusters = (0..k).flat_map(|c| [u32::try_from(c).unwrap(); 2]).collect::<Vec<_>>();
         let assignment = (0..16).map(|unit| (unit / 2) % 2 == 0).collect::<Vec<_>>();
@@ -733,9 +782,14 @@ mod tests {
         );
         let options = ScorePosteriorOptions { draws: 8_000, coverage: 0.95 };
         let ctx = ExecutionContext::for_tests(41);
-        let (estimate, posterior) =
-            estimate_cluster_interference_bayesian_bootstrap(&query, &network, &assignment, options, &ctx)
-                .unwrap();
+        let (estimate, posterior) = estimate_cluster_interference_bayesian_bootstrap(
+            &query,
+            &network,
+            &assignment,
+            options,
+            &ctx,
+        )
+        .unwrap();
         let scale = k as f64 / 16.0;
         let totals = |treated: bool| {
             (0..k)
@@ -748,8 +802,7 @@ mod tests {
             v.iter().map(|x| (x - m).powi(2)).sum::<f64>() / v.len() as f64
         };
         let (treated, control) = (totals(true), totals(false));
-        let expected_sd =
-            (spread(&treated) / 5.0 + spread(&control) / 5.0).sqrt();
+        let expected_sd = (spread(&treated) / 5.0 + spread(&control) / 5.0).sqrt();
         let relative = (posterior.standard_deviation - expected_sd).abs() / expected_sd;
         assert!(relative < 0.05, "sd {} expected {expected_sd}", posterior.standard_deviation);
         let tolerance = 5.0 * expected_sd / 8_000.0_f64.sqrt();
@@ -806,6 +859,56 @@ mod tests {
             estimate_interference(&query, &data, &[false, true, false, true], 9).unwrap();
         assert!((estimate.contrast.hajek - 2.0).abs() < 1e-12);
         assert_eq!(estimate.from_probability_method, ExposureProbabilityMethod::Exact);
+    }
+
+    #[test]
+    fn generic_estimator_refuses_assignments_outside_randomization_support() {
+        let table =
+            TabularData::from_f64_columns([("y", &[1.0, 3.0, 2.0, 4.0, 5.0, 6.0][..])]).unwrap();
+        let data = NetworkData::try_new(table, []).unwrap();
+        let query = |assignment| {
+            InterferenceQuery::new(
+                assignment,
+                ExposureMapping::OwnTreatment,
+                InterferenceFunctional::ExposureContrast {
+                    outcome: VariableId::from_raw(0),
+                    from: own_treatment_level(false),
+                    to: own_treatment_level(true),
+                },
+            )
+        };
+        let complete = query(AssignmentDesign::CompleteRandomization { treated: 2 });
+        let error =
+            estimate_interference(&complete, &data, &[true, false, false, false, false, false], 1)
+                .unwrap_err();
+        assert!(error.to_string().contains("treated-unit count"));
+        assert!(
+            estimate_interference(&complete, &data, &[true, true, false, false, false, false], 1)
+                .is_ok()
+        );
+
+        let cluster = query(AssignmentDesign::ClusterRandomization {
+            clusters: Arc::from([0, 0, 1, 1, 2, 2]),
+            treated_clusters: 1,
+        });
+        let error =
+            estimate_interference(&cluster, &data, &[true, false, false, false, false, false], 1)
+                .unwrap_err();
+        assert!(error.to_string().contains("constant within each cluster"));
+        let error =
+            estimate_interference(&cluster, &data, &[true, true, true, true, false, false], 1)
+                .unwrap_err();
+        assert!(error.to_string().contains("treated-cluster count"));
+        assert!(
+            estimate_interference(&cluster, &data, &[true, true, false, false, false, false], 1)
+                .is_ok()
+        );
+
+        let bernoulli = query(AssignmentDesign::Bernoulli { probabilities: Arc::from([0.5]) });
+        assert!(
+            estimate_interference(&bernoulli, &data, &[true, false, false, false, false, false], 1)
+                .is_ok()
+        );
     }
 
     #[test]

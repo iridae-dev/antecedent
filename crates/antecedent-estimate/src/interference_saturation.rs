@@ -901,6 +901,30 @@ mod tests {
     }
 
     #[test]
+    fn saturation_realization_requires_a_supported_cluster_allocation() {
+        let (network, assignment, mut query) = fixture();
+        assert!(estimate_saturation_interference(&query, &network, &assignment).is_ok());
+        let AssignmentDesign::TwoStageSaturation { realized_saturation, .. } =
+            &mut query.assignment
+        else {
+            panic!("expected saturation design");
+        };
+        *realized_saturation =
+            Arc::from([0.2, 0.8, 0.2, 0.2, 0.2, 0.2, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8]);
+        let error = estimate_saturation_interference(&query, &network, &assignment).unwrap_err();
+        assert!(error.to_string().contains("share realized saturation"));
+        let AssignmentDesign::TwoStageSaturation { realized_saturation, .. } =
+            &mut query.assignment
+        else {
+            unreachable!();
+        };
+        *realized_saturation =
+            Arc::from([0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.8, 0.8, 0.8]);
+        let error = estimate_saturation_interference(&query, &network, &assignment).unwrap_err();
+        assert!(error.to_string().contains("high-cluster count"));
+    }
+
+    #[test]
     fn exact_saturation_refuses_cross_cluster_edge() {
         let (network, assignment, query) = fixture();
         let mut edges = network.edges().to_vec();
