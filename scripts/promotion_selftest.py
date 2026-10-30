@@ -1684,7 +1684,7 @@ TMP = None
 
 def run(reg: Path, env: dict[str, str]) -> tuple[int, str]:
     proc = subprocess.run(
-        [sys.executable, str(CHECKER), str(reg)],
+        [sys.executable, str(CHECKER), "--trusted-testing", str(reg)],
         capture_output=True,
         text=True,
         env={**os.environ, **env},

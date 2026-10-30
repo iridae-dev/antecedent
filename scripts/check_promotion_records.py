@@ -57,7 +57,7 @@ Optional record fields (in addition to the frozen ones):
   shared_evidence   true on a fixture: it may share its test with another role
                     (every fixture citing that test must set it)
 
-Environment overrides (gate self-tests and analysis only):
+Environment overrides (only with explicit --trusted-testing; not promotion evidence):
   PROMOTION_TRANSPORT_STAGES   owning registry for transport_stages routes
   PROMOTION_SUPPORT_LICENSED   owning registry for licensed support_licensed routes
   PROMOTION_SUPPORT_CLOSED     owning registry for closed support_licensed routes
@@ -206,22 +206,47 @@ RULES = {
 }
 
 args = sys.argv[1:]
+trusted_testing = "--trusted-testing" in args
+if trusted_testing:
+    args.remove("--trusted-testing")
+    print("check_promotion_records: trusted testing mode; results are not promotion evidence", file=sys.stderr)
+
+OVERRIDES = (
+    "PROMOTION_TRANSPORT_STAGES", "PROMOTION_SUPPORT_LICENSED", "PROMOTION_SUPPORT_CLOSED",
+    "PROMOTION_EXTRA_SOURCES", "PROMOTION_DISABLE_RULES", "PROMOTION_SYNTHETIC_EVIDENCE",
+    "PROMOTION_EVIDENCE_CACHE", "PROMOTION_STATIC_ONLY",
+)
+if not trusted_testing:
+    for name in OVERRIDES:
+        if os.environ.get(name):
+            raise SystemExit(f"check_promotion_records: {name} requires --trusted-testing")
+
 if "--list-rules" in args:
     print("\n".join(RULES))
     sys.exit(0)
 suggest = "--suggest" in args
 if suggest:
     args.remove("--suggest")
+static_evidence = "--static-evidence" in args
+if static_evidence:
+    args.remove("--static-evidence")
+    print("check_promotion_records: static evidence resolution; cited tests must still be executed", file=sys.stderr)
 emit_path = None
 if "--emit-evidence" in args:
     at = args.index("--emit-evidence")
+    if at + 1 >= len(args):
+        raise SystemExit("check_promotion_records: --emit-evidence requires a path")
     emit_path = Path(args[at + 1])
     del args[at : at + 2]
+if len(args) > 1 or (args and args[0].startswith("-")):
+    raise SystemExit("check_promotion_records: unrecognized arguments")
 registry_path = Path(args[0]) if args else root / "parity/promotion.toml"
+if not trusted_testing and registry_path.resolve() != (root / "parity/promotion.toml").resolve():
+    raise SystemExit("check_promotion_records: a noncanonical registry requires --trusted-testing")
 registry = tomllib.loads(registry_path.read_text(encoding="utf-8"))
 
 DISABLED = {r for r in os.environ.get("PROMOTION_DISABLE_RULES", "").split(",") if r}
-STATIC_ONLY = os.environ.get("PROMOTION_STATIC_ONLY") == "1" or suggest
+STATIC_ONLY = os.environ.get("PROMOTION_STATIC_ONLY") == "1" or suggest or static_evidence
 SYNTHETIC = os.environ.get("PROMOTION_SYNTHETIC_EVIDENCE") == "1"
 CACHE_DIR = os.environ.get("PROMOTION_EVIDENCE_CACHE")
 

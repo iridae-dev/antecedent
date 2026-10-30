@@ -67,7 +67,7 @@ for registry in parity/promotion.toml; do
     python3 scripts/check_promotion_records.py "$registry" --emit-evidence "$EVIDENCE"
   else
     # Shards validate every registry, then execute only their assigned rows.
-    PROMOTION_STATIC_ONLY=1 python3 scripts/check_promotion_records.py "$registry" --emit-evidence "$EVIDENCE"
+    python3 scripts/check_promotion_records.py "$registry" --static-evidence --emit-evidence "$EVIDENCE"
   fi
   if [[ ! -s "$EVIDENCE" ]]; then
     echo "no promotion fixture cites evidence yet; nothing to execute"
