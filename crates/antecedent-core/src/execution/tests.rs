@@ -935,3 +935,40 @@ fn concurrent_child_scratch_cannot_exceed_the_parent_lease() {
     drop(parent);
     assert_eq!(shared.available(), AdmissionRemainder::new(4, 500));
 }
+
+#[test]
+fn producer_panic_unblocks_ordered_pipeline_even_with_live_workers() {
+    use std::sync::mpsc;
+    let ctx = ExecutionContext::production(1, 2);
+    let barrier = Arc::new(Barrier::new(2));
+    let (done_tx, done_rx) = mpsc::channel();
+    let watchdog_cancel = ctx.cancellation.clone();
+    let watchdog = thread::spawn(move || {
+        if done_rx.recv_timeout(Duration::from_secs(2)).is_err() {
+            watchdog_cancel.cancel();
+            true
+        } else {
+            false
+        }
+    });
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _ = ctx.pipeline_indexed(
+            10,
+            2,
+            |index, _| -> Result<usize, ()> {
+                if index < 2 {
+                    barrier.wait();
+                }
+                if index == 0 {
+                    panic!("forced producer panic");
+                }
+                Ok(index)
+            },
+            |_, _| -> Result<PipelineStep, ()> { Ok(PipelineStep::Continue) },
+        );
+    }));
+    let _ = done_tx.send(());
+    assert!(!watchdog.join().unwrap(), "pipeline remained blocked until cancellation");
+    assert!(result.is_err(), "producer panic must propagate");
+    assert_eq!(ctx.admission().available().threads(), 2);
+}

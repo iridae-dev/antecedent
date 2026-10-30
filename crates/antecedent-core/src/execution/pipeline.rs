@@ -369,6 +369,11 @@ impl<T, E> Drop for PipelineWorkerExit<'_, T, E> {
     fn drop(&mut self) {
         let mut state = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
         state.workers_alive = state.workers_alive.saturating_sub(1);
+        // A panicking producer can leave a claimed index permanently missing. Stop
+        // peers and wake the ordered consumer so the scope can join and propagate it.
+        if std::thread::panicking() {
+            state.stop = true;
+        }
         drop(state);
         self.wake.notify_all();
     }
@@ -535,6 +540,9 @@ impl ExecutionContext {
                 let item = {
                     let mut state = lock();
                     loop {
+                        if state.stop {
+                            break Err(AdmissionError::Released);
+                        }
                         if let Some(item) = state.ready.remove(&index) {
                             break Ok(item);
                         }

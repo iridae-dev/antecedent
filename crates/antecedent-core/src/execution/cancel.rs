@@ -26,20 +26,22 @@ impl CancelWait {
         }
     }
 
+    // Registration and publication are serialized: a late registration cannot observe
+    // the old flag after it has missed the notification snapshot.
+    fn publish_and_snapshot(&self) -> Vec<Weak<SharedAdmission>> {
+        let mut waiters = lock_mutex(&self.waiters);
+        self.cancelled.store(true, Ordering::SeqCst);
+        waiters.retain(|waiter| waiter.strong_count() > 0);
+        waiters.clone()
+    }
+
     /// Store the cancelled flag and notify each pool while holding that pool's state lock.
     ///
     /// The flag is stored again under the pool lock, before `notify_all`. A waiter holds
     /// that same lock while it reads the flag and only then waits, so it cannot pass the
     /// read, miss the notify, and sleep until its bound.
     pub(super) fn wake(&self) {
-        let waiters = {
-            let mut waiters = lock_mutex(&self.waiters);
-            waiters.retain(|waiter| waiter.strong_count() > 0);
-            waiters.clone()
-        };
-        // Publish before notifying so a waiter that registers after this snapshot
-        // observes the flag under the pool lock and does not sleep.
-        self.cancelled.store(true, Ordering::SeqCst);
+        let waiters = self.publish_and_snapshot();
         for waiter in waiters {
             let Some(shared) = waiter.upgrade() else {
                 continue;
@@ -227,4 +229,28 @@ impl WeakCancellationToken {
 pub trait ProgressSink: Send + Sync {
     /// Report progress in `[0.0, 1.0]` with an optional stage label.
     fn report(&self, fraction: f64, stage: &str);
+}
+
+#[cfg(test)]
+mod cancellation_race_tests {
+    use super::*;
+    use crate::execution::{AdmissionError, AdmissionPool, ExecutionContext};
+    use std::time::Duration;
+
+    #[test]
+    fn late_registration_after_snapshot_observes_cancellation() {
+        let token = CancellationToken::new();
+        // This is the race point: a second pool registers after the first wake snapshot.
+        let snapshot = token.flag.wait().publish_and_snapshot();
+        assert!(snapshot.is_empty());
+        let pool = AdmissionPool::fixed(1, 1);
+        let owner = ExecutionContext::for_tests(1).with_admission(pool.clone());
+        let _hold = owner.acquire_admission(1, 1).unwrap();
+        let mut waiter = ExecutionContext::for_tests(2).with_admission(pool);
+        waiter.cancellation = token;
+        assert!(matches!(
+            waiter.acquire_admission_bounded(1, 1, Duration::from_secs(1)),
+            Err(AdmissionError::Cancelled)
+        ));
+    }
 }
