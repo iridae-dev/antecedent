@@ -568,6 +568,9 @@ pub fn validate_spec(n_sources: usize, stages: &[StageSpec]) -> Result<(), Chain
         if stage.inputs.is_empty() {
             return Err(ChainError::Shape("a stage reads at least one node"));
         }
+        if matches!(&stage.op, StageOp::Pool { .. }) {
+            pool_covariance_cells(stage.inputs.len())?;
+        }
         for input in &stage.inputs {
             if *input >= node {
                 return Err(ChainError::Shape("a stage reads only earlier nodes"));
@@ -759,6 +762,13 @@ fn covariance_of(a: &[f64], b: &[f64], mean_a: f64, mean_b: f64) -> f64 {
     sum / (n - 1.0)
 }
 
+fn pool_covariance_cells(arity: usize) -> Result<usize, ChainError> {
+    arity
+        .checked_mul(arity)
+        .filter(|&cells| cells <= MAX_CHAIN_CELLS)
+        .ok_or(ChainError::Budget("pool covariance"))
+}
+
 fn pool_columns(
     columns: &[&[f64]],
     dependent: bool,
@@ -769,7 +779,7 @@ fn pool_columns(
         return Err(ChainError::Shape("a pool needs at least two rows"));
     }
     let means: Vec<f64> = columns.iter().map(|c| mean_of(c)).collect();
-    let mut covariance = vec![0.0; k * k];
+    let mut covariance = vec![0.0; pool_covariance_cells(k)?];
     for i in 0..k {
         for j in i..k {
             let value = covariance_of(columns[i], columns[j], means[i], means[j]);
@@ -1713,5 +1723,22 @@ mod preposterior_study_selection_tests {
         assert!((mass - 1.0).abs() < 1e-12);
         assert!(picked.windows(2).all(|pair| pair[0].0 <= pair[1].0));
         assert!(picked.iter().all(|(row, _)| *row < n));
+    }
+}
+
+#[cfg(test)]
+mod pool_budget_tests {
+    use super::*;
+
+    #[test]
+    fn repeated_pool_inputs_cannot_exceed_the_covariance_cell_budget() {
+        let pool =
+            |arity| StageSpec { inputs: vec![0; arity], op: StageOp::Pool { dependent: false } };
+        assert!(validate_spec(1, &[pool(1 << 14)]).is_ok());
+        assert_eq!(
+            validate_spec(1, &[pool((1 << 14) + 1)]),
+            Err(ChainError::Budget("pool covariance"))
+        );
+        assert_eq!(pool_covariance_cells(usize::MAX), Err(ChainError::Budget("pool covariance")));
     }
 }
