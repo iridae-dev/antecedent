@@ -1039,8 +1039,12 @@ pub fn uplift_by_score_bin(
             }
             let n_group = group.len();
             let effect = group.iter().sum::<f64>() / n_group as f64;
-            let variance = group.iter().map(|v| (v - effect).powi(2)).sum::<f64>()
-                / ((n_group.saturating_sub(1).max(1)) as f64 * n_group as f64);
+            let variance = if n_group > 1 {
+                group.iter().map(|v| (v - effect).powi(2)).sum::<f64>()
+                    / ((n_group - 1) as f64 * n_group as f64)
+            } else {
+                f64::NAN
+            };
             Ok(ScoreBinUplift { index, effect, standard_error: variance.sqrt(), rows: n_group })
         })
         .collect()
@@ -1057,6 +1061,17 @@ mod tests {
         )
     )]
     use super::*;
+
+    #[test]
+    fn singleton_uplift_bin_keeps_its_point_with_undefined_standard_error() {
+        let bins =
+            uplift_by_score_bin(&[1.0, 1.0, 2.0], &[true, false, true], &[0, 1, 1], &[0.5], 2)
+                .unwrap();
+        assert!((bins[0].effect - 2.0).abs() < 1e-12);
+        assert!(bins[0].standard_error.is_nan());
+        assert!((bins[1].effect - 1.0).abs() < 1e-12);
+        assert!((bins[1].standard_error - 3.0).abs() < 1e-12);
+    }
 
     #[test]
     #[allow(

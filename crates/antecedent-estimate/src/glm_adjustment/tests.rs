@@ -25,6 +25,27 @@ use super::family::{FISHER_MEAN_FLOOR, SCORE_PROBABILITY_CLAMP};
 use super::*;
 use crate::overlap::OverlapPolicy;
 
+#[test]
+fn saturated_gaussian_covariance_is_undefined_but_fixed_dispersion_is_not() {
+    let design = [1.0, 1.0, 0.0, 1.0];
+    assert!(
+        adjustment_glm_covariance(
+            GlmFamily::GaussianIdentity,
+            &design,
+            2,
+            2,
+            &[1.0, 2.0],
+            0.0,
+            0.0
+        )
+        .is_none()
+    );
+    assert!(
+        adjustment_glm_covariance(GlmFamily::PoissonLog, &design, 2, 2, &[0.0, 0.1], 0.0, 0.0)
+            .is_some()
+    );
+}
+
 /// Binary-outcome SCM: `Z ~ U(-0.5, 0.5)`, `T ∈ {0,1}`, `logit(Y=1) = -0.5 + 2T + Z`.
 fn binary_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
     let mut rng =
@@ -445,9 +466,8 @@ fn logit_gcomp_reference(n: usize, seed: u64, treated_only: bool) -> (f64, f64) 
     let eta = |b: &[f64; 3], x: &[f64; 3]| b[0] * x[0] + b[1] * x[1] + b[2] * x[2];
     let solve3 = |mut a: [[f64; 3]; 3], mut v: [f64; 3]| -> [f64; 3] {
         for col in 0..3 {
-            let pivot = (col..3)
-                .max_by(|&i, &j| a[i][col].abs().total_cmp(&a[j][col].abs()))
-                .unwrap();
+            let pivot =
+                (col..3).max_by(|&i, &j| a[i][col].abs().total_cmp(&a[j][col].abs())).unwrap();
             a.swap(col, pivot);
             v.swap(col, pivot);
             for row in col + 1..3 {

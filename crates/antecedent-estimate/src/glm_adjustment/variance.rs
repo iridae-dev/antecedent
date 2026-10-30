@@ -90,6 +90,11 @@ pub(crate) fn adjustment_glm_covariance(
     deviance: f64,
     nb_alpha: f64,
 ) -> Option<Vec<f64>> {
+    // A saturated Gaussian fit identifies its coefficients, but has no residual
+    // degrees of freedom with which to estimate their sampling covariance.
+    if family == GlmFamily::GaussianIdentity && nrows <= ncols {
+        return None;
+    }
     // Fisher information XᵀWX at the fitted coefficients, via a √W-scaled design copy.
     let sqrt_w: Vec<f64> = linear_predictors(x_colmajor, nrows, ncols, coefficients)
         .into_iter()
@@ -107,7 +112,7 @@ pub(crate) fn adjustment_glm_covariance(
     let n = nrows as f64;
     let dispersion = match family {
         // For Gaussian/identity the fit's deviance is the RSS.
-        GlmFamily::GaussianIdentity => deviance / (n - ncols as f64).max(1.0),
+        GlmFamily::GaussianIdentity => deviance / (n - ncols as f64),
         // NB2 carries α in its Fisher weight μ/(1+αμ), so (XᵀWX)⁻¹ is already the
         // full covariance; like the other fixed-dispersion families it scales by 1.
         GlmFamily::NegativeBinomial

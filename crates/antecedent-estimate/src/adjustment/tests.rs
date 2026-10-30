@@ -18,6 +18,27 @@ use crate::overlap::OverlapReport;
 
 use super::*;
 
+#[test]
+fn saturated_linear_fit_preserves_point_without_claiming_residual_precision() {
+    let data =
+        TabularData::from_f64_columns([("t", &[0.0, 1.0][..]), ("y", &[1.0, 3.0][..])]).unwrap();
+    let estimand =
+        IdentifiedEstimand::backdoor("backdoor.adjustment", Arc::from([]), ExprId::from_raw(0));
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let estimator = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
+    let prepared = estimator.prepare(&data, &estimand, &query).unwrap();
+    let estimate = estimator
+        .fit(
+            &prepared,
+            &mut EstimationWorkspace::default(),
+            &ExecutionContext::for_tests(1),
+            AssumptionSet::new(),
+        )
+        .unwrap();
+    assert!((estimate.ate - 2.0).abs() < 1e-12);
+    assert!(estimate.se_analytic().is_nan());
+}
+
 fn toy() -> (TabularData, IdentifiedEstimand) {
     toy_with(|_, t, z| 1.0 + 2.0 * t + z)
 }
@@ -175,7 +196,8 @@ fn checked_linear_adjustment_retains_selected_target_and_assumptions() {
         ("z", z.as_slice()),
     ])
     .unwrap();
-    let refused = estimator.rebind_checked(&checked, &changed_schema).err().expect("renamed schema");
+    let refused =
+        estimator.rebind_checked(&checked, &changed_schema).err().expect("renamed schema");
     assert!(refused.to_string().contains("no longer agree"), "{refused}");
 }
 
@@ -609,20 +631,30 @@ fn hc_sandwich_kinds_yield_finite_se() {
     let mut xtx = vec![0.0; p * p];
     form_xtx(&prep.design.matrix, n, p, &mut xtx);
     let inv = invert_square(&xtx, p).unwrap();
-    let u: Vec<f64> =
-        (0..n).map(|i| (0..p).map(|c| inv[t_col * p + c] * prep.design.matrix[c * n + i]).sum()).collect();
+    let u: Vec<f64> = (0..n)
+        .map(|i| (0..p).map(|c| inv[t_col * p + c] * prep.design.matrix[c * n + i]).sum())
+        .collect();
     let leverage: Vec<f64> = (0..n)
         .map(|i| {
             (0..p)
                 .map(|a| {
-                    (0..p).map(|b| prep.design.matrix[a * n + i] * inv[a * p + b] * prep.design.matrix[b * n + i]).sum::<f64>()
+                    (0..p)
+                        .map(|b| {
+                            prep.design.matrix[a * n + i]
+                                * inv[a * p + b]
+                                * prep.design.matrix[b * n + i]
+                        })
+                        .sum::<f64>()
                 })
                 .sum()
         })
         .collect();
     let e = &fit.residuals;
     let hc = |power: i32| -> f64 {
-        (0..n).map(|i| e[i] * e[i] * u[i] * u[i] / (1.0 - leverage[i]).powi(power)).sum::<f64>().sqrt()
+        (0..n)
+            .map(|i| e[i] * e[i] * u[i] * u[i] / (1.0 - leverage[i]).powi(power))
+            .sum::<f64>()
+            .sqrt()
             * prep.treatment_delta.abs()
     };
     let newey_west = |lag: usize| -> f64 {

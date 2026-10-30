@@ -786,7 +786,9 @@ impl LinearAdjustmentAte {
                 // `(XᵀX)⁻¹` once: the homoskedastic SE reads its treatment diagonal and
                 // the influence function its treatment row.
                 let xtx_inv = crate::util::xtx_inverse(x, nrows, ncols);
-                let se_coef = if let Some(se) = residual_sandwich_coef_se(
+                let se_coef = if nrows <= ncols {
+                    f64::NAN
+                } else if let Some(se) = residual_sandwich_coef_se(
                     SeSpec {
                         kind: self.inference.se_kind,
                         cluster_ids,
@@ -801,7 +803,7 @@ impl LinearAdjustmentAte {
                 )? {
                     se
                 } else {
-                    let sigma2 = fit.rss / (n - p).max(1.0);
+                    let sigma2 = fit.rss / (n - p);
                     xtx_inv.as_ref().map_or(f64::NAN, |inv| {
                         (sigma2 * inv[t_col * ncols + t_col].max(0.0)).sqrt()
                     })

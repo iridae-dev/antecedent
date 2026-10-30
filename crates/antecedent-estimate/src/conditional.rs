@@ -360,9 +360,10 @@ impl ConditionalLinearAdjustment {
             let mut row_index = Vec::with_capacity(n);
             for (i, &keep) in row_mask.iter().enumerate() {
                 if keep {
-                    row_index.push(antecedent_data::GlobalId::new(u64::try_from(i).map_err(
-                        |_| EstimationError::data_msg("row index does not fit u64"),
-                    )?));
+                    row_index
+                        .push(antecedent_data::GlobalId::new(u64::try_from(i).map_err(|_| {
+                            EstimationError::data_msg("row index does not fit u64")
+                        })?));
                 }
             }
             let mut assumptions = AssumptionSet::default();
@@ -406,7 +407,7 @@ impl ConditionalLinearAdjustment {
             .map_err(crate::error::EstimationError::from)?;
         // QR residuals are `y − Xβ` in the same order `ols_sigma2` sums, so RSS / (n−p)
         // matches that helper without a second pass over the design.
-        let sigma2 = fit.rss / (n.saturating_sub(ncols)).max(1) as f64;
+        let sigma2 = if n > ncols { fit.rss / (n - ncols) as f64 } else { f64::NAN };
         let coef = fit.coefficients;
         let residuals = fit.residuals;
 
@@ -647,19 +648,18 @@ impl WeightedInteraction<'_> {
         let se = (hc1 * influence.iter().map(|v| v * v).sum::<f64>()).sqrt() / n_f;
 
         let n_z = layout.n_z;
-        let zterms = linear_predictors(&design[layout.z_start() * n..], n, n_z, &coef[layout.z_start()..]);
+        let zterms =
+            linear_predictors(&design[layout.z_start() * n..], n, n_z, &coef[layout.z_start()..]);
         let mut z_bar = vec![0.0; n_z];
         for (k, zmean) in z_bar.iter_mut().enumerate() {
             let base = (layout.z_start() + k) * n;
-            *zmean =
-                design[base..base + n].iter().zip(s).map(|(v, sw)| v * sw).sum::<f64>() / n_f;
+            *zmean = design[base..base + n].iter().zip(s).map(|(v, sw)| v * sw).sum::<f64>() / n_f;
         }
         let mut arm_means = [0.0; 2];
         let mut arm_influence = [Vec::new(), Vec::new()];
         for (slot, level) in [control, active].into_iter().enumerate() {
-            let mu_rows: Vec<f64> = (0..n)
-                .map(|i| mean_response(&coef, layout, level, w, i) + zterms[i])
-                .collect();
+            let mu_rows: Vec<f64> =
+                (0..n).map(|i| mean_response(&coef, layout, level, w, i) + zterms[i]).collect();
             let mu = mu_rows.iter().zip(s).map(|(v, sw)| v * sw).sum::<f64>() / n_f;
             let mut xbar = vec![0.0; ncols];
             xbar[0] = 1.0;
@@ -965,6 +965,40 @@ mod tests {
     use antecedent_expr::IdentifiedEstimand;
 
     use super::*;
+
+    #[test]
+    fn saturated_conditional_fit_has_undefined_residual_uncertainty() {
+        let treatment = [0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0];
+        let w1 = [0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0];
+        let w2 = [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0];
+        let w3 = [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+        let outcome: Vec<f64> =
+            (0..8).map(|i| 1.0 + 10.0 * treatment[i] + w1[i] + 2.0 * w2[i] + 3.0 * w3[i]).collect();
+        let data = TabularData::from_f64_columns([
+            ("t", treatment.as_slice()),
+            ("y", outcome.as_slice()),
+            ("w1", w1.as_slice()),
+            ("w2", w2.as_slice()),
+            ("w3", w3.as_slice()),
+        ])
+        .unwrap();
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from([]),
+            antecedent_expr::ExprId::from_raw(0),
+        );
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+                .with_effect_modifiers([
+                    VariableId::from_raw(2),
+                    VariableId::from_raw(3),
+                    VariableId::from_raw(4),
+                ]);
+        let (estimate, _, _) =
+            ConditionalLinearAdjustment::new().estimate_ate(&data, &estimand, &query).unwrap();
+        assert!((estimate.ate - 10.0).abs() < 1e-10);
+        assert!(estimate.se_analytic().is_nan());
+    }
 
     #[test]
     fn conditional_ate_runs() {
