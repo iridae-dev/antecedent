@@ -8,9 +8,9 @@ use super::*;
 ///
 /// # Errors
 ///
-/// Unknown tags or size overflows.
+/// Unknown tags, size overflows, or an invalid decoded query.
 pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoError> {
-    Ok(match w {
+    let query = match w {
         CausalQueryWire::AverageEffect { .. }
         | CausalQueryWire::TemporalEffect { .. }
         | CausalQueryWire::Mediation { .. } => effect_query_from_wire(w)?,
@@ -49,7 +49,9 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
         CausalQueryWire::Association(w) => {
             CausalQuery::Association(association_query_from_wire(w)?)
         }
-    })
+    };
+    query.validate().map_err(|error| IoError::Convert(error.to_string()))?;
+    Ok(query)
 }
 
 /// Decode the randomization design of a [`RandomizedEffectQueryWire`], refusing metadata of
@@ -937,11 +939,11 @@ pub fn interference_query_from_wire(
 ///
 /// # Errors
 ///
-/// Row indices that do not fit `usize`.
+/// Row indices that do not fit `usize` or an invalid distribution query.
 pub fn interventional_distribution_from_wire(
     w: &InterventionalDistributionQueryWire,
 ) -> Result<InterventionalDistributionQuery, IoError> {
-    Ok(InterventionalDistributionQuery {
+    let query = InterventionalDistributionQuery {
         outcomes: vars_from_raw(&w.outcomes),
         interventions: w
             .interventions
@@ -951,18 +953,20 @@ pub fn interventional_distribution_from_wire(
             .into(),
         conditioning: vars_from_raw(&w.conditioning),
         target_population: w.target_population.to_domain()?,
-    })
+    };
+    query.validate().map_err(|error| IoError::Convert(error.to_string()))?;
+    Ok(query)
 }
 
 /// Decode a path-specific effect query.
 ///
 /// # Errors
 ///
-/// Limits that do not fit `usize`.
+/// Limits that do not fit `usize` or an invalid path-specific query.
 pub fn path_specific_from_wire(
     w: &PathSpecificEffectQueryWire,
 ) -> Result<PathSpecificEffectQuery, IoError> {
-    Ok(PathSpecificEffectQuery {
+    let query = PathSpecificEffectQuery {
         treatment: VariableId::from_raw(w.treatment),
         outcome: VariableId::from_raw(w.outcome),
         path_nodes: vars_from_raw(&w.path_nodes),
@@ -973,5 +977,7 @@ pub fn path_specific_from_wire(
             .map_err(|_| IoError::Convert("max_paths does not fit usize".into()))?,
         max_len: usize::try_from(w.max_len)
             .map_err(|_| IoError::Convert("max_len does not fit usize".into()))?,
-    })
+    };
+    query.validate().map_err(|error| IoError::Convert(error.to_string()))?;
+    Ok(query)
 }

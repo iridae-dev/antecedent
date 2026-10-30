@@ -2866,6 +2866,48 @@ mod tests {
     }
 
     #[test]
+    fn decoded_causal_queries_validate_every_variant() {
+        let query = CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        ));
+        let valid = causal_query_to_wire(&query).unwrap();
+        assert_eq!(causal_query_from_wire(&valid).unwrap(), query);
+        let mut invalid = valid.clone();
+        if let CausalQueryWire::AverageEffect { outcome_functional, .. } = &mut invalid {
+            *outcome_functional = OutcomeFunctionalWire::Exceedance(f64::NAN);
+        }
+        assert!(causal_query_from_wire(&invalid).is_err());
+        let mut invalid = valid.clone();
+        if let CausalQueryWire::AverageEffect { target_population, .. } = &mut invalid {
+            *target_population =
+                TargetPopulationWire::LocalAtCutoff { running: 0, cutoff: f64::NAN };
+        }
+        assert!(causal_query_from_wire(&invalid).is_err());
+        let conditional = CausalQueryWire::ConditionalEffect { inner: Box::new(valid) };
+        assert!(causal_query_from_wire(&conditional).is_err());
+        let anomaly = CausalQueryWire::AnomalyAttribution {
+            targets: vec![0],
+            unit_rows: None,
+            max_units: 1,
+            reference: Some(Some((f64::NAN, 1.0))),
+        };
+        assert!(causal_query_from_wire(&anomaly).is_err());
+        let distribution = InterventionalDistributionQuery::new(
+            VariableId::from_raw(1),
+            [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
+        );
+        let mut distribution_wire = interventional_distribution_to_wire(&distribution).unwrap();
+        distribution_wire.outcomes.clear();
+        assert!(interventional_distribution_from_wire(&distribution_wire).is_err());
+        let path =
+            PathSpecificEffectQuery::binary(VariableId::from_raw(0), VariableId::from_raw(1));
+        let mut path_wire = path_specific_to_wire(&path).unwrap();
+        path_wire.max_paths = 0;
+        assert!(path_specific_from_wire(&path_wire).is_err());
+    }
+
+    #[test]
     fn average_effect_and_distribution_round_trip() {
         let q = CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
             VariableId::from_raw(0),
