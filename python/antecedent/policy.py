@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from math import floor, isfinite
+from decimal import Decimal
+from math import isfinite
 from numbers import Integral
 from typing import Any
 
@@ -24,7 +25,8 @@ class BinaryPolicy:
     """A binary treat/control recommendation for each evaluation row.
 
     ``capacity`` and ``max_treatment_rate`` constrain the number of treated
-    rows. ``budget`` constrains the sum of their declared treatment costs.
+    rows. The rate is interpreted by its shortest decimal spelling when converted
+    to a whole-row capacity. ``budget`` constrains the sum of their declared treatment costs.
     Costs may be scalar or one per row.
     """
 
@@ -848,11 +850,13 @@ def evaluate_policy(
     )
     capacity = policy.capacity
     if policy.max_treatment_rate is not None:
-        rate_capacity = floor(policy.max_treatment_rate * n)
+        numerator, denominator = Decimal(str(policy.max_treatment_rate)).as_integer_ratio()
+        rate_capacity = numerator * n // denominator
         capacity = rate_capacity if capacity is None else min(capacity, rate_capacity)
     reference_capacity = None if reference is None else reference.capacity
     if reference is not None and reference.max_treatment_rate is not None:
-        rate_capacity = floor(reference.max_treatment_rate * n)
+        numerator, denominator = Decimal(str(reference.max_treatment_rate)).as_integer_ratio()
+        rate_capacity = numerator * n // denominator
         reference_capacity = (
             rate_capacity if reference_capacity is None else min(reference_capacity, rate_capacity)
         )

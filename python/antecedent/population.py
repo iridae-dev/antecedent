@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
+from numbers import Integral
 from typing import TYPE_CHECKING, Any, TypedDict
 
-from .errors import CausalStateError, CausalTypeError, CausalUnsupportedError
+from .errors import CausalStateError, CausalTypeError, CausalUnsupportedError, CausalValueError
 from .execution import Execution
 from .outcomes import Outcome, capture_outcome
 
@@ -85,6 +86,15 @@ class DistributionBinding(TypedDict):
     depends_on: list[int]
 
 
+def _row_indices(rows: Sequence[int]) -> list[int]:
+    result = []
+    for row in rows:
+        if isinstance(row, bool) or not isinstance(row, Integral) or row < 0:
+            raise CausalValueError("row indices must be non-negative integers, not boolean masks")
+        result.append(int(row))
+    return result
+
+
 @dataclass
 class PopulationRegistry:
     """Caller bindings for named row predicates and custom target weights.
@@ -97,7 +107,7 @@ class PopulationRegistry:
     distributions: dict[int, list[float] | DistributionBinding] = field(default_factory=dict)
 
     def insert_predicate(self, name: str, rows: Sequence[int]) -> None:
-        self.predicates[str(name)] = [int(r) for r in rows]
+        self.predicates[str(name)] = _row_indices(rows)
 
     def insert_distribution(
         self,
@@ -175,7 +185,7 @@ class Rows(Population):
     rows: tuple[int, ...]
 
     def _wire(self) -> dict[str, object]:
-        return {"kind": "rows", "rows": [int(r) for r in self.rows]}
+        return {"kind": "rows", "rows": _row_indices(self.rows)}
 
 
 @dataclass(frozen=True, slots=True)
@@ -205,7 +215,7 @@ def target_named(name: str) -> Named:
 
 
 def target_rows(rows: Sequence[int]) -> Rows:
-    return Rows(tuple(int(r) for r in rows))
+    return Rows(tuple(_row_indices(rows)))
 
 
 def target_custom_distribution(distribution_id: int) -> CustomDistribution:
@@ -253,7 +263,10 @@ def registry_wire(
 ) -> tuple[dict[str, list[int]], dict[int, list[float] | DistributionBinding]]:
     if registry is None:
         return {}, {}
-    return dict(registry.predicates), dict(registry.distributions)
+    return (
+        {name: _row_indices(rows) for name, rows in registry.predicates.items()},
+        dict(registry.distributions),
+    )
 
 
 __all__ = [

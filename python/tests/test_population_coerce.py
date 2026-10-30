@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+import numpy as np
 from antecedent.population import (
     AllRows,
     CustomDistribution,
@@ -38,6 +39,22 @@ def test_helpers_and_registry_round_trip():
     assert predicates == {"high_risk": [1, 2]}
     assert distributions == {7: [0.5, 1.5]}
     assert registry_wire(None) == ({}, {})
+
+
+@pytest.mark.parametrize("rows", [[True, False], [np.bool_(True)], [2.7], [2.0], [-1]])
+def test_row_indices_reject_masks_fractional_and_negative_values(rows):
+    with pytest.raises(ValueError, match="row indices"):
+        target_rows(rows)
+    with pytest.raises(ValueError, match="row indices"):
+        Rows(tuple(rows))._wire()
+    with pytest.raises(ValueError, match="row indices"):
+        PopulationRegistry().insert_predicate("bad", rows)
+    with pytest.raises(ValueError, match="row indices"):
+        registry_wire(PopulationRegistry(predicates={"bad": rows}))
+
+
+def test_row_indices_accept_numpy_integers():
+    assert target_rows([np.int64(2)])._wire() == {"kind": "rows", "rows": [2]}
 
 
 def test_coerce_accepts_instances_strings_and_mappings():

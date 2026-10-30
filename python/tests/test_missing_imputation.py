@@ -66,6 +66,45 @@ def test_the_declaration_is_validated_and_carried_to_the_native_option():
         MissingPolicy("complete_case", imputation=ImputationSpec())
 
 
+@pytest.mark.parametrize("name,value", [("imputations", 0), ("imputations", 1),
+                                         ("imputations", 1001), ("iterations", 0),
+                                         ("iterations", 1001)])
+def test_imputation_counts_respect_documented_bounds(name, value):
+    with pytest.raises(CausalValueError, match=name):
+        ImputationSpec(**{name: value})
+    from antecedent.missing import multiple_imputation_with_graph_selection
+
+    with pytest.raises(CausalValueError, match=name):
+        multiple_imputation_with_graph_selection(
+            {"t": [0, 1], "y": [1, 2]}, treatment="t", outcome="y", **{name: value}
+        )
+
+
+def test_imputation_counts_accept_documented_endpoints():
+    assert ImputationSpec(imputations=2, iterations=1).imputations == 2
+    assert ImputationSpec(imputations=1000, iterations=1000).iterations == 1000
+
+
+def test_graph_selection_converts_pandas_na_before_native_call(monkeypatch):
+    pd = pytest.importorskip("pandas")
+    from antecedent import _native
+    from antecedent.missing import multiple_imputation_with_graph_selection
+
+    class Captured(Exception):
+        pass
+
+    def capture(names, columns, *args, **kwargs):
+        assert names == ["t", "y"]
+        assert np.isnan(columns[1][1])
+        raise Captured
+
+    monkeypatch.setattr(_native, "graph_selection_imputation_run", capture)
+    with pytest.raises(Captured):
+        multiple_imputation_with_graph_selection(
+            {"t": [0, 1], "y": [1, pd.NA]}, treatment="t", outcome="y"
+        )
+
+
 def test_imputation_recovers_the_effect_that_complete_cases_attenuate():
     imputed, complete = [], []
     for seed in range(4):

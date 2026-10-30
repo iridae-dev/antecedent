@@ -41,9 +41,10 @@ from ._artifact_protocol import (
     container_bytes,
 )
 from ._digest import canonical_digest
+from ._treatment_labels import _is_missing
 from ._native import matched_case_control_odds_ratio as _matched_case_control_odds_ratio
 from ._scientific import ScientificResult
-from .errors import CausalResourceError, CausalSerializationError, CausalTypeError
+from .errors import CausalResourceError, CausalSerializationError, CausalTypeError, CausalValueError
 from .execution import Execution, resolve_execution
 
 if TYPE_CHECKING:
@@ -167,12 +168,16 @@ def matched_case_control_odds_ratio(
     """Conditional odds ratio of matched sets by exact conditional likelihood.
 
     ``stratum``, ``case`` (1 = case, 0 = control) and ``exposed`` (1 = exposed) are
-    parallel row sequences; stratum labels are compared as their ``str``. ``sampling``
+    parallel row sequences; non-missing stratum labels are compared as their ``str``. ``sampling``
     must be ``"matched_case_control"`` (sets sampled on the outcome). ``level`` exists
     only so that asking for an interval is a typed refusal.
     """
     execution = resolve_execution(execution)
-    labels = [str(s) for s in stratum]
+    labels = []
+    for value in stratum:
+        if _is_missing(value):
+            raise CausalValueError("stratum labels must not be missing")
+        labels.append(str(value))
     case_values = _floats("case", case)
     exposed_values = _floats("exposed", exposed)
     estimate = _matched_case_control_odds_ratio(

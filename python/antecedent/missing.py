@@ -115,6 +115,11 @@ class ImputationSpec:
                 raise CausalTypeError(
                     f"{name} must be a non-negative integer", reason_code="invalid_argument"
                 )
+        for name, minimum in (("imputations", 2), ("iterations", 1)):
+            if not minimum <= getattr(self, name) <= 1000:
+                raise CausalValueError(
+                    f"{name} must be between {minimum} and 1000", reason_code="invalid_argument"
+                )
 
     def to_native(self) -> dict[str, Any]:
         """The ``imputation`` member of the native ``missing`` option."""
@@ -363,14 +368,17 @@ def multiple_imputation_with_graph_selection(
     import json
 
     from ._native import graph_selection_imputation_run as _run
+    from ._data import _is_missing_scalar
     from ._refusal import raise_refusal
     from .execution import native_controls
 
     if not isinstance(data, Mapping) or not data:
         raise CausalTypeError("data must be a non-empty mapping of column names to values")
+    ImputationSpec(imputations=imputations, iterations=iterations)
     names = [str(name) for name in data]
     columns = [
-        [float("nan") if v is None else float(v) for v in data[name]] for name in data
+        [float("nan") if _is_missing_scalar(v) else float(v) for v in data[name]]
+        for name in data
     ]
     text, refusal = _run(
         names,

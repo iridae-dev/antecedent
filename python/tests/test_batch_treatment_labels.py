@@ -8,6 +8,17 @@ from antecedent.estimation import CandidateScreen, analyze_many, prepare_many
 from antecedent.outcomes import require_success
 
 
+def test_pandas_na_in_label_treatment_remains_missing():
+    from antecedent._treatment_labels import TreatmentLabels
+
+    pd = pytest.importorskip("pandas")
+    encoded = TreatmentLabels("t", "control", "active").encode(
+        {"t": ["control", pd.NA, "active"]}
+    )
+    assert np.isnan(encoded["t"][1])
+    assert encoded["t"][[0, 2]].tolist() == [0.0, 1.0]
+
+
 def inputs(n=400):
     rng = np.random.default_rng(82)
     z = rng.normal(size=n)

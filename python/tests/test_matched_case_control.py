@@ -28,6 +28,16 @@ from _refusal import assert_registered_refusal
 DECLARED = "matched_case_control"
 
 
+def test_missing_strata_are_rejected_before_grouping():
+    pd = pytest.importorskip("pandas")
+    for missing in (None, float("nan"), pd.NA):
+        with pytest.raises(ValueError, match="stratum labels must not be missing"):
+            matched_case_control_odds_ratio(
+                stratum=[missing, missing], case=[1, 0], exposed=[1, 0],
+                sampling="matched_case_control",
+            )
+
+
 def rows(sets):
     """Flatten ``[[(case, exposed), ...], ...]`` into parallel row lists."""
     stratum, case, exposed = [], [], []

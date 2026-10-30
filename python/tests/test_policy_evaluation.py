@@ -35,6 +35,20 @@ def test_binary_policy_evaluation_uses_heldout_randomized_rows_and_costs():
     assert result.uncertainty == "point_only"
 
 
+@pytest.mark.parametrize("rate,count", [(0.29, 29), (0.57, 57), (0.58, 58)])
+def test_rate_capacity_respects_decimal_boundary_for_policy_and_reference(rate, count):
+    actions = [True] * count + [False] * (100 - count)
+    policy = ant.policy.BinaryPolicy(actions, max_treatment_rate=rate)
+    kwargs = dict(outcome="y", assignment=[True, False] * 50, propensity=0.5)
+    result = ant.policy.evaluate_policy({"y": [1.0] * 100}, policy=policy, reference=policy, **kwargs)
+    assert result.treatment_rate == pytest.approx(rate)
+    too_low = ant.policy.BinaryPolicy(actions, max_treatment_rate=np.nextafter(rate, 0.0))
+    with pytest.raises(ValueError, match="capacity"):
+        ant.policy.evaluate_policy({"y": [1.0] * 100}, policy=too_low, **kwargs)
+    with pytest.raises(ValueError, match="capacity"):
+        ant.policy.evaluate_policy({"y": [1.0] * 100}, policy=policy, reference=too_low, **kwargs)
+
+
 @pytest.mark.parametrize(
     ("policy", "kwargs", "message"),
     [

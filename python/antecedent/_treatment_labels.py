@@ -19,7 +19,7 @@ from typing import Any, cast
 import numpy as np
 
 from ._columns import _data_column_map
-from ._data import table_column_names
+from ._data import _is_missing_scalar, table_column_names
 from ._table_snapshot import Table
 from .errors import CausalValueError
 
@@ -28,7 +28,9 @@ ACTIVE_CODE = 1.0
 
 
 def _is_missing(value: Any) -> bool:
-    return value is None or (isinstance(value, (float, np.floating)) and bool(np.isnan(value)))
+    return _is_missing_scalar(value) or (
+        isinstance(value, (float, np.floating)) and bool(np.isnan(value))
+    )
 
 
 def level_text(treatment: str, value: Any) -> str:
