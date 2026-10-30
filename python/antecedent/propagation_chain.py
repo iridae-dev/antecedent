@@ -961,14 +961,16 @@ def family_table(
         raise CausalTypeError("ledger must be an EvidenceLedger")
     if isinstance(rows, bool) or not isinstance(rows, int) or rows < 1:
         raise CausalValueError("rows must be a positive integer")
-    parts, refusal = _native.propagation_chain_family_table(
+    policy = resolve_execution(execution)
+    parts, refusal = policy._call(
+        _native.propagation_chain_family_table,
         _text(alignment, "alignment"),
         [e._wire() for e in estimates],
         dependence,
         flat,
         None if ledger is None else ledger._handle,
         rows,
-        resolve_execution(execution).seed,
+        policy.seed,
     )
     _refuse(refusal)
     assert parts is not None

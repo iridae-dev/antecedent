@@ -403,7 +403,6 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
 #[cfg(test)]
 mod tests {
     use super::{grid_contains_by, validate_ipcw_grid};
-    use pyo3::prelude::*;
 
     #[test]
     #[allow(clippy::float_cmp)]

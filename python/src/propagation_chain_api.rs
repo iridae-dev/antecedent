@@ -233,6 +233,7 @@ fn family_estimates(estimates: Vec<FamilyEstimateArg>) -> Result<Vec<FamilyEstim
 #[pyfunction]
 #[pyo3(signature = (alignment, estimates, dependence, covariance=None, ledger=None, rows=1597, seed=0))]
 fn propagation_chain_family_table(
+    py: Python<'_>,
     alignment: &str,
     estimates: Vec<FamilyEstimateArg>,
     dependence: &str,
@@ -240,50 +241,65 @@ fn propagation_chain_family_table(
     ledger: Option<PyRef<'_, crate::evidence_ledger_api::EvidenceLedgerHandle>>,
     rows: usize,
     seed: u64,
-) -> Refused<FamilyTableParts> {
+) -> PyResult<Refused<FamilyTableParts>> {
+    // The Python arguments are already extracted by PyO3; honor a scoped
+    // cancellation before converting them into owned native family values.
+    let ctx = crate::py_execution_context(seed, 1);
+    if ctx.cancellation.is_cancelled() {
+        return Err(crate::CausalCancelledError::new_err("family table cancelled"));
+    }
     let estimates = match family_estimates(estimates) {
         Ok(estimates) => estimates,
-        Err(message) => return (None, Some(invalid_json(message))),
+        Err(message) => return Ok((None, Some(invalid_json(message)))),
     };
     let dependence = match (dependence, covariance) {
         ("independent", None) => FamilyDependence::Independent,
         ("covariance", Some(matrix)) => FamilyDependence::Covariance(matrix),
         ("ledger_overlap", None) => FamilyDependence::LedgerOverlap,
         (other, _) => {
-            return (
+            return Ok((
                 None,
                 Some(invalid_json(format!(
                     "dependence `{other}` with this covariance argument is not one of \
                      `independent`, `covariance` (with a covariance) or `ledger_overlap`"
                 ))),
-            );
+            ));
         }
     };
-    let table = match family_table(
-        alignment,
-        &estimates,
-        &dependence,
-        ledger.as_ref().map(|handle| handle.ledger()),
-        rows,
-        seed,
-    ) {
-        Ok(table) => table,
-        Err(refusal) => return (None, Some(refusal_json(&refusal))),
-    };
-    let mut sources = Vec::with_capacity(table.sources.len());
-    for source in &table.sources {
-        match serde_json::to_string(source) {
-            Ok(wire) => sources.push(wire),
-            Err(error) => return (None, Some(invalid_json(error.to_string()))),
-        }
+    if ctx.cancellation.is_cancelled() {
+        return Err(crate::CausalCancelledError::new_err("family table cancelled"));
     }
-    let bindings = table
-        .authority
-        .bindings()
-        .iter()
-        .map(|(chain_source, ledger_source)| (chain_source.clone(), ledger_source.to_hex()))
-        .collect();
-    (Some((sources, table.covariance, bindings)), None)
+    let alignment = alignment.to_owned();
+    let ledger = ledger.as_ref().map(|handle| handle.ledger().clone());
+    crate::detach_catch(py, move || {
+        let table_result = antecedent_core::numerical_admission::with_context(&ctx, || {
+            family_table(&alignment, &estimates, &dependence, ledger.as_ref(), rows, seed)
+        });
+        if ctx.cancellation.is_cancelled() {
+            return Err(crate::CausalCancelledError::new_err("family table cancelled"));
+        }
+        let table = match table_result {
+            Ok(table) => table,
+            Err(refusal) if refusal.detail() == "propagation_chain.family_table_work_limit" => {
+                return Err(crate::CausalResourceError::new_err(refusal.to_string()));
+            }
+            Err(refusal) => return Ok((None, Some(refusal_json(&refusal)))),
+        };
+        let mut sources = Vec::with_capacity(table.sources.len());
+        for source in &table.sources {
+            match serde_json::to_string(source) {
+                Ok(wire) => sources.push(wire),
+                Err(error) => return Ok((None, Some(invalid_json(error.to_string())))),
+            }
+        }
+        let bindings = table
+            .authority
+            .bindings()
+            .iter()
+            .map(|(chain_source, ledger_source)| (chain_source.clone(), ledger_source.to_hex()))
+            .collect();
+        Ok((Some((sources, table.covariance, bindings)), None))
+    })
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

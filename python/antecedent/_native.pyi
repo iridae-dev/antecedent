@@ -3493,6 +3493,8 @@ def estimate_network_interference(
     *,
     probability_draws: int = 10_000,
     seed: int = 1,
+    work_limit: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> InterferenceAnalysisResult: ...
 def observation_adjusted_outcome(
     names: list[str],
@@ -11515,6 +11517,8 @@ class _Execution:
         on_progress: Callable[[float, str], None] | None = None,
         callback_failure_capacity: int = 256,
         pulse_extrapolation_ranges: float | None = None,
+        exposure_probability_work_limit: int | None = None,
+        hmc_work_limit: int | None = None,
     ) -> None: ...
     @property
     def available_memory_bytes(self) -> int: ...

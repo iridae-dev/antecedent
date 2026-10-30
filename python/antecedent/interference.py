@@ -445,13 +445,16 @@ def estimate(
     edges: Sequence[NetworkEdge | tuple[int, int] | tuple[int, int, float]],
     query: InterferenceQuery,
     execution: Execution | None = None,
+    work_limit: int | None = None,
 ) -> InterferenceEstimate:
     """Estimate a known randomized exposure contrast on a fixed unit network.
 
     This is an unlicensed utility: every assignment
     design and exposure mapping, and ``execution`` carries the exposure-probability Monte
     Carlo seed. It calls the interference estimator directly and returns bare
-    numbers, with no study, contract, export or calibration slot.
+    numbers, with no study, contract, export or calibration slot. ``work_limit``
+    sets the total logical-operation ceiling for both exposure probabilities;
+    exceeding it refuses the request without reducing the Monte Carlo draw count.
     ``antecedent.analyze(data, graph=[], query=InterferenceQuery(..., network=,
     realized_assignment=))`` retains a study for the licensed Bernoulli cell
     and the separately checked, unlicensed cluster total-effect construction.
@@ -533,7 +536,8 @@ def estimate(
         from_level=(query.functional.from_.own, query.functional.from_.neighbors),
         to_level=(query.functional.to.own, query.functional.to.neighbors),
         probability_draws=query.probability_draws,
-        **native_controls(execution, seed="seed"),
+        work_limit=work_limit,
+        **native_controls(execution, seed="seed", cancel="cancel"),
         **_assignment_args(query.assignment),
     )
     return InterferenceEstimate(

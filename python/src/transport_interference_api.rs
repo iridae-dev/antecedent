@@ -1215,7 +1215,7 @@ fn estimate_trial_transport(
 #[pyo3(signature = (
     outcome, assignment, edges, assignment_kind, assignment_probabilities, treated,
     clusters, treated_clusters, exposure, from_level, to_level, *, probability_draws=10_000,
-    seed=1
+    seed=1, work_limit=None, cancel=None
 ))]
 #[allow(clippy::too_many_arguments)]
 fn estimate_network_interference(
@@ -1233,7 +1233,32 @@ fn estimate_network_interference(
     to_level: (f64, f64),
     probability_draws: u32,
     seed: u64,
+    work_limit: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<InterferenceAnalysisResult> {
+    // PyO3 has already extracted the supplied vectors; admit the new native
+    // batch and declaration storage before converting a possibly strided array.
+    let mut ctx = crate::py_execution_context(seed, 1);
+    if cancel.is_some() {
+        crate::apply_cancel(&mut ctx, cancel);
+    }
+    if let Some(limit) = work_limit {
+        ctx = ctx.with_exposure_probability_work_limit(limit);
+    }
+    let input_bytes = u64::try_from(outcome.as_array().len())
+        .ok()
+        .and_then(|n| n.checked_mul(16))
+        .and_then(|n| u64::try_from(clusters.len()).ok()?.checked_mul(8)?.checked_add(n))
+        .and_then(|n| {
+            u64::try_from(assignment_probabilities.len()).ok()?.checked_mul(16)?.checked_add(n)
+        })
+        .ok_or_else(|| crate::CausalResourceError::new_err("interference input size overflow"))?;
+    let input_lease = ctx.acquire_admission(0, input_bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            crate::CausalCancelledError::new_err("cancelled")
+        }
+        other => crate::CausalResourceError::new_err(other.to_string()),
+    })?;
     let names = vec!["outcome".to_owned()];
     let batch = numeric_columns_to_batch(&names, &[crate::NumericColumn::F64(outcome)])?;
     let query = interference_query(
@@ -1258,15 +1283,59 @@ fn estimate_network_interference(
         VariableId::from_raw(0),
     )?;
     detach_catch(py, move || {
+        let _input_lease = input_lease;
+        let edge_count = u64::try_from(edges.len()).unwrap_or(u64::MAX);
+        let units = u64::try_from(assignment.len()).unwrap_or(u64::MAX);
+        let network_bytes = edge_count
+            .checked_mul(96)
+            .and_then(|e| units.checked_add(1)?.checked_mul(8)?.checked_add(e))
+            .ok_or_else(|| {
+                crate::CausalResourceError::new_err("network workspace size overflow")
+            })?;
+        let _network_lease =
+            ctx.acquire_admission(0, network_bytes).map_err(|error| match error {
+                antecedent_core::execution::AdmissionError::Cancelled => {
+                    crate::CausalCancelledError::new_err("cancelled")
+                }
+                other => crate::CausalResourceError::new_err(other.to_string()),
+            })?;
+        antecedent_stats::interference::admit_exposure_probability_work_for_shape(
+            &query.assignment,
+            assignment.len(),
+            edge_count,
+            query.probability_draws,
+            2,
+            ctx.exposure_probability_work_limit(),
+        )
+        .map_err(|error| match error {
+            antecedent_stats::StatsError::WorkLimit { .. } => {
+                crate::CausalResourceError::new_err(error.to_string())
+            }
+            other => py_err(antecedent_estimate::EstimationError::from(other)),
+        })?;
         let loaded = batch.loaded()?;
         let network_edges = edges
             .into_iter()
             .map(|(from, to, weight)| NetworkEdge::new(from, to, weight))
             .collect::<Vec<_>>();
         let network = NetworkData::try_new(loaded.data, network_edges).map_err(py_err)?;
-        let result =
-            antecedent_estimate::estimate_interference(&query, &network, &assignment, seed)
-                .map_err(py_err)?;
+        let result = antecedent_estimate::estimate_interference_with_context(
+            &query,
+            &network,
+            &assignment,
+            seed,
+            &ctx,
+        )
+        .map_err(|error| match error {
+            antecedent_estimate::EstimationError::Stats(
+                antecedent_stats::StatsError::Cancelled,
+            ) => crate::CausalCancelledError::new_err("cancelled"),
+            antecedent_estimate::EstimationError::Stats(
+                error @ (antecedent_stats::StatsError::ResourceLimit { .. }
+                | antecedent_stats::StatsError::WorkLimit { .. }),
+            ) => crate::CausalResourceError::new_err(error.to_string()),
+            other => py_err(other),
+        })?;
         Ok(InterferenceAnalysisResult {
             horvitz_thompson: result.contrast.horvitz_thompson,
             hajek: result.contrast.hajek,

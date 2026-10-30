@@ -96,3 +96,14 @@ def test_bayesian_unknown_backend_rejected():
 
     with pytest.raises(ValueError, match="backend"):
         _bayesian_inference_kwargs(_Bad())  # type: ignore[arg-type]
+
+
+def test_hmc_execution_work_ceiling_refuses_before_sampling():
+    data, edges = _confounded(n=100, seed=9)
+    with pytest.raises(antecedent.errors.CausalResourceError, match="hmc_work_budget"):
+        require_success(antecedent.analyze(
+            data, graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(n_draws=4000, backend="hmc"),
+            refute=False, execution=antecedent.Execution(seed=2, hmc_work_limit=1),
+        ))

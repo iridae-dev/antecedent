@@ -200,3 +200,15 @@ The execution stamp retains both the full snapshot identity and the engine-compu
 base snapshot digest used by cheap inspection. Replay evidence remains part of the
 full identity. External `ExecutedContract` literals must supply the new
 `inspection_data_snapshot` field.
+
+## Python sampling controls
+
+`Execution` accepts `exposure_probability_work_limit` and `hmc_work_limit`. Direct
+`interference.estimate` also accepts `work_limit` and cancellation. Exposure limits
+cover the initial estimate and Full-suite redraws together; independent calls use
+independent ceilings. Native input-copy admission precedes strided-array conversion,
+after PyO3 argument extraction.
+
+Python family-table construction runs under its execution scope and reports
+cancellation and resource refusals. These controls preserve requested draw counts
+and add no calibration claim.

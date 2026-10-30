@@ -155,3 +155,12 @@ def test_malformed_declarations_are_refused_before_the_native_call():
         pc.family_table([estimate], alignment="family-9", covariance=[[0.01]])
     with pytest.raises(CausalValueError, match="meaning must be"):
         pc.family_table([pc.FamilyEstimate("a", 0.4, 0.1, meaning="belief")], alignment="x")
+
+
+def test_family_table_observes_execution_cancellation():
+    import antecedent
+    token = antecedent.CancellationToken()
+    token.cancel()
+    estimate = pc.FamilyEstimate("a", 0.4, 0.1)
+    with pytest.raises(antecedent.errors.CausalCancelledError):
+        pc.family_table([estimate], alignment="family-cancel", execution=antecedent.Execution(cancel=token))

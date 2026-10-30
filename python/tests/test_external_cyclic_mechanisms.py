@@ -115,6 +115,7 @@ def test_fit_with_a_registered_mechanism_recovers_the_closed_form_and_solves_the
     expected = reference_fixed_point(fitted, NOISE[0])
     assert artifact.report["worlds"][0][0]["values"] == pytest.approx(expected, abs=1e-8)
     assert artifact.report["worlds"][0][0]["globally_unique"] is True
+    assert artifact.report["worlds"][0][0]["evidence"]["contraction_bound_provenance"] == "declared_external_lipschitz"
     assert artifact.trust == "verified_external"
     assert artifact.report["claim"] == "verified_external_model_conditional"
     [mechanism] = artifact.report["mechanisms"]

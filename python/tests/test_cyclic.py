@@ -1760,6 +1760,11 @@ def test_linear_worlds_reproduce_the_analytic_feedback_pair_and_replay(tmp_path:
     assert list(worlds) == [0, 1, 2, 3]
     assert all(isinstance(world, WorldAnswer) for world in worlds.values())
     observational = worlds[0]
+    diagnostic = observational.block_diagnostics[0]
+    assert diagnostic["members"] == (0, 1)
+    assert diagnostic["exact"] is True
+    assert diagnostic["kappa_inf"] > 1.0
+    assert observational.outcome["block_diagnostics"] == observational.block_diagnostics
     association = observational.covariance("A", "B") / observational.covariance("A", "A")
     assert association == pytest.approx(1.40625 / 1.8125, abs=1e-10)
     assert association == pytest.approx(0.776, abs=5e-4)
@@ -2309,7 +2314,21 @@ def _replay_committed(tmp_path: Path, name: str) -> dict:
         + "print(json.dumps(r.to_dict()))",
     )
     report = json.loads(replayed)
-    assert report == json.loads((directory / "report.json").read_text(encoding="utf-8"))
+    legacy_projection = json.loads(replayed)
+    if name in ("specified-feedback-pair", "previous-record-format"):
+        # Verified replay computes conditioning diagnostics that the historical
+        # report format did not expose. Check their independent analytic values
+        # while retaining exact comparison of every historical report field.
+        for world in legacy_projection["answer"]["result"]:
+            diagnostics = world["outcome"].pop("block_diagnostics")
+            assert len(diagnostics) == 1
+            diagnostic = diagnostics[0]
+            assert set(diagnostic) == {"members", "residual_inf", "kappa_inf", "exact"}
+            condition = {(0, 1): 2.8125, (1,): 1.0}[tuple(diagnostic["members"])]
+            assert diagnostic["kappa_inf"] == pytest.approx(condition, abs=1e-12)
+            assert diagnostic["residual_inf"] == 0.0
+            assert diagnostic["exact"] is True
+    assert legacy_projection == json.loads((directory / "report.json").read_text(encoding="utf-8"))
     return report
 
 

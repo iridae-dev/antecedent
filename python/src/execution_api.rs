@@ -54,6 +54,9 @@ pub(crate) fn apply(ctx: &mut ExecutionContext) {
     ctx.parallelism = policy.context.parallelism;
     ctx.admission = policy.context.admission.clone();
     ctx.cache_policy = policy.context.cache_policy;
+    *ctx =
+        ctx.with_exposure_probability_work_limit(policy.context.exposure_probability_work_limit());
+    *ctx = ctx.with_hmc_work_limit(policy.context.hmc_work_limit());
     ctx.kernel_policy = policy.context.kernel_policy;
     if let Some(ranges) = policy.pulse_extrapolation_ranges {
         if let Some(scoped) = ctx.with_pulse_extrapolation_ranges(ranges) {
@@ -78,7 +81,7 @@ pub(crate) struct PythonExecution {
 #[pymethods]
 impl PythonExecution {
     #[new]
-    #[pyo3(signature = (*, seed=1, threads=None, memory_bytes=None, cache="bounded", cache_bytes=Some(crate::PY_DEFAULT_CACHE_MAX_BYTES), kernel="auto", cancel=None, on_progress=None, callback_failure_capacity=crate::interrupt::DEFAULT_CALLBACK_FAILURE_CAPACITY, pulse_extrapolation_ranges=None))]
+    #[pyo3(signature = (*, seed=1, threads=None, memory_bytes=None, cache="bounded", cache_bytes=Some(crate::PY_DEFAULT_CACHE_MAX_BYTES), kernel="auto", cancel=None, on_progress=None, callback_failure_capacity=crate::interrupt::DEFAULT_CALLBACK_FAILURE_CAPACITY, pulse_extrapolation_ranges=None, exposure_probability_work_limit=None, hmc_work_limit=None))]
     fn new(
         seed: u64,
         threads: Option<u32>,
@@ -90,6 +93,8 @@ impl PythonExecution {
         on_progress: Option<Bound<'_, PyAny>>,
         callback_failure_capacity: usize,
         pulse_extrapolation_ranges: Option<f64>,
+        exposure_probability_work_limit: Option<u64>,
+        hmc_work_limit: Option<u64>,
     ) -> PyResult<Self> {
         if let Some(ranges) = pulse_extrapolation_ranges {
             if !(ranges.is_finite() && ranges >= 0.0) {
@@ -103,6 +108,12 @@ impl PythonExecution {
         }
         let mut context = ExecutionContext::production(seed, crate::resolve_user_threads(threads))
             .with_memory_limit(memory_bytes);
+        if let Some(limit) = exposure_probability_work_limit {
+            context = context.with_exposure_probability_work_limit(limit);
+        }
+        if let Some(limit) = hmc_work_limit {
+            context = context.with_hmc_work_limit(limit);
+        }
         context.cache_policy = match cache {
             "disabled" => CachePolicy::disabled(),
             "unbounded" => CachePolicy::enabled(None),

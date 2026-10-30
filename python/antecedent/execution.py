@@ -85,6 +85,13 @@ class Execution:
     deviations; a level beyond the bound is refused with ``positivity_violated``. The
     control level is never refused, since a control of 0 outside the data is how a pulse
     is written.
+
+    ``exposure_probability_work_limit`` bounds total logical operations for the
+    exposure-probability procedure. None selects the engine default (4 billion);
+    requests over the bound are refused without reducing their draw count.
+    ``hmc_work_limit`` bounds total HMC sampling and diagnostic work. None selects
+    the engine default (4 billion); a higher value authorizes more work without
+    changing the requested sampling schedule.
     """
 
     seed: int = 1
@@ -99,11 +106,15 @@ class Execution:
     on_stage: Callable[..., None] | None = field(default=None, repr=False, compare=False)
     callback_failure_capacity: int = 256
     pulse_extrapolation_ranges: float | None = None
+    exposure_probability_work_limit: int | None = None
+    hmc_work_limit: int | None = None
     _handle: Any = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         _integer(self.seed, "seed")
         _integer(self.threads, "threads", positive=True)
+        _integer(self.exposure_probability_work_limit, "exposure_probability_work_limit")
+        _integer(self.hmc_work_limit, "hmc_work_limit")
         if self.callback_failure_capacity is None:
             raise CausalTypeError("callback_failure_capacity must be an integer")
         _integer(self.callback_failure_capacity, "callback_failure_capacity")
@@ -138,6 +149,8 @@ class Execution:
                 cancel=self.cancel,
                 on_progress=self.on_progress,
                 callback_failure_capacity=self.callback_failure_capacity,
+                exposure_probability_work_limit=self.exposure_probability_work_limit,
+                hmc_work_limit=self.hmc_work_limit,
                 pulse_extrapolation_ranges=(
                     None
                     if self.pulse_extrapolation_ranges is None

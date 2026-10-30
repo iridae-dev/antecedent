@@ -1184,8 +1184,8 @@ impl CyclicExecutionOwner {
             A::Worlds(worlds) => {
                 let value = &worlds[position];
                 let outcome = match &value.outcome {
-                    W::GaussianLaw { mean, .. } => {
-                        serde_json::json!({"status":"gaussian_law","dimension":mean.len()})
+                    W::GaussianLaw { mean, block_diagnostics, .. } => {
+                        serde_json::json!({"status":"gaussian_law","dimension":mean.len(),"block_diagnostics":block_diagnostics})
                     }
                     W::EquilibriumDraws { outcomes } => {
                         serde_json::json!({"status":"equilibrium_draws","row_count":outcomes.len()})
@@ -2086,9 +2086,9 @@ impl CyclicExecutionOwner {
                 W::EquilibriumDraws { outcomes } => {
                     outcomes.get(row).map(equilibrium_metadata).ok_or_else(invalid)
                 }
-                W::GaussianLaw { residual_inf, .. } if row == 0 => {
-                    Ok(serde_json::json!({"status":"gaussian_law","residual_inf":residual_inf}))
-                }
+                W::GaussianLaw { residual_inf, block_diagnostics, .. } if row == 0 => Ok(
+                    serde_json::json!({"status":"gaussian_law","residual_inf":residual_inf,"block_diagnostics":block_diagnostics}),
+                ),
                 W::Trajectory { trajectory } => trajectory
                     .times
                     .get(row)

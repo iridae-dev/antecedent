@@ -246,3 +246,56 @@ def test_partial_interference_requires_explicit_cluster_assignment() -> None:
                 {"y": np.array([0.0, 1.0])}, assignment=[False, True], edges=[], query=query
             )
         )
+
+
+def test_interference_direct_execution_work_memory_and_cancellation() -> None:
+    query = interference.InterferenceQuery(
+        interference.BernoulliAssignment(0.5),
+        interference.OwnTreatment(),
+        interference.ExposureContrast(
+            "y", interference.ExposureLevel(0.0), interference.ExposureLevel(1.0)
+        ),
+        probability_draws=100,
+    )
+    data = {"y": np.ones(21)}
+    assignment = [i % 2 == 0 for i in range(21)]
+    def run(execution: Execution):
+        return interference.estimate(data, assignment=assignment, edges=[], query=query, execution=execution)
+
+    with pytest.raises(antecedent.errors.CausalResourceError, match="work limit"):
+        run(Execution(exposure_probability_work_limit=1))
+    with pytest.raises(antecedent.errors.CausalResourceError):
+        run(Execution(limits=antecedent.ResourceLimits(memory_bytes=1)))
+    token = antecedent._native.CancellationToken()
+    token.cancel()
+    with pytest.raises(antecedent.errors.CausalCancelledError):
+        run(Execution(cancel=token))
+    result = require_success(run(Execution(seed=7, exposure_probability_work_limit=100_000)))
+    assert result.from_probability_method == "monte_carlo(draws=100,seed=7)"
+    assert result.to_probability_method == "monte_carlo(draws=100,seed=8)"
+
+
+def test_interference_strided_input_admission_and_precancellation() -> None:
+    query = interference.InterferenceQuery(
+        interference.BernoulliAssignment(0.5),
+        interference.OwnTreatment(),
+        interference.ExposureContrast(
+            "y", interference.ExposureLevel(0.0), interference.ExposureLevel(1.0)
+        ),
+        probability_draws=100,
+    )
+    outcome = np.arange(42, dtype=np.float64)[::2]
+    assert not outcome.flags.c_contiguous
+    assignment = [i % 2 == 0 for i in range(21)]
+    with pytest.raises(antecedent.errors.CausalResourceError):
+        interference.estimate(
+            {"y": outcome}, assignment=assignment, edges=[], query=query,
+            execution=Execution(limits=antecedent.ResourceLimits(memory_bytes=1)),
+        )
+    token = antecedent._native.CancellationToken()
+    token.cancel()
+    with pytest.raises(antecedent.errors.CausalCancelledError):
+        interference.estimate(
+            {"y": outcome}, assignment=assignment, edges=[], query=query,
+            execution=Execution(cancel=token),
+        )

@@ -607,6 +607,17 @@ class WorldAnswer(ScientificResult):
         return self._metadata["solved_by"]
 
     @property
+    def block_diagnostics(self):
+        """Conditioning of compiled free blocks, or None when unavailable.
+
+        Each entry records the block members as zero-based positions in this
+        world's variable order, the residual, the infinity-norm condition number,
+        and whether that condition number is exact rather than estimated.
+        The family uniqueness certificate does not establish numerical conditioning.
+        """
+        return self._metadata["outcome"].get("block_diagnostics")
+
+    @property
     def failed_mass(self):
         return self._metadata["failed_mass"]
 
