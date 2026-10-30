@@ -307,7 +307,7 @@ fn ipw_procedure(
                     features.clear();
                     data.current_features(&subject.confounders[k], arm, k, &mut features);
                     let p_censor = probability(model, &features);
-                    cumulative /= (1.0 - p_censor).max(floor);
+                    cumulative /= censor_survival(p_censor, floor)?;
                 }
                 if subject.censored[k] {
                     break;
@@ -316,21 +316,44 @@ fn ipw_procedure(
                 denominator[k] += w * cumulative;
             }
         }
-        for (k, (events, at_risk)) in numerator.iter().zip(&denominator).enumerate() {
-            if *at_risk <= 0.0 {
-                return Err(refuse(
-                    antecedent_core::reason_code!("arm_not_populated"),
-                    "regime_survival.no_regime_support",
-                    &format!(
-                        "no uncensored subject followed the {} regime through period {k}",
-                        if arm { "always-treat" } else { "never-treat" }
-                    ),
-                ));
-            }
-            survival[arm_index] *= 1.0 - events / at_risk;
-        }
+        survival[arm_index] = risk_survival(&numerator, &denominator, arm)?;
     }
     Ok(([survival[0] - survival[1], survival[0], survival[1]], minimum))
+}
+
+fn censor_survival(p_censor: f64, floor: f64) -> Result<f64, EstimationError> {
+    let probability = 1.0 - p_censor;
+    if !probability.is_finite() || probability < floor {
+        return Err(refuse(
+            antecedent_core::reason_code!("positivity_violated"),
+            "regime_survival.positivity",
+            &format!(
+                "a regime-consistent uncensoring probability {probability} is below the floor {floor}"
+            ),
+        ));
+    }
+    Ok(probability)
+}
+
+fn risk_survival(events: &[f64], at_risk: &[f64], arm: bool) -> Result<f64, EstimationError> {
+    let mut survival = 1.0;
+    for (k, (events, at_risk)) in events.iter().zip(at_risk).enumerate() {
+        if *at_risk <= 0.0 {
+            if survival == 0.0 {
+                continue;
+            }
+            return Err(refuse(
+                antecedent_core::reason_code!("arm_not_populated"),
+                "regime_survival.no_regime_support",
+                &format!(
+                    "no uncensored subject followed the {} regime through period {k}",
+                    if arm { "always-treat" } else { "never-treat" }
+                ),
+            ));
+        }
+        survival *= 1.0 - events / at_risk;
+    }
+    Ok(survival)
 }
 
 fn probability(fit: &LogisticFit, features: &[f64]) -> f64 {
@@ -636,6 +659,22 @@ pub fn fit_regime_survival_posterior(
 mod tests {
     use super::*;
 
+    #[test]
+    fn censoring_positivity_and_extinguished_risk_sets_are_explicit() {
+        assert_eq!(censor_survival(0.5, 0.1).unwrap(), 0.5);
+        assert_eq!(
+            censor_survival(0.95, 0.1).unwrap_err().reason_code(),
+            Some("positivity_violated")
+        );
+        assert!(censor_survival(f64::NAN, 0.1).is_err());
+        assert_eq!(risk_survival(&[2.0, 0.0], &[2.0, 0.0], true).unwrap(), 0.0);
+        assert_eq!(
+            risk_survival(&[1.0, 0.0], &[2.0, 0.0], false).unwrap_err().reason_code(),
+            Some("arm_not_populated")
+        );
+        assert_eq!(risk_survival(&[1.0, 1.0], &[2.0, 2.0], true).unwrap(), 0.25);
+    }
+
     fn uniform(seed: u64) -> f64 {
         let mut state = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ 0x3C6E_F372_FE94_F82B;
         state ^= state >> 31;
@@ -679,6 +718,51 @@ mod tests {
             }
         }
         (unit, period, treat, cens, event, l)
+    }
+
+    #[test]
+    fn actual_ipw_extinction_and_low_uncensoring_are_not_silently_mishandled() {
+        let (unit, period, treat, mut cens, mut event, l) = trajectories(1500, 4);
+        let columns = vec![l];
+        for row in 0..unit.len() {
+            let last = row + 1 == unit.len() || unit[row + 1] != unit[row];
+            if last && !cens[row] {
+                event[row] = true;
+            }
+        }
+        let rows = TrajectoryRows {
+            unit: &unit,
+            period: &period,
+            treatment: &treat,
+            censored: &cens,
+            event: &event,
+            confounders: &columns,
+        };
+        let extinct = Trajectories::new(rows, 5).unwrap();
+        let (estimate, _) = ipw_procedure(&extinct, None, 0.02).unwrap();
+        assert_eq!(estimate, [0.0, 0.0, 0.0]);
+
+        // Reclassify almost all subjects' final observation as censored. The
+        // original mixed treatment and history design still fits both models.
+        for row in 0..unit.len() {
+            let last = row + 1 == unit.len() || unit[row + 1] != unit[row];
+            if last && unit[row] % 20 != 0 {
+                cens[row] = true;
+                event[row] = false;
+            }
+        }
+        let rows = TrajectoryRows {
+            unit: &unit,
+            period: &period,
+            treatment: &treat,
+            censored: &cens,
+            event: &event,
+            confounders: &columns,
+        };
+        let low_support = Trajectories::new(rows, 4).unwrap();
+        let error = ipw_procedure(&low_support, None, 0.2).unwrap_err();
+        assert_eq!(error.reason_code(), Some("positivity_violated"));
+        assert!(error.to_string().contains("uncensoring probability"));
     }
 
     /// Monte Carlo truth of `S_1(K) - S_0(K)` from the generating law.

@@ -43,20 +43,20 @@ pub struct ValidationCounts {
 
 impl ValidationCounts {
     fn sensitivity(&self) -> (f64, f64) {
-        let total = (self.true_positive + self.false_negative) as f64;
+        let total = self.true_positive as f64 + self.false_negative as f64;
         let value = self.true_positive as f64 / total;
         (value, value * (1.0 - value) / total)
     }
 
     fn specificity(&self) -> (f64, f64) {
-        let total = (self.true_negative + self.false_positive) as f64;
+        let total = self.true_negative as f64 + self.false_positive as f64;
         let value = self.true_negative as f64 / total;
         (value, value * (1.0 - value) / total)
     }
 
     fn validate(&self) -> Result<(), EstimationError> {
-        if self.true_positive + self.false_negative == 0
-            || self.true_negative + self.false_positive == 0
+        if self.true_positive == 0 && self.false_negative == 0
+            || self.true_negative == 0 && self.false_positive == 0
         {
             return Err(invalid("the validation sample needs true positives and true negatives"));
         }
@@ -67,7 +67,8 @@ impl ValidationCounts {
 /// Whether a coordinate name is an arm mean (rather than a contrast).
 #[must_use]
 pub fn is_mean_coordinate(name: &str) -> bool {
-    name.starts_with("mean:") || name.ends_with("_mean")
+    name.starts_with("mean:")
+        || matches!(name, "treated_mean" | "control_mean" | "active_mean" | "reference_mean")
 }
 
 fn youden_refusal(youden: f64) -> EstimationError {
@@ -198,6 +199,45 @@ mod tests {
             smoothing_bias_bound: None,
             method: "test",
         }
+    }
+
+    #[test]
+    fn coordinate_grammar_and_large_validation_counts_preserve_correction() {
+        let names: Vec<String> = ["contrast:active-control_mean", "mean:custom", "treated_mean"]
+            .map(str::to_owned)
+            .to_vec();
+        assert!(!is_mean_coordinate(&names[0]));
+        assert!(names[1..].iter().all(|name| is_mean_coordinate(name)));
+        assert!(
+            is_mean_coordinate("control_mean")
+                && is_mean_coordinate("active_mean")
+                && is_mean_coordinate("reference_mean")
+        );
+        let counts = ValidationCounts {
+            true_positive: 90,
+            false_negative: 10,
+            true_negative: 80,
+            false_positive: 20,
+        };
+        let mut result = summary();
+        correct_sampling(&mut result, &names, &[0], counts).unwrap();
+        assert!((result.estimate[0] - 0.18 / 0.7).abs() < 1e-12);
+        assert!((result.estimate[1] - (0.5 - 0.2) / 0.7).abs() < 1e-12);
+        let huge = ValidationCounts {
+            true_positive: u64::MAX,
+            false_negative: 1,
+            true_negative: u64::MAX,
+            false_positive: 1,
+        };
+        assert!(correct_sampling(&mut summary(), &names, &[0], huge).is_ok());
+        let empty = ValidationCounts { true_positive: 0, false_negative: 0, ..huge };
+        assert!(correct_sampling(&mut summary(), &names, &[0], empty).is_err());
+        let original = summarize_draws(vec![vec![0.18, 0.19, 0.2]], "test");
+        let ctx = ExecutionContext::for_tests(7);
+        let a = correct_posterior(original.clone(), &[names[0].clone()], counts, &ctx).unwrap();
+        let b = correct_posterior(original, &["contrast:active-control".to_owned()], counts, &ctx)
+            .unwrap();
+        assert_eq!(a.draws, b.draws);
     }
 
     #[test]
