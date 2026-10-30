@@ -41,6 +41,7 @@ REASON_PROSE_SCHEMAS = frozenset({
     "support_graphless.toml", "python_facade_surface.toml",
     "interval_level_exceptions.toml", "counterparts.toml",
     "estimator_route_residual.toml", "test_refactor_dispositions.toml",
+    "scenario_matrix.toml", "slow_correctness_tests.toml",
 })
 
 
@@ -73,6 +74,19 @@ def runtime_code_literals(path: Path, text: str) -> list[str]:
         end = _match_bracket(masked.skeleton, method.end() - 1)
         found.extend(re.findall(r'=>\s*"([a-z][a-z0-9_]+)"', masked.code[method.end():end]))
     return found
+
+
+def raw_reason_emissions(path: Path) -> list[int]:
+    """Line numbers of unchecked reason prefixes in compiled product code.
+
+    Follow module ownership so a cfg(test) child in a separate file is excluded,
+    while product code after an inline test module is still checked.
+    """
+    from promotion_source import nontest_rust
+
+    source = nontest_rust(path)
+    return [number for number, line in enumerate(source.splitlines(), 1)
+            if '"reason=' in line and "concat!" not in line]
 
 
 def rows(path: str | Path, table: str = "capabilities") -> list[dict]:

@@ -34,7 +34,7 @@ class Classification(unittest.TestCase):
     def test_reason_namespaces_keep_prose_and_device_fallbacks_out_of_scientific_codes(self):
         from parity_rows import reason_obligation, runtime_code_literals
 
-        for name in ("counterparts.toml", "support_graphless.toml", "estimator_route_residual.toml", "test_refactor_dispositions.toml"):
+        for name in ("counterparts.toml", "support_graphless.toml", "estimator_route_residual.toml", "test_refactor_dispositions.toml", "scenario_matrix.toml", "slow_correctness_tests.toml"):
             self.assertIsNone(reason_obligation(Path(name), "reason"))
             self.assertEqual(reason_obligation(Path(name), "calibration_reason"), "calibration")
             self.assertEqual(reason_obligation(Path(name), "reason_code"), "runtime_refusal")
@@ -49,6 +49,23 @@ class Classification(unittest.TestCase):
         self.assertEqual(runtime_code_literals(path, "// " + body.splitlines()[0] + "\n"), [])
         self.assertEqual(runtime_code_literals(path, 'const DECOY: &str = r#"' + body + '"#;'), [])
         self.assertEqual(runtime_code_literals(Path("crates/other/src/error.rs"), fallback.replace("fn code(&self)", "fn   code ( &self )")), ["no_device"])
+
+    def test_raw_reason_scanner_follows_test_modules_and_keeps_later_product_code(self):
+        from parity_rows import raw_reason_emissions
+
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "src"
+            src.mkdir()
+            product = src / "lib.rs"
+            tests = src / "checks.rs"
+            product.write_text(
+                '#[cfg(test)]\nmod checks;\n'
+                '#[cfg(test)] mod inline { fn fixture() { let _ = "reason=test"; } }\n'
+                'fn product() { let _ = "reason=unchecked"; }\n'
+                '// "reason=comment"\n', encoding="utf-8")
+            tests.write_text('fn fixture() { let _ = "reason=test"; }\n', encoding="utf-8")
+            self.assertEqual(raw_reason_emissions(tests), [])
+            self.assertEqual(raw_reason_emissions(product), [4])
 
     def test_registered_rust_acceptance_requires_exact_live_discovery(self):
         with tempfile.TemporaryDirectory() as tmp:

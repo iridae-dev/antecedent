@@ -7,7 +7,7 @@ import tomllib
 from pathlib import Path
 
 from _repo import ensure_scripts_on_path
-from parity_rows import reason_obligation, runtime_code_literals
+from parity_rows import reason_obligation, runtime_code_literals, raw_reason_emissions
 
 root = Path(".")
 print_counts = "--print-counts" in sys.argv
@@ -781,18 +781,13 @@ else:
             "crates/antecedent-core/src/reason_codes_data.rs is stale against "
             "parity/reason_codes.toml; run scripts/generate_support_matrix_docs.py"
         )
-# A refusal message that carries a reason code must be built by the checked
-# macro, never typed as a raw `"reason=` literal (comments / doc examples and
-# `#[cfg(test)]` code below the first test marker are not emission sites).
+# Inspect compiled product code using the shared module-ownership parser. Test
+# children may live in separate files, and inline tests need not end a module.
 for path in sorted(root.glob("crates/*/src/**/*.rs")) + sorted(root.glob("python/src/**/*.rs")):
-    source = path.read_text(errors="ignore", encoding="utf-8").split("#[cfg(test)]", 1)[0]
-    for lineno, line in enumerate(source.splitlines(), 1):
-        if line.lstrip().startswith("//"):
-            continue
-        if '"reason=' in line and "concat!" not in line:
-            problems.append(
-                f'{path}:{lineno}: raw "reason=..." literal; use antecedent::unsupported_reason!'
-            )
+    for lineno in raw_reason_emissions(path):
+        problems.append(
+            f'{path}:{lineno}: raw "reason=..." literal; use antecedent::unsupported_reason!'
+        )
 
 # --- release required_jobs ---
 # ---- [gates] job ids from a YAML parse of ci.yml ----
