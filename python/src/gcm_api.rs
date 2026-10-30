@@ -3,6 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use antecedent::gcm::{
@@ -1688,6 +1689,7 @@ pub(crate) struct PyPreparedPolicyAnalysis {
     selection: Arc<Selection>,
     template: antecedent::gcm::PreparedPolicy,
     fitted: Arc<Mutex<Option<Arc<PolicyMaterialization>>>>,
+    fit_published: Arc<AtomicBool>,
 }
 
 #[pymethods]
@@ -1729,6 +1731,7 @@ impl PyPreparedPolicyAnalysis {
                 selection: Arc::new(selection),
                 template,
                 fitted: Arc::new(Mutex::new(None)),
+                fit_published: Arc::new(AtomicBool::new(false)),
             })
         })
     }
@@ -1749,6 +1752,7 @@ impl PyPreparedPolicyAnalysis {
             selection: Arc::clone(&self.selection),
             template: self.template.clone(),
             fitted: Arc::new(Mutex::new(None)),
+            fit_published: Arc::new(AtomicBool::new(false)),
         })
     }
 
@@ -1790,7 +1794,7 @@ impl PyPreparedPolicyAnalysis {
 
     #[getter]
     fn fit_materialized(&self) -> bool {
-        self.fitted.lock().is_ok_and(|fit| fit.is_some())
+        self.fit_published.load(Ordering::Acquire)
     }
 
     #[pyo3(signature = (seed=1, threads=None))]
@@ -1847,6 +1851,7 @@ impl PyPreparedPolicyAnalysis {
             let fitted = Arc::new(fitted);
             let retained = Arc::new(PolicyMaterialization { fitted, _retention: _workspace });
             *slot = Some(Arc::clone(&retained));
+            self.fit_published.store(true, Ordering::Release);
             Ok(retained)
         })?;
         let program = self.selection.program()?.with_prefit(Arc::clone(&fitted.fitted), &self.data);

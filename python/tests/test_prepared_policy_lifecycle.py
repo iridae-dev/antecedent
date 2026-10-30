@@ -63,6 +63,28 @@ def test_program_dependency_cycle_is_checked_before_fitting():
     assert not refused.accepted
 
 
+def test_progress_callback_can_read_materialization_state_without_deadlock():
+    # The watchdog bounds the pre-fix deadlock and leaves the main test process usable.
+    import subprocess
+    import sys
+
+    script = """
+import runpy, sys
+scope = runpy.run_path(sys.argv[1])
+ac, Execution = scope['ac'], scope['Execution']
+seen = []
+study = None
+def progress(*_):
+    seen.append(study._engine._native.fit_materialized)
+study = ac.prepare(scope['observations'](), query=scope['question'](),
+                   graph=[('x', 'y')], execution=Execution(on_progress=progress))
+assert ac.estimate(study).accepted
+assert False in seen
+assert study._engine._native.fit_materialized
+"""
+    subprocess.run([sys.executable, "-c", script, __file__], check=True, timeout=30)
+
+
 def test_policy_execution_preserves_progress_callback_exception():
     class ObserverFailed(RuntimeError):
         pass
@@ -81,6 +103,7 @@ def test_policy_execution_preserves_progress_callback_exception():
     with pytest.raises(ObserverFailed) as caught:
         ac.estimate(study)
     assert caught.value is error
+    assert not study._engine._native.fit_materialized
 
 
 def test_policy_fit_resource_limit_remains_an_operational_exception():
