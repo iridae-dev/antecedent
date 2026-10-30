@@ -264,9 +264,10 @@ fn regularized_incomplete_beta_with_complement(x: f64, y: f64, a: f64, b: f64) -
     }
     // Use the symmetry I_x(a,b) = 1 - I_{1-x}(b,a) where the continued fraction
     // converges fastest (Numerical Recipes criterion).
-    if x > (a + 1.0) / (a + b + 2.0) {
-        return 1.0 - regularized_incomplete_beta_with_complement(y, x, b, a);
-    }
+    // Floating-point rounding can make the swap criterion true in both
+    // orientations. Select the orientation once rather than recurse.
+    let complement = x > (a + 1.0) / (a + b + 2.0);
+    let (x, y, a, b) = if complement { (y, x, b, a) } else { (x, y, a, b) };
     let lnb = ln_beta(a, b);
     // ln(x): when x is within a few ulp of 1 (y small), x's own rounding has already discarded
     // y's leading digits, and a*ln(x) amplifies that lost precision by a — enough to move the
@@ -356,7 +357,8 @@ fn regularized_incomplete_beta_with_complement(x: f64, y: f64, a: f64, b: f64) -
             break;
         }
     }
-    (front * f).clamp(0.0, 1.0)
+    let value = (front * f).clamp(0.0, 1.0);
+    if complement { 1.0 - value } else { value }
 }
 
 /// `x = df / (df + t^2)` and `y = t^2 / (df + t^2)`, each accurate to relative 1e-16 on its own
@@ -893,6 +895,22 @@ mod tests {
                 "gamma_q at df={df}: got {got}, scipy says {expected}"
             );
         }
+    }
+
+    #[test]
+    fn beta_symmetry_rounding_does_not_recurse_between_two_orientations() {
+        let a = 2.0_f64.powi(53);
+        let b = 1.5;
+        let x = 1.0 - 3.0 * 2.0_f64.powi(-53);
+        let y = 1.0 - x;
+        assert!(x > (a + 1.0) / (a + b + 2.0));
+        assert!(y > (b + 1.0) / (b + a + 2.0));
+        let value = regularized_incomplete_beta(x, a, b);
+        assert!(value.is_finite() && (0.0..=1.0).contains(&value));
+        // a(1-X) tends to Gamma(b,1) as a grows. Here a(1-x)=3
+        // and the O(1/a) difference is below double-precision accuracy.
+        let expected = gamma_q(1.5, 3.0);
+        assert!((value - expected).abs() < 1e-10, "{value} vs {expected}");
     }
 
     #[test]
