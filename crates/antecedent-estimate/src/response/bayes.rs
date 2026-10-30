@@ -1213,6 +1213,33 @@ mod tests {
     }
 
     #[test]
+    fn failed_aligned_slot_refuses_scalar_summary_even_with_two_finite_draws() {
+        // The same coefficient draws and two dose worlds used by the joint
+        // projection test: world 0 is [1, NaN, 3], world 1 [3, NaN, 7].
+        let (columns, _) = stream_response_grid(
+            &ResponseGrid {
+                coefficients: &[1.0, 2.0, 0.0, 0.0, 3.0, 4.0],
+                failed_draws: &[false, true, false],
+                row_features: &[], row_count: 1, row_width: 0,
+                coordinates: &[0.0, 1.0], encoding_degree: 1,
+                family: GlmFamily::GaussianIdentity, average_rows: false,
+            },
+            &antecedent_core::ExecutionContext::for_tests(0),
+        ).unwrap();
+        assert_eq!(columns.len(), 2);
+        for (column, expected) in columns.iter().zip([[1.0, 3.0], [3.0, 7.0]]) {
+            assert_eq!(column.len(), 3);
+            assert_eq!(column[0], expected[0]);
+            assert!(column[1].is_nan());
+            assert_eq!(column[2], expected[1]);
+            assert!(crate::bayesian::summarize_linear_response_draws(column.clone(), 0.95).is_err());
+            let (mean, _, _, sd) = crate::bayesian::summarize_linear_response_draws(expected.to_vec(), 0.95).unwrap();
+            assert_eq!(mean, (expected[0] + expected[1]) / 2.0);
+            assert!((sd - (expected[1] - expected[0]) / 2.0_f64.sqrt()).abs() < 1e-12);
+        }
+    }
+
+    #[test]
     fn complete_response_grid_matches_the_row_draw_evaluation() {
         let coefficients = [1.0_f64, 2.0, 4.0, 5.0, 6.0, 7.0];
         let failed = [false, false];

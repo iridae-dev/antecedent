@@ -14746,6 +14746,13 @@ path = "crates/antecedent-estimate/src/response/bayes.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "audit-crates-antecedent-estimate-src-response-joint-linear-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/response/joint_linear.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "audit-crates-antecedent-estimate-src-response-support-rs"
 crate = "antecedent-estimate"
 cargo_target = "lib"

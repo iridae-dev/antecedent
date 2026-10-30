@@ -532,3 +532,40 @@ fn admit(ctx: &ExecutionContext, bytes: u64) -> Result<AdmissionLease, JointLine
     }
     ctx.acquire_admission(0, bytes).map_err(|error| JointLinearError::Resource(error.to_string()))
 }
+
+#[cfg(test)]
+mod failed_draw_tests {
+    use super::*;
+    use antecedent_core::AssumptionSet;
+    use antecedent_prob::{InferenceDiagnostics, PosteriorDraws, PosteriorSchema};
+
+    #[test]
+    fn joint_summary_is_conditional_on_success_but_retains_shared_failed_slot() {
+        let schema = PosteriorSchema::coefficients(2);
+        let clean = PosteriorDraws::from_column_major(schema.clone(), 3, vec![1.0, 2.0, 3.0, 2.0, 3.0, 4.0]).unwrap();
+        let summaries = clean.summarize();
+        let draws = PosteriorDraws::from_column_major(schema, 3, vec![1.0, f64::NAN, 3.0, 2.0, f64::NAN, 4.0]).unwrap();
+        let posterior = CausalPosterior {
+            draws, summaries, identification: IdentificationStatus::NonparametricallyIdentified,
+            prior_sensitivity: None, conflict_summary: None,
+            diagnostics: InferenceDiagnostics::analytic("test"), assumptions: AssumptionSet::new(),
+            unidentified_mass: 0.0, subsampled_out_mass: 0.0, unevaluable_mass: 0.0,
+            early_stopped: false, treatment_contrast: None, preparation: None,
+        };
+        let ctx = ExecutionContext::for_tests(0);
+        let result = project_posterior(&[vec![1.0, 0.0], vec![1.0, 1.0]], Some(&[-1.0, 1.0]),
+            &posterior, Arc::new(admit(&ctx, 1024).unwrap()), &ctx).unwrap();
+        assert_eq!(result.draw_count, 3);
+        assert_eq!(result.failed_draws.as_ref(), &[false, true, false]);
+        assert_eq!(result.means.as_ref(), &[2.0, 5.0]);
+        assert_eq!(result.covariance.values.as_ref(), &[2.0, 4.0, 4.0, 8.0]);
+        let worlds = result.posterior_draws.as_ref().unwrap();
+        assert_eq!(worlds.len(), 6);
+        assert_eq!((worlds[0], worlds[2], worlds[3], worlds[5]), (1.0, 3.0, 3.0, 7.0));
+        assert!(worlds[1].is_nan() && worlds[4].is_nan());
+        let contrast = result.contrast_draws.as_ref().unwrap();
+        assert_eq!(contrast.len(), 3);
+        assert_eq!((contrast[0], contrast[2]), (2.0, 4.0));
+        assert!(contrast[1].is_nan());
+    }
+}
