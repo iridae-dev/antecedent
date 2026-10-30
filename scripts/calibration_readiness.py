@@ -16,6 +16,7 @@ import re
 import tomllib
 
 from _repo import REPO_ROOT as ROOT
+from test_evidence import rust_items
 
 
 def _slug(value: str) -> str:
@@ -42,6 +43,7 @@ def calibration_groups() -> list[tuple[str, str]]:
 
     env = dict(__import__("os").environ, ANTECEDENT_CALIBRATION_DRY_RUN="1")
     env.pop("ANTECEDENT_CALIBRATION_SHARD", None)
+    env.pop("ANTECEDENT_JOINT_RESPONSE_STABLE_CANDIDATE", None)
     result = subprocess.run(
         ["bash", "scripts/gate_calibration.sh"],
         cwd=ROOT,
@@ -61,124 +63,99 @@ def calibration_groups() -> list[tuple[str, str]]:
     return groups
 
 
-def candidate_routes(key: tuple[str, str, str, str], groups: list[tuple[str, str]]) -> str:
-    """List semantically similar group labels; these are candidates, not proof of fit."""
+def _phrase(label: str, phrase: str, *, static_graph: bool = False) -> bool:
+    # Underscore-delimited components are tokens: dag does not match cpdag or
+    # the dag part of temporal_dag. Query/graph names may themselves use underscores.
+    normalized = re.sub(r"[^a-z0-9_]+", "_", label.lower())
+    token = _slug(phrase)
+    for match in re.finditer(r"(?<![a-z0-9])" + re.escape(token) + r"(?![a-z0-9])", normalized):
+        if static_graph and normalized[:match.start()].endswith("temporal_"):
+            continue
+        return True
+    return False
+
+
+def _candidate(key: tuple[str, str, str, str], label: str) -> bool:
     query, graph, _structure, inference = key
-    graph_alias = {"Cpdag": "cpdag", "Pag": "pag", "Admg": "admg"}.get(graph, _slug(graph))
-    needles = (_slug(query), graph_alias, inference.lower())
+    return (_phrase(label, query) and _phrase(label, graph, static_graph=graph in {"Dag", "Cpdag", "Pag", "Admg"})
+            and _phrase(label, inference))
+
+
+def candidate_routes(key: tuple[str, str, str, str], groups: list[tuple[str, str]]) -> str:
+    """List name-matched groups; these are candidates, never proof of fit."""
     labels = [f"{head}: {filter_}" if filter_ else head for head, filter_ in groups]
-    candidates = [label for label in labels if all(needle in label.lower() for needle in needles)]
-    return (
-        "<br>".join(candidates) if candidates else "none (no query/graph/inference candidate group)"
-    )
+    candidates = [label for label in labels if _candidate(key, label)]
+    return "<br>".join(candidates) if candidates else "none (no query/graph/inference candidate group)"
 
 
 def has_record_emitter(key: tuple[str, str, str, str], groups: list[tuple[str, str]]) -> bool:
-    """Whether a semantically matching gate group reaches a record-emitting test."""
-    query, graph, structure, inference = key
-    graph_alias = {"Cpdag": "cpdag", "Pag": "pag", "Admg": "admg"}.get(graph, _slug(graph))
-    needles = (_slug(query), graph_alias, inference.lower())
+    """Find syntactic wiring in the exact ignored test; not a scientific match."""
+    structure = key[2]
     for head, test_filter in groups:
-        label = f"{head} {test_filter}".lower()
-        if not all(needle in label for needle in needles):
+        if not _candidate(key, f"{head} {test_filter}"):
             continue
-        if structure == "accepted" and "accepted" not in test_filter.lower():
+        if structure == "accepted" and not _phrase(test_filter, "accepted"):
             continue
-        # A graph-posterior coordinate is credited only by a test that builds
-        # its study on a graph posterior. An explicit-structure design of the
-        # same query, graph class and inference reports structure `fixed`, so
-        # its records can never cover the `graph_posterior` coordinate.
-        if structure == "graph_posterior" and "graph_posterior" not in test_filter.lower():
+        if structure == "graph_posterior" and not _phrase(test_filter, "graph_posterior"):
             continue
-        if structure == "explicit" and any(
-            marker in test_filter.lower()
-            for marker in ("accepted", "graph_posterior", "class_posterior")
-        ):
+        if structure == "explicit" and any(_phrase(test_filter, marker) for marker in ("accepted", "graph_posterior", "class_posterior")):
             continue
         test_file = ROOT / "crates" / "antecedent" / "tests" / f"{head}.rs"
         if not test_file.is_file() or not test_filter:
             continue
-        source = test_file.read_text(errors="ignore", encoding="utf-8")
-        marker = f"fn {test_filter}("
-        start = source.find(marker)
-        if start < 0:
+        masked, items = rust_items(test_file)
+        functions = [item for item in items if item.kind == "fn" and item.name == test_filter]
+        if len(functions) != 1:
             continue
-        opening = source.find("{", start)
-        depth = 0
-        end = opening
-        for end in range(opening, len(source)):
-            depth += source[end] == "{"
-            depth -= source[end] == "}"
-            if depth == 0:
-                break
-        body = source[opening : end + 1]
-        # Calibration suites commonly keep the tally plumbing in shared
-        # helpers (for example `test -> coverage -> coverage_over -> keyed`).
-        # Follow that local Rust function-call graph instead of requiring the
-        # test body itself to spell `CoverageTally::for_record`; otherwise a
-        # real, bound emitter is incorrectly classified as unmeasurable.
-        emitter = _reaches_bound_record_emitter(source, test_filter, body)
-        if (
-            emitter
-            and '#[ignore = "calibration: run via scripts/gate_calibration.sh"]' in source[:start]
-        ):
+        test = functions[0]
+        attrs = [re.sub(r"\s+", " ", attr) for attr in test.attrs]
+        if not any(re.fullmatch(r'#\[ignore\s*=\s*"calibration: run via scripts/gate_calibration\.sh"\s*\]', attr) for attr in attrs):
+            continue
+        if not any(re.fullmatch(r"#\[test\s*\]", attr) for attr in attrs):
+            continue
+        if _reaches_bound_record_emitter(masked, items, test):
             return True
     return False
 
 
-def _reaches_bound_record_emitter(source: str, test_name: str, test_body: str) -> bool:
-    """Recognize a test whose local helper chain creates and scores records."""
-    functions: dict[str, str] = {}
-    declarations = list(re.finditer(r"\bfn\s+([A-Za-z_]\w*)\s*\(", source))
-    for declaration in declarations:
-        name = declaration.group(1)
-        opening = source.find("{", declaration.end())
-        if opening < 0:
+def _reaches_bound_record_emitter(masked, items, test) -> bool:
+    """Syntactic local call graph; braces in literals/comments cannot end a body."""
+    functions = {}
+    duplicate = set()
+    for item in items:
+        if item.kind != "fn":
             continue
-        depth = 0
-        for end in range(opening, len(source)):
-            depth += source[end] == "{"
-            depth -= source[end] == "}"
-            if depth == 0:
-                functions[name] = source[opening : end + 1]
-                break
-
-    pending = [test_name]
-    seen: set[str] = set()
-    reached: list[str] = []
+        lo, hi = item.body
+        if lo < 0 or hi <= lo or hi > len(masked.skeleton) or masked.skeleton[hi - 1] != "}":
+            continue
+        if item.name in functions:
+            duplicate.add(item.name)
+        functions[item.name] = (masked.code[lo:hi], masked.skeleton[lo:hi])
+    if test.name in duplicate or test.name not in functions:
+        return False
+    for name in duplicate:
+        functions.pop(name, None)
+    pending = [test.name]
+    seen = set()
+    bodies = []
     while pending:
         name = pending.pop()
-        if name in seen:
+        if name in seen or name not in functions:
             continue
         seen.add(name)
-        body = test_body if name == test_name else functions.get(name, "")
-        if not body:
-            continue
-        reached.append(body)
-        pending.extend(
-            called
-            for called in functions
-            if re.search(rf"(?<![\w:]){re.escape(called)}\s*\(", body)
-        )
-    chain = "\n".join(reached)
-    creates = "CoverageTally::for_record" in chain
-    # The test must pass its own exact libtest name into the helper chain, and
-    # that chain must put the parameter into the RecordKey. This prevents an
-    # unrelated emitter in the same integration-test binary from making a
-    # coordinate appear ready.
-    exact_name_in_body = f'"{test_name}"' in test_body or any(
-        name in test_body
-        for name in re.findall(
-            rf"\b(?:const|let)\s+([A-Za-z_]\w*)\s*:\s*&str\s*=\s*\"{re.escape(test_name)}\"",
-            source,
-        )
+        code, skeleton = functions[name]
+        bodies.append(skeleton)
+        pending.extend(called for called in functions if re.search(rf"(?<![\w:]){re.escape(called)}\s*\(", skeleton))
+    chain = "\n".join(bodies)
+    test_code, _ = functions[test.name]
+    exact = f'"{test.name}"' in test_code or any(
+        re.search(rf"\b{re.escape(name)}\b", functions[test.name][1])
+        for name in re.findall(rf'\b(?:const|let)\s+([A-Za-z_]\w*)\s*:\s*&str\s*=\s*"{re.escape(test.name)}"', masked.code)
     )
-    keyed_for_test = exact_name_in_body and bool(
-        re.search(r"RecordKey\s*\{\s*test(?:\s*[, :])", chain)
-    )
-    binds = "bind(" in chain or "bind_all(" in chain
-    scores = ".record(" in chain or "record_pair(" in chain or "record(" in chain
-    return creates and keyed_for_test and binds and scores
+    return ("CoverageTally::for_record" in chain and exact
+            and bool(re.search(r"RecordKey\s*\{\s*test(?:\s*[, :])", chain))
+            and bool(re.search(r"\b(?:bind|bind_all)\s*\(", chain))
+            and bool(re.search(r"(?:\.record|\brecord_pair|\brecord)\s*\(", chain)))
 
 
 def render() -> str:
@@ -210,14 +187,14 @@ def render() -> str:
         has_truth_fixture = any(row.get("known_truth_fixture") for row in rows)
         is_ready = has_record_emitter(key, groups)
         if is_ready:
-            readiness = "Ready for a later run: a semantically matching ignored gate test emits a RecordKey and binds the checked construction; no calibration was run by this audit."
+            readiness = "Candidate wiring found in an ignored gate test; verify its DGP, construction and exact interval target before any future run. No calibration was run by this audit."
         else:
             truth_step = (
                 "validate the declared fixture's exact truth for this interval estimand, then derive a repeated-sampling DGP"
                 if has_truth_fixture
                 else "add a known-truth repeated-sampling DGP and exact interval estimand truth"
             )
-            readiness = f"Not yet measurable: {truth_step}; bind the candidate group to this exact procedure and estimator target, then add a `CoverageTally::for_record` RecordKey emission."
+            readiness = f"Matching calibration wiring not established: {truth_step}; review candidate groups and bind a verified `CoverageTally::for_record` emission to this exact procedure and estimator target."
         coordinate = " / ".join(key)
         lines.append(
             f"| {coordinate} | {cells} | {route_text} | {fixture_text} | {estimator_text} | {group_text} | {readiness} |"
@@ -238,7 +215,7 @@ def main() -> int:
             parser.error("parity/calibration_readiness.md is stale")
     else:
         OUTPUT.write_text(report, encoding="utf-8", newline="\n")
-    print("Calibration readiness audit: 92 coordinates; no calibration tests executed")
+    print(f"Calibration readiness audit: {len(cells_by_coordinate())} coordinates; no calibration tests executed")
     return 0
 
 
