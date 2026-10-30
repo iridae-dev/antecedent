@@ -805,20 +805,47 @@ fn every_published_ranking_or_interval_route_is_closed_at_its_coordinate() {
 }
 
 #[test]
-fn every_published_route_is_licensed_inside_a_measured_coverage_record() {
-    // Two candidates on a shared stream with 1000 draws each, expected-utility selection,
-    // independent unweighted enumerated draws, level 0.95: inside the measured records of
-    // the ranking probability, the utility interval, the confidence set and the
-    // selection-corrected interval (500 to 2000 draws, shared correlation 0 and 0.5).
+fn measured_routes_respect_current_attestation_and_report_their_closures() {
+    use antecedent_design::decision_reliability::{calibration_basis, record_functional};
+    use antecedent_io_core::CalibrationStatus;
+    use antecedent_io_core::calibration::{
+        RECORD_NOT_ATTESTING, calibration_slot, record_attests_current_code,
+    };
+    use antecedent_io_core::coverage_records_data::RECORDS;
+
+    // These coordinates have measured records. A measured record licenses a route
+    // only while its governing statistical surface is currently attested.
     let draws = gaussian_pair(0.5, 1000, false);
     let report = assess(&draws, None, &ReliabilityRequest::expected_utility(), &ctx()).unwrap();
     assert_eq!(report.coordinate.mc_budget, 1000);
     for route in PublishedRoute::ALL {
-        license_route(route, &report.coordinate)
-            .unwrap_or_else(|error| panic!("{} is measured here: {error:?}", route.as_str()));
+        let banded = calibration_basis(route, &report.coordinate, 0.95).unwrap();
+        let mut exact = banded.clone();
+        exact.key.functional = record_functional(&report.coordinate);
+        let slots = [calibration_slot(&banded), calibration_slot(&exact)];
+        assert!(
+            slots.iter().any(|slot| slot.record_id.is_some()),
+            "{} lacks a measured record",
+            route.as_str()
+        );
+        for slot in &slots {
+            if slot.reason.as_deref() == Some(RECORD_NOT_ATTESTING) {
+                let record = RECORDS
+                    .iter()
+                    .find(|record| Some(record.id) == slot.record_id.as_deref())
+                    .unwrap();
+                assert!(!record_attests_current_code(record));
+            }
+        }
+        let should_open = slots.iter().any(|slot| slot.status == CalibrationStatus::Calibrated);
+        let result = license_route(route, &report.coordinate);
+        assert_eq!(result.is_ok(), should_open, "{} attestation decision", route.as_str());
+        assert_eq!(report.closed_routes.iter().any(|closed| closed.route == route), !should_open);
+        if let Err(error) = result {
+            assert_eq!(error.reason_code(), "cell_not_licensed");
+        }
     }
-    assert!(report.closed_routes.is_empty());
-    // The same coordinate at another level, and with serially dependent draws, is not.
+    // A different nominal level and serial dependence remain outside the records.
     let at_ninety = antecedent_design::decision_reliability::license_route_at(
         PublishedRoute::RankingProbability,
         &report.coordinate,

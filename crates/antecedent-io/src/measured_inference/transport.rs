@@ -337,85 +337,111 @@ mod native_lifecycle_tests {
                 joint.target_calibration_basis(0.95).unwrap().estimator.as_ref(),
                 "joint_bayesian_transport"
             );
-            let (wire, _, measured) = crate::joint_bayesian_transport_artifact::JointBayesianArtifactWire::build_measured(&proof,&model,&sources,&target,options,0.95,&ctx).unwrap();
-            assert_eq!(wire.export().unwrap(), measured.source_artifact());
-            assert_eq!(
-                measured.report().scalars[0].point.to_bits(),
-                joint.target_effect_mean.to_bits()
-            );
-            assert_eq!(measured.report().scalars[0].calibration.status, "calibrated");
-            let (_,_,loaded)=crate::joint_bayesian_transport_artifact::JointBayesianArtifactWire::consume_measured(measured.export(),measured.expectation(),crate::joint_bayesian_transport_artifact::JointBayesianConsumeLimits::default(),&ctx).unwrap();
-            assert_eq!(loaded.export(), measured.export());
-            // Canonical harness identities keep the exact pre-change evidence key.
-            assert_eq!(
-                joint.target_calibration_basis(0.95).unwrap().posterior.as_ref(),
-                format!(
-                    "{}.{}",
-                    antecedent_estimate::joint_bayesian_transport::JOINT_TRANSPORT_SAMPLER,
-                    joint.model_identity
-                )
-            );
-            let mut aliases = sources.clone();
-            for (index, source) in aliases.iter_mut().enumerate() {
-                source.id = format!("renamed-population-{index}");
-            }
-            let (_, alias_fit, alias_measured) = crate::joint_bayesian_transport_artifact::JointBayesianArtifactWire::build_measured(
-                &proof, &model, &aliases, &target, options, 0.95, &ctx).unwrap();
-            assert_eq!(
-                alias_fit.target_calibration_basis(0.95).unwrap(),
-                joint.target_calibration_basis(0.95).unwrap()
-            );
-            assert_eq!(alias_fit.draws.values, joint.draws.values);
-            assert_ne!(alias_fit.model_identity, joint.model_identity);
-            assert_ne!(alias_measured.source_artifact(), measured.source_artifact());
-            assert_ne!(alias_measured.expectation(), measured.expectation());
-            let alias_loaded = crate::measured_inference::MeasuredInference::consume(
-                alias_measured.export(),
-                alias_measured.expectation(),
-                &ctx,
-            )
-            .unwrap();
-            assert_eq!(alias_loaded.export(), alias_measured.export());
-            assert!(
-                crate::measured_inference::MeasuredInference::consume(
-                    alias_measured.export(),
-                    measured.expectation(),
-                    &ctx
-                )
-                .is_err()
-            );
-            let mut forged =
-                crate::measured_inference::decode(measured.export(), measured.expectation())
-                    .unwrap();
-            forged.report.scalars[0].point += 0.1;
-            forged.report.identity.seal =
-                crate::measured_inference::report_seal(&forged.report).unwrap();
-            let forged_bytes = crate::to_cbor(&forged).unwrap();
-            assert!(crate::joint_bayesian_transport_artifact::JointBayesianArtifactWire::consume_measured(&forged_bytes,&forged.report.identity,crate::joint_bayesian_transport_artifact::JointBayesianConsumeLimits::default(),&ctx).is_err());
-
-            if count == 1 {
-                let generic = crate::measured_inference::MeasuredInference::consume(
-                    measured.export(),
-                    measured.expectation(),
-                    &ctx,
+            let basis = joint.target_calibration_basis(0.95).unwrap();
+            let slot = crate::calibration::calibration_slot(&super::super::basis_wire(&basis));
+            let (plain_wire, plain_fit) =
+                crate::joint_bayesian_transport_artifact::JointBayesianArtifactWire::build(
+                    &proof, &model, &sources, &target, options, &ctx,
                 )
                 .unwrap();
-                assert_eq!(generic.export(), measured.export());
-                let mut wrong_route = measured.expectation().clone();
-                wrong_route.route = "invented".into();
-                assert!(
-                    crate::measured_inference::MeasuredInference::consume(
-                        measured.export(),
-                        &wrong_route,
-                        &ctx
-                    )
-                    .is_err()
+            assert_eq!(plain_fit.target_effect_mean.to_bits(), joint.target_effect_mean.to_bits());
+            assert_eq!(plain_fit.draws.values, joint.draws.values);
+            let bytes = plain_wire.export().unwrap();
+            assert_eq!(
+                crate::joint_bayesian_transport_artifact::JointBayesianArtifactWire::decode(&bytes)
+                    .unwrap()
+                    .export()
+                    .unwrap(),
+                bytes
+            );
+            let result =
+                crate::joint_bayesian_transport_artifact::JointBayesianArtifactWire::build_measured(
+                    &proof, &model, &sources, &target, options, 0.95, &ctx,
                 );
-                // Replacing source bytes with a valid newly produced source and
-                // resealing the entire envelope still cannot retain old scalars.
-                let mut changed_sources = sources.clone();
-                changed_sources[0].outcome[0] += 1.0;
-                let (changed_wire, _) =
+            match result {
+                Ok((wire, _, measured)) => {
+                    assert_eq!(slot.status, "calibrated");
+                    assert!(slot.record_id.is_some() && slot.calibration_sha.is_some());
+                    assert_eq!(wire.export().unwrap(), measured.source_artifact());
+                    assert_eq!(
+                        measured.report().scalars[0].point.to_bits(),
+                        joint.target_effect_mean.to_bits()
+                    );
+                    assert_eq!(measured.report().scalars[0].calibration.status, "calibrated");
+                    let (_,_,loaded)=crate::joint_bayesian_transport_artifact::JointBayesianArtifactWire::consume_measured(measured.export(),measured.expectation(),crate::joint_bayesian_transport_artifact::JointBayesianConsumeLimits::default(),&ctx).unwrap();
+                    assert_eq!(loaded.export(), measured.export());
+                    // Canonical harness identities keep the exact pre-change evidence key.
+                    assert_eq!(
+                        joint.target_calibration_basis(0.95).unwrap().posterior.as_ref(),
+                        format!(
+                            "{}.{}",
+                            antecedent_estimate::joint_bayesian_transport::JOINT_TRANSPORT_SAMPLER,
+                            joint.model_identity
+                        )
+                    );
+                    let mut aliases = sources.clone();
+                    for (index, source) in aliases.iter_mut().enumerate() {
+                        source.id = format!("renamed-population-{index}");
+                    }
+                    let (_, alias_fit, alias_measured) = crate::joint_bayesian_transport_artifact::JointBayesianArtifactWire::build_measured(
+                &proof, &model, &aliases, &target, options, 0.95, &ctx).unwrap();
+                    assert_eq!(
+                        alias_fit.target_calibration_basis(0.95).unwrap(),
+                        joint.target_calibration_basis(0.95).unwrap()
+                    );
+                    assert_eq!(alias_fit.draws.values, joint.draws.values);
+                    assert_ne!(alias_fit.model_identity, joint.model_identity);
+                    assert_ne!(alias_measured.source_artifact(), measured.source_artifact());
+                    assert_ne!(alias_measured.expectation(), measured.expectation());
+                    let alias_loaded = crate::measured_inference::MeasuredInference::consume(
+                        alias_measured.export(),
+                        alias_measured.expectation(),
+                        &ctx,
+                    )
+                    .unwrap();
+                    assert_eq!(alias_loaded.export(), alias_measured.export());
+                    assert!(
+                        crate::measured_inference::MeasuredInference::consume(
+                            alias_measured.export(),
+                            measured.expectation(),
+                            &ctx
+                        )
+                        .is_err()
+                    );
+                    let mut forged = crate::measured_inference::decode(
+                        measured.export(),
+                        measured.expectation(),
+                    )
+                    .unwrap();
+                    forged.report.scalars[0].point += 0.1;
+                    forged.report.identity.seal =
+                        crate::measured_inference::report_seal(&forged.report).unwrap();
+                    let forged_bytes = crate::to_cbor(&forged).unwrap();
+                    assert!(crate::joint_bayesian_transport_artifact::JointBayesianArtifactWire::consume_measured(&forged_bytes,&forged.report.identity,crate::joint_bayesian_transport_artifact::JointBayesianConsumeLimits::default(),&ctx).is_err());
+
+                    if count == 1 {
+                        let generic = crate::measured_inference::MeasuredInference::consume(
+                            measured.export(),
+                            measured.expectation(),
+                            &ctx,
+                        )
+                        .unwrap();
+                        assert_eq!(generic.export(), measured.export());
+                        let mut wrong_route = measured.expectation().clone();
+                        wrong_route.route = "invented".into();
+                        assert!(
+                            crate::measured_inference::MeasuredInference::consume(
+                                measured.export(),
+                                &wrong_route,
+                                &ctx
+                            )
+                            .is_err()
+                        );
+                        // Replacing source bytes with a valid newly produced source and
+                        // resealing the entire envelope still cannot retain old scalars.
+                        let mut changed_sources = sources.clone();
+                        changed_sources[0].outcome[0] += 1.0;
+                        let (changed_wire, _) =
                     crate::joint_bayesian_transport_artifact::JointBayesianArtifactWire::build(
                         &proof,
                         &model,
@@ -425,21 +451,27 @@ mod native_lifecycle_tests {
                         &ctx,
                     )
                     .unwrap();
-                let mut swapped =
-                    crate::measured_inference::decode(measured.export(), measured.expectation())
+                        let mut swapped = crate::measured_inference::decode(
+                            measured.export(),
+                            measured.expectation(),
+                        )
                         .unwrap();
-                swapped.source = changed_wire.export().unwrap();
-                swapped.report.identity.candidate_digest = crate::identity::digest_canonical(
-                    antecedent_core::IdentityDomain::Claim,
-                    &swapped.source,
-                )
-                .to_hex();
-                swapped.report.identity.premises_digest = changed_wire.premises_digest;
-                swapped.report.identity.data_digest = changed_wire.data_digest;
-                swapped.report.identity.seal =
-                    crate::measured_inference::report_seal(&swapped.report).unwrap();
-                let bytes = crate::to_cbor(&swapped).unwrap();
-                assert!(crate::joint_bayesian_transport_artifact::JointBayesianArtifactWire::consume_measured(&bytes,&swapped.report.identity,crate::joint_bayesian_transport_artifact::JointBayesianConsumeLimits::default(),&ctx).is_err());
+                        swapped.source = changed_wire.export().unwrap();
+                        swapped.report.identity.candidate_digest =
+                            crate::identity::digest_canonical(
+                                antecedent_core::IdentityDomain::Claim,
+                                &swapped.source,
+                            )
+                            .to_hex();
+                        swapped.report.identity.premises_digest = changed_wire.premises_digest;
+                        swapped.report.identity.data_digest = changed_wire.data_digest;
+                        swapped.report.identity.seal =
+                            crate::measured_inference::report_seal(&swapped.report).unwrap();
+                        let bytes = crate::to_cbor(&swapped).unwrap();
+                        assert!(crate::joint_bayesian_transport_artifact::JointBayesianArtifactWire::consume_measured(&bytes,&swapped.report.identity,crate::joint_bayesian_transport_artifact::JointBayesianConsumeLimits::default(),&ctx).is_err());
+                    }
+                }
+                Err(error) => assert_unattested_refusal(error, &slot),
             }
             let learned_model = LearnedJointModel {
                 graph: model.graph,
@@ -478,7 +510,32 @@ mod native_lifecycle_tests {
                 learned.target_calibration_basis(0.95).unwrap().estimator.as_ref(),
                 "learned_joint_transport"
             );
-            let (wire, _, measured) =
+            let basis = learned.target_calibration_basis(0.95).unwrap();
+            let slot = crate::calibration::calibration_slot(&super::super::basis_wire(&basis));
+            let (plain_wire, plain_fit) =
+                crate::learned_joint_transport_artifact::LearnedJointArtifactWire::build(
+                    &proof,
+                    &learned_model,
+                    &sources,
+                    &target,
+                    options,
+                    &ctx,
+                )
+                .unwrap();
+            assert_eq!(
+                plain_fit.target_effect_mean.to_bits(),
+                learned.target_effect_mean.to_bits()
+            );
+            assert_eq!(plain_fit.draws.values, learned.draws.values);
+            let bytes = plain_wire.export().unwrap();
+            assert_eq!(
+                crate::learned_joint_transport_artifact::LearnedJointArtifactWire::decode(&bytes)
+                    .unwrap()
+                    .export()
+                    .unwrap(),
+                bytes
+            );
+            let result =
                 crate::learned_joint_transport_artifact::LearnedJointArtifactWire::build_measured(
                     &proof,
                     &learned_model,
@@ -487,29 +544,32 @@ mod native_lifecycle_tests {
                     options,
                     0.95,
                     &ctx,
-                )
-                .unwrap();
-            assert_eq!(wire.export().unwrap(), measured.source_artifact());
-            assert_eq!(
-                measured.report().scalars[0].point.to_bits(),
-                learned.target_effect_mean.to_bits()
-            );
-            let (_,_,loaded)=crate::learned_joint_transport_artifact::LearnedJointArtifactWire::consume_measured(measured.export(),measured.expectation(),crate::learned_joint_transport_artifact::LearnedJointConsumeLimits::default(),&ctx).unwrap();
-            assert_eq!(loaded.export(), measured.export());
-            // Canonical harness identities keep the exact pre-change evidence key.
-            assert_eq!(
-                learned.target_calibration_basis(0.95).unwrap().posterior.as_ref(),
-                format!(
-                    "{}.{}",
-                    antecedent_estimate::learned_joint_transport::LEARNED_JOINT_SAMPLER,
-                    learned.model_identity
-                )
-            );
-            let mut aliases = sources.clone();
-            for (index, source) in aliases.iter_mut().enumerate() {
-                source.id = format!("renamed-population-{index}");
-            }
-            let (_, alias_fit, alias_measured) =
+                );
+            match result {
+                Ok((wire, _, measured)) => {
+                    assert_eq!(slot.status, "calibrated");
+                    assert!(slot.record_id.is_some() && slot.calibration_sha.is_some());
+                    assert_eq!(wire.export().unwrap(), measured.source_artifact());
+                    assert_eq!(
+                        measured.report().scalars[0].point.to_bits(),
+                        learned.target_effect_mean.to_bits()
+                    );
+                    let (_,_,loaded)=crate::learned_joint_transport_artifact::LearnedJointArtifactWire::consume_measured(measured.export(),measured.expectation(),crate::learned_joint_transport_artifact::LearnedJointConsumeLimits::default(),&ctx).unwrap();
+                    assert_eq!(loaded.export(), measured.export());
+                    // Canonical harness identities keep the exact pre-change evidence key.
+                    assert_eq!(
+                        learned.target_calibration_basis(0.95).unwrap().posterior.as_ref(),
+                        format!(
+                            "{}.{}",
+                            antecedent_estimate::learned_joint_transport::LEARNED_JOINT_SAMPLER,
+                            learned.model_identity
+                        )
+                    );
+                    let mut aliases = sources.clone();
+                    for (index, source) in aliases.iter_mut().enumerate() {
+                        source.id = format!("renamed-population-{index}");
+                    }
+                    let (_, alias_fit, alias_measured) =
                 crate::learned_joint_transport_artifact::LearnedJointArtifactWire::build_measured(
                     &proof,
                     &learned_model,
@@ -520,37 +580,61 @@ mod native_lifecycle_tests {
                     &ctx,
                 )
                 .unwrap();
-            assert_eq!(
-                alias_fit.target_calibration_basis(0.95).unwrap(),
-                learned.target_calibration_basis(0.95).unwrap()
-            );
-            assert_eq!(alias_fit.draws.values, learned.draws.values);
-            assert_ne!(alias_fit.model_identity, learned.model_identity);
-            assert_ne!(alias_measured.source_artifact(), measured.source_artifact());
-            assert_ne!(alias_measured.expectation(), measured.expectation());
-            let alias_loaded = crate::measured_inference::MeasuredInference::consume(
-                alias_measured.export(),
-                alias_measured.expectation(),
-                &ctx,
-            )
-            .unwrap();
-            assert_eq!(alias_loaded.export(), alias_measured.export());
-            assert!(
-                crate::measured_inference::MeasuredInference::consume(
-                    alias_measured.export(),
-                    measured.expectation(),
-                    &ctx
-                )
-                .is_err()
-            );
-            let mut forged =
-                crate::measured_inference::decode(measured.export(), measured.expectation())
+                    assert_eq!(
+                        alias_fit.target_calibration_basis(0.95).unwrap(),
+                        learned.target_calibration_basis(0.95).unwrap()
+                    );
+                    assert_eq!(alias_fit.draws.values, learned.draws.values);
+                    assert_ne!(alias_fit.model_identity, learned.model_identity);
+                    assert_ne!(alias_measured.source_artifact(), measured.source_artifact());
+                    assert_ne!(alias_measured.expectation(), measured.expectation());
+                    let alias_loaded = crate::measured_inference::MeasuredInference::consume(
+                        alias_measured.export(),
+                        alias_measured.expectation(),
+                        &ctx,
+                    )
                     .unwrap();
-            forged.report.scalars[0].calibration.calibration_sha = Some("0".repeat(40));
-            forged.report.identity.seal =
-                crate::measured_inference::report_seal(&forged.report).unwrap();
-            let forged_bytes = crate::to_cbor(&forged).unwrap();
-            assert!(crate::learned_joint_transport_artifact::LearnedJointArtifactWire::consume_measured(&forged_bytes,&forged.report.identity,crate::learned_joint_transport_artifact::LearnedJointConsumeLimits::default(),&ctx).is_err());
+                    assert_eq!(alias_loaded.export(), alias_measured.export());
+                    assert!(
+                        crate::measured_inference::MeasuredInference::consume(
+                            alias_measured.export(),
+                            measured.expectation(),
+                            &ctx
+                        )
+                        .is_err()
+                    );
+                    let mut forged = crate::measured_inference::decode(
+                        measured.export(),
+                        measured.expectation(),
+                    )
+                    .unwrap();
+                    forged.report.scalars[0].calibration.calibration_sha = Some("0".repeat(40));
+                    forged.report.identity.seal =
+                        crate::measured_inference::report_seal(&forged.report).unwrap();
+                    let forged_bytes = crate::to_cbor(&forged).unwrap();
+                    assert!(crate::learned_joint_transport_artifact::LearnedJointArtifactWire::consume_measured(&forged_bytes,&forged.report.identity,crate::learned_joint_transport_artifact::LearnedJointConsumeLimits::default(),&ctx).is_err());
+                }
+                Err(error) => assert_unattested_refusal(error, &slot),
+            }
+        }
+    }
+
+    fn assert_unattested_refusal(error: crate::IoError, slot: &crate::CalibrationSlotWire) {
+        assert!(
+            slot.status != "calibrated"
+                || slot.record_id.is_none()
+                || slot.calibration_sha.is_none()
+        );
+        assert_eq!(slot.reason.as_deref(), Some("coverage_record_not_attesting"));
+        match error {
+            crate::IoError::Refused { code, message } => {
+                assert_eq!(code, antecedent_core::reason_code!("cell_not_licensed"));
+                assert_eq!(
+                    message,
+                    "measured_inference.record_not_attesting: target_effect: coverage_record_not_attesting"
+                );
+            }
+            other => panic!("expected a closed attestation refusal, got {other:?}"),
         }
     }
 }
