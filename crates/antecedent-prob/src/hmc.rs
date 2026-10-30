@@ -129,7 +129,7 @@ struct TransitionStats {
     n_warmup_divergences: u32,
     n_postwarmup_divergences: u32,
     accept_prob_sum: f64,
-    n_transitions: u32,
+    n_transitions: u128,
     max_abs_delta_h: f64,
 }
 
@@ -162,7 +162,7 @@ impl TransitionStats {
         if self.n_transitions == 0 {
             return 0.0;
         }
-        self.accept_prob_sum / f64::from(self.n_transitions)
+        self.accept_prob_sum / self.n_transitions as f64
     }
 }
 
@@ -219,7 +219,7 @@ fn metric_windows(n_warmup: usize) -> Vec<(usize, usize)> {
     loop {
         let mut end = start + size;
         // A following doubled window that would not fit is absorbed into this one.
-        if end + 2 * size > slow_end {
+        if size > (slow_end - end) / 2 {
             end = slow_end;
         }
         windows.push((start, end));
@@ -362,12 +362,27 @@ fn fit_hmc_resolved(
             message: "HMC requires at least 2 chains for R-hat / ESS",
         });
     }
-    if hmc.leapfrog_steps == 0 || !(hmc.step_size > 0.0) || !(hmc.mass > 0.0) {
-        return Err(ProbError::Inference { message: "invalid HMC step_size / mass / L" });
+    if hmc.leapfrog_steps == 0
+        || !hmc.step_size.is_finite()
+        || !(hmc.step_size > 0.0)
+        || !hmc.mass.is_finite()
+        || !(hmc.mass > 0.0)
+        || !(1.0 / hmc.mass).is_finite()
+        || !hmc.target_accept.is_finite()
+        || !(hmc.target_accept > 0.0 && hmc.target_accept < 1.0)
+    {
+        return Err(ProbError::Inference {
+            message: "invalid HMC step_size / mass / L / target_accept",
+        });
     }
     if fit_opts.n_draws == 0 {
         return Err(ProbError::Shape { message: "n_draws must be > 0" });
     }
+
+    let total_transitions = hmc
+        .n_warmup
+        .checked_add(fit_opts.n_draws)
+        .ok_or(ProbError::Shape { message: "HMC transition count overflow" })?;
 
     let coef_prior = match prior.gaussian_coefficients() {
         Some(p) => p.clone(),
@@ -408,19 +423,23 @@ fn fit_hmc_resolved(
                 model,
                 fit_opts,
                 hmc,
+                total_transitions,
                 ws,
             )
         } else {
             let target = GlmTarget { likelihood, design, coef_prior: &coef_prior, prec: &prec };
-            run_glm_chain(chain, target, fit_opts, hmc, ws)
+            run_glm_chain(chain, target, fit_opts, hmc, total_transitions, ws)
         }
     };
     let prepare = |ws: &mut LaplaceWorkspace| ws.prepare(nrows, dim.max(ncols), dim);
     let runs: Vec<ChainRun> = if let Some(ctx) = ctx {
-        ctx.map_indexed(hmc.n_chains, |chain, _| {
-            let mut ws = LaplaceWorkspace::default();
-            prepare(&mut ws);
-            run(chain, &mut ws)
+        let token = antecedent_core::numerical_admission::NumericalAdmissionToken::capture();
+        ctx.map_indexed(hmc.n_chains, |chain, worker_ctx| {
+            token.execute(worker_ctx, || {
+                let mut admitted =
+                    crate::backend::AdmittedLaplaceWorkspace::new(nrows, dim.max(ncols), 1)?;
+                run(chain, &mut admitted.workspace)
+            })
         })?
     } else {
         prepare(workspace);
@@ -440,7 +459,7 @@ fn fit_hmc_resolved(
     pack_and_gate_hmc(
         &chain_samples,
         hmc,
-        ChainLayout { n_keep, state_dim: dim, ncols, include_sigma2 },
+        ChainLayout { n_keep, state_dim: dim, ncols, include_sigma2, total_transitions },
         stats,
         (step_lo, step_hi),
     )
@@ -643,6 +662,7 @@ fn run_glm_chain(
     mut target: GlmTarget<'_>,
     fit_opts: &BayesFitOptions,
     hmc: HmcOptions,
+    total_transitions: usize,
     ws: &mut LaplaceWorkspace,
 ) -> Result<ChainRun, ProbError> {
     let mut rng = chain_rng(fit_opts.seed, chain);
@@ -650,7 +670,7 @@ fn run_glm_chain(
     for bi in &mut beta {
         *bi += 0.1 * standard_normal(&mut rng);
     }
-    run_chain(&mut target, beta, rng, fit_opts.n_draws, hmc, ws)
+    run_chain(&mut target, beta, rng, fit_opts.n_draws, hmc, total_transitions, ws)
 }
 
 /// Design, coefficient prior and precision a coefficient posterior is sampled under.
@@ -667,6 +687,7 @@ fn run_gaussian_chain(
     model: GaussianVarianceModel,
     fit_opts: &BayesFitOptions,
     hmc: HmcOptions,
+    total_transitions: usize,
     ws: &mut LaplaceWorkspace,
 ) -> Result<ChainRun, ProbError> {
     let CoefficientModel { design, coef_prior, prec } = coefficients;
@@ -686,7 +707,7 @@ fn run_gaussian_chain(
     }
     debug_assert_eq!(q.len(), dim);
     debug_assert!(dim >= ncols);
-    run_chain(&mut GaussianRef(&mut target), q, rng, fit_opts.n_draws, hmc, ws)
+    run_chain(&mut GaussianRef(&mut target), q, rng, fit_opts.n_draws, hmc, total_transitions, ws)
 }
 
 /// One chain: dual-averaged step size, optional windowed diagonal metric, `n_keep`
@@ -697,6 +718,7 @@ fn run_chain<T: HmcTarget>(
     mut rng: CausalRng,
     n_keep: usize,
     hmc: HmcOptions,
+    total_transitions: usize,
     ws: &mut LaplaceWorkspace,
 ) -> Result<ChainRun, ProbError> {
     let dim = q.len();
@@ -714,7 +736,8 @@ fn run_chain<T: HmcTarget>(
     let mut samples = vec![0.0; n_keep * dim];
     let mut stats = TransitionStats::default();
     let mut kept = 0usize;
-    for t in 0..hmc.n_warmup.saturating_add(n_keep) {
+    for t in 0..total_transitions {
+        check_hmc_cancelled()?;
         if t == hmc.n_warmup {
             // Warmup is over before this transition runs: every retained draw
             // uses the averaged step, not the last exploratory one.
@@ -793,6 +816,7 @@ struct ChainLayout {
     state_dim: usize,
     ncols: usize,
     include_sigma2: bool,
+    total_transitions: usize,
 }
 
 fn pack_and_gate_hmc(
@@ -802,7 +826,7 @@ fn pack_and_gate_hmc(
     stats: TransitionStats,
     step_range: (f64, f64),
 ) -> Result<BayesFitResult, ProbError> {
-    let ChainLayout { n_keep, state_dim, ncols, include_sigma2 } = layout;
+    let ChainLayout { n_keep, state_dim, ncols, include_sigma2, total_transitions } = layout;
     let total_draws = n_keep.saturating_mul(hmc.n_chains);
     let n_out = if include_sigma2 { ncols + 1 } else { ncols };
     let mut values = vec![0.0; total_draws * n_out];
@@ -840,7 +864,7 @@ fn pack_and_gate_hmc(
 
     let mut diagnostics = InferenceDiagnostics {
         converged: false,
-        iterations: u32::try_from(hmc.n_warmup + n_keep).unwrap_or(u32::MAX),
+        iterations: u32::try_from(total_transitions).unwrap_or(u32::MAX),
         grad_inf_norm: 0.0,
         hessian_condition: f64::NAN,
         factorization: HessianFactorization::Mcmc,
@@ -927,6 +951,16 @@ struct Trajectory<'a> {
     clippy::needless_range_loop,
     reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
 )]
+fn check_hmc_cancelled() -> Result<(), ProbError> {
+    if antecedent_core::numerical_admission::is_cancelled() {
+        return Err(ProbError::Refused {
+            code: antecedent_core::reason_code!("transport_budget_cancel"),
+            message: "hmc.cancelled: posterior sampling cancelled".into(),
+        });
+    }
+    Ok(())
+}
+
 fn leapfrog<T: HmcTarget>(
     target: &mut T,
     dim: usize,
@@ -946,6 +980,7 @@ fn leapfrog<T: HmcTarget>(
     // Log-density at the trajectory's final state: the last leapfrog evaluation.
     let mut lp_last = lp_old;
     for step in 0..leapfrog_steps {
+        check_hmc_cancelled()?;
         for i in 0..dim {
             ws.q[i] += step_size * ws.p[i] * inv_mass[i];
             if !ws.q[i].is_finite() {
@@ -1180,6 +1215,168 @@ mod tests {
             mass: 1.0,
             adapt_metric: false,
         }
+    }
+
+    #[test]
+    fn invalid_hmc_metric_step_and_target_are_refused() {
+        let x = [1.0, 1.0];
+        let y = [0.0, 1.0];
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 2,
+            ncols: 1,
+            y: &y,
+            weights: None,
+            offsets: None,
+        };
+        let prior = PriorSet::weakly_informative(1);
+        let fit_opts = BayesFitOptions { n_draws: 2, seed: 1, max_iter: 50, grad_tol: 1e-8 };
+        for value in [f64::INFINITY, f64::NAN, 0.0, -1.0] {
+            for hmc in [
+                HmcOptions { step_size: value, ..hmc_opts(1, 2) },
+                HmcOptions { mass: value, ..hmc_opts(1, 2) },
+            ] {
+                assert!(matches!(
+                    fit_hmc_glm(
+                        BayesLikelihood::BernoulliLogit,
+                        design,
+                        &prior,
+                        &fit_opts,
+                        hmc,
+                        &mut LaplaceWorkspace::default()
+                    ),
+                    Err(ProbError::Inference { .. })
+                ));
+            }
+        }
+        let hmc = HmcOptions { mass: f64::from_bits(1), ..hmc_opts(1, 2) };
+        assert!(matches!(
+            fit_hmc_glm(
+                BayesLikelihood::BernoulliLogit,
+                design,
+                &prior,
+                &fit_opts,
+                hmc,
+                &mut LaplaceWorkspace::default()
+            ),
+            Err(ProbError::Inference { .. })
+        ));
+        let hmc = HmcOptions { n_warmup: usize::MAX, ..hmc_opts(1, 2) };
+        assert!(matches!(
+            fit_hmc_glm(
+                BayesLikelihood::BernoulliLogit,
+                design,
+                &prior,
+                &fit_opts,
+                hmc,
+                &mut LaplaceWorkspace::default()
+            ),
+            Err(ProbError::Shape { message: "HMC transition count overflow" })
+        ));
+        for target_accept in [f64::NAN, f64::INFINITY, -1.0, 0.0, 1.0, 2.0] {
+            let hmc = HmcOptions { target_accept, ..hmc_opts(1, 2) };
+            assert!(matches!(
+                fit_hmc_glm(
+                    BayesLikelihood::BernoulliLogit,
+                    design,
+                    &prior,
+                    &fit_opts,
+                    hmc,
+                    &mut LaplaceWorkspace::default()
+                ),
+                Err(ProbError::Inference { .. })
+            ));
+        }
+    }
+
+    #[test]
+    fn hmc_worker_inherits_cancellation_and_reports_operational_refusal() {
+        let x = [1.0, 1.0];
+        let y = [0.0, 1.0];
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 2,
+            ncols: 1,
+            y: &y,
+            weights: None,
+            offsets: None,
+        };
+        let prior = PriorSet::weakly_informative(1);
+        let fit_opts = BayesFitOptions { n_draws: 100, seed: 1, max_iter: 50, grad_tol: 1e-8 };
+        let mut ctx = ExecutionContext::for_tests(1);
+        ctx.cancellation = antecedent_core::CancellationToken::cancel_after_checks(5);
+        let error = fit_hmc_impl(
+            BayesLikelihood::BernoulliLogit,
+            design,
+            &prior,
+            &fit_opts,
+            hmc_opts(10, 2),
+            &mut LaplaceWorkspace::default(),
+            Some(&ctx),
+        )
+        .unwrap_err();
+        assert!(
+            matches!(error, ProbError::Refused { code, .. } if code == antecedent_core::reason_code!("transport_budget_cancel"))
+        );
+    }
+
+    #[test]
+    fn transition_acceptance_denominator_does_not_saturate_at_u32_max() {
+        let mut stats = TransitionStats {
+            n_transitions: u32::MAX as u128,
+            accept_prob_sum: u32::MAX as f64,
+            ..TransitionStats::default()
+        };
+        stats.record(
+            &HmcStepResult {
+                logp: 0.0,
+                accepted: true,
+                accept_prob: 1.0,
+                delta_h: 0.0,
+                divergent: false,
+            },
+            false,
+        );
+        assert_eq!(stats.mean_accept_prob(), 1.0);
+    }
+
+    #[test]
+    fn hmc_context_accounts_for_each_worker_workspace() {
+        let x = [1.0, 1.0];
+        let y = [0.0, 1.0];
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 2,
+            ncols: 1,
+            y: &y,
+            weights: None,
+            offsets: None,
+        };
+        let prior = PriorSet::weakly_informative(1);
+        let fit_opts = BayesFitOptions { n_draws: 2, seed: 1, max_iter: 50, grad_tol: 1e-8 };
+        // Exactly covers the retained draws, leaving no room for a worker workspace.
+        let ctx = ExecutionContext::for_tests(1).with_memory_limit(Some(96));
+        let result = fit_hmc_impl(
+            BayesLikelihood::BernoulliLogit,
+            design,
+            &prior,
+            &fit_opts,
+            hmc_opts(1, 2),
+            &mut LaplaceWorkspace::default(),
+            Some(&ctx),
+        );
+        assert!(
+            matches!(result, Err(ProbError::Numerical { message }) if message.contains("prob.resource_refused"))
+        );
+    }
+
+    #[test]
+    fn metric_windows_handle_the_largest_warmup_count() {
+        let windows = metric_windows(usize::MAX);
+        assert_eq!(windows.first().unwrap().0, 75);
+        assert_eq!(windows.last().unwrap().1, usize::MAX - 50);
+        assert!(windows.windows(2).all(|pair| pair[0].1 == pair[1].0));
+        assert!(windows.iter().all(|&(start, end)| start < end));
     }
 
     #[test]
