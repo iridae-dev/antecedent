@@ -130,7 +130,6 @@ fn a_mutated_artifact_fails_independent_consumption_with_typed_errors() {
     // selections, slots, question and every limit are bound.
     let cases: Vec<(&str, Edit)> = vec![
         ("sequence", Box::new(|w| w.sequence.swap(0, 1))),
-        ("horizon", Box::new(|w| w.horizon = 3)),
         ("variable name", Box::new(|w| w.coordinates[3].name = "renamed".into())),
         ("graph edge", Box::new(|w| w.graph.directed.push((0, 5)))),
         ("selection", Box::new(|w| w.selections.push(1))),
@@ -205,17 +204,36 @@ fn a_mutated_artifact_fails_independent_consumption_with_typed_errors() {
 }
 
 #[test]
-fn a_mutated_horizon_or_history_refuses_on_replay_not_only_by_digest() {
+fn temporal_layout_requires_the_version_and_feature_for_its_horizon() {
+    use antecedent_io::temporal_transport_artifact::{
+        TEMPORAL_TRANSPORT_HORIZON_ARTIFACT_FEATURE, TEMPORAL_TRANSPORT_HORIZON_ARTIFACT_VERSION,
+    };
     let (_, _, bytes) = exported(1.0, 0.0);
-    // Even with a recomputed digest, horizon three is refused by the replay.
-    let three = mutated(&bytes, |w| w.horizon = 3, true);
-    match consume(&three) {
-        Err(IoError::Refused { code, message }) => {
-            assert_eq!(code, "route_not_supported");
-            assert!(message.starts_with("temporal_transport.horizon"), "{message}");
-        }
-        other => panic!("{:?}", other.map(|_| ())),
-    }
+    let v1 = TemporalSequenceArtifactWire::decode(&bytes).unwrap();
+    assert_eq!(v1.horizon, 2);
+    // This checks v2 decoding/layout only; replay needs a genuine three-step fixture.
+    let mut v2 = v1.clone();
+    v2.horizon = 3;
+    v2.version = TEMPORAL_TRANSPORT_HORIZON_ARTIFACT_VERSION;
+    v2.required_features = vec![TEMPORAL_TRANSPORT_HORIZON_ARTIFACT_FEATURE.into()];
+    assert_eq!(TemporalSequenceArtifactWire::decode(&v2.export().unwrap()).unwrap().horizon, 3);
+    let unsealed_horizon = mutated(&bytes, |w| w.horizon = 3, false);
+    assert_eq!(
+        typed(consume(&unsealed_horizon)),
+        TemporalTransportArtifactError::UnsupportedSemantics("required features")
+    );
+    let stale_horizon = mutated(&bytes, |w| w.horizon = 3, true);
+    assert_eq!(
+        typed(consume(&stale_horizon)),
+        TemporalTransportArtifactError::UnsupportedSemantics("required features")
+    );
+    v2.horizon = 2;
+    assert!(matches!(
+        TemporalSequenceArtifactWire::decode(&v2.export().unwrap()),
+        Err(IoError::TemporalTransport(TemporalTransportArtifactError::UnsupportedSemantics(
+            "required features"
+        )))
+    ));
 }
 
 #[test]

@@ -517,12 +517,8 @@ impl TemporalSequenceArtifactWire {
                 Err(IoError::UnsupportedVersion { version })
             }
         })?;
-        let feature = if wire.version == TEMPORAL_TRANSPORT_ARTIFACT_VERSION {
-            TEMPORAL_TRANSPORT_ARTIFACT_FEATURE
-        } else {
-            TEMPORAL_TRANSPORT_HORIZON_ARTIFACT_FEATURE
-        };
-        if wire.required_features != [feature] {
+        let (expected_version, feature) = layout(wire.horizon);
+        if wire.version != expected_version || wire.required_features != [feature] {
             return Err(
                 TemporalTransportArtifactError::UnsupportedSemantics("required features").into()
             );
