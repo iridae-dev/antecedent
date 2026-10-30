@@ -578,14 +578,42 @@ impl WeightedOlsRefresh {
     /// Multiply every retained weight by `factor` and rebuild the summary.
     ///
     /// # Errors
-    /// Rows are not retained, or `factor` is not finite and nonnegative.
+    /// Rows are not retained, `factor` is invalid, or scaled weights or
+    /// summary statistics overflow. Nothing changes on an error.
     pub fn scale_weights(&mut self, factor: f64) -> Result<RefreshOutcome, StateError> {
         self.require(RetainedOperation::InPlaceWeightOrMaskUpdate)?;
         check_weight(factor)?;
-        for row in &mut self.rows {
+        // Build a candidate first: a finite factor can still overflow a row,
+        // Gram entry, squared-weight sum, or scatter. Do not publish a partially
+        // scaled row set or summary when that happens.
+        let mut rows = self.rows.clone();
+        for row in &mut rows {
             row.weight *= factor;
+            if !row.weight.is_finite() {
+                return Err(StateError::Numerical("scaled observation weight overflows".into()));
+            }
         }
-        self.rebuild()
+        let (stats, digest, ledger) = derive(self.ncols, &self.source, &rows)?;
+        if !stats.sw.is_finite()
+            || !stats.sw2.is_finite()
+            || !stats.yty.is_finite()
+            || !ledger.total_weight.is_finite()
+            || stats
+                .xtx
+                .iter()
+                .chain(&stats.xty)
+                .chain(&stats.mean)
+                .chain(&stats.m2)
+                .any(|v| !v.is_finite())
+        {
+            return Err(StateError::Numerical("scaled weighted summary overflows".into()));
+        }
+        self.rows = rows;
+        self.stats = stats;
+        self.digest = digest;
+        self.ledger = ledger;
+        self.recomputes = self.recomputes.saturating_add(1);
+        Ok(RefreshOutcome::Recomputed)
     }
 
     /// Replace every retained weight from `weights`, given in retained-row order, and rebuild.

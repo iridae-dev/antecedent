@@ -148,6 +148,21 @@ fn scaling_every_weight_keeps_the_fit_and_scales_the_variance_and_the_weight_tot
 }
 
 #[test]
+fn overflowing_weight_scaling_refuses_without_mutating_the_snapshot() {
+    let mut fit = WeightedOlsRefresh::from_rows("s", 2, wrows(0..12)).unwrap();
+    let before = fit.snapshot();
+    let weights: Vec<f64> = fit.rows().iter().map(|r| r.weight()).collect();
+    // Individual products overflow.
+    assert!(fit.scale_weights(f64::MAX).is_err());
+    assert_eq!(fit.snapshot(), before);
+    assert_eq!(fit.rows().iter().map(|r| r.weight()).collect::<Vec<_>>(), weights);
+    // Individual products remain finite, but the squared-weight sum overflows.
+    assert!(fit.scale_weights(1e200).is_err());
+    assert_eq!(fit.snapshot(), before);
+    assert_eq!(fit.rows().iter().map(|r| r.weight()).collect::<Vec<_>>(), weights);
+}
+
+#[test]
 fn integer_weights_give_the_same_fit_as_the_count_form() {
     let mut counted = OlsRefresh::from_rows(
         "s",
