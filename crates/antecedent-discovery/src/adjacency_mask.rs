@@ -600,11 +600,11 @@ pub fn adjacency_masks_from_pag(
                     adj.set_edge(n_vars, i, j, true);
                     adj.set_edge(n_vars, j, i, true);
                 }
-                (Endpoint::Circle, Endpoint::Arrow) | (Endpoint::Tail, Endpoint::Circle) => {
+                (Endpoint::Circle, Endpoint::Arrow) => {
                     adj.set_edge(n_vars, i, j, true);
                     marks.set_edge(n_vars, i, j, true);
                 }
-                (Endpoint::Arrow, Endpoint::Circle) | (Endpoint::Circle, Endpoint::Tail) => {
+                (Endpoint::Arrow, Endpoint::Circle) => {
                     adj.set_edge(n_vars, j, i, true);
                     marks.set_edge(n_vars, j, i, true);
                 }
@@ -613,6 +613,11 @@ pub fn adjacency_masks_from_pag(
                     adj.set_edge(n_vars, j, i, true);
                     marks.set_edge(n_vars, i, j, true);
                     marks.set_edge(n_vars, j, i, true);
+                }
+                (Endpoint::Tail, Endpoint::Circle) | (Endpoint::Circle, Endpoint::Tail) => {
+                    return Err(DiscoveryError::unsupported(
+                        "PAG packing cannot represent a tail-circle edge; refusing to change its endpoints",
+                    ));
                 }
                 (Endpoint::Tail, Endpoint::Tail) => {
                     return Err(DiscoveryError::unsupported(
@@ -708,6 +713,44 @@ pub fn adjacency_mask_from_admg(admg: &Admg) -> Result<AdjacencyMask, DiscoveryE
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pag_packing_preserves_every_representable_endpoint_pair_and_refuses_the_rest() {
+        use antecedent_graph::{MarkedEdge, MiddleMark};
+        let a = DenseNodeId::from_raw(0);
+        let b = DenseNodeId::from_raw(1);
+        let endpoints = [Endpoint::Tail, Endpoint::Arrow, Endpoint::Circle, Endpoint::Conflict];
+        for at_a in endpoints {
+            for at_b in endpoints {
+                let mut graph = Pag::with_variables(2);
+                graph
+                    .insert_marked(MarkedEdge { a, b, at_a, at_b, middle: MiddleMark::Empty })
+                    .unwrap();
+                let packed = adjacency_masks_from_pag(&graph);
+                if matches!(at_a, Endpoint::Conflict)
+                    || matches!(at_b, Endpoint::Conflict)
+                    || matches!(
+                        (at_a, at_b),
+                        (Endpoint::Tail, Endpoint::Tail)
+                            | (Endpoint::Tail, Endpoint::Circle)
+                            | (Endpoint::Circle, Endpoint::Tail)
+                    )
+                {
+                    assert!(
+                        matches!(packed, Err(DiscoveryError::Unsupported { .. })),
+                        "unsupported endpoints {at_a:?}/{at_b:?} must be refused"
+                    );
+                } else {
+                    let (adjacency, marks) = packed.unwrap();
+                    let restored = pag_from_adjacency_mask(adjacency, marks, 2).unwrap();
+                    let edge = restored.edge_between(a, b).unwrap();
+                    let actual =
+                        if edge.a == a { (edge.at_a, edge.at_b) } else { (edge.at_b, edge.at_a) };
+                    assert_eq!(actual, (at_a, at_b));
+                }
+            }
+        }
+    }
 
     #[test]
     fn bow_free_admg_round_trips_without_losing_any_edge() {

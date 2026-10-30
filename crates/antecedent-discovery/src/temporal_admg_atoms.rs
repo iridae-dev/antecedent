@@ -20,20 +20,45 @@ use antecedent_graph::{DenseNodeId, TemporalAdmg};
 use crate::adjacency_mask::{AdjacencyMask, LagMask, admg_from_adjacency_mask};
 use crate::error::DiscoveryError;
 
-/// Bit of the lagged edge `from(t - lag) → to(t)` (or `from(t - lag) ↔ to(t)`), `lag ≥ 1`.
+/// Checked bit index for a lagged edge.
+///
+/// # Errors
+///
+/// A zero lag, a variable outside the template, or an index outside the u32 bit space.
+pub fn checked_lagged_edge_bit(
+    n_vars: usize,
+    lag: u32,
+    from: usize,
+    to: usize,
+) -> Result<u32, DiscoveryError> {
+    if lag == 0 || from >= n_vars || to >= n_vars {
+        return Err(DiscoveryError::unsupported("lagged edge outside the template"));
+    }
+    let bit = n_vars
+        .checked_mul(n_vars)
+        .and_then(|block| (lag as usize - 1).checked_mul(block))
+        .and_then(|base| from.checked_mul(n_vars).and_then(|offset| base.checked_add(offset)))
+        .and_then(|base| base.checked_add(to))
+        .and_then(|bit| u32::try_from(bit).ok())
+        .ok_or_else(|| DiscoveryError::unsupported("lagged edge bit exceeds u32 index space"))?;
+    Ok(bit)
+}
+
+/// Bit of the lagged edge `from(t - lag) → to(t)` (or `from(t - lag) ↔ to(t)`).
+///
+/// # Panics
+///
+/// Panics when the coordinates are invalid or their bit is not addressable by u32. Use
+/// [`checked_lagged_edge_bit`] to handle such inputs without a panic.
 #[must_use]
 pub fn lagged_edge_bit(n_vars: usize, lag: u32, from: usize, to: usize) -> u32 {
-    let block = (lag as usize).saturating_sub(1).saturating_mul(n_vars.saturating_mul(n_vars));
-    crate::indexing::dense_u32(block.saturating_add(from.saturating_mul(n_vars)).saturating_add(to))
+    checked_lagged_edge_bit(n_vars, lag, from, to).expect("invalid lagged edge bit")
 }
 
 /// Whether a lag set holds the edge `from(t - lag) → to(t)`.
 #[must_use]
 pub fn has_lagged_edge(mask: &LagMask, n_vars: usize, lag: u32, from: usize, to: usize) -> bool {
-    if from >= n_vars || to >= n_vars || lag == 0 {
-        return false;
-    }
-    mask.bit(lagged_edge_bit(n_vars, lag, from, to))
+    checked_lagged_edge_bit(n_vars, lag, from, to).is_ok_and(|bit| mask.bit(bit))
 }
 
 /// Set or clear the lagged edge `from(t - lag) → to(t)` in a lag set (a [`LagMask`] or the
@@ -50,10 +75,7 @@ pub fn with_lagged_edge(
     to: usize,
     present: bool,
 ) -> Result<LagMask, DiscoveryError> {
-    if from >= n_vars || to >= n_vars || lag == 0 {
-        return Err(DiscoveryError::unsupported("lagged edge outside the template"));
-    }
-    Ok(mask.into().with_bit(lagged_edge_bit(n_vars, lag, from, to), present))
+    Ok(mask.into().with_bit(checked_lagged_edge_bit(n_vars, lag, from, to)?, present))
 }
 
 /// One atom of a lagged temporal-ADMG posterior.
@@ -113,24 +135,43 @@ impl TemporalAdmgAtom {
             let b = node_of(&mut graph, variables[b as usize], Lag::CONTEMPORANEOUS)?;
             graph.insert_bidirected(a, b)?;
         }
-        for lag in 1..=max_lag {
-            for from in 0..n_vars {
-                for to in 0..n_vars {
-                    let directed = has_lagged_edge(&self.lagged_directed, n_vars, lag, from, to);
-                    let bidirected =
-                        has_lagged_edge(&self.lagged_bidirected, n_vars, lag, from, to);
-                    if !directed && !bidirected {
-                        continue;
-                    }
-                    let past = node_of(&mut graph, variables[from], Lag::from_raw(lag))?;
-                    let now = node_of(&mut graph, variables[to], Lag::CONTEMPORANEOUS)?;
-                    if directed {
-                        graph.insert_directed(past, now)?;
-                    }
-                    if bidirected {
-                        graph.insert_bidirected(past, now)?;
-                    }
-                }
+        let block = n_vars
+            .checked_mul(n_vars)
+            .ok_or_else(|| DiscoveryError::unsupported("temporal ADMG lag block overflow"))?;
+        // Both masks enumerate in increasing bit order; merge them without an additional
+        // set-sized allocation, visiting a bit shared by both masks once.
+        let mut directed = self.lagged_directed.set_bits().peekable();
+        let mut bidirected = self.lagged_bidirected.set_bits().peekable();
+        while let Some(bit) = match (directed.peek().copied(), bidirected.peek().copied()) {
+            (Some(a), Some(b)) if a == b => {
+                directed.next();
+                bidirected.next();
+                Some(a)
+            }
+            (Some(a), Some(b)) if a < b => directed.next(),
+            (Some(_), Some(_)) => bidirected.next(),
+            (Some(_), None) => directed.next(),
+            (None, Some(_)) => bidirected.next(),
+            (None, None) => None,
+        } {
+            if block == 0 {
+                return Err(DiscoveryError::unsupported("lagged edge outside the template"));
+            }
+            let bit_index = bit as usize;
+            let lag = bit_index / block + 1;
+            if lag > max_lag as usize {
+                return Err(DiscoveryError::unsupported("lagged edge outside the template"));
+            }
+            let within = bit_index % block;
+            let from = within / n_vars;
+            let to = within % n_vars;
+            let past = node_of(&mut graph, variables[from], Lag::from_raw(lag as u32))?;
+            let now = node_of(&mut graph, variables[to], Lag::CONTEMPORANEOUS)?;
+            if self.lagged_directed.bit(bit) {
+                graph.insert_directed(past, now)?;
+            }
+            if self.lagged_bidirected.bit(bit) {
+                graph.insert_bidirected(past, now)?;
             }
         }
         Ok(graph)
@@ -166,6 +207,18 @@ mod tests {
 
     fn variables(n: usize) -> Vec<VariableId> {
         (0..n as u32).map(VariableId::from_raw).collect()
+    }
+
+    #[test]
+    fn sparse_template_checks_width_without_scanning_empty_lags() {
+        assert!(checked_lagged_edge_bit(usize::MAX, 2, 0, 0).is_err());
+        assert!(with_lagged_edge(0u64, 65536, 2, 0, 0, true).is_err());
+        assert!(!has_lagged_edge(&LagMask::EMPTY, 65536, 2, 0, 0));
+        let atom = TemporalAdmgAtom::default();
+        assert!(atom.to_template(1, u32::MAX, &variables(1)).is_ok());
+        let outside =
+            TemporalAdmgAtom { lagged_directed: LagMask::EMPTY.with_bit(1, true), ..atom };
+        assert!(outside.to_template(1, 1, &variables(1)).is_err());
     }
 
     #[test]

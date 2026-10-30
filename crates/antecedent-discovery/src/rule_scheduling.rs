@@ -504,6 +504,37 @@ pub(crate) fn pd_path_budget_diagnostic(
     })
 }
 
+fn weak_sep_contains(
+    state: &OrientationState,
+    a: DenseNodeId,
+    b: DenseNodeId,
+    middle: DenseNodeId,
+) -> bool {
+    state.sepset(a, b).is_some_and(|sep| {
+        sep.contains(&middle) && (state.is_weakly_minimal(a, b) || sep.len() <= 1)
+    })
+}
+
+// LPCMCI prime-rule condition iv: before the first arrowhead into a path's middle,
+// each unshielded triple must have that middle in a retained separating set.
+fn prime_path_evidence<G: PagOps>(
+    graph: &G,
+    state: &OrientationState,
+    path: &[DenseNodeId],
+) -> bool {
+    for triple in path.windows(3) {
+        if marks_between(graph, triple[0], triple[1])
+            .is_some_and(|(_, at_middle)| matches!(at_middle, Endpoint::Arrow))
+        {
+            return true;
+        }
+        if !weak_sep_contains(state, triple[0], triple[2], triple[1]) {
+            return false;
+        }
+    }
+    true
+}
+
 fn apply_r9<G: PagOps>(
     graph: &mut G,
     state: &mut OrientationState,
@@ -539,20 +570,33 @@ fn apply_r9<G: PagOps>(
                         continue;
                     }
                 }
-                let initial = [
+                let Some((at_a_b1, at_b1)) = marks_between(graph, a, b1) else { continue };
+                let circle_circle =
+                    matches!((at_a_b1, at_b1), (Endpoint::Circle, Endpoint::Circle));
+                let arrow_at_b1 = matches!(at_a_b1, Endpoint::Circle | Endpoint::Tail)
+                    && matches!(at_b1, Endpoint::Arrow);
+                if !circle_circle && !arrow_at_b1 {
+                    continue;
+                }
+                let general = [
                     EndpointPattern::circle_circle(),
                     EndpointPattern::circle_arrow(),
                     EndpointPattern::directed(),
                 ];
+                let directed = [EndpointPattern::directed()];
+                let initial = if circle_circle { &general[..] } else { &directed[..] };
                 let mut qualifies = false;
                 let truncated = for_each_uncovered_pd_path(
                     graph,
                     b1,
                     c,
-                    &initial,
+                    initial,
                     state.pd_path_budget,
                     |path| {
-                        if !path.contains(&a) && !graph.has_edge(a, path[1]) {
+                        let evidence = arrow_at_b1
+                            || (weak_sep_contains(state, a, path[1], b1)
+                                && prime_path_evidence(graph, state, path));
+                        if evidence && !path.contains(&a) && !graph.has_edge(a, path[1]) {
                             qualifies = true;
                             std::ops::ControlFlow::Break(())
                         } else {
@@ -633,8 +677,15 @@ fn apply_r10<G: PagOps>(
                     &initial,
                     state.pd_path_budget,
                     |path| {
-                        if path.len() >= 3 && !path.contains(&c) {
-                            paths.push(path.to_vec());
+                        if path.len() >= 3
+                            && !path.contains(&c)
+                            && !graph.has_edge(path[path.len() - 2], c)
+                        {
+                            let mut extended = path.to_vec();
+                            extended.push(c);
+                            if prime_path_evidence(graph, state, &extended) {
+                                paths.push(path.to_vec());
+                            }
                         }
                         std::ops::ControlFlow::Continue(())
                     },
@@ -654,7 +705,11 @@ fn apply_r10<G: PagOps>(
                                 // distinct and non-adjacent.
                                 paths_node_disjoint_except_a(path1, path2, a)
                                     && match (path1.get(1), path2.get(1)) {
-                                        (Some(&u), Some(&v)) => u != v && !graph.has_edge(u, v),
+                                        (Some(&u), Some(&v)) => {
+                                            u != v
+                                                && !graph.has_edge(u, v)
+                                                && weak_sep_contains(state, u, v, a)
+                                        }
                                         _ => false,
                                     }
                             })

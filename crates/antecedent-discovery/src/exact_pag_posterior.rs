@@ -652,13 +652,133 @@ pub const PAG_MCMC_MAX_NODES: usize = 31;
 /// Most m-separation queries one sampler run may cost: moves times the `pairs * 2^p` queries
 /// that sign one graph.
 pub const PAG_MCMC_WORK_BUDGET: u128 = 1 << 36;
-/// Largest equivalence class completed by exploration before its marks are flagged as possibly
-/// over-claimed.
+/// Largest equivalence class explored; reaching the cap refuses rather than returning
+/// potentially over-claimed marks.
 const CLASS_COMPLETION_CAP: usize = 4000;
+
+/// Shared sampler/completion work allowance. Each visited candidate, subset and path
+/// expansion is charged, and cancellation is observed during exponential inner searches.
+struct CompletionBudget<'a> {
+    remaining: u128,
+    ctx: &'a ExecutionContext,
+}
+
+impl CompletionBudget<'_> {
+    fn charge(&mut self, work: u128) -> Result<(), DiscoveryError> {
+        if self.ctx.cancellation.is_cancelled() {
+            return Err(DiscoveryError::Cancelled);
+        }
+        self.remaining = self.remaining.checked_sub(work).ok_or_else(|| {
+            DiscoveryError::Resource("PAG class completion exceeded its shared work budget".into())
+        })?;
+        Ok(())
+    }
+}
+
+fn completion_connects(
+    graph: &Mixed,
+    reach: &[bool],
+    y: usize,
+    z: u32,
+    path: &mut Vec<usize>,
+    budget: &mut CompletionBudget<'_>,
+) -> Result<bool, DiscoveryError> {
+    let Some(&last) = path.last() else { return Ok(false) };
+    for next in 0..graph.p {
+        budget.charge(graph.p as u128 + 1)?;
+        if next == last || path.contains(&next) || !graph.adjacent(last, next) {
+            continue;
+        }
+        if path.len() >= 2 {
+            let prev = path[path.len() - 2];
+            let collider = graph.arrow_at(prev, last) && graph.arrow_at(next, last);
+            let in_z = (z >> last) & 1 == 1;
+            let open = if collider {
+                in_z || (0..graph.p).any(|d| (z >> d) & 1 == 1 && reach[last * graph.p + d])
+            } else {
+                !in_z
+            };
+            if !open {
+                continue;
+            }
+        }
+        if next == y {
+            return Ok(true);
+        }
+        path.push(next);
+        let found = completion_connects(graph, reach, y, z, path, budget)?;
+        path.pop();
+        if found {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn completion_maximal(
+    graph: &Mixed,
+    reach: &[bool],
+    budget: &mut CompletionBudget<'_>,
+) -> Result<bool, DiscoveryError> {
+    for a in 0..graph.p {
+        for b in a + 1..graph.p {
+            budget.charge(1)?;
+            if graph.adjacent(a, b) {
+                continue;
+            }
+            let others: Vec<usize> = (0..graph.p).filter(|&c| c != a && c != b).collect();
+            let mut separated = false;
+            for subset in 0..1u32 << others.len() {
+                budget.charge(1)?;
+                let z = others
+                    .iter()
+                    .enumerate()
+                    .filter(|(bit, _)| (subset >> bit) & 1 == 1)
+                    .fold(0u32, |acc, (_, &node)| acc | (1 << node));
+                if !completion_connects(graph, reach, b, z, &mut vec![a], budget)? {
+                    separated = true;
+                    break;
+                }
+            }
+            if !separated {
+                return Ok(false);
+            }
+        }
+    }
+    Ok(true)
+}
+
+fn completion_signature(
+    graph: &Mixed,
+    reach: &[bool],
+    budget: &mut CompletionBudget<'_>,
+) -> Result<u128, DiscoveryError> {
+    let (mut high, mut low) = (0u64, 0u64);
+    for a in 0..graph.p {
+        for b in a + 1..graph.p {
+            for z in 0..1u32 << graph.p {
+                budget.charge(1)?;
+                if (z >> a) & 1 == 1 || (z >> b) & 1 == 1 {
+                    continue;
+                }
+                if !completion_connects(graph, reach, b, z, &mut vec![a], budget)? {
+                    let id = ((pair_index(graph.p, a, b) as u64) << 32) | u64::from(z);
+                    high ^= mix(id);
+                    low ^= mix(id ^ 0xA076_1D64_78BD_642F);
+                }
+            }
+        }
+    }
+    Ok((u128::from(high) << 64) | u128::from(low))
+}
 
 /// Every maximal ancestral graph reachable from `seed` by single-pair moves through graphs of
 /// signature `signature`; `complete` is false when the exploration hit the cap.
-fn complete_class(seed: &Mixed, signature: u128) -> (Vec<Mixed>, bool) {
+fn complete_class(
+    seed: &Mixed,
+    signature: u128,
+    budget: &mut CompletionBudget<'_>,
+) -> Result<(Vec<Mixed>, bool), DiscoveryError> {
     let mut seen: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
     seen.insert(seed.code());
     let mut members = vec![seed.clone()];
@@ -666,22 +786,29 @@ fn complete_class(seed: &Mixed, signature: u128) -> (Vec<Mixed>, bool) {
     let pairs = seed.links.len();
     while frontier < members.len() {
         if members.len() >= CLASS_COMPLETION_CAP {
-            return (members, false);
+            return Err(DiscoveryError::Resource(
+                "PAG class completion reached its member limit".into(),
+            ));
         }
         let current = members[frontier].clone();
         frontier += 1;
         for pair in 0..pairs {
             for &link in &LINKS {
+                budget.charge(1)?;
                 if link == current.links[pair] {
                     continue;
                 }
                 let mut candidate = current.clone();
                 candidate.links[pair] = link;
+                // Charge both reachability passes (ancestral and maximality setup).
+                budget.charge((candidate.p as u128).pow(3).saturating_mul(2))?;
                 if seen.contains(&candidate.code()) || !candidate.ancestral() {
                     continue;
                 }
                 let reach = candidate.reach();
-                if !candidate.maximal(&reach) || candidate.signature(&reach) != signature {
+                if !completion_maximal(&candidate, &reach, budget)?
+                    || completion_signature(&candidate, &reach, budget)? != signature
+                {
                     continue;
                 }
                 seen.insert(candidate.code());
@@ -689,7 +816,7 @@ fn complete_class(seed: &Mixed, signature: u128) -> (Vec<Mixed>, bool) {
             }
         }
     }
-    (members, true)
+    Ok((members, true))
 }
 
 /// Sampling schedule of [`pag_posterior_mcmc`].
@@ -714,7 +841,8 @@ impl Default for PagMcmcSchedule {
 impl PagMcmcSchedule {
     /// The m-separation queries a run on `p` variables costs: every move signs one graph.
     fn work(&self, p: usize) -> u128 {
-        let moves = (self.chains as u128) * ((self.warmup + self.draws) as u128);
+        let moves = (self.chains as u128)
+            .saturating_mul((self.warmup as u128).saturating_add(self.draws as u128));
         let pairs = (p * p.saturating_sub(1) / 2) as u128;
         moves.saturating_mul(pairs).saturating_mul(1u128 << p.min(40))
     }
@@ -785,15 +913,24 @@ pub fn pag_posterior_mcmc(
     let pairs = p * (p - 1) / 2;
     let empty = Mixed { p, links: vec![Link::None; pairs] };
     let mut cache: HashMap<Vec<u8>, Option<(f64, u128)>> = HashMap::new();
-    let evaluate = |graph: &Mixed, cache: &mut HashMap<Vec<u8>, Option<(f64, u128)>>| {
+    let mut budget = CompletionBudget { remaining: PAG_MCMC_WORK_BUDGET, ctx };
+    let evaluate = |graph: &Mixed,
+                    cache: &mut HashMap<Vec<u8>, Option<(f64, u128)>>,
+                    budget: &mut CompletionBudget<'_>|
+     -> Result<Option<(f64, u128)>, DiscoveryError> {
+        budget.charge(1)?;
         let key = graph.code();
         if let Some(found) = cache.get(&key) {
-            return *found;
+            return Ok(*found);
         }
+        budget.charge((graph.p as u128).pow(3).saturating_mul(2))?;
         let value = if graph.ancestral() {
             let reach = graph.reach();
-            if graph.maximal(&reach) {
-                mag_bic(graph, &s, n).map(|score| (score, graph.signature(&reach)))
+            if completion_maximal(graph, &reach, budget)? {
+                match mag_bic(graph, &s, n) {
+                    Some(score) => Some((score, completion_signature(graph, &reach, budget)?)),
+                    None => None,
+                }
             } else {
                 None
             }
@@ -801,9 +938,9 @@ pub fn pag_posterior_mcmc(
             None
         };
         cache.insert(key, value);
-        value
+        Ok(value)
     };
-    let (start_score, _) = evaluate(&empty, &mut cache)
+    let (start_score, _) = evaluate(&empty, &mut cache, &mut budget)?
         .ok_or_else(|| DiscoveryError::unsupported("the empty graph has no finite BIC"))?;
     let mut representative: HashMap<u128, Mixed> = HashMap::new();
     let mut counts: Vec<HashMap<u128, u64>> = Vec::with_capacity(schedule.chains);
@@ -823,7 +960,7 @@ pub fn pag_posterior_mcmc(
             let current = LINKS.iter().position(|&l| l == state.links[pair]).unwrap_or(0);
             let mut proposal = state.clone();
             proposal.links[pair] = LINKS[(current + offset) % 4];
-            match evaluate(&proposal, &mut cache) {
+            match evaluate(&proposal, &mut cache, &mut budget)? {
                 Some((candidate, _)) => {
                     if rng.next_f64().ln() < candidate - score {
                         state = proposal;
@@ -833,7 +970,7 @@ pub fn pag_posterior_mcmc(
                 None => rejected += 1,
             }
             if step >= schedule.warmup && (step - schedule.warmup) % schedule.thin == 0 {
-                if let Some((_, signature)) = evaluate(&state, &mut cache) {
+                if let Some((_, signature)) = evaluate(&state, &mut cache, &mut budget)? {
                     *visits.entry(signature).or_insert(0) += 1;
                     representative.entry(signature).or_insert_with(|| state.clone());
                 }
@@ -873,7 +1010,8 @@ pub fn pag_posterior_mcmc(
     let mut circles = Vec::with_capacity(signatures.len());
     let mut incomplete = 0usize;
     for signature in &signatures {
-        let (members, complete) = complete_class(&representative[signature], *signature);
+        let (members, complete) =
+            complete_class(&representative[signature], *signature, &mut budget)?;
         if !complete {
             incomplete += 1;
         }
@@ -944,6 +1082,29 @@ mod tests {
             TabularData::from_f64_columns(columns.iter().map(|(n, v)| (*n, v.as_slice()))).unwrap();
         let ids = data.schema().variables().iter().map(|v| v.id).collect();
         (data, ids)
+    }
+
+    #[test]
+    fn pag_completion_charges_work_and_observes_cancellation() {
+        let graph = Mixed { p: 3, links: vec![Link::None; 3] };
+        let reach = graph.reach();
+        let signature = graph.signature(&reach);
+        let ctx = ExecutionContext::for_tests(1);
+        let mut budget = CompletionBudget { remaining: 100_000, ctx: &ctx };
+        assert_eq!(completion_signature(&graph, &reach, &mut budget).unwrap(), signature);
+        assert_eq!(completion_maximal(&graph, &reach, &mut budget).unwrap(), graph.maximal(&reach));
+        let mut exhausted = CompletionBudget { remaining: 0, ctx: &ctx };
+        assert!(matches!(
+            complete_class(&graph, signature, &mut exhausted),
+            Err(DiscoveryError::Resource(_))
+        ));
+        let cancelled = ExecutionContext::for_tests(1);
+        cancelled.cancellation.cancel();
+        let mut budget = CompletionBudget { remaining: 100_000, ctx: &cancelled };
+        assert!(matches!(
+            complete_class(&graph, signature, &mut budget),
+            Err(DiscoveryError::Cancelled)
+        ));
     }
 
     #[test]
