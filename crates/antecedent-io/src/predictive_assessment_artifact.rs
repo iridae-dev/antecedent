@@ -920,6 +920,42 @@ impl Default for PredictiveAssessmentConsumeLimits {
     }
 }
 
+// Bound the serial long-run-variance inner products before reconstructing the
+// assessment. Each pair and score computes gamma at every declared lag; n * lag
+// is a conservative count of their multiply-add terms, not a time guarantee.
+fn admit_serial_comparison_work(
+    cases: usize,
+    lag: usize,
+    pairs: usize,
+    scores: usize,
+    limit: usize,
+) -> Result<(), Error> {
+    let mut work = crate::artifact_budget::ReplayWork::new();
+    work.add(&[cases, lag, pairs, scores]);
+    work.admit(limit).map_err(|_| Error::LimitsExceeded("serial comparison work"))
+}
+
+fn check_serial_comparison_work(
+    meta: &PredictiveAssessmentMeta,
+    limit: usize,
+) -> Result<(), Error> {
+    if meta.dependence.kind != "serial" {
+        return Ok(());
+    }
+    let Some(lag) = meta.dependence.truncation_lag else {
+        // The ordinary declaration validation will report the missing lag.
+        return Ok(());
+    };
+    let cases = usize::try_from(meta.cases).map_err(|_| Error::LimitsExceeded("cases"))?;
+    let lag = usize::try_from(lag).map_err(|_| Error::LimitsExceeded("serial comparison work"))?;
+    let pairs = if meta.comparisons.is_empty() {
+        meta.predictors.len().saturating_sub(1)
+    } else {
+        meta.comparisons.len()
+    };
+    admit_serial_comparison_work(cases, lag, pairs, meta.scores.len(), limit)
+}
+
 fn key_at(keys: &[u8], index: usize) -> ObservationKey {
     let mut bytes = [0_u8; KEY_BYTES];
     bytes.copy_from_slice(&keys[index * KEY_BYTES..(index + 1) * KEY_BYTES]);
@@ -1125,8 +1161,32 @@ impl PredictiveAssessmentArtifact {
         limits: PredictiveAssessmentConsumeLimits,
         ctx: &ExecutionContext,
     ) -> Result<Self, Error> {
+        Self::from_bytes_with_replay_operations(
+            bytes,
+            expected,
+            limits,
+            antecedent_io_core::distribution_replay::MAX_REPLAY_OPERATIONS,
+            ctx,
+        )
+    }
+
+    /// Consume with an explicit allowance for serial comparison work. The allowance
+    /// counts conservative multiply-add planning units, not elapsed time. Unlike
+    /// stored metadata, a trusted caller can deliberately raise or lower it.
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes_with_limits`], or serial comparison work exceeds
+    /// the allowance (including an overflowing work estimate).
+    pub fn from_bytes_with_replay_operations(
+        bytes: &[u8],
+        expected: Option<&AssessmentIdentity>,
+        limits: PredictiveAssessmentConsumeLimits,
+        max_replay_operations: usize,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, Error> {
         let (meta, number_bytes, keys) = decode_container(bytes)?;
         check_claims(&meta)?;
+        check_serial_comparison_work(&meta, max_replay_operations)?;
         if number_bytes.len() % 8 != 0 {
             return Err(malformed("numbers section length"));
         }
@@ -1166,5 +1226,17 @@ impl PredictiveAssessmentArtifact {
             }
         }
         Ok(Self { meta, spec, report })
+    }
+}
+
+#[cfg(test)]
+mod serial_replay_budget_tests {
+    use super::admit_serial_comparison_work;
+
+    #[test]
+    fn serial_work_boundary_and_overflow() {
+        assert!(admit_serial_comparison_work(18, 2, 1, 2, 72).is_ok());
+        assert!(admit_serial_comparison_work(18, 2, 1, 2, 71).is_err());
+        assert!(admit_serial_comparison_work(usize::MAX, 2, 1, 1, usize::MAX).is_err());
     }
 }

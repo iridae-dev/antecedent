@@ -20654,3 +20654,10 @@ crate = "antecedent-io"
 cargo_target = "lib"
 path = "crates/antecedent-io/src/cpdag_completion_artifact.rs"
 gates = ["inventory"]
+
+[[test]]
+id = "audit-predictive-serial-replay-budget"
+crate = "antecedent-io"
+cargo_target = "lib"
+path = "crates/antecedent-io/src/predictive_assessment_artifact.rs"
+gates = ["inventory"]

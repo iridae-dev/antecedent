@@ -246,7 +246,8 @@ fn consumer_limits_and_corruption_are_refused_without_replay() {
     // A flipped byte fails the container checksum of the section it lands in.
     let error = PredictiveAssessmentArtifact::from_bytes(&flipped, None, &ctx()).unwrap_err();
     assert!(
-        format!("{error:?}").contains("ChecksumMismatch { section: \"predictive_assessment_meta\" }"),
+        format!("{error:?}")
+            .contains("ChecksumMismatch { section: \"predictive_assessment_meta\" }"),
         "{error:?}"
     );
 }
@@ -299,6 +300,26 @@ fn rolling_origin_with_serial_dependence_round_trips() {
         PredictiveAssessmentArtifact::from_bytes(&bytes, Some(artifact.identity()), &ctx())
             .unwrap();
     assert_eq!(consumed.report().differences[0].dependence, "serial");
+    // 18 cases * 2 lags * 1 default pair * 2 scores = 72 units.
+    let limits = PredictiveAssessmentConsumeLimits::default();
+    let at_limit = PredictiveAssessmentArtifact::from_bytes_with_replay_operations(
+        &bytes,
+        Some(artifact.identity()),
+        limits,
+        72,
+        &ctx(),
+    )
+    .unwrap();
+    assert_eq!(at_limit.report(), artifact.report());
+    let error = PredictiveAssessmentArtifact::from_bytes_with_replay_operations(
+        &bytes,
+        None,
+        limits,
+        71,
+        &ctx(),
+    )
+    .unwrap_err();
+    assert_eq!(error, Error::LimitsExceeded("serial comparison work"));
     // Case order is a time order here, so the PIT drift between the halves is reported.
     let drift = consumed.report().predictors[0].diagnostics.drift.as_ref().unwrap();
     assert_eq!((drift.reference_cases, drift.comparison_cases), (9, 9));
@@ -321,4 +342,22 @@ fn a_refused_assessment_does_not_seal() {
     let (code, detail, _) = error.refusal().unwrap();
     assert_eq!(code, "sampling_dependence_unknown");
     assert_eq!(detail, "predictive_assessment.iid_not_licensed_for_dependent_design");
+}
+
+#[test]
+fn serial_lag_amplification_is_refused_before_assessment() {
+    let n = 8_000;
+    let mut base = spec(n);
+    base.dependence = Some(DependenceDeclaration::Serial {
+        time_index: (0..n as u64).collect(),
+        truncation_lag: 2,
+    });
+    let (_, bytes) = sealed(&base);
+    let (mut meta, numbers, keys) = decode_parts_for_test(&bytes).unwrap();
+    // A valid declared lag, still below the horizon, but requiring more than
+    // the default 50 million serial terms across the two score differences.
+    meta.dependence.truncation_lag = Some((n - 1) as u32);
+    let forged = encode_parts_for_test(&meta, &numbers, &keys, "expensive-lag").unwrap();
+    let error = PredictiveAssessmentArtifact::from_bytes(&forged, None, &ctx()).unwrap_err();
+    assert_eq!(error, Error::LimitsExceeded("serial comparison work"));
 }
