@@ -277,6 +277,7 @@ impl JpcmciPlus {
             workspace,
             ctx,
             Some(&search_context),
+            self.fdr.is_some(),
         )?;
         ci_tests += ctx_tests;
         iterations.push(DiscoveryIteration {
@@ -321,6 +322,7 @@ impl JpcmciPlus {
                 workspace,
                 ctx,
                 Some(&search_dummy),
+                self.fdr.is_some(),
             )?;
             trunc_b = t;
             ci_tests += dum_tests;
@@ -362,6 +364,7 @@ impl JpcmciPlus {
             workspace,
             ctx,
             Some(&search_system),
+            self.fdr.is_some(),
         )?;
         ci_tests += sys_tests;
         iterations.push(DiscoveryIteration {
@@ -509,6 +512,11 @@ fn exogenous_parents_from_scored(
 ) -> HashMap<VariableId, Vec<(VariableId, Lag)>> {
     let mut map: HashMap<VariableId, Vec<(VariableId, Lag)>> = HashMap::new();
     for s in scored {
+        // Family completion supplies rejected/missing hypotheses for multiplicity only.
+        // Later phases condition on the same raw-MCI survivors as before completion.
+        if s.p_value > constraints.alpha && !constraints.required.contains(&s.link) {
+            continue;
+        }
         let sr = constraints.multi_dataset.role_of(s.link.source);
         let tr = constraints.multi_dataset.role_of(s.link.target);
         let src_ok = (want_context && sr.is_observed_context()) || (want_dummy && sr.is_dummy());

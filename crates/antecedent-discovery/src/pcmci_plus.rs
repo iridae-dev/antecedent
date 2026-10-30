@@ -178,10 +178,9 @@ impl PcmciPlus {
 
         // --- Step 2: contemporaneous MCI phase ---
         let search = LaggedSearch { frame, variables, compiled: &compiled };
-        // Including contemporaneous hypotheses opts into the full predeclared allowed-edge
-        // family. Correcting only the survivors conditions the multiplicity denominator on
-        // significance and leaves incidental contemporaneous links essentially uncorrected.
-        let complete_family = self.fdr.is_some_and(|fdr| !fdr.exclude_contemporaneous);
+        // Every FDR scope uses the full predeclared allowed-edge family. Scope exclusion
+        // belongs to thresholding; screening must never shrink its denominator.
+        let complete_family = self.fdr.is_some();
         let (scored, contemp_sepsets, contemp_tests, truncated) = contemp_mci_phase_inner(
             &self.engine,
             search,
@@ -411,8 +410,17 @@ pub(crate) fn contemp_mci_phase(
     workspace: &mut DiscoveryWorkspace,
     ctx: &ExecutionContext,
     search: Option<&dyn Fn(LaggedLink) -> bool>,
+    complete_family: bool,
 ) -> Result<(Vec<ScoredLink>, PcSepsets, u64, u64), DiscoveryError> {
-    contemp_mci_phase_inner(engine, search_space, lagged_parents, workspace, ctx, search, false)
+    contemp_mci_phase_inner(
+        engine,
+        search_space,
+        lagged_parents,
+        workspace,
+        ctx,
+        search,
+        complete_family,
+    )
 }
 
 #[allow(
@@ -578,7 +586,10 @@ fn contemp_mci_phase_inner(
         // link. A PC1-removed or otherwise untested MCI candidate gets p=1, never silently
         // disappears from the denominator. Tested edges use max p over their MCI tests;
         // an edge removed by a separating test therefore cannot reappear after adjustment.
-        let scored = declared_mci_family(&engine.constraints, variables, &scores);
+        let scored = declared_mci_family(&engine.constraints, variables, &scores)
+            .into_iter()
+            .filter(|scored| search.is_none_or(|predicate| predicate(scored.link)))
+            .collect();
         return Ok((scored, sepsets, ci_tests, truncated));
     }
 
@@ -648,24 +659,27 @@ pub(crate) fn orient_majority_colliders(
     let max_cond = engine.constraints.max_cond_size;
     let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
     let mut memo = CiMemo::default();
-    let n = graph.node_count();
+    // Every vote uses the same skeleton. Earlier collider orientations must not
+    // remove candidate conditioning neighbors or later unshielded triples.
+    let skeleton = graph.clone();
+    let n = skeleton.node_count();
 
     let mut contemp_nodes = Vec::new();
     for i in 0..n {
         let id = DenseNodeId::from_raw(crate::indexing::dense_u32(i));
-        if is_contemp_node(graph, id) {
+        if is_contemp_node(&skeleton, id) {
             contemp_nodes.push(id);
         }
     }
 
     for &c in &contemp_nodes {
-        let neighbors: Vec<DenseNodeId> = graph
+        let neighbors: Vec<DenseNodeId> = skeleton
             .undirected_neighbors(c)
             .into_iter()
-            .filter(|&nb| is_contemp_node(graph, nb))
+            .filter(|&nb| is_contemp_node(&skeleton, nb))
             .collect();
         let mut legs: Vec<(DenseNodeId, bool)> = neighbors.iter().map(|&nb| (nb, true)).collect();
-        for p in graph.parents(c) {
+        for p in skeleton.parents(c) {
             if !legs.iter().any(|(x, _)| *x == p) {
                 legs.push((p, false));
             }
@@ -678,7 +692,7 @@ pub(crate) fn orient_majority_colliders(
                 if !a_und && !b_und {
                     continue;
                 }
-                if graph.has_edge(a, b) {
+                if skeleton.has_edge(a, b) {
                     continue;
                 }
                 let vote = MajorityVote { a, b, c, max_cond, alpha };
@@ -686,7 +700,7 @@ pub(crate) fn orient_majority_colliders(
                     engine,
                     frame,
                     lagged_parents,
-                    graph,
+                    &skeleton,
                     &vote,
                     &mut memo,
                     workspace,
@@ -739,9 +753,8 @@ pub(crate) fn orient_majority_colliders(
 
 /// Orient leg `endpoint → c` if the edge is still undirected.
 ///
-/// `legs` in [`orient_majority_colliders`] is snapshotted once per center `c` before its
-/// nested pair loop runs, so a leg flagged undirected there may already have been oriented
-/// by an earlier pair in the same loop that shares it. Re-read the edge's current state
+/// `legs` in [`orient_majority_colliders`] comes from the frozen input skeleton, so a
+/// leg flagged undirected there may already have been oriented by an earlier collider. Re-read the edge's current state
 /// instead of trusting that stale flag: no-op if already oriented `endpoint → c`
 /// (consistent with this collider's conclusion), record a conflict if somehow oriented the
 /// opposite way, and otherwise orient it as before.
@@ -972,6 +985,67 @@ mod tests {
         assert!((kept[0].adjusted_p_value.unwrap() - 0.00015).abs() < 1e-12);
     }
 
+    #[test]
+    fn default_lag_only_fdr_uses_the_declared_mci_family() {
+        let (data, variables) = tiny_xy(50);
+        let result = PcmciPlus::new()
+            .with_constraints(DiscoveryConstraints {
+                temporal: TemporalConstraints {
+                    min_lag: Lag::CONTEMPORANEOUS,
+                    max_lag: Lag::from_raw(1),
+                },
+                max_cond_size: 0,
+                ..DiscoveryConstraints::default()
+            })
+            .run(
+                &data,
+                &variables,
+                &mut DiscoveryWorkspace::default(),
+                &ExecutionContext::for_tests(8),
+            )
+            .unwrap();
+        assert!(
+            result
+                .algorithm
+                .config
+                .contains("multiplicity_family=all_allowed_edges_mci_max_p_missing_p1.v1")
+        );
+    }
+
+    #[test]
+    fn declared_mci_phase_family_respects_its_search_predicate() {
+        let (data, variables) = tiny_abc(10);
+        let ctx = ExecutionContext::for_tests(4);
+        let frame = LaggedFrame::from_series(&data, &variables, 1, &ctx.kernel_policy).unwrap();
+        let engine = PcmciEngine::new().with_ci(Arc::new(AlwaysIndependent)).with_constraints(
+            DiscoveryConstraints {
+                temporal: TemporalConstraints {
+                    min_lag: Lag::CONTEMPORANEOUS,
+                    max_lag: Lag::from_raw(1),
+                },
+                max_cond_size: 0,
+                ..DiscoveryConstraints::default()
+            },
+        );
+        let compiled = engine.constraints.compile(&variables).unwrap();
+        let phase = |link: LaggedLink| link.source == variables[0] && link.target == variables[1];
+        let (family, _, _, _) = contemp_mci_phase_inner(
+            &engine,
+            LaggedSearch { frame: &frame, variables: &variables, compiled: &compiled },
+            &[],
+            &mut DiscoveryWorkspace::default(),
+            &ctx,
+            Some(&phase),
+            true,
+        )
+        .unwrap();
+        assert_eq!(family.len(), 2);
+        assert!(family.iter().all(|scored| phase(scored.link)));
+        assert!(
+            family.iter().any(|scored| scored.link.source_lag.raw() == 1 && scored.p_value == 1.0)
+        );
+    }
+
     fn tiny_xy(n: usize) -> (TimeSeriesData, Vec<VariableId>) {
         let mut b = CausalSchemaBuilder::new();
         b.add_variable(
@@ -1098,8 +1172,12 @@ mod tests {
     /// Three contemporaneous variables `a`, `c`, `b`. Values are arbitrary — [`SepGivenC`]
     /// decides purely from which columns are in the conditioning set, never from the data.
     fn tiny_abc(n: usize) -> (TimeSeriesData, Vec<VariableId>) {
+        tiny_variables(n, 3)
+    }
+
+    fn tiny_variables(n: usize, count: u32) -> (TimeSeriesData, Vec<VariableId>) {
         let mut b = CausalSchemaBuilder::new();
-        for name in ["a", "c", "b"] {
+        for name in ["a", "c", "b", "d"].into_iter().take(count as usize) {
             b.add_variable(
                 name,
                 ValueType::Continuous,
@@ -1111,7 +1189,7 @@ mod tests {
             .unwrap();
         }
         let schema = b.build().unwrap();
-        let cols = (0..3u32)
+        let cols = (0..count)
             .map(|i| {
                 let vals: Vec<f64> = (0..n).map(|t| t as f64 + f64::from(i)).collect();
                 OwnedColumn::Float64(
@@ -1130,7 +1208,7 @@ mod tests {
             TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
         )
         .unwrap();
-        (data, vec![VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)])
+        (data, (0..count).map(VariableId::from_raw).collect())
     }
 
     /// Unshielded triple `a — c — b` (no `a — b` edge) as a bare graph, plus the
@@ -1254,6 +1332,68 @@ mod tests {
 
         assert_eq!(graph.edge_between(a, c).unwrap().parent_child(), Some((a, c)));
         assert_eq!(graph.edge_between(b, c).unwrap().parent_child(), Some((b, c)));
+    }
+
+    struct MarginalOnly;
+
+    impl ConditionalIndependence for MarginalOnly {
+        fn test_batch(
+            &self,
+            prepared: &PreparedCiTest,
+            request: &CiBatchRequest<'_>,
+            _workspace: &mut CiWorkspace,
+            _ctx: &ExecutionContext,
+        ) -> Result<CiBatchResult, StatsError> {
+            prepared.ensure_compatible(request)?;
+            let request = prepared.bind_request(request);
+            let results = request
+                .queries
+                .iter()
+                .map(|query| CiResult {
+                    statistic: if query.z_len == 0 { 0.0 } else { 1.0 },
+                    p_value: if query.z_len == 0 { 1.0 } else { 0.0 },
+                    df: 0.0,
+                    ci: None,
+                })
+                .collect();
+            Ok(CiBatchResult { results })
+        }
+    }
+
+    #[test]
+    fn majority_votes_keep_the_input_skeleton_for_later_centers() {
+        let ctx = ExecutionContext::for_tests(1);
+        let (data, vars) = tiny_variables(5, 4);
+        let frame = LaggedFrame::from_series(&data, &vars, 0, &ctx.kernel_policy).unwrap();
+        let mut graph = TemporalCpdag::empty();
+        let nodes: Vec<_> =
+            vars.iter().map(|&v| graph.add_lagged(v, Lag::CONTEMPORANEOUS).unwrap()).collect();
+        for pair in nodes.windows(2) {
+            graph.insert_undirected(pair[0], pair[1]).unwrap();
+        }
+        let engine = PcmciEngine::new().with_ci(Arc::new(MarginalOnly)).with_constraints(
+            DiscoveryConstraints {
+                alpha: 0.05,
+                max_cond_size: 1,
+                ..DiscoveryConstraints::default()
+            },
+        );
+        let mut state = OrientationState::default();
+        let mut ws = DiscoveryWorkspace::default();
+        let (delta, _) =
+            orient_majority_colliders(&engine, &frame, &[], &mut graph, &mut state, &mut ws, &ctx)
+                .unwrap();
+        // Both original triples vote collider. The middle edge therefore has conflicting
+        // conclusions; orienting the first center must not erase the second triple.
+        assert_eq!(delta.conflicts, 1);
+        assert_eq!(
+            graph.edge_between(nodes[0], nodes[1]).unwrap().parent_child(),
+            Some((nodes[0], nodes[1]))
+        );
+        assert_eq!(
+            graph.edge_between(nodes[3], nodes[2]).unwrap().parent_child(),
+            Some((nodes[3], nodes[2]))
+        );
     }
 
     /// CI test double that always reports independence (every subset is a sepset).
