@@ -329,6 +329,11 @@ impl CounterfactualIdProblem {
                 "an edge names an unknown variable",
             ));
         }
+        if bidirected.iter().any(|&(a, b)| a == b) {
+            return Err(CounterfactualIdRefusal::invalid_query(
+                "a bidirected edge cannot be a self-loop",
+            ));
+        }
         let mut directed = directed.to_vec();
         directed.sort_unstable();
         directed.dedup();
@@ -1779,6 +1784,15 @@ mod tests {
     /// `tests/counterfactual_id_search.rs` records none), so the hedge branch is
     /// exercised on the engine directly: `P(Y_x = 1)` on the bow arc is one
     /// district `{Y_x}` whose term `P_x(y)` ID refuses with a hedge.
+    #[test]
+    fn bidirected_self_loop_is_invalid_query() {
+        let err =
+            CounterfactualIdProblem::new(vec![vec![0.0, 1.0]; 2], &[], &[(0, 0)]).unwrap_err();
+        assert_eq!(err.code, "invalid_argument");
+        assert_eq!(err.detail, "counterfactual_id.invalid_query");
+        assert!(CounterfactualIdProblem::new(vec![vec![0.0, 1.0]; 2], &[], &[(0, 1)]).is_ok());
+    }
+
     #[test]
     fn an_id_hedge_on_a_district_term_is_a_verifiable_obstruction() {
         let problem =

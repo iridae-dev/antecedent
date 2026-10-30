@@ -1147,13 +1147,6 @@ fn validate(
     for source in query.sources.iter() {
         selected.push(mask_of(&source.selection_targets, "a selection diagram")?);
         let control = mask_of(&source.controllable, "a controllable set")?;
-        if control == problem.full_mask() {
-            return Err(Rejection::Unsupported(
-                BOUNDS_EXCEEDED,
-                "a source that can experiment on every variable leaves no measured variable"
-                    .to_owned(),
-            ));
-        }
         controllable.push(control);
     }
     // Worlds.
@@ -2480,6 +2473,13 @@ mod tests {
         let cat = catalog(vec![regime(0, "target", &[], &[0, 1]), regime(1, "source", &[0], &[1])]);
         let decision = decide(&problem, &query, &cat);
         assert!(decision.derivation().is_some(), "{decision:?}");
+        // A source allowed to intervene on every node can still perform the subset do(0),
+        // leaving 1 measured. The available source law is the same in either declaration.
+        let full_control = interventional_query(0, 1.0, 1, vec![source(&[], &[0, 1])]);
+        let decision = decide(&problem, &full_control, &cat);
+        let derivation = decision.derivation().expect("the source do(0) law identifies");
+        assert!(derivation.cited.iter().any(|entry| entry.regime == RegimeId::from_raw(1)));
+        derivation.replay_checked(&ExecutionContext::for_tests(1)).unwrap();
     }
 
     #[test]

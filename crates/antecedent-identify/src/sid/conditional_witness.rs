@@ -154,15 +154,15 @@ struct Q {
     d: i128,
 }
 
-const fn gcd(mut a: i128, mut b: i128) -> i128 {
-    a = a.abs();
-    b = b.abs();
+fn gcd(a: i128, b: i128) -> Option<i128> {
+    let mut a = a.checked_abs()?;
+    let mut b = b.checked_abs()?;
     while b != 0 {
         let t = a % b;
         a = b;
         b = t;
     }
-    a
+    Some(a)
 }
 
 impl Q {
@@ -173,7 +173,7 @@ impl Q {
         if d == 0 {
             return None;
         }
-        let g = gcd(n, d);
+        let g = gcd(n, d)?;
         let (mut n, mut d) = (n / g, d / g);
         if d < 0 {
             n = n.checked_neg()?;
@@ -182,15 +182,15 @@ impl Q {
         Some(Self { n, d })
     }
     fn add(self, o: Self) -> Option<Self> {
-        let g = gcd(self.d, o.d);
+        let g = gcd(self.d, o.d)?;
         let l = (self.d / g).checked_mul(o.d)?;
         let a = self.n.checked_mul(l / self.d)?;
         let b = o.n.checked_mul(l / o.d)?;
         Self::new(a.checked_add(b)?, l)
     }
     fn mul(self, o: Self) -> Option<Self> {
-        let g1 = gcd(self.n, o.d).max(1);
-        let g2 = gcd(o.n, self.d).max(1);
+        let g1 = gcd(self.n, o.d)?.max(1);
+        let g2 = gcd(o.n, self.d)?.max(1);
         Self::new((self.n / g1).checked_mul(o.n / g2)?, (self.d / g2).checked_mul(o.d / g1)?)
     }
     fn div(self, o: Self) -> Option<Self> {
@@ -510,7 +510,7 @@ impl Integral {
         let common = |row: &[Q]| -> Option<(i128, Vec<i128>)> {
             let mut lcm = 1i128;
             for q in row {
-                lcm = (lcm / gcd(lcm, q.d)).checked_mul(q.d)?;
+                lcm = (lcm / gcd(lcm, q.d)?).checked_mul(q.d)?;
             }
             Some((lcm, row.iter().map(|q| q.n.checked_mul(lcm / q.d)).collect::<Option<_>>()?))
         };
@@ -1071,16 +1071,16 @@ fn perturb(
     // Integer direction: clear denominators, divide out the common factor.
     let mut lcm = 1i128;
     for q in direction {
-        lcm = (lcm / gcd(lcm, q.d)).checked_mul(q.d)?;
+        lcm = (lcm / gcd(lcm, q.d)?).checked_mul(q.d)?;
     }
     let ints: Vec<i128> =
         direction.iter().map(|q| q.n.checked_mul(lcm / q.d)).collect::<Option<_>>()?;
-    let g = ints.iter().fold(0i128, |acc, x| gcd(acc, *x));
+    let g = ints.iter().try_fold(0i128, |acc, x| gcd(acc, *x))?;
     if g == 0 {
         return None;
     }
     let ints: Vec<i128> = ints.iter().map(|x| x / g).collect();
-    let largest = ints.iter().map(|x| x.abs()).max()?;
+    let largest = ints.iter().try_fold(0i128, |largest, x| Some(largest.max(x.checked_abs()?)))?;
     // Base mechanism probabilities are at least 1/9 away from 0 and 1, and no
     // entry moves by more than 1/20.
     let eps = Q::new(1, largest.checked_mul(20)?)?;
@@ -1351,7 +1351,7 @@ impl WitnessCertification<'_> {
                 )?;
                 Ok(Some(WitnessSearch::Found(Box::new(record), check)))
             }
-            Err(IdentificationError::Cancelled) => Err(IdentificationError::Cancelled),
+            Err(error) if error.is_budget_or_cancel() => Err(error),
             _ => Ok(None),
         }
     }
@@ -1484,7 +1484,39 @@ mod tests {
         assert!(Q::parse("2/6").is_none(), "non-canonical spelling");
         assert!(Q::parse("1/-3").is_none());
         assert!(Q::parse("+1/3").is_none());
+        assert!(Q::parse(&format!("{}/3", i128::MIN)).is_none());
+        assert!(Q::new(i128::MIN, 3).is_none());
         assert!(Q::new(i128::MAX, 1).unwrap().add(Q::ONE).is_none(), "overflow refuses");
+    }
+
+    #[test]
+    fn certification_propagates_table_memory_exhaustion() {
+        use antecedent_core::VariableId;
+        use antecedent_graph::Admg;
+        use std::sync::Arc;
+
+        let diagram = SelectionDiagram::try_new(Admg::with_variables(2), []).unwrap();
+        let shape = Shape::new(&diagram).unwrap();
+        let model = base_model(&shape, 3, 1).unwrap();
+        let query = ConditionalTransportQuery {
+            base: crate::sid::ClassicalTransportQuery {
+                outcomes: vec![VariableId::from_raw(1)].into(),
+                treatments: vec![VariableId::from_raw(0)].into(),
+                source: Arc::from("source"),
+                target: Arc::from("target"),
+            },
+            conditioned_on: Vec::new().into(),
+        };
+        let ctx = ExecutionContext::for_tests(1).with_memory_limit(Some(0));
+        let certification = WitnessCertification {
+            diagram: &diagram,
+            query: &query,
+            shape: &shape,
+            quoted_operations: 1000,
+            ctx: &ctx,
+        };
+        let result = certification.try_pair(&model, &model, (vec![1], vec![], vec![1]));
+        assert!(matches!(result, Err(IdentificationError::Budget { .. })));
     }
 
     #[test]
