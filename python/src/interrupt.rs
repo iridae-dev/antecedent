@@ -404,6 +404,15 @@ where
     F: FnOnce() -> PyResult<T> + Send,
     T: Send,
 {
+    run_with_setup(py, || {}, f)
+}
+
+fn run_with_setup<F, S, T>(py: Python<'_>, setup: S, f: F) -> PyResult<T>
+where
+    F: FnOnce() -> PyResult<T> + Send,
+    S: FnOnce() + Send,
+    T: Send,
+{
     let scope = Arc::new(Scope::new(crate::execution_api::callback_failure_capacity()));
     scope.linked.lock().unwrap_or_else(PoisonError::into_inner).extend(PENDING.with(|pending| {
         std::mem::take(&mut *pending.borrow_mut())
@@ -420,9 +429,12 @@ where
         let slot = &slot;
         let spawned =
             std::thread::Builder::new().stack_size(WORKER_STACK_BYTES).spawn_scoped(s, move || {
-                let _execution_scope = crate::execution_api::enter(execution_policy);
-                ACTIVE.with(|active| *active.borrow_mut() = Some(worker_scope));
-                let result = observation.execute(|| catch_ffi(f));
+                let result = catch_ffi(|| {
+                    setup();
+                    let _execution_scope = crate::execution_api::enter(execution_policy);
+                    ACTIVE.with(|active| *active.borrow_mut() = Some(worker_scope));
+                    observation.execute(f)
+                });
                 *slot.0.lock().unwrap_or_else(PoisonError::into_inner) = Some(result);
                 slot.1.notify_one();
             });
@@ -475,6 +487,23 @@ where
 mod tests {
     use super::{DEFAULT_CALLBACK_FAILURE_CAPACITY, Scope, with_callback_failure};
     use antecedent_core::CallbackFailure;
+
+    #[test]
+    fn worker_setup_panic_notifies_waiter() {
+        use pyo3::prelude::*;
+        use std::sync::mpsc;
+        use std::time::Duration;
+
+        Python::initialize();
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            Python::attach(|py| {
+                let result = super::run_with_setup(py, || panic!("setup panic"), || Ok(()));
+                tx.send(result.is_err()).unwrap();
+            });
+        });
+        assert_eq!(rx.recv_timeout(Duration::from_secs(5)).unwrap(), true);
+    }
 
     #[test]
     fn a_domain_error_names_its_callback_failure_by_id_not_by_text() {
