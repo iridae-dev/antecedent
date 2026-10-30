@@ -354,6 +354,19 @@ pub fn consume_smoothed_dose_posterior_artifact(
     Ok(SmoothedDosePosteriorResult { wire })
 }
 
+/// Consume a smoothed-dose posterior artifact under caller execution authority.
+///
+/// # Errors
+/// Any decoding or verification failure, including cancellation or admission refusal.
+pub fn consume_smoothed_dose_posterior_artifact_with_context(
+    bytes: &[u8],
+    limits: PosteriorRowConsumeLimits,
+    ctx: &ExecutionContext,
+) -> Result<SmoothedDosePosteriorResult, IoError> {
+    let wire = SmoothedDosePosteriorArtifactWire::consume_typed_with_context(bytes, limits, ctx)?;
+    Ok(SmoothedDosePosteriorResult { wire })
+}
+
 impl PreparedSmoothedDose {
     /// The unlicensed Bayesian posterior of the smoothed dose response over the grid, under
     /// the declared outcome model, on the retained rows and certificate.
@@ -362,6 +375,30 @@ impl PreparedSmoothedDose {
     /// A typed refusal: an uncertified graph, a grid window outside the declared dose
     /// support, fewer than `min_local_rows` source rows in a window, no target rows, or an
     /// invalid prior or draw count.
+    pub fn posterior_with_context(
+        &self,
+        model: SmoothedDosePosteriorModelWire,
+        ctx: &ExecutionContext,
+    ) -> Result<SmoothedDosePosteriorResult, IoError> {
+        let wire = SmoothedDosePosteriorArtifactWire::checked_with_context(
+            SmoothedDosePosteriorArtifactInput {
+                graph: self.diagram.causal_graph(),
+                selections: self.diagram.selection_targets().iter().map(|v| v.raw()).collect(),
+                query: &self.query,
+                variable_names: &self.variable_names,
+                identification: &self.identification,
+                input: &self.input,
+                model,
+            },
+            ctx,
+        )?;
+        Ok(SmoothedDosePosteriorResult { wire })
+    }
+
+    /// The unlicensed posterior under the context-free native workspace cap.
+    ///
+    /// # Errors
+    /// Invalid premises or posterior inputs.
     pub fn posterior(
         &self,
         model: SmoothedDosePosteriorModelWire,

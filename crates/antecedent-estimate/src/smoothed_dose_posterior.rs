@@ -126,6 +126,49 @@ pub fn smoothed_dose_certified_features(
     }
 }
 
+/// Conservative live workspace: the first count is parent-owned scratch, the second
+/// includes nested regression and grid-draw leases that remain separately admitted.
+fn posterior_workspace_bytes(
+    rows: usize,
+    source: usize,
+    features: usize,
+    knots: usize,
+    degree: u8,
+    interactions: bool,
+    grid: usize,
+    draws: usize,
+) -> Option<(u64, u64)> {
+    let terms = usize::from(degree).checked_add(knots)?;
+    let width = 1usize.checked_add(terms)?.checked_add(features)?.checked_add(if interactions {
+        terms.checked_mul(features)?
+    } else {
+        0
+    })?;
+    let quadrature = knots.checked_add(1)?.checked_mul(WINDOW_NODES)?;
+    let square = width.checked_mul(width)?;
+    let coefficient_draws = draws.checked_mul(width)?;
+    let grid_draws = draws.checked_mul(grid)?;
+    let mut parent = 0usize;
+    let mut add = |n: usize| -> Option<()> {
+        parent = parent.checked_add(n)?;
+        Some(())
+    };
+    add(rows.checked_mul(4)?)?;
+    add(source.checked_mul(width.checked_add(terms)?.checked_add(1)?)?)?;
+    add(square.checked_mul(11)?)?;
+    // The nested fitter separately admits one draw buffer. This parent-owned
+    // component covers its workspace scratch, then the retained coefficient copy.
+    add(coefficient_draws)?;
+    add(grid.checked_mul(width)?.checked_mul(2)?)?;
+    add(quadrature.checked_mul(width.checked_add(terms)?.checked_add(4)?)?)?;
+    add(grid.checked_mul(grid)?.checked_mul(3)?)?;
+    add(draws.checked_add(width.checked_mul(12)?)?.checked_add(knots.checked_mul(4)?)?)?;
+    let nested = square.checked_add(coefficient_draws)?.checked_add(grid_draws)?;
+    let parent_bytes = parent.checked_mul(std::mem::size_of::<f64>())?;
+    let total_bytes = parent.checked_add(nested)?.checked_mul(std::mem::size_of::<f64>())?;
+    Some((u64::try_from(parent_bytes).ok()?, u64::try_from(total_bytes).ok()?))
+}
+
 /// Posterior of `psi_h(a)` over the query's grid under the declared outcome model.
 ///
 /// # Errors
@@ -139,8 +182,32 @@ pub fn smoothed_dose_posterior(
     input: &SmoothedDoseInput,
     model: &SmoothedDosePosteriorModel<'_>,
 ) -> Result<SmoothedDosePosterior, EstimationError> {
-    let certified = smoothed_dose_certified_features(id)?;
     query.validate()?;
+    let workspace_refusal = || {
+        EstimationError::refused(
+            antecedent_core::reason_code!("transport_budget_cancel"),
+            "the smoothed dose posterior workspace exceeds its memory budget",
+        )
+    };
+    let source_count = input.source.iter().filter(|source| **source).count();
+    let (parent_bytes, total_bytes) = posterior_workspace_bytes(
+        input.source.len(),
+        source_count,
+        input.covariates.len(),
+        model.basis.knots.len(),
+        model.basis.degree,
+        model.basis.interactions,
+        query.grid.len(),
+        model.draws,
+    )
+    .ok_or_else(workspace_refusal)?;
+    if total_bytes > crate::smoothed_dose::SMOOTHED_DOSE_MAX_WORKSPACE_BYTES {
+        return Err(workspace_refusal());
+    }
+    let parent_bytes = usize::try_from(parent_bytes).map_err(|_| workspace_refusal())?;
+    let _workspace =
+        crate::util::admit_bound_array::<u8>(parent_bytes, 1).map_err(|_| workspace_refusal())?;
+    let certified = smoothed_dose_certified_features(id)?;
     if input.declares_rows() {
         return Err(crate::util::refuse(
             antecedent_core::reason_code!("route_not_supported"),
@@ -435,6 +502,23 @@ mod tests {
     }
 
     #[test]
+    fn posterior_workspace_refuses_unrepresentable_shapes_and_unfunded_work() {
+        assert!(posterior_workspace_bytes(10, 5, usize::MAX, 1, 2, true, 2, 200).is_none());
+        assert!(posterior_workspace_bytes(10, 5, 1, usize::MAX, 2, true, 2, 200).is_none());
+        assert!(posterior_workspace_bytes(10, 5, 1, 1, 2, true, usize::MAX, 200).is_none());
+        assert!(posterior_workspace_bytes(10, 5, 1, 1, 2, true, 2, usize::MAX).is_none());
+        let ctx = antecedent_core::ExecutionContext::for_tests(1).with_memory_limit(Some(1));
+        let basis = DoseBasis::default();
+        let result = antecedent_core::numerical_admission::with_context(&ctx, || {
+            smoothed_dose_posterior(&standardize(), &query(), &input(), &model(&basis))
+        });
+        assert!(
+            matches!(result, Err(error) if error.reason_code() == Some("transport_budget_cancel"))
+        );
+        assert_eq!(ctx.admission().available().bytes(), 1);
+    }
+
+    #[test]
     fn grid_posterior_matches_the_conjugate_reference_and_keeps_the_covariance() {
         // Reference: numpy ridge posterior on the same basis, with the window average taken
         // as the mean over target rows of scipy-quadrature integrals (no mean-covariate
@@ -474,9 +558,10 @@ mod tests {
             let mut declared = plain.clone();
             edit(&mut declared);
             assert_eq!(declared.source.len(), n);
-            let error = smoothed_dose_posterior(&standardize(), &query(), &declared, &model(&basis))
-                .unwrap_err()
-                .to_string();
+            let error =
+                smoothed_dose_posterior(&standardize(), &query(), &declared, &model(&basis))
+                    .unwrap_err()
+                    .to_string();
             assert!(error.contains("dose_response.posterior_declared_rows"), "{error}");
         }
     }

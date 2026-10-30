@@ -201,6 +201,14 @@ fn evaluate(
     Ok(result)
 }
 
+fn cancelled() -> Refusal {
+    Refusal::Refused {
+        code: antecedent_core::reason_code!("transport_budget_cancel"),
+        detail: "smoothed_dose_posterior.cancelled".into(),
+        message: "posterior artifact execution cancelled".into(),
+    }
+}
+
 impl SmoothedDosePosteriorArtifactWire {
     /// Build an artifact from checked premises, run the posterior and verify the result.
     ///
@@ -231,6 +239,20 @@ impl SmoothedDosePosteriorArtifactWire {
         wire.data_digest = wire.expected_data_digest().map_err(undecodable)?;
         wire.validate_shape()?;
         Ok(wire)
+    }
+
+    /// Build under the caller's numerical admission and cancellation authority.
+    ///
+    /// # Errors
+    /// The same refusals as [`Self::checked`], including cancelled or unfunded work.
+    pub fn checked_with_context(
+        input: SmoothedDosePosteriorArtifactInput<'_>,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, Refusal> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(cancelled());
+        }
+        antecedent_core::numerical_admission::with_context(ctx, || Self::checked(input))
     }
 
     /// The premises digest this artifact's stored premises hash to.
@@ -367,6 +389,23 @@ impl SmoothedDosePosteriorArtifactWire {
         }
         let result = evaluate(&id, &query, &self.input, &self.model)?;
         Ok((result, id))
+    }
+
+    /// Consume under the caller's numerical admission and cancellation authority.
+    ///
+    /// # Errors
+    /// The same refusals as [`Self::consume_typed`], including cancelled or unfunded work.
+    pub fn consume_typed_with_context(
+        bytes: &[u8],
+        limits: PosteriorRowConsumeLimits,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, Refusal> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(cancelled());
+        }
+        antecedent_core::numerical_admission::with_context(ctx, || {
+            Self::consume_typed(bytes, limits)
+        })
     }
 
     /// Decode and recompute everything under the consumer's limits; accept only a result

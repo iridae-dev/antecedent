@@ -90,6 +90,36 @@ fn consume(bytes: &[u8]) -> Result<SmoothedDosePosteriorArtifactWire, PosteriorR
 }
 
 #[test]
+fn posterior_artifact_context_controls_replay_and_preserves_results() {
+    let (prepared, _) = prepare(Design::IndependentSamples, 17);
+    let legacy = prepared.posterior(model(200)).unwrap();
+    let bytes = legacy.export().unwrap();
+    let ctx = ExecutionContext::for_tests(1);
+    let produced = prepared.posterior_with_context(model(200), &ctx).unwrap();
+    assert_eq!(produced.export().unwrap(), bytes);
+    let consumed = antecedent::analysis::consume_smoothed_dose_posterior_artifact_with_context(
+        &bytes,
+        PosteriorRowConsumeLimits::default(),
+        &ctx,
+    )
+    .unwrap();
+    assert_eq!(consumed.export().unwrap(), bytes);
+    let tight = ExecutionContext::for_tests(1).with_memory_limit(Some(1));
+    assert!(matches!(prepared.posterior_with_context(model(200), &tight),
+        Err(IoError::Refused { code, .. }) if code == "transport_budget_cancel"));
+    assert!(matches!(antecedent::analysis::consume_smoothed_dose_posterior_artifact_with_context(
+        &bytes, PosteriorRowConsumeLimits::default(), &tight),
+        Err(IoError::Refused { code, .. }) if code == "transport_budget_cancel"));
+    let cancelled = ExecutionContext::for_tests(1);
+    cancelled.cancellation.cancel();
+    assert!(matches!(prepared.posterior_with_context(model(200), &cancelled),
+        Err(IoError::Refused { code, .. }) if code == "transport_budget_cancel"));
+    assert!(matches!(antecedent::analysis::consume_smoothed_dose_posterior_artifact_with_context(
+        &bytes, PosteriorRowConsumeLimits::default(), &cancelled),
+        Err(IoError::Refused { code, .. }) if code == "transport_budget_cancel"));
+}
+
+#[test]
 fn posterior_covers_the_closed_form_smoothed_target_under_both_designs() {
     for design in [Design::NestedCohort, Design::IndependentSamples] {
         let (prepared, target_mean) = prepare(design, 11);

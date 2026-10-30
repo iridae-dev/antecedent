@@ -162,6 +162,7 @@ pub(crate) mod four_way;
 pub(crate) mod functional_sensitivity;
 pub(crate) mod functional_validation;
 pub mod horizon_composition;
+mod imputed_graph_selection;
 pub mod interface_contract;
 mod inverse_outcome;
 pub mod inverse_query;
@@ -181,7 +182,6 @@ pub mod mechanism_composition;
 pub mod mechanism_discrepancy;
 pub(crate) mod mechanism_exports;
 mod missing_data;
-mod imputed_graph_selection;
 mod missing_imputation;
 mod missing_imputation_vector;
 pub mod missing_support;
@@ -345,6 +345,9 @@ pub use exact::{
     ExactFactorRequirement, ExactPreparedState, ExactStudyIdentities, ExactStudyInspection,
     ExactStudyResult,
 };
+pub use imputed_graph_selection::{
+    GraphSelectionPerImputation, estimate_with_graph_selection_per_imputation,
+};
 pub use interface_contract::{
     ConsumedInterfaceContract, CyclicComponentDeclaration, InterfaceContractExport,
     InterfaceContractRefusal, check_interface_composition, check_interface_composition_with_cyclic,
@@ -387,9 +390,6 @@ pub use mechanism_composition::{
     ConsumedComposition, DependenceInput, MechanismCompositionExport, MechanismCompositionRefusal,
     MechanismCompositionRequest, MechanismInput, MechanismRefit, MechanismSource,
     PreparedMechanismComposition, consume_mechanism_composition_artifact,
-};
-pub use imputed_graph_selection::{
-    GraphSelectionPerImputation, estimate_with_graph_selection_per_imputation,
 };
 pub use missing_support::{
     MissingInference, MissingModality, MissingRouteCell, MissingRouteSupport,
@@ -437,6 +437,7 @@ pub use scientific_bridge::{
 pub use smoothed_dose::{
     PreparedSmoothedDose, SmoothedDosePosteriorResult, SmoothedDoseResult,
     consume_smoothed_dose_artifact, consume_smoothed_dose_posterior_artifact,
+    consume_smoothed_dose_posterior_artifact_with_context,
 };
 pub use statistical::{
     DeferredStatisticalTransport, StatisticalBindingView, StatisticalContrast,
