@@ -80,6 +80,43 @@ def run(command: list[str], **kwargs) -> None:
     subprocess.run(command, check=True, **kwargs)
 
 
+def validate_rust_listing(listing: dict, checks=RUST_CHECKS) -> None:
+    """Every declared package/substring must have a runnable selected lib test."""
+    suites = listing.get("rust-suites", {})
+    for crate, selector in checks:
+        cases = suites.get(crate, {}).get("testcases", {})
+        if not any(
+            (selector is None or selector in name)
+            and not case.get("ignored", False)
+            and case.get("filter-match", {}).get("status") == "matches"
+            for name, case in cases.items()
+        ):
+            raise ValueError(f"cyclic selector has no runnable selected test: {crate} / {selector}")
+
+
+def run_rust_checks() -> None:
+    packages = []
+    for crate in dict.fromkeys(crate for crate, _ in RUST_CHECKS):
+        packages.extend(["-p", crate])
+    selections = [
+        f"package({crate})" if test is None else f"(package({crate}) & test({test}))"
+        for crate, test in RUST_CHECKS
+    ]
+    selection = ["--lib", "-E", " | ".join(selections)]
+    # Match test.sh dev's profile defaults so discovery and execution use the
+    # same binary graph, while preserving caller-supplied profile overrides.
+    env = os.environ.copy()
+    env.setdefault("CARGO_PROFILE_TEST_OPT_LEVEL", "0")
+    env.setdefault("CARGO_PROFILE_TEST_DEBUG", "line-tables-only")
+    command = ["cargo", "nextest", "list", "--locked", "--profile", "ci",
+               *packages, *selection, "--message-format", "json"]
+    print("+ " + " ".join(command), flush=True)
+    listing = subprocess.run(command, cwd=ROOT, env=env, check=True,
+                             capture_output=True, text=True)
+    validate_rust_listing(json.loads(listing.stdout), RUST_CHECKS)
+    run(["bash", "scripts/test.sh", "dev", *packages, *selection], cwd=ROOT)
+
+
 def inventory() -> None:
     record = tomllib.loads((ROOT / "parity/cyclic/acceptance.toml").read_text(encoding="utf-8"))
     expected = {"Y18.1", "Y18.2"} | {f"Y19.{i}" for i in range(1, 9)} | {"integrated_families", "nonlinear_sde"}
@@ -220,18 +257,7 @@ def main() -> None:
     inventory()
     if args.inventory_only:
         return
-    # Build each library once and run the union of the original selections.
-    # Separate cargo invocations repeatedly rebuilt shared test dependencies and
-    # could let the gate's wall time grow without adding acceptance coverage.
-    command = ["bash", "scripts/test.sh", "dev"]
-    for crate in dict.fromkeys(crate for crate, _ in RUST_CHECKS):
-        command.extend(["-p", crate])
-    selections = [
-        f"package({crate})" if test is None else f"(package({crate}) & test({test}))"
-        for crate, test in RUST_CHECKS
-    ]
-    command.extend(["--lib", "-E", " | ".join(selections)])
-    run(command, cwd=ROOT)
+    run_rust_checks()
     integration = ["bash", "scripts/test.sh", "dev", "-p", "antecedent"]
     for target in RUST_INTEGRATION_TESTS:
         integration.extend(["--test", target])
