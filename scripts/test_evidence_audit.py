@@ -420,7 +420,15 @@ class Classification(unittest.TestCase):
             self.assertEqual(audit.fixture_load_problems(root, claim), [])
             (root / "tests" / "common").mkdir()
             test.write_text("#[test]\nfn other() {}\n", encoding="utf-8")
-            (root / "tests" / "common" / "load.rs").write_text('fn f() { fixture_dir("case"); }\n', encoding="utf-8")
+            (root / "tests" / "common" / "load.rs").write_text('fn f() { fixture_dir("conformance/area/case"); }\n', encoding="utf-8")
+            self.assertEqual(audit.fixture_load_problems(root, claim), ["known_truth_fixture_not_named_by_cited_test"])
+            test.write_text('const F: &str = "conformance/area/case_extra/expected.json";\n', encoding="utf-8")
+            self.assertEqual(audit.fixture_load_problems(root, claim), ["known_truth_fixture_not_named_by_cited_test"])
+            test.write_text('const F: &str = "prefixconformance/area/case/expected.json";\n', encoding="utf-8")
+            self.assertEqual(audit.fixture_load_problems(root, claim), ["known_truth_fixture_not_named_by_cited_test"])
+            nested = root / "tests" / "it"
+            nested.mkdir()
+            (nested / "test.rs").write_text('const F: &str = "conformance/area/case/expected.json";\n', encoding="utf-8")
             self.assertEqual(audit.fixture_load_problems(root, claim), [])
             self.assertEqual(
                 audit.fixture_load_problems(root, {**claim, "evidence_kind": "regression_pin"}), []

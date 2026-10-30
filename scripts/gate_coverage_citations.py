@@ -32,11 +32,14 @@ fns_cache = {}
 # `static_calibration::name`, `crates/antecedent/tests/derivative_calibration.rs::name`, and the
 # shorthand `::name` that continues the last-named module inside one citation.
 MODULES = sorted((p.stem for p in tests_dir.glob("*.rs")), key=len, reverse=True)
+# Explicit test paths remain recognizable even after the target module is deleted.
+# Shorthand names remain restricted to existing modules to avoid treating API
+# references in prose as coverage-test citations.
+module_alternatives = "|".join(re.escape(m) for m in MODULES) or r"(?!)"
 CITE_RE = re.compile(
-    r"(?:crates/antecedent/tests/)?(?<![A-Za-z0-9_])("
-    + "|".join(re.escape(m) for m in MODULES)
-    + r")(?:\.rs)?::([A-Za-z0-9_{},*]+)"
-    r"((?:,\s*::[A-Za-z0-9_{},*]+)*)"
+    r"(?:(?:crates/antecedent/tests/)(?P<explicit>[a-z][a-z0-9_]*)\.rs"
+    r"|(?<![A-Za-z0-9_])(?P<short>" + module_alternatives + r")(?:\.rs)?)"
+    r"::(?P<name>[A-Za-z0-9_{},*]+)(?P<continued>(?:,\s*::[A-Za-z0-9_{},*]+)*)"
 )
 CONT_RE = re.compile(r"::([A-Za-z0-9_{},*]+)")
 
@@ -54,8 +57,8 @@ for cell in lic.get("cell", []):
     row = f"{cell['query']}/{cell['graph_class']}/{cell['structure']}/{cell['inference']}/{cell['validation']}"
     lim = str(cell.get("limitations", ""))
     for m in CITE_RE.finditer(lim):
-        module = m.group(1)
-        names = [m.group(2)] + CONT_RE.findall(m.group(3) or "")
+        module = m.group("explicit") or m.group("short")
+        names = [m.group("name")] + CONT_RE.findall(m.group("continued") or "")
         if module not in fns_cache:
             fns_cache[module] = test_fns(module)
         fns = fns_cache[module]
@@ -71,6 +74,9 @@ for cell in lic.get("cell", []):
                 fail.append(
                     f"{row}: cites {module}::{name} but no such test fn in crates/antecedent/tests/{module}.rs"
                 )
+
+if checked == 0:
+    fail.append("no coverage test citations were checked")
 
 if fail:
     print("Coverage citation gate FAILED:")

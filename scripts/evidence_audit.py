@@ -261,7 +261,7 @@ def claim_rows(root: Path) -> list[dict]:
 
 
 def cited_test_text(root: Path, test: str) -> str:
-    """Cited test source plus its sibling module directory and shared test helpers."""
+    """Cited test source plus its same-named nested Rust module."""
     path = in_repo(root, test)
     if not path or not path.is_file():
         return ""
@@ -269,7 +269,6 @@ def cited_test_text(root: Path, test: str) -> str:
     if path.suffix == ".rs":
         if path.with_suffix("").is_dir():
             files.update(path.with_suffix("").glob("**/*.rs"))
-        files.update((path.parent / "common").glob("**/*.rs"))
     return "\n".join(p.read_text(encoding="utf-8", errors="ignore") for p in sorted(files))
 
 
@@ -287,7 +286,7 @@ def fixture_load_problems(root: Path, claim: dict) -> list[str]:
     text = cited_test_text(root, test)
     if not text:
         return []
-    if fixture in text or fixture.rsplit("/", 1)[-1] in text:
+    if re.search(r"(?<![A-Za-z0-9_./-])" + re.escape(fixture) + r"(?=$|[/\"'\s])", text):
         return []
     return ["known_truth_fixture_not_named_by_cited_test"]
 

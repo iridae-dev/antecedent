@@ -58,7 +58,13 @@ EXEMPT_BEFORE = re.compile(
     r"(?:\bat|\bbias|\bSE(?: is)?|\bSD|\bmean|\btotal|\beffect|\bMixture|draw's|=)\s*$"
 )
 SENTENCE_END_RE = re.compile(r"(?<=[a-z)\]`%])\.\s+(?=[A-Z0-9(`])")
-TOLERANCE = 0.0005 + 1e-9
+def figure_tolerance(rendered: str) -> float:
+    """Half a unit in the written last decimal place plus roundoff allowance."""
+    return 0.5 * 10 ** -len(rendered.split(".", 1)[1]) + 1e-9
+
+
+def nominal_figure(text: str, lo: int, start: int) -> bool:
+    return re.search(r"(?i)\bnominal(?:\s+(?:coverage|level|of|at|is)){0,3}\s*$", text[lo:start]) is not None
 
 
 def sentences(text: str) -> list[tuple[int, int]]:
@@ -77,6 +83,8 @@ def figures(text: str, lo: int, hi: int) -> list[re.Match]:
     out = []
     for m in FIGURE_RE.finditer(text, lo, hi):
         if float(m.group(0)) < 0.1:
+            continue
+        if nominal_figure(text, lo, m.start()):
             continue
         if EXEMPT_BEFORE.search(text[max(lo, m.start() - 12) : m.start()]):
             continue
@@ -307,7 +315,7 @@ def _legacy_figure_problems(text: str, label: str, records: dict[str, dict]) -> 
                 )
             elif kind == "records":
                 known = [records[i] for i in ids if i in records]
-                if known and not any(abs(float(r["observed"]) - value) <= TOLERANCE for r in known):
+                if known and not any(abs(float(r["observed"]) - value) <= figure_tolerance(fig.group(0)) for r in known):
                     observed = ", ".join(f"{float(r['observed']):.4f}" for r in known)
                     problems.append(
                         f"{label}: coverage figure {fig.group(0)} does not match its cited "
@@ -369,7 +377,7 @@ def _structured_problems(cell: dict, records: dict[str, dict]) -> list[str]:
             scan_from = pos + 1
             for fig in prose:
                 value = float(fig.group(0))
-                if not any(abs(float(rec["observed"]) - value) <= TOLERANCE for rec in known):
+                if not any(abs(float(rec["observed"]) - value) <= figure_tolerance(fig.group(0)) for rec in known):
                     observed = ", ".join(f"{float(rec['observed']):.4f}" for rec in known)
                     problems.append(
                         f"{label}: coverage figure {fig.group(0)} does not match its cited "
@@ -427,8 +435,9 @@ def check() -> list[str]:
                 problems.append(f"{label}: cites unknown coverage record {rid}")
         if cell.get("coverage_figures"):
             problems.extend(_structured_problems(cell, records))
-        else:
-            problems.extend(_legacy_figure_problems(text, label, records))
+        # Structured declarations do not exempt other figures in the same text.
+        problems.extend(_legacy_figure_problems(text, label, records))
+    problems.extend(backlog_problems())
     return problems
 
 
@@ -486,7 +495,7 @@ def cited_records(sentence: str, records: dict[str, dict]) -> list[dict]:
 def _format_observed(observed: float, template: str) -> str:
     decimals = len(template.split(".", 1)[1])
     rendered = f"{observed:.{decimals}f}"
-    if abs(float(rendered) - observed) <= TOLERANCE:
+    if abs(float(rendered) - observed) <= figure_tolerance(template):
         return rendered
     return f"{observed:.4f}"
 
@@ -503,7 +512,7 @@ def rebind_text(text: str, records: dict[str, dict]) -> str:
             if not known:
                 continue
             value = float(fig.group(0))
-            if any(abs(float(r["observed"]) - value) <= TOLERANCE for r in known):
+            if any(abs(float(r["observed"]) - value) <= figure_tolerance(fig.group(0)) for r in known):
                 continue
             observed_vals = [float(r["observed"]) for r in known]
             before = text[max(lo, fig.start() - 2) : fig.start()]
@@ -530,7 +539,7 @@ def cite_text(text: str, records: dict[str, dict]) -> str:
         tagged = []
         for fig in figs:
             value = float(fig.group(0))
-            ids = sorted(r["id"] for r in pool if abs(float(r["observed"]) - value) <= TOLERANCE)
+            ids = sorted(r["id"] for r in pool if abs(float(r["observed"]) - value) <= figure_tolerance(fig.group(0)))
             # Bind only an unambiguous match: one test (a curve's grid points share it).
             if len({records[i]["test"] for i in ids}) != 1:
                 ids = []

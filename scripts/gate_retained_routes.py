@@ -30,6 +30,7 @@ import tomllib
 from pathlib import Path
 
 from _rust_source import lex, rust_mask
+from test_evidence import rust_test_declaration_problems
 from retained_computation import (
     WRAPPER_FAMILY_EXECUTORS,
     retained_computation_problems,
@@ -421,9 +422,15 @@ def _test_citation_problems(root: Path, route: dict) -> list[str]:
     citation = route.get("retained_route_test")
     if citation is None:
         return []
-    path, _, name = str(citation).partition("::")
-    text = _read(root, path)
-    if text is None or not re.search(rf"\bfn\s+{re.escape(name)}\b", text):
+    path, separator, name = str(citation).partition("::")
+    if not separator or not path.endswith(".rs") or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+        return [f"{route['id']}: retained_route_test {citation!r} names no test function"]
+    source = (root / path).resolve()
+    try:
+        source.relative_to(root.resolve())
+    except ValueError:
+        return [f"{route['id']}: retained_route_test {citation!r} escapes the repository"]
+    if rust_test_declaration_problems(source, name):
         return [f"{route['id']}: retained_route_test {citation!r} names no test function"]
     return []
 
