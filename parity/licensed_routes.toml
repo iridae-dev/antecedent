@@ -7005,6 +7005,162 @@ estimator = "mediation.linear"
 lowering = "StaticMediationDag"
 
 [[route]]
+coordinate = "Counterfactual:Admg:graph_posterior:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "Counterfactual:Admg:graph_posterior:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "Counterfactual:Admg:graph_posterior:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "Counterfactual:Admg:graph_posterior:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "Counterfactual:Admg:graph_posterior:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "Counterfactual:Admg:graph_posterior:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "Counterfactual:TemporalAdmg:graph_posterior:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "Counterfactual:TemporalAdmg:graph_posterior:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "Counterfactual:TemporalAdmg:graph_posterior:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "Counterfactual:TemporalAdmg:graph_posterior:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "Counterfactual:TemporalAdmg:graph_posterior:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "Counterfactual:TemporalAdmg:graph_posterior:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "Counterfactual:Cpdag:graph_posterior:Frequentist:none"
+identifier = "gcm.parametric"
+estimator = "gcm.fit"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "Counterfactual:Cpdag:graph_posterior:Frequentist:cheap"
+identifier = "gcm.parametric"
+estimator = "gcm.fit"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "Counterfactual:Cpdag:graph_posterior:Frequentist:full"
+identifier = "gcm.parametric"
+estimator = "gcm.fit"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "Counterfactual:Cpdag:graph_posterior:Bayesian:none"
+identifier = "gcm.parametric"
+estimator = "gcm.fit"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "Counterfactual:Cpdag:graph_posterior:Bayesian:cheap"
+identifier = "gcm.parametric"
+estimator = "gcm.fit"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "Counterfactual:Cpdag:graph_posterior:Bayesian:full"
+identifier = "gcm.parametric"
+estimator = "gcm.fit"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "Counterfactual:Dag:graph_posterior:Frequentist:none"
+identifier = "gcm.parametric"
+estimator = "gcm.fit"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "Counterfactual:Dag:graph_posterior:Frequentist:cheap"
+identifier = "gcm.parametric"
+estimator = "gcm.fit"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "Counterfactual:Dag:graph_posterior:Frequentist:full"
+identifier = "gcm.parametric"
+estimator = "gcm.fit"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "Counterfactual:Dag:graph_posterior:Bayesian:none"
+identifier = "gcm.parametric"
+estimator = "gcm.fit"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "Counterfactual:Dag:graph_posterior:Bayesian:cheap"
+identifier = "gcm.parametric"
+estimator = "gcm.fit"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "Counterfactual:Dag:graph_posterior:Bayesian:full"
+identifier = "gcm.parametric"
+estimator = "gcm.fit"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "Counterfactual:Pag:graph_posterior:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "Counterfactual:Pag:graph_posterior:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
 coordinate = "PointDerivative:Cpdag:graph_posterior:Frequentist:none"
 identifier = "generalized.adjustment"
 estimator = "response.kennedy_dr"
@@ -7108,6 +7264,42 @@ lowering = "GraphPosteriorStaticResponse"
 
 [[route]]
 coordinate = "PointDerivative:Admg:graph_posterior:Bayesian:full"
+identifier = "response.backdoor"
+estimator = "response.kennedy_dr"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "PointDerivative:TemporalAdmg:graph_posterior:Frequentist:none"
+identifier = "response.backdoor"
+estimator = "response.kennedy_dr"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "PointDerivative:TemporalAdmg:graph_posterior:Frequentist:cheap"
+identifier = "response.backdoor"
+estimator = "response.kennedy_dr"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "PointDerivative:TemporalAdmg:graph_posterior:Frequentist:full"
+identifier = "response.backdoor"
+estimator = "response.kennedy_dr"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "PointDerivative:TemporalAdmg:graph_posterior:Bayesian:none"
+identifier = "response.backdoor"
+estimator = "response.kennedy_dr"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "PointDerivative:TemporalAdmg:graph_posterior:Bayesian:cheap"
+identifier = "response.backdoor"
+estimator = "response.kennedy_dr"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "PointDerivative:TemporalAdmg:graph_posterior:Bayesian:full"
 identifier = "response.backdoor"
 estimator = "response.kennedy_dr"
 lowering = "GraphPosteriorStaticResponse"
@@ -7221,6 +7413,42 @@ estimator = "response.kennedy_dr"
 lowering = "GraphPosteriorStaticResponse"
 
 [[route]]
+coordinate = "Elasticity:TemporalAdmg:graph_posterior:Frequentist:none"
+identifier = "response.backdoor"
+estimator = "response.kennedy_dr"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "Elasticity:TemporalAdmg:graph_posterior:Frequentist:cheap"
+identifier = "response.backdoor"
+estimator = "response.kennedy_dr"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "Elasticity:TemporalAdmg:graph_posterior:Frequentist:full"
+identifier = "response.backdoor"
+estimator = "response.kennedy_dr"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "Elasticity:TemporalAdmg:graph_posterior:Bayesian:none"
+identifier = "response.backdoor"
+estimator = "response.kennedy_dr"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "Elasticity:TemporalAdmg:graph_posterior:Bayesian:cheap"
+identifier = "response.backdoor"
+estimator = "response.kennedy_dr"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "Elasticity:TemporalAdmg:graph_posterior:Bayesian:full"
+identifier = "response.backdoor"
+estimator = "response.kennedy_dr"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
 coordinate = "SemiElasticity:Cpdag:graph_posterior:Frequentist:none"
 identifier = "generalized.adjustment"
 estimator = "response.kennedy_dr"
@@ -7324,6 +7552,42 @@ lowering = "GraphPosteriorStaticResponse"
 
 [[route]]
 coordinate = "SemiElasticity:Admg:graph_posterior:Bayesian:full"
+identifier = "response.backdoor"
+estimator = "response.kennedy_dr"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "SemiElasticity:TemporalAdmg:graph_posterior:Frequentist:none"
+identifier = "response.backdoor"
+estimator = "response.kennedy_dr"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "SemiElasticity:TemporalAdmg:graph_posterior:Frequentist:cheap"
+identifier = "response.backdoor"
+estimator = "response.kennedy_dr"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "SemiElasticity:TemporalAdmg:graph_posterior:Frequentist:full"
+identifier = "response.backdoor"
+estimator = "response.kennedy_dr"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "SemiElasticity:TemporalAdmg:graph_posterior:Bayesian:none"
+identifier = "response.backdoor"
+estimator = "response.kennedy_dr"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "SemiElasticity:TemporalAdmg:graph_posterior:Bayesian:cheap"
+identifier = "response.backdoor"
+estimator = "response.kennedy_dr"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "SemiElasticity:TemporalAdmg:graph_posterior:Bayesian:full"
 identifier = "response.backdoor"
 estimator = "response.kennedy_dr"
 lowering = "GraphPosteriorStaticResponse"
@@ -7437,6 +7701,42 @@ estimator = "response.riesz_ade"
 lowering = "GraphPosteriorStaticResponse"
 
 [[route]]
+coordinate = "AverageDerivative:TemporalAdmg:graph_posterior:Frequentist:none"
+identifier = "response.backdoor"
+estimator = "response.riesz_ade"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "AverageDerivative:TemporalAdmg:graph_posterior:Frequentist:cheap"
+identifier = "response.backdoor"
+estimator = "response.riesz_ade"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "AverageDerivative:TemporalAdmg:graph_posterior:Frequentist:full"
+identifier = "response.backdoor"
+estimator = "response.riesz_ade"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "AverageDerivative:TemporalAdmg:graph_posterior:Bayesian:none"
+identifier = "response.backdoor"
+estimator = "response.riesz_ade"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "AverageDerivative:TemporalAdmg:graph_posterior:Bayesian:cheap"
+identifier = "response.backdoor"
+estimator = "response.riesz_ade"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "AverageDerivative:TemporalAdmg:graph_posterior:Bayesian:full"
+identifier = "response.backdoor"
+estimator = "response.riesz_ade"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
 coordinate = "DirectionalDerivative:Cpdag:graph_posterior:Frequentist:none"
 identifier = "generalized.adjustment"
 estimator = "response.gam_derivative"
@@ -7545,6 +7845,42 @@ estimator = "response.gam_derivative"
 lowering = "GraphPosteriorStaticResponse"
 
 [[route]]
+coordinate = "DirectionalDerivative:TemporalAdmg:graph_posterior:Frequentist:none"
+identifier = "response.backdoor"
+estimator = "response.gam_derivative"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "DirectionalDerivative:TemporalAdmg:graph_posterior:Frequentist:cheap"
+identifier = "response.backdoor"
+estimator = "response.gam_derivative"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "DirectionalDerivative:TemporalAdmg:graph_posterior:Frequentist:full"
+identifier = "response.backdoor"
+estimator = "response.gam_derivative"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "DirectionalDerivative:TemporalAdmg:graph_posterior:Bayesian:none"
+identifier = "response.backdoor"
+estimator = "response.gam_derivative"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "DirectionalDerivative:TemporalAdmg:graph_posterior:Bayesian:cheap"
+identifier = "response.backdoor"
+estimator = "response.gam_derivative"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "DirectionalDerivative:TemporalAdmg:graph_posterior:Bayesian:full"
+identifier = "response.backdoor"
+estimator = "response.gam_derivative"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
 coordinate = "ResponseJacobian:Cpdag:graph_posterior:Frequentist:none"
 identifier = "generalized.adjustment"
 estimator = "response.gam_derivative"
@@ -7648,6 +7984,42 @@ lowering = "GraphPosteriorStaticResponse"
 
 [[route]]
 coordinate = "ResponseJacobian:Admg:graph_posterior:Bayesian:full"
+identifier = "response.backdoor"
+estimator = "response.gam_derivative"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "ResponseJacobian:TemporalAdmg:graph_posterior:Frequentist:none"
+identifier = "response.backdoor"
+estimator = "response.gam_derivative"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "ResponseJacobian:TemporalAdmg:graph_posterior:Frequentist:cheap"
+identifier = "response.backdoor"
+estimator = "response.gam_derivative"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "ResponseJacobian:TemporalAdmg:graph_posterior:Frequentist:full"
+identifier = "response.backdoor"
+estimator = "response.gam_derivative"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "ResponseJacobian:TemporalAdmg:graph_posterior:Bayesian:none"
+identifier = "response.backdoor"
+estimator = "response.gam_derivative"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "ResponseJacobian:TemporalAdmg:graph_posterior:Bayesian:cheap"
+identifier = "response.backdoor"
+estimator = "response.gam_derivative"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "ResponseJacobian:TemporalAdmg:graph_posterior:Bayesian:full"
 identifier = "response.backdoor"
 estimator = "response.gam_derivative"
 lowering = "GraphPosteriorStaticResponse"
@@ -14049,217 +14421,385 @@ estimator = "temporal.linear.adjustment"
 lowering = "GraphPosteriorCrossWorld"
 
 [[route]]
-coordinate = "PointDerivative:TemporalAdmg:graph_posterior:Frequentist:none"
-identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:Admg:explicit:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
 
 [[route]]
-coordinate = "PointDerivative:TemporalAdmg:graph_posterior:Frequentist:cheap"
-identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:Admg:explicit:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
 
 [[route]]
-coordinate = "PointDerivative:TemporalAdmg:graph_posterior:Frequentist:full"
-identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:Admg:explicit:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
 
 [[route]]
-coordinate = "PointDerivative:TemporalAdmg:graph_posterior:Bayesian:none"
-identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:Admg:explicit:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
 
 [[route]]
-coordinate = "PointDerivative:TemporalAdmg:graph_posterior:Bayesian:cheap"
-identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:Admg:accepted:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
 
 [[route]]
-coordinate = "PointDerivative:TemporalAdmg:graph_posterior:Bayesian:full"
-identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:Admg:accepted:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
 
 [[route]]
-coordinate = "Elasticity:TemporalAdmg:graph_posterior:Frequentist:none"
-identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:Admg:accepted:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
 
 [[route]]
-coordinate = "Elasticity:TemporalAdmg:graph_posterior:Frequentist:cheap"
-identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:Admg:accepted:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
 
 [[route]]
-coordinate = "Elasticity:TemporalAdmg:graph_posterior:Frequentist:full"
-identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:TemporalAdmg:explicit:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
 
 [[route]]
-coordinate = "Elasticity:TemporalAdmg:graph_posterior:Bayesian:none"
-identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:TemporalAdmg:explicit:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
 
 [[route]]
-coordinate = "Elasticity:TemporalAdmg:graph_posterior:Bayesian:cheap"
-identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:TemporalAdmg:explicit:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
 
 [[route]]
-coordinate = "Elasticity:TemporalAdmg:graph_posterior:Bayesian:full"
-identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:TemporalAdmg:explicit:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
 
 [[route]]
-coordinate = "SemiElasticity:TemporalAdmg:graph_posterior:Frequentist:none"
-identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:TemporalAdmg:accepted:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
 
 [[route]]
-coordinate = "SemiElasticity:TemporalAdmg:graph_posterior:Frequentist:cheap"
-identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:TemporalAdmg:accepted:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
 
 [[route]]
-coordinate = "SemiElasticity:TemporalAdmg:graph_posterior:Frequentist:full"
-identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:TemporalAdmg:accepted:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
 
 [[route]]
-coordinate = "SemiElasticity:TemporalAdmg:graph_posterior:Bayesian:none"
-identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:TemporalAdmg:accepted:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
 
 [[route]]
-coordinate = "SemiElasticity:TemporalAdmg:graph_posterior:Bayesian:cheap"
-identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:Cpdag:explicit:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
 
 [[route]]
-coordinate = "SemiElasticity:TemporalAdmg:graph_posterior:Bayesian:full"
-identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:Cpdag:explicit:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
 
 [[route]]
-coordinate = "AverageDerivative:TemporalAdmg:graph_posterior:Frequentist:none"
-identifier = "generalized.adjustment"
-estimator = "response.riesz_ade"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:Cpdag:explicit:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
 
 [[route]]
-coordinate = "AverageDerivative:TemporalAdmg:graph_posterior:Frequentist:cheap"
-identifier = "generalized.adjustment"
-estimator = "response.riesz_ade"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:Cpdag:explicit:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
 
 [[route]]
-coordinate = "AverageDerivative:TemporalAdmg:graph_posterior:Frequentist:full"
-identifier = "generalized.adjustment"
-estimator = "response.riesz_ade"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:Cpdag:accepted:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
 
 [[route]]
-coordinate = "AverageDerivative:TemporalAdmg:graph_posterior:Bayesian:none"
-identifier = "generalized.adjustment"
-estimator = "response.riesz_ade"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:Cpdag:accepted:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
 
 [[route]]
-coordinate = "AverageDerivative:TemporalAdmg:graph_posterior:Bayesian:cheap"
-identifier = "generalized.adjustment"
-estimator = "response.riesz_ade"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:Cpdag:accepted:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
 
 [[route]]
-coordinate = "AverageDerivative:TemporalAdmg:graph_posterior:Bayesian:full"
-identifier = "generalized.adjustment"
-estimator = "response.riesz_ade"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:Cpdag:accepted:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
 
 [[route]]
-coordinate = "DirectionalDerivative:TemporalAdmg:graph_posterior:Frequentist:none"
-identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:Pag:explicit:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
 
 [[route]]
-coordinate = "DirectionalDerivative:TemporalAdmg:graph_posterior:Frequentist:cheap"
-identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:Pag:explicit:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
 
 [[route]]
-coordinate = "DirectionalDerivative:TemporalAdmg:graph_posterior:Frequentist:full"
-identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:Pag:explicit:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
 
 [[route]]
-coordinate = "DirectionalDerivative:TemporalAdmg:graph_posterior:Bayesian:none"
-identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:Pag:explicit:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
 
 [[route]]
-coordinate = "DirectionalDerivative:TemporalAdmg:graph_posterior:Bayesian:cheap"
-identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:Pag:accepted:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
 
 [[route]]
-coordinate = "DirectionalDerivative:TemporalAdmg:graph_posterior:Bayesian:full"
-identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:Pag:accepted:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
 
 [[route]]
-coordinate = "ResponseJacobian:TemporalAdmg:graph_posterior:Frequentist:none"
-identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:Pag:accepted:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
 
 [[route]]
-coordinate = "ResponseJacobian:TemporalAdmg:graph_posterior:Frequentist:cheap"
-identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "StaticResponseCpdag"
+coordinate = "PathSpecificEffect:Pag:accepted:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
 
 [[route]]
-coordinate = "ResponseJacobian:TemporalAdmg:graph_posterior:Frequentist:full"
-identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "StaticResponseCpdag"
+coordinate = "MediationEffect:Admg:explicit:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
 
 [[route]]
-coordinate = "ResponseJacobian:TemporalAdmg:graph_posterior:Bayesian:none"
-identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "StaticResponseCpdag"
+coordinate = "MediationEffect:Admg:explicit:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
 
 [[route]]
-coordinate = "ResponseJacobian:TemporalAdmg:graph_posterior:Bayesian:cheap"
-identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "StaticResponseCpdag"
+coordinate = "MediationEffect:Admg:explicit:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
 
 [[route]]
-coordinate = "ResponseJacobian:TemporalAdmg:graph_posterior:Bayesian:full"
-identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "StaticResponseCpdag"
+coordinate = "MediationEffect:Admg:explicit:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "MediationEffect:Admg:accepted:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "MediationEffect:Admg:accepted:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "MediationEffect:Admg:accepted:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "MediationEffect:Admg:accepted:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "MediationEffect:TemporalAdmg:explicit:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "MediationEffect:TemporalAdmg:explicit:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "MediationEffect:TemporalAdmg:explicit:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "MediationEffect:TemporalAdmg:explicit:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "MediationEffect:TemporalAdmg:accepted:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "MediationEffect:TemporalAdmg:accepted:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "MediationEffect:TemporalAdmg:accepted:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "MediationEffect:TemporalAdmg:accepted:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "MediationEffect:Cpdag:explicit:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
+
+[[route]]
+coordinate = "MediationEffect:Cpdag:explicit:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
+
+[[route]]
+coordinate = "MediationEffect:Cpdag:explicit:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
+
+[[route]]
+coordinate = "MediationEffect:Cpdag:explicit:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
+
+[[route]]
+coordinate = "MediationEffect:Cpdag:accepted:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
+
+[[route]]
+coordinate = "MediationEffect:Cpdag:accepted:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
+
+[[route]]
+coordinate = "MediationEffect:Cpdag:accepted:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
+
+[[route]]
+coordinate = "MediationEffect:Cpdag:accepted:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
+
+[[route]]
+coordinate = "MediationEffect:Pag:explicit:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
+
+[[route]]
+coordinate = "MediationEffect:Pag:explicit:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
+
+[[route]]
+coordinate = "MediationEffect:Pag:explicit:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
+
+[[route]]
+coordinate = "MediationEffect:Pag:explicit:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
+
+[[route]]
+coordinate = "MediationEffect:Pag:accepted:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
+
+[[route]]
+coordinate = "MediationEffect:Pag:accepted:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
+
+[[route]]
+coordinate = "MediationEffect:Pag:accepted:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
+
+[[route]]
+coordinate = "MediationEffect:Pag:accepted:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"

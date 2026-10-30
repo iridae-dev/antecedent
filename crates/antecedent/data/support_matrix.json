@@ -211,28 +211,6 @@
         "MediationEffect"
       ],
       "graph_classes": [
-        "Admg",
-        "TemporalAdmg",
-        "Cpdag",
-        "Pag"
-      ],
-      "structures": [
-        "explicit",
-        "accepted"
-      ],
-      "inferences": null,
-      "validations": [
-        "cheap",
-        "full"
-      ],
-      "reason": "Cheap and full validation of a MediationEffect on a supplied Admg (or the contemporaneous projection of a TemporalAdmg), Cpdag or Pag run the mediation-native suite on the decomposition and stay unlicensed. The suite: the sensitivity of the indirect effect to a violation of sequential ignorability (the mediator-outcome error correlation at which it vanishes, read from the linear working model of the treatment, the mediator index and the outcome with the variables the total-effect functional adjusts for), a mediator placebo (the mediator columns permuted together keep their support and lose every link to the treatment and the outcome: the indirect effect must vanish and the direct and total effects must equal the total effect of the unpermuted table), and the stability of the total, direct and indirect effects jointly on the same random subsets of the rows (contiguous stretches of windows on a window table); full adds 50% subsets and a joint bootstrap range under the study's own resampling. Over a Cpdag or a Pag the suite runs on every distinct identified member (distinct by the value of the requested contrast), each on its own proofs of the three components. The result keeps support status refused: no evidence row or coverage record names the cell, and the verdicts are checks, not a calibration claim.",
-      "executes_unlicensed": true
-    },
-    {
-      "queries": [
-        "MediationEffect"
-      ],
-      "graph_classes": [
         "Dag",
         "Admg",
         "TemporalAdmg",
@@ -399,42 +377,20 @@
     },
     {
       "queries": [
-        "AverageDerivative",
-        "DirectionalDerivative",
-        "Elasticity",
-        "PointDerivative",
-        "ResponseJacobian",
-        "SemiElasticity"
-      ],
-      "graph_classes": [
-        "TemporalAdmg"
-      ],
-      "structures": [
-        "graph_posterior"
-      ],
-      "inferences": null,
-      "validations": null,
-      "reason": "A derivative, elasticity, Jacobian or counterfactual over a graph posterior is answered on every atom by the executor the query has on a supplied structure of the atom's kind (the continuous response estimator or the structural-mechanism counterfactual on a DAG, the derivative identifier or ID* plug-in of a latent-confounded graph on an ADMG, the completion envelope on a CPDAG or a PAG), and the atoms mix by posterior probability coordinate by coordinate: the value is the posterior-weighted mean over the atoms that identify and evaluate it, and an atom that publishes an identified set contributes its range to the mixture's identified set. An atom the identifier refuses is unidentified posterior mass and an atom whose estimator cannot be evaluated is unevaluable mass; neither is redistributed, the result states both and resolves its status to graph-dependent when either exceeds the tolerance. The uncertainty of a mixture: one contributing atom carries its own interval and posterior; several atoms that report row influence publish the interval of the weighted influence on one shared sample, and otherwise are re-run on shared resampled tables with the standard error the spread of the draw-wise posterior-weighted mixture (Frequentist), or their draws are pooled draw by draw because every atom runs in one context (Bayesian); an interval that cannot be formed is withheld with the reason stated (estimate.graph_posterior.uncertainty_withheld). Cheap and full run each atom's own refuter suite against that atom's own estimate and mix the reports of each refuter by the posterior weight of the atoms that produced them; a mixed verdict passes only if every contributing atom passes, and a refuter that ran on only part of the contributing mass says so (refute.envelope.partial_coverage). The result keeps support status refused; no evidence row or coverage record names the cell.",
-      "executes_unlicensed": true
-    },
-    {
-      "queries": [
         "Counterfactual"
       ],
       "graph_classes": [
-        "Dag",
-        "Admg",
-        "TemporalAdmg",
-        "Cpdag",
         "Pag"
       ],
       "structures": [
         "graph_posterior"
       ],
       "inferences": null,
-      "validations": null,
-      "reason": "A derivative, elasticity, Jacobian or counterfactual over a graph posterior is answered on every atom by the executor the query has on a supplied structure of the atom's kind (the continuous response estimator or the structural-mechanism counterfactual on a DAG, the derivative identifier or ID* plug-in of a latent-confounded graph on an ADMG, the completion envelope on a CPDAG or a PAG), and the atoms mix by posterior probability coordinate by coordinate: the value is the posterior-weighted mean over the atoms that identify and evaluate it, and an atom that publishes an identified set contributes its range to the mixture's identified set. An atom the identifier refuses is unidentified posterior mass and an atom whose estimator cannot be evaluated is unevaluable mass; neither is redistributed, the result states both and resolves its status to graph-dependent when either exceeds the tolerance. The uncertainty of a mixture: one contributing atom carries its own interval and posterior; several atoms that report row influence publish the interval of the weighted influence on one shared sample, and otherwise are re-run on shared resampled tables with the standard error the spread of the draw-wise posterior-weighted mixture (Frequentist), or their draws are pooled draw by draw because every atom runs in one context (Bayesian); an interval that cannot be formed is withheld with the reason stated (estimate.graph_posterior.uncertainty_withheld). Cheap and full run each atom's own refuter suite against that atom's own estimate and mix the reports of each refuter by the posterior weight of the atoms that produced them; a mixed verdict passes only if every contributing atom passes, and a refuter that ran on only part of the contributing mass says so (refute.envelope.partial_coverage). The result keeps support status refused; no evidence row or coverage record names the cell.",
-      "executes_unlicensed": true
+      "validations": [
+        "cheap",
+        "full"
+      ],
+      "reason": "A counterfactual over a graph posterior of PAG atoms under cheap or full validation is refused, as on a supplied PAG. The effect on the treated is identified only through a visible treatment edge, so the treatment has an observed parent whose association with the outcome runs through the treatment; the placebo treatment permutes the treatment and leaves that association on the outcome with no mechanism to carry it, so its statistic is nonzero on a correctly specified design and the refuter state would flag valid data. Next attempt: a placebo that permutes the treatment within the strata of its parents and re-derives the outcome part the treatment carries, then earn it with a planted-violation and a clean-case test."
     },
     {
       "queries": [
@@ -453,7 +409,6 @@
     },
     {
       "queries": [
-        "PathSpecificEffect",
         "InterventionalDistribution"
       ],
       "graph_classes": [
@@ -471,7 +426,7 @@
         "cheap",
         "full"
       ],
-      "reason": "Cheap and full validation of a path-specific effect or an interventional distribution on a supplied or accepted Cpdag, Pag, Admg or TemporalAdmg run the functional refuter state and stay unlicensed. The identified functional executes as at validation none (in every completion of a class); a path-specific effect is refuted by the placebo treatment, subset stability and, under full, the placebo outcome and bootstrap stability of the whole procedure, and an interventional distribution by subset and bootstrap stability of its vector of atom probabilities, each a joint statistic over the whole refitted value. The result keeps support status refused: no evidence row or coverage record names the cell, and the verdicts are diagnostics, not a calibration claim.",
+      "reason": "Cheap and full validation of an interventional distribution on a supplied or accepted Cpdag, Pag, Admg or TemporalAdmg run the functional refuter state and stay unlicensed. The identified functional executes as at validation none (in every completion of a class); a path-specific effect is refuted by the placebo treatment, subset stability and, under full, the placebo outcome and bootstrap stability of the whole procedure, and an interventional distribution by subset and bootstrap stability of its vector of atom probabilities, each a joint statistic over the whole refitted value. The result keeps support status refused: no evidence row or coverage record names the cell, and the verdicts are diagnostics, not a calibration claim.",
       "executes_unlicensed": true
     },
     {
@@ -10631,8 +10586,52 @@
       "query": "PathSpecificEffect",
       "graph_class": "Admg",
       "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "Admg",
+      "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "Admg",
+      "structure": "explicit",
       "inference": "Bayesian",
       "validation": "none",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "Admg",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "Admg",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "full",
       "route_estimator": "functional.effect",
       "estimators": [
         "functional.effect"
@@ -10653,8 +10652,52 @@
       "query": "PathSpecificEffect",
       "graph_class": "Admg",
       "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "Admg",
+      "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "Admg",
+      "structure": "accepted",
       "inference": "Bayesian",
       "validation": "none",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "Admg",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "Admg",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "full",
       "route_estimator": "functional.effect",
       "estimators": [
         "functional.effect"
@@ -10675,8 +10718,52 @@
       "query": "PathSpecificEffect",
       "graph_class": "TemporalAdmg",
       "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "TemporalAdmg",
+      "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "TemporalAdmg",
+      "structure": "explicit",
       "inference": "Bayesian",
       "validation": "none",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "TemporalAdmg",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "TemporalAdmg",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "full",
       "route_estimator": "functional.effect",
       "estimators": [
         "functional.effect"
@@ -10697,8 +10784,52 @@
       "query": "PathSpecificEffect",
       "graph_class": "TemporalAdmg",
       "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "TemporalAdmg",
+      "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "TemporalAdmg",
+      "structure": "accepted",
       "inference": "Bayesian",
       "validation": "none",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "TemporalAdmg",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "TemporalAdmg",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "full",
       "route_estimator": "functional.effect",
       "estimators": [
         "functional.effect"
@@ -10719,8 +10850,52 @@
       "query": "PathSpecificEffect",
       "graph_class": "Cpdag",
       "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "Cpdag",
+      "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "Cpdag",
+      "structure": "explicit",
       "inference": "Bayesian",
       "validation": "none",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "Cpdag",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "Cpdag",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "full",
       "route_estimator": "functional.effect",
       "estimators": [
         "functional.effect"
@@ -10741,8 +10916,52 @@
       "query": "PathSpecificEffect",
       "graph_class": "Cpdag",
       "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "Cpdag",
+      "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "Cpdag",
+      "structure": "accepted",
       "inference": "Bayesian",
       "validation": "none",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "Cpdag",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "Cpdag",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "full",
       "route_estimator": "functional.effect",
       "estimators": [
         "functional.effect"
@@ -10763,8 +10982,52 @@
       "query": "PathSpecificEffect",
       "graph_class": "Pag",
       "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "Pag",
+      "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "Pag",
+      "structure": "explicit",
       "inference": "Bayesian",
       "validation": "none",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "Pag",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "Pag",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "full",
       "route_estimator": "functional.effect",
       "estimators": [
         "functional.effect"
@@ -10785,8 +11048,52 @@
       "query": "PathSpecificEffect",
       "graph_class": "Pag",
       "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "Pag",
+      "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "Pag",
+      "structure": "accepted",
       "inference": "Bayesian",
       "validation": "none",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "Pag",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "PathSpecificEffect",
+      "graph_class": "Pag",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "full",
       "route_estimator": "functional.effect",
       "estimators": [
         "functional.effect"
@@ -13466,6 +13773,292 @@
       ]
     },
     {
+      "query": "Counterfactual",
+      "graph_class": "Admg",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "none",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "Counterfactual",
+      "graph_class": "Admg",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "Counterfactual",
+      "graph_class": "Admg",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "Counterfactual",
+      "graph_class": "Admg",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "none",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "Counterfactual",
+      "graph_class": "Admg",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "Counterfactual",
+      "graph_class": "Admg",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "Counterfactual",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "none",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "Counterfactual",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "Counterfactual",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "Counterfactual",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "none",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "Counterfactual",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "Counterfactual",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "Counterfactual",
+      "graph_class": "Cpdag",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "none",
+      "route_estimator": "gcm.fit",
+      "estimators": [
+        "gcm.fit"
+      ]
+    },
+    {
+      "query": "Counterfactual",
+      "graph_class": "Cpdag",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "gcm.fit",
+      "estimators": [
+        "gcm.fit"
+      ]
+    },
+    {
+      "query": "Counterfactual",
+      "graph_class": "Cpdag",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "gcm.fit",
+      "estimators": [
+        "gcm.fit"
+      ]
+    },
+    {
+      "query": "Counterfactual",
+      "graph_class": "Cpdag",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "none",
+      "route_estimator": "gcm.fit",
+      "estimators": [
+        "gcm.fit"
+      ]
+    },
+    {
+      "query": "Counterfactual",
+      "graph_class": "Cpdag",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "gcm.fit",
+      "estimators": [
+        "gcm.fit"
+      ]
+    },
+    {
+      "query": "Counterfactual",
+      "graph_class": "Cpdag",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "gcm.fit",
+      "estimators": [
+        "gcm.fit"
+      ]
+    },
+    {
+      "query": "Counterfactual",
+      "graph_class": "Dag",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "none",
+      "route_estimator": "gcm.fit",
+      "estimators": [
+        "gcm.fit"
+      ]
+    },
+    {
+      "query": "Counterfactual",
+      "graph_class": "Dag",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "gcm.fit",
+      "estimators": [
+        "gcm.fit"
+      ]
+    },
+    {
+      "query": "Counterfactual",
+      "graph_class": "Dag",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "gcm.fit",
+      "estimators": [
+        "gcm.fit"
+      ]
+    },
+    {
+      "query": "Counterfactual",
+      "graph_class": "Dag",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "none",
+      "route_estimator": "gcm.fit",
+      "estimators": [
+        "gcm.fit"
+      ]
+    },
+    {
+      "query": "Counterfactual",
+      "graph_class": "Dag",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "gcm.fit",
+      "estimators": [
+        "gcm.fit"
+      ]
+    },
+    {
+      "query": "Counterfactual",
+      "graph_class": "Dag",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "gcm.fit",
+      "estimators": [
+        "gcm.fit"
+      ]
+    },
+    {
+      "query": "Counterfactual",
+      "graph_class": "Pag",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "none",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "Counterfactual",
+      "graph_class": "Pag",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "none",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
       "query": "PointDerivative",
       "graph_class": "Cpdag",
       "structure": "graph_posterior",
@@ -13655,6 +14248,72 @@
     {
       "query": "PointDerivative",
       "graph_class": "Admg",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "PointDerivative",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "none",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "PointDerivative",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "PointDerivative",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "PointDerivative",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "none",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "PointDerivative",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "PointDerivative",
+      "graph_class": "TemporalAdmg",
       "structure": "graph_posterior",
       "inference": "Bayesian",
       "validation": "full",
@@ -13862,6 +14521,72 @@
       ]
     },
     {
+      "query": "Elasticity",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "none",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "Elasticity",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "Elasticity",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "Elasticity",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "none",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "Elasticity",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "Elasticity",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
       "query": "SemiElasticity",
       "graph_class": "Cpdag",
       "structure": "graph_posterior",
@@ -14051,6 +14776,72 @@
     {
       "query": "SemiElasticity",
       "graph_class": "Admg",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "SemiElasticity",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "none",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "SemiElasticity",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "SemiElasticity",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "SemiElasticity",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "none",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "SemiElasticity",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "SemiElasticity",
+      "graph_class": "TemporalAdmg",
       "structure": "graph_posterior",
       "inference": "Bayesian",
       "validation": "full",
@@ -14258,6 +15049,72 @@
       ]
     },
     {
+      "query": "AverageDerivative",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "none",
+      "route_estimator": "response.riesz_ade",
+      "estimators": [
+        "response.riesz_ade"
+      ]
+    },
+    {
+      "query": "AverageDerivative",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "response.riesz_ade",
+      "estimators": [
+        "response.riesz_ade"
+      ]
+    },
+    {
+      "query": "AverageDerivative",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "response.riesz_ade",
+      "estimators": [
+        "response.riesz_ade"
+      ]
+    },
+    {
+      "query": "AverageDerivative",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "none",
+      "route_estimator": "response.riesz_ade",
+      "estimators": [
+        "response.riesz_ade"
+      ]
+    },
+    {
+      "query": "AverageDerivative",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "response.riesz_ade",
+      "estimators": [
+        "response.riesz_ade"
+      ]
+    },
+    {
+      "query": "AverageDerivative",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "response.riesz_ade",
+      "estimators": [
+        "response.riesz_ade"
+      ]
+    },
+    {
       "query": "DirectionalDerivative",
       "graph_class": "Cpdag",
       "structure": "graph_posterior",
@@ -14456,6 +15313,72 @@
       ]
     },
     {
+      "query": "DirectionalDerivative",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "none",
+      "route_estimator": "response.gam_derivative",
+      "estimators": [
+        "response.gam_derivative"
+      ]
+    },
+    {
+      "query": "DirectionalDerivative",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "response.gam_derivative",
+      "estimators": [
+        "response.gam_derivative"
+      ]
+    },
+    {
+      "query": "DirectionalDerivative",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "response.gam_derivative",
+      "estimators": [
+        "response.gam_derivative"
+      ]
+    },
+    {
+      "query": "DirectionalDerivative",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "none",
+      "route_estimator": "response.gam_derivative",
+      "estimators": [
+        "response.gam_derivative"
+      ]
+    },
+    {
+      "query": "DirectionalDerivative",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "response.gam_derivative",
+      "estimators": [
+        "response.gam_derivative"
+      ]
+    },
+    {
+      "query": "DirectionalDerivative",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "response.gam_derivative",
+      "estimators": [
+        "response.gam_derivative"
+      ]
+    },
+    {
       "query": "ResponseJacobian",
       "graph_class": "Cpdag",
       "structure": "graph_posterior",
@@ -14645,6 +15568,72 @@
     {
       "query": "ResponseJacobian",
       "graph_class": "Admg",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "response.gam_derivative",
+      "estimators": [
+        "response.gam_derivative"
+      ]
+    },
+    {
+      "query": "ResponseJacobian",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "none",
+      "route_estimator": "response.gam_derivative",
+      "estimators": [
+        "response.gam_derivative"
+      ]
+    },
+    {
+      "query": "ResponseJacobian",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "response.gam_derivative",
+      "estimators": [
+        "response.gam_derivative"
+      ]
+    },
+    {
+      "query": "ResponseJacobian",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "response.gam_derivative",
+      "estimators": [
+        "response.gam_derivative"
+      ]
+    },
+    {
+      "query": "ResponseJacobian",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "none",
+      "route_estimator": "response.gam_derivative",
+      "estimators": [
+        "response.gam_derivative"
+      ]
+    },
+    {
+      "query": "ResponseJacobian",
+      "graph_class": "TemporalAdmg",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "response.gam_derivative",
+      "estimators": [
+        "response.gam_derivative"
+      ]
+    },
+    {
+      "query": "ResponseJacobian",
+      "graph_class": "TemporalAdmg",
       "structure": "graph_posterior",
       "inference": "Bayesian",
       "validation": "full",
@@ -24618,8 +25607,52 @@
       "query": "MediationEffect",
       "graph_class": "Admg",
       "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "Admg",
+      "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "Admg",
+      "structure": "explicit",
       "inference": "Bayesian",
       "validation": "none",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "Admg",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "Admg",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "full",
       "route_estimator": "functional.effect",
       "estimators": [
         "functional.effect"
@@ -24640,8 +25673,52 @@
       "query": "MediationEffect",
       "graph_class": "Admg",
       "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "Admg",
+      "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "Admg",
+      "structure": "accepted",
       "inference": "Bayesian",
       "validation": "none",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "Admg",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "Admg",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "full",
       "route_estimator": "functional.effect",
       "estimators": [
         "functional.effect"
@@ -24662,8 +25739,52 @@
       "query": "MediationEffect",
       "graph_class": "TemporalAdmg",
       "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "TemporalAdmg",
+      "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "TemporalAdmg",
+      "structure": "explicit",
       "inference": "Bayesian",
       "validation": "none",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "TemporalAdmg",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "TemporalAdmg",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "full",
       "route_estimator": "functional.effect",
       "estimators": [
         "functional.effect"
@@ -24684,8 +25805,52 @@
       "query": "MediationEffect",
       "graph_class": "TemporalAdmg",
       "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "TemporalAdmg",
+      "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "TemporalAdmg",
+      "structure": "accepted",
       "inference": "Bayesian",
       "validation": "none",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "TemporalAdmg",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "TemporalAdmg",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "full",
       "route_estimator": "functional.effect",
       "estimators": [
         "functional.effect"
@@ -24706,8 +25871,52 @@
       "query": "MediationEffect",
       "graph_class": "Cpdag",
       "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "Cpdag",
+      "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "Cpdag",
+      "structure": "explicit",
       "inference": "Bayesian",
       "validation": "none",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "Cpdag",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "Cpdag",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "full",
       "route_estimator": "functional.effect",
       "estimators": [
         "functional.effect"
@@ -24728,8 +25937,52 @@
       "query": "MediationEffect",
       "graph_class": "Cpdag",
       "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "Cpdag",
+      "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "Cpdag",
+      "structure": "accepted",
       "inference": "Bayesian",
       "validation": "none",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "Cpdag",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "Cpdag",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "full",
       "route_estimator": "functional.effect",
       "estimators": [
         "functional.effect"
@@ -24750,8 +26003,52 @@
       "query": "MediationEffect",
       "graph_class": "Pag",
       "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "Pag",
+      "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "Pag",
+      "structure": "explicit",
       "inference": "Bayesian",
       "validation": "none",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "Pag",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "Pag",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "full",
       "route_estimator": "functional.effect",
       "estimators": [
         "functional.effect"
@@ -24772,8 +26069,52 @@
       "query": "MediationEffect",
       "graph_class": "Pag",
       "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "Pag",
+      "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "Pag",
+      "structure": "accepted",
       "inference": "Bayesian",
       "validation": "none",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "Pag",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "MediationEffect",
+      "graph_class": "Pag",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "full",
       "route_estimator": "functional.effect",
       "estimators": [
         "functional.effect"

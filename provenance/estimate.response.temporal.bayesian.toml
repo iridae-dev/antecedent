@@ -51,7 +51,7 @@ sha256 = "3e5a96bbd0d8292982e8764d6a8c227d830b19e69ff3a0e191727ede9b0b239b"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_slope_design.rs"
-sha256 = "b9dcd2834e650ce75c25375301d3c24c476f963e853caa6b1c7d5f3f885a8e62"
+sha256 = "436fa79b455e62e3d1b83fc7a3564950bf2cc9ba2dc1aa9e37f83e6303f48ebb"
 
 [[method_review.artifacts]]
 role = "implementation"

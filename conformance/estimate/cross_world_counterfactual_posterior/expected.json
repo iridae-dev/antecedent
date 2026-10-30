@@ -359,7 +359,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/cross_world_counterfactual_posterior_truth.rs",
-          "sha256": "067e91a19dd96f36c0d6a8c395b15660df5a3abd9eb1a795606149ad45b56531"
+          "sha256": "ab057fdb03f1c47c815dab70252acd3fdd8cfbf37aa75f960950bbda135d5c05"
         }
       ],
       "fixture_payload_sha256": "56a086db8f05edaf02cbafc8ac65a3ad5cf7317c9e52d4f9f17a420fd5c91797"

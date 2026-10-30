@@ -12,6 +12,8 @@
 #[doc(hidden)] pub fn antecedent_estimate::smoothed_dose::parse_smoothing_kernel(name: &str) -> core::result::Result<antecedent_core::query::smoothed_dose::SmoothingKernel, antecedent_estimate::EstimationError>
 #[doc(hidden)] pub fn antecedent_estimate::smoothed_dose::refuse_smoothed_dose_interval() -> antecedent_estimate::EstimationError
 #[doc(hidden)] pub fn antecedent_estimate::smoothed_dose::smoothed_dose_bootstrap_groups(input: &antecedent_estimate::SmoothedDoseInput) -> alloc::vec::Vec<alloc::vec::Vec<usize>>
+#[doc(hidden)] pub fn antecedent_estimate::smoothed_dose::smoothed_dose_bootstrap_unit_rows(units: &[alloc::vec::Vec<alloc::vec::Vec<usize>>], replicate: u32, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<usize>, antecedent_estimate::EstimationError>
+#[doc(hidden)] pub fn antecedent_estimate::smoothed_dose::smoothed_dose_bootstrap_units(input: &antecedent_estimate::SmoothedDoseInput) -> alloc::vec::Vec<alloc::vec::Vec<alloc::vec::Vec<usize>>>
 #[doc(hidden)] pub fn antecedent_estimate::smoothed_dose::smoothed_dose_fold_assignment(input: &antecedent_estimate::SmoothedDoseInput, folds: usize) -> alloc::vec::Vec<u16>
 #[doc(hidden)] pub fn antecedent_estimate::smoothed_dose::smoothed_dose_memory_cap(ctx: &antecedent_core::execution::context::ExecutionContext) -> u64
 #[doc(hidden)] pub fn antecedent_estimate::smoothed_dose::smoothed_dose_workspace_bytes(grid: usize, input: &antecedent_estimate::SmoothedDoseInput, options: &antecedent_estimate::SmoothedDoseOptions, ctx: &antecedent_core::execution::context::ExecutionContext, fit: bool) -> core::option::Option<u64>
@@ -324,6 +326,7 @@ impl core::clone::Clone for antecedent_estimate::SamplingWeightRecord
 impl core::clone::Clone for antecedent_estimate::SamplingWeights
 impl core::clone::Clone for antecedent_estimate::SaturationInterferenceEstimate
 impl core::clone::Clone for antecedent_estimate::ScenarioBand
+impl core::clone::Clone for antecedent_estimate::ScoreDependence
 impl core::clone::Clone for antecedent_estimate::ScoreInference
 impl core::clone::Clone for antecedent_estimate::ScoreSummary
 impl core::clone::Clone for antecedent_estimate::ScoreSupport
@@ -343,6 +346,7 @@ impl core::clone::Clone for antecedent_estimate::SmoothedDoseOptions
 impl core::clone::Clone for antecedent_estimate::SmoothedDoseUncertainty
 impl core::clone::Clone for antecedent_estimate::StatisticalTransportEstimate
 impl core::clone::Clone for antecedent_estimate::StatisticalTransportInput
+impl core::clone::Clone for antecedent_estimate::TemporalConditionalFit
 impl core::clone::Clone for antecedent_estimate::TemporalDependenceSe
 impl core::clone::Clone for antecedent_estimate::TemporalEffectSurface
 impl core::clone::Clone for antecedent_estimate::TemporalInterventionPlan
@@ -417,6 +421,7 @@ impl core::clone::Clone for antecedent_estimate::categorical_treatment::Categori
 impl core::clone::Clone for antecedent_estimate::categorical_treatment::CategoricalSummary
 impl core::clone::Clone for antecedent_estimate::categorical_treatment::CategoricalTreatmentFit
 impl core::clone::Clone for antecedent_estimate::categorical_treatment::CategoricalTreatmentSpec
+impl core::clone::Clone for antecedent_estimate::categorical_treatment::DeclaredRows
 impl core::clone::Clone for antecedent_estimate::categorical_treatment::LevelContrast
 impl core::clone::Clone for antecedent_estimate::categorical_treatment::LevelCount
 impl core::clone::Clone for antecedent_estimate::categorical_treatment::LevelScale
@@ -518,6 +523,7 @@ impl core::clone::Clone for antecedent_estimate::dose_basis_regression::BasisPos
 impl core::clone::Clone for antecedent_estimate::dose_basis_regression::ResidualPrior
 impl core::clone::Clone for antecedent_estimate::dose_grid_functional::BiasAwareDoseGrid
 impl core::clone::Clone for antecedent_estimate::dose_grid_functional::ClaimSet
+impl core::clone::Clone for antecedent_estimate::dose_grid_functional::DeclaredRows
 impl core::clone::Clone for antecedent_estimate::dose_grid_functional::DoseContrast
 impl core::clone::Clone for antecedent_estimate::dose_grid_functional::DoseDerivative
 impl core::clone::Clone for antecedent_estimate::dose_grid_functional::DoseDesign
@@ -592,6 +598,7 @@ impl core::clone::Clone for antecedent_estimate::history_match::FrequentistHisto
 impl core::clone::Clone for antecedent_estimate::history_match::HistoryUnit
 impl core::clone::Clone for antecedent_estimate::history_match::PeriodHistoryContrast
 impl core::clone::Clone for antecedent_estimate::history_match::PeriodHistoryEstimate
+impl core::clone::Clone for antecedent_estimate::history_match::SerialHistoryInterval
 impl core::clone::Clone for antecedent_estimate::history_outcome_model::HistoryOutcomeProblem
 impl core::clone::Clone for antecedent_estimate::joint_bayesian_transport::DataIdentity
 impl core::clone::Clone for antecedent_estimate::joint_bayesian_transport::FailedFitDiagnostics
@@ -703,6 +710,9 @@ impl core::clone::Clone for antecedent_estimate::joint_panel::decomposition::Ref
 impl core::clone::Clone for antecedent_estimate::joint_panel::decomposition::StreamedDecomposition
 impl core::clone::Clone for antecedent_estimate::joint_panel::expression::CompiledPanelExpression
 impl core::clone::Clone for antecedent_estimate::joint_panel::expression::PanelExpressionControl
+impl core::clone::Clone for antecedent_estimate::joint_panel::restriction::PanelLinearityCheck
+impl core::clone::Clone for antecedent_estimate::joint_panel::restriction::PanelNormalityCheck
+impl core::clone::Clone for antecedent_estimate::joint_panel::restriction::PanelRestrictionDiagnostics
 impl core::clone::Clone for antecedent_estimate::joint_panel::selection_uncertainty::SelectionDecomposition
 impl core::clone::Clone for antecedent_estimate::joint_panel::selection_uncertainty::SpecificationShare
 impl core::clone::Clone for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
@@ -1089,6 +1099,8 @@ impl core::clone::Clone for antecedent_estimate::temporal_link::TrajectoryDepend
 impl core::clone::Clone for antecedent_estimate::temporal_penalized_score::BayesianTemporalPropensity
 impl core::clone::Clone for antecedent_estimate::temporal_penalized_score::FrequentistTemporalPropensity
 impl core::clone::Clone for antecedent_estimate::temporal_penalized_score::PenalizedPropensityScore
+impl core::clone::Clone for antecedent_estimate::temporal_penalized_score::PenalizedScoreBand
+impl core::clone::Clone for antecedent_estimate::temporal_penalized_score::PenalizedScoreInterval
 impl core::clone::Clone for antecedent_estimate::temporal_penalized_score::PosteriorPropensity
 impl core::clone::Clone for antecedent_estimate::temporal_penalized_score::TemporalPropensityDesign
 impl core::clone::Clone for antecedent_estimate::temporal_penalized_score::TrajectoryDependence
@@ -1201,6 +1213,7 @@ impl core::cmp::Eq for antecedent_estimate::RowResampling
 impl core::cmp::Eq for antecedent_estimate::SampledObservationInput
 impl core::cmp::Eq for antecedent_estimate::SampledRecoveryDetail
 impl core::cmp::Eq for antecedent_estimate::SampledRecoveryError
+impl core::cmp::Eq for antecedent_estimate::ScoreDependence
 impl core::cmp::Eq for antecedent_estimate::SelectedOutcomeCorrection
 impl core::cmp::Eq for antecedent_estimate::SmoothedDoseUncertainty
 impl core::cmp::Eq for antecedent_estimate::TransportIntervalReason
@@ -1575,6 +1588,7 @@ impl core::cmp::PartialEq for antecedent_estimate::SampledRecoveryReceipt
 impl core::cmp::PartialEq for antecedent_estimate::SamplingWeightRecord
 impl core::cmp::PartialEq for antecedent_estimate::SamplingWeights
 impl core::cmp::PartialEq for antecedent_estimate::SaturationInterferenceEstimate
+impl core::cmp::PartialEq for antecedent_estimate::ScoreDependence
 impl core::cmp::PartialEq for antecedent_estimate::ScoreInference
 impl core::cmp::PartialEq for antecedent_estimate::ScoreSummary
 impl core::cmp::PartialEq for antecedent_estimate::ScoreSupport
@@ -1647,6 +1661,7 @@ impl core::cmp::PartialEq for antecedent_estimate::categorical_treatment::Catego
 impl core::cmp::PartialEq for antecedent_estimate::categorical_treatment::CategoricalSummary
 impl core::cmp::PartialEq for antecedent_estimate::categorical_treatment::CategoricalTreatmentFit
 impl core::cmp::PartialEq for antecedent_estimate::categorical_treatment::CategoricalTreatmentSpec
+impl core::cmp::PartialEq for antecedent_estimate::categorical_treatment::DeclaredRows
 impl core::cmp::PartialEq for antecedent_estimate::categorical_treatment::LevelContrast
 impl core::cmp::PartialEq for antecedent_estimate::categorical_treatment::LevelCount
 impl core::cmp::PartialEq for antecedent_estimate::categorical_treatment::LevelScale
@@ -1742,6 +1757,7 @@ impl core::cmp::PartialEq for antecedent_estimate::dose_basis_regression::BasisP
 impl core::cmp::PartialEq for antecedent_estimate::dose_basis_regression::ResidualPrior
 impl core::cmp::PartialEq for antecedent_estimate::dose_grid_functional::BiasAwareDoseGrid
 impl core::cmp::PartialEq for antecedent_estimate::dose_grid_functional::ClaimSet
+impl core::cmp::PartialEq for antecedent_estimate::dose_grid_functional::DeclaredRows
 impl core::cmp::PartialEq for antecedent_estimate::dose_grid_functional::DoseContrast
 impl core::cmp::PartialEq for antecedent_estimate::dose_grid_functional::DoseDerivative
 impl core::cmp::PartialEq for antecedent_estimate::dose_grid_functional::DoseDesign
@@ -1805,6 +1821,7 @@ impl core::cmp::PartialEq for antecedent_estimate::heterogeneity_robust_did::Rol
 impl core::cmp::PartialEq for antecedent_estimate::heterogeneity_robust_did::RolloutDidSpec
 impl core::cmp::PartialEq for antecedent_estimate::heterogeneity_robust_did::RolloutResampleRecord
 impl core::cmp::PartialEq for antecedent_estimate::heterogeneity_robust_did::RolloutResampling
+impl core::cmp::PartialEq for antecedent_estimate::history_match::SerialHistoryInterval
 impl core::cmp::PartialEq for antecedent_estimate::joint_bayesian_transport::DataIdentity
 impl core::cmp::PartialEq for antecedent_estimate::joint_bayesian_transport::FailedFitDiagnostics
 impl core::cmp::PartialEq for antecedent_estimate::joint_bayesian_transport::GaussianPrior
@@ -1910,6 +1927,9 @@ impl core::cmp::PartialEq for antecedent_estimate::joint_panel::decomposition::P
 impl core::cmp::PartialEq for antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition
 impl core::cmp::PartialEq for antecedent_estimate::joint_panel::decomposition::ReferenceDecompositionCovariance
 impl core::cmp::PartialEq for antecedent_estimate::joint_panel::decomposition::StreamedDecomposition
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::restriction::PanelLinearityCheck
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::restriction::PanelNormalityCheck
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::restriction::PanelRestrictionDiagnostics
 impl core::cmp::PartialEq for antecedent_estimate::joint_panel::selection_uncertainty::SelectionDecomposition
 impl core::cmp::PartialEq for antecedent_estimate::joint_panel::selection_uncertainty::SpecificationShare
 impl core::cmp::PartialEq for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
@@ -2446,6 +2466,7 @@ impl core::default::Default for antecedent_estimate::TwoStageLeastSquares
 impl core::default::Default for antecedent_estimate::TwoStageLeastSquaresWorkspace
 impl core::default::Default for antecedent_estimate::WaldIv
 impl core::default::Default for antecedent_estimate::bayesian_robust_ate::BayesianRobustAteOptions
+impl core::default::Default for antecedent_estimate::categorical_treatment::DeclaredRows
 impl core::default::Default for antecedent_estimate::counterfactual_transport_sampled::SampledRepairs
 impl core::default::Default for antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits
 impl core::default::Default for antecedent_estimate::cyclic_adam::CyclicAdamPolicy
@@ -2455,6 +2476,7 @@ impl core::default::Default for antecedent_estimate::cyclic_gradient::CyclicGrad
 impl core::default::Default for antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign
 impl core::default::Default for antecedent_estimate::cyclic_likelihood::CyclicFitOptions
 impl core::default::Default for antecedent_estimate::dose_grid_functional::ClaimSet
+impl core::default::Default for antecedent_estimate::dose_grid_functional::DeclaredRows
 impl core::default::Default for antecedent_estimate::experimental_fit::CoefficientCovarianceEstimator
 impl core::default::Default for antecedent_estimate::experimental_fit::ConstraintWeighting
 impl core::default::Default for antecedent_estimate::experimental_fit::DisturbanceDivisor
@@ -2742,6 +2764,7 @@ impl core::fmt::Debug for antecedent_estimate::SamplingWeightRecord
 impl core::fmt::Debug for antecedent_estimate::SamplingWeights
 impl core::fmt::Debug for antecedent_estimate::SaturationInterferenceEstimate
 impl core::fmt::Debug for antecedent_estimate::ScenarioBand
+impl core::fmt::Debug for antecedent_estimate::ScoreDependence
 impl core::fmt::Debug for antecedent_estimate::ScoreInference
 impl core::fmt::Debug for antecedent_estimate::ScoreSummary
 impl core::fmt::Debug for antecedent_estimate::ScoreSupport
@@ -2763,6 +2786,7 @@ impl core::fmt::Debug for antecedent_estimate::SmoothedDoseOptions
 impl core::fmt::Debug for antecedent_estimate::SmoothedDoseUncertainty
 impl core::fmt::Debug for antecedent_estimate::StatisticalTransportEstimate
 impl core::fmt::Debug for antecedent_estimate::StatisticalTransportInput
+impl core::fmt::Debug for antecedent_estimate::TemporalConditionalFit
 impl core::fmt::Debug for antecedent_estimate::TemporalDependenceSe
 impl core::fmt::Debug for antecedent_estimate::TemporalEffectSurface
 impl core::fmt::Debug for antecedent_estimate::TemporalInterventionPlan
@@ -2837,6 +2861,7 @@ impl core::fmt::Debug for antecedent_estimate::categorical_treatment::Categorica
 impl core::fmt::Debug for antecedent_estimate::categorical_treatment::CategoricalSummary
 impl core::fmt::Debug for antecedent_estimate::categorical_treatment::CategoricalTreatmentFit
 impl core::fmt::Debug for antecedent_estimate::categorical_treatment::CategoricalTreatmentSpec
+impl core::fmt::Debug for antecedent_estimate::categorical_treatment::DeclaredRows
 impl core::fmt::Debug for antecedent_estimate::categorical_treatment::LevelContrast
 impl core::fmt::Debug for antecedent_estimate::categorical_treatment::LevelCount
 impl core::fmt::Debug for antecedent_estimate::categorical_treatment::LevelScale
@@ -2938,6 +2963,7 @@ impl core::fmt::Debug for antecedent_estimate::dose_basis_regression::BasisPoste
 impl core::fmt::Debug for antecedent_estimate::dose_basis_regression::ResidualPrior
 impl core::fmt::Debug for antecedent_estimate::dose_grid_functional::BiasAwareDoseGrid
 impl core::fmt::Debug for antecedent_estimate::dose_grid_functional::ClaimSet
+impl core::fmt::Debug for antecedent_estimate::dose_grid_functional::DeclaredRows
 impl core::fmt::Debug for antecedent_estimate::dose_grid_functional::DoseContrast
 impl core::fmt::Debug for antecedent_estimate::dose_grid_functional::DoseDerivative
 impl core::fmt::Debug for antecedent_estimate::dose_grid_functional::DoseDesign
@@ -3013,6 +3039,7 @@ impl core::fmt::Debug for antecedent_estimate::history_match::FrequentistHistory
 impl core::fmt::Debug for antecedent_estimate::history_match::HistoryUnit
 impl core::fmt::Debug for antecedent_estimate::history_match::PeriodHistoryContrast
 impl core::fmt::Debug for antecedent_estimate::history_match::PeriodHistoryEstimate
+impl core::fmt::Debug for antecedent_estimate::history_match::SerialHistoryInterval
 impl core::fmt::Debug for antecedent_estimate::history_outcome_model::HistoryOutcomeProblem
 impl core::fmt::Debug for antecedent_estimate::joint_bayesian_transport::DataIdentity
 impl core::fmt::Debug for antecedent_estimate::joint_bayesian_transport::FailedFitDiagnostics
@@ -3126,6 +3153,9 @@ impl core::fmt::Debug for antecedent_estimate::joint_panel::decomposition::Refer
 impl core::fmt::Debug for antecedent_estimate::joint_panel::decomposition::StreamedDecomposition
 impl core::fmt::Debug for antecedent_estimate::joint_panel::expression::CompiledPanelExpression
 impl core::fmt::Debug for antecedent_estimate::joint_panel::expression::PanelExpressionControl
+impl core::fmt::Debug for antecedent_estimate::joint_panel::restriction::PanelLinearityCheck
+impl core::fmt::Debug for antecedent_estimate::joint_panel::restriction::PanelNormalityCheck
+impl core::fmt::Debug for antecedent_estimate::joint_panel::restriction::PanelRestrictionDiagnostics
 impl core::fmt::Debug for antecedent_estimate::joint_panel::selection_uncertainty::SelectionDecomposition
 impl core::fmt::Debug for antecedent_estimate::joint_panel::selection_uncertainty::SpecificationShare
 impl core::fmt::Debug for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
@@ -3523,6 +3553,8 @@ impl core::fmt::Debug for antecedent_estimate::temporal_link::TrajectoryDependen
 impl core::fmt::Debug for antecedent_estimate::temporal_penalized_score::BayesianTemporalPropensity
 impl core::fmt::Debug for antecedent_estimate::temporal_penalized_score::FrequentistTemporalPropensity
 impl core::fmt::Debug for antecedent_estimate::temporal_penalized_score::PenalizedPropensityScore
+impl core::fmt::Debug for antecedent_estimate::temporal_penalized_score::PenalizedScoreBand
+impl core::fmt::Debug for antecedent_estimate::temporal_penalized_score::PenalizedScoreInterval
 impl core::fmt::Debug for antecedent_estimate::temporal_penalized_score::PosteriorPropensity
 impl core::fmt::Debug for antecedent_estimate::temporal_penalized_score::TemporalPropensityDesign
 impl core::fmt::Debug for antecedent_estimate::temporal_penalized_score::TrajectoryDependence
@@ -3757,6 +3789,7 @@ impl core::marker::Copy for antecedent_estimate::bayesian_local_ratio::LocalRati
 impl core::marker::Copy for antecedent_estimate::bayesian_local_ratio::LocalRatioSpec
 impl core::marker::Copy for antecedent_estimate::bayesian_panel_did::DidPrior
 impl core::marker::Copy for antecedent_estimate::bayesian_robust_ate::BayesianRobustAteOptions
+impl core::marker::Copy for antecedent_estimate::categorical_treatment::DeclaredRows
 impl core::marker::Copy for antecedent_estimate::categorical_treatment::LevelScale
 impl core::marker::Copy for antecedent_estimate::categorical_treatment::MonotonicityDirection
 impl core::marker::Copy for antecedent_estimate::categorical_treatment_posterior::CategoricalPosteriorPrior
@@ -3780,6 +3813,7 @@ impl core::marker::Copy for antecedent_estimate::cyclic_likelihood::CyclicParame
 impl core::marker::Copy for antecedent_estimate::design_width::DesignWidthQuote
 impl core::marker::Copy for antecedent_estimate::dose_basis_regression::ResidualPrior
 impl core::marker::Copy for antecedent_estimate::dose_grid_functional::ClaimSet
+impl core::marker::Copy for antecedent_estimate::dose_grid_functional::DeclaredRows
 impl core::marker::Copy for antecedent_estimate::dose_grid_functional::DoseContrast
 impl core::marker::Copy for antecedent_estimate::dose_grid_functional::DoseDerivative
 impl core::marker::Copy for antecedent_estimate::dose_grid_functional::DoseDesign
@@ -3966,6 +4000,7 @@ impl core::marker::Copy for antecedent_estimate::temporal_link::TemporalOutcomeL
 impl core::marker::Copy for antecedent_estimate::temporal_link::TrajectoryDependence
 impl core::marker::Copy for antecedent_estimate::temporal_penalized_score::BayesianTemporalPropensity
 impl core::marker::Copy for antecedent_estimate::temporal_penalized_score::FrequentistTemporalPropensity
+impl core::marker::Copy for antecedent_estimate::temporal_penalized_score::PenalizedScoreBand
 impl core::marker::Copy for antecedent_estimate::temporal_penalized_score::TrajectoryDependence
 impl core::marker::Copy for antecedent_estimate::temporal_refresh::FactorChange
 impl core::marker::Copy for antecedent_estimate::temporal_refresh::MechanismStanding
@@ -4220,6 +4255,7 @@ impl core::marker::Freeze for antecedent_estimate::SamplingWeightRecord [auto]
 impl core::marker::Freeze for antecedent_estimate::SamplingWeights [auto]
 impl core::marker::Freeze for antecedent_estimate::SaturationInterferenceEstimate [auto]
 impl core::marker::Freeze for antecedent_estimate::ScenarioBand [auto]
+impl core::marker::Freeze for antecedent_estimate::ScoreDependence [auto]
 impl core::marker::Freeze for antecedent_estimate::ScoreInference [auto]
 impl core::marker::Freeze for antecedent_estimate::ScoreSummary [auto]
 impl core::marker::Freeze for antecedent_estimate::ScoreSupport [auto]
@@ -4241,6 +4277,7 @@ impl core::marker::Freeze for antecedent_estimate::SmoothedDoseOptions [auto]
 impl core::marker::Freeze for antecedent_estimate::SmoothedDoseUncertainty [auto]
 impl core::marker::Freeze for antecedent_estimate::StatisticalTransportEstimate [auto]
 impl core::marker::Freeze for antecedent_estimate::StatisticalTransportInput [auto]
+impl core::marker::Freeze for antecedent_estimate::TemporalConditionalFit [auto]
 impl core::marker::Freeze for antecedent_estimate::TemporalDependenceSe [auto]
 impl core::marker::Freeze for antecedent_estimate::TemporalEffectSurface [auto]
 impl core::marker::Freeze for antecedent_estimate::TemporalInterventionPlan [auto]
@@ -4315,6 +4352,7 @@ impl core::marker::Freeze for antecedent_estimate::categorical_treatment::Catego
 impl core::marker::Freeze for antecedent_estimate::categorical_treatment::CategoricalSummary [auto]
 impl core::marker::Freeze for antecedent_estimate::categorical_treatment::CategoricalTreatmentFit [auto]
 impl core::marker::Freeze for antecedent_estimate::categorical_treatment::CategoricalTreatmentSpec [auto]
+impl core::marker::Freeze for antecedent_estimate::categorical_treatment::DeclaredRows [auto]
 impl core::marker::Freeze for antecedent_estimate::categorical_treatment::LevelContrast [auto]
 impl core::marker::Freeze for antecedent_estimate::categorical_treatment::LevelCount [auto]
 impl core::marker::Freeze for antecedent_estimate::categorical_treatment::LevelScale [auto]
@@ -4416,6 +4454,7 @@ impl core::marker::Freeze for antecedent_estimate::dose_basis_regression::BasisP
 impl core::marker::Freeze for antecedent_estimate::dose_basis_regression::ResidualPrior [auto]
 impl core::marker::Freeze for antecedent_estimate::dose_grid_functional::BiasAwareDoseGrid [auto]
 impl core::marker::Freeze for antecedent_estimate::dose_grid_functional::ClaimSet [auto]
+impl core::marker::Freeze for antecedent_estimate::dose_grid_functional::DeclaredRows [auto]
 impl core::marker::Freeze for antecedent_estimate::dose_grid_functional::DoseContrast [auto]
 impl core::marker::Freeze for antecedent_estimate::dose_grid_functional::DoseDerivative [auto]
 impl core::marker::Freeze for antecedent_estimate::dose_grid_functional::DoseDesign [auto]
@@ -4490,6 +4529,7 @@ impl core::marker::Freeze for antecedent_estimate::history_match::FrequentistHis
 impl core::marker::Freeze for antecedent_estimate::history_match::HistoryUnit [auto]
 impl core::marker::Freeze for antecedent_estimate::history_match::PeriodHistoryContrast [auto]
 impl core::marker::Freeze for antecedent_estimate::history_match::PeriodHistoryEstimate [auto]
+impl core::marker::Freeze for antecedent_estimate::history_match::SerialHistoryInterval [auto]
 impl core::marker::Freeze for antecedent_estimate::history_outcome_model::HistoryOutcomeProblem [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_bayesian_transport::DataIdentity [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_bayesian_transport::FailedFitDiagnostics [auto]
@@ -4603,6 +4643,9 @@ impl core::marker::Freeze for antecedent_estimate::joint_panel::decomposition::R
 impl core::marker::Freeze for antecedent_estimate::joint_panel::decomposition::StreamedDecomposition [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_panel::expression::CompiledPanelExpression [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_panel::expression::PanelExpressionControl [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::restriction::PanelLinearityCheck [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::restriction::PanelNormalityCheck [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::restriction::PanelRestrictionDiagnostics [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_panel::selection_uncertainty::SelectionDecomposition [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_panel::selection_uncertainty::SpecificationShare [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast [auto]
@@ -4997,6 +5040,8 @@ impl core::marker::Freeze for antecedent_estimate::temporal_link::TrajectoryDepe
 impl core::marker::Freeze for antecedent_estimate::temporal_penalized_score::BayesianTemporalPropensity [auto]
 impl core::marker::Freeze for antecedent_estimate::temporal_penalized_score::FrequentistTemporalPropensity [auto]
 impl core::marker::Freeze for antecedent_estimate::temporal_penalized_score::PenalizedPropensityScore [auto]
+impl core::marker::Freeze for antecedent_estimate::temporal_penalized_score::PenalizedScoreBand [auto]
+impl core::marker::Freeze for antecedent_estimate::temporal_penalized_score::PenalizedScoreInterval [auto]
 impl core::marker::Freeze for antecedent_estimate::temporal_penalized_score::PosteriorPropensity [auto]
 impl core::marker::Freeze for antecedent_estimate::temporal_penalized_score::TemporalPropensityDesign [auto]
 impl core::marker::Freeze for antecedent_estimate::temporal_penalized_score::TrajectoryDependence [auto]
@@ -5282,6 +5327,7 @@ impl core::marker::Send for antecedent_estimate::SamplingWeightRecord [auto]
 impl core::marker::Send for antecedent_estimate::SamplingWeights [auto]
 impl core::marker::Send for antecedent_estimate::SaturationInterferenceEstimate [auto]
 impl core::marker::Send for antecedent_estimate::ScenarioBand [auto]
+impl core::marker::Send for antecedent_estimate::ScoreDependence [auto]
 impl core::marker::Send for antecedent_estimate::ScoreInference [auto]
 impl core::marker::Send for antecedent_estimate::ScoreSummary [auto]
 impl core::marker::Send for antecedent_estimate::ScoreSupport [auto]
@@ -5303,6 +5349,7 @@ impl core::marker::Send for antecedent_estimate::SmoothedDoseOptions [auto]
 impl core::marker::Send for antecedent_estimate::SmoothedDoseUncertainty [auto]
 impl core::marker::Send for antecedent_estimate::StatisticalTransportEstimate [auto]
 impl core::marker::Send for antecedent_estimate::StatisticalTransportInput [auto]
+impl core::marker::Send for antecedent_estimate::TemporalConditionalFit [auto]
 impl core::marker::Send for antecedent_estimate::TemporalDependenceSe [auto]
 impl core::marker::Send for antecedent_estimate::TemporalEffectSurface [auto]
 impl core::marker::Send for antecedent_estimate::TemporalInterventionPlan [auto]
@@ -5377,6 +5424,7 @@ impl core::marker::Send for antecedent_estimate::categorical_treatment::Categori
 impl core::marker::Send for antecedent_estimate::categorical_treatment::CategoricalSummary [auto]
 impl core::marker::Send for antecedent_estimate::categorical_treatment::CategoricalTreatmentFit [auto]
 impl core::marker::Send for antecedent_estimate::categorical_treatment::CategoricalTreatmentSpec [auto]
+impl core::marker::Send for antecedent_estimate::categorical_treatment::DeclaredRows [auto]
 impl core::marker::Send for antecedent_estimate::categorical_treatment::LevelContrast [auto]
 impl core::marker::Send for antecedent_estimate::categorical_treatment::LevelCount [auto]
 impl core::marker::Send for antecedent_estimate::categorical_treatment::LevelScale [auto]
@@ -5478,6 +5526,7 @@ impl core::marker::Send for antecedent_estimate::dose_basis_regression::BasisPos
 impl core::marker::Send for antecedent_estimate::dose_basis_regression::ResidualPrior [auto]
 impl core::marker::Send for antecedent_estimate::dose_grid_functional::BiasAwareDoseGrid [auto]
 impl core::marker::Send for antecedent_estimate::dose_grid_functional::ClaimSet [auto]
+impl core::marker::Send for antecedent_estimate::dose_grid_functional::DeclaredRows [auto]
 impl core::marker::Send for antecedent_estimate::dose_grid_functional::DoseContrast [auto]
 impl core::marker::Send for antecedent_estimate::dose_grid_functional::DoseDerivative [auto]
 impl core::marker::Send for antecedent_estimate::dose_grid_functional::DoseDesign [auto]
@@ -5553,6 +5602,7 @@ impl core::marker::Send for antecedent_estimate::history_match::FrequentistHisto
 impl core::marker::Send for antecedent_estimate::history_match::HistoryUnit [auto]
 impl core::marker::Send for antecedent_estimate::history_match::PeriodHistoryContrast [auto]
 impl core::marker::Send for antecedent_estimate::history_match::PeriodHistoryEstimate [auto]
+impl core::marker::Send for antecedent_estimate::history_match::SerialHistoryInterval [auto]
 impl core::marker::Send for antecedent_estimate::history_outcome_model::HistoryOutcomeProblem [auto]
 impl core::marker::Send for antecedent_estimate::joint_bayesian_transport::DataIdentity [auto]
 impl core::marker::Send for antecedent_estimate::joint_bayesian_transport::FailedFitDiagnostics [auto]
@@ -5666,6 +5716,9 @@ impl core::marker::Send for antecedent_estimate::joint_panel::decomposition::Ref
 impl core::marker::Send for antecedent_estimate::joint_panel::decomposition::StreamedDecomposition [auto]
 impl core::marker::Send for antecedent_estimate::joint_panel::expression::CompiledPanelExpression [auto]
 impl core::marker::Send for antecedent_estimate::joint_panel::expression::PanelExpressionControl [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::restriction::PanelLinearityCheck [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::restriction::PanelNormalityCheck [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::restriction::PanelRestrictionDiagnostics [auto]
 impl core::marker::Send for antecedent_estimate::joint_panel::selection_uncertainty::SelectionDecomposition [auto]
 impl core::marker::Send for antecedent_estimate::joint_panel::selection_uncertainty::SpecificationShare [auto]
 impl core::marker::Send for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast [auto]
@@ -6062,6 +6115,8 @@ impl core::marker::Send for antecedent_estimate::temporal_link::TrajectoryDepend
 impl core::marker::Send for antecedent_estimate::temporal_penalized_score::BayesianTemporalPropensity [auto]
 impl core::marker::Send for antecedent_estimate::temporal_penalized_score::FrequentistTemporalPropensity [auto]
 impl core::marker::Send for antecedent_estimate::temporal_penalized_score::PenalizedPropensityScore [auto]
+impl core::marker::Send for antecedent_estimate::temporal_penalized_score::PenalizedScoreBand [auto]
+impl core::marker::Send for antecedent_estimate::temporal_penalized_score::PenalizedScoreInterval [auto]
 impl core::marker::Send for antecedent_estimate::temporal_penalized_score::PosteriorPropensity [auto]
 impl core::marker::Send for antecedent_estimate::temporal_penalized_score::TemporalPropensityDesign [auto]
 impl core::marker::Send for antecedent_estimate::temporal_penalized_score::TrajectoryDependence [auto]
@@ -6266,6 +6321,7 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::SampledRecoveryR
 impl core::marker::StructuralPartialEq for antecedent_estimate::SamplingWeightRecord
 impl core::marker::StructuralPartialEq for antecedent_estimate::SamplingWeights
 impl core::marker::StructuralPartialEq for antecedent_estimate::SaturationInterferenceEstimate
+impl core::marker::StructuralPartialEq for antecedent_estimate::ScoreDependence
 impl core::marker::StructuralPartialEq for antecedent_estimate::ScoreInference
 impl core::marker::StructuralPartialEq for antecedent_estimate::ScoreSummary
 impl core::marker::StructuralPartialEq for antecedent_estimate::ScoreSupport
@@ -6337,6 +6393,7 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::categorical_trea
 impl core::marker::StructuralPartialEq for antecedent_estimate::categorical_treatment::CategoricalSummary
 impl core::marker::StructuralPartialEq for antecedent_estimate::categorical_treatment::CategoricalTreatmentFit
 impl core::marker::StructuralPartialEq for antecedent_estimate::categorical_treatment::CategoricalTreatmentSpec
+impl core::marker::StructuralPartialEq for antecedent_estimate::categorical_treatment::DeclaredRows
 impl core::marker::StructuralPartialEq for antecedent_estimate::categorical_treatment::LevelContrast
 impl core::marker::StructuralPartialEq for antecedent_estimate::categorical_treatment::LevelCount
 impl core::marker::StructuralPartialEq for antecedent_estimate::categorical_treatment::LevelScale
@@ -6432,6 +6489,7 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::dose_basis_regre
 impl core::marker::StructuralPartialEq for antecedent_estimate::dose_basis_regression::ResidualPrior
 impl core::marker::StructuralPartialEq for antecedent_estimate::dose_grid_functional::BiasAwareDoseGrid
 impl core::marker::StructuralPartialEq for antecedent_estimate::dose_grid_functional::ClaimSet
+impl core::marker::StructuralPartialEq for antecedent_estimate::dose_grid_functional::DeclaredRows
 impl core::marker::StructuralPartialEq for antecedent_estimate::dose_grid_functional::DoseContrast
 impl core::marker::StructuralPartialEq for antecedent_estimate::dose_grid_functional::DoseDerivative
 impl core::marker::StructuralPartialEq for antecedent_estimate::dose_grid_functional::DoseDesign
@@ -6495,6 +6553,7 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::heterogeneity_ro
 impl core::marker::StructuralPartialEq for antecedent_estimate::heterogeneity_robust_did::RolloutDidSpec
 impl core::marker::StructuralPartialEq for antecedent_estimate::heterogeneity_robust_did::RolloutResampleRecord
 impl core::marker::StructuralPartialEq for antecedent_estimate::heterogeneity_robust_did::RolloutResampling
+impl core::marker::StructuralPartialEq for antecedent_estimate::history_match::SerialHistoryInterval
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_bayesian_transport::DataIdentity
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_bayesian_transport::FailedFitDiagnostics
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_bayesian_transport::GaussianPrior
@@ -6600,6 +6659,9 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::dec
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::decomposition::ReferenceDecompositionCovariance
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::decomposition::StreamedDecomposition
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::restriction::PanelLinearityCheck
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::restriction::PanelNormalityCheck
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::restriction::PanelRestrictionDiagnostics
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::selection_uncertainty::SelectionDecomposition
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::selection_uncertainty::SpecificationShare
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
@@ -7231,6 +7293,7 @@ impl core::marker::Sync for antecedent_estimate::SamplingWeightRecord [auto]
 impl core::marker::Sync for antecedent_estimate::SamplingWeights [auto]
 impl core::marker::Sync for antecedent_estimate::SaturationInterferenceEstimate [auto]
 impl core::marker::Sync for antecedent_estimate::ScenarioBand [auto]
+impl core::marker::Sync for antecedent_estimate::ScoreDependence [auto]
 impl core::marker::Sync for antecedent_estimate::ScoreInference [auto]
 impl core::marker::Sync for antecedent_estimate::ScoreSummary [auto]
 impl core::marker::Sync for antecedent_estimate::ScoreSupport [auto]
@@ -7252,6 +7315,7 @@ impl core::marker::Sync for antecedent_estimate::SmoothedDoseOptions [auto]
 impl core::marker::Sync for antecedent_estimate::SmoothedDoseUncertainty [auto]
 impl core::marker::Sync for antecedent_estimate::StatisticalTransportEstimate [auto]
 impl core::marker::Sync for antecedent_estimate::StatisticalTransportInput [auto]
+impl core::marker::Sync for antecedent_estimate::TemporalConditionalFit [auto]
 impl core::marker::Sync for antecedent_estimate::TemporalDependenceSe [auto]
 impl core::marker::Sync for antecedent_estimate::TemporalEffectSurface [auto]
 impl core::marker::Sync for antecedent_estimate::TemporalInterventionPlan [auto]
@@ -7326,6 +7390,7 @@ impl core::marker::Sync for antecedent_estimate::categorical_treatment::Categori
 impl core::marker::Sync for antecedent_estimate::categorical_treatment::CategoricalSummary [auto]
 impl core::marker::Sync for antecedent_estimate::categorical_treatment::CategoricalTreatmentFit [auto]
 impl core::marker::Sync for antecedent_estimate::categorical_treatment::CategoricalTreatmentSpec [auto]
+impl core::marker::Sync for antecedent_estimate::categorical_treatment::DeclaredRows [auto]
 impl core::marker::Sync for antecedent_estimate::categorical_treatment::LevelContrast [auto]
 impl core::marker::Sync for antecedent_estimate::categorical_treatment::LevelCount [auto]
 impl core::marker::Sync for antecedent_estimate::categorical_treatment::LevelScale [auto]
@@ -7427,6 +7492,7 @@ impl core::marker::Sync for antecedent_estimate::dose_basis_regression::BasisPos
 impl core::marker::Sync for antecedent_estimate::dose_basis_regression::ResidualPrior [auto]
 impl core::marker::Sync for antecedent_estimate::dose_grid_functional::BiasAwareDoseGrid [auto]
 impl core::marker::Sync for antecedent_estimate::dose_grid_functional::ClaimSet [auto]
+impl core::marker::Sync for antecedent_estimate::dose_grid_functional::DeclaredRows [auto]
 impl core::marker::Sync for antecedent_estimate::dose_grid_functional::DoseContrast [auto]
 impl core::marker::Sync for antecedent_estimate::dose_grid_functional::DoseDerivative [auto]
 impl core::marker::Sync for antecedent_estimate::dose_grid_functional::DoseDesign [auto]
@@ -7502,6 +7568,7 @@ impl core::marker::Sync for antecedent_estimate::history_match::FrequentistHisto
 impl core::marker::Sync for antecedent_estimate::history_match::HistoryUnit [auto]
 impl core::marker::Sync for antecedent_estimate::history_match::PeriodHistoryContrast [auto]
 impl core::marker::Sync for antecedent_estimate::history_match::PeriodHistoryEstimate [auto]
+impl core::marker::Sync for antecedent_estimate::history_match::SerialHistoryInterval [auto]
 impl core::marker::Sync for antecedent_estimate::history_outcome_model::HistoryOutcomeProblem [auto]
 impl core::marker::Sync for antecedent_estimate::joint_bayesian_transport::DataIdentity [auto]
 impl core::marker::Sync for antecedent_estimate::joint_bayesian_transport::FailedFitDiagnostics [auto]
@@ -7615,6 +7682,9 @@ impl core::marker::Sync for antecedent_estimate::joint_panel::decomposition::Ref
 impl core::marker::Sync for antecedent_estimate::joint_panel::decomposition::StreamedDecomposition [auto]
 impl core::marker::Sync for antecedent_estimate::joint_panel::expression::CompiledPanelExpression [auto]
 impl core::marker::Sync for antecedent_estimate::joint_panel::expression::PanelExpressionControl [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::restriction::PanelLinearityCheck [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::restriction::PanelNormalityCheck [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::restriction::PanelRestrictionDiagnostics [auto]
 impl core::marker::Sync for antecedent_estimate::joint_panel::selection_uncertainty::SelectionDecomposition [auto]
 impl core::marker::Sync for antecedent_estimate::joint_panel::selection_uncertainty::SpecificationShare [auto]
 impl core::marker::Sync for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast [auto]
@@ -8011,6 +8081,8 @@ impl core::marker::Sync for antecedent_estimate::temporal_link::TrajectoryDepend
 impl core::marker::Sync for antecedent_estimate::temporal_penalized_score::BayesianTemporalPropensity [auto]
 impl core::marker::Sync for antecedent_estimate::temporal_penalized_score::FrequentistTemporalPropensity [auto]
 impl core::marker::Sync for antecedent_estimate::temporal_penalized_score::PenalizedPropensityScore [auto]
+impl core::marker::Sync for antecedent_estimate::temporal_penalized_score::PenalizedScoreBand [auto]
+impl core::marker::Sync for antecedent_estimate::temporal_penalized_score::PenalizedScoreInterval [auto]
 impl core::marker::Sync for antecedent_estimate::temporal_penalized_score::PosteriorPropensity [auto]
 impl core::marker::Sync for antecedent_estimate::temporal_penalized_score::TemporalPropensityDesign [auto]
 impl core::marker::Sync for antecedent_estimate::temporal_penalized_score::TrajectoryDependence [auto]
@@ -8296,6 +8368,7 @@ impl core::marker::Unpin for antecedent_estimate::SamplingWeightRecord [auto]
 impl core::marker::Unpin for antecedent_estimate::SamplingWeights [auto]
 impl core::marker::Unpin for antecedent_estimate::SaturationInterferenceEstimate [auto]
 impl core::marker::Unpin for antecedent_estimate::ScenarioBand [auto]
+impl core::marker::Unpin for antecedent_estimate::ScoreDependence [auto]
 impl core::marker::Unpin for antecedent_estimate::ScoreInference [auto]
 impl core::marker::Unpin for antecedent_estimate::ScoreSummary [auto]
 impl core::marker::Unpin for antecedent_estimate::ScoreSupport [auto]
@@ -8317,6 +8390,7 @@ impl core::marker::Unpin for antecedent_estimate::SmoothedDoseOptions [auto]
 impl core::marker::Unpin for antecedent_estimate::SmoothedDoseUncertainty [auto]
 impl core::marker::Unpin for antecedent_estimate::StatisticalTransportEstimate [auto]
 impl core::marker::Unpin for antecedent_estimate::StatisticalTransportInput [auto]
+impl core::marker::Unpin for antecedent_estimate::TemporalConditionalFit [auto]
 impl core::marker::Unpin for antecedent_estimate::TemporalDependenceSe [auto]
 impl core::marker::Unpin for antecedent_estimate::TemporalEffectSurface [auto]
 impl core::marker::Unpin for antecedent_estimate::TemporalInterventionPlan [auto]
@@ -8391,6 +8465,7 @@ impl core::marker::Unpin for antecedent_estimate::categorical_treatment::Categor
 impl core::marker::Unpin for antecedent_estimate::categorical_treatment::CategoricalSummary [auto]
 impl core::marker::Unpin for antecedent_estimate::categorical_treatment::CategoricalTreatmentFit [auto]
 impl core::marker::Unpin for antecedent_estimate::categorical_treatment::CategoricalTreatmentSpec [auto]
+impl core::marker::Unpin for antecedent_estimate::categorical_treatment::DeclaredRows [auto]
 impl core::marker::Unpin for antecedent_estimate::categorical_treatment::LevelContrast [auto]
 impl core::marker::Unpin for antecedent_estimate::categorical_treatment::LevelCount [auto]
 impl core::marker::Unpin for antecedent_estimate::categorical_treatment::LevelScale [auto]
@@ -8492,6 +8567,7 @@ impl core::marker::Unpin for antecedent_estimate::dose_basis_regression::BasisPo
 impl core::marker::Unpin for antecedent_estimate::dose_basis_regression::ResidualPrior [auto]
 impl core::marker::Unpin for antecedent_estimate::dose_grid_functional::BiasAwareDoseGrid [auto]
 impl core::marker::Unpin for antecedent_estimate::dose_grid_functional::ClaimSet [auto]
+impl core::marker::Unpin for antecedent_estimate::dose_grid_functional::DeclaredRows [auto]
 impl core::marker::Unpin for antecedent_estimate::dose_grid_functional::DoseContrast [auto]
 impl core::marker::Unpin for antecedent_estimate::dose_grid_functional::DoseDerivative [auto]
 impl core::marker::Unpin for antecedent_estimate::dose_grid_functional::DoseDesign [auto]
@@ -8567,6 +8643,7 @@ impl core::marker::Unpin for antecedent_estimate::history_match::FrequentistHist
 impl core::marker::Unpin for antecedent_estimate::history_match::HistoryUnit [auto]
 impl core::marker::Unpin for antecedent_estimate::history_match::PeriodHistoryContrast [auto]
 impl core::marker::Unpin for antecedent_estimate::history_match::PeriodHistoryEstimate [auto]
+impl core::marker::Unpin for antecedent_estimate::history_match::SerialHistoryInterval [auto]
 impl core::marker::Unpin for antecedent_estimate::history_outcome_model::HistoryOutcomeProblem [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_bayesian_transport::DataIdentity [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_bayesian_transport::FailedFitDiagnostics [auto]
@@ -8680,6 +8757,9 @@ impl core::marker::Unpin for antecedent_estimate::joint_panel::decomposition::Re
 impl core::marker::Unpin for antecedent_estimate::joint_panel::decomposition::StreamedDecomposition [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_panel::expression::CompiledPanelExpression [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_panel::expression::PanelExpressionControl [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::restriction::PanelLinearityCheck [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::restriction::PanelNormalityCheck [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::restriction::PanelRestrictionDiagnostics [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_panel::selection_uncertainty::SelectionDecomposition [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_panel::selection_uncertainty::SpecificationShare [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast [auto]
@@ -9076,6 +9156,8 @@ impl core::marker::Unpin for antecedent_estimate::temporal_link::TrajectoryDepen
 impl core::marker::Unpin for antecedent_estimate::temporal_penalized_score::BayesianTemporalPropensity [auto]
 impl core::marker::Unpin for antecedent_estimate::temporal_penalized_score::FrequentistTemporalPropensity [auto]
 impl core::marker::Unpin for antecedent_estimate::temporal_penalized_score::PenalizedPropensityScore [auto]
+impl core::marker::Unpin for antecedent_estimate::temporal_penalized_score::PenalizedScoreBand [auto]
+impl core::marker::Unpin for antecedent_estimate::temporal_penalized_score::PenalizedScoreInterval [auto]
 impl core::marker::Unpin for antecedent_estimate::temporal_penalized_score::PosteriorPropensity [auto]
 impl core::marker::Unpin for antecedent_estimate::temporal_penalized_score::TemporalPropensityDesign [auto]
 impl core::marker::Unpin for antecedent_estimate::temporal_penalized_score::TrajectoryDependence [auto]
@@ -9362,6 +9444,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::SamplingWe
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::SamplingWeights [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::SaturationInterferenceEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ScenarioBand [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ScoreDependence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ScoreInference [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ScoreSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ScoreSupport [auto]
@@ -9383,6 +9466,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::SmoothedDo
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::SmoothedDoseUncertainty [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::StatisticalTransportEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::StatisticalTransportInput [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::TemporalConditionalFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::TemporalDependenceSe [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::TemporalEffectSurface [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::TemporalInterventionPlan [auto]
@@ -9457,6 +9541,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::categorica
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::categorical_treatment::CategoricalSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::categorical_treatment::CategoricalTreatmentFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::categorical_treatment::CategoricalTreatmentSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::categorical_treatment::DeclaredRows [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::categorical_treatment::LevelContrast [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::categorical_treatment::LevelCount [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::categorical_treatment::LevelScale [auto]
@@ -9558,6 +9643,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::dose_basis
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::dose_basis_regression::ResidualPrior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::dose_grid_functional::BiasAwareDoseGrid [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::dose_grid_functional::ClaimSet [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::dose_grid_functional::DeclaredRows [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::dose_grid_functional::DoseContrast [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::dose_grid_functional::DoseDerivative [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::dose_grid_functional::DoseDesign [auto]
@@ -9633,6 +9719,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::history_ma
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::history_match::HistoryUnit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::history_match::PeriodHistoryContrast [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::history_match::PeriodHistoryEstimate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::history_match::SerialHistoryInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::history_outcome_model::HistoryOutcomeProblem [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_bayesian_transport::DataIdentity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_bayesian_transport::FailedFitDiagnostics [auto]
@@ -9746,6 +9833,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_pane
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::decomposition::StreamedDecomposition [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::expression::CompiledPanelExpression [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::expression::PanelExpressionControl [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::restriction::PanelLinearityCheck [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::restriction::PanelNormalityCheck [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::restriction::PanelRestrictionDiagnostics [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::selection_uncertainty::SelectionDecomposition [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::selection_uncertainty::SpecificationShare [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast [auto]
@@ -10141,6 +10231,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_l
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_penalized_score::BayesianTemporalPropensity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_penalized_score::FrequentistTemporalPropensity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_penalized_score::PenalizedPropensityScore [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_penalized_score::PenalizedScoreBand [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_penalized_score::PenalizedScoreInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_penalized_score::PosteriorPropensity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_penalized_score::TemporalPropensityDesign [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_penalized_score::TrajectoryDependence [auto]
@@ -10426,6 +10518,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::SamplingWeigh
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::SamplingWeights [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::SaturationInterferenceEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ScenarioBand [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ScoreDependence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ScoreInference [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ScoreSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ScoreSupport [auto]
@@ -10447,6 +10540,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::SmoothedDoseO
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::SmoothedDoseUncertainty [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::StatisticalTransportEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::StatisticalTransportInput [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::TemporalConditionalFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::TemporalDependenceSe [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::TemporalEffectSurface [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::TemporalInterventionPlan [auto]
@@ -10521,6 +10615,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::categorical_t
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::categorical_treatment::CategoricalSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::categorical_treatment::CategoricalTreatmentFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::categorical_treatment::CategoricalTreatmentSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::categorical_treatment::DeclaredRows [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::categorical_treatment::LevelContrast [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::categorical_treatment::LevelCount [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::categorical_treatment::LevelScale [auto]
@@ -10622,6 +10717,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::dose_basis_re
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::dose_basis_regression::ResidualPrior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::dose_grid_functional::BiasAwareDoseGrid [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::dose_grid_functional::ClaimSet [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::dose_grid_functional::DeclaredRows [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::dose_grid_functional::DoseContrast [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::dose_grid_functional::DoseDerivative [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::dose_grid_functional::DoseDesign [auto]
@@ -10697,6 +10793,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::history_match
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::history_match::HistoryUnit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::history_match::PeriodHistoryContrast [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::history_match::PeriodHistoryEstimate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::history_match::SerialHistoryInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::history_outcome_model::HistoryOutcomeProblem [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_bayesian_transport::DataIdentity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_bayesian_transport::FailedFitDiagnostics [auto]
@@ -10810,6 +10907,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::decomposition::StreamedDecomposition [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::expression::CompiledPanelExpression [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::expression::PanelExpressionControl [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::restriction::PanelLinearityCheck [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::restriction::PanelNormalityCheck [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::restriction::PanelRestrictionDiagnostics [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::selection_uncertainty::SelectionDecomposition [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::selection_uncertainty::SpecificationShare [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast [auto]
@@ -11205,6 +11305,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_link
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_penalized_score::BayesianTemporalPropensity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_penalized_score::FrequentistTemporalPropensity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_penalized_score::PenalizedPropensityScore [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_penalized_score::PenalizedScoreBand [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_penalized_score::PenalizedScoreInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_penalized_score::PosteriorPropensity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_penalized_score::TemporalPropensityDesign [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_penalized_score::TrajectoryDependence [auto]
@@ -11514,6 +11616,8 @@ impl<'a> core::clone::Clone for antecedent_estimate::continuous_dose_posterior::
 impl<'a> core::clone::Clone for antecedent_estimate::cyclic_dynamic_inference::DynamicFitRef<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::cyclic_functional::CyclicFunctionalInputs<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a>
+impl<'a> core::clone::Clone for antecedent_estimate::dose_grid_functional::RowDeclaration<'a>
+impl<'a> core::clone::Clone for antecedent_estimate::dose_grid_functional::RowDependence<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::dose_grid_posterior::DoseGridPosteriorRequest<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::experimental_fit::BootstrapSpec<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::experimental_fit::ExperimentRows<'a>
@@ -11551,21 +11655,31 @@ impl<'a> core::clone::Clone for antecedent_estimate::temporal_design::regime::St
 impl<'a> core::clone::Clone for antecedent_estimate::temporal_design::survival::TrajectoryRows<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::temporal_penalized_score::TemporalPropensityDesignRef<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::trajectory_survival::TrajectoryRows<'a>
+impl<'a> core::clone::Clone for antecedent_estimate::transport_design::RowDependence<'a>
+impl<'a> core::clone::Clone for antecedent_estimate::transport_design::TrialToTargetRows<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::vector_treatment::NamedColumn<'a>
+impl<'a> core::clone::Clone for antecedent_estimate::vector_treatment::RowStructure<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::vector_treatment::TreatmentColumn<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::vector_treatment::VectorTreatmentInput<'a>
+impl<'a> core::cmp::Eq for antecedent_estimate::dose_grid_functional::RowDependence<'a>
 impl<'a> core::cmp::Eq for antecedent_estimate::measurement::CategoricalFunctional<'a>
 impl<'a> core::cmp::Eq for antecedent_estimate::measurement::RiskDifferenceInput<'a>
 impl<'a> core::cmp::PartialEq for antecedent_estimate::bayesian_synthetic_control::BayesianSyntheticControlSpec<'a>
 impl<'a> core::cmp::PartialEq for antecedent_estimate::categorical_treatment::CategoricalTreatmentInput<'a>
+impl<'a> core::cmp::PartialEq for antecedent_estimate::dose_grid_functional::RowDeclaration<'a>
+impl<'a> core::cmp::PartialEq for antecedent_estimate::dose_grid_functional::RowDependence<'a>
 impl<'a> core::cmp::PartialEq for antecedent_estimate::measurement::CategoricalFunctional<'a>
 impl<'a> core::cmp::PartialEq for antecedent_estimate::measurement::RiskDifferenceInput<'a>
 impl<'a> core::cmp::PartialEq for antecedent_estimate::policy_value::MultiActionLimits<'a>
 impl<'a> core::cmp::PartialEq for antecedent_estimate::vector_treatment::NamedColumn<'a>
+impl<'a> core::cmp::PartialEq for antecedent_estimate::vector_treatment::RowStructure<'a>
 impl<'a> core::cmp::PartialEq for antecedent_estimate::vector_treatment::TreatmentColumn<'a>
 impl<'a> core::cmp::PartialEq for antecedent_estimate::vector_treatment::VectorTreatmentInput<'a>
 impl<'a> core::default::Default for antecedent_estimate::SharedCellInputs<'a>
+impl<'a> core::default::Default for antecedent_estimate::dose_grid_functional::RowDeclaration<'a>
+impl<'a> core::default::Default for antecedent_estimate::dose_grid_functional::RowDependence<'a>
 impl<'a> core::default::Default for antecedent_estimate::policy_value::MultiActionLimits<'a>
+impl<'a> core::default::Default for antecedent_estimate::vector_treatment::RowStructure<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::CellScoreSpec<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::ContinuousCellSpec<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::HydrateSource<'a>
@@ -11592,6 +11706,8 @@ impl<'a> core::fmt::Debug for antecedent_estimate::continuous_dose_posterior::Do
 impl<'a> core::fmt::Debug for antecedent_estimate::cyclic_dynamic_inference::DynamicFitRef<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::cyclic_functional::CyclicFunctionalInputs<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a>
+impl<'a> core::fmt::Debug for antecedent_estimate::dose_grid_functional::RowDeclaration<'a>
+impl<'a> core::fmt::Debug for antecedent_estimate::dose_grid_functional::RowDependence<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::dose_grid_posterior::DoseGridPosteriorRequest<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::experimental_fit::BootstrapSpec<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::experimental_fit::ExperimentRows<'a>
@@ -11630,7 +11746,10 @@ impl<'a> core::fmt::Debug for antecedent_estimate::temporal_design::regime::Stat
 impl<'a> core::fmt::Debug for antecedent_estimate::temporal_design::survival::TrajectoryRows<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::temporal_penalized_score::TemporalPropensityDesignRef<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::trajectory_survival::TrajectoryRows<'a>
+impl<'a> core::fmt::Debug for antecedent_estimate::transport_design::RowDependence<'a>
+impl<'a> core::fmt::Debug for antecedent_estimate::transport_design::TrialToTargetRows<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::vector_treatment::NamedColumn<'a>
+impl<'a> core::fmt::Debug for antecedent_estimate::vector_treatment::RowStructure<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::vector_treatment::TreatmentColumn<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::vector_treatment::VectorTreatmentInput<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::CellScoreSpec<'a>
@@ -11658,6 +11777,8 @@ impl<'a> core::marker::Copy for antecedent_estimate::continuous_dose_posterior::
 impl<'a> core::marker::Copy for antecedent_estimate::cyclic_dynamic_inference::DynamicFitRef<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::cyclic_functional::CyclicFunctionalInputs<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a>
+impl<'a> core::marker::Copy for antecedent_estimate::dose_grid_functional::RowDeclaration<'a>
+impl<'a> core::marker::Copy for antecedent_estimate::dose_grid_functional::RowDependence<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::dose_grid_posterior::DoseGridPosteriorRequest<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::experimental_fit::BootstrapSpec<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::experimental_fit::ExperimentRows<'a>
@@ -11694,6 +11815,9 @@ impl<'a> core::marker::Copy for antecedent_estimate::temporal_design::regime::St
 impl<'a> core::marker::Copy for antecedent_estimate::temporal_design::survival::TrajectoryRows<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::temporal_penalized_score::TemporalPropensityDesignRef<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::trajectory_survival::TrajectoryRows<'a>
+impl<'a> core::marker::Copy for antecedent_estimate::transport_design::RowDependence<'a>
+impl<'a> core::marker::Copy for antecedent_estimate::transport_design::TrialToTargetRows<'a>
+impl<'a> core::marker::Copy for antecedent_estimate::vector_treatment::RowStructure<'a>
 impl<'a> core::marker::Freeze for antecedent_estimate::CellScoreSpec<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::ContinuousCellSpec<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::HydrateSource<'a> [auto]
@@ -11723,6 +11847,8 @@ impl<'a> core::marker::Freeze for antecedent_estimate::continuous_dose_posterior
 impl<'a> core::marker::Freeze for antecedent_estimate::cyclic_dynamic_inference::DynamicFitRef<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::cyclic_functional::CyclicFunctionalInputs<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_estimate::dose_grid_functional::RowDeclaration<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_estimate::dose_grid_functional::RowDependence<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::dose_grid_posterior::DoseGridPosteriorRequest<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::experimental_fit::BootstrapSpec<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::experimental_fit::ExperimentRows<'a> [auto]
@@ -11761,7 +11887,10 @@ impl<'a> core::marker::Freeze for antecedent_estimate::temporal_design::regime::
 impl<'a> core::marker::Freeze for antecedent_estimate::temporal_design::survival::TrajectoryRows<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::temporal_penalized_score::TemporalPropensityDesignRef<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::trajectory_survival::TrajectoryRows<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_estimate::transport_design::RowDependence<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_estimate::transport_design::TrialToTargetRows<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::vector_treatment::NamedColumn<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_estimate::vector_treatment::RowStructure<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::vector_treatment::TreatmentColumn<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::vector_treatment::VectorTreatmentInput<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::CellScoreSpec<'a> [auto]
@@ -11793,6 +11922,8 @@ impl<'a> core::marker::Send for antecedent_estimate::continuous_dose_posterior::
 impl<'a> core::marker::Send for antecedent_estimate::cyclic_dynamic_inference::DynamicFitRef<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::cyclic_functional::CyclicFunctionalInputs<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a> [auto]
+impl<'a> core::marker::Send for antecedent_estimate::dose_grid_functional::RowDeclaration<'a> [auto]
+impl<'a> core::marker::Send for antecedent_estimate::dose_grid_functional::RowDependence<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::dose_grid_posterior::DoseGridPosteriorRequest<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::experimental_fit::BootstrapSpec<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::experimental_fit::ExperimentRows<'a> [auto]
@@ -11831,15 +11962,21 @@ impl<'a> core::marker::Send for antecedent_estimate::temporal_design::regime::St
 impl<'a> core::marker::Send for antecedent_estimate::temporal_design::survival::TrajectoryRows<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::temporal_penalized_score::TemporalPropensityDesignRef<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::trajectory_survival::TrajectoryRows<'a> [auto]
+impl<'a> core::marker::Send for antecedent_estimate::transport_design::RowDependence<'a> [auto]
+impl<'a> core::marker::Send for antecedent_estimate::transport_design::TrialToTargetRows<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::vector_treatment::NamedColumn<'a> [auto]
+impl<'a> core::marker::Send for antecedent_estimate::vector_treatment::RowStructure<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::vector_treatment::TreatmentColumn<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::vector_treatment::VectorTreatmentInput<'a> [auto]
 impl<'a> core::marker::StructuralPartialEq for antecedent_estimate::bayesian_synthetic_control::BayesianSyntheticControlSpec<'a>
 impl<'a> core::marker::StructuralPartialEq for antecedent_estimate::categorical_treatment::CategoricalTreatmentInput<'a>
+impl<'a> core::marker::StructuralPartialEq for antecedent_estimate::dose_grid_functional::RowDeclaration<'a>
+impl<'a> core::marker::StructuralPartialEq for antecedent_estimate::dose_grid_functional::RowDependence<'a>
 impl<'a> core::marker::StructuralPartialEq for antecedent_estimate::measurement::CategoricalFunctional<'a>
 impl<'a> core::marker::StructuralPartialEq for antecedent_estimate::measurement::RiskDifferenceInput<'a>
 impl<'a> core::marker::StructuralPartialEq for antecedent_estimate::policy_value::MultiActionLimits<'a>
 impl<'a> core::marker::StructuralPartialEq for antecedent_estimate::vector_treatment::NamedColumn<'a>
+impl<'a> core::marker::StructuralPartialEq for antecedent_estimate::vector_treatment::RowStructure<'a>
 impl<'a> core::marker::StructuralPartialEq for antecedent_estimate::vector_treatment::TreatmentColumn<'a>
 impl<'a> core::marker::StructuralPartialEq for antecedent_estimate::vector_treatment::VectorTreatmentInput<'a>
 impl<'a> core::marker::Sync for antecedent_estimate::CellScoreSpec<'a> [auto]
@@ -11871,6 +12008,8 @@ impl<'a> core::marker::Sync for antecedent_estimate::continuous_dose_posterior::
 impl<'a> core::marker::Sync for antecedent_estimate::cyclic_dynamic_inference::DynamicFitRef<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::cyclic_functional::CyclicFunctionalInputs<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_estimate::dose_grid_functional::RowDeclaration<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_estimate::dose_grid_functional::RowDependence<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::dose_grid_posterior::DoseGridPosteriorRequest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::experimental_fit::BootstrapSpec<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::experimental_fit::ExperimentRows<'a> [auto]
@@ -11909,7 +12048,10 @@ impl<'a> core::marker::Sync for antecedent_estimate::temporal_design::regime::St
 impl<'a> core::marker::Sync for antecedent_estimate::temporal_design::survival::TrajectoryRows<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::temporal_penalized_score::TemporalPropensityDesignRef<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::trajectory_survival::TrajectoryRows<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_estimate::transport_design::RowDependence<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_estimate::transport_design::TrialToTargetRows<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::vector_treatment::NamedColumn<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_estimate::vector_treatment::RowStructure<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::vector_treatment::TreatmentColumn<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::vector_treatment::VectorTreatmentInput<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::CellScoreSpec<'a> [auto]
@@ -11941,6 +12083,8 @@ impl<'a> core::marker::Unpin for antecedent_estimate::continuous_dose_posterior:
 impl<'a> core::marker::Unpin for antecedent_estimate::cyclic_dynamic_inference::DynamicFitRef<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::cyclic_functional::CyclicFunctionalInputs<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_estimate::dose_grid_functional::RowDeclaration<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_estimate::dose_grid_functional::RowDependence<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::dose_grid_posterior::DoseGridPosteriorRequest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::experimental_fit::BootstrapSpec<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::experimental_fit::ExperimentRows<'a> [auto]
@@ -11979,7 +12123,10 @@ impl<'a> core::marker::Unpin for antecedent_estimate::temporal_design::regime::S
 impl<'a> core::marker::Unpin for antecedent_estimate::temporal_design::survival::TrajectoryRows<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::temporal_penalized_score::TemporalPropensityDesignRef<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::trajectory_survival::TrajectoryRows<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_estimate::transport_design::RowDependence<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_estimate::transport_design::TrialToTargetRows<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::vector_treatment::NamedColumn<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_estimate::vector_treatment::RowStructure<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::vector_treatment::TreatmentColumn<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::vector_treatment::VectorTreatmentInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::CellScoreSpec<'a> [auto]
@@ -12008,6 +12155,8 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::contin
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_dynamic_inference::DynamicFitRef<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_functional::CyclicFunctionalInputs<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::dose_grid_functional::RowDeclaration<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::dose_grid_functional::RowDependence<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::dose_grid_posterior::DoseGridPosteriorRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::experimental_fit::BootstrapSpec<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::experimental_fit::ExperimentRows<'a> [auto]
@@ -12046,7 +12195,10 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::tempor
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_design::survival::TrajectoryRows<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_penalized_score::TemporalPropensityDesignRef<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::trajectory_survival::TrajectoryRows<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::transport_design::RowDependence<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::transport_design::TrialToTargetRows<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::vector_treatment::NamedColumn<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::vector_treatment::RowStructure<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::vector_treatment::TreatmentColumn<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::vector_treatment::VectorTreatmentInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::CellScoreSpec<'a> [auto]
@@ -12075,6 +12227,8 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::continuou
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_dynamic_inference::DynamicFitRef<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_functional::CyclicFunctionalInputs<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::dose_grid_functional::RowDeclaration<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::dose_grid_functional::RowDependence<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::dose_grid_posterior::DoseGridPosteriorRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::experimental_fit::BootstrapSpec<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::experimental_fit::ExperimentRows<'a> [auto]
@@ -12113,7 +12267,10 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_design::survival::TrajectoryRows<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_penalized_score::TemporalPropensityDesignRef<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::trajectory_survival::TrajectoryRows<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::transport_design::RowDependence<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::transport_design::TrialToTargetRows<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::vector_treatment::NamedColumn<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::vector_treatment::RowStructure<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::vector_treatment::TreatmentColumn<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::vector_treatment::VectorTreatmentInput<'a> [auto]
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::DoseBasis
@@ -12543,6 +12700,8 @@ pub const antecedent_estimate::joint_bayesian_transport::JOINT_TRANSPORT_MAX_PAR
 pub const antecedent_estimate::joint_bayesian_transport::JOINT_TRANSPORT_SAMPLER: &str
 pub const antecedent_estimate::joint_design::capabilities::JOINT_DESIGN_CAPABILITIES: [antecedent_estimate::joint_design::capabilities::JointDesignCapability; 7]
 pub const antecedent_estimate::joint_panel::family::MAX_SPATIAL_GROUPS: usize
+pub const antecedent_estimate::joint_panel::restriction::LINEARITY_BINS: usize
+pub const antecedent_estimate::joint_panel::restriction::MIN_DIAGNOSTIC_INNOVATIONS: usize
 pub const antecedent_estimate::latent_class_effects::LATENT_CLASS_CAVEAT: &str
 pub const antecedent_estimate::latent_class_effects::LATENT_CLASS_INFERENCE_CLAIM: &str
 pub const antecedent_estimate::latent_class_effects::LATENT_CLASS_MAX_CLASSES: usize
@@ -12623,6 +12782,8 @@ pub const antecedent_estimate::scenario_covariance::MAX_REPLICATES: usize
 pub const antecedent_estimate::scenario_covariance::MAX_SCENARIOS: usize
 pub const antecedent_estimate::scores::MIN_THRESHOLD_EVENTS: f64
 pub const antecedent_estimate::sequential_crossfit::MIN_PROBABILITY: &str
+pub const antecedent_estimate::smoothed_dose::SMOOTHED_DOSE_BLOCK_FOLD_SCHEME: &str
+pub const antecedent_estimate::smoothed_dose::SMOOTHED_DOSE_CLUSTER_FOLD_SCHEME: &str
 pub const antecedent_estimate::smoothed_dose::SMOOTHED_DOSE_FOLD_SCHEME: &str
 pub const antecedent_estimate::smoothed_dose::SMOOTHED_DOSE_MAX_BASIS_DEGREE: u8
 pub const antecedent_estimate::smoothed_dose::SMOOTHED_DOSE_MAX_BOOTSTRAP: u32
@@ -12657,6 +12818,7 @@ pub const antecedent_estimate::temporal_design::observational::OBSERVATIONAL_COO
 pub const antecedent_estimate::temporal_design::quantile::QUANTILE_COORDINATES: [&str; 3]
 pub const antecedent_estimate::temporal_design::regime::MIN_REPLICATES: usize
 pub const antecedent_estimate::temporal_design::regime::REGIME_COORDINATES: [&str; 3]
+pub const antecedent_estimate::temporal_design::serial::SERIAL_METHOD: &str
 pub const antecedent_estimate::temporal_design::survival::MIN_REPLICATES: usize
 pub const antecedent_estimate::temporal_design::survival::SURVIVAL_COORDINATES: [&str; 3]
 pub const antecedent_estimate::temporal_initial_state::INITIAL_STATE_INFERENCE_CLAIM: &str
@@ -12714,6 +12876,7 @@ pub enum antecedent_estimate::ReportingScale
 pub enum antecedent_estimate::RetargetRefusal
 pub enum antecedent_estimate::RowResampling
 pub enum antecedent_estimate::SampledRecoveryDetail
+pub enum antecedent_estimate::ScoreDependence
 pub enum antecedent_estimate::SelectedOutcomeCorrection
 pub enum antecedent_estimate::SerialDependence
 pub enum antecedent_estimate::TemporalInterventionPlan
@@ -12746,6 +12909,7 @@ pub enum antecedent_estimate::dose_basis_regression::ResidualPrior
 pub enum antecedent_estimate::dose_grid_functional::DoseDesign
 pub enum antecedent_estimate::dose_grid_functional::DoseFunctional
 pub enum antecedent_estimate::dose_grid_functional::IntervalCalibration
+pub enum antecedent_estimate::dose_grid_functional::RowDependence<'a>
 pub enum antecedent_estimate::effect_constancy::CalibrationStatus
 pub enum antecedent_estimate::effect_constancy::ConstancyConclusion
 pub enum antecedent_estimate::effect_constancy::ContrastFamily
@@ -12865,6 +13029,7 @@ pub enum antecedent_estimate::temporal_refresh::MechanismStanding
 pub enum antecedent_estimate::temporal_refresh::RefreshDecision
 pub enum antecedent_estimate::temporal_refresh::RefreshInvalidation
 pub enum antecedent_estimate::temporal_refresh::WindowProduct
+pub enum antecedent_estimate::transport_design::RowDependence<'a>
 pub enum antecedent_estimate::util::SamplingDeclaration
 pub enum antecedent_estimate::vector_treatment::VectorCovariance
 pub field antecedent_estimate::AdjustedEstimate::active: f64
@@ -13440,6 +13605,7 @@ pub field antecedent_estimate::LevelRows::level: f64
 pub field antecedent_estimate::LevelRows::rows: u64
 pub field antecedent_estimate::LinearAdjustmentAte::backend: antecedent_stats::faer_backend::FaerBackend
 pub field antecedent_estimate::LinearAdjustmentAte::contrasts: alloc::vec::Vec<(antecedent_core::ids::VariableId, antecedent_data::categorical::Contrast)>
+pub field antecedent_estimate::LinearAdjustmentAte::dose_reading: bool
 pub field antecedent_estimate::LinearAdjustmentAte::fit_kind: antecedent_estimate::LinearFitKind
 pub field antecedent_estimate::LinearAdjustmentAte::inference: antecedent_estimate::InferenceSpec
 pub field antecedent_estimate::LinearAdjustmentAte::other_levels: antecedent_estimate::OtherLevels
@@ -13950,12 +14116,15 @@ pub field antecedent_estimate::SmoothedDoseEstimate::models: antecedent_estimate
 pub field antecedent_estimate::SmoothedDoseEstimate::overlap: antecedent_estimate::smoothed_dose::MembershipOverlap
 pub field antecedent_estimate::SmoothedDoseEstimate::provenance: alloc::vec::Vec<antecedent_learn::learner::LearnerProvenance>
 pub field antecedent_estimate::SmoothedDoseEstimate::uncertainty: antecedent_estimate::SmoothedDoseUncertainty
+pub field antecedent_estimate::SmoothedDoseInput::cluster: core::option::Option<alloc::vec::Vec<u32>>
 pub field antecedent_estimate::SmoothedDoseInput::covariates: alloc::vec::Vec<alloc::vec::Vec<f64>>
 pub field antecedent_estimate::SmoothedDoseInput::dose: alloc::vec::Vec<f64>
 pub field antecedent_estimate::SmoothedDoseInput::dose_density: alloc::vec::Vec<f64>
 pub field antecedent_estimate::SmoothedDoseInput::features: alloc::vec::Vec<u32>
 pub field antecedent_estimate::SmoothedDoseInput::outcome: alloc::vec::Vec<f64>
 pub field antecedent_estimate::SmoothedDoseInput::sampling: antecedent_estimate::TrialSampling
+pub field antecedent_estimate::SmoothedDoseInput::sampling_weights: core::option::Option<alloc::vec::Vec<f64>>
+pub field antecedent_estimate::SmoothedDoseInput::serial_lag: core::option::Option<u32>
 pub field antecedent_estimate::SmoothedDoseInput::source: alloc::vec::Vec<bool>
 pub field antecedent_estimate::SmoothedDoseOptions::basis: antecedent_estimate::DoseBasis
 pub field antecedent_estimate::SmoothedDoseOptions::bootstrap: u32
@@ -13987,6 +14156,11 @@ pub field antecedent_estimate::StatisticalTransportEstimate::uncertainty: core::
 pub field antecedent_estimate::StatisticalTransportEstimate::uncertainty_reason: core::option::Option<alloc::sync::Arc<str>>
 pub field antecedent_estimate::StatisticalTransportInput::samples: alloc::vec::Vec<antecedent_estimate::RegimeSample>
 pub field antecedent_estimate::StatisticalTransportInput::supplied: alloc::vec::Vec<antecedent_expr::exact::ExactDiscreteLaw>
+pub field antecedent_estimate::TemporalConditionalFit::effect: f64
+pub field antecedent_estimate::TemporalConditionalFit::problem: antecedent_estimate::PreparedEstimationProblem
+pub field antecedent_estimate::TemporalConditionalFit::rows: usize
+pub field antecedent_estimate::TemporalConditionalFit::selection: core::option::Option<antecedent_estimate::GapSelection>
+pub field antecedent_estimate::TemporalConditionalFit::standard_error: f64
 pub field antecedent_estimate::TemporalDependenceSe::block_length: usize
 pub field antecedent_estimate::TemporalDependenceSe::effective_rows: f64
 pub field antecedent_estimate::TemporalDependenceSe::kernel_bias: f64
@@ -14343,6 +14517,7 @@ pub field antecedent_estimate::categorical_treatment::AdjacentStep::to: alloc::s
 pub field antecedent_estimate::categorical_treatment::AdjacentStep::z: f64
 pub field antecedent_estimate::categorical_treatment::CategoricalRobustSummary::counts: alloc::vec::Vec<antecedent_estimate::categorical_treatment::LevelCount>
 pub field antecedent_estimate::categorical_treatment::CategoricalRobustSummary::design: antecedent_estimate::vector_treatment::RobustDesignSummary
+pub field antecedent_estimate::categorical_treatment::CategoricalRobustSummary::weighted: bool
 pub field antecedent_estimate::categorical_treatment::CategoricalSummary::counts: alloc::vec::Vec<antecedent_estimate::categorical_treatment::LevelCount>
 pub field antecedent_estimate::categorical_treatment::CategoricalSummary::design: antecedent_estimate::vector_treatment::DesignSummary
 pub field antecedent_estimate::categorical_treatment::CategoricalTreatmentFit::calibration: antecedent_estimate::effect_constancy::CalibrationStatus
@@ -14369,6 +14544,9 @@ pub field antecedent_estimate::categorical_treatment::CategoricalTreatmentSpec::
 pub field antecedent_estimate::categorical_treatment::CategoricalTreatmentSpec::pairwise: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub field antecedent_estimate::categorical_treatment::CategoricalTreatmentSpec::reference: alloc::string::String
 pub field antecedent_estimate::categorical_treatment::CategoricalTreatmentSpec::scale: antecedent_estimate::categorical_treatment::LevelScale
+pub field antecedent_estimate::categorical_treatment::DeclaredRows::clusters: core::option::Option<usize>
+pub field antecedent_estimate::categorical_treatment::DeclaredRows::lag: core::option::Option<usize>
+pub field antecedent_estimate::categorical_treatment::DeclaredRows::weights: core::option::Option<antecedent_estimate::SamplingWeightRecord>
 pub field antecedent_estimate::categorical_treatment::LevelContrast::estimate: f64
 pub field antecedent_estimate::categorical_treatment::LevelContrast::level: alloc::string::String
 pub field antecedent_estimate::categorical_treatment::LevelContrast::p_holm: f64
@@ -14827,6 +15005,9 @@ pub field antecedent_estimate::dose_grid_functional::BiasAwareDoseGrid::smoothin
 pub field antecedent_estimate::dose_grid_functional::ClaimSet::derivative: bool
 pub field antecedent_estimate::dose_grid_functional::ClaimSet::pointwise_level: bool
 pub field antecedent_estimate::dose_grid_functional::ClaimSet::simultaneous_band: bool
+pub field antecedent_estimate::dose_grid_functional::DeclaredRows::clusters: core::option::Option<usize>
+pub field antecedent_estimate::dose_grid_functional::DeclaredRows::lag: core::option::Option<usize>
+pub field antecedent_estimate::dose_grid_functional::DeclaredRows::weights: core::option::Option<antecedent_estimate::SamplingWeightRecord>
 pub field antecedent_estimate::dose_grid_functional::DoseContrast::estimate: f64
 pub field antecedent_estimate::dose_grid_functional::DoseContrast::from: f64
 pub field antecedent_estimate::dose_grid_functional::DoseContrast::from_support: antecedent_core::response::SupportStatus
@@ -14851,6 +15032,7 @@ pub field antecedent_estimate::dose_grid_functional::DoseGridRequest::minimum_lo
 pub field antecedent_estimate::dose_grid_functional::DoseGridRequest::outcome: &'a [f64]
 pub field antecedent_estimate::dose_grid_functional::DoseGridRow::bandwidth: f64
 pub field antecedent_estimate::dose_grid_functional::DoseGridRow::contrast: core::option::Option<antecedent_estimate::dose_grid_functional::DoseContrast>
+pub field antecedent_estimate::dose_grid_functional::DoseGridRow::declared: antecedent_estimate::dose_grid_functional::DeclaredRows
 pub field antecedent_estimate::dose_grid_functional::DoseGridRow::derivatives: alloc::vec::Vec<antecedent_estimate::dose_grid_functional::DoseDerivative>
 pub field antecedent_estimate::dose_grid_functional::DoseGridRow::design: antecedent_estimate::dose_grid_functional::DoseDesign
 pub field antecedent_estimate::dose_grid_functional::DoseGridRow::functional: antecedent_estimate::dose_grid_functional::DoseFunctional
@@ -14872,6 +15054,8 @@ pub field antecedent_estimate::dose_grid_functional::PointwiseInterval::lower: f
 pub field antecedent_estimate::dose_grid_functional::PointwiseInterval::nominal_level: f64
 pub field antecedent_estimate::dose_grid_functional::PointwiseInterval::smoothing_bias_included: bool
 pub field antecedent_estimate::dose_grid_functional::PointwiseInterval::upper: f64
+pub field antecedent_estimate::dose_grid_functional::RowDeclaration::dependence: antecedent_estimate::dose_grid_functional::RowDependence<'a>
+pub field antecedent_estimate::dose_grid_functional::RowDeclaration::sampling_weights: core::option::Option<&'a [f64]>
 pub field antecedent_estimate::dose_grid_functional::SimultaneousBand::lower: alloc::vec::Vec<f64>
 pub field antecedent_estimate::dose_grid_functional::SimultaneousBand::upper: alloc::vec::Vec<f64>
 pub field antecedent_estimate::dose_grid_posterior::DoseGridPosterior::covariance: alloc::vec::Vec<f64>
@@ -15081,12 +15265,23 @@ pub field antecedent_estimate::history_match::FrequentistHistoryEstimate::matche
 pub field antecedent_estimate::history_match::FrequentistHistoryEstimate::matched_queries: alloc::vec::Vec<usize>
 pub field antecedent_estimate::history_match::FrequentistHistoryEstimate::weight_total: f64
 pub field antecedent_estimate::history_match::PeriodHistoryEstimate::contrast: f64
+pub field antecedent_estimate::history_match::PeriodHistoryEstimate::differences: alloc::vec::Vec<f64>
+pub field antecedent_estimate::history_match::PeriodHistoryEstimate::donor_variances: alloc::vec::Vec<f64>
 pub field antecedent_estimate::history_match::PeriodHistoryEstimate::matched_donors: alloc::vec::Vec<usize>
+pub field antecedent_estimate::history_match::PeriodHistoryEstimate::matched_periods: alloc::vec::Vec<i64>
 pub field antecedent_estimate::history_match::PeriodHistoryEstimate::matched_queries: alloc::vec::Vec<usize>
+pub field antecedent_estimate::history_match::PeriodHistoryEstimate::pair_weights: alloc::vec::Vec<f64>
 pub field antecedent_estimate::history_match::PeriodHistoryEstimate::periods_matched: usize
+pub field antecedent_estimate::history_match::PeriodHistoryEstimate::query_variances: alloc::vec::Vec<f64>
+pub field antecedent_estimate::history_match::PeriodHistoryEstimate::serial: core::option::Option<antecedent_estimate::history_match::SerialHistoryInterval>
 pub field antecedent_estimate::history_match::PeriodHistoryEstimate::standard_error: core::option::Option<f64>
 pub field antecedent_estimate::history_match::PeriodHistoryEstimate::unmatched_treated: alloc::vec::Vec<usize>
 pub field antecedent_estimate::history_match::PeriodHistoryEstimate::weight_total: f64
+pub field antecedent_estimate::history_match::SerialHistoryInterval::bandwidth: usize
+pub field antecedent_estimate::history_match::SerialHistoryInterval::lower: f64
+pub field antecedent_estimate::history_match::SerialHistoryInterval::periods: alloc::vec::Vec<i64>
+pub field antecedent_estimate::history_match::SerialHistoryInterval::standard_error: f64
+pub field antecedent_estimate::history_match::SerialHistoryInterval::upper: f64
 pub field antecedent_estimate::history_outcome_model::HistoryOutcomeProblem::periods: usize
 pub field antecedent_estimate::history_outcome_model::HistoryOutcomeProblem::prepared: antecedent_estimate::PreparedBayesianProblem
 pub field antecedent_estimate::history_outcome_model::HistoryOutcomeProblem::rows: usize
@@ -15408,6 +15603,7 @@ pub field antecedent_estimate::joint_panel::PanelGroup::history: alloc::vec::Vec
 pub field antecedent_estimate::joint_panel::PanelGroup::id: alloc::string::String
 pub field antecedent_estimate::joint_panel::PanelGroup::outcome: alloc::vec::Vec<f64>
 pub field antecedent_estimate::joint_panel::PanelGroup::season: alloc::vec::Vec<usize>
+pub field antecedent_estimate::joint_panel::PanelGroup::weight: f64
 pub field antecedent_estimate::joint_panel::PanelInteractionParameter::coefficient: f64
 pub field antecedent_estimate::joint_panel::PanelInteractionParameter::id: alloc::string::String
 pub field antecedent_estimate::joint_panel::PanelInteractionSpec::expression: antecedent_io_core::query_wire::ValueExprWire
@@ -15495,6 +15691,18 @@ pub field antecedent_estimate::joint_panel::expression::CompiledPanelExpression:
 pub field antecedent_estimate::joint_panel::expression::PanelExpressionControl::channel: alloc::string::String
 pub field antecedent_estimate::joint_panel::expression::PanelExpressionControl::period: usize
 pub field antecedent_estimate::joint_panel::expression::PanelExpressionControl::variable: antecedent_core::ids::VariableId
+pub field antecedent_estimate::joint_panel::restriction::PanelLinearityCheck::bins: usize
+pub field antecedent_estimate::joint_panel::restriction::PanelLinearityCheck::feature: alloc::string::String
+pub field antecedent_estimate::joint_panel::restriction::PanelLinearityCheck::p_value: f64
+pub field antecedent_estimate::joint_panel::restriction::PanelLinearityCheck::statistic: f64
+pub field antecedent_estimate::joint_panel::restriction::PanelNormalityCheck::count: usize
+pub field antecedent_estimate::joint_panel::restriction::PanelNormalityCheck::excess_kurtosis: f64
+pub field antecedent_estimate::joint_panel::restriction::PanelNormalityCheck::jarque_bera: f64
+pub field antecedent_estimate::joint_panel::restriction::PanelNormalityCheck::p_value: f64
+pub field antecedent_estimate::joint_panel::restriction::PanelNormalityCheck::skewness: f64
+pub field antecedent_estimate::joint_panel::restriction::PanelRestrictionDiagnostics::level: f64
+pub field antecedent_estimate::joint_panel::restriction::PanelRestrictionDiagnostics::linearity: alloc::vec::Vec<antecedent_estimate::joint_panel::restriction::PanelLinearityCheck>
+pub field antecedent_estimate::joint_panel::restriction::PanelRestrictionDiagnostics::normality: core::option::Option<antecedent_estimate::joint_panel::restriction::PanelNormalityCheck>
 pub field antecedent_estimate::joint_panel::selection_uncertainty::SelectionDecomposition::between_variance: [f64; 4]
 pub field antecedent_estimate::joint_panel::selection_uncertainty::SelectionDecomposition::change_point_mass: alloc::vec::Vec<(usize, f64)>
 pub field antecedent_estimate::joint_panel::selection_uncertainty::SelectionDecomposition::complete: usize
@@ -17075,6 +17283,13 @@ pub field antecedent_estimate::temporal_link::RegimeColumn::column: usize
 pub field antecedent_estimate::temporal_link::RegimeColumn::control: alloc::vec::Vec<f64>
 pub field antecedent_estimate::temporal_penalized_score::PenalizedPropensityScore::coefficients: alloc::vec::Vec<f64>
 pub field antecedent_estimate::temporal_penalized_score::PenalizedPropensityScore::penalty: f64
+pub field antecedent_estimate::temporal_penalized_score::PenalizedScoreBand::lower: f64
+pub field antecedent_estimate::temporal_penalized_score::PenalizedScoreBand::score: f64
+pub field antecedent_estimate::temporal_penalized_score::PenalizedScoreBand::standard_error: f64
+pub field antecedent_estimate::temporal_penalized_score::PenalizedScoreBand::upper: f64
+pub field antecedent_estimate::temporal_penalized_score::PenalizedScoreInterval::coefficient_covariance: alloc::vec::Vec<f64>
+pub field antecedent_estimate::temporal_penalized_score::PenalizedScoreInterval::coefficient_standard_error: alloc::vec::Vec<f64>
+pub field antecedent_estimate::temporal_penalized_score::PenalizedScoreInterval::scores: alloc::vec::Vec<antecedent_estimate::temporal_penalized_score::PenalizedScoreBand>
 pub field antecedent_estimate::temporal_penalized_score::PosteriorPropensity::draws: alloc::vec::Vec<f64>
 pub field antecedent_estimate::temporal_penalized_score::PosteriorPropensity::intercept_sd: f64
 pub field antecedent_estimate::temporal_penalized_score::PosteriorPropensity::mode: alloc::vec::Vec<f64>
@@ -17154,6 +17369,12 @@ pub field antecedent_estimate::trajectory_survival::TrajectorySurvivalContrast::
 pub field antecedent_estimate::trajectory_survival::TrajectorySurvivalContrast::control: antecedent_estimate::trajectory_survival::TrajectorySurvival
 pub field antecedent_estimate::trajectory_survival::TrajectorySurvivalContrast::restricted_mean_difference: f64
 pub field antecedent_estimate::trajectory_survival::TrajectorySurvivalContrast::survival_difference: f64
+pub field antecedent_estimate::transport_design::TrialToTargetRows::outcome: &'a [f64]
+pub field antecedent_estimate::transport_design::TrialToTargetRows::selection_probability: &'a [f64]
+pub field antecedent_estimate::transport_design::TrialToTargetRows::treatment: &'a [bool]
+pub field antecedent_estimate::transport_design::TrialToTargetRows::treatment_probability: &'a [f64]
+pub field antecedent_estimate::transport_design::TrialToTargetRows::trial: &'a [bool]
+pub field antecedent_estimate::transport_design::TrialToTargetRows::weights: core::option::Option<&'a [f64]>
 pub field antecedent_estimate::transport_scenarios::MeanEnvelope::lower: f64
 pub field antecedent_estimate::transport_scenarios::MeanEnvelope::lower_scenario: alloc::sync::Arc<str>
 pub field antecedent_estimate::transport_scenarios::MeanEnvelope::outcome: antecedent_core::ids::VariableId
@@ -17215,6 +17436,9 @@ pub field antecedent_estimate::vector_treatment::NamedColumn::name: alloc::borro
 pub field antecedent_estimate::vector_treatment::NamedColumn::values: alloc::borrow::Cow<'a, [f64]>
 pub field antecedent_estimate::vector_treatment::RobustDesignSummary::design: antecedent_estimate::vector_treatment::DesignSummary
 pub field antecedent_estimate::vector_treatment::RobustDesignSummary::meat: alloc::vec::Vec<f64>
+pub field antecedent_estimate::vector_treatment::RowStructure::clusters: core::option::Option<&'a [u32]>
+pub field antecedent_estimate::vector_treatment::RowStructure::lag: core::option::Option<usize>
+pub field antecedent_estimate::vector_treatment::RowStructure::sampling_weights: core::option::Option<&'a [f64]>
 pub field antecedent_estimate::vector_treatment::TreatmentColumn::adjustment_set: alloc::vec::Vec<alloc::borrow::Cow<'a, str>>
 pub field antecedent_estimate::vector_treatment::TreatmentColumn::name: alloc::borrow::Cow<'a, str>
 pub field antecedent_estimate::vector_treatment::TreatmentColumn::row_snapshot: alloc::borrow::Cow<'a, str>
@@ -17345,6 +17569,7 @@ pub fn <antecedent_estimate::CellDispersion>::fn max_factor(&self) -> f64
 pub fn <antecedent_estimate::CellDispersion>::fn min_effective_rows(&self) -> f64
 pub fn <antecedent_estimate::CellSaturatedAipw>::const fn with_fold_seed(self, fold_seed: u64) -> Self
 pub fn <antecedent_estimate::CellSaturatedAipw>::fn fit_scores(&self, data: &antecedent_data::dataset::TabularData, spec: &antecedent_estimate::CellScoreSpec<'_>) -> core::result::Result<antecedent_estimate::ScoreTable, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::CellSaturatedAipw>::fn fit_scores_sampling_weighted(&self, data: &antecedent_data::dataset::TabularData, spec: &antecedent_estimate::CellScoreSpec<'_>, shared: antecedent_estimate::SharedCellInputs<'_>) -> core::result::Result<(antecedent_estimate::ScoreTable, antecedent_estimate::RetainedSamplingWeights), antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::CellSaturatedAipw>::fn fit_scores_with_assignment(&self, data: &antecedent_data::dataset::TabularData, spec: &antecedent_estimate::CellScoreSpec<'_>, shared: antecedent_estimate::SharedCellInputs<'_>) -> core::result::Result<antecedent_estimate::ScoreTable, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::CellSaturatedAipw>::fn new() -> Self
 pub fn <antecedent_estimate::ChainPatternLaw>::const fn both(&self) -> &[[f64; 2]; 2]
@@ -17631,6 +17856,7 @@ pub fn <antecedent_estimate::LearnedContinuousUncertainty>::fn available(&self) 
 pub fn <antecedent_estimate::LearnedContinuousUncertainty>::fn for_request(bootstrap: u32) -> Self
 pub fn <antecedent_estimate::LinearAdjustmentAte>::const fn with_bootstrap_interval(self, request: antecedent_estimate::IntervalRequest) -> Self
 pub fn <antecedent_estimate::LinearAdjustmentAte>::const fn with_bootstrap_replicates(self, replicates: u32) -> Self
+pub fn <antecedent_estimate::LinearAdjustmentAte>::const fn with_dose_reading(self, dose_reading: bool) -> Self
 pub fn <antecedent_estimate::LinearAdjustmentAte>::const fn with_fit_kind(self, fit_kind: antecedent_estimate::LinearFitKind) -> Self
 pub fn <antecedent_estimate::LinearAdjustmentAte>::const fn with_other_levels(self, other_levels: antecedent_estimate::OtherLevels) -> Self
 pub fn <antecedent_estimate::LinearAdjustmentAte>::const fn with_overlap(self, overlap: antecedent_estimate::OverlapPolicy) -> Self
@@ -17844,17 +18070,23 @@ pub fn <antecedent_estimate::SamplingWeights>::fn require_rows(&self, source_row
 pub fn <antecedent_estimate::SamplingWeights>::fn restrict(&self, row_mask: &mut [bool]) -> core::result::Result<antecedent_estimate::RetainedSamplingWeights, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::SamplingWeights>::fn retained(&self, row_mask: &[bool], zero_weight_rows: u64) -> core::result::Result<antecedent_estimate::RetainedSamplingWeights, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::SamplingWeights>::fn source(&self) -> &[f64]
+pub fn <antecedent_estimate::ScoreDependence>::const fn newey_west(lag: usize) -> Self
+pub fn <antecedent_estimate::ScoreDependence>::fn clusters(labels: impl core::convert::Into<alloc::sync::Arc<[u32]>>) -> Self
+pub fn <antecedent_estimate::ScoreDependence>::fn digest(&self) -> u64
+pub fn <antecedent_estimate::ScoreDependence>::fn restricted(&self, rows: &[usize]) -> core::result::Result<Self, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::ScoreTable>::fn column(&self, j: usize) -> core::result::Result<&[f64], antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::ScoreTable>::fn combine_scores(&self, coefficients: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::ScoreTable>::fn distinct_threshold_count(&self) -> usize
 pub fn <antecedent_estimate::ScoreTable>::fn from_frozen(artifact: &antecedent_io_core::frozen_scores_artifact::FrozenScoreTable) -> core::result::Result<Self, antecedent_io_core::frozen_scores_artifact::FrozenScoresArtifactError>
 pub fn <antecedent_estimate::ScoreTable>::fn from_wire(wire: antecedent_io_core::score_wire::ScoreTableWire) -> core::result::Result<Self, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::ScoreTable>::fn inference(&self, weights: core::option::Option<&[f64]>) -> core::result::Result<antecedent_estimate::ScoreInference, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::ScoreTable>::fn inference_with(&self, weights: core::option::Option<&[f64]>, dependence: core::option::Option<&antecedent_estimate::ScoreDependence>) -> core::result::Result<antecedent_estimate::ScoreInference, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::ScoreTable>::fn linear_contrast(&self, summary: &antecedent_estimate::ScoreSummary, coefficients: &[f64]) -> core::result::Result<antecedent_estimate::LinearContrast, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::ScoreTable>::fn n_columns(&self) -> usize
 pub fn <antecedent_estimate::ScoreTable>::fn named_for_shared_design(self) -> Self
 pub fn <antecedent_estimate::ScoreTable>::fn reads_shared_design(&self) -> bool
 pub fn <antecedent_estimate::ScoreTable>::fn summarize(&self, weights: core::option::Option<&[f64]>) -> core::result::Result<antecedent_estimate::ScoreSummary, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::ScoreTable>::fn summarize_with(&self, weights: core::option::Option<&[f64]>, dependence: core::option::Option<&antecedent_estimate::ScoreDependence>) -> core::result::Result<antecedent_estimate::ScoreSummary, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::ScoreTable>::fn support(&self, weights: core::option::Option<&[f64]>) -> antecedent_estimate::ScoreSupport
 pub fn <antecedent_estimate::ScoreTable>::fn to_wire(&self) -> antecedent_io_core::score_wire::ScoreTableWire
 pub fn <antecedent_estimate::ScoreTable>::fn weighted_means(&self, weights: core::option::Option<&[f64]>) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::EstimationError>
@@ -17885,6 +18117,9 @@ pub fn <antecedent_estimate::SharpRegressionDiscontinuity>::fn prepare_checked(&
 pub fn <antecedent_estimate::SlopeFit>::fn conditional_slope(&self) -> f64
 pub fn <antecedent_estimate::SlopeFit>::fn intercept(&self) -> f64
 pub fn <antecedent_estimate::SlopeFit>::fn slopes(&self, count: usize) -> alloc::vec::Vec<f64>
+pub fn <antecedent_estimate::SmoothedDoseInput>::fn declares_rows(&self) -> bool
+pub fn <antecedent_estimate::SmoothedDoseInput>::fn normalized_weights(&self) -> core::option::Option<alloc::vec::Vec<f64>>
+pub fn <antecedent_estimate::SmoothedDoseInput>::fn without_zero_weight_rows(&self) -> core::result::Result<(Self, u64), antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::SmoothedDoseUncertainty>::fn available(&self) -> bool
 pub fn <antecedent_estimate::SmoothedDoseUncertainty>::fn for_request(bootstrap: u32) -> Self
 pub fn <antecedent_estimate::TemporalEffectSurface>::fn from_components(total: core::option::Option<f64>, direct: core::option::Option<f64>, mediated: core::option::Option<f64>) -> core::result::Result<Self, antecedent_estimate::EstimationError>
@@ -17988,6 +18223,7 @@ pub fn <antecedent_estimate::adjustment_resume::AdjustedFit>::fn predict(&self, 
 pub fn <antecedent_estimate::adjustment_resume::AdjustedFit>::fn prediction_refusal(&self, rows: &[alloc::vec::Vec<f64>]) -> core::option::Option<antecedent_estimate::adjustment_resume::PredictionRefusal>
 pub fn <antecedent_estimate::bayesian_panel_did::DidPrior>::const fn diffuse() -> Self
 pub fn <antecedent_estimate::bayesian_synthetic_control::BayesianSyntheticControlSpec<'a>>::const fn new(treated_unit: &'a str, intervention_period: i64) -> Self
+pub fn <antecedent_estimate::categorical_treatment::DeclaredRows>::fn is_plain(&self) -> bool
 pub fn <antecedent_estimate::cohort_linear_effect::NativeCohortFit>::const fn export(&self) -> &antecedent_io_core::compact_export::CompactExport
 pub fn <antecedent_estimate::cohort_linear_effect::NativeCohortFit>::const fn linear_fit(&self) -> &antecedent_estimate::cohort_linear_effect::CohortLinearFit
 pub fn <antecedent_estimate::cohort_linear_effect::NativeCohortFit>::const fn rows(&self) -> &antecedent_estimate::cohort_linear_effect::NativeFitRows
@@ -18036,6 +18272,8 @@ pub fn <antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios>::fn comple
 pub fn <antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios>::fn cpdag_identity(&self) -> &str
 pub fn <antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios>::fn evaluate(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::cpdag_scenarios::CpdagScenarioReport, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::cyclic_dynamic_inference::DynamicBootstrapRequest>::const fn whole_units(method: antecedent_estimate::cyclic_dynamic_inference::DynamicBootstrapMethod, replicates: usize, stratification: antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign) -> Self
+pub fn <antecedent_estimate::dose_grid_functional::DeclaredRows>::fn is_plain(&self) -> bool
+pub fn <antecedent_estimate::dose_grid_functional::RowDeclaration<'_>>::fn is_plain(&self) -> bool
 pub fn <antecedent_estimate::dose_grid_posterior::CompiledDoseGridPosterior>::fn compile(request: &antecedent_estimate::dose_grid_posterior::DoseGridPosteriorRequest<'_>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::dose_grid_posterior::CompiledDoseGridPosterior>::fn execute(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::dose_grid_posterior::DoseGridPosterior, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::dose_grid_posterior::CompiledDoseGridPosterior>::fn retained_source_bytes(&self) -> u64
@@ -18116,7 +18354,10 @@ pub fn <antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongit
 pub fn <antecedent_estimate::joint_design::instrumented::JointInstrumentedModelFit>::fn expression(&self, raw_controls: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_core::value_expr::ValueExpr, alloc::string::String>
 pub fn <antecedent_estimate::joint_design::instrumented::JointInstrumentedModelFit>::fn world_mean(&self, raw_doses: &[f64]) -> core::result::Result<(f64, f64), alloc::string::String>
 pub fn <antecedent_estimate::joint_design::synthetic::JointSyntheticConformal>::fn contrast_interval(&self, coefficients: &[f64]) -> core::result::Result<(f64, [f64; 2]), alloc::string::String>
+pub fn <antecedent_estimate::joint_panel::PanelData>::fn has_excluded_periods(&self) -> bool
 pub fn <antecedent_estimate::joint_panel::PanelData>::fn identity(&self) -> core::result::Result<antecedent_core::identity::SemanticDigest, antecedent_estimate::joint_panel::PanelError>
+pub fn <antecedent_estimate::joint_panel::PanelData>::fn is_weighted(&self) -> bool
+pub fn <antecedent_estimate::joint_panel::PanelData>::fn total_weight(&self) -> f64
 pub fn <antecedent_estimate::joint_panel::PanelData>::fn validate(&self) -> core::result::Result<(), antecedent_estimate::joint_panel::PanelError>
 pub fn <antecedent_estimate::joint_panel::PanelFamily>::fn class_of(&self, group: usize) -> usize
 pub fn <antecedent_estimate::joint_panel::PanelFamily>::fn classes(&self) -> usize
@@ -18126,6 +18367,7 @@ pub fn <antecedent_estimate::joint_panel::PanelFamilyParameters>::fn is_reviewed
 pub fn <antecedent_estimate::joint_panel::PanelFamilyPrior>::fn is_default(&self) -> bool
 pub fn <antecedent_estimate::joint_panel::PanelFit>::fn retained_bytes(&self) -> u64
 pub fn <antecedent_estimate::joint_panel::PanelFitOptions>::fn identity(&self, data: &antecedent_estimate::joint_panel::PanelData) -> core::result::Result<antecedent_core::identity::SemanticDigest, antecedent_estimate::joint_panel::PanelError>
+pub fn <antecedent_estimate::joint_panel::PanelGroup>::fn is_plain(&self) -> bool
 pub fn <antecedent_estimate::joint_panel::PanelInteractionSpec>::fn from_saturated_features(id: impl core::convert::Into<alloc::string::String>, expression: &antecedent_core::value_expr::ValueExpr) -> core::result::Result<Self, antecedent_estimate::joint_panel::PanelError>
 pub fn <antecedent_estimate::joint_panel::PanelLawResponses>::fn draws(&self) -> &[core::option::Option<alloc::vec::Vec<antecedent_estimate::joint_panel::PanelResponse>>]
 pub fn <antecedent_estimate::joint_panel::PanelLawResponses>::fn into_parts(self) -> (alloc::vec::Vec<antecedent_estimate::joint_panel::PanelResponse>, antecedent_estimate::joint_panel::PanelAlignedResponses, alloc::sync::Arc<antecedent_core::execution::admission::AdmissionLease>)
@@ -18143,6 +18385,9 @@ pub fn <antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap>::fn
 pub fn <antecedent_estimate::joint_panel::decomposition::PanelDecomposition>::fn admitted_bytes(&self) -> u64
 pub fn <antecedent_estimate::joint_panel::decomposition::PanelDecomposition>::fn joint_uncertainty(&self) -> core::option::Option<antecedent_estimate::joint_panel::decomposition::DecompositionJointUncertainty>
 pub fn <antecedent_estimate::joint_panel::expression::CompiledPanelExpression>::fn admitted_bytes(&self) -> u64
+pub fn <antecedent_estimate::joint_panel::restriction::PanelRestrictionDiagnostics>::fn flagged(&self) -> bool
+pub fn <antecedent_estimate::joint_panel::restriction::PanelRestrictionDiagnostics>::fn linearity_flags(&self) -> alloc::vec::Vec<&str>
+pub fn <antecedent_estimate::joint_panel::restriction::PanelRestrictionDiagnostics>::fn normality_flagged(&self) -> bool
 pub fn <antecedent_estimate::joint_panel::time_varying::TemporalPanelFit>::fn observe_current(&self)
 pub fn <antecedent_estimate::joint_panel::time_varying::TemporalPanelFit>::fn retained_bytes(&self) -> u64
 pub fn <antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec>::fn identity(&self, data: &antecedent_estimate::joint_panel::PanelData) -> core::result::Result<antecedent_core::identity::SemanticDigest, antecedent_estimate::joint_panel::PanelError>
@@ -18426,6 +18671,7 @@ pub fn <antecedent_estimate::temporal_dependent_interval::TemporalUnitPanel>::fn
 pub fn <antecedent_estimate::temporal_dependent_interval::TemporalUnitPanel>::fn unit_count(&self) -> usize
 pub fn <antecedent_estimate::temporal_dependent_interval::TemporalUnitPanel>::fn units(&self) -> &[antecedent_estimate::temporal_dependent_interval::UnitHistories]
 pub fn <antecedent_estimate::temporal_design::ClusterScores>::fn accumulate(scores: &[f64], coordinates: usize, cluster_of_pair: &[usize]) -> core::result::Result<Self, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::temporal_design::ClusterScores>::fn accumulate_weighted(scores: &[f64], coordinates: usize, cluster_of_pair: &[usize], pair_weights: core::option::Option<&[f64]>) -> core::result::Result<Self, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::temporal_design::ClusterScores>::fn clusters(&self) -> usize
 pub fn <antecedent_estimate::temporal_design::ClusterScores>::fn covariance(&self, estimate: &[f64]) -> alloc::vec::Vec<f64>
 pub fn <antecedent_estimate::temporal_design::ClusterScores>::fn estimate(&self) -> alloc::vec::Vec<f64>
@@ -18464,6 +18710,7 @@ pub fn <antecedent_estimate::temporal_penalized_score::BayesianTemporalPropensit
 pub fn <antecedent_estimate::temporal_penalized_score::BayesianTemporalPropensity>::fn new(intercept_sd: f64, slope_sd: f64, n_draws: usize, seed: u64) -> core::result::Result<Self, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::temporal_penalized_score::FrequentistTemporalPropensity>::fn fit(&self, design: &antecedent_estimate::temporal_penalized_score::TemporalPropensityDesign) -> core::result::Result<antecedent_estimate::temporal_penalized_score::PenalizedPropensityScore, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::temporal_penalized_score::FrequentistTemporalPropensity>::fn fit_borrowed(&self, design: &antecedent_estimate::temporal_penalized_score::TemporalPropensityDesignRef<'_>) -> core::result::Result<antecedent_estimate::temporal_penalized_score::PenalizedPropensityScore, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::temporal_penalized_score::FrequentistTemporalPropensity>::fn fit_with_interval_borrowed(&self, design: &antecedent_estimate::temporal_penalized_score::TemporalPropensityDesignRef<'_>, histories: &[alloc::vec::Vec<f64>]) -> core::result::Result<(antecedent_estimate::temporal_penalized_score::PenalizedPropensityScore, antecedent_estimate::temporal_penalized_score::PenalizedScoreInterval), antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::temporal_penalized_score::FrequentistTemporalPropensity>::fn new(penalty: f64) -> core::result::Result<Self, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::temporal_penalized_score::PenalizedPropensityScore>::fn at(&self, lags: &[f64]) -> core::result::Result<f64, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::temporal_penalized_score::PosteriorPropensity>::fn at(&self, lags: &[f64]) -> core::result::Result<f64, antecedent_estimate::EstimationError>
@@ -18503,6 +18750,10 @@ pub fn <antecedent_estimate::temporal_transport::PreparedTemporalSequence>::fn e
 pub fn <antecedent_estimate::temporal_transport::PreparedTemporalSequence>::fn refresh(&self, data: antecedent_expr::exact::ExactTransportData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::temporal_transport::TemporalSequenceReport>::const fn is_from(&self, prepared: &antecedent_estimate::temporal_transport::PreparedTemporalSequence) -> bool
 pub fn <antecedent_estimate::trajectory_survival::HazardPrior>::const fn uniform() -> Self
+pub fn <antecedent_estimate::transport_design::TrialToTargetRows<'_>>::fn bayesian_bootstrap(&self, identification: &antecedent_identify::transport::TransportIdentification, dependence: antecedent_estimate::transport_design::RowDependence<'_>, sampling: antecedent_estimate::DrawSpec) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::transport_design::TrialToTargetRows<'_>>::fn ipw(&self, identification: &antecedent_identify::transport::TransportIdentification) -> core::result::Result<f64, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::transport_design::TrialToTargetRows<'_>>::fn ipw_se(&self, ipw: f64, dependence: antecedent_estimate::transport_design::RowDependence<'_>) -> core::result::Result<f64, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::transport_design::TrialToTargetRows<'_>>::fn overlap(&self) -> core::result::Result<antecedent_estimate::TransportOverlapReport, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::transport_scenarios::PreparedScenarioSet>::const fn data(&self) -> &antecedent_expr::exact::ExactTransportData
 pub fn <antecedent_estimate::transport_scenarios::PreparedScenarioSet>::const fn decision(&self) -> &antecedent_identify::sid::scenarios::ScenarioSetDecision
 pub fn <antecedent_estimate::transport_scenarios::PreparedScenarioSet>::const fn limits(&self) -> antecedent_expr::exact_plan::ExactEvaluationLimits
@@ -18518,6 +18769,7 @@ pub fn <antecedent_estimate::util::SamplingDeclaration>::const fn resolve(self, 
 pub fn <antecedent_estimate::util::WaveBootstrap>::fn report(&self, rule: antecedent_estimate::adaptive_resample_waves::WaveStoppingRule) -> antecedent_estimate::ResamplingReport
 pub fn <antecedent_estimate::vector_treatment::NamedColumn<'a>>::fn borrowed(&self) -> antecedent_estimate::vector_treatment::NamedColumn<'_>
 pub fn <antecedent_estimate::vector_treatment::NamedColumn<'a>>::fn new(name: impl core::convert::Into<alloc::borrow::Cow<'a, str>>, values: impl core::convert::Into<alloc::borrow::Cow<'a, [f64]>>) -> Self
+pub fn <antecedent_estimate::vector_treatment::RowStructure<'_>>::fn is_plain(&self) -> bool
 pub fn <antecedent_estimate::vector_treatment::VectorCovariance>::const fn as_str(self) -> &'static str
 pub fn <antecedent_estimate::vector_treatment::VectorTreatmentFit>::fn covariance_entry(&self, i: usize, j: usize) -> core::option::Option<f64>
 pub fn <antecedent_estimate::vector_treatment::VectorTreatmentFit>::fn dimension(&self) -> usize
@@ -18588,7 +18840,9 @@ pub fn antecedent_estimate::catalog_axes(catalog: &antecedent_core::query::trans
 pub fn antecedent_estimate::categorical_treatment::fit_categorical_from_robust_summary(spec: &antecedent_estimate::categorical_treatment::CategoricalTreatmentSpec, summary: &antecedent_estimate::categorical_treatment::CategoricalRobustSummary) -> core::result::Result<antecedent_estimate::categorical_treatment::CategoricalTreatmentFit, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::categorical_treatment::fit_categorical_from_summary(spec: &antecedent_estimate::categorical_treatment::CategoricalTreatmentSpec, summary: &antecedent_estimate::categorical_treatment::CategoricalSummary) -> core::result::Result<antecedent_estimate::categorical_treatment::CategoricalTreatmentFit, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::categorical_treatment::fit_categorical_treatment(input: &antecedent_estimate::categorical_treatment::CategoricalTreatmentInput<'_>, spec: &antecedent_estimate::categorical_treatment::CategoricalTreatmentSpec) -> core::result::Result<antecedent_estimate::categorical_treatment::CategoricalTreatmentFit, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::categorical_treatment::fit_categorical_treatment_declared(input: &antecedent_estimate::categorical_treatment::CategoricalTreatmentInput<'_>, spec: &antecedent_estimate::categorical_treatment::CategoricalTreatmentSpec, rows: &antecedent_estimate::vector_treatment::RowStructure<'_>) -> core::result::Result<(antecedent_estimate::categorical_treatment::CategoricalTreatmentFit, antecedent_estimate::categorical_treatment::DeclaredRows), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::categorical_treatment::summarize_categorical_design(input: &antecedent_estimate::categorical_treatment::CategoricalTreatmentInput<'_>, spec: &antecedent_estimate::categorical_treatment::CategoricalTreatmentSpec) -> core::result::Result<antecedent_estimate::categorical_treatment::CategoricalSummary, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::categorical_treatment::summarize_categorical_design_declared(input: &antecedent_estimate::categorical_treatment::CategoricalTreatmentInput<'_>, spec: &antecedent_estimate::categorical_treatment::CategoricalTreatmentSpec, rows: &antecedent_estimate::vector_treatment::RowStructure<'_>) -> core::result::Result<(antecedent_estimate::categorical_treatment::CategoricalRobustSummary, antecedent_estimate::categorical_treatment::DeclaredRows), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::categorical_treatment::summarize_categorical_design_robust(input: &antecedent_estimate::categorical_treatment::CategoricalTreatmentInput<'_>, spec: &antecedent_estimate::categorical_treatment::CategoricalTreatmentSpec) -> core::result::Result<antecedent_estimate::categorical_treatment::CategoricalRobustSummary, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::categorical_treatment_posterior::posterior_categorical_from_summary(summary: &antecedent_estimate::categorical_treatment::CategoricalSummary, spec: &antecedent_estimate::categorical_treatment::CategoricalTreatmentSpec, prior: &antecedent_estimate::categorical_treatment_posterior::CategoricalPosteriorPrior, credible_level: f64) -> core::result::Result<antecedent_estimate::categorical_treatment_posterior::CategoricalTreatmentPosterior, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::categorical_treatment_posterior::posterior_categorical_treatment(input: &antecedent_estimate::categorical_treatment::CategoricalTreatmentInput<'_>, spec: &antecedent_estimate::categorical_treatment::CategoricalTreatmentSpec, prior: &antecedent_estimate::categorical_treatment_posterior::CategoricalPosteriorPrior, credible_level: f64) -> core::result::Result<antecedent_estimate::categorical_treatment_posterior::CategoricalTreatmentPosterior, antecedent_estimate::EstimationError>
@@ -18663,9 +18917,12 @@ pub fn antecedent_estimate::dml::count_aipw_score_builds<R>(work: impl core::ops
 pub fn antecedent_estimate::dose_basis_regression::fit_basis_regression(design_colmajor: &[f64], rows: usize, y: &[f64], coefficient_scales: &[f64], residual: antecedent_estimate::dose_basis_regression::ResidualPrior, draws: usize, seed: u64) -> core::result::Result<antecedent_estimate::dose_basis_regression::BasisPosterior, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::dose_grid_functional::dose_support_report(dose: &[f64], points: &[f64], bandwidth: f64, minimum_local_ess: f64) -> core::result::Result<antecedent_core::response::SupportReport, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::dose_grid_functional::estimate_dose_grid_bias_aware(request: &antecedent_estimate::dose_grid_functional::DoseGridRequest<'_>, curvature_bound: f64, band_replicates: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::dose_grid_functional::BiasAwareDoseGrid, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::dose_grid_functional::estimate_dose_grid_bias_aware_declared(request: &antecedent_estimate::dose_grid_functional::DoseGridRequest<'_>, declared: &antecedent_estimate::dose_grid_functional::RowDeclaration<'_>, curvature_bound: f64, band_replicates: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::dose_grid_functional::BiasAwareDoseGrid, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::dose_grid_functional::estimate_dose_grid_functional(request: &antecedent_estimate::dose_grid_functional::DoseGridRequest<'_>) -> core::result::Result<antecedent_estimate::dose_grid_functional::DoseGridRow, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::dose_grid_functional::estimate_dose_grid_functional_declared(request: &antecedent_estimate::dose_grid_functional::DoseGridRequest<'_>, declared: &antecedent_estimate::dose_grid_functional::RowDeclaration<'_>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::dose_grid_functional::DoseGridRow, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::dose_grid_functional::estimate_dose_grid_functional_with_context(request: &antecedent_estimate::dose_grid_functional::DoseGridRequest<'_>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::dose_grid_functional::DoseGridRow, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::dose_grid_functional::estimate_dose_grid_quadratic_mean(request: &antecedent_estimate::dose_grid_functional::DoseGridRequest<'_>) -> core::result::Result<antecedent_estimate::dose_grid_functional::DoseGridRow, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::dose_grid_functional::estimate_dose_grid_quadratic_mean_declared(request: &antecedent_estimate::dose_grid_functional::DoseGridRequest<'_>, declared: &antecedent_estimate::dose_grid_functional::RowDeclaration<'_>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::dose_grid_functional::DoseGridRow, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::dose_grid_functional::estimate_dose_grid_quadratic_mean_with_context(request: &antecedent_estimate::dose_grid_functional::DoseGridRequest<'_>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::dose_grid_functional::DoseGridRow, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::dose_grid_posterior::estimate_dose_grid_posterior(request: &antecedent_estimate::dose_grid_posterior::DoseGridPosteriorRequest<'_>) -> core::result::Result<antecedent_estimate::dose_grid_posterior::DoseGridPosterior, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::dr::count_dr_final_fits<R>(work: impl core::ops::function::FnOnce() -> R) -> (R, u64)
@@ -18732,6 +18989,8 @@ pub fn antecedent_estimate::gaussian_linear_posterior::conjugate_posterior_from_
 pub fn antecedent_estimate::heterogeneity_robust_did::estimate_rollout_did(panel: &antecedent_estimate::heterogeneity_robust_did::RolloutPanel<'_>, spec: &antecedent_estimate::heterogeneity_robust_did::RolloutDidSpec, resampling: core::option::Option<antecedent_estimate::heterogeneity_robust_did::RolloutResampling>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::heterogeneity_robust_did::RolloutDidFit, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::heterogeneity_robust_did::posterior_rollout_did(panel: &antecedent_estimate::heterogeneity_robust_did::RolloutPanel<'_>, spec: &antecedent_estimate::heterogeneity_robust_did::RolloutDidSpec, draws: u32, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::heterogeneity_robust_did::RolloutDidPosterior, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::heterogeneity_robust_did::prepare(panel: &antecedent_estimate::heterogeneity_robust_did::RolloutPanel<'_>, spec: &antecedent_estimate::heterogeneity_robust_did::RolloutDidSpec) -> core::result::Result<antecedent_estimate::heterogeneity_robust_did::PreparedRollout, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::history_match::abadie_imbens_standard_error(weights: &[f64], donors: &[usize], query_noise: &[f64], donor_noise: &[f64]) -> core::option::Option<f64>
+pub fn antecedent_estimate::history_match::serial_history_interval(periods: &[i64], differences: &[f64], weights: &[f64]) -> core::result::Result<antecedent_estimate::history_match::SerialHistoryInterval, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::history_outcome_model::prepare_history_outcome_model(units: &[antecedent_estimate::history_match::HistoryUnit]) -> core::result::Result<antecedent_estimate::history_outcome_model::HistoryOutcomeProblem, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::inference_from_influence_columns(raw_means: &[f64], columns: &[&[f64]], event_n_eff: &[f64], threshold_supported: &[bool], support: antecedent_estimate::WeightedSupport) -> core::result::Result<antecedent_estimate::ScoreInference, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::inflate_replicates(center: &[f64], draws: &mut [alloc::vec::Vec<f64>], factor: f64)
@@ -18778,6 +19037,7 @@ pub fn antecedent_estimate::joint_panel::fit_panel(data: &antecedent_estimate::j
 pub fn antecedent_estimate::joint_panel::project_panel_law(data: &antecedent_estimate::joint_panel::PanelData, point: &antecedent_estimate::joint_panel::PanelDraw, draws: &[core::option::Option<antecedent_estimate::joint_panel::PanelDraw>], programs: &[antecedent_estimate::joint_panel::PanelProgram], weights: &[alloc::vec::Vec<f64>], tile_draws: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_panel::PanelProjectedLaw, antecedent_estimate::joint_panel::PanelError>
 pub fn antecedent_estimate::joint_panel::project_panel_responses(rows: &[antecedent_estimate::joint_panel::PanelResponse], weights: &[alloc::vec::Vec<f64>]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::joint_panel::PanelError>
 pub fn antecedent_estimate::joint_panel::project_temporal_law(data: &antecedent_estimate::joint_panel::PanelData, point: &antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw, draws: &[core::option::Option<antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw>], programs: &[antecedent_estimate::joint_panel::PanelProgram], weights: &[alloc::vec::Vec<f64>], tile_draws: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_panel::PanelProjectedLaw, antecedent_estimate::joint_panel::PanelError>
+pub fn antecedent_estimate::joint_panel::restriction::panel_restriction_diagnostics(data: &antecedent_estimate::joint_panel::PanelData, point: &antecedent_estimate::joint_panel::PanelDraw, level: f64) -> core::result::Result<antecedent_estimate::joint_panel::restriction::PanelRestrictionDiagnostics, antecedent_estimate::joint_panel::PanelError>
 pub fn antecedent_estimate::joint_panel::selection_uncertainty::decomposition_selection(decomposition: &antecedent_estimate::joint_panel::decomposition::PanelDecomposition, point: &antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw, draws: &[core::option::Option<antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw>]) -> core::result::Result<antecedent_estimate::joint_panel::selection_uncertainty::SelectionDecomposition, antecedent_estimate::joint_panel::PanelError>
 pub fn antecedent_estimate::joint_panel::stream_panel_law<S>(data: &antecedent_estimate::joint_panel::PanelData, point: &antecedent_estimate::joint_panel::PanelDraw, draws: &[core::option::Option<antecedent_estimate::joint_panel::PanelDraw>], programs: &[antecedent_estimate::joint_panel::PanelProgram], tile_draws: usize, ctx: &antecedent_core::execution::context::ExecutionContext, sink: S) -> core::result::Result<antecedent_estimate::joint_panel::PanelStreamReceipt, antecedent_estimate::joint_panel::PanelError> where S: core::ops::function::FnMut(usize, &[core::option::Option<alloc::vec::Vec<antecedent_estimate::joint_panel::PanelResponse>>]) -> core::result::Result<(), antecedent_estimate::joint_panel::PanelError> + core::marker::Send
 pub fn antecedent_estimate::joint_panel::stream_temporal_law<S>(data: &antecedent_estimate::joint_panel::PanelData, point: &antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw, draws: &[core::option::Option<antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw>], programs: &[antecedent_estimate::joint_panel::PanelProgram], tile_draws: usize, ctx: &antecedent_core::execution::context::ExecutionContext, sink: S) -> core::result::Result<antecedent_estimate::joint_panel::PanelStreamReceipt, antecedent_estimate::joint_panel::PanelError> where S: core::ops::function::FnMut(usize, &[core::option::Option<alloc::vec::Vec<antecedent_estimate::joint_panel::PanelResponse>>]) -> core::result::Result<(), antecedent_estimate::joint_panel::PanelError> + core::marker::Send
@@ -18962,6 +19222,7 @@ pub fn antecedent_estimate::refuse_matched_interval() -> antecedent_estimate::Es
 pub fn antecedent_estimate::refuse_transform_interval() -> antecedent_estimate::EstimationError
 pub fn antecedent_estimate::retarget(table: &antecedent_estimate::ScoreTable, weights: &[f64], depends_on: &[antecedent_core::ids::VariableId], graph: core::option::Option<&dyn antecedent_estimate::DirectedAncestry>, treatment: core::option::Option<&[f64]>, propensity: core::option::Option<&[f64]>) -> core::result::Result<(antecedent_estimate::RetargetResult, bool), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::retarget::summarize_functional(table: &antecedent_estimate::ScoreTable, weights: core::option::Option<&[f64]>) -> core::result::Result<(antecedent_estimate::ScoreSummary, bool, alloc::vec::Vec<antecedent_core::diagnostic::Diagnostic>), antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::retarget::summarize_functional_with(table: &antecedent_estimate::ScoreTable, weights: core::option::Option<&[f64]>, dependence: core::option::Option<&antecedent_estimate::ScoreDependence>) -> core::result::Result<(antecedent_estimate::ScoreSummary, bool, alloc::vec::Vec<antecedent_core::diagnostic::Diagnostic>), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::retarget::weighted_overlap_fields(table: &antecedent_estimate::ScoreTable, weights: &[f64], support: &antecedent_estimate::WeightedSupport) -> antecedent_estimate::RefusalFields
 pub fn antecedent_estimate::retarget::weighted_support_fields(arms: &[u32], support: &antecedent_estimate::WeightedSupport) -> antecedent_estimate::RefusalFields
 pub fn antecedent_estimate::rollout_resampling::block_draws(draws: &[core::option::Option<alloc::vec::Vec<f64>>], range: core::ops::range::Range<usize>) -> alloc::vec::Vec<core::option::Option<alloc::vec::Vec<f64>>>
@@ -18996,6 +19257,7 @@ pub fn antecedent_estimate::serial_dependence::tempering_kappa_from_notes(notes:
 pub fn antecedent_estimate::serial_dependence::window_segments(complete: &[bool]) -> alloc::sync::Arc<[u32]>
 pub fn antecedent_estimate::shared_mediation_block_bootstrap(atoms: &[&antecedent_estimate::PreparedTemporalMediation], weights: &[f64], contrast: antecedent_core::query::mediation::MediationContrast, replicates: u32, stream_base: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::option::Option<antecedent_estimate::SharedMediationBlockSe>
 pub fn antecedent_estimate::smoothed_dose::smoothed_dose_estimator_menu(id: &antecedent_identify::transport::TransportIdentification, query: &antecedent_core::query::smoothed_dose::SmoothedDoseTransportQuery, options: core::option::Option<&antecedent_estimate::SmoothedDoseOptions>, sampling: core::option::Option<antecedent_estimate::TrialSampling>) -> antecedent_estimate::EstimatorMenu
+pub fn antecedent_estimate::smoothed_dose::smoothed_dose_fold_scheme(input: &antecedent_estimate::SmoothedDoseInput) -> &'static str
 pub fn antecedent_estimate::smoothed_dose_posterior::smoothed_dose_certified_features(id: &antecedent_identify::transport::TransportIdentification) -> core::result::Result<alloc::vec::Vec<u32>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::smoothed_dose_posterior::smoothed_dose_posterior(id: &antecedent_identify::transport::TransportIdentification, query: &antecedent_core::query::smoothed_dose::SmoothedDoseTransportQuery, input: &antecedent_estimate::SmoothedDoseInput, model: &antecedent_estimate::smoothed_dose_posterior::SmoothedDosePosteriorModel<'_>) -> core::result::Result<antecedent_estimate::smoothed_dose_posterior::SmoothedDosePosterior, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::staggered_event_study::estimate(outcomes: &[f64], subjects: &[impl core::convert::AsRef<str>], periods: &[i64], cohorts: &[i64], clusters: &[impl core::convert::AsRef<str>]) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::staggered_event_study::EventTimeEffect>, alloc::string::String>
@@ -19028,11 +19290,13 @@ pub fn antecedent_estimate::synthetic_rollout::multi_unit_synthetic(panel: &ante
 pub fn antecedent_estimate::temporal_coefficient_names(data: &antecedent_data::dataset::TimeSeriesData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::temporal::TemporalEffectQuery, indexer: &antecedent_core::temporal::TemporalIndexer) -> core::result::Result<alloc::sync::Arc<[alloc::sync::Arc<str>]>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_conditional_marginal_effect(data: &antecedent_data::dataset::TimeSeriesData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::temporal::TemporalEffectQuery, indexer: &antecedent_core::temporal::TemporalIndexer, policy: &antecedent_core::execution::budget::KernelPolicy, prior_scale: core::option::Option<f64>) -> core::result::Result<f64, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_conditional_marginal_effect_with_gaps(data: &antecedent_data::dataset::TimeSeriesData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::temporal::TemporalEffectQuery, indexer: &antecedent_core::temporal::TemporalIndexer, policy: &antecedent_core::execution::budget::KernelPolicy, prior_scale: core::option::Option<f64>, allow_gaps: bool) -> core::result::Result<(f64, core::option::Option<antecedent_estimate::GapSelection>), antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::temporal_conditional_marginal_fit(data: &antecedent_data::dataset::TimeSeriesData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::temporal::TemporalEffectQuery, indexer: &antecedent_core::temporal::TemporalIndexer, policy: &antecedent_core::execution::budget::KernelPolicy, allow_gaps: bool, se_kind: antecedent_estimate::AnalyticSeKind) -> core::result::Result<antecedent_estimate::TemporalConditionalFit, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_curve_outcome_regressors(query: &antecedent_core::query::response::ResponseQuery, identifications: &[(&antecedent_expr::estimand::IdentifiedEstimand, &antecedent_core::temporal::TemporalIndexer)]) -> core::result::Result<alloc::vec::Vec<antecedent_core::temporal::TemporalNodeKey>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_curve_posterior_meaning::require_ordinary_temporal_curve_posterior(serial: antecedent_estimate::temporal_curve_posterior_meaning::SerialErrorModel) -> core::result::Result<(), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_dependent_interval::balanced_linear_unit_scores<E: antecedent_estimate::temporal_dependent_interval::TemporalEstimator + ?core::marker::Sized>(estimator: &E, units: &[&antecedent_estimate::temporal_dependent_interval::UnitHistories], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<core::option::Option<alloc::vec::Vec<f64>>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_dependent_interval::dependent_unit_interval<E: antecedent_estimate::temporal_dependent_interval::TemporalEstimator + ?core::marker::Sized>(panel: &antecedent_estimate::temporal_dependent_interval::TemporalUnitPanel, estimator: &E, config: &antecedent_estimate::temporal_dependent_interval::DependentIntervalConfig, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::temporal_dependent_interval::DependentInterval, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_dependent_interval::route_frozen_refusal() -> antecedent_estimate::EstimationError
+pub fn antecedent_estimate::temporal_dependent_interval::validate_config(config: &antecedent_estimate::temporal_dependent_interval::DependentIntervalConfig) -> core::result::Result<(), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_design::bayesian_bootstrap(scores: &antecedent_estimate::temporal_design::ClusterScores, draws: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::temporal_design::PosteriorSummary, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_design::contrasts::factorial_scores(pairs: &antecedent_estimate::temporal_design::LaggedPairs, outcome: &[f64], first: &[bool], first_probability: &[f64], second: &[bool], second_probability: &[f64], cluster: &[usize], floor: f64) -> core::result::Result<antecedent_estimate::temporal_design::contrasts::DesignScores, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_design::contrasts::interference_scores(pairs: &antecedent_estimate::temporal_design::LaggedPairs, outcome: &[f64], assignment: &[bool], probability: &[f64], group: &[usize], period: &[i64], floor: f64) -> core::result::Result<antecedent_estimate::temporal_design::contrasts::DesignScores, antecedent_estimate::EstimationError>
@@ -19052,6 +19316,10 @@ pub fn antecedent_estimate::temporal_design::quantile::fit_quantile(pairs: &ante
 pub fn antecedent_estimate::temporal_design::regime::fit_static_regimes(panel: &antecedent_estimate::temporal_design::regime::RegimePanel, regimes: antecedent_estimate::temporal_design::regime::StaticRegimes<'_>, method: antecedent_estimate::temporal_design::regime::RegimeMethod, floor: f64, prior_scale: f64, replicates: usize, posterior_draws: core::option::Option<usize>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::temporal_design::regime::RegimeFit, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_design::regime::regime_point_estimate(panel: &antecedent_estimate::temporal_design::regime::RegimePanel, regimes: antecedent_estimate::temporal_design::regime::StaticRegimes<'_>, method: antecedent_estimate::temporal_design::regime::RegimeMethod, floor: f64) -> core::result::Result<([f64; 3], f64), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_design::sampling_summary(scores: &antecedent_estimate::temporal_design::ClusterScores) -> core::result::Result<antecedent_estimate::temporal_design::SamplingSummary, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::temporal_design::serial::newey_west_bandwidth(periods: usize) -> usize
+pub fn antecedent_estimate::temporal_design::serial::serial_covariance(scores: &antecedent_estimate::temporal_design::ClusterScores, estimate: &[f64], periods: &[i64], bandwidth: usize) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::temporal_design::serial::serial_sampling_summary(scores: &antecedent_estimate::temporal_design::ClusterScores, periods: &[i64]) -> core::result::Result<antecedent_estimate::temporal_design::SamplingSummary, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::temporal_design::serial::serial_sup_t_band(summary: &mut antecedent_estimate::temporal_design::SamplingSummary, band_coordinates: &[usize], replicates: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_design::summarize_draws(draws: alloc::vec::Vec<alloc::vec::Vec<f64>>, method: &'static str) -> antecedent_estimate::temporal_design::PosteriorSummary
 pub fn antecedent_estimate::temporal_design::sup_t_band(scores: &antecedent_estimate::temporal_design::ClusterScores, summary: &mut antecedent_estimate::temporal_design::SamplingSummary, band_coordinates: &[usize], replicates: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_design::sup_t_critical(residuals: &[f64], coordinates: usize, scale: f64, standard_error: &[f64], band_coordinates: &[usize], replicates: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<f64, antecedent_estimate::EstimationError>
@@ -19175,6 +19443,7 @@ pub mod antecedent_estimate::joint_panel
 pub mod antecedent_estimate::joint_panel::decomposition
 pub mod antecedent_estimate::joint_panel::expression
 pub mod antecedent_estimate::joint_panel::family
+pub mod antecedent_estimate::joint_panel::restriction
 pub mod antecedent_estimate::joint_panel::selection_uncertainty
 pub mod antecedent_estimate::joint_panel::time_varying
 pub mod antecedent_estimate::lagged_instrument
@@ -19230,6 +19499,7 @@ pub mod antecedent_estimate::rollout_resampling
 pub mod antecedent_estimate::sampling_weights
 pub mod antecedent_estimate::scenario_covariance
 pub mod antecedent_estimate::scenario_invariance_report
+pub mod antecedent_estimate::score_dependence
 pub mod antecedent_estimate::score_posterior
 pub mod antecedent_estimate::scores
 pub mod antecedent_estimate::se
@@ -19256,6 +19526,7 @@ pub mod antecedent_estimate::temporal_design::misclassification
 pub mod antecedent_estimate::temporal_design::observational
 pub mod antecedent_estimate::temporal_design::quantile
 pub mod antecedent_estimate::temporal_design::regime
+pub mod antecedent_estimate::temporal_design::serial
 pub mod antecedent_estimate::temporal_design::survival
 pub mod antecedent_estimate::temporal_history_fit
 pub mod antecedent_estimate::temporal_initial_state
@@ -19267,6 +19538,7 @@ pub mod antecedent_estimate::temporal_sequential
 pub mod antecedent_estimate::temporal_transport
 pub mod antecedent_estimate::trajectory_survival
 pub mod antecedent_estimate::transport
+pub mod antecedent_estimate::transport_design
 pub mod antecedent_estimate::transport_scenarios
 pub mod antecedent_estimate::util
 pub mod antecedent_estimate::vector_treatment
@@ -19512,6 +19784,7 @@ pub struct antecedent_estimate::SmoothedDoseUncertainty
 pub struct antecedent_estimate::StaticMediationProblem<'a>
 pub struct antecedent_estimate::StatisticalTransportEstimate
 pub struct antecedent_estimate::StatisticalTransportInput
+pub struct antecedent_estimate::TemporalConditionalFit
 pub struct antecedent_estimate::TemporalDependenceSe
 pub struct antecedent_estimate::TemporalDesignInputs<'a>
 pub struct antecedent_estimate::TemporalEffectSurface
@@ -19586,6 +19859,7 @@ pub struct antecedent_estimate::categorical_treatment::CategoricalSummary
 pub struct antecedent_estimate::categorical_treatment::CategoricalTreatmentFit
 pub struct antecedent_estimate::categorical_treatment::CategoricalTreatmentInput<'a>
 pub struct antecedent_estimate::categorical_treatment::CategoricalTreatmentSpec
+pub struct antecedent_estimate::categorical_treatment::DeclaredRows
 pub struct antecedent_estimate::categorical_treatment::LevelContrast
 pub struct antecedent_estimate::categorical_treatment::LevelCount
 pub struct antecedent_estimate::categorical_treatment::MonotonicityResult
@@ -19680,6 +19954,7 @@ pub struct antecedent_estimate::design_width::DesignWidthQuote
 pub struct antecedent_estimate::dose_basis_regression::BasisPosterior
 pub struct antecedent_estimate::dose_grid_functional::BiasAwareDoseGrid
 pub struct antecedent_estimate::dose_grid_functional::ClaimSet
+pub struct antecedent_estimate::dose_grid_functional::DeclaredRows
 pub struct antecedent_estimate::dose_grid_functional::DoseContrast
 pub struct antecedent_estimate::dose_grid_functional::DoseDerivative
 pub struct antecedent_estimate::dose_grid_functional::DoseGridRequest<'a>
@@ -19687,6 +19962,7 @@ pub struct antecedent_estimate::dose_grid_functional::DoseGridRow
 pub struct antecedent_estimate::dose_grid_functional::DoseLevel
 pub struct antecedent_estimate::dose_grid_functional::NumericalReport
 pub struct antecedent_estimate::dose_grid_functional::PointwiseInterval
+pub struct antecedent_estimate::dose_grid_functional::RowDeclaration<'a>
 pub struct antecedent_estimate::dose_grid_functional::SimultaneousBand
 pub struct antecedent_estimate::dose_grid_posterior::CompiledDoseGridPosterior
 pub struct antecedent_estimate::dose_grid_posterior::CompiledDoseGridPosterior has private fields
@@ -19751,6 +20027,7 @@ pub struct antecedent_estimate::history_match::HistoryUnit has private fields
 pub struct antecedent_estimate::history_match::PeriodHistoryContrast
 pub struct antecedent_estimate::history_match::PeriodHistoryContrast has private fields
 pub struct antecedent_estimate::history_match::PeriodHistoryEstimate
+pub struct antecedent_estimate::history_match::SerialHistoryInterval
 pub struct antecedent_estimate::history_outcome_model::HistoryOutcomeProblem
 pub struct antecedent_estimate::joint_bayesian_transport::DataIdentity
 pub struct antecedent_estimate::joint_bayesian_transport::FailedFitDiagnostics
@@ -19849,6 +20126,9 @@ pub struct antecedent_estimate::joint_panel::decomposition::StreamedDecompositio
 pub struct antecedent_estimate::joint_panel::expression::CompiledPanelExpression
 pub struct antecedent_estimate::joint_panel::expression::CompiledPanelExpression has private fields
 pub struct antecedent_estimate::joint_panel::expression::PanelExpressionControl
+pub struct antecedent_estimate::joint_panel::restriction::PanelLinearityCheck
+pub struct antecedent_estimate::joint_panel::restriction::PanelNormalityCheck
+pub struct antecedent_estimate::joint_panel::restriction::PanelRestrictionDiagnostics
 pub struct antecedent_estimate::joint_panel::selection_uncertainty::SelectionDecomposition
 pub struct antecedent_estimate::joint_panel::selection_uncertainty::SpecificationShare
 pub struct antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
@@ -20233,6 +20513,8 @@ pub struct antecedent_estimate::temporal_penalized_score::BayesianTemporalPropen
 pub struct antecedent_estimate::temporal_penalized_score::FrequentistTemporalPropensity
 pub struct antecedent_estimate::temporal_penalized_score::FrequentistTemporalPropensity has private fields
 pub struct antecedent_estimate::temporal_penalized_score::PenalizedPropensityScore
+pub struct antecedent_estimate::temporal_penalized_score::PenalizedScoreBand
+pub struct antecedent_estimate::temporal_penalized_score::PenalizedScoreInterval
 pub struct antecedent_estimate::temporal_penalized_score::PosteriorPropensity
 pub struct antecedent_estimate::temporal_penalized_score::TemporalPropensityDesign
 pub struct antecedent_estimate::temporal_penalized_score::TemporalPropensityDesign has private fields
@@ -20264,6 +20546,7 @@ pub struct antecedent_estimate::trajectory_survival::TrajectoryHazardPosterior
 pub struct antecedent_estimate::trajectory_survival::TrajectoryRows<'a>
 pub struct antecedent_estimate::trajectory_survival::TrajectorySurvival
 pub struct antecedent_estimate::trajectory_survival::TrajectorySurvivalContrast
+pub struct antecedent_estimate::transport_design::TrialToTargetRows<'a>
 pub struct antecedent_estimate::transport_scenarios::MeanEnvelope
 pub struct antecedent_estimate::transport_scenarios::PreparedScenarioSet
 pub struct antecedent_estimate::transport_scenarios::PreparedScenarioSet has private fields
@@ -20279,6 +20562,7 @@ pub struct antecedent_estimate::vector_treatment::DesignSummary
 pub struct antecedent_estimate::vector_treatment::JointWald
 pub struct antecedent_estimate::vector_treatment::NamedColumn<'a>
 pub struct antecedent_estimate::vector_treatment::RobustDesignSummary
+pub struct antecedent_estimate::vector_treatment::RowStructure<'a>
 pub struct antecedent_estimate::vector_treatment::TreatmentColumn<'a>
 pub struct antecedent_estimate::vector_treatment::VectorTreatmentFit
 pub struct antecedent_estimate::vector_treatment::VectorTreatmentInput<'a>
@@ -20607,6 +20891,7 @@ pub use antecedent_estimate::sampled_recovery_route_frozen = antecedent_estimate
 pub use antecedent_estimate::sampling_weights::RetainedSamplingWeights = antecedent_estimate::RetainedSamplingWeights
 pub use antecedent_estimate::sampling_weights::SamplingWeightRecord = antecedent_estimate::SamplingWeightRecord
 pub use antecedent_estimate::sampling_weights::SamplingWeights = antecedent_estimate::SamplingWeights
+pub use antecedent_estimate::score_dependence::ScoreDependence = antecedent_estimate::ScoreDependence
 pub use antecedent_estimate::scores::LinearContrast = antecedent_estimate::LinearContrast
 pub use antecedent_estimate::scores::ScoreColumn = antecedent_io_core::score_wire::ScoreColumn
 pub use antecedent_estimate::scores::ScoreInference = antecedent_estimate::ScoreInference
@@ -20647,6 +20932,7 @@ pub use antecedent_estimate::statistical_transport::mz_sampling_dependence = ant
 pub use antecedent_estimate::statistical_transport::nominal_z_transport_interval = antecedent_estimate::nominal_z_transport_interval
 pub use antecedent_estimate::statistical_transport::percentile_interval = antecedent_estimate::percentile_interval
 pub use antecedent_estimate::summarize_functional = antecedent_estimate::retarget::summarize_functional
+pub use antecedent_estimate::summarize_functional_with = antecedent_estimate::retarget::summarize_functional_with
 pub use antecedent_estimate::support_from_functional_eval = antecedent_estimate::functional_distribution::support_from_functional_eval
 pub use antecedent_estimate::supported_min_draws = antecedent_estimate::bayesian::supported_min_draws
 pub use antecedent_estimate::tempering_capped_from_notes = antecedent_estimate::serial_dependence::tempering_capped_from_notes
@@ -20870,6 +21156,8 @@ pub variant antecedent_estimate::SampledRecoveryDetail::ReceiptMismatch
 pub variant antecedent_estimate::SampledRecoveryDetail::RouteFrozen
 pub variant antecedent_estimate::SampledRecoveryDetail::TooManyFailedReplicates
 pub variant antecedent_estimate::SampledRecoveryDetail::UnrecoverablePattern
+pub variant antecedent_estimate::ScoreDependence::Clusters(alloc::sync::Arc<[u32]>)
+pub variant antecedent_estimate::ScoreDependence::NeweyWest { lag: usize }
 pub variant antecedent_estimate::SelectedOutcomeCorrection::Aipw
 pub variant antecedent_estimate::SelectedOutcomeCorrection::Ipw
 pub variant antecedent_estimate::SerialDependence::Iid
@@ -20962,6 +21250,9 @@ pub variant antecedent_estimate::dose_grid_functional::DoseFunctional::Contrast 
 pub variant antecedent_estimate::dose_grid_functional::DoseFunctional::Derivative
 pub variant antecedent_estimate::dose_grid_functional::DoseFunctional::Level
 pub variant antecedent_estimate::dose_grid_functional::IntervalCalibration::Unmeasured
+pub variant antecedent_estimate::dose_grid_functional::RowDependence::Clustered(&'a [u32])
+pub variant antecedent_estimate::dose_grid_functional::RowDependence::Independent
+pub variant antecedent_estimate::dose_grid_functional::RowDependence::Serial { lag: usize }
 pub variant antecedent_estimate::effect_constancy::CalibrationStatus::Unmeasured
 pub variant antecedent_estimate::effect_constancy::ConstancyConclusion::NotRejected
 pub variant antecedent_estimate::effect_constancy::ConstancyConclusion::Rejected
@@ -21417,10 +21708,15 @@ pub variant antecedent_estimate::temporal_refresh::WindowProduct::Design
 pub variant antecedent_estimate::temporal_refresh::WindowProduct::Evidence
 pub variant antecedent_estimate::temporal_refresh::WindowProduct::Identification
 pub variant antecedent_estimate::temporal_refresh::WindowProduct::Model
+pub variant antecedent_estimate::transport_design::RowDependence::Clusters(&'a [u32])
+pub variant antecedent_estimate::transport_design::RowDependence::Independent
+pub variant antecedent_estimate::transport_design::RowDependence::SeriesBlocks(usize)
 pub variant antecedent_estimate::util::SamplingDeclaration::Declared(antecedent_core::sampling_design::SamplingDesign)
 pub variant antecedent_estimate::util::SamplingDeclaration::Undeclared
+pub variant antecedent_estimate::vector_treatment::VectorCovariance::Cluster
 pub variant antecedent_estimate::vector_treatment::VectorCovariance::Hc0
 pub variant antecedent_estimate::vector_treatment::VectorCovariance::Hc1
 pub variant antecedent_estimate::vector_treatment::VectorCovariance::Hc2
 pub variant antecedent_estimate::vector_treatment::VectorCovariance::Hc3
 pub variant antecedent_estimate::vector_treatment::VectorCovariance::ModelBased
+pub variant antecedent_estimate::vector_treatment::VectorCovariance::NeweyWest

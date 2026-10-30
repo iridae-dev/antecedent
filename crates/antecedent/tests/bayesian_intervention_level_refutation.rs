@@ -246,7 +246,7 @@ fn the_bayesian_state_does_not_depend_on_the_thread_count() {
 }
 
 #[test]
-fn derivative_refuter_state_executes_unlicensed_and_checks_the_finite_difference() {
+fn derivative_refuter_state_is_licensed_and_checks_the_finite_difference() {
     let table = continuous_data(53);
     let derivative = ResponseQuery::new(ResponseFunctional::AverageDerivative {
         outcome: VariableId::from_raw(1),
@@ -268,7 +268,7 @@ fn derivative_refuter_state_executes_unlicensed_and_checks_the_finite_difference
             .unwrap_or_else(|error| panic!("{label}: {error}"))
             .run(&ExecutionContext::for_tests(9))
             .unwrap_or_else(|error| panic!("{label}: {error}"));
-        assert_eq!(result.support_status(), Some(CellStatus::Refused), "{label}");
+        assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
         assert!(has_refuter(&result, "derivative.support"), "{label}");
         let fd = result
             .refutations
