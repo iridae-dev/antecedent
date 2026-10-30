@@ -167,29 +167,48 @@ impl PreparedStudy<JointPanelState> {
                 ));
             }
         }
+        let restricted = self.gaussian_restriction_declared();
+        if restricted {
+            self.check_restriction_structure(graph)?;
+        }
         let verdict = identify_joint_panel_intervention(graph, outcome_periods)
             .map_err(|error| JointPanelError::compile(error.to_string()))?;
         let (detail, next) = match &verdict {
             UnrolledPanelIdentification::Identified(result) => (
                 format!(
-                    "general ID identifies the joint intervention on the declared unrolled graph ({} channel nodes over {} periods, outcome periods {outcome_periods:?}) as a nonparametric functional of the observed law ({} derivation steps); not bound as a proof of this request: the executed Gaussian/AR panel is a fitted parametric mechanism that realizes that functional only under its own restrictions, and no estimator of the nonparametric functional is attached",
+                    "general ID identifies the joint intervention on the declared unrolled graph ({} channel nodes over {} periods, outcome periods {outcome_periods:?}) as a nonparametric functional of the observed law ({} derivation steps); not bound as a proof of this request: the executed Gaussian/AR panel is a fitted parametric mechanism that realizes that functional only under its own restrictions, and no estimator of the nonparametric functional is attached{}",
                     graph.spec().channels * graph.spec().periods,
                     graph.spec().periods,
                     result.derivation.steps.len(),
+                    if restricted {
+                        "; the Gaussian restriction is declared, so the identification of the fit is retained under that restriction as a separate attempt"
+                    } else {
+                        ""
+                    },
                 ),
-                "an estimator that realizes the identified functional (a nonparametric g-formula on the unrolled law), or the parametric restriction declared as an assumption of the fit".to_owned(),
+                "the parametric restriction declared on the target (declare_joint_panel_gaussian_restriction) before preparing the request, or an estimator that realizes the identified functional (a nonparametric g-formula on the unrolled law)".to_owned(),
             ),
             UnrolledPanelIdentification::NotIdentified { hedge, .. } => (
                 format!(
-                    "not identified through general ID on the declared unrolled graph: a hedge of {} and {} nodes (the larger and smaller C-forests) exists for the joint intervention on outcome periods {outcome_periods:?}",
+                    "not identified through general ID on the declared unrolled graph: a hedge of {} and {} nodes (the larger and smaller C-forests) exists for the joint intervention on outcome periods {outcome_periods:?}{}",
                     hedge.f.len(),
                     hedge.f_prime.len(),
+                    if restricted {
+                        "; the declared Gaussian restriction does not identify through a hedge, so the refusal stands"
+                    } else {
+                        ""
+                    },
                 ),
                 "remove the unmeasured common cause of a channel and the outcome it drives, or collect a randomized whole-program assignment".to_owned(),
             ),
         };
-        let mut next_state = self.clone();
-        let mut attempts = self.state.attempts.to_vec();
+        let mut next_state = match (&verdict, restricted) {
+            (UnrolledPanelIdentification::Identified(result), true) => {
+                self.with_gaussian_restricted_identification(result, graph, outcome_periods)?
+            }
+            _ => self.clone(),
+        };
+        let mut attempts = next_state.state.attempts.to_vec();
         for attempt in &mut attempts {
             if attempt.id == "joint_adjustment.observational" {
                 attempt.detail = detail.clone();

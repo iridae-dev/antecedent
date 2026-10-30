@@ -17,6 +17,8 @@ pub mod expression;
 pub mod family;
 mod inference;
 mod likelihood;
+/// Checks of the declared Gaussian restriction on a fitted point mechanism.
+pub mod restriction;
 /// Specification-conditional split of decomposed temporal laws.
 pub mod selection_uncertainty;
 mod streaming;

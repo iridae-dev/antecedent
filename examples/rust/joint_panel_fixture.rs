@@ -337,9 +337,29 @@ pub const LAG_ZERO_PERIODS: usize = 48;
 /// season + u_group + e` with `s(x) = x / (x + k)`. Doses are 0 with probability 0.25 and
 /// otherwise uniform on (0, 10); the deterministic stream makes the panel reproducible.
 pub fn source_lag_zero() -> PanelData {
+    source_lag_zero_departing(LagZeroDeparture::None)
+}
+
+/// How a lag-zero panel departs from the panel mechanism's own linear-Gaussian form.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LagZeroDeparture {
+    /// The mechanism itself.
+    None,
+    /// The mean of each channel is a hump `1 - ((x - 5) / 5)^2` on doses in [0, 10], which no
+    /// monotone saturation represents.
+    NonMonotoneMean,
+    /// Innovations are a centred unit exponential times the innovation scale (skewness 2).
+    SkewedInnovations,
+}
+
+/// The lag-zero panel of [`source_lag_zero`] with an optional departure from the mechanism.
+pub fn source_lag_zero_departing(departure: LagZeroDeparture) -> PanelData {
     let truth = lag_zero_truth();
     let mut stream = FixtureStream(20_261_029);
-    let saturate = |x: f64| x / (x + truth.half_saturation);
+    let saturate = |x: f64| match departure {
+        LagZeroDeparture::NonMonotoneMean => 1.0 - ((x - 5.0) / 5.0).powi(2),
+        _ => x / (x + truth.half_saturation),
+    };
     let units: Vec<_> = (0..LAG_ZERO_GROUPS)
         .map(|group| {
             let intercept = truth.group_sd * stream.normal();
@@ -360,7 +380,11 @@ pub fn source_lag_zero() -> PanelData {
                         + truth.confounder * z[t]
                         + truth.season_effects[t % 4]
                         + intercept
-                        + truth.innovation_sd * stream.normal()
+                        + truth.innovation_sd
+                            * match departure {
+                                LagZeroDeparture::SkewedInnovations => -stream.uniform().ln() - 1.0,
+                                _ => stream.normal(),
+                            }
                 })
                 .collect();
             let series = TimeSeriesData::from_f64_columns(

@@ -98,6 +98,19 @@ This static joint Gaussian response is additive in its treatments. It refuses a 
 
 A fitted response does not establish causal identification. The compiler records the source and design proofs it supports and its attempts to identify joint assignment. Unsupported worlds stay unresolved or model-conditional; per-period assignment does not silently identify a whole trajectory.
 
+### Identification under a declared Gaussian restriction
+
+`with_unrolled_graph_attempt` runs general ID on a declared unrolled point graph and records the verdict. That verdict is a nonparametric functional of the observed law; the fitted Gaussian/AR panel realizes it only if the observed conditional laws are the panel's own. Declaring that on the target (`declare_joint_panel_gaussian_restriction`, applied before the request is prepared) makes the identification of the fit a separate attempt, `joint_adjustment.gaussian_restriction`, retained as identification under a parametric restriction and never as nonparametric identification.
+
+The restriction states that, given the observed context, the outcome is a saturated lag-weighted sum of the channels (and declared products) plus a covariate and season effect, with Gaussian group intercepts and stationary Gaussian AR(1) errors independent of the whole program. The claim is refused, with a typed error, when:
+
+- the restriction is not declared (the verdict stays recorded and the fit stays model-conditional);
+- general ID reports a hedge (the declaration does not identify through a hedge);
+- the unrolled graph names a carryover reach other than the fitted lag order, serial outcome dependence that the fitted errors do not have (or lack it where they do), or an assignment that responds to past outcomes, which the fitted mechanism does not realize;
+- the mechanism is time-varying, which has no residual check.
+
+After the fit, residual checks run on the point mechanism: Jarque-Bera normality of the AR(1)-whitened innovations and an equal-count-bin lack-of-fit check of the mean against each channel's lag-weighted exposure and the covariate, at family-wise level 0.01 split evenly over the tests run. A flagged check withdraws the identified claim from the result (`require_identified` refuses and the attempt is `Rejected`). A check that does not flag is not evidence that the restriction holds, and no calibration of these checks is measured. `retarget` rebuilds the identification product and so drops the restricted claim; rebind the graph on the retargeted handle. The Python surface does not expose the unrolled graph, so this route is Rust-only.
+
 `inspect()` lists the design attempts in order, including the ones that failed: the joint Gaussian route, observational joint adjustment and known randomized assignment of whole programs. Each refused attempt names the next one (for example, collecting positive-probability whole-program assignments). A confounded design with unsupported joint worlds therefore keeps its fitted mechanism but withholds a causal claim for those worlds.
 
 Panel point means are fitted plug-in estimates, including in Bayesian runs. The Rust `mean_source`, `law_source` and `project_*_source` ports keep scientific standing and the exact projected question for decision and search consumers, and model-conditional consumption must be explicit. Accessors named `numerical_*` expose numerical components without granting current scientific permission.

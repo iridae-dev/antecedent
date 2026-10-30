@@ -23,6 +23,8 @@ pub use designs::{
 };
 mod experiment;
 mod explanation;
+mod gaussian_restriction;
+pub use gaussian_restriction::declare_joint_panel_gaussian_restriction;
 pub use explanation::{
     ChangeComponent, CheckedReferenceDecomposition, DecompositionEndpoint,
     DecompositionJointUncertainty, DesignAdaptiveReference, HistoricalPopulationReference,
@@ -543,11 +545,12 @@ impl PreparedStudy<JointPanelState> {
             }
         };
         let (point, draws, retention) = responses.into_parts();
+        let program = self.checked_against_fit(&fit)?;
         Ok(JointPanelResult {
             point,
             draws,
             fit,
-            program: self.clone(),
+            program,
             dependency,
             seed: ctx.rng.master_seed(),
             context: ctx.clone(),

@@ -1465,3 +1465,205 @@ fn temporal_bayesian_frame_decomposes_on_reference_worlds_and_translates_experim
     exercise_temporal_reference_worlds(&result, &ctx);
     experiment_chain::exercise(&prepared, &result, &ctx);
 }
+
+mod gaussian_restriction {
+    use super::{cached_context, fixture};
+    use antecedent::Study;
+    use antecedent::analysis::joint_panel::{
+        JointPanelDesignOutcome, JointPanelError, declare_joint_panel_gaussian_restriction,
+    };
+    use antecedent_core::{Assumption, ExecutionContext};
+    use antecedent_data::PanelData;
+    use antecedent_estimate::joint_panel::PanelInference;
+    use antecedent_identify::panel_unrolled::{PanelNode, UnrolledPanelGraph, UnrolledPanelSpec};
+    use fixture::LagZeroDeparture;
+
+    const RESTRICTION: &str = "panel.gaussian_ar_mechanism";
+    const HORIZON: usize = 24;
+
+    fn spec(latent: Vec<(PanelNode, PanelNode)>) -> UnrolledPanelSpec {
+        UnrolledPanelSpec {
+            periods: HORIZON,
+            channels: 2,
+            contexts: 1,
+            carryover_reach: 0,
+            outcome_persistence: false,
+            history_feedback: false,
+            latent_confounding: latent,
+            ..UnrolledPanelSpec::default()
+        }
+    }
+
+    fn prepared(
+        data: PanelData,
+        declare: bool,
+        ctx: &ExecutionContext,
+    ) -> antecedent::PreparedStudy<antecedent::analysis::joint_panel::JointPanelState> {
+        let mut request =
+            fixture::request_lag_zero(&data, PanelInference::Frequentist { draws: 0 });
+        if declare {
+            request.target = declare_joint_panel_gaussian_restriction(&request.target);
+        }
+        Study::prepare_joint_panel(data, request, ctx).unwrap()
+    }
+
+    /// Joint minus reference at every period: the context, season and group effects cancel, so
+    /// the closed form from the structural coefficients is `b_a s + b_b s + b_ab s^2`, `s =
+    /// 4 / (4 + k)`.
+    fn joint_minus_reference(point: &[antecedent_estimate::joint_panel::PanelResponse]) -> Vec<f64> {
+        point[3].means.iter().zip(&point[0].means).map(|(joint, reference)| joint - reference).collect()
+    }
+
+    fn closed_form_joint_response_change() -> f64 {
+        let truth = fixture::lag_zero_truth();
+        let s = 4.0 / (4.0 + truth.half_saturation);
+        truth.coefficients[0] * s + truth.coefficients[1] * s + truth.interaction * s * s
+    }
+
+    fn assert_restriction_recorded(
+        identification: &antecedent_identify::CompiledIdentificationProduct,
+    ) {
+        assert!(identification.assumptions().entries.iter().any(|record| matches!(
+            &record.assumption,
+            Assumption::ParametricRestriction(premise) if premise.id.as_ref() == RESTRICTION
+        )));
+    }
+
+    #[test]
+    fn declared_restriction_identifies_the_fitted_lag_zero_response_and_recovers_the_closed_form() {
+        let ctx = cached_context(20_261_029);
+        let panel = prepared(fixture::source_lag_zero(), true, &ctx);
+        assert!(!panel.inspect().identification.is_identified_claim());
+        let graph = UnrolledPanelGraph::build(spec(vec![])).unwrap();
+        let bound = panel.with_unrolled_graph_attempt(&graph, &[HORIZON - 1], &ctx).unwrap();
+        let inspection = bound.inspect();
+        assert!(inspection.identification.is_identified_claim());
+        assert_restriction_recorded(&inspection.identification);
+        let attempt = inspection
+            .design_attempts
+            .iter()
+            .find(|attempt| attempt.id == "joint_adjustment.gaussian_restriction")
+            .unwrap();
+        assert_eq!(attempt.outcome, JointPanelDesignOutcome::Identified);
+        assert!(attempt.detail.contains("not nonparametrically"), "{}", attempt.detail);
+        assert!(attempt.worlds.iter().all(|world| world.identified));
+
+        let result = bound.estimate(&ctx).unwrap();
+        result.require_identified().unwrap();
+        let attempt = result
+            .design_attempts()
+            .iter()
+            .find(|attempt| attempt.id == "joint_adjustment.gaussian_restriction")
+            .unwrap();
+        assert_eq!(attempt.outcome, JointPanelDesignOutcome::Identified);
+        assert!(attempt.detail.contains("did not flag the restriction"), "{}", attempt.detail);
+        let known = closed_form_joint_response_change();
+        for (period, change) in joint_minus_reference(&result.point).into_iter().enumerate() {
+            assert!(
+                (change - known).abs() < 0.25,
+                "period {period}: fitted joint response change {change} vs closed form {known}"
+            );
+        }
+    }
+
+    #[test]
+    fn restriction_not_declared_keeps_the_typed_refusal_even_when_general_id_identifies() {
+        let ctx = cached_context(20_261_029);
+        let panel = prepared(fixture::source_lag_zero(), false, &ctx);
+        let graph = UnrolledPanelGraph::build(spec(vec![])).unwrap();
+        let bound = panel.with_unrolled_graph_attempt(&graph, &[HORIZON - 1], &ctx).unwrap();
+        assert!(!bound.inspect().identification.is_identified_claim());
+        assert!(bound.inspect().design_attempts.iter().all(|attempt| {
+            attempt.id != "joint_adjustment.gaussian_restriction"
+        }));
+        let result = bound.estimate(&ctx).unwrap();
+        assert!(matches!(result.require_identified(), Err(JointPanelError::Unsupported(_))));
+    }
+
+    #[test]
+    fn declared_restriction_does_not_identify_through_a_hedge() {
+        let ctx = cached_context(20_261_029);
+        let panel = prepared(fixture::source_lag_zero(), true, &ctx);
+        let last = HORIZON - 1;
+        let bow = vec![(PanelNode::Channel { channel: 0, period: last }, PanelNode::Outcome(last))];
+        let graph = UnrolledPanelGraph::build(spec(bow)).unwrap();
+        let bound = panel.with_unrolled_graph_attempt(&graph, &[last], &ctx).unwrap();
+        assert!(!bound.inspect().identification.is_identified_claim());
+        assert!(bound.inspect().design_attempts.iter().any(|attempt| {
+            attempt.id == "joint_adjustment.observational" && attempt.detail.contains("hedge")
+        }));
+        assert!(matches!(
+            bound.estimate(&ctx).unwrap().require_identified(),
+            Err(JointPanelError::Unsupported(_))
+        ));
+    }
+
+    #[test]
+    fn declared_restriction_refuses_a_graph_the_fitted_mechanism_does_not_realize() {
+        let ctx = cached_context(20_261_029);
+        let panel = prepared(fixture::source_lag_zero(), true, &ctx);
+        let refused = |spec: UnrolledPanelSpec| {
+            panel
+                .with_unrolled_graph_attempt(
+                    &UnrolledPanelGraph::build(spec).unwrap(),
+                    &[HORIZON - 1],
+                    &ctx,
+                )
+                .unwrap_err()
+        };
+        let feedback = refused(UnrolledPanelSpec { history_feedback: true, ..spec(vec![]) });
+        assert!(matches!(&feedback, JointPanelError::Unsupported(m) if m.contains("outcome history")));
+        let carryover = refused(UnrolledPanelSpec { carryover_reach: 2, ..spec(vec![]) });
+        assert!(matches!(&carryover, JointPanelError::Unsupported(m) if m.contains("lag order 0")));
+        let serial = refused(UnrolledPanelSpec { outcome_persistence: true, ..spec(vec![]) });
+        assert!(matches!(&serial, JointPanelError::Unsupported(m) if m.contains("AR(1)")));
+    }
+
+    #[test]
+    fn nonlinear_mechanism_violating_the_restriction_is_flagged_and_the_claim_withdrawn() {
+        let ctx = cached_context(20_261_029);
+        let panel = prepared(
+            fixture::source_lag_zero_departing(LagZeroDeparture::NonMonotoneMean),
+            true,
+            &ctx,
+        );
+        let graph = UnrolledPanelGraph::build(spec(vec![])).unwrap();
+        let bound = panel.with_unrolled_graph_attempt(&graph, &[HORIZON - 1], &ctx).unwrap();
+        assert!(bound.inspect().identification.is_identified_claim());
+        let result = bound.estimate(&ctx).unwrap();
+        assert!(!result.identification().is_identified_claim());
+        assert!(matches!(
+            result.require_identified(),
+            Err(JointPanelError::Unsupported(_))
+        ));
+        let attempt = result
+            .design_attempts()
+            .iter()
+            .find(|attempt| attempt.id == "joint_adjustment.gaussian_restriction")
+            .unwrap();
+        assert_eq!(attempt.outcome, JointPanelDesignOutcome::Rejected);
+        assert!(attempt.detail.contains("not represented by the fitted mechanism in channel:"), "{}", attempt.detail);
+        assert!(attempt.worlds.iter().all(|world| !world.identified));
+    }
+
+    #[test]
+    fn skewed_innovations_violating_the_restriction_are_flagged_and_the_claim_withdrawn() {
+        let ctx = cached_context(20_261_029);
+        let panel = prepared(
+            fixture::source_lag_zero_departing(LagZeroDeparture::SkewedInnovations),
+            true,
+            &ctx,
+        );
+        let graph = UnrolledPanelGraph::build(spec(vec![])).unwrap();
+        let bound = panel.with_unrolled_graph_attempt(&graph, &[HORIZON - 1], &ctx).unwrap();
+        let result = bound.estimate(&ctx).unwrap();
+        assert!(result.require_identified().is_err());
+        let attempt = result
+            .design_attempts()
+            .iter()
+            .find(|attempt| attempt.id == "joint_adjustment.gaussian_restriction")
+            .unwrap();
+        assert_eq!(attempt.outcome, JointPanelDesignOutcome::Rejected);
+        assert!(attempt.detail.contains("not Gaussian"), "{}", attempt.detail);
+    }
+}
