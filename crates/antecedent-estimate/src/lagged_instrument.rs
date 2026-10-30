@@ -35,11 +35,6 @@ use crate::util::{DrawSpec, mean};
 /// resting on two or three points.
 const MIN_ALIGNED_ROWS: usize = 8;
 
-/// Numerical floor for a zero residual variance inside the plug-in covariance only. The
-/// first-stage F statistic does not use it. A zero residual still reports an infinite F and a
-/// zero Wald standard error.
-const PLUG_IN_VARIANCE_FLOOR: f64 = 1e-8;
-
 /// Wald model tag. Distinct from the posterior tag.
 const WALD_MODEL: &str = concat!(
     "just-identified lagged-instrument Wald contrast; ",
@@ -385,20 +380,32 @@ fn residual_weight(
         cross += treatment_residual * outcome_residual;
     }
     let df = (series.instrument.len() - 2) as f64;
-    let treatment_variance = (treatment_rss / df).max(PLUG_IN_VARIANCE_FLOOR);
-    let outcome_variance = (outcome_rss / df).max(PLUG_IN_VARIANCE_FLOOR);
-    let mut covariance = cross / df;
-    let mut det = treatment_variance * outcome_variance - covariance * covariance;
-    if !det.is_finite() || det <= 0.0 {
-        covariance = 0.0;
-        det = treatment_variance * outcome_variance;
+    let treatment_variance = treatment_rss / df;
+    let outcome_variance = outcome_rss / df;
+    let singular = || {
+        EstimationError::stats_msg("lagged-instrument reduced-form residual covariance is singular")
+    };
+    if !(treatment_variance.is_finite()
+        && treatment_variance > 0.0
+        && outcome_variance.is_finite()
+        && outcome_variance > 0.0)
+    {
+        return Err(singular());
     }
-    if !det.is_finite() || det <= 0.0 {
-        return Err(EstimationError::stats_msg(
-            "lagged-instrument reduced-form residual covariance is singular",
-        ));
+    let treatment_sd = treatment_variance.sqrt();
+    let outcome_sd = outcome_variance.sqrt();
+    let rho = ((cross / df) / treatment_sd) / outcome_sd;
+    if !rho.is_finite() || rho.abs() >= 1.0 {
+        return Err(singular());
     }
-    Ok((outcome_variance / det, treatment_variance / det, -covariance / det))
+    let factor = (1.0 - rho) * (1.0 + rho);
+    let tt = (1.0 / treatment_sd / treatment_sd) / factor;
+    let yy = (1.0 / outcome_sd / outcome_sd) / factor;
+    let ty = (-rho / treatment_sd / outcome_sd) / factor;
+    if !tt.is_finite() || !yy.is_finite() || !ty.is_finite() {
+        return Err(singular());
+    }
+    Ok((tt, yy, ty))
 }
 
 fn quantile(sorted: &[f64], p: f64) -> f64 {
@@ -447,6 +454,35 @@ mod tests {
         lag: usize,
     ) -> LaggedInstrumentSample<'a> {
         LaggedInstrumentSample { instrument, treatment, outcome, lag }
+    }
+
+    #[test]
+    fn residual_precision_is_scale_consistent_and_refuses_singular_covariance() {
+        let z = binary_instrument(8);
+        let u = paired_signs(8);
+        let v = [1.0, -1.0, -1.0, 1.0, 1.0, -1.0, -1.0, 1.0];
+        for scale in [1.0, 1e-6] {
+            let t: Vec<_> = z.iter().zip(&u).map(|(z, u)| scale * (z + u)).collect();
+            let y: Vec<_> =
+                z.iter().zip(&u).zip(&v).map(|((z, u), v)| scale * (2.0 * z + u + v)).collect();
+            let series = AlignedSeries { instrument: z.clone(), treatment: t, outcome: y, lag: 1 };
+            let contrast = wald(&series, 0.0).unwrap();
+            let (tt, yy, ty) = residual_weight(&series, &contrast).unwrap();
+            assert!((tt * scale * scale - 1.5).abs() < 1e-10);
+            assert!((yy * scale * scale - 0.75).abs() < 1e-10);
+            assert!((ty * scale * scale + 0.75).abs() < 1e-10);
+        }
+        let singular = AlignedSeries {
+            instrument: z.clone(),
+            treatment: z.iter().zip(&u).map(|(z, u)| z + u).collect(),
+            outcome: z.iter().zip(&u).map(|(z, u)| 2.0 * z + u).collect(),
+            lag: 1,
+        };
+        let contrast = wald(&singular, 0.0).unwrap();
+        assert!(residual_weight(&singular, &contrast).is_err());
+        let zero = AlignedSeries { outcome: z.iter().map(|z| 2.0 * z).collect(), ..singular };
+        let contrast = wald(&zero, 0.0).unwrap();
+        assert!(residual_weight(&zero, &contrast).is_err());
     }
 
     #[test]
@@ -627,8 +663,14 @@ mod tests {
     #[test]
     fn diffuse_posterior_concentrates_on_the_structural_effect() {
         let z = binary_instrument(8);
-        let treatment: Vec<f64> = z.iter().map(|zi| 1.0 + 2.0 * zi).collect();
-        let outcome: Vec<f64> = treatment.iter().map(|ti| 4.0 + 3.0 * ti).collect();
+        // Orthogonal residual patterns keep the reduced-form covariance positive definite,
+        // while small noise makes the diffuse posterior concentrate near the true effect.
+        let u = paired_signs(8);
+        let v = [1.0, -1.0, -1.0, 1.0, 1.0, -1.0, -1.0, 1.0];
+        let treatment: Vec<f64> =
+            z.iter().zip(&u).map(|(zi, ui)| 1.0 + 2.0 * zi + 0.0001 * ui).collect();
+        let outcome: Vec<f64> =
+            treatment.iter().zip(&v).map(|(ti, vi)| 4.0 + 3.0 * ti + 0.0001 * vi).collect();
         let (instrument, treatment_series, outcome_series) = lag1(&z, &treatment, &outcome);
         let sample = sample(&instrument, &treatment_series, &outcome_series, 1);
         let wald = fit_lagged_instrument(&sample, 10.0).unwrap();
@@ -650,22 +692,23 @@ mod tests {
 
     #[test]
     fn tight_prior_moves_the_ratio_away_from_the_wald_contrast() {
-        // Forty aligned rows. T = Z, so the first stage is perfect. Y = 2 Z + e with
-        // e = +1,+1,-1,-1 orthogonal to Z, so the Wald effect is 2.
-        // Plug-in outcome variance is 40/38. A N(0, 0.05²) prior on the raw coefficients has
-        // posterior precision [[438, 19], [19, 419]] and outcome-slope mean 15922/183161.
-        // The perfect first stage keeps π at 1, so the ratio mean sits on that slope. The Wald
-        // contrast has no prior and stays at 2.
+        // Forty rows with independent, instrument-orthogonal reduced-form residuals.
+        // Tiny treatment noise keeps the first stage close to 1; the outcome residual
+        // is +1,+1,-1,-1. Its N(0, 0.05²) posterior slope is near 15922/183161.
         let n = 40;
         let z = binary_instrument(n);
         let e = paired_signs(n);
-        let treatment = z.clone();
+        let treatment: Vec<f64> = z
+            .iter()
+            .zip(&e)
+            .map(|(zi, ei)| zi + 0.001 * if *zi == 0.0 { *ei } else { -*ei })
+            .collect();
         let outcome: Vec<f64> = z.iter().zip(&e).map(|(zi, ei)| 2.0 * zi + ei).collect();
         let (instrument, treatment_series, outcome_series) = lag1(&z, &treatment, &outcome);
         let sample = sample(&instrument, &treatment_series, &outcome_series, 1);
         let wald = fit_lagged_instrument(&sample, 10.0).unwrap();
         assert!((wald.effect - 2.0).abs() < 1e-9, "wald {effect}", effect = wald.effect);
-        assert!(wald.first_stage_f.is_infinite());
+        assert!(wald.first_stage_f > 100.0);
         let sampling = DrawSpec::new(2000, 19);
         let diffuse = fit_lagged_instrument_posterior(&sample, 100.0, sampling, 10.0).unwrap();
         let tight = fit_lagged_instrument_posterior(&sample, 0.05, sampling, 10.0).unwrap();
