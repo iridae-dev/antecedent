@@ -472,6 +472,12 @@ mod categorical_tests {
         assert_eq!(counts[cell([2, 0, 1, 1, 1])], 1);
         assert_eq!(counts[cell([0, 1, 0, 0, 2])], 1);
         assert_eq!(counts.iter().sum::<u64>(), 2);
+        let panel = TemporalUnitPanel::new("s", Some(vec![u.clone()])).unwrap();
+        let panel_law = fit_categorical_history_joint(&panel).unwrap();
+        assert_eq!(panel_law.empirical_counts().unwrap(), counts);
+        assert_eq!(panel_law.probabilities(), law.probabilities());
+        assert_eq!(panel_law.probabilities()[cell([2, 0, 1, 1, 1])], 0.5);
+        assert_eq!(panel_law.probabilities()[cell([0, 1, 0, 0, 2])], 0.5);
         assert!(fit_categorical_history_units("s", &[&unit(&[(0, 0, 0, 0, 0.5)])]).is_err());
     }
 
