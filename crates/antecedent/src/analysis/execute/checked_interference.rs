@@ -296,7 +296,9 @@ impl CheckedInterferenceOperation {
         let seed = ctx.rng.stream_for(antecedent_core::StreamDomain::Transport, 0x1F7E).next_u64();
         let saturation = matches!(self.procedure, InterferenceProcedure::SaturationExact);
         let (estimated, interference_inference) = if saturation {
-            self.saturation_inference(network)?
+            antecedent_core::numerical_admission::with_context(ctx, || {
+                self.saturation_inference(network)
+            })?
         } else if matches!(
             self.query.assignment,
             antecedent_core::AssignmentDesign::ClusterRandomization { .. }

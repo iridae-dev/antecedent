@@ -371,8 +371,20 @@ fn treated_weight_distribution(
     let mut states: BTreeMap<i64, (f64, f64)> = BTreeMap::new();
     states.insert(0, (0.0, 1.0));
     for &weight in weights {
+        if antecedent_core::numerical_admission::is_cancelled() {
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("cancelled_no_claim"),
+                "saturation exposure calculation was cancelled",
+            ));
+        }
         let mut next: BTreeMap<i64, (f64, f64)> = BTreeMap::new();
-        for &(sum, mass) in states.values() {
+        for (index, &(sum, mass)) in states.values().enumerate() {
+            if index % 1024 == 0 && antecedent_core::numerical_admission::is_cancelled() {
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("cancelled_no_claim"),
+                    "saturation exposure calculation was cancelled",
+                ));
+            }
             for (selected, probability) in [(false, 1.0 - saturation), (true, saturation)] {
                 let sum = if selected { sum + weight } else { sum };
                 let entry = next.entry(key(sum)).or_insert((sum, 0.0));
@@ -547,6 +559,19 @@ mod tests {
         InterferenceQuery, VariableId,
     };
     use antecedent_data::{NetworkData, NetworkEdge, TabularData};
+
+    #[test]
+    fn saturation_exposure_distribution_observes_inherited_cancellation() {
+        let normal = super::treated_weight_distribution(&[1.0, 1.0], 0.5).unwrap();
+        assert_eq!(normal.len(), 3);
+        let ctx = antecedent_core::ExecutionContext::for_tests(3);
+        ctx.cancellation.cancel();
+        let error = antecedent_core::numerical_admission::with_context(&ctx, || {
+            super::treated_weight_distribution(&[1.0, 1.0], 0.5)
+        })
+        .unwrap_err();
+        assert_eq!(error.reason_code(), Some("cancelled_no_claim"));
+    }
 
     use super::{estimate_saturation_interference, estimate_saturation_interference_pointwise};
     use crate::arm::TreatmentArm;
