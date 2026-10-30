@@ -80,7 +80,7 @@ use crate::nonlinear_equilibrium::{
 };
 use crate::scc_compile::{
     CompileBudget, GaussianDisturbance, LinearSupportRoute, SccCompileError,
-    compile_routed_gaussian_equilibrium,
+    compile_routed_gaussian_equilibrium, require_psd,
 };
 
 /// Soft family that replaces the mechanism by a constant. Parameters: `[value]`.
@@ -1714,6 +1714,8 @@ pub fn evaluate_linear_world(
     let resolved = resolve_cyclic_world(family, &spec.variables, &[], request)?;
     let world = resolved.world;
     let system = linear_world_system(spec, &resolved)?;
+    require_psd(system.disturbance.covariance(), system.model.dimension())
+        .map_err(|error| specification_refusal(family, Some(world), error))?;
     let (clamp, values) = hard_clamp_of(&system.clamp)
         .map_err(|error| specification_refusal(family, Some(world), error))?;
     let assessment = assess(&system.model, clamp)

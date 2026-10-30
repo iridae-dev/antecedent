@@ -127,6 +127,40 @@ fn close(left: f64, right: f64, tolerance: f64) -> bool {
 }
 
 #[test]
+fn linear_world_refuses_indefinite_disturbances_in_both_routes() {
+    let request = CyclicWorldRequest::observational(world(0));
+    for edge in [0.4, 1.2] {
+        for covariance in [vec![-1.0, 0.0, 0.0, 0.0], vec![1.0, 2.0, 2.0, 1.0]] {
+            let spec =
+                linear_spec(vec![0.0, edge, edge, 0.0], vec![0.0; 2], vec![0.0; 2], covariance);
+            assert!(
+                evaluate_linear_world(
+                    &spec,
+                    &request,
+                    CertificateDemand::ReportUncertified,
+                    CompileBudget::unlimited()
+                )
+                .is_err()
+            );
+        }
+        let singular = linear_spec(
+            vec![0.0, edge, edge, 0.0],
+            vec![0.0; 2],
+            vec![0.0; 2],
+            vec![1.0, 1.0, 1.0, 1.0],
+        );
+        let result = evaluate_linear_world(
+            &singular,
+            &request,
+            CertificateDemand::ReportUncertified,
+            CompileBudget::unlimited(),
+        )
+        .unwrap();
+        assert!(matches!(result.outcome(), CyclicWorldOutcome::GaussianLaw { .. }));
+    }
+}
+
+#[test]
 fn roadmap_feedback_pair_reproduces_three_different_quantities() {
     let spec = feedback_pair();
     let requests = [

@@ -1424,7 +1424,7 @@ fn solve_row_major(
 /// its own row is refused, so `diag(1e6, -1e-9)` is not hidden by the `1e6` entry. A
 /// variable of zero variance must have a zero row.
 #[allow(clippy::float_cmp, reason = "a zero-variance row must be exactly zero off the diagonal")]
-fn require_psd(covariance: &[f64], n: usize) -> Result<(), SccCompileError> {
+pub(crate) fn require_psd(covariance: &[f64], n: usize) -> Result<(), SccCompileError> {
     let tolerance = antecedent_kernels::EQUILIBRATED_PIVOT_FLOOR;
     let mut scale = vec![0.0_f64; n];
     for row in 0..n {
