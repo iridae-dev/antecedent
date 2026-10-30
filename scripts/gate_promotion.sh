@@ -35,6 +35,18 @@ if [[ "${1:-}" == "--mutation-check" ]]; then
   exit $?
 fi
 
+
+# Ordinary promotion checks must use the committed registries and fresh evidence.
+# Synthetic overrides remain available through the explicit self-test entry points.
+for override in PROMOTION_TRANSPORT_STAGES PROMOTION_SUPPORT_LICENSED \
+  PROMOTION_SUPPORT_CLOSED PROMOTION_EXTRA_SOURCES PROMOTION_DISABLE_RULES \
+  PROMOTION_SYNTHETIC_EVIDENCE PROMOTION_EVIDENCE_CACHE PROMOTION_STATIC_ONLY; do
+  if [[ -n "${!override:-}" ]]; then
+    echo "promotion gate: $override is not allowed for ordinary checks" >&2
+    exit 2
+  fi
+done
+
 group=all
 if [[ "${1:-}" == "--evidence-group" && $# -eq 2 ]]; then
   group="$2"

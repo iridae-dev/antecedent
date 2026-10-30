@@ -4,6 +4,14 @@ import sys
 
 import antecedent
 
-if not os.path.realpath(antecedent.__file__).startswith(os.path.realpath(sys.argv[1])):
-    raise SystemExit(f"FAIL: antecedent imported from {antecedent.__file__}, not the wheel")
-print("installed wheel:", antecedent.__version__, antecedent.__file__)
+module_file = getattr(antecedent, "__file__", None)
+expected_root = os.path.realpath(sys.argv[1])
+try:
+    inside = bool(module_file) and os.path.commonpath(
+        (os.path.realpath(module_file), expected_root)
+    ) == expected_root
+except (TypeError, ValueError):
+    inside = False
+if not inside:
+    raise SystemExit(f"FAIL: antecedent imported from {module_file}, not the wheel")
+print("installed wheel:", antecedent.__version__, module_file)

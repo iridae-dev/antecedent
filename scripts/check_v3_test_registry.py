@@ -149,13 +149,33 @@ def evidence_problems(root: Path, entry_id: str, rel: object, head: str | None) 
     if not path.is_file():
         return [f"FAIL: {entry_id}: evidence path {rel} does not exist"]
     text = path.read_text(encoding="utf-8")
-    revisions = REVISION.findall(text)
+    if path.suffix.lower() == ".toml":
+        try:
+            parsed = tomllib.loads(text)
+        except tomllib.TOMLDecodeError:
+            if STAMP.search(text) or re.search(r"(?m)^[ \t]*revision[ \t]*=", text):
+                return [f"FAIL: {entry_id}: evidence {rel} revision is stale"]
+            return []
+        revisions = []
+        def collect(value):
+            if isinstance(value, dict):
+                for key, item in value.items():
+                    if key == "revision":
+                        revisions.append(item)
+                    else:
+                        collect(item)
+            elif isinstance(value, list):
+                for item in value:
+                    collect(item)
+        collect(parsed)
+    else:
+        revisions = REVISION.findall(text)
     if STAMP.search(text) and not revisions:
         return [f"FAIL: {entry_id}: evidence {rel} missing required key revision"]
     if not revisions:
         return []
     sha = revisions[0]
-    if len(revisions) != 1 or not SHA.fullmatch(sha) or sha != head:
+    if len(revisions) != 1 or not isinstance(sha, str) or not SHA.fullmatch(sha) or sha != head:
         return [f"FAIL: {entry_id}: evidence {rel} revision is stale"]
     return []
 
