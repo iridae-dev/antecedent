@@ -270,38 +270,30 @@ pub(super) fn discrete_support(
     y: &[f64],
     weights: Option<&[f64]>,
 ) -> Result<(Vec<f64>, Vec<f64>), ModelError> {
-    let mut pairs: Vec<(i64, f64, f64)> = Vec::new();
+    let mut pairs: Vec<(f64, f64)> = Vec::new();
     for (r, &yi) in y.iter().enumerate() {
         if !yi.is_finite() {
             continue;
         }
-        #[allow(
-            clippy::cast_possible_truncation,
-            reason = "the key quantises a rounded finite outcome to 1e-6, and the saturating cast only merges outcomes beyond 9e12 in magnitude"
-        )]
-        let key = (yi * 1e6).round() as i64;
-        if let Some(e) = pairs.iter_mut().find(|(k, _, _)| *k == key) {
-            e.2 += weights.map_or(1.0, |w| w[r]);
+        if let Some(e) = pairs.iter_mut().find(|(value, _)| *value == yi) {
+            e.1 += weights.map_or(1.0, |w| w[r]);
         } else {
-            pairs.push((key, yi, weights.map_or(1.0, |w| w[r])));
+            pairs.push((yi, weights.map_or(1.0, |w| w[r])));
         }
     }
     if pairs.is_empty() {
         return Err(ModelError::Shape { message: "no finite values for discrete fit".into() });
     }
-    pairs.sort_by(|a, b| a.1.total_cmp(&b.1));
-    let total = pairs.iter().map(|(_, _, c)| *c).sum::<f64>();
-    Ok((
-        pairs.iter().map(|(_, v, _)| *v).collect(),
-        pairs.iter().map(|(_, _, c)| *c / total).collect(),
-    ))
+    pairs.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let total = pairs.iter().map(|(_, c)| *c).sum::<f64>();
+    Ok((pairs.iter().map(|(v, _)| *v).collect(), pairs.iter().map(|(_, c)| *c / total).collect()))
 }
 
 /// Category index per row against a fitted support.
 pub(super) fn discrete_categories(y: &[f64], support: &[f64]) -> Result<Vec<u32>, ModelError> {
     let mut out = vec![0u32; y.len()];
     for (r, &yi) in y.iter().enumerate() {
-        let Some(idx) = support.iter().position(|&s| (s - yi).abs() < 1e-12) else {
+        let Some(idx) = support.iter().position(|&s| s == yi) else {
             return Err(ModelError::Shape {
                 message: "discrete outcome not in fitted support".into(),
             });
@@ -310,4 +302,19 @@ pub(super) fn discrete_categories(y: &[f64], support: &[f64]) -> Result<Vec<u32>
             .map_err(|_| ModelError::Shape { message: "too many discrete categories".into() })?;
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod exact_discrete_support_tests {
+    use super::{discrete_categories, discrete_support};
+
+    #[test]
+    fn tiny_distinct_levels_remain_distinct_and_signed_zero_is_one_level() {
+        let y = [0.0, -0.0, 5e-13, 5e-13, 1e15, 1e15 + 1.0];
+        let (support, probabilities) = discrete_support(&y, None).unwrap();
+        assert_eq!(support, vec![0.0, 5e-13, 1e15, 1e15 + 1.0]);
+        assert_eq!(probabilities, vec![2.0 / 6.0, 2.0 / 6.0, 1.0 / 6.0, 1.0 / 6.0]);
+        assert_eq!(discrete_categories(&y, &support).unwrap(), vec![0, 0, 1, 1, 2, 3]);
+        assert!(discrete_categories(&[1e-13], &support).is_err());
+    }
 }

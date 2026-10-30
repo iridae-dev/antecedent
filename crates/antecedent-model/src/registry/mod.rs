@@ -1023,10 +1023,9 @@ mod tests {
     #[test]
     fn is_low_cardinality_matches_sort_dedup_reference() {
         fn reference(y: &[f64], max_levels: usize) -> bool {
-            let mut vals: Vec<i64> =
-                y.iter().filter(|v| v.is_finite()).map(|v| (v * 1e6).round() as i64).collect();
-            vals.sort_unstable();
-            vals.dedup();
+            let mut vals: Vec<f64> = y.iter().copied().filter(|v| v.is_finite()).collect();
+            vals.sort_by(f64::total_cmp);
+            vals.dedup_by(|a, b| *a == *b);
             !vals.is_empty() && vals.len() <= max_levels
         }
         let cases: [&[f64]; 8] = [
@@ -1034,7 +1033,7 @@ mod tests {
             &[f64::NAN, f64::INFINITY, f64::NEG_INFINITY],
             &[1.0, 1.0, 1.0, 1.0],
             &[-3.0, -3.0, 2.0, 2.0, f64::NAN, -3.0],
-            &[0.0, -0.0, 1e-7, 2e-7, 5e-7], // all quantize to the same level
+            &[0.0, -0.0, 1e-7, 2e-7, 5e-7], // signed zeroes compare equal; small positive values remain distinct
             &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0],
             &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
             &[-1.5, 1.5, -1.5, 1.5, 0.25, f64::NAN, -8.75],
@@ -1048,6 +1047,18 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn tiny_and_extreme_scale_continuous_outcomes_do_not_collapse_to_discrete_levels() {
+        for values in [
+            (0..40).map(|i| (i as f64) * 1e-8).collect::<Vec<_>>(),
+            (0..40).map(|i| 1e15 + i as f64).collect::<Vec<_>>(),
+        ] {
+            let (data, var) = typed_table(ValueType::Continuous, &values);
+            assert_eq!(classify_node(&data, var, &values), MechanismTyping::Continuous);
+        }
+        assert_eq!(super::select::distinct_level_count(&[0.0, -0.0, 1e-8], 8), Some(2));
     }
 
     /// Above [`GP_EXACT_MAX_ROWS`] the GP family is fit with inducing points instead of the

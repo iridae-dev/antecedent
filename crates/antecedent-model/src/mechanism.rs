@@ -772,8 +772,8 @@ fn categorical_inverse_cdf_draw(
     value: f64,
     rng: &mut CausalRng,
 ) -> Result<f64, ModelError> {
-    let cat = support.iter().position(|&s| (value - s).abs() < 1e-12).ok_or_else(|| {
-        ModelError::Unsupported { message: format!("discrete value {value} not in support") }
+    let cat = support_index(support, value).ok_or_else(|| ModelError::Unsupported {
+        message: format!("discrete value {value} not in support"),
     })?;
     let mut lo = 0.0;
     for i in 0..cat {
@@ -800,7 +800,7 @@ fn categorical_inverse_cdf_draw(
     Ok(u)
 }
 
-/// Tolerance within which an observed value selects a support point.
+/// Tolerance used for matching an observed deterministic constant.
 const SUPPORT_TOLERANCE: f64 = 1e-12;
 
 /// Floor applied to a tree classifier's class score before its logarithm. Tree scores are
@@ -811,7 +811,7 @@ const TREE_CLASS_PROBABILITY_FLOOR: f64 = f64::EPSILON;
 
 /// Index of the support point `value` selects, if any.
 fn support_index(support: &[f64], value: f64) -> Option<usize> {
-    support.iter().position(|&s| (value - s).abs() < SUPPORT_TOLERANCE)
+    support.iter().position(|&s| value == s)
 }
 
 /// `Σ coeffsₚ · colsₚ[r] + intercept` for every row, accumulated parent by parent in row
@@ -1242,6 +1242,26 @@ mod tests {
         let mut ws = MechanismWorkspace::default();
         evaluate_column(&slot, parents, &noise, &mut out, &mut ws).unwrap();
         assert_eq!(out, value);
+    }
+
+    #[test]
+    fn categorical_abduction_distinguishes_close_support_values() {
+        let slot = MechanismSlot::Discrete {
+            support: Arc::from([0.0, 5e-13]),
+            probs: Arc::from([0.5, 0.5]),
+            logit_coeffs: None,
+        };
+        let parents = ParentBatch { n_rows: 2, n_parents: 0, values: &[] };
+        let value = [0.0, 5e-13];
+        let mut noise = [0.0; 2];
+        let mut rng = CausalRng::from_seed(42);
+        infer_noise_column_rng(&slot, &value, parents, &mut noise, &mut rng).unwrap();
+        let mut out = [0.0; 2];
+        evaluate_column(&slot, parents, &noise, &mut out, &mut MechanismWorkspace::default())
+            .unwrap();
+        assert_eq!(out, value);
+        assert_eq!(support_index(&[0.0, 5e-13], -0.0), Some(0));
+        assert_eq!(support_index(&[0.0, 5e-13], 1e-13), None);
     }
 
     #[test]
