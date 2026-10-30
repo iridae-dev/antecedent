@@ -786,7 +786,21 @@ impl PreparedStudy {
                     .into(),
             });
         }
-        self.ensure_regularity(&data.time_index().regularity)
+        self.ensure_regularity(&data.time_index().regularity)?;
+        if let Some(split) = &self.analysis.declared.split {
+            if split.series_len != data.row_count() {
+                return Err(CausalError::Compile {
+                    message: format!(
+                        "prepared temporal analysis discovery-estimation split is bound to {} \
+                         rows, but the new series has {} rows; next attempt: prepare the study \
+                         again with a split declared for the new series length",
+                        split.series_len,
+                        data.row_count(),
+                    ),
+                });
+            }
+        }
+        Ok(())
     }
 
     /// Re-estimate a prepared temporal response on series data (no re-identify).

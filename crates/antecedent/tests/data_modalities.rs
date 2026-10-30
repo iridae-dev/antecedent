@@ -901,6 +901,43 @@ fn panel_class_multi_step_sustained_refuses_discovery_split() {
 }
 
 #[test]
+fn a_prepared_series_split_refuses_changed_lengths_on_estimate_rebind_and_refresh() {
+    let ctx = ExecutionContext::for_tests(6);
+    let series = xy_series(80, 0.1);
+    let prepared = Study::series(series.clone())
+        .graph(lagged_xy_graph())
+        .temporal_query(pulse_query())
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .split(DiscoveryEstimationSplit::from_sizes(80, 39, 2, 39).unwrap())
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    assert!(prepared.estimate_series(&series, &ctx).unwrap().effect().is_finite());
+    let rebound = prepared.rebind_series(series.clone(), &ctx).unwrap();
+    assert!(rebound.estimate_series(&series, &ctx).unwrap().effect().is_finite());
+    let mut refreshed = prepared.clone();
+    assert!(refreshed.refresh_series(series, &ctx).unwrap().effect().is_finite());
+
+    for rows in [70, 90] {
+        let changed = xy_series(rows, 0.1);
+        let mut refreshed = prepared.clone();
+        for error in [
+            prepared.estimate_series(&changed, &ctx).unwrap_err(),
+            prepared.rebind_series(changed.clone(), &ctx).unwrap_err(),
+            refreshed.refresh_series(changed, &ctx).unwrap_err(),
+        ] {
+            let message = error.to_string();
+            assert!(message.contains("split is bound to 80 rows"), "{message}");
+            assert!(message.contains(&format!("new series has {rows} rows")), "{message}");
+        }
+        // Refusing the incompatible replacement leaves the retained original usable.
+        assert!(refreshed.estimate_series(&xy_series(80, 0.1), &ctx).unwrap().effect().is_finite());
+    }
+}
+
+#[test]
 fn panel_class_multi_step_sustained_refuses_a_caller_prior() {
     use common::panel_dgp::{UnitSpec, lagged_ty_dag, panel, sustained_query, unit_series};
     let spec = UnitSpec { n: 200, beta: 0.8, gz: 0.0, phi: 0.5, rho: 0.0 };
