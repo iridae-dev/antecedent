@@ -22,6 +22,74 @@ fn close(a: f64, b: f64, tol: f64) -> bool {
 }
 
 #[test]
+fn sparse_group_ids_are_refused_before_sizing_imputation_draws() {
+    for labels in [vec![0, 4_000_000_000], vec![0, 2, 2]] {
+        let rows = labels.len();
+        let groups: Arc<[u32]> = labels.into();
+        let error =
+            multiple_imputation::bind_units(None, Some(Arc::clone(&groups)), rows).unwrap_err();
+        assert_eq!(error.detail(), "multiple_imputation.units_labels");
+        // Directly constructing Groups must not bypass bind_units' validation.
+        let values: Vec<f64> = (0..rows).map(|i| i as f64 + 1.0).collect();
+        let error = Imputer::new(
+            vec![ImputationColumn::new("x", values)],
+            ImputationSpec::new(),
+            ImputationUnits::Groups(groups),
+        )
+        .unwrap_err();
+        assert_eq!(error.detail(), "multiple_imputation.units_labels");
+    }
+    let groups =
+        multiple_imputation::bind_units(None, Some(Arc::from([0_u32, 0, 1, 1])), 4).unwrap();
+    assert_eq!(groups.count(4), 2);
+}
+
+#[test]
+fn interactions_recheck_the_observed_conditional_model_width() {
+    let columns = || {
+        (0..4)
+            .map(|j| {
+                let values: Vec<f64> = (0..7)
+                    .map(|i| if j == 0 && i == 0 { f64::NAN } else { ((i + 1) as f64).powi(j + 1) })
+                    .collect();
+                ImputationColumn::new(format!("x{j}"), values)
+            })
+            .collect()
+    };
+    let model = Imputer::new(columns(), ImputationSpec::new(), ImputationUnits::Rows).unwrap();
+    let error = model
+        .with_interactions(&[
+            (Arc::from("x1"), Arc::from("x2")),
+            (Arc::from("x1"), Arc::from("x3")),
+            (Arc::from("x2"), Arc::from("x3")),
+        ])
+        .unwrap_err();
+    assert_eq!(error.detail(), "multiple_imputation.not_identified");
+}
+
+#[test]
+fn interaction_and_dynamic_width_checks_are_independent_of_builder_order() {
+    let model = || {
+        let columns = (0..3)
+            .map(|j| {
+                let values: Vec<f64> = (0..14)
+                    .map(|i| if j == 0 && i == 7 { f64::NAN } else { ((i + 1) as f64).powi(j + 1) })
+                    .collect();
+                ImputationColumn::new(format!("x{j}"), values)
+            })
+            .collect();
+        Imputer::new(columns, ImputationSpec::new(), ImputationUnits::Rows).unwrap()
+    };
+    let pair = [(Arc::from("x1"), Arc::from("x2"))];
+    // Eleven observed interior rows identify nine base dynamic coefficients,
+    // but not the tenth interaction coefficient with the required two-row margin.
+    let error = model().with_dynamics(1).unwrap().with_interactions(&pair).unwrap_err();
+    assert_eq!(error.detail(), "multiple_imputation.not_identified");
+    let error = model().with_interactions(&pair).unwrap().with_dynamics(1).unwrap_err();
+    assert_eq!(error.detail(), "multiple_imputation.not_identified");
+}
+
+#[test]
 fn rubin_pooling_matches_a_hand_computation() {
     // m = 3: Q = (1, 2, 4), U = (0.5, 0.6, 0.7).
     let pooled = rubin_pool(&[1.0, 2.0, 4.0], &[0.5, 0.6, 0.7], None).unwrap();
@@ -267,7 +335,8 @@ fn missing_not_at_random_is_refused_with_a_sensitivity_analysis() {
         Some("sensitivity_analysis")
     );
     assert!(refused.message().contains("next attempt"));
-    for spec in [ImputationSpec::new().with_imputations(1), ImputationSpec::new().with_iterations(0)]
+    for spec in
+        [ImputationSpec::new().with_imputations(1), ImputationSpec::new().with_iterations(0)]
     {
         let refused = multiple_imputation::check_spec(&spec).unwrap_err();
         assert_eq!(refused.code(), "invalid_argument");

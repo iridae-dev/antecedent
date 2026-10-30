@@ -175,14 +175,7 @@ impl Imputer {
                 "an imputation column holds an infinite value",
             ));
         }
-        if let ImputationUnits::Groups(groups) = &units {
-            if groups.len() != rows {
-                return Err(MultipleImputationError::invalid(
-                    "multiple_imputation.units_shape",
-                    format!("{} group labels for {rows} rows", groups.len()),
-                ));
-            }
-        }
+        units.validate(rows)?;
         let unit_count = units.count(rows);
         let mut kinds = Vec::with_capacity(p);
         let mut missing_rows = Vec::with_capacity(p);
@@ -330,7 +323,27 @@ impl Imputer {
         }
         resolved.sort_unstable();
         self.interactions = resolved;
+        self.require_identified_conditionals()?;
         Ok(self)
+    }
+
+    fn require_identified_conditionals(&self) -> Result<(), MultipleImputationError> {
+        for j in 0..self.names.len() {
+            let width = self.width_for(j);
+            let observed = self.fit_rows_of(j).len();
+            if !self.missing_rows[j].is_empty() && observed < width + 2 {
+                return Err(MultipleImputationError::not_applicable(
+                    "multiple_imputation.not_identified",
+                    format!(
+                        "variable `{}` has {observed} eligible observed cells; its conditional model has {width} coefficients and needs at least {}",
+                        self.names[j],
+                        width + 2,
+                    ),
+                    DECLARE_COMPLETE_CASE,
+                ));
+            }
+        }
+        Ok(())
     }
 
     /// The declared interaction pairs, by name.
@@ -385,28 +398,14 @@ impl Imputer {
             ));
         }
         self.lags = lags;
-        let width = self.width();
         let interior = |i: usize| i >= lags && i + lags < self.rows;
         let mut fit_rows = Vec::with_capacity(self.names.len());
-        for (j, observed) in self.observed_rows.iter().enumerate() {
+        for observed in &self.observed_rows {
             let rows: Vec<usize> = observed.iter().copied().filter(|&i| interior(i)).collect();
-            if !self.missing_rows[j].is_empty() && rows.len() < width + 2 {
-                return Err(MultipleImputationError::not_applicable(
-                    "multiple_imputation.not_identified",
-                    format!(
-                        "variable `{}` has {} observed cells with a full neighbourhood of {lags} \
-                         steps; its dynamic conditional model has {width} coefficients and needs \
-                         at least {}",
-                        self.names[j],
-                        rows.len(),
-                        width + 2
-                    ),
-                    DECLARE_COMPLETE_CASE,
-                ));
-            }
             fit_rows.push(rows);
         }
         self.fit_rows = fit_rows;
+        self.require_identified_conditionals()?;
         Ok(self)
     }
 
@@ -715,7 +714,9 @@ impl Imputer {
         }
         let mut z = vec![0.0; p];
         for (i, pattern) in &rows {
-            let Some(law) = patterns.get(pattern) else { continue };
+            let Some(law) = patterns.get(pattern) else {
+                continue;
+            };
             let observed_dev: Vec<f64> =
                 law.observed.iter().map(|&o| current[o][*i] - mu[o]).collect();
             let m = law.missing.len();

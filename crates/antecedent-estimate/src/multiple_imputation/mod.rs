@@ -228,14 +228,49 @@ pub enum ImputationUnits {
 }
 
 impl ImputationUnits {
+    /// Validate the documented dense group indexing before sizing draw buffers.
+    pub(crate) fn validate(&self, rows: usize) -> Result<(), MultipleImputationError> {
+        let Self::Groups(groups) = self else {
+            return Ok(());
+        };
+        if groups.len() != rows {
+            return Err(MultipleImputationError::invalid(
+                "multiple_imputation.units_shape",
+                format!("{} group labels for {rows} rows", groups.len()),
+            ));
+        }
+        let mut seen = vec![false; rows];
+        let mut largest = None;
+        for &group in groups.iter() {
+            let index =
+                usize::try_from(group).ok().filter(|&index| index < rows).ok_or_else(|| {
+                    MultipleImputationError::invalid(
+                        "multiple_imputation.units_labels",
+                        "group labels must be dense zero-based indices bounded by the row count",
+                    )
+                })?;
+            seen[index] = true;
+            largest = Some(largest.map_or(index, |old: usize| old.max(index)));
+        }
+        if largest.is_some_and(|last| seen[..=last].iter().any(|present| !present)) {
+            return Err(MultipleImputationError::invalid(
+                "multiple_imputation.units_labels",
+                "group labels must contain every index from zero through their maximum",
+            ));
+        }
+        Ok(())
+    }
+
     /// Number of units over `rows` rows.
     #[must_use]
     pub fn count(&self, rows: usize) -> usize {
         match self {
             Self::Rows => rows,
-            Self::Groups(groups) => {
-                groups.iter().copied().max().map_or(0, |max| usize::try_from(max).unwrap_or(0) + 1)
-            }
+            Self::Groups(groups) => groups
+                .iter()
+                .copied()
+                .max()
+                .map_or(0, |max| usize::try_from(max).unwrap_or(0).saturating_add(1)),
         }
     }
 
@@ -258,19 +293,14 @@ impl ImputationUnits {
 /// # Errors
 ///
 /// A clustered panel without groups, a dependent series, or groups whose length differs
-/// from `rows`.
+/// from `rows`, or group labels that are not dense zero-based indices.
 pub fn bind_units(
     design: Option<DeclaredSamplingDesign>,
     groups: Option<Arc<[u32]>>,
     rows: usize,
 ) -> Result<ImputationUnits, MultipleImputationError> {
     if let Some(groups) = &groups {
-        if groups.len() != rows {
-            return Err(MultipleImputationError::invalid(
-                "multiple_imputation.units_shape",
-                format!("{} group labels for {rows} rows", groups.len()),
-            ));
-        }
+        ImputationUnits::Groups(Arc::clone(groups)).validate(rows)?;
     }
     let design_error = |error: antecedent_core::sampling_design::SamplingDesignError| {
         MultipleImputationError::invalid("multiple_imputation.sampling_design", error.to_string())
