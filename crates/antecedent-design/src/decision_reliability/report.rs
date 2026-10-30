@@ -317,7 +317,7 @@ fn weighted_spread(values: &[f64], weights: Option<&[f64]>) -> (f64, f64) {
     } else {
         let n = values.len() as f64;
         let mean = values.iter().sum::<f64>() / n;
-        let var = values.iter().map(|u| (u - mean).powi(2)).sum::<f64>() / (n - 1.0);
+        let var = values.iter().map(|u| (u - mean).powi(2)).sum::<f64>() / n;
         (mean, var.sqrt())
     }
 }
@@ -617,4 +617,19 @@ pub fn assess(
         closed_routes: closed_routes(&coordinate),
         coordinate,
     })
+}
+
+#[cfg(test)]
+mod source_spread_tests {
+    use super::weighted_spread;
+
+    #[test]
+    fn equal_weights_and_unweighted_describe_the_same_empirical_law() {
+        let values = [0.0, 2.0];
+        assert_eq!(weighted_spread(&values, None), (1.0, 1.0));
+        assert_eq!(weighted_spread(&values, Some(&[1.0, 1.0])), (1.0, 1.0));
+        assert_eq!(weighted_spread(&values, Some(&[20.0, 20.0])), (1.0, 1.0));
+        assert_eq!(weighted_spread(&[7.0], None), (7.0, 0.0));
+        assert_eq!(weighted_spread(&[7.0], Some(&[3.0])), (7.0, 0.0));
+    }
 }

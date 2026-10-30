@@ -755,7 +755,9 @@ fn the_three_components_are_separate_fields_and_a_combined_number_is_refused() {
     // while the Monte Carlo standard error of the same candidate is 2 / sqrt(500).
     assert!((spread.standard_deviation - 2.0).abs() < 0.2);
     let mc = &report.monte_carlo_error.candidates[1].estimate;
-    assert!((mc.standard_error - spread.standard_deviation / 500_f64.sqrt()).abs() < 1e-9);
+    // The source spread is the empirical law's population SD; the Monte Carlo
+    // error uses the Bessel-corrected sample variance on the same 500 draws.
+    assert!((mc.standard_error - spread.standard_deviation / 499_f64.sqrt()).abs() < 1e-9);
     assert!(spread.standard_deviation > 20.0 * mc.standard_error);
     // Known law: no source uncertainty is reported.
     draws.source = SourceParadigm::KnownLaw;
