@@ -170,6 +170,7 @@ impl StructureMcmc {
         _workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<GraphPosterior, DiscoveryError> {
+        prior.validate_edge_inclusion()?;
         prior.constraints.validate()?;
         let n = variables.len();
         if n == 0 {

@@ -92,6 +92,7 @@ pub fn exact_dag_marginals(
     score_family: GraphScoreFamily,
     ctx: &ExecutionContext,
 ) -> Result<ExactDagMarginals, DiscoveryError> {
+    prior.validate_edge_inclusion()?;
     prior.constraints.validate()?;
     let n = variables.len();
     if n == 0 {

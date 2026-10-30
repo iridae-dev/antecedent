@@ -62,7 +62,7 @@ fn exact_fits_budget(p: usize, n_lag_bits: usize) -> bool {
 /// of any width (any number of variables and lags).
 #[derive(Clone, Debug)]
 pub struct DbnPosterior {
-    /// Maximum lag (`≥ 1`).
+    /// Maximum template lag (zero selects a contemporaneous-only template).
     pub max_lag: u32,
     /// Force MCMC even when exact would fit.
     pub force_mcmc: bool,
@@ -103,16 +103,10 @@ impl Default for DbnPosterior {
 }
 
 impl DbnPosterior {
-    /// Construct with `max_lag` (clamped to ≥ 1).
+    /// Construct with the maximum template lag, including zero for a static template.
     #[must_use]
     pub fn new(max_lag: u32) -> Self {
-        Self {
-            max_lag: max_lag.max(1),
-            force_mcmc: false,
-            n_chains: 2,
-            n_warmup: 200,
-            n_draws: 400,
-        }
+        Self { max_lag, force_mcmc: false, n_chains: 2, n_warmup: 200, n_draws: 400 }
     }
 
     /// Force structure-style MCMC on the template.
@@ -174,6 +168,7 @@ impl DbnPosterior {
         score_family: GraphScoreFamily,
         ctx: &ExecutionContext,
     ) -> Result<GraphPosterior, DiscoveryError> {
+        prior.validate_edge_inclusion()?;
         prior.constraints.validate()?;
         if !matches!(score_family, GraphScoreFamily::GaussianBic) {
             return Err(DiscoveryError::unsupported(
@@ -192,6 +187,31 @@ impl DbnPosterior {
              addressable by a u32 bit index",
         )?;
         let max_lag = self.max_lag;
+        // The static GraphPrior constructors use (0, 0) as an unqualified prior.
+        // In a DBN it covers the whole constructor template; any other range is explicit
+        // and applies to contemporaneous as well as lagged edges.
+        let temporal = &prior.constraints.temporal;
+        let (min, max) = (temporal.min_lag.raw(), temporal.max_lag.raw());
+        if min > max {
+            return Err(DiscoveryError::unsupported("DBN prior min_lag exceeds max_lag"));
+        }
+        let (min, max) = if (min, max) == (0, 0) { (0, max_lag) } else { (min, max) };
+        let mut knowledge = prior.constraints.clone();
+        knowledge.temporal.min_lag = Lag::from_raw(min);
+        knowledge.temporal.max_lag = Lag::from_raw(max.min(max_lag));
+        knowledge
+            .check_background_knowledge(crate::constraints::KnowledgeScope::Lagged, variables)
+            .map_err(DiscoveryError::Knowledge)?;
+        if prior
+            .constraints
+            .required
+            .iter()
+            .any(|link| link.source_lag.is_contemporaneous() && link.source == link.target)
+        {
+            return Err(DiscoveryError::unsupported(
+                "DBN cannot require a contemporaneous self edge",
+            ));
+        }
         let n_lag_bits = (max_lag as usize).saturating_mul(p.saturating_mul(p));
         if u32::try_from(n_lag_bits).is_err() {
             return Err(DiscoveryError::unsupported(
@@ -370,7 +390,9 @@ impl DbnPosterior {
         let mut masks = Vec::new();
         let mut lags = Vec::new();
         let mut weights = Vec::new();
-        for ((cm, lm), c) in counts {
+        let mut ordered: Vec<_> = counts.into_iter().collect();
+        ordered.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+        for ((cm, lm), c) in ordered {
             masks.push(cm);
             lags.push(lm);
             weights.push(c as f64 / total);
@@ -767,6 +789,12 @@ fn score_dbn_template(
     if !mask_is_dag(cmask, p) {
         return None;
     }
+    let temporal = &prior.constraints.temporal;
+    let (min, max) = (temporal.min_lag.raw(), temporal.max_lag.raw());
+    let (min, max) = if (min, max) == (0, 0) { (0, max_lag) } else { (min, max) };
+    if min > 0 && cmask.count_ones() != 0 {
+        return None;
+    }
     let lp = log_prior_mask(cmask, p, prior, variables)?;
     // Lag edges: apply max-parents including lagged.
     let max_pa = prior.constraints.max_parents.unwrap_or(usize::MAX);
@@ -782,6 +810,9 @@ fn score_dbn_template(
                 // both endpoints pinned to `Lag::CONTEMPORANEOUS`, so they structurally
                 // cannot see a lag > 0 constraint. Without this, a forbidden `X_{t-1} → Y_t`
                 // was a complete no-op for this engine and could carry posterior mass.
+                if present && (lag < min || lag > max) {
+                    return None;
+                }
                 if present
                     && index.is_forbidden(&prior.constraints, lagged_link(variables, i, lag, j))
                 {
@@ -912,7 +943,7 @@ fn propose_dbn(
     rng: &mut antecedent_core::CausalRng,
 ) -> (AdjacencyMask, LagMask, u64) {
     let mut rejected = 0u64;
-    if rng.next_f64() < 0.5 {
+    if max_lag == 0 || rng.next_f64() < 0.5 {
         // Flip a contemporaneous directed edge.
         let i = crate::indexing::bounded_index(rng.next_u64(), p);
         let j = crate::indexing::bounded_index(rng.next_u64(), p);
@@ -991,6 +1022,165 @@ mod tests {
         )
         .unwrap();
         (data, vars)
+    }
+
+    #[test]
+    fn invalid_public_edge_inclusion_is_refused_before_dbn_scoring() {
+        let (data, vars) = lag1_series(30);
+        for value in [f64::NAN, f64::INFINITY, 0.0, 1.0, -0.1, 1.1] {
+            let prior = GraphPrior { edge_inclusion: Some(value), ..GraphPrior::uniform() };
+            let error = DbnPosterior::new(1)
+                .run(
+                    &data,
+                    &vars,
+                    &prior,
+                    GraphScoreFamily::GaussianBic,
+                    &ExecutionContext::for_tests(1),
+                )
+                .unwrap_err();
+            assert!(
+                matches!(error, DiscoveryError::Unsupported { message } if message.contains("Bernoulli edge prior"))
+            );
+        }
+        assert!(GraphPrior::bernoulli_edges(0.5).unwrap().validate_edge_inclusion().is_ok());
+        assert!(GraphPrior::uniform().validate_edge_inclusion().is_ok());
+    }
+
+    #[test]
+    fn invalid_public_edge_inclusion_is_refused_by_every_static_entrypoint() {
+        let x = [0.0, 1.0, 2.0, 3.0];
+        let y = [0.0, 1.0, 0.0, 2.0];
+        let data = antecedent_data::TabularData::from_f64_columns([
+            ("x", x.as_slice()),
+            ("y", y.as_slice()),
+        ])
+        .unwrap();
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        let prior = GraphPrior { edge_inclusion: Some(f64::NAN), ..GraphPrior::uniform() };
+        let ctx = ExecutionContext::for_tests(1);
+        let mut ws = crate::DiscoveryWorkspace::default();
+        let family = GraphScoreFamily::GaussianBic;
+        let results = [
+            crate::ExactDagPosterior::new().run(&data, &vars, &prior, family, &mut ws, &ctx),
+            crate::OrderMcmc::new().run(&data, &vars, &prior, family, &mut ws, &ctx),
+            crate::StructureMcmc::new().run(&data, &vars, &prior, family, &mut ws, &ctx),
+            crate::CiScreenedPosterior::new().run(&data, &vars, &prior, family, &mut ws, &ctx),
+        ];
+        for result in results {
+            assert!(
+                matches!(result, Err(DiscoveryError::Unsupported { message }) if message.contains("Bernoulli edge prior"))
+            );
+        }
+        assert!(matches!(crate::exact_dag_marginals(&data, &vars, &prior, family, &ctx),
+            Err(DiscoveryError::Unsupported { message }) if message.contains("Bernoulli edge prior")));
+    }
+
+    #[test]
+    fn dbn_prior_range_and_static_template_are_honored() {
+        let (data, vars) = lag1_series(80);
+        let ctx = ExecutionContext::for_tests(1);
+        let run = |engine: &DbnPosterior, prior: &GraphPrior| {
+            engine.run(&data, &vars, prior, GraphScoreFamily::GaussianBic, &ctx)
+        };
+        let unqualified = run(&DbnPosterior::new(1), &GraphPrior::uniform()).unwrap();
+        assert!(unqualified.lagged_edge_marginals().unwrap()[1] > 0.0);
+        let static_post = run(&DbnPosterior::new(0), &GraphPrior::uniform()).unwrap();
+        assert_eq!(static_post.max_lag(), Some(0));
+        assert!(static_post.lagged_edge_marginals().unwrap().is_empty());
+
+        let mut constraints = crate::constraints::DiscoveryConstraints::default();
+        constraints.temporal.min_lag = Lag::from_raw(1);
+        constraints.temporal.max_lag = Lag::from_raw(1);
+        let prior = GraphPrior::uniform().with_constraints(constraints.clone());
+        let exact = run(&DbnPosterior::new(2), &prior).unwrap();
+        assert!(exact.edge_marginals().iter().all(|&v| v == 0.0));
+        assert!(exact.lagged_edge_marginals().unwrap()[4..].iter().all(|&v| v == 0.0));
+
+        // MCMC and exact share the scoring predicate; test both proposals directly so the
+        // assertion does not depend on MCMC diagnostics or random convergence.
+        let (score_data, _) =
+            build_lagged_score_data(std::slice::from_ref(&data), &vars, 2).unwrap();
+        let target = DbnTarget {
+            p: 2,
+            max_lag: 2,
+            data: &score_data,
+            prior: &prior,
+            variables: &vars,
+            score_family: GraphScoreFamily::GaussianBic,
+        };
+        let mut cache = target.score_cache();
+        let mut contemp = AdjacencyMask::EMPTY;
+        contemp.set_edge(2, 0, 1, true);
+        assert!(score_dbn_template(&contemp, &LagMask::EMPTY, &target, &mut cache).is_none());
+        let lag2 = LagMask::EMPTY.with_bit(lag_bit(2, 2, 2, 0, 1), true);
+        assert!(score_dbn_template(&AdjacencyMask::EMPTY, &lag2, &target, &mut cache).is_none());
+        let lag1 = LagMask::EMPTY.with_bit(lag_bit(2, 2, 1, 0, 1), true);
+        assert!(score_dbn_template(&AdjacencyMask::EMPTY, &lag1, &target, &mut cache).is_some());
+
+        let mut rng = antecedent_core::CausalRng::from_seed(4);
+        for _ in 0..100 {
+            let (_, lag, _) = propose_dbn(&AdjacencyMask::EMPTY, &LagMask::EMPTY, 2, 0, &mut rng);
+            assert_eq!(lag.set_bits().count(), 0);
+        }
+        constraints.temporal.min_lag = Lag::from_raw(2);
+        assert!(
+            run(
+                &DbnPosterior::new(2),
+                &GraphPrior::uniform().with_constraints(constraints.clone())
+            )
+            .is_err()
+        );
+        constraints.temporal.max_lag = Lag::from_raw(2);
+        constraints.required = Arc::from([crate::result::LaggedLink {
+            source: vars[0],
+            source_lag: Lag::from_raw(2),
+            target: vars[1],
+            target_lag: Lag::CONTEMPORANEOUS,
+        }]);
+        assert!(
+            run(&DbnPosterior::new(1), &GraphPrior::uniform().with_constraints(constraints))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn dbn_mcmc_emits_atoms_in_deterministic_paired_order() {
+        let (data, vars) = multi_parent_lag_series(260);
+        let engine = DbnPosterior::new(1).with_force_mcmc(true).with_mcmc_schedule(2, 300, 4000);
+        // Reuse a fixture whose required-edge support gives stable diagnostics;
+        // the assertion concerns publication order rather than chain calibration.
+        let prior =
+            GraphPrior::uniform().with_constraints(crate::constraints::DiscoveryConstraints {
+                temporal: crate::constraints::TemporalConstraints {
+                    min_lag: Lag::from_raw(1),
+                    max_lag: Lag::from_raw(1),
+                },
+                required: Arc::from([0usize, 2usize].map(|from| crate::result::LaggedLink {
+                    source: vars[from],
+                    source_lag: Lag::from_raw(1),
+                    target: vars[1],
+                    target_lag: Lag::CONTEMPORANEOUS,
+                })),
+                ..Default::default()
+            });
+        let run = || {
+            engine
+                .run(
+                    &data,
+                    &vars,
+                    &prior,
+                    GraphScoreFamily::GaussianBic,
+                    &ExecutionContext::for_tests(3),
+                )
+                .unwrap()
+        };
+        let a = run();
+        let b = run();
+        assert_eq!(a.atoms(), b.atoms());
+        assert_eq!(a.lag_masks(), b.lag_masks());
+        assert_eq!(a.weights(), b.weights());
+        let keys: Vec<_> = a.atoms().iter().zip(a.lag_masks().unwrap().iter()).collect();
+        assert!(keys.windows(2).all(|w| w[0] < w[1]));
     }
 
     #[test]

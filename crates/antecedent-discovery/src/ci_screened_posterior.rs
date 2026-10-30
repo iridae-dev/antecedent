@@ -145,6 +145,7 @@ impl CiScreenedPosterior {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<GraphPosterior, DiscoveryError> {
+        prior.validate_edge_inclusion()?;
         let effective = merge_screening_constraints(&self.constraints, &prior.constraints)?;
         let merged_caller_constraints = !prior.constraints.required.is_empty()
             || !prior.constraints.forbidden.is_empty()

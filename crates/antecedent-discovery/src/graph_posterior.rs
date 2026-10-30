@@ -87,6 +87,14 @@ impl GraphPrior {
         })
     }
 
+    /// Validate the public edge-inclusion field with the constructor's probability contract.
+    pub(crate) fn validate_edge_inclusion(&self) -> Result<(), DiscoveryError> {
+        if self.edge_inclusion.is_some_and(|p| !(p > 0.0 && p < 1.0)) {
+            return Err(DiscoveryError::unsupported("Bernoulli edge prior requires p in (0, 1)"));
+        }
+        Ok(())
+    }
+
     /// Attach constraints.
     #[must_use]
     pub fn with_constraints(mut self, constraints: DiscoveryConstraints) -> Self {
