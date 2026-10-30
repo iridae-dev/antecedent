@@ -496,6 +496,157 @@ impl AdditiveDesign {
     }
 }
 
+/// Solve a small fixed-penalty weighted additive fit without backfitting sweeps.
+///
+/// Dropping the last basis of each smooth removes its shared intercept alias;
+/// the roughness penalty annihilates constant coefficient shifts. The reduced
+/// system therefore minimizes the same objective as converged backfitting.
+/// `None` requests the original fitter for automatic penalties, large designs,
+/// singular systems or a failed numerical residual check. Marginal smoother
+/// degrees of freedom retain the original reporting convention.
+///
+/// # Errors
+/// Invalid response or weights, as for [`fit_gam_weighted_design`].
+#[allow(
+    clippy::too_many_lines,
+    reason = "assemble, certify and unpack one fixed-penalty additive system"
+)]
+pub fn fit_gam_fixed_weighted_design(
+    design: &AdditiveDesign,
+    y: &[f64],
+    weights: Option<&[f64]>,
+    workspace: &mut GamWorkspace,
+) -> Result<Option<GamFit>, StatsError> {
+    let n = design.nrows;
+    validate_response(y, n)?;
+    validate_weights(weights, n)?;
+    let specs = &design.specs;
+    let p = 1 + specs.iter().map(|s| s.n_basis - 1).sum::<usize>();
+    if specs.iter().any(|s| s.auto_lambda) || p > 64 || n.saturating_mul(p) > 262_144 {
+        return Ok(None);
+    }
+    let weights = match weights {
+        Some(w) => {
+            let total: f64 = w.iter().sum();
+            w.iter().map(|w| w * n as f64 / total).collect::<Vec<_>>()
+        }
+        None => vec![1.0; n],
+    };
+    let roots: Vec<_> = weights.iter().map(|w| w.sqrt()).collect();
+    let y_mean = y.iter().zip(&weights).map(|(y, w)| y * w).sum::<f64>() / n as f64;
+    let centered: Vec<_> = y.iter().zip(&roots).map(|(y, root)| (y - y_mean) * root).collect();
+    let mut x = Vec::with_capacity(n * p);
+    x.extend_from_slice(&roots);
+    let mut penalties = Vec::with_capacity(specs.len());
+    for (spec, basis) in specs.iter().zip(&design.bases) {
+        for column in basis.chunks_exact(n).take(spec.n_basis - 1) {
+            x.extend(column.iter().zip(&roots).map(|(v, root)| v * root));
+        }
+        penalties.push(roughness_penalty(spec.penalty, spec.knots.as_deref(), spec.n_basis)?);
+    }
+    let mut gram = vec![0.0; p * p];
+    form_xtx(&x, n, p, &mut gram);
+    let mut off = 1;
+    for (spec, penalty) in specs.iter().zip(&penalties) {
+        for i in 0..spec.n_basis - 1 {
+            for j in 0..spec.n_basis - 1 {
+                gram[(off + i) * p + off + j] += spec.lambda * penalty[i * spec.n_basis + j];
+            }
+        }
+        off += spec.n_basis - 1;
+    }
+    let Some(chol) = crate::gram::cholesky_spd(&gram, p) else { return Ok(None) };
+    let low = (0..p).map(|i| chol[i * p + i].abs()).fold(f64::INFINITY, f64::min);
+    let high = (0..p).map(|i| chol[i * p + i].abs()).fold(0.0_f64, f64::max);
+    if !low.is_finite() || low < 1e-5 * high {
+        return Ok(None);
+    }
+    // Bound conditioning of the actual reduced system, rather than trusting
+    // its pivots alone. Small marginal splines need not imply a well-conditioned
+    // joint design when predictors are nearly duplicates.
+    let mut inverse_rows = vec![0.0_f64; p];
+    for col in 0..p {
+        let mut unit = vec![0.0; p];
+        unit[col] = 1.0;
+        let Some(inverse_col) = crate::gram::chol_solve(&chol, p, &unit) else { return Ok(None) };
+        for (sum, value) in inverse_rows.iter_mut().zip(inverse_col) {
+            *sum += value.abs();
+        }
+    }
+    let norm = gram
+        .chunks_exact(p)
+        .map(|row| row.iter().map(|v| v.abs()).sum::<f64>())
+        .fold(0.0_f64, f64::max);
+    let inverse_norm = inverse_rows.into_iter().fold(0.0_f64, f64::max);
+    if !inverse_norm.is_finite() || norm * inverse_norm > 1e8 {
+        return Ok(None);
+    }
+    let rhs: Vec<_> = x
+        .chunks_exact(n)
+        .map(|col| col.iter().zip(&centered).map(|(a, b)| a * b).sum::<f64>())
+        .collect();
+    let Some(beta) = crate::gram::chol_solve(&chol, p, &rhs) else { return Ok(None) };
+    for i in 0..p {
+        let value: f64 = (0..p).map(|j| gram[i * p + j] * beta[j]).sum();
+        let scale = rhs[i].abs() + (0..p).map(|j| (gram[i * p + j] * beta[j]).abs()).sum::<f64>();
+        if !value.is_finite() || (value - rhs[i]).abs() > 64.0 * p as f64 * f64::EPSILON * scale {
+            return Ok(None);
+        }
+    }
+    workspace.prepare(n, specs.iter().map(|s| s.n_basis).max().unwrap_or(0));
+    let mut coefficients = vec![0.0; design.total_coefs];
+    let mut centers = Vec::with_capacity(specs.len());
+    let mut edf_approx = 1.0;
+    let mut off = 1;
+    for (j, (spec, basis)) in specs.iter().zip(&design.bases).enumerate() {
+        let coefficient = design.coef_offsets[j];
+        coefficients[coefficient..coefficient + spec.n_basis - 1]
+            .copy_from_slice(&beta[off..off + spec.n_basis - 1]);
+        let mut mean = 0.0;
+        for row in 0..n {
+            let value: f64 =
+                (0..spec.n_basis - 1).map(|b| basis[b * n + row] * beta[off + b]).sum();
+            mean += weights[row] * value;
+        }
+        centers.push(mean / n as f64);
+        let weighted: Vec<_> = basis
+            .chunks_exact(n)
+            .flat_map(|col| col.iter().zip(&roots).map(|(v, root)| v * root))
+            .collect();
+        let smoother =
+            PenalizedSmoother::with_penalty(&weighted, n, spec.n_basis, penalties[j].clone())?;
+        let Ok(factor) = smoother.factor(spec.lambda) else { return Ok(None) };
+        edf_approx += smoother.edf(&factor) - 1.0;
+        off += spec.n_basis - 1;
+    }
+    let intercept = y_mean + beta[0] + centers.iter().sum::<f64>();
+    for row in 0..n {
+        let mut prediction = y_mean + beta[0];
+        let mut off = 1;
+        for (spec, basis) in specs.iter().zip(&design.bases) {
+            for b in 0..spec.n_basis - 1 {
+                prediction += basis[b * n + row] * beta[off + b];
+            }
+            off += spec.n_basis - 1;
+        }
+        workspace.fitted[row] = prediction;
+    }
+    Ok(Some(GamFit {
+        intercept,
+        coefficients,
+        smooths: design.smooths.clone(),
+        fitted: workspace.fitted.clone(),
+        residuals: y.iter().zip(&workspace.fitted).map(|(y, fit)| y - fit).collect(),
+        edf_approx,
+        boundary_lambda_smooths: vec![],
+        iterations: 1,
+        converged: true,
+        diagnostics: FitDiagnostics::new(p, None, "gam", workspace.grow_count),
+        raw_cols: specs.iter().map(|s| s.raw_col).collect(),
+        centers,
+    }))
+}
+
 /// Fit the additive GAM of an expanded [`AdditiveDesign`] to `y` under optional
 /// nonnegative observation weights: [`fit_gam_weighted`] without the expansion.
 ///
@@ -536,11 +687,17 @@ pub fn fit_gam_weighted_design(
     let total_coefs = design.total_coefs;
     let mut chosen_lambda: Vec<f64> = specs.iter().map(|s| s.lambda).collect();
 
+    let sqrt_weights: Vec<f64> = weights.iter().map(|w| w.sqrt()).collect();
     let weighted_bases: Vec<Vec<f64>> = bases
         .iter()
-        .map(|basis| basis.iter().enumerate().map(|(i, v)| v * weights[i % nrows].sqrt()).collect())
+        .map(|basis| {
+            let mut weighted = Vec::with_capacity(basis.len());
+            for column in basis.chunks_exact(nrows) {
+                weighted.extend(column.iter().zip(&sqrt_weights).map(|(v, root)| v * root));
+            }
+            weighted
+        })
         .collect();
-    let sqrt_weights: Vec<f64> = weights.iter().map(|w| w.sqrt()).collect();
     // `B'B` and the penalty depend on neither λ nor the response: form them once per
     // smooth. The Cholesky factor of `B'B + λP` is cached per smooth and only recomputed when
     // λ changes, so a backfit sweep costs `O(n K)` per smooth (the right-hand side `B'r`)
@@ -2725,5 +2882,74 @@ mod tests {
                 centered_smooth_gcv(&smoother, &factor, &scaled_basis, n, &scaled_y, &sqrt_w);
             assert!((got - want).abs() <= 1e-6 * want.abs(), "λ={lambda}: {got} vs {want}");
         }
+    }
+
+    #[test]
+    fn fixed_weighted_joint_fit_matches_converged_backfitting() {
+        let n = 512;
+        let mut state = 17_u64;
+        let mut random = || {
+            state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
+            (state >> 11) as f64 / (1_u64 << 53) as f64
+        };
+        let x: Vec<_> = (0..n * 4).map(|_| 2.0 * random() - 1.0).collect();
+        let y: Vec<_> = (0..n)
+            .map(|i| {
+                0.3 + x[i] * x[i] + x[n + i].sin() + 0.4 * x[2 * n + i] - x[3 * n + i]
+                    + 0.1 * random()
+            })
+            .collect();
+        let specs: Vec<_> =
+            (0..4).map(|j| SmoothSpec::new(j, 8, if j < 2 { 1e-12 } else { 1.0 })).collect();
+        let design = AdditiveDesign::expand(&x, n, 4, &specs).unwrap();
+        let weights: Vec<_> = (0..n).map(|_| 0.1 + 2.0 * random()).collect();
+        for weights in [None, Some(weights.as_slice())] {
+            let direct =
+                fit_gam_fixed_weighted_design(&design, &y, weights, &mut GamWorkspace::default())
+                    .unwrap()
+                    .expect("independent spline design must use the joint solve");
+            let reference = fit_gam_weighted_design(
+                &design,
+                &y,
+                &GamOptions { max_iter: 1000, tol: 1e-14 },
+                weights,
+                &mut GamWorkspace::default(),
+            )
+            .unwrap();
+            assert!(reference.converged);
+            let delta = direct
+                .fitted
+                .iter()
+                .zip(&reference.fitted)
+                .map(|(a, b)| (a - b).abs())
+                .fold(0.0_f64, f64::max);
+            assert!(delta < 1e-6, "joint fit vs backfitting delta={delta}");
+            assert!((direct.edf_approx - reference.edf_approx).abs() < 1e-10);
+            for j in 0..4 {
+                for at in [-0.5, 0.0, 0.5] {
+                    let a = direct.smooth_derivative(j, at).unwrap();
+                    let b = reference.smooth_derivative(j, at).unwrap();
+                    assert!((a - b).abs() < 1e-5, "smooth {j} at {at}: {a} != {b}");
+                }
+            }
+        }
+        let auto = AdditiveDesign::expand(&x, n, 4, &[SmoothSpec::auto(0, 8)]).unwrap();
+        assert!(
+            fit_gam_fixed_weighted_design(&auto, &y, None, &mut GamWorkspace::default())
+                .unwrap()
+                .is_none()
+        );
+        let duplicate = AdditiveDesign::expand(
+            &x,
+            n,
+            4,
+            &[SmoothSpec::new(0, 8, 0.0), SmoothSpec::new(0, 8, 0.0)],
+        )
+        .unwrap();
+        assert!(
+            fit_gam_fixed_weighted_design(&duplicate, &y, None, &mut GamWorkspace::default())
+                .unwrap()
+                .is_none()
+        );
     }
 }

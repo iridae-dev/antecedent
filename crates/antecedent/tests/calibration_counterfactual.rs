@@ -57,9 +57,10 @@ use antecedent_core::{
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Dag, DenseNodeId};
 use common::calibration::{
-    CoverageTally, RecordKey, SampleGrid, gaussian, map_replicates, n_sim, stream_seed,
+    Construction, CoverageTally, RecordKey, SampleGrid, ScopeFacts, gaussian, map_replicates,
+    n_sim, stream_seed,
 };
-use common::calibration_bind::bind;
+use common::calibration_bind::{bind_reported, constructions};
 use common::reported::{GATE_LEVEL, REPORTED_LEVEL, gate_at, posterior_pair};
 use common::static_dgp::{bernoulli, sigmoid, table, uniform};
 
@@ -181,7 +182,7 @@ fn keyed(
 
 /// One replicate's per-unit intervals, read from the result and checked
 /// against the published unit effects.
-fn unit_intervals(result: &StudyResult) -> (Vec<f64>, Vec<(f64, f64)>) {
+fn unit_intervals(result: &StudyResult) -> (usize, Vec<(f64, f64)>) {
     let cf = result.counterfactual().expect("counterfactual slot");
     let intervals = cf.unit_effect_intervals.as_ref().expect("Bayesian unit_effect_intervals");
     assert_eq!(
@@ -191,7 +192,7 @@ fn unit_intervals(result: &StudyResult) -> (Vec<f64>, Vec<(f64, f64)>) {
     assert_eq!(intervals.method, UNIT_INTERVAL);
     let pairs: Vec<(f64, f64)> =
         intervals.lower.iter().copied().zip(intervals.upper.iter().copied()).collect();
-    (cf.unit_effects.to_vec(), pairs)
+    (cf.unit_effects.len(), pairs)
 }
 
 /// Running all-unit coverage, printed beside the records as a diagnostic only.
@@ -217,6 +218,17 @@ impl AllUnits {
             self.scored
         );
     }
+}
+
+/// Only the summaries needed for ordered scoring survive a worker's execution.
+struct Scored {
+    bindings: Vec<(Construction, ScopeFacts)>,
+    unit_intervals: [(f64, f64); 2],
+    unit_truths: [f64; 2],
+    mean_intervals: [Option<(f64, f64)>; 2],
+    mean_truth: f64,
+    all_units: AllUnits,
+    other_family: bool,
 }
 
 /// Measured coverage of each tally that is a named boundary, in tally order;
@@ -260,32 +272,41 @@ fn design(
         if rep == 0 {
             assert_eq!(result.logical_plan.estimator.as_deref(), Some("gcm.fit"));
         }
-        Some((study, result, truths, units))
-    });
-    for scored in &runs {
-        let Some((study, result, truths, units)) = scored else {
-            tallies.iter_mut().for_each(CoverageTally::skip);
-            continue;
-        };
-        let selected = selected_outcome_family(result, outcome);
-        other_family += u32::from(!family.contains(&selected.as_str()));
-        let (effects, intervals) = unit_intervals(result);
-        assert_eq!(effects.len(), truths.len());
-        all_units.add(&intervals, truths);
-        let mean_truth = truths.iter().sum::<f64>() / truths.len() as f64;
+        let selected = selected_outcome_family(&result, outcome);
+        let (effects, intervals) = unit_intervals(&result);
+        assert_eq!(effects, truths.len());
+        let mut all_units = AllUnits::default();
+        all_units.add(&intervals, &truths);
         let column = result
             .posterior
             .as_ref()
             .and_then(antecedent::CausalPosterior::effect_column)
             .expect("mean-ITE posterior column");
-        let [reported, at_gate] = posterior_pair(result, column);
+        Some(Scored {
+            bindings: constructions(&study.inspect().expect("inspect"), &result),
+            unit_intervals: [intervals[units[0]], intervals[units[1]]],
+            unit_truths: [truths[units[0]], truths[units[1]]],
+            mean_intervals: posterior_pair(&result, column),
+            mean_truth: truths.iter().sum::<f64>() / truths.len() as f64,
+            all_units,
+            other_family: !family.contains(&selected.as_str()),
+        })
+    });
+    for scored in runs {
+        let Some(scored) = scored else {
+            tallies.iter_mut().for_each(CoverageTally::skip);
+            continue;
+        };
+        other_family += u32::from(scored.other_family);
+        all_units.covered += scored.all_units.covered;
+        all_units.scored += scored.all_units.scored;
         for tally in &mut tallies {
-            bind(tally, study, result);
+            bind_reported(tally, &scored.bindings);
         }
-        tallies[0].record(Some(intervals[units[0]]), truths[units[0]]);
-        tallies[1].record(Some(intervals[units[1]]), truths[units[1]]);
-        tallies[2].record(reported, mean_truth);
-        tallies[3].record(at_gate, mean_truth);
+        tallies[0].record(Some(scored.unit_intervals[0]), scored.unit_truths[0]);
+        tallies[1].record(Some(scored.unit_intervals[1]), scored.unit_truths[1]);
+        tallies[2].record(scored.mean_intervals[0], scored.mean_truth);
+        tallies[3].record(scored.mean_intervals[1], scored.mean_truth);
     }
     all_units.print(test);
     eprintln!(

@@ -33,6 +33,7 @@ pub struct ResampledLeastSquaresWorkspace {
     counts: Vec<usize>,
     gram: Vec<f64>,
     rhs: Vec<f64>,
+    weighted_basis: Vec<f64>,
 }
 
 impl ResampledLeastSquares {
@@ -51,8 +52,8 @@ impl ResampledLeastSquares {
         let cells = n.checked_mul(p)?;
         let retained = cells.checked_add(n)?.checked_add(4 * p + p * p)?.checked_mul(8)?;
         if n < 256
-            || !(2..=16).contains(&p)
-            || cells > 1_000_000
+            || !(2..=32).contains(&p)
+            || cells > 4_000_000
             || y.len() != n
             || x.len() < cells
             || ctx.kernel_policy.force_scalar
@@ -149,16 +150,48 @@ impl ResampledLeastSquares {
         ws.gram.fill(0.0);
         ws.rhs.resize(p, 0.0);
         ws.rhs.fill(0.0);
-        for (row, &count) in ws.counts.iter().enumerate() {
-            if count == 0 {
-                continue;
+        if p >= 16 {
+            // Pack DQ by columns, then use a serial blocked matrix product.
+            // The scalar row-wise outer products stride across n-row columns
+            // for every multiply; that dominates the 100,000-row p=22 case.
+            ws.weighted_basis.resize(n * p, 0.0);
+            for col in 0..p {
+                let weighted = &mut ws.weighted_basis[col * n..(col + 1) * n];
+                let basis = self.basis.col_as_slice(col);
+                for ((slot, &value), &count) in weighted.iter_mut().zip(basis).zip(&ws.counts) {
+                    *slot = value * count as f64;
+                }
+                // A slice dot avoids a bounds-checked RHS write on every row
+                // and uses faer's contiguous SIMD reduction on the packed column.
+                ws.rhs[col] = faer::linalg::matmul::dot::inner_prod(
+                    faer::ColRef::from_slice(weighted).transpose(),
+                    Conj::No,
+                    faer::ColRef::from_slice(&self.residuals),
+                    Conj::No,
+                );
             }
-            let weight = count as f64;
-            for i in 0..p {
-                let qi = self.basis[(row, i)];
-                ws.rhs[i] += weight * qi * self.residuals[row];
-                for j in i..p {
-                    ws.gram[i * p + j] += weight * qi * self.basis[(row, j)];
+            let weighted = faer::MatRef::from_column_major_slice(&ws.weighted_basis, n, p);
+            let gram = faer::MatMut::from_row_major_slice_mut(&mut ws.gram, p, p);
+            faer::linalg::matmul::matmul(
+                gram,
+                faer::Accum::Replace,
+                self.basis.as_ref().transpose(),
+                weighted,
+                1.0,
+                faer::Par::Seq,
+            );
+        } else {
+            for (row, &count) in ws.counts.iter().enumerate() {
+                if count == 0 {
+                    continue;
+                }
+                let weight = count as f64;
+                for i in 0..p {
+                    let qi = self.basis[(row, i)];
+                    ws.rhs[i] += weight * qi * self.residuals[row];
+                    for j in i..p {
+                        ws.gram[i * p + j] += weight * qi * self.basis[(row, j)];
+                    }
                 }
             }
         }
@@ -267,5 +300,84 @@ mod tests {
         let mut bounded = ctx;
         bounded.cache_policy = antecedent_core::CachePolicy::enabled(Some(0));
         assert!(ResampledLeastSquares::prepare(&x, n, p, &y, &bounded).is_none());
+    }
+
+    fn compare_wide_resamples(n: usize, replicates: usize) {
+        let p = 22;
+        let mut state = 317_u64;
+        let mut uniform = || {
+            state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
+            (state >> 11) as f64 / (1_u64 << 53) as f64
+        };
+        let mut x = vec![0.0; n * p];
+        let mut y = vec![0.0; n];
+        for row in 0..n {
+            x[row] = 1.0;
+            x[n + row] = f64::from(uniform() < 0.5);
+            y[row] = 0.3 * x[n + row] + uniform() - 0.5;
+            for col in 2..p {
+                x[col * n + row] = uniform() - 0.5;
+                y[row] += x[col * n + row] / col as f64;
+            }
+        }
+        let maps: Vec<Vec<usize>> = (0..replicates)
+            .map(|_| (0..n).map(|_| (uniform() * n as f64) as usize).collect())
+            .collect();
+        let mut bx = vec![0.0; n * p];
+        let mut by = vec![0.0; n];
+        let begin = std::time::Instant::now();
+        let reference: Vec<_> = maps
+            .iter()
+            .map(|rows| {
+                for col in 0..p {
+                    for (row, &source) in rows.iter().enumerate() {
+                        bx[col * n + row] = x[col * n + source];
+                    }
+                }
+                for (row, &source) in rows.iter().enumerate() {
+                    by[row] = y[source];
+                }
+                FaerBackend.least_squares_coefficients(&bx, n, p, &by).unwrap()
+            })
+            .collect();
+        let reference_time = begin.elapsed();
+        let begin = std::time::Instant::now();
+        let ctx = ExecutionContext::production(19, 1);
+        let prepared = ResampledLeastSquares::prepare(&x, n, p, &y, &ctx)
+            .expect("the practitioner shape must use the prepared solver");
+        let mut ws = ResampledLeastSquaresWorkspace::default();
+        for (rows, expected) in maps.iter().zip(&reference) {
+            let actual = prepared
+                .try_coefficients(rows, &mut ws)
+                .unwrap()
+                .expect("well-conditioned resamples must not fall back");
+            for (a, b) in actual.iter().zip(expected) {
+                assert!((a - b).abs() <= 1e-10 * (1.0 + b.abs()), "{a} != {b}");
+            }
+        }
+        eprintln!(
+            "pairs bootstrap n={n} p={p} replicates={replicates}: QR {reference_time:?}, prepared including setup {:?}",
+            begin.elapsed()
+        );
+        let singular = vec![0; n];
+        assert!(prepared.try_coefficients(&singular, &mut ws).unwrap().is_none());
+        let mut bounded = ctx.clone();
+        bounded.cache_policy = antecedent_core::CachePolicy::enabled(Some(1024));
+        assert!(ResampledLeastSquares::prepare(&x, n, p, &y, &bounded).is_none());
+        assert!(
+            ResampledLeastSquares::prepare(&x, n, p, &y, &ExecutionContext::for_tests(19))
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn wide_pairs_resamples_match_full_qr_and_keep_singular_fallback() {
+        compare_wide_resamples(4096, 12);
+    }
+
+    #[test]
+    #[ignore = "performance comparison at the full practitioner shape"]
+    fn practitioner_pairs_bootstrap_matches_full_qr() {
+        compare_wide_resamples(100_000, 32);
     }
 }

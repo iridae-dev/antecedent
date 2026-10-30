@@ -178,7 +178,7 @@ fn scored(
     seed: u64,
     intervals: impl FnOnce(&StudyResult) -> [Option<(f64, f64)>; 2],
 ) -> Option<Scored> {
-    let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
+    let result = study.run(&ExecutionContext::production(seed, 1)).ok()?;
     let contract = study.inspect().ok()?;
     Some(Scored { reported: constructions(&contract, &result), intervals: intervals(&result) })
 }
@@ -307,6 +307,26 @@ fn practitioner_linear_adjustment_bootstrap_interval() {
         Noise::Homoskedastic,
         0x1700_0004,
         |_| None,
+    );
+}
+
+#[test]
+#[ignore = "full-size bootstrap solver regression"]
+fn practitioner_bootstrap_reuses_prepared_solver() {
+    let study =
+        Study::tabular(practitioner_study(MAX_ROWS, 0x1700_0004, Noise::Homoskedastic).data)
+            .graph(practitioner_dag())
+            .query(binary_ate())
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+    let (result, traffic) = antecedent_stats::faer_backend::observe_solver_traffic(|| {
+        study.run(&ExecutionContext::production(17, 1))
+    });
+    result.expect("the full-size study must report its bootstrap interval");
+    assert!(
+        traffic.design_gathers < 8,
+        "199 bootstrap refits should reuse one prepared basis: {traffic:?}"
     );
 }
 

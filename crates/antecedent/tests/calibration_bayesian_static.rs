@@ -53,10 +53,10 @@ use antecedent_data::{TableView, TabularData};
 use antecedent_estimate::ContinuousResponseOptions;
 use antecedent_graph::{Cpdag, Dag, DenseNodeId, Pag};
 use common::calibration::{
-    CoverageTally, GRID_POINTS, PRECISION_N_SIM, RecordKey, SampleGrid, gaussian, grid_n,
-    map_replicates, n_sim, stream_seed,
+    Construction, CoverageTally, GRID_POINTS, PRECISION_N_SIM, RecordKey, SampleGrid, ScopeFacts,
+    gaussian, grid_n, map_replicates, n_sim, stream_seed,
 };
-use common::calibration_bind::bind;
+use common::calibration_bind::{bind_reported, constructions};
 use common::reported::{
     GATE_LEVEL, REPORTED_LEVEL, gate, gate_at, n_sim_at_least, posterior_pair,
     response_posterior_pairs,
@@ -91,7 +91,7 @@ struct Cell {
 /// This file's single coverage-record emission point.
 ///
 /// Every record here scores the facade's posterior-quantile interval; the
-/// construction behind that interval is bound from the runtime by [`bind`] on
+/// construction behind that interval is bound from the runtime by [`bind_reported`] on
 /// every scored replicate, never declared.
 fn keyed(test: &'static str, cell: Cell, level: f64) -> CoverageTally {
     let tally =
@@ -112,8 +112,7 @@ fn label(text: &str) -> &'static str {
 
 type Pair = [Option<(f64, f64)>; 2];
 
-/// A built study and the result of running it: [`bind`] reads the construction
-/// from the study's contract and the result's reported intervals.
+/// A built study and its execution, before extracting compact runtime bindings.
 type Run = (Study, StudyResult);
 
 /// One replicate's scored coordinates and the execution they were read from.
@@ -122,8 +121,8 @@ type Run = (Study, StudyResult);
 /// published, the gate-level interval re-summarized from that execution's
 /// posterior draws (`posterior_pair` / `response_posterior_pairs`).
 struct Replicate {
-    /// Execution that published every coordinate's reported-level interval.
-    reported: Run,
+    /// Runtime bindings, extracted before releasing the table and posterior.
+    reported: Vec<(Construction, ScopeFacts)>,
     /// `[reported, gate]` intervals, one entry per cell.
     pairs: Vec<Pair>,
     /// Truth, one entry per cell.
@@ -132,7 +131,8 @@ struct Replicate {
 
 impl Replicate {
     fn new(reported: Run, pairs: Vec<Pair>, truths: Vec<f64>) -> Self {
-        Self { reported, pairs, truths }
+        let bindings = constructions(&reported.0.inspect().expect("inspect"), &reported.1);
+        Self { reported: bindings, pairs, truths }
     }
 }
 
@@ -156,10 +156,9 @@ fn coverage_over(
         match scored {
             Some(scored) => {
                 assert_eq!(scored.pairs.len(), cells.len());
-                let (study, result) = &scored.reported;
                 for (j, (pair, truth)) in scored.pairs.iter().zip(&scored.truths).enumerate() {
-                    bind(&mut tallies[2 * j], study, result);
-                    bind(&mut tallies[2 * j + 1], study, result);
+                    bind_reported(&mut tallies[2 * j], &scored.reported);
+                    bind_reported(&mut tallies[2 * j + 1], &scored.reported);
                     tallies[2 * j].record(pair[0], *truth);
                     tallies[2 * j + 1].record(pair[1], *truth);
                 }
@@ -184,10 +183,9 @@ fn coverage_at(
         match scored {
             Some(scored) => {
                 assert_eq!(scored.pairs.len(), cells.len());
-                let (study, result) = &scored.reported;
                 for (j, (pair, truth)) in scored.pairs.iter().zip(&scored.truths).enumerate() {
-                    bind(&mut tallies[2 * j], study, result);
-                    bind(&mut tallies[2 * j + 1], study, result);
+                    bind_reported(&mut tallies[2 * j], &scored.reported);
+                    bind_reported(&mut tallies[2 * j + 1], &scored.reported);
                     tallies[2 * j].record(pair[0], *truth);
                     tallies[2 * j + 1].record(pair[1], *truth);
                 }
@@ -263,8 +261,8 @@ impl From<Pag> for Graph {
 /// validation; `options` (when set) carries only the response confidence
 /// level and the caller bandwidth of the point-derivative designs.
 ///
-/// The [`Study`] is returned beside its result because [`bind`] reads the
-/// construction from the study's contract.
+/// The [`Study`] is returned beside its result to extract the runtime construction
+/// before releasing the execution in [`Replicate::new`].
 fn run(
     data: TabularData,
     graph: impl Into<Graph>,

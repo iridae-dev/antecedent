@@ -66,17 +66,21 @@ pub fn constructions(
 ///
 /// When the execution reported no interval of that method.
 pub fn bind_contract(tally: &mut CoverageTally, contract: &CausalContract, result: &StudyResult) {
+    bind_reported(tally, &constructions(contract, result));
+}
+
+/// Bind compact runtime metadata after the large study and posterior have been dropped.
+pub fn bind_reported(tally: &mut CoverageTally, reported: &[(Construction, ScopeFacts)]) {
     let wanted = tally.record_interval().expect("bind needs a record-keyed tally");
-    let reported = constructions(contract, result);
-    let methods: Vec<String> =
-        reported.iter().map(|(construction, _)| construction.interval_method.clone()).collect();
     let (construction, scope) = reported
-        .into_iter()
+        .iter()
         .find(|(construction, _)| construction.interval_method == wanted)
         .unwrap_or_else(|| {
+            let methods: Vec<_> =
+                reported.iter().map(|(construction, _)| &construction.interval_method).collect();
             panic!("the execution reported no {wanted} interval (it reported {methods:?})")
         });
-    tally.bind(&construction, scope);
+    tally.bind(construction, *scope);
 }
 
 /// [`bind_contract`] for a result of [`Study::run`] on `study`.
@@ -103,7 +107,8 @@ pub fn bind_prepared(tally: &mut CoverageTally, prepared: &PreparedStudy, result
 /// levels of the same interval).
 pub fn bind_all(tallies: &mut [&mut CoverageTally], study: &Study, result: &StudyResult) {
     let contract = study.inspect().expect("inspect");
+    let reported = constructions(&contract, result);
     for tally in tallies {
-        bind_contract(tally, &contract, result);
+        bind_reported(tally, &reported);
     }
 }

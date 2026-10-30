@@ -155,6 +155,24 @@ impl ContinuousResponseEstimator {
         ))
     }
 
+    /// An additive surface's treatment gradient does not need its empirical level.
+    /// In particular, directional posterior draws need not re-evaluate treatment
+    /// splines on every observed row just to discard that level.
+    pub(super) fn plugin_gradient_only_at_fit(
+        fit: &antecedent_stats::GamFit,
+        at: &[f64],
+    ) -> Result<Vec<f64>, EstimationError> {
+        at.iter()
+            .enumerate()
+            .map(|(j, &value)| {
+                let smooth = fit.smooth_for_raw_col(j).ok_or_else(|| {
+                    EstimationError::unsupported("outcome nuisance is missing a treatment smooth")
+                })?;
+                Ok(fit.smooth_derivative(smooth, value)?)
+            })
+            .collect()
+    }
+
     /// Evaluate the plug-in level and treatment gradient at `at` on a fitted GAM.
     pub(super) fn plugin_gradient_at_fit(
         fit: &antecedent_stats::GamFit,
@@ -540,4 +558,46 @@ pub(super) fn intervention_plugin_warnings(target_fallback: Option<&str>) -> Vec
         ),
         fallback,
     ]
+}
+
+#[cfg(test)]
+mod gradient_only_tests {
+    use super::*;
+
+    #[test]
+    fn gradient_only_matches_level_and_gradient_for_weighted_fits() {
+        let n = 240;
+        let treatment: Vec<_> = (0..n).map(|i| (i as f64 * 0.37).sin()).collect();
+        let adjustment: Vec<_> = (0..n).map(|i| (i as f64 * 0.19).cos()).collect();
+        let outcome: Vec<_> =
+            treatment.iter().zip(&adjustment).map(|(a, x)| a * a + 0.3 * x).collect();
+        let data = TabularData::from_f64_columns([
+            ("a", treatment.as_slice()),
+            ("y", outcome.as_slice()),
+            ("x", adjustment.as_slice()),
+        ])
+        .unwrap();
+        let id = VariableId::from_raw;
+        let sample = CompleteSample::read(&data, id(1), &[id(0)], &[id(2)]).unwrap();
+        let estimator = ContinuousResponseEstimator::new([id(2)]);
+        let design = estimator.outcome_target_design(&sample).unwrap();
+        let weights: Vec<_> = (0..n).map(|i| 0.5 + (i % 3) as f64 * 0.5).collect();
+        for weights in [None, Some(weights.as_slice())] {
+            let fit =
+                ContinuousResponseEstimator::fit_outcome_target_weighted(&sample, &design, weights)
+                    .unwrap();
+            for at in [-0.5, 0.0, 0.5] {
+                let (_, expected) = ContinuousResponseEstimator::plugin_gradient_at_fit(
+                    &fit,
+                    &sample,
+                    &[at],
+                    weights,
+                )
+                .unwrap();
+                let actual =
+                    ContinuousResponseEstimator::plugin_gradient_only_at_fit(&fit, &[at]).unwrap();
+                assert_eq!(actual[0].to_bits(), expected[0].to_bits());
+            }
+        }
+    }
 }

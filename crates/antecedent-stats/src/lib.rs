@@ -92,8 +92,9 @@ pub use fdr::{
     bonferroni, holm,
 };
 pub use gam::{
-    AdditiveDesign, GamFit, GamOptions, GamWorkspace, PredictorMatrix, RoughnessPenalty, SmoothSpec,
-    expand_bspline, fit_gam, fit_gam_weighted, fit_gam_weighted_design, predict_gam,
+    AdditiveDesign, GamFit, GamOptions, GamWorkspace, PredictorMatrix, RoughnessPenalty,
+    SmoothSpec, expand_bspline, fit_gam, fit_gam_fixed_weighted_design, fit_gam_weighted,
+    fit_gam_weighted_design, predict_gam,
 };
 pub use glm::{
     DEFAULT_RIDGE_ON_SEPARATION, GlmDesignRef, GlmFamily, GlmFit, GlmLaplaceFit, GlmOptions,
