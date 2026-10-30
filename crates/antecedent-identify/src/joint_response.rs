@@ -168,6 +168,11 @@ pub(crate) fn prepare_joint_response(
             "joint adjustment requires complete-observation static data",
         ));
     }
+    if nodes.iter().any(|node| !matches!(node, NodeRef::Static(_))) {
+        return Err(IdentificationError::unsupported(
+            "joint adjustment requires a graph with static variable labels",
+        ));
+    }
     if !matches!(
         response.functional,
         antecedent_core::ResponseFunctional::InterventionResponse { .. }
@@ -455,6 +460,24 @@ mod tests {
                 Intervention::set(t2, Value::f64(1.0)),
             ]),
         })
+    }
+
+    #[test]
+    fn unfolded_confounder_is_refused_without_a_static_label_panic() {
+        let mut graph = Admg::with_variables(3);
+        let confounder = graph
+            .add_node(NodeRef::Unfolded { variable: VariableId::from_raw(3), offset: -1 })
+            .unwrap();
+        for child in [0, 1, 2] {
+            graph.insert_directed(confounder, n(child)).unwrap();
+        }
+        graph.insert_directed(n(0), n(2)).unwrap();
+        graph.insert_directed(n(1), n(2)).unwrap();
+        let query =
+            joint(VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        let result =
+            GeneralizedAdjustmentIdentifier::new().identify_joint_admg_response(&graph, &query);
+        assert!(matches!(result, Err(IdentificationError::UnsupportedQuery { .. })));
     }
 
     #[test]

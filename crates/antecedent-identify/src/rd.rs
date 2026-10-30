@@ -284,7 +284,17 @@ fn validate_design(
         (
             Ok(antecedent_core::Intervention::Set { value: active, .. }),
             Ok(antecedent_core::Intervention::Set { value: control, .. }),
-        ) => Ok((active, control)),
+        ) => {
+            let valid_active =
+                active.as_f64().is_some_and(|x| x.is_finite() && (x - 1.0).abs() <= 1e-12);
+            let valid_control = control.as_f64().is_some_and(|x| x.is_finite() && x.abs() <= 1e-12);
+            if !valid_active || !valid_control {
+                return Err(IdentificationError::UnsupportedQuery {
+                    message: "sharp RD requires active=1 and control=0",
+                });
+            }
+            Ok((active, control))
+        }
         _ => Err(IdentificationError::UnsupportedQuery {
             message: "sharp RD requires Set (or Soft(constant)/Shift) interventions",
         }),
@@ -408,6 +418,30 @@ mod tests {
                 _ => None,
             })
             .collect()
+    }
+
+    #[test]
+    fn sharp_rd_refuses_levels_outside_the_declared_binary_threshold() {
+        for (control, active) in [(0.0, 2.0), (1.0, 0.0)] {
+            let query = AverageEffectQuery::with_levels(
+                VariableId::from_raw(T),
+                VariableId::from_raw(Y),
+                control,
+                active,
+            );
+            assert!(matches!(
+                identifier().identify(CausalQuery::AverageEffect(query)),
+                Err(IdentificationError::UnsupportedQuery { .. })
+            ));
+        }
+        assert!(identifier().identify(CausalQuery::AverageEffect(ate())).is_ok());
+        let near = AverageEffectQuery::with_levels(
+            VariableId::from_raw(T),
+            VariableId::from_raw(Y),
+            5e-13,
+            1.0 + 5e-13,
+        );
+        assert!(identifier().identify(CausalQuery::AverageEffect(near)).is_ok());
     }
 
     #[test]

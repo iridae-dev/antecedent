@@ -150,6 +150,80 @@ pub fn identify_admg_response_adjustment(
         admg.static_variable(node)
             .ok_or(IdentificationError::UnknownVariable { id: VariableId::from_raw(node.raw()) })
     };
+    if let ResponseFunctional::InterventionResponse { outcome, interventions } = &query.functional {
+        query
+            .validate()
+            .map_err(|error| IdentificationError::InvalidQuery { message: error.to_string() })?;
+        let assignments = interventions
+            .iter()
+            .map(|intervention| match intervention {
+                antecedent_core::Intervention::Set { variable, value } => {
+                    Ok(antecedent_expr::InterventionAssignment {
+                        variable: *variable,
+                        value: value.clone(),
+                    })
+                }
+                _ => Err(IdentificationError::unsupported(
+                    "ADMG intervention response requires hard Set interventions",
+                )),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        if assignments.len() >= 2 {
+            let mut result =
+                GeneralizedAdjustmentIdentifier::new().identify_joint_admg_response(admg, query)?;
+            for estimand in &mut result.estimands {
+                let arena = &mut result.arena;
+                let z = arena.intern_var_set(estimand.adjustment_set.iter().copied());
+                let y = arena.intern_var_set([*outcome]);
+                let xz = arena.intern_var_set(
+                    assignments
+                        .iter()
+                        .map(|a| a.variable)
+                        .chain(estimand.adjustment_set.iter().copied()),
+                );
+                let empty = arena.empty_var_set();
+                let observational = arena.empty_intervention_set();
+                let assigned = arena.intern_intervention_assignments(assignments.iter().cloned());
+                let conditional = arena.intern_distribution(
+                    y,
+                    xz,
+                    assigned,
+                    antecedent_expr::DomainRef::Observational,
+                );
+                let marginal = arena.intern_distribution(
+                    z,
+                    empty,
+                    observational,
+                    antecedent_expr::DomainRef::Observational,
+                );
+                let factors = arena.intern_list([conditional, marginal]);
+                let product = arena.intern(antecedent_expr::ExprNode::Product(factors));
+                let distribution =
+                    arena.intern(antecedent_expr::ExprNode::SumOut { variables: z, expr: product });
+                estimand.functional = arena.intern(antecedent_expr::ExprNode::Expectation {
+                    function: antecedent_expr::OutcomeExprId::identity(*outcome),
+                    distribution,
+                });
+            }
+            return Ok(result);
+        }
+        if let [assignment] = assignments.as_slice() {
+            let mut result =
+                adjustment_on(admg, query, &NodeMap { dense: &dense, variable: &variable })?;
+            for estimand in &mut result.estimands {
+                estimand.functional = result.arena.backdoor_mean(
+                    assignment.variable,
+                    *outcome,
+                    &estimand.adjustment_set,
+                    assignment.value.clone(),
+                );
+            }
+            return Ok(result);
+        }
+        return Err(IdentificationError::unsupported(
+            "ADMG intervention response requires at least one hard Set intervention",
+        ));
+    }
     if let Some(joint) = joint_multi_treatment(query, |surface| {
         GeneralizedAdjustmentIdentifier::new().identify_joint_admg_response(admg, surface)
     })? {
@@ -841,6 +915,52 @@ mod tests {
         g.insert_directed(node(0), node(1)).unwrap();
         g.insert_bidirected(node(3), node(2)).unwrap();
         g
+    }
+
+    #[test]
+    fn intervention_response_binds_joint_and_single_arm_levels() {
+        use antecedent_core::Intervention;
+        use antecedent_expr::{DomainRef, ExprNode, InterventionAssignment, OutcomeExprId};
+        let mut graph = Admg::with_variables(3);
+        graph.insert_directed(node(0), node(2)).unwrap();
+        graph.insert_directed(node(1), node(2)).unwrap();
+        let (x1, x2, y) =
+            (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: y,
+            interventions: Arc::from([
+                Intervention::set(x1, Value::f64(3.0)),
+                Intervention::set(x2, Value::f64(1.0)),
+            ]),
+        });
+        let result = identify_admg_response_adjustment(&graph, &query).unwrap();
+        assert_eq!(result.estimands.len(), 1);
+        let mut expected = CausalExprArena::new();
+        let ys = expected.intern_var_set([y]);
+        let empty = expected.empty_var_set();
+        let xs = expected.intern_var_set([x1, x2]);
+        let none = expected.empty_intervention_set();
+        let levels = expected.intern_intervention_assignments([
+            InterventionAssignment { variable: x1, value: Value::f64(3.0) },
+            InterventionAssignment { variable: x2, value: Value::f64(1.0) },
+        ]);
+        let conditional = expected.intern_distribution(ys, xs, levels, DomainRef::Observational);
+        let marginal = expected.intern_distribution(empty, empty, none, DomainRef::Observational);
+        let factors = expected.intern_list([conditional, marginal]);
+        let product = expected.intern(ExprNode::Product(factors));
+        let distribution = expected.intern(ExprNode::SumOut { variables: empty, expr: product });
+        let mean = expected
+            .intern(ExprNode::Expectation { function: OutcomeExprId::identity(y), distribution });
+        assert_eq!(result.arena.pretty(result.estimands[0].functional), expected.pretty(mean));
+        let single = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: y,
+            interventions: Arc::from([Intervention::set(x1, Value::f64(3.0))]),
+        });
+        let result = identify_admg_response_adjustment(&graph, &single).unwrap();
+        let mut expected = CausalExprArena::new();
+        let mean =
+            expected.backdoor_mean(x1, y, &result.estimands[0].adjustment_set, Value::f64(3.0));
+        assert_eq!(result.arena.pretty(result.estimands[0].functional), expected.pretty(mean));
     }
 
     #[test]

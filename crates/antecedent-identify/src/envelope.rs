@@ -100,7 +100,7 @@ impl<G> IdentificationEnvelope<G> {
         let mut any_parametric = false;
         let mut any_prior_restricted = false;
         let mut any_partial = false;
-        let mut invariant: Option<(IdentifiedEstimand, Option<String>)> = None;
+        let mut candidates: Option<Vec<(IdentifiedEstimand, Option<String>)>> = None;
         let mut invariant_conflict = false;
         let mut functionals_differ = false;
         for c in &cases {
@@ -117,18 +117,33 @@ impl<G> IdentificationEnvelope<G> {
                 );
                 any_partial |= matches!(c.result.status, IdentificationStatus::PartiallyIdentified);
                 identified += c.weight.0;
-                if let Some(est) = c.result.estimands.first() {
-                    let form = functional_form(&c.result, est);
-                    match &invariant {
-                        None => invariant = Some((est.clone(), form)),
-                        Some((prev, _)) if !roles_agree(prev, est) => {
+                if !c.result.estimands.is_empty() {
+                    let case_candidates: Vec<_> = c
+                        .result
+                        .estimands
+                        .iter()
+                        .map(|est| (est, functional_form(&c.result, est)))
+                        .collect();
+                    if let Some(common) = &mut candidates {
+                        let role_match = common.iter().any(|(prev, _)| {
+                            case_candidates.iter().any(|(est, _)| roles_agree(prev, est))
+                        });
+                        common.retain(|(prev, prev_form)| {
+                            case_candidates
+                                .iter()
+                                .any(|(est, form)| roles_agree(prev, est) && prev_form == form)
+                        });
+                        if common.is_empty() {
                             invariant_conflict = true;
+                            functionals_differ |= role_match;
                         }
-                        Some((_, prev_form)) if *prev_form != form => {
-                            invariant_conflict = true;
-                            functionals_differ = true;
-                        }
-                        _ => {}
+                    } else {
+                        candidates = Some(
+                            case_candidates
+                                .into_iter()
+                                .map(|(est, form)| (est.clone(), form))
+                                .collect(),
+                        );
                     }
                 }
             } else {
@@ -155,7 +170,11 @@ impl<G> IdentificationEnvelope<G> {
         } else {
             IdentificationStatus::NotIdentified
         };
-        let invariant = if invariant_conflict { None } else { invariant.map(|(est, _)| est) };
+        let invariant = if invariant_conflict {
+            None
+        } else {
+            candidates.and_then(|common| common.into_iter().next().map(|(est, _)| est))
+        };
         let mut critical_graph_features = collect_critical_features(&cases, status, unidentified);
         if functionals_differ {
             critical_graph_features.push(GraphFeature {
@@ -411,6 +430,51 @@ mod tests {
     /// A general-ID estimand has no adjustment set, instruments or mediators: its functional
     /// is all that distinguishes it. Two completions that are both identified by general ID
     /// through different functionals share no class-wide estimand.
+    #[test]
+    fn invariant_intersects_all_case_estimands_in_original_order() {
+        let case = |adjustments: &[u32]| {
+            let mut result = dummy_result(IdentificationStatus::NonparametricallyIdentified);
+            for &id in adjustments {
+                let z = [VariableId::from_raw(id)];
+                let functional = result.arena.backdoor_mean(
+                    VariableId::from_raw(0),
+                    VariableId::from_raw(1),
+                    &z,
+                    antecedent_core::Value::f64(1.0),
+                );
+                result.estimands.push(IdentifiedEstimand::backdoor(
+                    "backdoor.adjustment",
+                    Arc::from(z),
+                    functional,
+                ));
+            }
+            result
+        };
+        let envelope = |left: &[u32], right: &[u32]| {
+            IdentificationEnvelope::from_cases(vec![
+                GraphIdentificationCase {
+                    graph: 0u32,
+                    result: case(left),
+                    weight: ProbabilityMass(0.5),
+                },
+                GraphIdentificationCase {
+                    graph: 1u32,
+                    result: case(right),
+                    weight: ProbabilityMass(0.5),
+                },
+            ])
+        };
+        let shared = envelope(&[2, 3], &[3]);
+        assert_eq!(shared.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(shared.invariant.unwrap().adjustment_set.as_ref(), &[VariableId::from_raw(3)]);
+        let ordered = envelope(&[3, 2], &[2, 3]);
+        assert_eq!(ordered.invariant.unwrap().adjustment_set.as_ref(), &[VariableId::from_raw(3)]);
+        let disjoint = envelope(&[2], &[3]);
+        assert!(disjoint.invariant.is_none());
+        assert_eq!(disjoint.status, IdentificationStatus::PartiallyIdentified);
+        assert!((disjoint.identified_weight.0 - 1.0).abs() < 1e-12);
+    }
+
     #[test]
     fn general_id_cases_with_different_functionals_have_no_invariant() {
         let (t, y, z) = (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
