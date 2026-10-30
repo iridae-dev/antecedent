@@ -146,3 +146,5 @@ Frozen artifacts keep the numerical law, dependencies, uncertainty meaning and f
 - [Joint cells](joint-cells.md) and [joint distributions](../joint-distributions.md)
 - [Compare a coordinated intervention program with its baseline](../tutorials/joint-interventions.md)
 - [Interventions and worlds](../concepts/interventions-and-worlds.md)
+
+For a complete marketing investigation using a shared panel fit, see [beyond the marketing mix](../tutorials/beyond-marketing-mix.md).

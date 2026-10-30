@@ -90,3 +90,5 @@ The same call accepts studies in another regime through `rank_next_studies` and 
 Under a stated mapping, a later experiment changed a retained response and, with it, a decision, without refitting the model. A further study's value was computed and checked against independent integration, and the update stayed a model-conditional experimental update with calibration unmeasured.
 
 The next scientific question is which of two things you need: a study that sharpens this decision (the ranking above), or a study whose design identifies the contrast you are deciding on, which would change the status rather than the weights. The [design ranking guide](../design-ranking.md) covers ranking studies in general, and [decide under uncertainty](decide-under-uncertainty.md) follows a decision and the value of more evidence from its start.
+
+For one connected marketing investigation, [beyond the marketing mix](beyond-marketing-mix.md) follows a three-channel panel through spending proposals, experimental evidence, a business decision and the next study.

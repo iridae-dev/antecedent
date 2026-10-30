@@ -506,3 +506,5 @@ status `closed_calibration_unmeasured`: no interval is produced.
   [composition](composition.md); related pages are
   [external scientific objects](guides/build/scientific-interfaces.md) and
   [joint distributions](joint-distributions.md).
+
+For a complete marketing investigation using a shared panel fit, see [beyond the marketing mix](tutorials/beyond-marketing-mix.md).

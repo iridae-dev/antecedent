@@ -28,6 +28,7 @@ Each tutorial follows one scientific task and pairs with a maintained example.
 | --- | --- |
 | Observe, fix and shock a variable in a feedback system | [One feedback system, three questions](tutorials/feedback-three-questions.md) |
 | Compare a coordinated intervention program with a baseline | [Joint interventions](tutorials/joint-interventions.md) |
+| Start with a marketing mix model, compare spending programs, incorporate experimental evidence, make a decision and rank the next studies | [Beyond the marketing mix](tutorials/beyond-marketing-mix.md) |
 | Update a response from an experiment and choose the next study | [From an experiment to the next study](tutorials/experiment-to-next-study.md) |
 | Change a utility, export a decision, withdraw a source | [Replay and current decisions](tutorials/replay-and-current-decisions.md) |
 | Decide when a result is suggestive but not significant | [Decide under uncertainty](tutorials/decide-under-uncertainty.md) |

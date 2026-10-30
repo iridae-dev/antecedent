@@ -137,3 +137,5 @@ The script reads the fixture from a repository checkout. Run it from the reposit
 Under the declared mechanism and one shared fit, the joint program's 24-week effect over the baseline was estimated with uncertainty that carries the dependence between the programs' estimated responses, and the example checks the known 4 against it. That estimate is conditional on the fitted mechanism. Weekly randomization did not identify the whole program, and whole-program randomization with a declared exogenous context would.
 
 The next question is which data would earn the identified status for the program you care about: assigning whole programs, with replication, rather than assigning each week. That decision and its cost belong in the study design before the fit.
+
+For one connected marketing investigation, [beyond the marketing mix](beyond-marketing-mix.md) follows a three-channel panel through spending proposals, experimental evidence, a business decision and the next study.

@@ -63,3 +63,5 @@ Extracted experimental sources require current ledger authority for authorizatio
 - [Search and certify intervention programs](joint-program-search.md)
 - [Scientific bridges](../scientific-bridges.md) and [evidence ledger](../evidence-ledger.md)
 - [From a new experiment to the next study](../tutorials/experiment-to-next-study.md)
+
+For a complete marketing investigation using a shared panel fit, see [beyond the marketing mix](../tutorials/beyond-marketing-mix.md).
