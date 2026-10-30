@@ -47,6 +47,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
+        let delta = treatment_delta(query)?;
         let (identification, estimand, indexer, certified_instrument, identify_cached) =
             if let Some((cache, prepared)) = self.reuse_temporal_identification(physical) {
                 let entry = cache.get(query.horizon_steps).ok_or_else(|| CausalError::Compile {
@@ -106,8 +107,8 @@ impl super::Study {
                 let fit =
                     fit_lagged_instrument(&sample, WEAK_F_THRESHOLD).map_err(CausalError::from)?;
                 let estimate = EffectEstimate::new(
-                    fit.effect,
-                    fit.homoskedastic_se,
+                    fit.effect * delta,
+                    fit.homoskedastic_se * delta.abs(),
                     assumptions,
                     OverlapPolicy::ExplicitOverride,
                 )
@@ -127,13 +128,16 @@ impl super::Study {
                                   coefficient or transferred priors",
                     });
                 }
-                let fit = fit_lagged_instrument_posterior(
+                let mut fit = fit_lagged_instrument_posterior(
                     &sample,
                     cfg.prior_scale,
                     DrawSpec::new(cfg.n_draws, ctx.rng.master_seed()),
                     WEAK_F_THRESHOLD,
                 )
                 .map_err(CausalError::from)?;
+                for draw in &mut fit.effect_draws {
+                    *draw *= delta;
+                }
                 let posterior = effect_draws_posterior(
                     &fit.effect_draws,
                     identification.status,
@@ -188,6 +192,23 @@ impl super::Study {
             }),
         ))
     }
+}
+
+/// The Wald fit is a per-unit slope; the query requests a finite hard-set contrast.
+fn treatment_delta(query: &TemporalEffectQuery) -> Result<f64, CausalError> {
+    let level = |intervention: &antecedent_core::Intervention| {
+        let antecedent_core::Intervention::Set { value, .. } = intervention else {
+            return None;
+        };
+        value.as_f64().filter(|value| value.is_finite())
+    };
+    let delta =
+        level(&query.active).zip(level(&query.control)).map(|(active, control)| active - control);
+    delta.filter(|delta| delta.is_finite()).ok_or_else(|| {
+        CausalError::Estimate(antecedent_estimate::EstimationError::unsupported(
+            "temporal lagged-instrument effects require finite numeric Set interventions and a finite treatment contrast",
+        ))
+    })
 }
 
 fn dependence_assumption() -> antecedent_core::AssumptionRecord {

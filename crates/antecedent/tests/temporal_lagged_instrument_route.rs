@@ -16,7 +16,8 @@
 
 use antecedent::{BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
-    CausalQuery, ExecutionContext, Lag, TemporalEffectQuery, TemporalPolicy, VariableId,
+    CausalQuery, ExecutionContext, Intervention, Lag, TemporalEffectQuery, TemporalPolicy, Value,
+    VariableId,
 };
 use antecedent_data::TimeSeriesData;
 use antecedent_graph::{TemporalDag, ensure_lagged};
@@ -187,6 +188,73 @@ fn the_bayesian_route_is_a_reduced_form_ratio_posterior_not_a_penalized_wald() {
     let tight_posterior = tight.posterior.as_ref().unwrap();
     let tight_mean = tight_posterior.summaries.mean[tight_posterior.effect_column().unwrap()];
     assert!((tight_mean - effect).abs() > 0.5, "a tight prior must move the ratio: {tight_mean}");
+}
+
+#[test]
+fn both_temporal_iv_estimators_scale_the_declared_contrast_and_its_uncertainty() {
+    let columns = series();
+    let series_data = data(&columns);
+    let ctx = ExecutionContext::for_tests(2);
+    let (slope, slope_se, _) = wald(&columns);
+    for (estimator, inference, wire_id) in [
+        (
+            EstimatorId::TemporalLaggedInstrument,
+            InferenceMode::Frequentist,
+            "temporal.lagged_instrument",
+        ),
+        (
+            EstimatorId::BayesianTemporalLaggedInstrument,
+            InferenceMode::Bayesian(BayesianConfig::conjugate().prior_scale(100.0).n_draws(128)),
+            "bayesian.temporal.lagged_instrument",
+        ),
+    ] {
+        let run = |active, control| {
+            let CausalQuery::TemporalEffect(mut query) = query() else { unreachable!() };
+            query.active = Intervention::set(VariableId::from_raw(X), Value::f64(active));
+            query.control = Intervention::set(VariableId::from_raw(X), Value::f64(control));
+            let prepared = builder(&columns, false)
+                .query(query)
+                .estimator(estimator)
+                .inference(inference.clone())
+                .build()
+                .unwrap()
+                .prepare(&ctx)
+                .unwrap();
+            let result = prepared.estimate_series(&series_data, &ctx).unwrap();
+            let bytes = prepared.encode_contracted_result(&result, wire_id, &ctx).unwrap();
+            let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+            assert_eq!(consumed.body.estimate, Some(result.effect()));
+            result
+        };
+        let unit = run(1.0, 0.0);
+        for (active, control) in [(3.0, 1.0), (1.0, 3.0), (2.0, 2.0)] {
+            let delta = active - control;
+            let scaled = run(active, control);
+            let estimate = scaled.estimate().as_effect().unwrap();
+            let unit_estimate = unit.estimate().as_effect().unwrap();
+            assert!((estimate.ate - delta * unit_estimate.ate).abs() < 1e-12);
+            assert!(
+                (estimate.se_analytic() - delta.abs() * unit_estimate.se_analytic()).abs() < 1e-12
+            );
+            if let Some(posterior) = &scaled.posterior {
+                let reference = unit.posterior.as_ref().unwrap();
+                let column = posterior.effect_column().unwrap();
+                let reference_column = reference.effect_column().unwrap();
+                for (value, slope_draw) in posterior
+                    .draws
+                    .column(column)
+                    .unwrap()
+                    .iter()
+                    .zip(reference.draws.column(reference_column).unwrap())
+                {
+                    assert_eq!(*value, delta * slope_draw);
+                }
+            } else {
+                assert!((estimate.ate - delta * slope).abs() < 1e-8);
+                assert!((estimate.se_analytic() - delta.abs() * slope_se).abs() < 1e-8);
+            }
+        }
+    }
 }
 
 #[test]
