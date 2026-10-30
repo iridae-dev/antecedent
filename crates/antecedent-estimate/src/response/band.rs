@@ -28,7 +28,7 @@ pub(super) fn simultaneous_multiplier_band(
             "simultaneous bands require a non-empty response grid",
         ));
     }
-    if standard_errors.iter().any(|se| !se.is_finite() || *se <= f64::EPSILON) {
+    if standard_errors.iter().any(|se| !se.is_finite() || *se <= 0.0) {
         return Err(EstimationError::unsupported(
             "simultaneous bands require finite non-degenerate influence standard errors",
         ));
@@ -41,18 +41,23 @@ pub(super) fn simultaneous_multiplier_band(
         for multiplier in &mut multipliers {
             *multiplier = if rng.next_u64() & 1 == 0 { -1.0 } else { 1.0 };
         }
-        let maximum = (0..grid_len)
-            .zip(standard_errors)
-            .map(|(g_idx, se)| {
-                let row = &influences[g_idx * sample_size..(g_idx + 1) * sample_size];
-                row.iter()
-                    .zip(&multipliers)
-                    .map(|(influence, multiplier)| influence * multiplier)
-                    .sum::<f64>()
-                    .abs()
-                    / se
-            })
-            .fold(0.0_f64, f64::max);
+        let mut maximum = 0.0_f64;
+        for (g_idx, se) in (0..grid_len).zip(standard_errors) {
+            let row = &influences[g_idx * sample_size..(g_idx + 1) * sample_size];
+            let standardized = row
+                .iter()
+                .zip(&multipliers)
+                .map(|(influence, multiplier)| influence * multiplier)
+                .sum::<f64>()
+                .abs()
+                / se;
+            if !standardized.is_finite() {
+                return Err(EstimationError::unsupported(
+                    "simultaneous band contains a non-finite standardized influence",
+                ));
+            }
+            maximum = maximum.max(standardized);
+        }
         maxima.push(maximum);
     }
     maxima.sort_by(f64::total_cmp);
@@ -71,6 +76,9 @@ pub(super) fn simultaneous_multiplier_band(
         .zip(standard_errors)
         .map(|(estimate, se)| estimate + critical * se)
         .collect::<Vec<_>>();
+    if !critical.is_finite() || lower.iter().chain(&upper).any(|v| !v.is_finite()) {
+        return Err(EstimationError::unsupported("simultaneous band has non-finite endpoints"));
+    }
     Ok(ResponseUncertainty::SimultaneousBand {
         level,
         lower: Arc::from(lower),
@@ -105,7 +113,7 @@ pub(super) fn simultaneous_posterior_band(
         || !(0.0..1.0).contains(&level)
         || columns.iter().any(|column| column.len() != n_draws)
         || mean.iter().any(|x| !x.is_finite())
-        || standard_deviations.iter().any(|sd| !sd.is_finite() || *sd <= f64::EPSILON)
+        || standard_deviations.iter().any(|sd| !sd.is_finite() || *sd <= 0.0)
     {
         return Err(EstimationError::unsupported(
             "simultaneous Bayesian bands require at least 100 coherent finite posterior draws and non-degenerate grid uncertainty",
@@ -121,7 +129,13 @@ pub(super) fn simultaneous_posterior_band(
                     "simultaneous Bayesian band contains a non-finite posterior draw",
                 ));
             }
-            maximum = maximum.max((value - mean[grid]).abs() / standard_deviations[grid]);
+            let standardized = (value - mean[grid]).abs() / standard_deviations[grid];
+            if !standardized.is_finite() {
+                return Err(EstimationError::unsupported(
+                    "simultaneous Bayesian band has non-finite standardized draws",
+                ));
+            }
+            maximum = maximum.max(standardized);
         }
         maxima.push(maximum);
     }
@@ -131,13 +145,22 @@ pub(super) fn simultaneous_posterior_band(
     // with the pointwise intervals published for the same draws.
     let mut critical = monte_carlo_critical(&maxima, level);
     for grid in 0..grid_len {
-        critical = critical.max((mean[grid] - pointwise_lower[grid]) / standard_deviations[grid]);
-        critical = critical.max((pointwise_upper[grid] - mean[grid]) / standard_deviations[grid]);
+        let low = (mean[grid] - pointwise_lower[grid]) / standard_deviations[grid];
+        let high = (pointwise_upper[grid] - mean[grid]) / standard_deviations[grid];
+        if !low.is_finite() || !high.is_finite() {
+            return Err(EstimationError::unsupported(
+                "simultaneous Bayesian band has non-finite pointwise bounds",
+            ));
+        }
+        critical = critical.max(low).max(high);
     }
     let lower: Vec<f64> =
         mean.iter().zip(standard_deviations).map(|(m, sd)| m - critical * sd).collect();
     let upper: Vec<f64> =
         mean.iter().zip(standard_deviations).map(|(m, sd)| m + critical * sd).collect();
+    if !critical.is_finite() || lower.iter().chain(&upper).any(|v| !v.is_finite()) {
+        return Err(EstimationError::unsupported("simultaneous band has non-finite endpoints"));
+    }
     Ok(ResponseUncertainty::SimultaneousBand {
         level,
         lower: Arc::from(lower),
@@ -147,4 +170,80 @@ pub(super) fn simultaneous_posterior_band(
         })?,
         interpretation: IntervalInterpretation::Credible,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn endpoints(band: ResponseUncertainty) -> (Vec<f64>, Vec<f64>) {
+        match band {
+            ResponseUncertainty::SimultaneousBand { lower, upper, .. } => {
+                (lower.to_vec(), upper.to_vec())
+            }
+            _ => panic!("expected band"),
+        }
+    }
+    #[test]
+    fn simultaneous_bands_respect_small_units_and_reject_nonfinite_inputs() {
+        let scale = 1e-18;
+        let influences = [0.1, -0.2, 0.3, -0.1];
+        let scaled: Vec<_> = influences.iter().map(|v| v * scale).collect();
+        let a = endpoints(
+            simultaneous_multiplier_band(&[1.0], &influences, 4, &[0.2], 0.95, 200, 4).unwrap(),
+        );
+        let b = endpoints(
+            simultaneous_multiplier_band(&[scale], &scaled, 4, &[0.2 * scale], 0.95, 200, 4)
+                .unwrap(),
+        );
+        assert!((a.0[0] - b.0[0] / scale).abs() < 1e-12);
+        assert!((a.1[0] - b.1[0] / scale).abs() < 1e-12);
+        assert!(
+            simultaneous_multiplier_band(&[1.0], &influences, 4, &[0.0], 0.95, 200, 4).is_err()
+        );
+        assert!(
+            simultaneous_multiplier_band(
+                &[1.0],
+                &[f64::NAN, 0.0, 0.0, 0.0],
+                4,
+                &[0.2],
+                0.95,
+                200,
+                4
+            )
+            .is_err()
+        );
+        let draws: Vec<f64> = (0..120).map(|i| 1.0 + (f64::from(i) - 60.0) / 100.0).collect();
+        let scaled_draws: Vec<f64> = draws.iter().map(|v| v * scale).collect();
+        let a = endpoints(
+            simultaneous_posterior_band(&[1.0], &[draws], &[0.5], &[1.5], &[0.35], 0.95).unwrap(),
+        );
+        let b = endpoints(
+            simultaneous_posterior_band(
+                &[scale],
+                &[scaled_draws],
+                &[0.5 * scale],
+                &[1.5 * scale],
+                &[0.35 * scale],
+                0.95,
+            )
+            .unwrap(),
+        );
+        assert!((a.0[0] - b.0[0] / scale).abs() < 1e-12);
+        assert!((a.1[0] - b.1[0] / scale).abs() < 1e-12);
+        assert!(
+            simultaneous_posterior_band(&[1.0], &[vec![1.0; 120]], &[0.5], &[1.5], &[0.0], 0.95)
+                .is_err()
+        );
+        assert!(
+            simultaneous_posterior_band(
+                &[1.0],
+                &[vec![f64::NAN; 120]],
+                &[0.5],
+                &[1.5],
+                &[1.0],
+                0.95
+            )
+            .is_err()
+        );
+    }
 }

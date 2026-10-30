@@ -267,7 +267,7 @@ pub fn empirical_threshold_grid(y: &[f64], points: usize) -> Result<Vec<f64>, Es
         let idx = ((v.len() - 1) as f64 * p).round() as usize;
         out.push(v[idx.min(v.len() - 1)]);
     }
-    out.dedup_by(|a, b| (*a - *b).abs() <= 1e-12);
+    out.dedup_by(|a, b| *a == *b);
     if out.len() < 4 {
         return Err(EstimationError::data_msg(
             "quantile estimation grid collapsed; outcome has too little spread",
@@ -279,6 +279,15 @@ pub fn empirical_threshold_grid(y: &[f64], points: usize) -> Result<Vec<f64>, Es
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn empirical_grid_preserves_distinct_small_scale_values() {
+        let values: Vec<f64> = (0..20).map(|i| f64::from(i) * 1e-15).collect();
+        let grid = empirical_threshold_grid(&values, 8).unwrap();
+        assert_eq!(grid.len(), 8);
+        assert!(grid.windows(2).all(|v| v[0] < v[1]));
+        assert!(empirical_threshold_grid(&[0.0; 20], 8).is_err());
+    }
 
     #[test]
     fn inverts_linear_cdf() {

@@ -790,7 +790,7 @@ fn candidate_thresholds(sorted: &[f64], max_cuts: usize) -> Vec<f64> {
         return Vec::new();
     }
     let mut vals: Vec<f64> = sorted.to_vec();
-    vals.dedup_by(|a, b| (*a - *b).abs() <= 1e-12);
+    vals.dedup_by(|a, b| *a == *b);
     if vals.len() < 2 {
         return Vec::new();
     }
@@ -799,7 +799,10 @@ fn candidate_thresholds(sorted: &[f64], max_cuts: usize) -> Vec<f64> {
     let stride = gaps.div_ceil(max_cuts).max(1);
     let mut i = 0;
     while i < gaps {
-        cuts.push(0.5 * vals[i] + 0.5 * vals[i + 1]);
+        let lower = vals[i];
+        let upper = vals[i + 1];
+        let midpoint = 0.5 * lower + 0.5 * upper;
+        cuts.push(if midpoint >= upper { lower } else { midpoint.max(lower) });
         i += stride;
     }
     cuts
@@ -877,6 +880,23 @@ fn leaf_dispersion_from_leaf_ses(se_ss: f64, se_hits: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn threshold_candidates_keep_small_and_adjacent_finite_values() {
+        use super::candidate_thresholds;
+        let values = [0.0, 1e-15, 2e-15, 3e-15];
+        let cuts = candidate_thresholds(&values, 10);
+        assert_eq!(cuts.len(), 3);
+        assert!(
+            cuts.iter().zip(values.windows(2)).all(|(cut, pair)| *cut >= pair[0] && *cut < pair[1])
+        );
+        let upper = f64::from_bits(1.0_f64.to_bits() + 1);
+        assert_eq!(candidate_thresholds(&[1.0, upper], 10), vec![1.0]);
+        let extreme = candidate_thresholds(&[-f64::MAX, -f64::MAX / 2.0, f64::MAX], 10);
+        assert_eq!(extreme.len(), 2);
+        assert!(extreme[0].is_finite() && extreme[0] >= -f64::MAX && extreme[0] < -f64::MAX / 2.0);
+        assert!(extreme[1].is_finite() && extreme[1] >= -f64::MAX / 2.0 && extreme[1] < f64::MAX);
+    }
+
     use std::sync::Arc;
 
     use antecedent_core::{
