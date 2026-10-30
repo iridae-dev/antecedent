@@ -79,7 +79,8 @@ pub struct TemporalPanelSpec {
     pub change_points: Vec<usize>,
     /// Minimum observed periods on either side in every group.
     pub minimum_segment: usize,
-    /// Minimum best-versus-next BIC gap before retaining a localized piecewise change.
+    /// A best-versus-next BIC gap at or below this value triggers smooth attempts;
+    /// they also run when fewer than two initial fits converge or no-change leads.
     pub weak_change_gap: f64,
     /// Piecewise-linear smooth-path knots, including zero and the last observed time.
     pub smooth_knots: Vec<usize>,
@@ -127,7 +128,8 @@ pub struct TemporalPanelAttempt {
     pub choice: TemporalModelChoice,
     /// Log likelihood excluding regularization, if finite.
     pub log_likelihood: Option<f64>,
-    /// Declared penalized BIC selection score (lower is preferred), if finite.
+    /// Selection score `-2 * (log likelihood - path penalty) + k * ln(n)`, if finite.
+    /// The lowest score among all converged attempted candidates is retained.
     pub criterion: Option<f64>,
     /// Local score tolerance was actually met.
     pub converged: bool,
@@ -144,7 +146,7 @@ pub struct TemporalPanelFit {
     pub draws: Vec<Option<TemporalPanelDraw>>,
     /// Initial no-change/piecewise attempts, followed by smooth attempts when needed.
     pub attempts: Vec<TemporalPanelAttempt>,
-    /// Whether weak change localization started the required smooth attempt.
+    /// Whether weak change localization started smooth attempts, regardless of the selected point.
     pub smooth_fallback: bool,
     /// Choice counts from retained whole-procedure replicates/posterior draws.
     pub selection_counts: Vec<(TemporalModelChoice, usize)>,
@@ -470,10 +472,6 @@ fn fit_candidates(
     let initial = options.initial.clone().unwrap_or_else(|| likelihood::initial(data));
     let start = likelihood::encode(data, &initial)?;
     let n = data.groups.iter().map(|group| group.outcome.len()).sum::<usize>() as f64;
-    let choices = std::iter::once(TemporalModelChoice::NoChange)
-        .chain(spec.change_points.iter().map(|&at| TemporalModelChoice::Piecewise { at }));
-    let mut attempts = Vec::new();
-    let mut successes = Vec::new();
     let try_fit = |choice: TemporalModelChoice,
                    attempts: &mut Vec<TemporalPanelAttempt>|
      -> Result<Option<(f64, Vec<f64>, TemporalModelChoice)>, PanelError> {
@@ -510,6 +508,20 @@ fn fit_candidates(
             }
         }
     };
+    select_candidates(spec, try_fit)
+}
+
+// Keep the attempt policy and the selection policy distinct: triggering smooth
+// fits does not erase a converged incumbent from the same score comparison.
+fn select_candidates(
+    spec: &TemporalPanelSpec,
+    mut try_fit: impl FnMut(TemporalModelChoice, &mut Vec<TemporalPanelAttempt>)
+        -> Result<Option<(f64, Vec<f64>, TemporalModelChoice)>, PanelError>,
+) -> Result<Selected, PanelError> {
+    let choices = std::iter::once(TemporalModelChoice::NoChange)
+        .chain(spec.change_points.iter().map(|&at| TemporalModelChoice::Piecewise { at }));
+    let mut attempts = Vec::new();
+    let mut successes = Vec::new();
     for choice in choices {
         if let Some(fit) = try_fit(choice, &mut attempts)? {
             successes.push(fit);
@@ -525,9 +537,6 @@ fn fit_candidates(
                 successes.push(fit);
             }
         }
-        // After a weak change attempt, the smooth family is an actual next attempt;
-        // retain its best converged fit, not a renamed piecewise/no-change result.
-        successes.retain(|fit| matches!(fit.2, TemporalModelChoice::Smooth { .. }));
         successes.sort_by(|a, b| a.0.total_cmp(&b.0));
     }
     let Some((_, values, choice)) = successes.into_iter().next() else {
@@ -968,6 +977,111 @@ mod tests {
             path_prior_sd: 1.0,
         }
     }
+    // Exercise the production candidate coordinator with deterministic fit outcomes;
+    // no optimizer tolerances or random samples can mask a selection regression.
+    fn selected_from_scores(
+        spec: &TemporalPanelSpec,
+        scores: &[Option<f64>],
+    ) -> Result<Selected, PanelError> {
+        let mut slot = 0;
+        let selected = select_candidates(spec, |choice, attempts| {
+            let score = scores[slot];
+            slot += 1;
+            attempts.push(TemporalPanelAttempt {
+                choice: choice.clone(), log_likelihood: score.map(|s| -s / 2.0),
+                criterion: score, converged: score.is_some(),
+                failure: score.is_none().then(|| "local fit failed".to_owned()),
+            });
+            Ok(score.map(|s| (s, vec![s], choice)))
+        });
+        assert_eq!(slot, scores.len(), "every required candidate was attempted");
+        selected
+    }
+
+    #[test]
+    fn smooth_attempts_do_not_discard_the_best_no_change_candidate() {
+        let spec = specification();
+        let fit = selected_from_scores(&spec, &[Some(1.0), Some(4.0), Some(5.0), Some(6.0), Some(2.0), Some(3.0)]).unwrap();
+        assert!(fit.smooth);
+        assert_eq!(fit.choice, TemporalModelChoice::NoChange);
+        assert_eq!(fit.values, vec![1.0]);
+        assert_eq!(fit.attempts.len(), 6);
+        assert!(matches!(&fit.attempts[4].choice, TemporalModelChoice::Smooth { penalty } if *penalty == 0.5));
+        assert!(fit.attempts.iter().all(|attempt| attempt.converged && attempt.failure.is_none()));
+    }
+
+    #[test]
+    fn failed_smooth_attempts_keep_the_best_converged_piecewise_incumbent() {
+        let spec = specification();
+        let fit = selected_from_scores(&spec, &[Some(5.0), Some(2.0), Some(3.0), None, None, None]).unwrap();
+        assert!(fit.smooth);
+        assert_eq!(fit.choice, TemporalModelChoice::Piecewise { at: 8 });
+        assert_eq!(fit.values, vec![2.0]);
+        assert_eq!(fit.attempts.len(), 6);
+        assert!(fit.attempts[4..].iter().all(|attempt| !attempt.converged && attempt.failure.is_some()));
+    }
+
+    #[test]
+    fn strongly_localized_piecewise_fit_does_not_run_smooth_attempts() {
+        let spec = specification();
+        let fit = selected_from_scores(&spec, &[Some(12.0), Some(1.0), Some(8.0), Some(9.0)]).unwrap();
+        assert!(!fit.smooth);
+        assert_eq!(fit.choice, TemporalModelChoice::Piecewise { at: 8 });
+        assert_eq!(fit.attempts.len(), 4);
+    }
+
+    #[test]
+    fn a_better_smooth_candidate_wins_and_all_failed_attempts_refuse() {
+        let spec = specification();
+        let fit = selected_from_scores(&spec, &[Some(5.0), Some(2.0), Some(3.0), None, Some(1.0), Some(4.0)]).unwrap();
+        assert_eq!(fit.choice, TemporalModelChoice::Smooth { penalty: 0.5 });
+        assert!(fit.smooth);
+        let error = match selected_from_scores(&spec, &[None, None, None, None, None, None]) {
+            Ok(_) => panic!("all failed candidates must refuse"),
+            Err(error) => error,
+        };
+        assert!(matches!(&error, PanelError::Numerical(_)));
+        assert!(error.to_string().contains("6 attempted"));
+    }
+
+    #[test]
+    fn public_fit_retains_no_change_and_reports_the_smooth_attempts() {
+        // The reference panel has a stationary interaction of 1.5. Start each
+        // candidate at that same known mechanism with zero path offsets. A
+        // deliberately loose declared score tolerance isolates selection from
+        // optimizer trajectory and makes the BIC ordering deterministic.
+        let (data, truth, _) = super::super::tests::fixture();
+        let spec = specification();
+        let options = PanelFitOptions {
+            optimizer: super::super::PanelOptimizerOptions {
+                max_iterations: 1,
+                gradient_tolerance: 1e100,
+            },
+            inference: PanelInference::Frequentist { draws: 1 },
+            initial: Some(truth.parameters.clone()),
+        };
+        let ctx = ExecutionContext::for_tests(79);
+        let fit = fit_temporal_panel(&data, &spec, &options, &ctx).unwrap();
+        assert_eq!(fit.point.choice, TemporalModelChoice::NoChange);
+        assert!(fit.smooth_fallback);
+        assert_eq!(fit.attempts.len(), 1 + spec.change_points.len() + spec.smoothing.len());
+        assert_eq!(fit.attempts.iter().filter(|a| matches!(&a.choice, TemporalModelChoice::Smooth { .. })).count(), spec.smoothing.len());
+        let selected_score = fit.attempts.iter()
+            .find(|a| a.choice == TemporalModelChoice::NoChange).unwrap().criterion.unwrap();
+        assert!(selected_score.is_finite());
+        assert!(fit.attempts.iter().filter(|a| a.converged)
+            .all(|a| a.criterion.is_some_and(|score| score >= selected_score)));
+        assert!(fit.point.parameters.windows(2).all(|p| p[0] == p[1]));
+        assert_eq!(fit.draws.len(), 1);
+        assert!(fit.draws[0].is_some());
+        assert!(fit.uncertainty.contains("bootstrap"));
+        let responses = evaluate_temporal_programs(&data, &fit.point, &super::super::tests::programs(&data), &ctx).unwrap();
+        let interaction = responses[3].means[12] - responses[1].means[12]
+            - responses[2].means[12] + responses[0].means[12];
+        assert!(interaction.is_finite());
+        assert!((interaction - 2.0 / 3.0).abs() < 1e-10);
+    }
+
     #[test]
     fn changed_mechanism_likelihood_and_response_share_lags_histories_and_reference_worlds() {
         let (mut data, baseline, _) = super::super::tests::fixture();
