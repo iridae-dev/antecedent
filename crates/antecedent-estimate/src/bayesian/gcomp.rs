@@ -812,11 +812,13 @@ fn temper_likelihood(
                      panel units",
                 ));
             }
-            Some(long_run_tempering_factor(
-                &problem.design,
-                scope,
-                ResidualFitReuse::for_context(ctx),
-            )?)
+            Some(antecedent_core::numerical_admission::with_context(ctx, || {
+                long_run_tempering_factor(
+                    &problem.design,
+                    scope,
+                    ResidualFitReuse::for_context(ctx),
+                )
+            })?)
         }
         SerialDependence::SegmentedTempering { scope, segments } => {
             if problem.unit_ids.is_some() {
@@ -825,11 +827,13 @@ fn temper_likelihood(
                     "segmented tempering applies to one series with gaps, not stacked panel units",
                 ));
             }
-            Some(crate::serial_dependence::segmented_tempering_factor(
-                &problem.design,
-                scope,
-                segments,
-            )?)
+            Some(antecedent_core::numerical_admission::with_context(ctx, || {
+                crate::serial_dependence::segmented_tempering_factor(
+                    &problem.design,
+                    scope,
+                    segments,
+                )
+            })?)
         }
     };
     let weights = tempering
