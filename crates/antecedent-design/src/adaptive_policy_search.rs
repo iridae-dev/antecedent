@@ -19,7 +19,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::adaptive_policy::AdaptivePolicyFamily;
-use antecedent_core::{derive_stream, CanonicalWriter, CausalRng, ExecutionContext, VariableId};
+use antecedent_core::{CanonicalWriter, CausalRng, ExecutionContext, VariableId, derive_stream};
 use std::sync::Arc;
 
 /// Which draws a rollout request uses.
@@ -77,7 +77,9 @@ pub enum AdaptivePolicySearchError {
     #[error("adaptive_policy_search source: {0}")]
     Source(String),
     /// A policy reads a variable that is not observed at decision time.
-    #[error("adaptive_policy_search: policy reads variable {variable} that is not observed when it acts")]
+    #[error(
+        "adaptive_policy_search: policy reads variable {variable} that is not observed when it acts"
+    )]
     UnobservedFeature {
         /// Raw id of the variable.
         variable: u32,
@@ -121,11 +123,7 @@ fn invalid(message: impl Into<String>) -> AdaptivePolicySearchError {
 }
 
 fn cancelled(ctx: &ExecutionContext) -> Result<(), AdaptivePolicySearchError> {
-    if ctx.cancellation.is_cancelled() {
-        Err(AdaptivePolicySearchError::Cancelled)
-    } else {
-        Ok(())
-    }
+    if ctx.cancellation.is_cancelled() { Err(AdaptivePolicySearchError::Cancelled) } else { Ok(()) }
 }
 
 /// A compatible causal response model that simulates decision paths for a policy.
@@ -449,6 +447,22 @@ fn wilson_upper(violations: usize, n: usize) -> f64 {
     let center = (p + z2 / (2.0 * n)) / denom;
     let half = WILSON_Z * (p * (1.0 - p) / n + z2 / (4.0 * n * n)).sqrt() / denom;
     (center + half).min(1.0)
+}
+
+// Empirical lower-tail mean: a boundary atom contributes only the fraction
+// needed to fill alpha of the empirical probability mass.
+fn fractional_lower_tail_mean(values: &[f64], alpha: f64) -> f64 {
+    let mut sorted = values.to_vec();
+    sorted.sort_by(f64::total_cmp);
+    let mass = alpha * sorted.len() as f64;
+    let whole = (mass.floor() as usize).min(sorted.len());
+    if whole == 0 {
+        return sorted[0];
+    }
+    let fractional = mass - whole as f64;
+    let sum = sorted[..whole].iter().sum::<f64>()
+        + if whole < sorted.len() { fractional * sorted[whole] } else { 0.0 };
+    sum / mass
 }
 
 fn mean_and_se(values: &[f64]) -> (f64, f64) {
@@ -833,10 +847,7 @@ impl PreparedAdaptivePolicySearch {
         let objective = match self.objective {
             PolicyObjective::ExpectedUtility => mean_utility,
             PolicyObjective::LowerTailMean { alpha } => {
-                let mut sorted = utilities.clone();
-                sorted.sort_by(f64::total_cmp);
-                let k = ((alpha * n as f64).ceil() as usize).clamp(1, n);
-                sorted[..k].iter().sum::<f64>() / k as f64
+                fractional_lower_tail_mean(&utilities, alpha)
             }
         };
         let feasible = constraints.iter().all(|c| c.satisfied);
@@ -1122,4 +1133,19 @@ fn record_identity(problem: [u8; 32], source: &str, families: &[FamilySearchResu
         w.opt_real(f.held_out.as_ref().map(|h| h.objective));
     }
     w.finish()
+}
+
+#[cfg(test)]
+mod fractional_tail_tests {
+    use super::fractional_lower_tail_mean;
+
+    #[test]
+    fn lower_tail_mean_weights_only_the_fractional_boundary() {
+        let values = [30.0, 0.0, 20.0, 10.0];
+        assert!((fractional_lower_tail_mean(&values, 0.375) - 10.0 / 3.0).abs() < 1e-14);
+        assert_eq!(fractional_lower_tail_mean(&values, 0.125), 0.0);
+        assert_eq!(fractional_lower_tail_mean(&[0.5, 1.0], f64::from_bits(1)), 0.5);
+        assert_eq!(fractional_lower_tail_mean(&values, 1.0), 15.0);
+        assert_eq!(fractional_lower_tail_mean(&[5.0, 1.0, 1.0, 9.0], 0.375), 1.0);
+    }
 }
