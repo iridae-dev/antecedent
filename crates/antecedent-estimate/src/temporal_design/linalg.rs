@@ -159,11 +159,23 @@ pub(crate) fn fit_gaussian(
     let factor = cholesky(&precision, p)
         .ok_or_else(|| EstimationError::stats_msg("the confounder regression is singular"))?;
     let mean = cholesky_solve(&factor, p, &xty);
-    let fitted_quadratic: f64 = mean.iter().zip(&xty).map(|(m, v)| m * v).sum();
-    let yty: f64 = y.iter().map(|value| value * value).sum();
+    // The NIG rate includes the prior penalty as well as residual SSE. This
+    // centered form avoids cancellation in y'y - mean'X'y at large offsets.
+    let rss = antecedent_kernels::numeric::CompensatedSum::of((0..n).map(|i| {
+        let fitted = x[i * p..(i + 1) * p].iter().zip(&mean).map(|(a, b)| a * b).sum::<f64>();
+        (y[i] - fitted).powi(2)
+    }));
+    let penalty = antecedent_kernels::numeric::CompensatedSum::of(
+        mean.iter().map(|value| prior_precision * value * value),
+    );
     let (a0, b0) = (1.0, 1.0);
     let shape = a0 + 0.5 * n as f64;
-    let rate = b0 + 0.5 * (yty - fitted_quadratic).max(0.0);
+    let rate = b0 + 0.5 * (rss + penalty);
+    if !rate.is_finite() || rate <= 0.0 {
+        return Err(EstimationError::stats_msg(
+            "the confounder posterior variance scale is nonpositive or nonfinite",
+        ));
+    }
     let covariance = cholesky_inverse(&factor, p);
     let covariance_factor = cholesky(&covariance, p)
         .ok_or_else(|| EstimationError::stats_msg("the confounder covariance is singular"))?;
@@ -173,6 +185,13 @@ pub(crate) fn fit_gaussian(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn gaussian_rate_keeps_residual_and_prior_penalty_at_large_offsets() {
+        let fit = fit_gaussian(&[1.0; 3], 1, &[1e9 - 1.0, 1e9, 1e9 + 1.0], 1e-18).unwrap();
+        // SSE=2, coefficient penalty=1, prior rate=1.
+        assert!((fit.rate - 2.5).abs() < 1e-6, "{}", fit.rate);
+    }
 
     #[test]
     fn cholesky_solves_a_small_system() {

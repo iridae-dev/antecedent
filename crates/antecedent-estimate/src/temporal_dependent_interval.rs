@@ -812,10 +812,7 @@ pub fn validate_config(config: &DependentIntervalConfig) -> Result<(), Estimatio
         return Err(EstimationError::refused_detail(
             reason_code!("route_not_supported"),
             TEMPORAL_INTERVAL_TOO_MANY_REPLICATES,
-            format!(
-                "{} replicates exceed the cap of {INTERVAL_MAX_REPLICATES}",
-                config.replicates
-            ),
+            format!("{} replicates exceed the cap of {INTERVAL_MAX_REPLICATES}", config.replicates),
         ));
     }
     let bad = |message: &str| EstimationError::refused(reason_code!("invalid_argument"), message);
@@ -841,6 +838,7 @@ fn quantile(sorted: &[f64], p: f64) -> f64 {
 /// acceleration is the skewness of the complete delete-one-unit jackknife. `None` when
 /// a leave-one-out estimate is unsupported or the constants are not finite, so the
 /// plain percentile endpoints stand.
+#[cfg(test)]
 fn bias_corrected_accelerated<E: TemporalEstimator + ?Sized>(
     all: &[&UnitHistories],
     estimator: &E,
@@ -1142,9 +1140,7 @@ pub fn checked_paired_effect_interval<E: TemporalEstimator + ?Sized>(
     let tail = (1.0 - config.level) / 2.0;
     let (low, high) = (quantile(&points, tail), quantile(&points, 1.0 - tail));
     let (lower, upper) = match config.method {
-        IntervalMethod::Percentile => {
-            bias_corrected_accelerated(&all, estimator, point, &points, tail).unwrap_or((low, high))
-        }
+        IntervalMethod::Percentile => (low, high),
         IntervalMethod::Basic => (2.0_f64.mul_add(point, -high), 2.0_f64.mul_add(point, -low)),
         IntervalMethod::Studentized => {
             return Err(EstimationError::unsupported(
@@ -1233,6 +1229,32 @@ mod digest_tests {
         let other = DependentIntervalConfig { seed: 8, replicates: 3, ..config };
         let moved = run_replicates(&panel, &MeanOutcome, &other, &ctx).unwrap();
         assert!(moved.iter().zip(&records).all(|(a, b)| a.replicate_id != b.replicate_id));
+    }
+
+    #[test]
+    fn percentile_is_equal_tailed_even_when_bca_differs() {
+        let panel = panel();
+        let ctx = ExecutionContext::for_tests(1);
+        let config = DependentIntervalConfig {
+            replicates: 200,
+            seed: 7,
+            level: 0.8,
+            method: IntervalMethod::Percentile,
+            min_units: 2,
+            ..Default::default()
+        };
+        let interval = checked_paired_effect_interval(&panel, &MeanOutcome, &config, &ctx).unwrap();
+        let mut points: Vec<_> =
+            interval.replicates.iter().filter_map(|record| record.point).collect();
+        points.sort_by(f64::total_cmp);
+        let tail = (1.0 - config.level) / 2.0;
+        let expected = (quantile(&points, tail), quantile(&points, 1.0 - tail));
+        assert_eq!((interval.lower, interval.upper), expected);
+        let all: Vec<_> = panel.units.iter().collect();
+        let bca =
+            bias_corrected_accelerated(&all, &MeanOutcome, interval.point, &points, tail).unwrap();
+        assert!((bca.0 - expected.0).abs() > 1e-12 || (bca.1 - expected.1).abs() > 1e-12);
+        assert_eq!(interval.calibration_basis().interval_method.as_ref(), "bootstrap_percentile");
     }
 
     #[test]

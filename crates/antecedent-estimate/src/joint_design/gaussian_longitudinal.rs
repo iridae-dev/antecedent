@@ -608,10 +608,16 @@ fn posterior_regression(
         .ok_or("proper Gaussian history posterior factorization failed")?;
     let mean = antecedent_stats::chol_solve(&chol, p, &rhs)
         .ok_or("Gaussian history posterior mean solve failed")?;
-    let scale = prior.variance_scale
-        + 0.5
-            * (model.y.iter().map(|y| y * y).sum::<f64>()
-                - mean.iter().zip(&rhs).map(|(a, b)| a * b).sum::<f64>());
+    // Complete the square without subtracting two large raw second moments:
+    // y'y - mean'X'y = ||y - X mean||² + mean' prior_precision mean.
+    let rss = antecedent_kernels::numeric::CompensatedSum::of((0..n).map(|i| {
+        let fitted = (0..p).map(|j| model.x[j * n + i] * mean[j]).sum::<f64>();
+        (model.y[i] - fitted).powi(2)
+    }));
+    let penalty = antecedent_kernels::numeric::CompensatedSum::of(
+        mean.iter().map(|value| (value / prior.coefficient_scale.sqrt()).powi(2)),
+    );
+    let scale = prior.variance_scale + 0.5 * (rss + penalty);
     if !scale.is_finite() || scale <= 0.0 {
         return Err("conjugate history posterior variance scale is nonpositive".into());
     }
@@ -743,6 +749,27 @@ mod tests {
         let design=GaussianLongitudinalDesign{channel_variables:vec![1],covariate_variables:vec![2],worlds:[(0.0,0.0),(1.0,0.0),(0.0,1.0),(1.0,1.0)].into_iter().enumerate().map(|(i,(a,b))|GaussianLongitudinalWorld{key:i.to_string(),treatments:vec![vec![a],vec![b]]}).collect(),assignment_support:vec![GaussianAssignmentSupport::Real],sequential_exchangeability:"measured fullhistory suffices before each joint assignment".into(),consistency:"stable continuous treatment versions".into(),population:"original independent fullhistory source episodes".into(),conditional_model:"Gaussian full-history state/outcome mechanisms and Gaussian conditional treatment density".into(),model};
         (design, episodes)
     }
+    #[test]
+    fn posterior_scale_keeps_residual_and_prior_penalty_at_large_offsets() {
+        let model = Regression {
+            features: vec![GaussianHistoryFeature::Intercept],
+            coefficients: vec![0.0],
+            x: vec![1.0; 3],
+            y: vec![1e9 - 1.0, 1e9, 1e9 + 1.0],
+            n: 3,
+        };
+        let prior = GaussianLongitudinalPrior {
+            coefficient_scale: 1e18,
+            variance_shape: 2.0,
+            variance_scale: 1.0,
+            draws: 1,
+            seed: 1,
+        };
+        let posterior = posterior_regression(&model, &prior).unwrap();
+        // SSE=2, coefficient penalty=1, prior rate=1.
+        assert!((posterior.scale - 2.5).abs() < 1e-6, "{}", posterior.scale);
+    }
+
     #[test]
     fn continuous_treatment_affected_histories_have_correct_analytic_joint_regime_truth() {
         let (design, episodes) = fixture();
