@@ -164,7 +164,7 @@ fn compiled(study: &Study, route: &str) -> CompiledExecution {
     let execution = CompiledExecution::run(study, &ctx).unwrap();
     assert_eq!(execution.prepared().plan().lowered_program_identity(), Some(identity));
     assert_eq!(execution.result().lowered_program_identity(), Some(identity));
-    assert!(execution.result().executed_contract.is_some(), "the estimate stamps its contract");
+    assert!(execution.result().executed_contract().is_some(), "the estimate stamps its contract");
     execution
 }
 
@@ -204,7 +204,7 @@ fn static_searches_compile_and_equal_their_engines() {
         assert_eq!(graph_and_links(&compiled_pc), graph_and_links(&direct));
         let (contract, claim) = execution.contract_and_claim(&ctx()).unwrap();
         assert_eq!(
-            execution.result().executed_contract.as_ref().map(|executed| &executed.identities),
+            execution.result().executed_contract().map(|executed| &executed.identities),
             Some(&claim.identities),
             "the claim seals the stamped execution"
         );

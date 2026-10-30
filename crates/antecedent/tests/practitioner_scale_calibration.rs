@@ -168,7 +168,7 @@ fn binary_ate() -> AverageEffectQuery {
 /// One replicate's reported and gate-level intervals with the constructions the execution
 /// reported. A replicate that failed to produce a result is `None`.
 struct Scored {
-    reported: Vec<(Construction, ScopeFacts)>,
+    reported: Vec<(Construction, ScopeFacts, &'static str)>,
     intervals: [Option<(f64, f64)>; 2],
 }
 
@@ -202,12 +202,12 @@ fn score(tallies: &mut [CoverageTally; 2], runs: &[Option<Scored>], truth: f64) 
         };
         for (tally, interval) in tallies.iter_mut().zip(run.intervals) {
             let wanted = tally.record_interval().expect("record-keyed tally");
-            let (construction, scope) = run
+            let (construction, scope, validation) = run
                 .reported
                 .iter()
-                .find(|(construction, _)| construction.interval_method == wanted)
+                .find(|(construction, _, _)| construction.interval_method == wanted)
                 .unwrap_or_else(|| panic!("the execution reported no {wanted} interval"));
-            tally.bind(construction, *scope);
+            tally.bind_validation(construction, *scope, validation);
             tally.record(interval, truth);
         }
     }
@@ -624,13 +624,13 @@ fn temporal_coverage(test: &'static str, query: &antecedent_core::TemporalEffect
         };
         let [at_reported, at_gate] = run.intervals;
         if at_gate.is_some() {
-            let (construction, scope) = run
+            let (construction, scope, validation) = run
                 .reported
                 .iter()
-                .find(|(construction, _)| construction.interval_method == "circular_block_se")
+                .find(|(construction, _, _)| construction.interval_method == "circular_block_se")
                 .expect("the execution reported its circular-block interval");
-            gated.bind(construction, *scope);
-            reported.bind(construction, *scope);
+            gated.bind_validation(construction, *scope, validation);
+            reported.bind_validation(construction, *scope, validation);
         }
         gated.record(at_gate, truth);
         reported.record(at_reported, truth);
@@ -777,13 +777,15 @@ fn practitioner_temporal_mediation_interval() {
             };
             let [at_reported, at_gate] = contrasts[i].intervals;
             if at_gate.is_some() {
-                let (construction, scope) = contrasts[i]
+                let (construction, scope, validation) = contrasts[i]
                     .reported
                     .iter()
-                    .find(|(construction, _)| construction.interval_method == "circular_block_se")
+                    .find(|(construction, _, _)| {
+                        construction.interval_method == "circular_block_se"
+                    })
                     .expect("the execution reported its circular-block interval");
-                gated[i].bind(construction, *scope);
-                reported[i].bind(construction, *scope);
+                gated[i].bind_validation(construction, *scope, validation);
+                reported[i].bind_validation(construction, *scope, validation);
             }
             gated[i].record(at_gate, *truth);
             reported[i].record(at_reported, *truth);
@@ -862,13 +864,13 @@ fn practitioner_temporal_bayesian_mediation_interval() {
                 continue;
             };
             let [at_reported, at_gate] = contrasts[i].intervals;
-            let (construction, scope) = contrasts[i]
+            let (construction, scope, validation) = contrasts[i]
                 .reported
                 .iter()
-                .find(|(construction, _)| construction.interval_method == "posterior_quantile")
+                .find(|(construction, _, _)| construction.interval_method == "posterior_quantile")
                 .expect("the execution reported its posterior interval");
-            gated[i].bind(construction, *scope);
-            reported[i].bind(construction, *scope);
+            gated[i].bind_validation(construction, *scope, validation);
+            reported[i].bind_validation(construction, *scope, validation);
             gated[i].record(at_gate, *truth);
             reported[i].record(at_reported, *truth);
         }

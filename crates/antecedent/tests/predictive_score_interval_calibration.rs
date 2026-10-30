@@ -200,6 +200,7 @@ fn spec(design: Design, truth: Truth, n: usize, seed: u64) -> PredictiveAssessme
 }
 
 struct Scored {
+    validation: String,
     construction: Construction,
     scope: ScopeFacts,
     interval: (f64, f64),
@@ -235,6 +236,7 @@ fn replicate(
     let built = construct_expected_score_interval(&spec, &report, &query).ok()?;
     let key = built.basis.key;
     Some(Scored {
+        validation: key.validation,
         construction: Construction {
             query: key.query,
             graph_class: key.graph_class,
@@ -307,7 +309,7 @@ fn run(
     for outcome in scored {
         match outcome {
             Some(one) => {
-                tally.bind(&one.construction, one.scope);
+                tally.bind_validation(&one.construction, one.scope, &one.validation);
                 tally.record(Some(one.interval), truth);
             }
             None => tally.skip(),

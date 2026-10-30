@@ -374,7 +374,7 @@ fn discovered_pag_transport_contrast_complete_procedure_coverage() {
             set.bounds
         });
         let outcome = non_reports.interval(outcome);
-        tally.bind(
+        tally.bind_validation(
             &construction(),
             ScopeFacts {
                 row_count: n as u64,
@@ -382,6 +382,7 @@ fn discovered_pag_transport_contrast_complete_procedure_coverage() {
                 posterior_draws: None,
                 unidentified_mass: 0.0,
             },
+            "not_applicable",
         );
         tally.record(outcome, effect);
     }
@@ -524,7 +525,7 @@ fn discovered_temporal_transport_contrast_complete_procedure_coverage() {
         )
     }) {
         let outcome = non_reports.interval(outcome);
-        tally.bind(
+        tally.bind_validation(
             &temporal_construction(),
             ScopeFacts {
                 row_count: steps as u64,
@@ -532,6 +533,7 @@ fn discovered_temporal_transport_contrast_complete_procedure_coverage() {
                 posterior_draws: None,
                 unidentified_mass: 0.0,
             },
+            "not_applicable",
         );
         tally.record(outcome, effect);
     }
@@ -622,7 +624,7 @@ fn discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverag
         )
     }) {
         let outcome = non_reports.interval(outcome);
-        tally.bind(
+        tally.bind_validation(
             &temporal_construction(),
             ScopeFacts {
                 row_count: steps as u64,
@@ -630,6 +632,7 @@ fn discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverag
                 posterior_draws: None,
                 unidentified_mass: 0.0,
             },
+            "not_applicable",
         );
         tally.record(outcome, effect);
     }

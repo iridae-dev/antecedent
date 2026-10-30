@@ -122,7 +122,7 @@ type Run = (Study, StudyResult);
 /// posterior draws (`posterior_pair` / `response_posterior_pairs`).
 struct Replicate {
     /// Runtime bindings, extracted before releasing the table and posterior.
-    reported: Vec<(Construction, ScopeFacts)>,
+    reported: Vec<(Construction, ScopeFacts, &'static str)>,
     /// `[reported, gate]` intervals, one entry per cell.
     pairs: Vec<Pair>,
     /// Truth, one entry per cell.

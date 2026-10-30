@@ -483,7 +483,11 @@ fn score(
             Some(scored) => {
                 reported.record(Some((0.0, 1.0)), 0.5);
                 recovery.record(scored.recovered.then_some((0.0, 1.0)), 0.5);
-                tally.bind(&scored.construction.0, scored.construction.1);
+                tally.bind_validation(
+                    &scored.construction.0,
+                    scored.construction.1,
+                    "not_applicable",
+                );
                 tally.record(Some(scored.interval), scored.truth);
             }
             None => {

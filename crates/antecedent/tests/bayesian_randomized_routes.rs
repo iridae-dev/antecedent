@@ -922,6 +922,15 @@ fn licensed_ipow_posterior_replays_after_the_builder_is_dropped() {
         let result = prepared.estimate_retained(&ctx).unwrap();
         assert_eq!(result.support_status(), Some(antecedent::CellStatus::Licensed));
         close(column(&result, 0).0, 1.683_193_067_244_396_4, 5e-3, "retained IPW posterior mean");
+        let (contract, claim) = prepared.execution_contract(&result, &ctx).unwrap();
+        let bases = result.calibration_bases(&contract).unwrap();
+        assert!(!bases.is_empty());
+        assert!(bases.iter().all(|basis| basis.key.validation == "not_applicable"
+            && basis.key.query == "RandomizedEffect"
+            && basis.key.graph_class == "RandomizedTrial"
+            && basis.key.structure == "design"));
+        // PosteriorRow deliberately does not attach scalar-claim calibration.
+        assert!(claim.calibration.basis.is_none());
         let bytes = prepared.encode_contracted_result(&result, "licensed-ipow", &ctx).unwrap();
         drop(prepared);
         let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();

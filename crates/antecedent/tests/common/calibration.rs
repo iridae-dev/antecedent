@@ -637,6 +637,7 @@ struct BoundRecord {
     file: &'static str,
     label: Option<String>,
     construction: Option<Construction>,
+    validation: Option<String>,
     n_min: u64,
     n_max: u64,
     replicates_min: Option<u32>,
@@ -701,6 +702,8 @@ fn decision_context() -> Option<serde_json::Value> {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct RecordState {
     construction: Option<Construction>,
+    #[serde(default)]
+    validation: Option<String>,
     n_min: u64,
     n_max: u64,
     replicates_min: Option<u32>,
@@ -815,6 +818,10 @@ impl CoverageTally {
         match (self.record.as_mut(), prior.record.as_ref()) {
             (Some(record), Some(prior)) => {
                 record.construction.clone_from(&prior.construction);
+                record.validation = prior
+                    .validation
+                    .clone()
+                    .or_else(|| (prior.bound > 0).then(|| "unknown".to_owned()));
                 record.n_min = prior.n_min;
                 record.n_max = prior.n_max;
                 record.replicates_min = prior.replicates_min;
@@ -846,6 +853,7 @@ impl CoverageTally {
             decision_context: decision_context(),
             record: self.record.as_ref().map(|record| RecordState {
                 construction: record.construction.clone(),
+                validation: record.validation.clone(),
                 n_min: record.n_min,
                 n_max: record.n_max,
                 replicates_min: record.replicates_min,
@@ -917,6 +925,7 @@ impl CoverageTally {
             file,
             label: None,
             construction: None,
+            validation: None,
             n_min: u64::MAX,
             n_max: 0,
             replicates_min: None,
@@ -969,6 +978,17 @@ impl CoverageTally {
     /// When the construction differs between replicates, when it is not the
     /// interval method the record declared, or on a tally without a record.
     pub fn bind(&mut self, construction: &Construction, scope: ScopeFacts) {
+        self.bind_validation(construction, scope, "unknown");
+    }
+
+    /// Bind an execution's verified support validation mode; unknown is not a support coordinate.
+    pub fn bind_validation(
+        &mut self,
+        construction: &Construction,
+        scope: ScopeFacts,
+        validation: &str,
+    ) {
+        assert!(matches!(validation, "unknown" | "not_applicable" | "none" | "cheap" | "full"));
         self.seed();
         let name = self.name.clone();
         let record = self
@@ -994,6 +1014,13 @@ impl CoverageTally {
                 "{name}: replicates were keyed under different constructions"
             ),
             None => record.construction = Some(construction.clone()),
+        }
+        match &record.validation {
+            Some(previous) => assert_eq!(
+                previous, validation,
+                "{name}: replicates have different support validation modes"
+            ),
+            None => record.validation = Some(validation.to_owned()),
         }
         record.bound += 1;
         record.n_min = record.n_min.min(scope.row_count);
@@ -1182,6 +1209,11 @@ impl CoverageTally {
             construction.interval_method,
             record.key.test
         );
+        id.push_str(".v2_validation_");
+        id.push_str(record.validation.as_deref().unwrap_or("unknown"));
+        if construction.structure == "accepted" {
+            id.push_str(".v2_structure_accepted");
+        }
         if let Some(label) = &record.label {
             id.push('.');
             id.push_str(&sanitize_label(label));
@@ -1214,6 +1246,8 @@ impl CoverageTally {
         let attempts = self.attempts();
         let mut payload = serde_json::json!({
                 "id": id,
+                "validation_schema": 2,
+                "validation": record.validation.as_deref().unwrap_or("unknown"),
                 "query": construction.query,
                 "graph_class": construction.graph_class,
                 "structure": construction.structure,

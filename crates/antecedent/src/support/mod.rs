@@ -57,6 +57,7 @@ pub use antecedent_io::graphless_support::{
 
 pub use axis::query_axis_name;
 pub(crate) use axis::{effective_graph_class, matrix_graph_class};
+pub(crate) use bridge::validation_axis;
 pub use bridge::{
     is_declared_off_axis, refuse_undeclared_off_axis, support_cell, support_cell_named,
     support_cell_named_for_data,

@@ -471,6 +471,7 @@ fn contract_for(
         calibration: crate::calibration::calibration_slots(&[
             crate::calibration::CalibrationBasisWire {
                 key: crate::calibration::CalibrationKeyWire {
+                    validation: "none".into(),
                     query: "AverageEffect".into(),
                     graph_class: "Dag".into(),
                     structure: "fixed".into(),
@@ -1230,6 +1231,35 @@ fn tampered_claim_fields_fail_the_claim_id() {
 }
 
 #[test]
+fn calibration_basis_validation_must_match_the_support_coordinate() {
+    let (body, target, _) = fixture_body();
+    let contract = contract_for(target, &body);
+    let basis = contract.claim.as_ref().unwrap().calibration.basis.as_ref().unwrap();
+    assert!(super::verify::calibration_basis_matches_contract(&contract, basis));
+    let mut mismatched = basis.clone();
+    mismatched.key.validation = "cheap".into();
+    assert!(!super::verify::calibration_basis_matches_contract(&contract, &mismatched));
+    // Legacy metadata stays readable and never claims a validation coordinate.
+    mismatched.key.validation.clear();
+    assert!(super::verify::calibration_basis_matches_contract(&contract, &mismatched));
+}
+
+#[test]
+fn calibration_basis_distinguishes_accepted_from_explicit_structure() {
+    let (body, target, _) = fixture_body();
+    let mut contract = contract_for(target, &body);
+    contract.reasoning.support.value.as_mut().unwrap().matrix_coordinate =
+        Some("AverageEffect:Dag:accepted:Frequentist:none".into());
+    let mut basis = contract.claim.as_ref().unwrap().calibration.basis.clone().unwrap();
+    basis.key.structure = "accepted".into();
+    assert!(super::verify::calibration_basis_matches_contract(&contract, &basis));
+    basis.key.structure = "fixed".into();
+    assert!(!super::verify::calibration_basis_matches_contract(&contract, &basis));
+    basis.key.validation.clear();
+    assert!(super::verify::calibration_basis_matches_contract(&contract, &basis));
+}
+
+#[test]
 fn off_axis_claim_cannot_self_license_calibration() {
     let (body, target, _) = fixture_body();
     let mut contract = contract_for(target, &body);
@@ -1872,4 +1902,92 @@ fn portable_family_evidence_is_sealed_without_claiming_scalar_replay_verifies_it
         .as_str(),
         "convert error: contract does not verify against analysis_result body: claim.id"
     );
+}
+
+#[test]
+fn graphless_calibration_validation_is_bound_to_checked_route_and_no_suite() {
+    use antecedent_core::{PanelDidQuery, RandomizedEffectQuery};
+    use std::sync::Arc;
+    let (body, target, _) = fixture_body();
+    let panel = PanelDidQuery::new(
+        VariableId::from_raw(1),
+        [true, true, false, false],
+        [false, true, false, true],
+        ["a", "a", "b", "b"].map(Arc::<str>::from),
+        ["x", "x", "y", "y"].map(Arc::<str>::from),
+    );
+    let trial = RandomizedEffectQuery::bernoulli_itt(
+        VariableId::from_raw(1),
+        vec![false, true],
+        vec![0.5, 0.5],
+        ["a", "b"].map(Arc::<str>::from),
+        ["a", "b"].map(Arc::<str>::from),
+        ("control", "treated"),
+    );
+    let cases = [
+        (
+            CausalQuery::PanelDid(panel),
+            "graphless:difference_in_differences/two_period_panel/cluster/normal",
+            "frequentist",
+            "analytic_se",
+            "cluster",
+        ),
+        (
+            CausalQuery::RandomizedEffect(trial),
+            "graphless:randomized_effect/bernoulli/gaussian_ipow_modular_posterior/conditional_pseudo_posterior_pointwise_95_quantiles",
+            "bayesian",
+            "posterior_quantile",
+            "iid",
+        ),
+    ];
+    for (query, coordinate, inference, interval, dependence) in cases {
+        let mut contract = contract_for(target.clone(), &body);
+        contract.target.query = causal_query_to_wire(&query).unwrap();
+        contract.graph_class = "RandomizedTrial".into();
+        contract.structure_source = "randomized_trial".into();
+        let support = contract.reasoning.support.value.as_mut().unwrap();
+        support.matrix_status = "licensed".into();
+        support.matrix_coordinate = Some(coordinate.into());
+        contract.program.as_mut().unwrap().commitments.inference = inference.into();
+        contract.program.as_mut().unwrap().commitments.validation_suite = None;
+        contract.inference_binding.as_mut().unwrap().validation_suite = None;
+        contract.inference_binding.as_mut().unwrap().inference = inference.into();
+        let mut basis = contract.claim.as_ref().unwrap().calibration.basis.clone().unwrap();
+        basis.key.query =
+            if interval == "analytic_se" { "PanelDid" } else { "RandomizedEffect" }.into();
+        basis.key.graph_class = "RandomizedTrial".into();
+        basis.key.structure = "design".into();
+        basis.key.inference = inference.into();
+        basis.key.interval_method = interval.into();
+        basis.key.dependence = dependence.into();
+        basis.key.validation = "not_applicable".into();
+        assert!(super::verify::calibration_basis_matches_contract(&contract, &basis));
+        for forged in ["none", "cheap", "full", "unrecognized"] {
+            basis.key.validation = forged.into();
+            assert!(
+                !super::verify::calibration_basis_matches_contract(&contract, &basis),
+                "{forged}"
+            );
+        }
+        basis.key.validation = "not_applicable".into();
+        let mut forged_axis = basis.clone();
+        forged_axis.key.query = "Unknown".into();
+        forged_axis.key.structure = "fixed".into();
+        assert!(!super::verify::calibration_basis_matches_contract(&contract, &forged_axis));
+        contract.program.as_mut().unwrap().commitments.validation_suite =
+            Some("validation.full".into());
+        assert!(!super::verify::calibration_basis_matches_contract(&contract, &basis));
+        contract.program.as_mut().unwrap().commitments.validation_suite = None;
+        contract.inference_binding.as_mut().unwrap().validation_suite =
+            Some("validation.full".into());
+        assert!(!super::verify::calibration_basis_matches_contract(&contract, &basis));
+        contract.inference_binding = None;
+        assert!(!super::verify::calibration_basis_matches_contract(&contract, &basis));
+        // Old artifacts remain readable but the calibration matcher rejects
+        // an empty validation key for any positive record match.
+        basis.key.validation.clear();
+        basis.key.query = "Unknown".into();
+        basis.key.structure = "fixed".into();
+        assert!(super::verify::calibration_basis_matches_contract(&contract, &basis));
+    }
 }

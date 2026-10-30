@@ -63,7 +63,7 @@ fn natural_direct_effect_retains_worlds_and_replays_outcome_fit() {
         first.estimate().as_effect().unwrap().ate.to_bits()
     );
     assert_eq!(
-        one_shot.executed_contract.as_ref().unwrap().identities.program,
+        one_shot.executed_contract().unwrap().identities.program,
         prepared.contract().unwrap().identities.program
     );
 
@@ -224,7 +224,7 @@ fn bayesian_natural_direct_effect_publishes_the_posterior_mean_without_an_interv
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(
         prepared.contract().unwrap().identities.program,
-        result.executed_contract.as_ref().unwrap().identities.program
+        result.executed_contract().unwrap().identities.program
     );
     let expected = pin["reference"]["natural_direct_effect"].as_f64().unwrap();
     assert!(

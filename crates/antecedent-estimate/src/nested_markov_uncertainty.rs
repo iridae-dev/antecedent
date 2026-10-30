@@ -96,6 +96,7 @@ mod internal {
                 None,
                 0.,
             )
+            .with_validation("not_applicable")
         }
     }
 

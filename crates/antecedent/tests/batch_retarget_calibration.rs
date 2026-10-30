@@ -193,7 +193,7 @@ fn batch_retarget_max_t_simultaneous_band() {
             tally.skip();
             continue;
         };
-        tally.bind(
+        tally.bind_validation(
             &construction(),
             ScopeFacts {
                 row_count: n as u64,
@@ -201,6 +201,7 @@ fn batch_retarget_max_t_simultaneous_band() {
                 posterior_draws: None,
                 unidentified_mass: 0.0,
             },
+            "not_applicable",
         );
         let covered =
             band.members.iter().zip(TRUTHS).all(|(m, truth)| m.lower <= truth && truth <= m.upper);

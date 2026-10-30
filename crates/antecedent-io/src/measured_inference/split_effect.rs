@@ -249,6 +249,7 @@ impl AdjustedEffect {
             None,
             0.0,
         )
+        .with_validation("not_applicable")
     }
 }
 

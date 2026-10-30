@@ -150,7 +150,7 @@ fn compiled(study: &Study, route: &str) -> CompiledExecution {
     assert_eq!(again.lowered_program_identity(), Some(identity), "stable identity");
     let execution = CompiledExecution::run(study, &ctx).unwrap();
     assert_eq!(execution.result().lowered_program_identity(), Some(identity));
-    assert!(execution.result().executed_contract.is_some(), "the estimate stamps its contract");
+    assert!(execution.result().executed_contract().is_some(), "the estimate stamps its contract");
     execution
 }
 

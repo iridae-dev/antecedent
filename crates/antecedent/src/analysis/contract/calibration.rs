@@ -102,10 +102,69 @@ impl StudyResult {
         let bayesian = contract.inference.eq_ignore_ascii_case("bayesian");
         // The fields shared by every reported interval are built once; the
         // per-binding fields start empty (no allocation) and are filled below.
+        // The contract support cell is the coordinate admitted for this program.
+        // Prepared contracts require the complete execution identity. Cheap inspection
+        // intentionally has no program identity, so require a stamped program plus every
+        // identity it does carry, including the inference binding (which commits validation)
+        // and the engine-stamped base data snapshot. The full execution snapshot continues
+        // to bind any replay evidence. A caller-edited suite cannot select a different mode.
+        let validation = match (self.executed_contract, coordinate) {
+            (Some(executed), Some(cell))
+                if (executed.identities == contract.identities
+                    || (contract.identities.program.is_none()
+                        && executed.identities.program.is_some()
+                        && executed.identities.target == contract.identities.target
+                        && executed.identities.identification
+                            == contract.identities.identification
+                        && executed.identities.inference_binding
+                            == contract.identities.inference_binding
+                        && executed.identities.observation == contract.identities.observation
+                        && executed.inspection_data_snapshot
+                            == contract.identities.data_snapshot))
+                    && crate::support::validation_axis(executed.refute) == cell.validation =>
+            {
+                cell.validation.as_str()
+            }
+            // These two checked graphless routes refuse a validation suite at
+            // preparation. Only an exact execution stamp and the licensed,
+            // result-bound route coordinate establish that fact; a detached or
+            // merely inspected result remains unknown.
+            (Some(executed), None)
+                if executed.identities == contract.identities
+                    && executed.refute == crate::RefuteSuite::None
+                    && contract.graph_class == GraphClass::RandomizedTrial
+                    && contract.structure_source == StructureSource::RandomizedTrial
+                    && contract.reasoning.support.as_ref().is_some_and(|slot| {
+                        slot.matrix_status.as_ref() == "licensed"
+                            && slot.matrix_coordinate.as_deref().is_some_and(|coordinate| {
+                                match (&self.payload, &contract.body.query) {
+                                    (ResultPayload::PanelDid(_), antecedent_io::CausalQueryWire::PanelDid(_)) =>
+                                        coordinate.starts_with("graphless:difference_in_differences/"),
+                                    (ResultPayload::PosteriorRow(row), antecedent_io::CausalQueryWire::RandomizedEffect(_)) =>
+                                        row.randomized_ipow.is_some()
+                                            && coordinate.starts_with("graphless:randomized_effect/")
+                                            && coordinate.ends_with("/gaussian_ipow_modular_posterior/conditional_pseudo_posterior_pointwise_95_quantiles"),
+                                    _ => false,
+                                }
+                            })
+                    }) => "not_applicable",
+            _ => "",
+        };
+        let (query, structure) = if validation == "not_applicable" {
+            let query = match &self.payload {
+                ResultPayload::PanelDid(_) => "PanelDid",
+                ResultPayload::PosteriorRow(_) => "RandomizedEffect",
+                _ => unreachable!("graphless validation was established only for these routes"),
+            };
+            (query.to_owned(), "design".to_owned())
+        } else {
+            (query, structure.as_str().to_string())
+        };
         let shared = CalibrationKeyWire {
+            validation: validation.to_owned(),
             query,
             graph_class,
-            structure: structure.as_str().to_string(),
+            structure,
             modality: modality.to_string(),
             inference,
             estimator: self.logical_plan.estimator.as_deref().unwrap_or("").to_string(),
@@ -377,6 +436,7 @@ pub(super) fn calibration_view(slot: &CalibrationSlotWire) -> CalibrationView {
                 basis.scope.posterior_draws,
                 basis.scope.unidentified_mass,
             )
+            .with_validation(Arc::<str>::from(key.validation.as_str()))
         }),
         secondary: slot.secondary.iter().map(calibration_view).collect(),
     }

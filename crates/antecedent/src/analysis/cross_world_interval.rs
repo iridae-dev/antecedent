@@ -182,7 +182,8 @@ pub fn whole_path_interval_basis(
         None,
         None,
         0.0,
-    ))
+    )
+    .with_validation("not_applicable"))
 }
 
 /// The point, the interval and the scalar name a derived account reports.

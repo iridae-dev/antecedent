@@ -145,7 +145,7 @@ fn design(test: &'static str, dgp: &'static str, q: [f64; 4], sampling: UnitSamp
         (interval, basis, truth)
     });
     for (interval, basis, truth) in results {
-        tally.bind(
+        tally.bind_validation(
             &Construction {
                 query: basis.query.to_string(),
                 graph_class: basis.graph_class.to_string(),
@@ -167,6 +167,7 @@ fn design(test: &'static str, dgp: &'static str, q: [f64; 4], sampling: UnitSamp
                 posterior_draws: basis.posterior_draws,
                 unidentified_mass: basis.unidentified_mass,
             },
+            "not_applicable",
         );
         tally.record(interval, truth);
     }

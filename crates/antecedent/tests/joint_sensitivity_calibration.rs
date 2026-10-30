@@ -252,7 +252,7 @@ fn measure(tally: &mut CoverageTally, fraction: f64, n: usize) {
     for row in rows {
         match row {
             Some((replicates_ok, band)) => {
-                tally.bind(
+                tally.bind_validation(
                     &construction(),
                     ScopeFacts {
                         row_count: n as u64,
@@ -260,6 +260,7 @@ fn measure(tally: &mut CoverageTally, fraction: f64, n: usize) {
                         posterior_draws: None,
                         unidentified_mass: 0.0,
                     },
+                    "not_applicable",
                 );
                 tally.record(Some(band), truth(fraction));
             }
@@ -340,7 +341,7 @@ fn synthetic_one_sided_tally(test: &'static str, n: u32, covered: u32) -> Covera
         REPORTED_LEVEL,
     );
     for rep in 0..n {
-        tally.bind(
+        tally.bind_validation(
             &construction(),
             ScopeFacts {
                 row_count: 400,
@@ -348,6 +349,7 @@ fn synthetic_one_sided_tally(test: &'static str, n: u32, covered: u32) -> Covera
                 posterior_draws: None,
                 unidentified_mass: 0.0,
             },
+            "not_applicable",
         );
         let truth = if rep < covered { 0.5 } else { 2.0 };
         tally.record(Some((0.0, 1.0)), truth);

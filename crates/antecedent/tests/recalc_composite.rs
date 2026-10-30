@@ -52,7 +52,7 @@ fn fixture() -> (CompositeSession, CompositeRequest, reference::Provider, refere
     }
     assert!(native.producing_receipt().unwrap().totals().factor_builds > 0);
     let result = native.result().unwrap();
-    let contract = result.executed_contract.as_ref().unwrap();
+    let contract = result.executed_contract().unwrap();
     let graph_id = format!("graph:{}", contract.identities.identification);
     let binding = ProgramBinding {
         contract_id: antecedent_io::external_binding_wire::native_contract_identity(
@@ -232,15 +232,8 @@ fn native_proof_substitution_refuses_purely_and_preserves_shared_state() {
 fn native_data_refresh_counts_real_factors_and_retains_both_providers() {
     let (mut session, mut request, mut p1, mut p2) = fixture();
     execute(&mut session, &request, &mut p1, &mut p2);
-    let old_snapshot = session
-        .native()
-        .result()
-        .unwrap()
-        .executed_contract
-        .as_ref()
-        .unwrap()
-        .identities
-        .data_snapshot;
+    let old_snapshot =
+        session.native().result().unwrap().executed_contract().unwrap().identities.data_snapshot;
     for value in &mut request.native.columns[2].1 {
         *value += 1.0;
     }
@@ -252,15 +245,7 @@ fn native_data_refresh_counts_real_factors_and_retains_both_providers() {
     assert_eq!((p1.calls, p2.calls), (1, 1));
     assert_ne!(
         old_snapshot,
-        session
-            .native()
-            .result()
-            .unwrap()
-            .executed_contract
-            .as_ref()
-            .unwrap()
-            .identities
-            .data_snapshot
+        session.native().result().unwrap().executed_contract().unwrap().identities.data_snapshot
     );
     let response = session.native().result().unwrap().response().unwrap();
     let antecedent_core::ResponseIdentification::PointIdentified(

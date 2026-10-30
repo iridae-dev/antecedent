@@ -352,28 +352,31 @@ impl DoseGridRow {
         let functional =
             format!("{coordinate}.bandwidth:{:016x}.exact_quadratic", self.bandwidth.to_bits());
         let rows = u64::try_from(self.n_rows).ok()?;
-        Some(antecedent_core::CalibrationBasis::new(
-            [
-                "DoseResponse",
-                "Dag",
-                "fixed",
-                "tabular",
-                "Frequentist",
-                "dose_grid_quadratic",
-                "analytic_se",
-                "local_quadratic_HC0",
-                "iid",
-                "",
-                &functional,
-            ]
-            .map(Arc::from),
-            interval.nominal_level,
-            Arc::from("point"),
-            rows,
-            None,
-            None,
-            0.,
-        ))
+        Some(
+            antecedent_core::CalibrationBasis::new(
+                [
+                    "DoseResponse",
+                    "Dag",
+                    "fixed",
+                    "tabular",
+                    "Frequentist",
+                    "dose_grid_quadratic",
+                    "analytic_se",
+                    "local_quadratic_HC0",
+                    "iid",
+                    "",
+                    &functional,
+                ]
+                .map(Arc::from),
+                interval.nominal_level,
+                Arc::from("point"),
+                rows,
+                None,
+                None,
+                0.,
+            )
+            .with_validation("not_applicable"),
+        )
     }
 }
 

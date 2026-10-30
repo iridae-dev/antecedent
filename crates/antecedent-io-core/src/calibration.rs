@@ -45,7 +45,7 @@ use serde::{Deserialize, Serialize};
 use crate::contract_section::{CalibrationSlotWire, CalibrationStatus};
 use crate::coverage_records_data::{
     ATTESTING_RECORD_IDS, CoverageGridPoint, CoverageRecord, FUNCTIONAL_IDENTITY_ALIASES,
-    FunctionalIdentityAlias, RECORDS,
+    FunctionalIdentityAlias, HISTORICAL_VALIDATION_BINDINGS, HistoricalValidationBinding, RECORDS,
 };
 
 /// No interval was reported.
@@ -120,6 +120,9 @@ const TOLERANCE: f64 = 1e-9;
 /// equal to describe it.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct CalibrationKeyWire {
+    /// Executed support validation mode, or empty when it is not established.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub validation: String,
     /// Support-matrix query axis name.
     pub query: String,
     /// Support-matrix graph axis, including `CoDetermined` / `Unknown`.
@@ -211,6 +214,7 @@ impl From<&antecedent_core::CalibrationBasis> for CalibrationBasisWire {
     fn from(basis: &antecedent_core::CalibrationBasis) -> Self {
         Self {
             key: CalibrationKeyWire {
+                validation: basis.validation.to_string(),
                 query: basis.query.to_string(),
                 graph_class: basis.graph_class.to_string(),
                 structure: basis.structure.to_string(),
@@ -238,8 +242,10 @@ impl From<&antecedent_core::CalibrationBasis> for CalibrationBasisWire {
 /// Whether the structure behind a calibrated interval was fixed or learned.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CalibrationStructure {
-    /// Explicit or accepted structure.
+    /// Explicit structure.
     Fixed,
+    /// Accepted structure, retained separately for provenance checks.
+    Accepted,
     /// Averaged over a graph posterior.
     GraphPosterior,
 }
@@ -250,6 +256,7 @@ impl CalibrationStructure {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Fixed => "fixed",
+            Self::Accepted => "accepted",
             Self::GraphPosterior => "graph_posterior",
         }
     }
@@ -257,7 +264,11 @@ impl CalibrationStructure {
     /// Classify a support-matrix structure axis name.
     #[must_use]
     pub fn from_axis(name: &str) -> Self {
-        if name == Self::GraphPosterior.as_str() { Self::GraphPosterior } else { Self::Fixed }
+        match name {
+            "graph_posterior" => Self::GraphPosterior,
+            "accepted" => Self::Accepted,
+            _ => Self::Fixed,
+        }
     }
 }
 
@@ -287,6 +298,54 @@ impl CalibrationInference {
     }
 }
 
+fn validation_matches_with_bindings(
+    key: &CalibrationKeyWire,
+    record: &CoverageRecord,
+    bindings: &[HistoricalValidationBinding],
+) -> bool {
+    if !matches!(key.validation.as_str(), "none" | "cheap" | "full" | "not_applicable") {
+        return false;
+    }
+    if record.validation_schema == 2 {
+        let mut markers =
+            record.id.split('.').filter_map(|part| part.strip_prefix("v2_validation_"));
+        let mut structures =
+            record.id.split('.').filter_map(|part| part.strip_prefix("v2_structure_"));
+        let source_ok = if record.structure == "accepted" {
+            key.structure == "accepted"
+                && structures.next() == Some("accepted")
+                && structures.next().is_none()
+        } else {
+            key.structure != "accepted" && structures.next().is_none()
+        };
+        return source_ok
+            && record.validation == key.validation
+            && markers.next() == Some(record.validation)
+            && markers.next().is_none();
+    }
+    if record.validation_schema != 0 || !record.validation.is_empty() {
+        return false;
+    }
+    bindings.iter().any(|binding| {
+        binding.record_id == record.id
+            && binding.calibration_sha == record.calibration_sha
+            && binding.test == record.test
+            && binding.validation == key.validation
+            && (key.validation == "not_applicable"
+                || binding.source_structure
+                    == match key.structure.as_str() {
+                        "fixed" => "explicit",
+                        "accepted" => "accepted",
+                        "graph_posterior" => "graph_posterior",
+                        _ => "",
+                    })
+    })
+}
+
+fn validation_matches(key: &CalibrationKeyWire, record: &CoverageRecord) -> bool {
+    validation_matches_with_bindings(key, record, &HISTORICAL_VALIDATION_BINDINGS)
+}
+
 impl CalibrationKeyWire {
     fn same_construction(&self, record: &CoverageRecord) -> bool {
         self.same_construction_with_aliases(record, &FUNCTIONAL_IDENTITY_ALIASES)
@@ -297,9 +356,11 @@ impl CalibrationKeyWire {
         record: &CoverageRecord,
         aliases: &[FunctionalIdentityAlias],
     ) -> bool {
-        record.query == self.query
+        validation_matches(self, record)
+            && record.query == self.query
             && record.graph_class == self.graph_class
-            && record.structure == self.structure
+            && (record.structure == self.structure
+                || (record.structure == "fixed" && self.structure == "accepted"))
             && record.modality == self.modality
             && record.inference == self.inference
             && record.estimator == self.estimator
@@ -347,7 +408,8 @@ fn shipped_candidates(key: &CalibrationKeyWire) -> Vec<CoverageRecord> {
                 .iter()
                 .map(|&index| RECORDS[index])
                 .filter(|record| {
-                    functional_matches(record, &key.functional, &FUNCTIONAL_IDENTITY_ALIASES)
+                    validation_matches(key, record)
+                        && functional_matches(record, &key.functional, &FUNCTIONAL_IDENTITY_ALIASES)
                 })
                 .collect()
         })
@@ -358,7 +420,7 @@ fn construction_axis(key: &CalibrationKeyWire) -> String {
     [
         key.query.as_str(),
         key.graph_class.as_str(),
-        key.structure.as_str(),
+        if key.structure == "accepted" { "fixed" } else { key.structure.as_str() },
         key.modality.as_str(),
         key.inference.as_str(),
         key.estimator.as_str(),
@@ -378,7 +440,7 @@ fn construction_index() -> &'static HashMap<String, Vec<usize>> {
             let axis = [
                 record.query,
                 record.graph_class,
-                record.structure,
+                if record.structure == "accepted" { "fixed" } else { record.structure },
                 record.modality,
                 record.inference,
                 record.estimator,
@@ -821,9 +883,30 @@ mod tests {
 
     fn key_from(record: &CoverageRecord) -> CalibrationKeyWire {
         CalibrationKeyWire {
+            validation: if record.validation_schema == 2 {
+                record.validation.to_owned()
+            } else {
+                HISTORICAL_VALIDATION_BINDINGS
+                    .iter()
+                    .find(|binding| {
+                        binding.record_id == record.id
+                            && binding.calibration_sha == record.calibration_sha
+                            && binding.test == record.test
+                    })
+                    .map_or_else(String::new, |binding| binding.validation.to_owned())
+            },
             query: record.query.to_owned(),
             graph_class: record.graph_class.to_owned(),
-            structure: record.structure.to_owned(),
+            structure: if HISTORICAL_VALIDATION_BINDINGS.iter().any(|binding| {
+                binding.record_id == record.id
+                    && binding.calibration_sha == record.calibration_sha
+                    && binding.test == record.test
+                    && binding.source_structure == "accepted"
+            }) {
+                "accepted".to_owned()
+            } else {
+                record.structure.to_owned()
+            },
             modality: record.modality.to_owned(),
             inference: record.inference.to_owned(),
             estimator: record.estimator.to_owned(),
@@ -847,6 +930,7 @@ mod tests {
 
     #[test]
     fn construction_index_matches_a_linear_scan() {
+        let mut positive_modes = std::collections::BTreeSet::new();
         for record in &RECORDS {
             let key = key_from(record);
             let indexed: Vec<_> = shipped_candidates(&key)
@@ -855,6 +939,20 @@ mod tests {
                 .map(|candidate| candidate.id)
                 .collect();
             assert_eq!(indexed, matching_ids(&key), "{}", record.id);
+            if !key.validation.is_empty() {
+                assert!(
+                    indexed.contains(&record.id),
+                    "reviewed record must match its own key: {}",
+                    record.id
+                );
+                positive_modes.insert(key.validation.clone());
+            }
+        }
+        for mode in ["none", "full", "not_applicable"] {
+            assert!(
+                positive_modes.contains(mode),
+                "generated reviewed snapshot must exercise {mode}"
+            );
         }
         for alias in &FUNCTIONAL_IDENTITY_ALIASES {
             let Some(record) = RECORDS.iter().find(|record| record.id == alias.record_id) else {
@@ -886,7 +984,9 @@ mod tests {
 
     fn record(id: &'static str) -> CoverageRecord {
         CoverageRecord {
-            id,
+            id: Box::leak(format!("{id}.v2_validation_none").into_boxed_str()),
+            validation_schema: 2,
+            validation: "none",
             query: "AverageEffect",
             graph_class: "Dag",
             structure: "fixed",
@@ -918,9 +1018,122 @@ mod tests {
         }
     }
 
+    #[test]
+    fn legacy_wire_omits_unestablished_validation() {
+        let mut original = basis();
+        original.key.validation.clear();
+        let value = serde_json::to_value(&original).expect("serialize legacy basis");
+        assert!(value["key"].get("validation").is_none());
+        let restored: CalibrationBasisWire =
+            serde_json::from_value(value).expect("read legacy basis");
+        assert_eq!(restored, original);
+        assert!(!restored.key.same_construction(&record("fixture")));
+    }
+
+    #[test]
+    fn graphless_designs_match_only_their_not_applicable_measurement() {
+        for query in ["PanelDid", "RandomizedEffect"] {
+            let mut actual = basis();
+            actual.key.query = query.into();
+            actual.key.graph_class = "RandomizedTrial".into();
+            actual.key.structure = "design".into();
+            actual.key.validation = "not_applicable".into();
+            let mut measured = record("fixture");
+            measured.id = "cov.fixture.v2_validation_not_applicable";
+            measured.validation = "not_applicable";
+            measured.query = query;
+            measured.graph_class = "RandomizedTrial";
+            measured.structure = "design";
+            assert_eq!(calibration_slot_in(&actual, &[measured]).status, "calibrated");
+            for validation in ["", "none", "cheap", "full"] {
+                actual.key.validation = validation.into();
+                assert_ne!(
+                    calibration_slot_in(&actual, &[measured]).status,
+                    "calibrated",
+                    "{validation}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn validation_coordinate_refuses_legacy_unknown_and_other_modes() {
+        let basis = basis();
+        let measured = record("fixture");
+        assert!(basis.key.same_construction(&measured));
+        for validation in ["", "unknown", "cheap", "full", "not_applicable"] {
+            let mut altered = basis.clone();
+            altered.key.validation = validation.into();
+            assert!(!altered.key.same_construction(&measured));
+        }
+        let mut legacy = measured;
+        legacy.validation_schema = 0;
+        legacy.validation = "";
+        assert!(!basis.key.same_construction(&legacy));
+        assert!(calibration_slot_in(&basis, &[legacy]).reason.is_some());
+        let mut forged = measured;
+        forged.validation = "cheap";
+        let mut cheap = basis.clone();
+        cheap.key.validation = "cheap".into();
+        assert!(!cheap.key.same_construction(&forged));
+        forged.id = "cov.fixture.v2_validation_cheap";
+        assert!(cheap.key.same_construction(&forged));
+        forged.id = "cov.fixture.v2_validation_cheap.v2_validation_none";
+        assert!(!cheap.key.same_construction(&forged));
+        let mut accepted = measured;
+        accepted.structure = "accepted";
+        accepted.id = "cov.fixture.v2_validation_none.v2_structure_accepted";
+        let mut accepted_basis = basis.clone();
+        accepted_basis.key.structure = "accepted".into();
+        assert!(accepted_basis.key.same_construction(&accepted));
+        assert!(!basis.key.same_construction(&accepted));
+        accepted.id = "cov.fixture.v2_validation_none";
+        assert!(!accepted_basis.key.same_construction(&accepted));
+    }
+
+    #[test]
+    fn reviewed_historical_validation_is_bound_to_exact_measurement() {
+        let basis = basis();
+        let mut legacy = record("historical");
+        legacy.validation_schema = 0;
+        legacy.validation = "";
+        let proof = HistoricalValidationBinding {
+            record_id: legacy.id,
+            calibration_sha: legacy.calibration_sha,
+            test: legacy.test,
+            validation: "none",
+            source_structure: "explicit",
+        };
+        assert!(validation_matches_with_bindings(&basis.key, &legacy, &[proof]));
+        let mut changed = legacy;
+        changed.calibration_sha = "different";
+        assert!(!validation_matches_with_bindings(&basis.key, &changed, &[proof]));
+        changed = legacy;
+        changed.test = "different";
+        assert!(!validation_matches_with_bindings(&basis.key, &changed, &[proof]));
+        changed = legacy;
+        changed.id = "different";
+        assert!(!validation_matches_with_bindings(&basis.key, &changed, &[proof]));
+        let mut other = basis;
+        other.key.validation = "cheap".into();
+        assert!(!validation_matches_with_bindings(&other.key, &legacy, &[proof]));
+        let mut explicit = proof;
+        explicit.source_structure = "explicit";
+        other.key.validation = "none".into();
+        other.key.structure = "accepted".into();
+        assert!(!validation_matches_with_bindings(&other.key, &legacy, &[explicit]));
+        let mut unresolved = proof;
+        unresolved.source_structure = "";
+        assert!(!validation_matches_with_bindings(&other.key, &legacy, &[unresolved]));
+        let mut accepted_proof = proof;
+        accepted_proof.source_structure = "accepted";
+        assert!(validation_matches_with_bindings(&other.key, &legacy, &[accepted_proof]));
+    }
+
     fn basis() -> CalibrationBasisWire {
         CalibrationBasisWire {
             key: CalibrationKeyWire {
+                validation: "none".into(),
                 query: "AverageEffect".into(),
                 graph_class: "Dag".into(),
                 structure: "fixed".into(),
@@ -991,7 +1204,7 @@ mod tests {
         low.observed = 0.94;
         let slot = calibration_slot_in(&basis(), &[record("cov.high"), low]);
         assert_eq!(slot.status, "calibrated");
-        assert_eq!(slot.record_id.as_deref(), Some("cov.low"));
+        assert_eq!(slot.record_id.as_deref(), Some("cov.low.v2_validation_none"));
         assert_eq!(slot.observed, Some(0.94));
         assert_eq!(slot.reason, None);
     }
@@ -1040,7 +1253,7 @@ mod tests {
         assert_eq!(slot.reason.as_deref(), Some(IDENTIFICATION_NOT_MEASURED));
         let slot = calibration_slot_in(&b, &[unfolding, measured]);
         assert_eq!(slot.status, "calibrated");
-        assert_eq!(slot.record_id.as_deref(), Some("cov.parent"));
+        assert_eq!(slot.record_id.as_deref(), Some("cov.parent.v2_validation_none"));
 
         // And an unfolding-identified result never binds to the parent record.
         let slot = calibration_slot_in(&basis(), &[measured]);
@@ -1265,7 +1478,7 @@ mod tests {
         let slot = calibration_slot_in(&basis(), &[record("cov.a"), boundary]);
         assert_eq!(slot.status, "scope_not_assessed");
         assert_eq!(slot.reason.as_deref(), Some(BOUNDARY_RECORD));
-        assert_eq!(slot.record_id.as_deref(), Some("cov.boundary"));
+        assert_eq!(slot.record_id.as_deref(), Some("cov.boundary.v2_validation_none"));
         assert_eq!(slot.observed, Some(0.885));
     }
 
@@ -1301,16 +1514,16 @@ mod tests {
         let fresh = record("cov.fresh");
         let mut stale = record("cov.stale");
         stale.calibration_sha = "stale00000000000000000000000000000000000";
-        let attests = |record: &CoverageRecord| record.id == "cov.fresh";
+        let attests = |record: &CoverageRecord| record.id == "cov.fresh.v2_validation_none";
 
         let fresh_slot = calibration_slot_with(&basis(), &[fresh], attests);
         assert_eq!(fresh_slot.status, "calibrated");
-        assert_eq!(fresh_slot.record_id.as_deref(), Some("cov.fresh"));
+        assert_eq!(fresh_slot.record_id.as_deref(), Some("cov.fresh.v2_validation_none"));
         assert_eq!(fresh_slot.reason, None);
 
         let stale_slot = calibration_slot_with(&basis(), &[stale], attests);
         assert_eq!(stale_slot.status, "scope_not_assessed");
-        assert_eq!(stale_slot.record_id.as_deref(), Some("cov.stale"));
+        assert_eq!(stale_slot.record_id.as_deref(), Some("cov.stale.v2_validation_none"));
         assert_eq!(stale_slot.reason.as_deref(), Some(RECORD_NOT_ATTESTING));
 
         // A measured-looking record the registry does not list as attesting is not

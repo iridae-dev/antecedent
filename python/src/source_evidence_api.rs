@@ -99,7 +99,7 @@ impl PySourceEvidence {
         }
         let fresh = Self::from_claim_named(actual, self.inner.artifact_id())?;
         self.inner.require_same_source(&fresh.inner).map_err(error)?;
-        let executed = actual.authority.result.executed_contract.as_ref().ok_or_else(|| {
+        let executed = actual.authority.result.executed_contract().ok_or_else(|| {
             invalid(
                 "source_evidence.source_encoding_failed",
                 "issued execution has no executed contract",

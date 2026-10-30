@@ -208,6 +208,7 @@ pub fn multi_level_interval_basis(
     };
     CalibrationBasisWire {
         key: CalibrationKeyWire {
+            validation: "not_applicable".into(),
             query: MULTI_LEVEL_QUERY.to_owned(),
             graph_class: "NotApplicable".to_owned(),
             structure: "fixed".to_owned(),

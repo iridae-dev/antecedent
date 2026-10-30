@@ -93,7 +93,7 @@ fn measure(test: &'static str, dgp: &'static str, estimator: &str, mechanism: Me
             tally.skip();
             continue;
         };
-        tally.bind(
+        tally.bind_validation(
             &construction(estimator),
             ScopeFacts {
                 row_count: rows,
@@ -101,6 +101,7 @@ fn measure(test: &'static str, dgp: &'static str, estimator: &str, mechanism: Me
                 posterior_draws: None,
                 unidentified_mass: 0.0,
             },
+            "not_applicable",
         );
         tally.record(Some(interval), TRUTH);
     }

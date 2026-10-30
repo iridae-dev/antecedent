@@ -205,7 +205,7 @@ fn multilevel_generalized_propensity_interval() {
             tally.skip();
             continue;
         };
-        tally.bind(
+        tally.bind_validation(
             &construction(),
             ScopeFacts {
                 row_count: rows,
@@ -213,6 +213,7 @@ fn multilevel_generalized_propensity_interval() {
                 posterior_draws: None,
                 unidentified_mass: 0.0,
             },
+            "not_applicable",
         );
         tally.record(Some(interval), TRUTH);
     }

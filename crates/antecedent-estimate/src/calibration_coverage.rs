@@ -133,7 +133,7 @@ impl Tally {
     /// bootstrap SE, the replicates that succeeded.
     fn bind(&mut self, rows: usize, replicates_ok: Option<u32>) {
         if let Some((tally, case)) = self.record.as_mut() {
-            tally.bind(
+            tally.bind_validation(
                 &case.construction(),
                 ScopeFacts {
                     row_count: rows as u64,
@@ -141,6 +141,7 @@ impl Tally {
                     posterior_draws: None,
                     unidentified_mass: 0.0,
                 },
+                "not_applicable",
             );
         }
     }

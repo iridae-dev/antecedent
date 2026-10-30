@@ -108,6 +108,7 @@ pub fn calibration_basis(
         None,
         0.0,
     )
+    .with_validation("not_applicable")
 }
 
 /// The calibration key of the participant-level procedure's confidence sequences: the

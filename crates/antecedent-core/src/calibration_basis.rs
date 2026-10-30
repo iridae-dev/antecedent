@@ -10,6 +10,8 @@ use std::sync::Arc;
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct CalibrationBasis {
+    /// Executed support validation mode, empty when not established.
+    pub validation: Arc<str>,
     /// Support-matrix query axis name.
     pub query: Arc<str>,
     /// Support-matrix graph axis.
@@ -47,6 +49,13 @@ pub struct CalibrationBasis {
 }
 
 impl CalibrationBasis {
+    /// Bind the validation coordinate established by the originating execution.
+    #[must_use]
+    pub fn with_validation(mut self, validation: impl Into<Arc<str>>) -> Self {
+        self.validation = validation.into();
+        self
+    }
+
     /// Construct from every field, in declaration order.
     #[must_use]
     pub fn new(
@@ -72,6 +81,7 @@ impl CalibrationBasis {
             functional,
         ] = key;
         Self {
+            validation: Arc::from(""),
             query,
             graph_class,
             structure,

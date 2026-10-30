@@ -743,7 +743,7 @@ pub(crate) fn ate_result_from_analysis(
                 ate: effect.ate,
                 has_structural_response: result.structural_response.is_some(),
                 support_status: result.support_status(),
-                executed_contract: result.executed_contract,
+                executed_contract: result.executed_contract().copied(),
             },
         );
     let effect = result.estimate().as_effect();

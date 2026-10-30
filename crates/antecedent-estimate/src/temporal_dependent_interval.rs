@@ -770,6 +770,7 @@ impl DependentInterval {
             None,
             0.,
         )
+        .with_validation("not_applicable")
     }
 
     /// Upper minus lower.

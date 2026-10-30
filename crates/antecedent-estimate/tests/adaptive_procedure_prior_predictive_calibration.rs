@@ -78,6 +78,7 @@ fn basis(rows: usize) -> CalibrationBasis {
         None,
         0.0,
     )
+    .with_validation("not_applicable")
 }
 
 /// Looks at half of the sample and at all of it.

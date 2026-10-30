@@ -1358,6 +1358,7 @@ impl EvidenceLedgerSession {
                 None,
                 0.0,
             )
+            .with_validation("not_applicable")
         };
         let basis = make_basis(
             format!(

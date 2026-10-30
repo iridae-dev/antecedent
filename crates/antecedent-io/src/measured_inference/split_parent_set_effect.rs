@@ -759,6 +759,7 @@ impl ParentSetEffectRun {
             None,
             0.0,
         )
+        .with_validation("not_applicable")
     }
 
     /// The bases of every topology's record, in [`TOPOLOGIES`] order.

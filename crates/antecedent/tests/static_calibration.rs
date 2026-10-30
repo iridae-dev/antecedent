@@ -1160,9 +1160,9 @@ fn mediation_contrasts_bind_separate_records_on_one_dataset() {
             let (study, result) =
                 run_mediation_study_on(data.clone(), 0.0, contrast, inference, seed)
                     .expect("the contrast executes");
-            let (construction, _) = constructions(&study.inspect().expect("inspect"), &result)
+            let (construction, _, _) = constructions(&study.inspect().expect("inspect"), &result)
                 .into_iter()
-                .find(|(construction, _)| construction.interval_method == key.interval)
+                .find(|(construction, _, _)| construction.interval_method == key.interval)
                 .expect("the contrast reports the scored interval");
             assert!(
                 construction.functional.starts_with(label),

@@ -360,7 +360,10 @@ class AppendAttestedRecordsTest(unittest.TestCase):
             try:
                 changed = collector.sync_licensed_cells(
                     {
-                        "new": {
+                        "new.v2_validation_none": {
+                            "id": "new.v2_validation_none",
+                            "validation_schema": 2,
+                            "validation": "none",
                             "query": "Elasticity",
                             "graph_class": "Dag",
                             "inference": "Frequentist",
@@ -370,12 +373,12 @@ class AppendAttestedRecordsTest(unittest.TestCase):
                             "estimator": "elasticity.plugin",
                         }
                     },
-                    {("Elasticity", "Dag", "explicit", "Frequentist", "none"): ["new"]},
+                    {("Elasticity", "Dag", "explicit", "Frequentist", "none"): ["new.v2_validation_none"]},
                 )
             finally:
                 collector.LICENSED = original
             self.assertEqual(changed, 1)
-            self.assertIn('calibration = ["new"]', path.read_text(encoding="utf-8"))
+            self.assertIn('calibration = ["new.v2_validation_none"]', path.read_text(encoding="utf-8"))
             self.assertEqual(
                 path.read_text(encoding="utf-8").split("[[cell]]")[2],
                 source.split("[[cell]]")[2],
@@ -399,6 +402,9 @@ class LicensedCellSyncTest(unittest.TestCase):
     @staticmethod
     def record(estimator: str, inference: str = "Bayesian", boundary: bool = False) -> dict:
         return dict(
+            id="cov.test.v2_validation_none",
+            validation_schema=2,
+            validation="none",
             query="AverageEffect",
             graph_class="Admg",
             structure="fixed",
@@ -407,6 +413,69 @@ class LicensedCellSyncTest(unittest.TestCase):
             nominal=0.95,
             boundary=boundary,
         )
+
+    def test_validation_requires_versioned_exact_coordinate(self) -> None:
+        cell = collector.tomllib.loads(self.source())["cell"][0]
+        record = self.record("functional.effect")
+        self.assertTrue(collector.licensed_record_matches(cell, record))
+        for changes in ({"validation": "cheap"}, {"validation": "unknown"},
+                        {"validation": "not_applicable"}, {"validation_schema": 1},
+                        {"id": "cov.legacy"},
+                        {"id": "cov.v2_validation_none.v2_validation_cheap"}):
+            with self.subTest(changes=changes):
+                self.assertFalse(collector.licensed_record_matches(cell, {**record, **changes}))
+        missing = dict(record)
+        missing.pop("validation")
+        self.assertFalse(collector.licensed_record_matches(cell, missing))
+        self.assertFalse(collector.licensed_record_matches({**cell, "validation": "full"}, record))
+
+    def test_reviewed_legacy_binding_is_exact_and_never_transfers_modes(self) -> None:
+        import coverage_validation_bindings
+        cell = collector.tomllib.loads(self.source())["cell"][0]
+        legacy = self.record("functional.effect")
+        legacy.update(id="legacy", calibration_sha="a" * 40, test="crates/x/tests/t.rs::case")
+        legacy.pop("validation")
+        legacy.pop("validation_schema")
+        key = (legacy["id"], legacy["calibration_sha"], legacy["test"])
+        with patch.object(coverage_validation_bindings, "binding_map", return_value={key: "none"}), \
+             patch.object(coverage_validation_bindings, "structure_map", return_value={key: "explicit"}):
+            self.assertTrue(collector.licensed_record_matches(cell, legacy))
+            self.assertFalse(collector.licensed_record_matches({**cell, "validation": "cheap"}, legacy))
+            self.assertFalse(collector.licensed_record_matches(cell, {**legacy, "calibration_sha": "b" * 40}))
+            self.assertFalse(collector.licensed_record_matches(cell, {**legacy, "test": "other"}))
+            self.assertFalse(collector.licensed_record_matches(cell, {**legacy, "id": "other"}))
+
+    def test_new_accepted_measurement_requires_its_own_identity(self) -> None:
+        cell = collector.tomllib.loads(self.source())["cell"][0]
+        record = self.record("functional.effect")
+        accepted = {**record, "structure": "accepted", "id": "cov.test.v2_validation_none.v2_structure_accepted"}
+        self.assertTrue(collector.licensed_record_matches({**cell, "structure": "accepted"}, accepted))
+        self.assertFalse(collector.licensed_record_matches(cell, accepted))
+        self.assertFalse(collector.licensed_record_matches({**cell, "structure": "accepted"}, {**accepted, "id": record["id"]}))
+
+    def test_explicit_measurement_does_not_bind_an_accepted_cell(self) -> None:
+        import coverage_validation_bindings
+        cell = collector.tomllib.loads(self.source())["cell"][0]
+        legacy = self.record("functional.effect")
+        legacy.update(id="legacy", calibration_sha="a" * 40, test="crates/x/tests/t.rs::case")
+        legacy.pop("validation")
+        legacy.pop("validation_schema")
+        key = (legacy["id"], legacy["calibration_sha"], legacy["test"])
+        with patch.object(coverage_validation_bindings, "binding_map", return_value={key: "none"}), \
+             patch.object(coverage_validation_bindings, "structure_map", return_value={key: "explicit"}):
+            self.assertTrue(collector.licensed_record_matches(cell, legacy))
+            self.assertFalse(collector.licensed_record_matches({**cell, "structure": "accepted"}, legacy))
+
+    def test_only_cell_rejects_other_validation_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "licensed.toml"
+            source = self.source(bound=False)
+            path.write_text(source, encoding="utf-8")
+            record = {**self.record("functional.effect"), "id": "cov.test.v2_validation_cheap", "validation": "cheap"}
+            coordinate = ("AverageEffect", "Admg", "explicit", "Bayesian", "none")
+            with patch.object(collector, "LICENSED", path), self.assertRaises(SystemExit):
+                collector.sync_licensed_cells({"candidate": record}, only_cells={coordinate: {"candidate"}})
+            self.assertEqual(path.read_text(encoding="utf-8"), source)
 
     def test_new_passing_fisher_and_bayesian_do_not_rebind_frontdoor_boundary(self) -> None:
         for inference, estimator in (

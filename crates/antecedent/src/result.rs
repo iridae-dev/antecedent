@@ -1515,7 +1515,7 @@ pub struct StudyResult {
     /// Prepared contract this result was executed under, stamped by the
     /// [`crate::PreparedStudy`] entry point that produced it. `None` for
     /// results no prepared handle executed; those cannot be exported as claims.
-    pub executed_contract: Option<ExecutedContract>,
+    pub(crate) executed_contract: Option<ExecutedContract>,
     /// Population bindings in force, when the query names a predicate or a
     /// custom target distribution. Encoding the query needs them.
     pub population_registry: Option<antecedent_core::PopulationRegistry>,
@@ -1544,6 +1544,20 @@ pub(crate) struct ResultExtras {
 }
 
 impl StudyResult {
+    /// The execution contract attached by the engine, when present.
+    ///
+    /// The stamp is read-only: callers cannot replace an execution's validation suite.
+    ///
+    /// ```compile_fail
+    /// fn replace_stamp(result: &mut antecedent::StudyResult) {
+    ///     result.executed_contract = None;
+    /// }
+    /// ```
+    #[must_use]
+    pub const fn executed_contract(&self) -> Option<&ExecutedContract> {
+        self.executed_contract.as_ref()
+    }
+
     /// The primary estimate; it always agrees with [`Self::payload`].
     #[must_use]
     pub const fn estimate(&self) -> &PrimaryEstimate {
@@ -1808,6 +1822,10 @@ impl StudyResult {
 pub struct ExecutedContract {
     /// Every contract identity layer, including the executed data snapshot.
     pub identities: antecedent_core::ContractIdentities,
+    /// Snapshot identity before execution-only replay evidence is attached.
+    /// This is computed from the same input at execution and permits a cheap
+    /// inspection to be compared without replacing the full snapshot identity.
+    pub inspection_data_snapshot: antecedent_core::SemanticDigest,
     /// Validation suite whose refutations the result carries.
     pub refute: crate::RefuteSuite,
 }

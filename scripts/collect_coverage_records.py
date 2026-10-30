@@ -167,6 +167,8 @@ FIELDS = (
 # confirmation's points (shaped like `grid`) and the `confirmed_passing_range`
 # they establish (`confirmed_passing_range`).
 OPTIONAL_FIELDS = (
+    "validation_schema",
+    "validation",
     "decision_protocol",
     "one_sided",
     "conservative_point",
@@ -315,6 +317,8 @@ def record_lines(
                 continue
             payload = json.loads(line.split(" ", 1)[1])
             rid = str(payload["id"])
+            if problem := validation_record_problem(payload):
+                raise SystemExit(f"{log.name}: record {rid}: {problem}")
             if superseded and str(payload["test"]).rpartition("::")[2] in superseded:
                 continue
             if bool(payload.pop("smoke", False)) != smoke:
@@ -1049,9 +1053,47 @@ def scientific_calibration_estimators(cell: dict) -> set[str]:
     }
 
 
+def validation_record_problem(record: dict) -> str | None:
+    """Legacy is readable but unqualified; v2 binds its mode into its identity."""
+    schema, validation = record.get("validation_schema"), record.get("validation")
+    if schema is None and validation is None:
+        return None
+    if schema != 2 or validation not in {"unknown", "not_applicable", "none", "cheap", "full"}:
+        return "invalid validation schema or mode"
+    markers = [part.removeprefix("v2_validation_") for part in str(record.get("id", "")).split(".") if part.startswith("v2_validation_")]
+    if markers != [validation]:
+        return "validation mode does not match versioned record identity"
+    structures = [part.removeprefix("v2_structure_") for part in str(record.get("id", "")).split(".") if part.startswith("v2_structure_")]
+    if structures != (["accepted"] if record.get("structure") == "accepted" else []):
+        return "accepted structure does not match versioned record identity"
+    return None
+
+
+def resolved_record_validation(record: dict) -> str | None:
+    """Use v2 metadata or an exact reviewed historical proof; never guess."""
+    if record.get("validation_schema") == 2 and not validation_record_problem(record):
+        return record.get("validation")
+    if record.get("validation_schema") is not None or record.get("validation") is not None:
+        return None
+    import coverage_validation_bindings
+    return coverage_validation_bindings.binding_map().get(
+        (record.get("id"), record.get("calibration_sha"), record.get("test"))
+    )
+
+
 def licensed_record_matches(cell: dict, record: dict) -> bool:
     """Exact support coordinates and declared estimator ownership, never axes alone."""
-    structure = "graph_posterior" if cell.get("structure") == "graph_posterior" else "fixed"
+    structure = ("accepted" if cell.get("structure") == "accepted" and record.get("validation_schema") == 2
+                 else "graph_posterior" if cell.get("structure") == "graph_posterior" else "fixed")
+    validation = resolved_record_validation(record)
+    if validation not in {"none", "cheap", "full"} or cell.get("validation") != validation:
+        return False
+    if record.get("validation_schema") != 2:
+        import coverage_validation_bindings
+        origin = coverage_validation_bindings.structure_map().get(
+            (record.get("id"), record.get("calibration_sha"), record.get("test")), "")
+        if origin != cell.get("structure"):
+            return False
     return (
         record.get("query"),
         record.get("graph_class"),

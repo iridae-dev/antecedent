@@ -297,7 +297,7 @@ fn the_imputed_result_is_deterministic_and_the_specification_enters_the_identity
     assert_eq!(a.uncertainty.analytic.se.to_bits(), b.uncertainty.analytic.se.to_bits());
 
     let snapshot = |result: &StudyResult| {
-        result.executed_contract.as_ref().map(|contract| contract.identities.data_snapshot)
+        result.executed_contract().map(|contract| contract.identities.data_snapshot)
     };
     let reseeded = run(&data, Some(imputation(spec.with_seed(6))), None, &ctx()).unwrap();
     assert!(snapshot(&serial).is_some());

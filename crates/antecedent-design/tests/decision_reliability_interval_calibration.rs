@@ -168,6 +168,7 @@ fn derive(
 /// What one replicate scored: the construction the runtime keyed the interval under and
 /// the scope facts, the interval, and the truth.
 struct Scored {
+    validation: String,
     construction: Construction,
     scope: ScopeFacts,
     interval: (f64, f64),
@@ -178,7 +179,7 @@ fn bind_basis(
     route: PublishedRoute,
     derived: &DerivedUncertainty,
     functional_suffix: &str,
-) -> Option<(Construction, ScopeFacts)> {
+) -> Option<(Construction, ScopeFacts, String)> {
     let basis = calibration_basis(route, &derived.coordinate, LEVEL)?;
     let key = basis.key;
     Some((
@@ -203,6 +204,7 @@ fn bind_basis(
             posterior_draws: basis.scope.posterior_draws,
             unidentified_mass: basis.scope.unidentified_mass,
         },
+        key.validation,
     ))
 }
 
@@ -217,7 +219,7 @@ fn score(
     let k = design.true_means.len();
     let ranking = route == PublishedRoute::RankingProbability;
     let derived = derive(design, run_seed, replicate, ranking)?;
-    let (construction, scope) = bind_basis(route, &derived, suffix)?;
+    let (construction, scope, validation) = bind_basis(route, &derived, suffix)?;
     let (interval, truth) = match route {
         PublishedRoute::RankingProbability => {
             let entry = derived
@@ -246,7 +248,7 @@ fn score(
             ((corrected.lower, corrected.upper), truth)
         }
     };
-    Some(Scored { construction, scope, interval, truth })
+    Some(Scored { construction, scope, validation, interval, truth })
 }
 
 fn one_sided_target(route: PublishedRoute) -> &'static str {
@@ -303,7 +305,7 @@ fn run_gated_at_offset(
         for outcome in scored {
             match outcome {
                 Some(one) => {
-                    tally.bind(&one.construction, one.scope);
+                    tally.bind_validation(&one.construction, one.scope, &one.validation);
                     tally.record(Some(one.interval), one.truth);
                 }
                 None => tally.skip(),
@@ -341,7 +343,7 @@ fn run_named_boundary(
     for outcome in scored {
         match outcome {
             Some(one) => {
-                tally.bind(&one.construction, one.scope);
+                tally.bind_validation(&one.construction, one.scope, &one.validation);
                 tally.record(Some(one.interval), one.truth);
             }
             None => tally.skip(),

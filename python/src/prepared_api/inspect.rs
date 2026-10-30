@@ -142,7 +142,7 @@ impl PyPreparedAnalysis {
     /// result does not: the handle's contract names a run with no validation, which does not
     /// describe it.
     fn has_execution_contract(&self) -> bool {
-        self.last.as_ref().is_some_and(|result| result.executed_contract.is_some())
+        self.last.as_ref().is_some_and(|result| result.executed_contract().is_some())
     }
 
     /// Capture native contract and evidence at the explicit execution boundary.

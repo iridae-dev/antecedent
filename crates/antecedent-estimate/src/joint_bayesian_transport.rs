@@ -587,7 +587,8 @@ impl JointTransportFit {
             None,
             Some(draws),
             0.,
-        ))
+        )
+        .with_validation("not_applicable"))
     }
 
     /// Effect columns (source effects then target effect) of the joint draws, draw-major.

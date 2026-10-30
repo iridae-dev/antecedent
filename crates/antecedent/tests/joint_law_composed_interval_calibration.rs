@@ -120,7 +120,7 @@ fn covariance(x: &[f64], y: &[f64]) -> [f64; 4] {
 }
 
 fn bind_basis(tally: &mut CoverageTally, basis: &CalibrationBasis) {
-    tally.bind(
+    tally.bind_validation(
         &Construction {
             query: basis.query.to_string(),
             graph_class: basis.graph_class.to_string(),
@@ -142,6 +142,7 @@ fn bind_basis(tally: &mut CoverageTally, basis: &CalibrationBasis) {
             posterior_draws: basis.posterior_draws,
             unidentified_mass: basis.unidentified_mass,
         },
+        &basis.validation,
     );
 }
 

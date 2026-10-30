@@ -25,7 +25,7 @@ use super::calibration::{Construction, CoverageTally, ScopeFacts};
 pub fn constructions(
     contract: &CausalContract,
     result: &StudyResult,
-) -> Vec<(Construction, ScopeFacts)> {
+) -> Vec<(Construction, ScopeFacts, &'static str)> {
     result
         .calibration_bases(contract)
         .expect("calibration bases")
@@ -54,6 +54,13 @@ pub fn constructions(
                     posterior_draws: basis.scope.posterior_draws,
                     unidentified_mass: basis.scope.unidentified_mass,
                 },
+                match key.validation.as_str() {
+                    "none" => "none",
+                    "cheap" => "cheap",
+                    "full" => "full",
+                    "not_applicable" => "not_applicable",
+                    _ => "unknown",
+                },
             )
         })
         .collect()
@@ -70,17 +77,20 @@ pub fn bind_contract(tally: &mut CoverageTally, contract: &CausalContract, resul
 }
 
 /// Bind compact runtime metadata after the large study and posterior have been dropped.
-pub fn bind_reported(tally: &mut CoverageTally, reported: &[(Construction, ScopeFacts)]) {
+pub fn bind_reported(
+    tally: &mut CoverageTally,
+    reported: &[(Construction, ScopeFacts, &'static str)],
+) {
     let wanted = tally.record_interval().expect("bind needs a record-keyed tally");
-    let (construction, scope) = reported
+    let (construction, scope, validation) = reported
         .iter()
-        .find(|(construction, _)| construction.interval_method == wanted)
+        .find(|(construction, _, _)| construction.interval_method == wanted)
         .unwrap_or_else(|| {
             let methods: Vec<_> =
-                reported.iter().map(|(construction, _)| &construction.interval_method).collect();
+                reported.iter().map(|(construction, _, _)| &construction.interval_method).collect();
             panic!("the execution reported no {wanted} interval (it reported {methods:?})")
         });
-    tally.bind(construction, *scope);
+    tally.bind_validation(construction, *scope, validation);
 }
 
 /// [`bind_contract`] for a result of [`Study::run`] on `study`.
@@ -99,7 +109,7 @@ pub fn bind(tally: &mut CoverageTally, study: &Study, result: &StudyResult) {
 ///
 /// When the contract cannot be built or the interval was not reported.
 pub fn bind_prepared(tally: &mut CoverageTally, prepared: &PreparedStudy, result: &StudyResult) {
-    let contract = prepared.contract().expect("contract");
+    let contract = prepared.contract_for_result(result).expect("execution contract");
     bind_contract(tally, &contract, result);
 }
 
@@ -107,8 +117,7 @@ pub fn bind_prepared(tally: &mut CoverageTally, prepared: &PreparedStudy, result
 /// levels of the same interval).
 pub fn bind_all(tallies: &mut [&mut CoverageTally], study: &Study, result: &StudyResult) {
     let contract = study.inspect().expect("inspect");
-    let reported = constructions(&contract, result);
     for tally in tallies {
-        bind_reported(tally, &reported);
+        bind_contract(tally, &contract, result);
     }
 }

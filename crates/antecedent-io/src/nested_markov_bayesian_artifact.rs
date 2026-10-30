@@ -214,6 +214,7 @@ impl Artifact {
             u32::try_from(self.posterior.samples.len()).ok(),
             0.0,
         )
+        .with_validation("not_applicable")
     }
 
     /// Bind a checked point pilot and fit the independent continuous posterior.

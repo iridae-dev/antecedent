@@ -1313,6 +1313,20 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
     basis: &crate::calibration::CalibrationBasisWire,
 ) -> bool {
     let key = &basis.key;
+    // Legacy unknown validation stays readable but can never match a coverage
+    // record. A positive graphless validation assertion also needs both
+    // rehashed program and inference-binding payloads to attest no suite.
+    let graphless_validation_ok = key.validation.is_empty()
+        || (key.validation == "not_applicable"
+            && contract.program.as_ref().is_some_and(|program| {
+                program.commitments.validation_suite.is_none()
+                    && program.commitments.resolved_estimator.as_deref()
+                        == Some(key.estimator.as_str())
+            })
+            && contract.inference_binding.as_ref().is_some_and(|binding| {
+                binding.validation_suite.is_none()
+                    && binding.inference.eq_ignore_ascii_case(&key.inference)
+            }));
     let coordinate_ok = contract
         .reasoning
         .support
@@ -1326,35 +1340,50 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
             else {
                 return false;
             };
-            let structure =
-                if structure == "graph_posterior" { "graph_posterior" } else { "fixed" };
+            let structure = match structure {
+                "graph_posterior" => "graph_posterior",
+                "accepted" if !key.validation.is_empty() => "accepted",
+                _ => "fixed",
+            };
+            let validation = parts.next();
             query == key.query
                 && graph == key.graph_class
                 && structure == key.structure
                 && inference == key.inference
+                && (key.validation.is_empty()
+                    || (validation == Some(key.validation.as_str())
+                        && matches!(key.validation.as_str(), "none" | "cheap" | "full")))
         })
         || contract.reasoning.support.value.as_ref().is_some_and(|slot| {
             // Exact graphless DiD licenses are bound to the executed result.
-            // The calibration key still names the compiled query because the
-            // geometric support registry does not contain graphless rows.
-            slot.matrix_status == "licensed"
+            // New bases name the measured graphless design; historical
+            // unknown-validation bases retain their original compiled axes.
+            graphless_validation_ok
+                && contract.graph_class == "RandomizedTrial"
+                && contract.structure_source == "randomized_trial"
+                && slot.matrix_status == "licensed"
                 && slot.matrix_coordinate.as_deref().is_some_and(|coordinate| {
                     coordinate.starts_with("graphless:difference_in_differences/")
                 })
                 && matches!(contract.target.query, crate::CausalQueryWire::PanelDid(_))
-                && key.query == "Unknown"
                 && key.graph_class == contract.graph_class
-                && key.structure == "fixed"
+                && ((key.validation.is_empty() && key.query == "Unknown" && key.structure == "fixed")
+                    || (key.validation == "not_applicable" && key.query == "PanelDid" && key.structure == "design"))
         })
         || contract.reasoning.support.value.as_ref().is_some_and(|slot| {
-            slot.matrix_status == "licensed"
+            graphless_validation_ok
+                && contract.graph_class == "RandomizedTrial"
+                && contract.structure_source == "randomized_trial"
+                && slot.matrix_status == "licensed"
                 && slot.matrix_coordinate.as_deref().is_some_and(|coordinate| {
                     coordinate.starts_with("graphless:randomized_effect/")
                         && coordinate.ends_with("/gaussian_ipow_modular_posterior/conditional_pseudo_posterior_pointwise_95_quantiles")
                 })
                 && matches!(contract.target.query, crate::CausalQueryWire::RandomizedEffect(_))
-                && key.query == "Unknown" && key.graph_class == contract.graph_class
-                && key.structure == "fixed" && key.inference.eq_ignore_ascii_case("bayesian")
+                && key.graph_class == contract.graph_class
+                && ((key.validation.is_empty() && key.query == "Unknown" && key.structure == "fixed")
+                    || (key.validation == "not_applicable" && key.query == "RandomizedEffect" && key.structure == "design"))
+                && key.inference.eq_ignore_ascii_case("bayesian")
                 && key.interval_method == "posterior_quantile"
         })
         || contract.reasoning.support.value.as_ref().is_some_and(|slot| {
@@ -1362,7 +1391,8 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
             // the claim even though the support matrix has no licensed cell.
             // The query-specific payload validator verifies its support and
             // endpoints; calibration remains unavailable on this axis.
-            slot.matrix_status == "off_axis"
+            key.validation.is_empty()
+                && slot.matrix_status == "off_axis"
                 && slot.matrix_coordinate.is_none()
                 && (key.query == "Unknown"
                     || (key.query == "Discover"

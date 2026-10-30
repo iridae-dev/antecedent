@@ -81,7 +81,7 @@ fn assert_posterior_quantile(study: &Study, result: &StudyResult) {
     let contract = study.inspect().expect("inspect");
     let methods: Vec<String> = constructions(&contract, result)
         .into_iter()
-        .map(|(construction, _)| construction.interval_method)
+        .map(|(construction, _, _)| construction.interval_method)
         .collect();
     assert!(
         methods.iter().any(|m| m == "posterior_quantile"),

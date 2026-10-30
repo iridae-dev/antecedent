@@ -744,6 +744,20 @@ impl PreparedStudy {
             &program.observation_digest,
         )?;
         let mut snapshot = snapshot;
+        // Cheap inspection includes temporal nested moments even without a
+        // prepared operation; capture that exact base before adding the
+        // prepared-only replay evidence for tabular sources.
+        if let DataInput::Temporal(series) | DataInput::Event(series) = data {
+            if let CausalQuery::NestedCounterfactual(query) = &self.study().query {
+                snapshot.nested_counterfactual_fit = Some(temporal_nested_fit_wire(
+                    series,
+                    query,
+                    nested_prior_scale(&self.study().settings.inference),
+                )?);
+            }
+        }
+        let inspection_data_snapshot =
+            data_snapshot_digest(&snapshot).map_err(|err| io_err(&err))?;
         if let DataInput::Tabular(tabular) = data {
             let laws = self
                 .distribution_factor_snapshot(tabular)?
@@ -769,17 +783,12 @@ impl PreparedStudy {
                 snapshot.linear_fit_moments = linear_fit_moments_wire(tabular, operation)?;
             }
         }
-        if let DataInput::Temporal(series) | DataInput::Event(series) = data {
-            if let CausalQuery::NestedCounterfactual(query) = &self.study().query {
-                snapshot.nested_counterfactual_fit = Some(temporal_nested_fit_wire(
-                    series,
-                    query,
-                    nested_prior_scale(&self.study().settings.inference),
-                )?);
-            }
-        }
         let snapshot = data_snapshot_digest(&snapshot).map_err(|err| io_err(&err))?;
-        Ok(crate::result::ExecutedContract { identities: program.identities(snapshot), refute })
+        Ok(crate::result::ExecutedContract {
+            identities: program.identities(snapshot),
+            inspection_data_snapshot,
+            refute,
+        })
     }
 
     /// Contract and claim of an execution of this handle, exactly as

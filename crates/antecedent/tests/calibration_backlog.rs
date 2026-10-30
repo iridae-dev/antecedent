@@ -100,7 +100,7 @@ fn assert_posterior_quantile(study: &Study, result: &StudyResult) {
     let contract = study.inspect().expect("inspect");
     let reported = constructions(&contract, result);
     let methods: Vec<&str> =
-        reported.iter().map(|(construction, _)| construction.interval_method.as_str()).collect();
+        reported.iter().map(|(construction, _, _)| construction.interval_method.as_str()).collect();
     assert!(
         methods.contains(&"posterior_quantile"),
         "the execution reported {methods:?}, not posterior_quantile"
@@ -422,7 +422,7 @@ fn assert_interval_method(study: &Study, result: &StudyResult, method: &str) {
     let contract = study.inspect().expect("inspect");
     let reported = constructions(&contract, result);
     let methods: Vec<&str> =
-        reported.iter().map(|(construction, _)| construction.interval_method.as_str()).collect();
+        reported.iter().map(|(construction, _, _)| construction.interval_method.as_str()).collect();
     assert!(methods.contains(&method), "the execution reported {methods:?}, not {method}");
 }
 
@@ -1231,7 +1231,10 @@ fn average_effect_unknown_publishes_simultaneous_band() {
     // Both scenario truths lie inside their simultaneous bands: the joint interval is the
     // covered branch, which brackets zero.
     let (lower, upper) = joint_band_interval(&result).expect("two scenario bands");
-    assert!(lower < 0.0 && 0.0 < upper, "scenario truths {UNKNOWN_TRUTH:?} not covered: [{lower}, {upper}]");
+    assert!(
+        lower < 0.0 && 0.0 < upper,
+        "scenario truths {UNKNOWN_TRUTH:?} not covered: [{lower}, {upper}]"
+    );
 }
 
 #[test]
@@ -1593,7 +1596,8 @@ fn lagged_ols_value(data: &TimeSeriesData, dose: f64) -> (f64, f64) {
             a[i][3] = rhs[i];
         }
         for col in 0..3 {
-            let pivot = (col..3).max_by(|&p, &q| a[p][col].abs().total_cmp(&a[q][col].abs())).unwrap();
+            let pivot =
+                (col..3).max_by(|&p, &q| a[p][col].abs().total_cmp(&a[q][col].abs())).unwrap();
             a.swap(col, pivot);
             for r in 0..3 {
                 if r != col {
@@ -1649,8 +1653,7 @@ fn agreeing_temporal_cpdag_publishes_shared_band() {
     // series is the finite-sample value both completions must publish, and the band is centred on
     // it (a normal band `value +- 1.96 se`) with an `se` of the same order as the textbook one
     // (the 19-replicate circular block bootstrap estimates it: observed ratio 1.46, so the window is a factor of two).
-    let (reference, textbook_se) =
-        lagged_ols_value(&agreeing_temporal_series(80, 0x110_0440), 1.0);
+    let (reference, textbook_se) = lagged_ols_value(&agreeing_temporal_series(80, 0x110_0440), 1.0);
     assert!((reference - 3.0).abs() < 0.5, "the g-formula {reference} recovers the structural 3");
     for atom in &atoms {
         let antecedent_core::ResponseValue::Surface { mean, .. } = atom.value.as_ref().unwrap()

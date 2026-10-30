@@ -222,7 +222,7 @@ impl AllUnits {
 
 /// Only the summaries needed for ordered scoring survive a worker's execution.
 struct Scored {
-    bindings: Vec<(Construction, ScopeFacts)>,
+    bindings: Vec<(Construction, ScopeFacts, &'static str)>,
     unit_intervals: [(f64, f64); 2],
     unit_truths: [f64; 2],
     mean_intervals: [Option<(f64, f64)>; 2],

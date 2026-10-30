@@ -81,7 +81,9 @@ fn record(
     ] = key;
     let governing = grid.iter().min_by(|a, b| a.observed.total_cmp(&b.observed)).unwrap();
     CoverageRecord {
-        id,
+        id: Box::leak(format!("{id}.v2_validation_none").into_boxed_str()),
+        validation_schema: 2,
+        validation: "none",
         query,
         graph_class,
         structure: "fixed",
@@ -164,8 +166,8 @@ fn dag() -> Dag {
 }
 
 /// An ordinary study: only data, graph, query (and inference) — every other
-/// option at its default. Validation is skipped for speed; it is not part of
-/// the calibration key.
+/// option at its default. The fixture records the executed no-validation
+/// coordinate explicitly.
 fn default_ate(n: usize, inference: InferenceMode) -> (Study, StudyResult) {
     let study = Study::tabular(linear_ate_data(n, 17))
         .graph(dag())
@@ -207,7 +209,7 @@ fn a_default_frequentist_ate_is_calibrated_anywhere_inside_its_grid() {
         let basis = primary_basis(default_ate(n, InferenceMode::Frequentist));
         let slot = slot(&basis, &records);
         assert_eq!(slot.status, "calibrated", "n = {n}: {slot:#?}");
-        assert_eq!(slot.record_id.as_deref(), Some("cov.fixture.ate"));
+        assert_eq!(slot.record_id.as_deref(), Some("cov.fixture.ate.v2_validation_none"));
         assert_eq!((slot.scope_n, slot.scope_n_max), (Some(250), Some(1000)));
     }
 }
@@ -220,7 +222,11 @@ fn outside_the_grid_is_scope_not_assessed_never_extrapolated() {
         let slot = slot(&basis, &records);
         assert_eq!(slot.status, "scope_not_assessed", "n = {n}: {slot:#?}");
         assert_eq!(slot.reason.as_deref(), Some(SAMPLE_SIZE_OUTSIDE_MEASURED_RANGE));
-        assert_eq!(slot.record_id.as_deref(), Some("cov.fixture.ate"), "the nearest record");
+        assert_eq!(
+            slot.record_id.as_deref(),
+            Some("cov.fixture.ate.v2_validation_none"),
+            "the nearest record"
+        );
     }
 }
 
@@ -231,7 +237,7 @@ fn a_default_bayesian_ate_binds_inside_its_grid() {
         primary_basis(default_ate(500, InferenceMode::Bayesian(BayesianConfig::laplace())));
     let slot_inside = slot(&inside, &records);
     assert_eq!(slot_inside.status, "calibrated", "{slot_inside:#?}");
-    assert_eq!(slot_inside.record_id.as_deref(), Some("cov.fixture.bayes"));
+    assert_eq!(slot_inside.record_id.as_deref(), Some("cov.fixture.bayes.v2_validation_none"));
     let outside =
         primary_basis(default_ate(1500, InferenceMode::Bayesian(BayesianConfig::laplace())));
     let slot_outside = slot(&outside, &records);
@@ -245,7 +251,7 @@ fn a_default_temporal_pulse_binds_inside_its_grid() {
     for n in [80, 160, 240, 320] {
         let slot = slot(&primary_basis(default_pulse(n)), &records);
         assert_eq!(slot.status, "calibrated", "n = {n}: {slot:#?}");
-        assert_eq!(slot.record_id.as_deref(), Some("cov.fixture.pulse"));
+        assert_eq!(slot.record_id.as_deref(), Some("cov.fixture.pulse.v2_validation_none"));
     }
     let slot_short = slot(&primary_basis(default_pulse(60)), &records);
     assert_eq!(slot_short.status, "scope_not_assessed", "{slot_short:#?}");
@@ -282,7 +288,12 @@ fn leak(text: &str) -> &'static str {
 /// over `grid` (the default Bayesian grid's row counts).
 fn record_for(id: &'static str, basis: &CalibrationBasisWire) -> CoverageRecord {
     let key = &basis.key;
+    // These synthetic records model explicitly supplied structures and a run
+    // with no suite; their versioned ID must attest those exact facts.
+    assert_eq!(key.validation, "none");
+    assert_eq!(key.structure, "fixed");
     CoverageRecord {
+        validation: leak(&key.validation),
         se_kind: leak(&key.se_kind),
         identification: leak(&key.identification),
         structure: leak(&key.structure),
@@ -308,6 +319,10 @@ fn record_for(id: &'static str, basis: &CalibrationBasisWire) -> CoverageRecord 
 }
 
 fn aipw_basis(estimator: antecedent_estimate::AipwAte) -> CalibrationBasisWire {
+    // A custom-estimator one-shot run need not carry an executed-contract
+    // stamp. Prepare the very same declaration and bind its retained result
+    // to the exact contract that executed it before producing a record key.
+    let ctx = ExecutionContext::for_tests(17);
     let study = Study::tabular(linear_ate_data(500, 17))
         .graph(dag())
         .query(AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)))
@@ -315,8 +330,14 @@ fn aipw_basis(estimator: antecedent_estimate::AipwAte) -> CalibrationBasisWire {
         .refute(RefuteSuite::None)
         .build()
         .unwrap();
-    let result = study.run(&ExecutionContext::for_tests(17)).unwrap();
-    primary_basis((study, result))
+    let prepared = study.prepare(&ctx).unwrap();
+    let result = prepared.estimate_retained(&ctx).unwrap();
+    let contract = prepared.contract_for_result(&result).unwrap();
+    let basis = result.calibration_bases(&contract).unwrap().remove(0);
+    assert_eq!(basis.key.validation, "none");
+    assert_eq!(basis.key.structure, "fixed");
+    assert_eq!(basis.key.estimator, "aipw");
+    basis
 }
 
 #[test]

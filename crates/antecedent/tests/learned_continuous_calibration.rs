@@ -110,7 +110,7 @@ fn analytic_record(design: Design, test: &'static str, dgp_name: &'static str) {
     for row in rows {
         match row {
             Some((_, band)) => {
-                tally.bind(
+                tally.bind_validation(
                     &analytic_construction(),
                     ScopeFacts {
                         row_count: (n.0 + n.1) as u64,
@@ -118,6 +118,7 @@ fn analytic_record(design: Design, test: &'static str, dgp_name: &'static str) {
                         posterior_draws: None,
                         unidentified_mass: 0.0,
                     },
+                    "not_applicable",
                 );
                 tally.record(Some(band), truth);
             }

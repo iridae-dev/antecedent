@@ -143,7 +143,7 @@ fn record(design: Design, test: &'static str, dgp_name: &'static str) {
     for row in rows {
         match row {
             Some((bands, replicates_ok)) => {
-                tally.bind(
+                tally.bind_validation(
                     &construction(),
                     ScopeFacts {
                         row_count: (n.0 + n.1) as u64,
@@ -151,6 +151,7 @@ fn record(design: Design, test: &'static str, dgp_name: &'static str) {
                         posterior_draws: None,
                         unidentified_mass: 0.0,
                     },
+                    "not_applicable",
                 );
                 tally.record(Some(bands[0]), truth);
             }

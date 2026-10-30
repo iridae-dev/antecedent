@@ -116,7 +116,10 @@ fn measure(
             Err(_) => tally.skip(),
         }
     }
-    assert_eq!(tally.record_id().as_deref(), Some(id));
+    assert_eq!(
+        tally.record_id().as_deref(),
+        Some(format!("{id}.v2_validation_not_applicable").as_str())
+    );
     tally.assert_boundary_at(measured);
 }
 #[test]

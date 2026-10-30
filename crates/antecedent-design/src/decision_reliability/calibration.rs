@@ -251,6 +251,7 @@ fn basis_with_functional(
     let (estimator, interval_method) = route.record_construction();
     Some(CalibrationBasisWire {
         key: CalibrationKeyWire {
+            validation: "not_applicable".into(),
             query: RECORD_QUERY.to_owned(),
             graph_class: "NotApplicable".to_owned(),
             structure: "fixed".to_owned(),

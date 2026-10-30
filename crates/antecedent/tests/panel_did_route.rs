@@ -86,7 +86,7 @@ fn panel_did_runs_identically_through_study_and_prepared_routes() {
         antecedent_io::encode_analysis_result_artifact(
             &body,
             header.variable_names,
-            "forged-thin-did-license"
+            "forged-thin-did-license",
         ),
         FABRICATION,
     );
@@ -137,8 +137,24 @@ fn supported_panel_did_interval_round_trips_and_rejects_fabrication() {
     );
     assert_eq!(result.interval().as_ref().unwrap().dependence, "cluster");
     assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
+    let (contract, claim) = prepared.execution_contract(&result, &context).unwrap();
+    let bases = result.calibration_bases(&contract).unwrap();
+    assert!(!bases.is_empty());
+    assert!(bases.iter().all(|basis| basis.key.validation == "not_applicable"
+        && basis.key.query == "PanelDid"
+        && basis.key.graph_class == "RandomizedTrial"
+        && basis.key.structure == "design"));
+    assert_eq!(claim.calibration.basis.as_ref().unwrap().validation.as_ref(), "not_applicable");
     let bytes =
         prepared.encode_contracted_result(&result, "supported-panel-did", &context).unwrap();
+    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    assert!(
+        !consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|reason| reason.as_ref() == "claim.calibration.basis")
+    );
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(body.panel_did.as_ref().unwrap().interval_95, Some(bounds));
     assert_eq!(
@@ -151,7 +167,7 @@ fn supported_panel_did_interval_round_trips_and_rejects_fabrication() {
         antecedent_io::encode_analysis_result_artifact(
             &fabricated,
             header.variable_names,
-            "fabricated"
+            "fabricated",
         ),
         FABRICATION,
     );
@@ -214,7 +230,7 @@ fn supported_repeated_cross_section_interval_round_trips_and_rejects_fabrication
         antecedent_io::encode_analysis_result_artifact(
             &body,
             header.variable_names,
-            "forged-repeated-did"
+            "forged-repeated-did",
         ),
         FABRICATION,
     );
@@ -519,7 +535,7 @@ fn staggered_event_study_retains_full_curve_and_refuses_missing_controls() {
         antecedent_io::encode_analysis_result_artifact(
             &fabricated,
             header.variable_names,
-            "fabricated"
+            "fabricated",
         ),
         FABRICATION,
     );
@@ -671,7 +687,7 @@ fn supported_staggered_event_study_interval_round_trips_and_rejects_forged_licen
         antecedent_io::encode_analysis_result_artifact(
             &fabricated,
             header.variable_names.clone(),
-            "fabricated-staggered-interval"
+            "fabricated-staggered-interval",
         ),
         FABRICATION,
     );
@@ -699,7 +715,7 @@ fn supported_staggered_event_study_interval_round_trips_and_rejects_forged_licen
         antecedent_io::encode_analysis_result_artifact(
             &thin_body,
             thin_header.variable_names,
-            "forged-thin-staggered-license"
+            "forged-thin-staggered-license",
         ),
         FABRICATION,
     );
@@ -756,7 +772,7 @@ fn staggered_event_known_truth_fixture_spans_thin_and_supported_clusters() {
                 antecedent_io::encode_analysis_result_artifact(
                     &body,
                     header.variable_names,
-                    "forged-staggered-interval"
+                    "forged-staggered-interval",
                 ),
                 FABRICATION,
             );

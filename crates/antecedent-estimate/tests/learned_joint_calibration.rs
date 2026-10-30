@@ -92,7 +92,10 @@ fn measure(
             Err(_) => tally.skip(),
         }
     }
-    assert_eq!(tally.record_id().as_deref(), Some(expected_id));
+    assert_eq!(
+        tally.record_id().as_deref(),
+        Some(format!("{expected_id}.v2_validation_not_applicable").as_str())
+    );
     tally.assert();
 }
 #[test]

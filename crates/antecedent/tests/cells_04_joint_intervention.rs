@@ -391,10 +391,10 @@ fn weights_body() {
     // A study now estimates the weighted population: the weights are read, not refused. The
     // weighted cell (1, 1) is the weighted mean of its rows (the exact weighted cross-fit
     // reference is `the_joint_cell_equals_the_exact_weighted_cross_fit_aipw_...`).
-    let (num, den) = (0..ROWS).filter(|row| cell_of(*row) == (1.0, 1.0)).fold(
-        (0.0, 0.0),
-        |(num, den), row| (num + weights[row] * outcome_of(row), den + weights[row]),
-    );
+    let (num, den) =
+        (0..ROWS).filter(|row| cell_of(*row) == (1.0, 1.0)).fold((0.0, 0.0), |(num, den), row| {
+            (num + weights[row] * outcome_of(row), den + weights[row])
+        });
     let on_study = value(&study(weighted(), level_query(1.0, 1.0), None, None, 0).unwrap());
     assert!((on_study - num / den).abs() < 1e-3, "{on_study} vs {}", num / den);
     // A batch shares one unweighted design across its cells and still refuses the weights.
@@ -637,11 +637,7 @@ fn weighted_reference_body() {
             .collect();
         let runs = [
             ("independent", None, None),
-            (
-                "clusters",
-                Some(DeclaredSamplingDesign::ClusteredPanel),
-                Some(clusters.clone()),
-            ),
+            ("clusters", Some(DeclaredSamplingDesign::ClusteredPanel), Some(clusters.clone())),
             (
                 "newey_west",
                 Some(DeclaredSamplingDesign::DependentTimeSeries),
@@ -695,10 +691,8 @@ fn zero_weight_body() {
     .with_weights(Arc::from(w))
     .unwrap();
     let deleted = dependent_study(deleted, None, None).unwrap();
-    let (a, b) = (
-        weighted.estimate().as_effect().unwrap(),
-        deleted.estimate().as_effect().unwrap(),
-    );
+    let (a, b) =
+        (weighted.estimate().as_effect().unwrap(), deleted.estimate().as_effect().unwrap());
     assert!((value(&weighted) - value(&deleted)).abs() < 1e-12);
     assert!((a.se_analytic() - b.se_analytic()).abs() < 1e-12);
 }
@@ -731,7 +725,9 @@ fn declared_score_dependence_is_read_by_the_joint_cell_and_refused_when_it_canno
 fn dependence_refusal_body() {
     let reference = reference();
     let labels = |len: usize| {
-        ScoreDependence::clusters((0..len).map(|i| u32::try_from(i % 6).unwrap()).collect::<Vec<_>>())
+        ScoreDependence::clusters(
+            (0..len).map(|i| u32::try_from(i % 6).unwrap()).collect::<Vec<_>>(),
+        )
     };
     let code = |error: &CausalError, text: &str| {
         assert_eq!(error.reason_code(), Some("option_not_applicable"), "{error}");
@@ -761,14 +757,13 @@ fn dependence_refusal_body() {
     );
     code(&error, "dependent-time-series");
     // Labels that do not cover the table, and a single cluster.
-    let short = dependent_study(
-        table(),
-        Some(DeclaredSamplingDesign::ClusteredPanel),
-        Some(labels(59)),
-    );
+    let short =
+        dependent_study(table(), Some(DeclaredSamplingDesign::ClusteredPanel), Some(labels(59)));
     let short = refused(short, "a short label vector");
     assert!(
-        short.to_string().contains("a cluster label was declared for fewer rows than the table has"),
+        short
+            .to_string()
+            .contains("a cluster label was declared for fewer rows than the table has"),
         "{short}"
     );
     let single = dependent_study(
@@ -777,7 +772,10 @@ fn dependence_refusal_body() {
         Some(ScoreDependence::clusters(vec![0u32; 60])),
     );
     let single = refused(single, "one cluster");
-    assert!(single.to_string().contains("cluster-robust variance requires at least 2 clusters"), "{single}");
+    assert!(
+        single.to_string().contains("cluster-robust variance requires at least 2 clusters"),
+        "{single}"
+    );
     // A bootstrap beside the declaration is not read by an influence-function route.
     let error = refused(
         Study::tabular(table())
@@ -871,12 +869,12 @@ fn prepared_body() {
     let mut other_prepared = other.prepare(&ctx()).unwrap();
     let other_result = other_prepared.estimate(&data, &ctx()).unwrap();
     let (stamp, other_stamp) = (
-        result.executed_contract.expect("a prepared result is stamped"),
-        other_result.executed_contract.expect("a prepared result is stamped"),
+        result.executed_contract().expect("a prepared result is stamped"),
+        other_result.executed_contract().expect("a prepared result is stamped"),
     );
     assert_ne!(stamp.identities, other_stamp.identities);
     let again = study(labels(0)).prepare(&ctx()).unwrap().estimate(&data, &ctx()).unwrap();
-    assert_eq!(again.executed_contract.unwrap().identities, stamp.identities);
+    assert_eq!(again.executed_contract().unwrap().identities, stamp.identities);
 }
 
 #[test]
@@ -891,9 +889,7 @@ fn license_body() {
     let clustered = dependent_study(
         reference_table(&reference, false),
         Some(DeclaredSamplingDesign::ClusteredPanel),
-        Some(ScoreDependence::clusters(
-            (0..60u32).map(|i| i / 5).collect::<Vec<_>>(),
-        )),
+        Some(ScoreDependence::clusters((0..60u32).map(|i| i / 5).collect::<Vec<_>>())),
     )
     .unwrap();
     assert_eq!(format!("{:?}", plain.support_status()), "Some(Licensed)");

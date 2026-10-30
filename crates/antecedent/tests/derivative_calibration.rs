@@ -759,7 +759,7 @@ fn elasticity_frequentist_coverage(
                     let methods: Vec<_> =
                         common::calibration_bind::constructions(&contract, result)
                             .into_iter()
-                            .map(|(c, _)| c.interval_method)
+                            .map(|(c, _, _)| c.interval_method)
                             .collect();
                     assert!(
                         methods.iter().any(|m| m == "analytic_se"),
@@ -1136,7 +1136,7 @@ fn gam_frequentist_coverage(
         match scored {
             Ok((rows, (values, bands))) => {
                 for (j, tally) in tallies.iter_mut().enumerate() {
-                    tally.bind(
+                    tally.bind_validation(
                         &construction,
                         ScopeFacts {
                             row_count: *rows,
@@ -1144,6 +1144,7 @@ fn gam_frequentist_coverage(
                             posterior_draws: None,
                             unidentified_mass: 0.0,
                         },
+                        "not_applicable",
                     );
                     tally.record(Some(bands[j]), truth[j]);
                 }
@@ -1217,11 +1218,7 @@ fn frequentist_point_derivative_transforms_publish_a_delta_method_interval() {
     // Each transform publishes a Confidence scalar. Elasticity uses Fieller
     // bounds; the remaining transforms use a delta-method interval.
     for (label, functional, truth) in [
-        (
-            "elasticity",
-            point_query(DerivativeScale::LogLog),
-            Some(AT * mu_prime(AT) / mu(AT)),
-        ),
+        ("elasticity", point_query(DerivativeScale::LogLog), Some(AT * mu_prime(AT) / mu(AT))),
         (
             "semi_elasticity_log_outcome",
             point_query(DerivativeScale::LogOutcome),
@@ -1252,7 +1249,10 @@ fn frequentist_point_derivative_transforms_publish_a_delta_method_interval() {
                 "{label}: the interval ({lower}, {upper}) covers the true {truth}"
             );
             let half = (upper - lower) / 2.0;
-            assert!((value - truth).abs() <= half, "{label}: {value} vs truth {truth}, half {half}");
+            assert!(
+                (value - truth).abs() <= half,
+                "{label}: {value} vs truth {truth}, half {half}"
+            );
         }
         assert!(
             matches!(
@@ -1286,8 +1286,8 @@ fn frequentist_point_derivative_transforms_publish_a_delta_method_interval() {
         ("point_derivative", point_query(DerivativeScale::Identity), mu_prime(AT)),
     ] {
         let response = run(&data, &graph, functional, Some(BANDWIDTH), None, 7).unwrap();
-        let (lower, upper) = scalar_interval(&response)
-            .unwrap_or_else(|| panic!("{label}: interval is published"));
+        let (lower, upper) =
+            scalar_interval(&response).unwrap_or_else(|| panic!("{label}: interval is published"));
         let value = scalar_value(&response);
         assert!(lower <= value && value <= upper, "{label}: the point lies in its interval");
         assert!(

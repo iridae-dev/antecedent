@@ -317,6 +317,7 @@ pub fn construct_bridged_claim_interval(
     let mapping = bridged.mapping;
     let basis = CalibrationBasisWire {
         key: CalibrationKeyWire {
+            validation: "not_applicable".into(),
             query: BRIDGE_INTERVAL_QUERY.to_owned(),
             graph_class: "NotApplicable".to_owned(),
             structure: "fixed".to_owned(),

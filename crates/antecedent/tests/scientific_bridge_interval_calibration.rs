@@ -355,7 +355,7 @@ fn run(
     for outcome in scored {
         match outcome {
             Some(one) => {
-                tally.bind(&one.construction, one.scope);
+                tally.bind_validation(&one.construction, one.scope, "not_applicable");
                 tally.record(Some(one.interval), one.truth);
             }
             None => tally.skip(),

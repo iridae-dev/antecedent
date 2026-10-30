@@ -573,6 +573,7 @@ impl SampledRecoveryResult {
             None,
             0.,
         )
+        .with_validation("not_applicable")
     }
 
     /// Covariance of recovered-law cells `i` and `j`.

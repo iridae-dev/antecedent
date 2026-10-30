@@ -264,7 +264,7 @@ fn weighted_split_effect_interval_calibrated() {
     let runs = map_replicates(n_sim(), replicate);
     let total = u32::try_from(runs.len()).expect("replicate count fits u32");
     for run in runs {
-        tally.bind(
+        tally.bind_validation(
             &construction_for_protocol(protocol_version()),
             ScopeFacts {
                 row_count: rows as u64,
@@ -272,6 +272,7 @@ fn weighted_split_effect_interval_calibrated() {
                 posterior_draws: None,
                 unidentified_mass: 0.0,
             },
+            "not_applicable",
         );
         if let Some((interval, truth)) = run {
             reported += 1;

@@ -577,7 +577,7 @@ fn measure_against(
             tally.skip();
             continue;
         };
-        tally.bind(
+        tally.bind_validation(
             construction,
             ScopeFacts {
                 row_count: rows,
@@ -585,6 +585,7 @@ fn measure_against(
                 posterior_draws: None,
                 unidentified_mass: 0.0,
             },
+            "not_applicable",
         );
         tally.record(Some(interval), truth);
         centres.push((interval.0 + interval.1) / 2.0);
@@ -679,7 +680,7 @@ fn upgraded_weighted_constructions_preserve_legacy_record_identity() {
             },
             REPORTED_LEVEL,
         );
-        tally.bind(
+        tally.bind_validation(
             &basis,
             ScopeFacts {
                 row_count: 1200,
@@ -687,6 +688,7 @@ fn upgraded_weighted_constructions_preserve_legacy_record_identity() {
                 posterior_draws: None,
                 unidentified_mass: 0.0,
             },
+            "not_applicable",
         );
         ids.push(tally.record_id().unwrap());
     }
@@ -709,7 +711,7 @@ fn cluster_scoring_uses_the_published_student_reference_and_preserves_normal_evi
     for basis in [raw, upgraded] {
         let mut tally =
             analytic_tally("weighted_aipw_cluster_dml_interval", "identity_probe", &basis);
-        tally.bind(
+        tally.bind_validation(
             &basis,
             ScopeFacts {
                 row_count: 1200,
@@ -717,6 +719,7 @@ fn cluster_scoring_uses_the_published_student_reference_and_preserves_normal_evi
                 posterior_draws: None,
                 unidentified_mass: 0.0,
             },
+            "not_applicable",
         );
         ids.push(tally.record_id().unwrap());
     }
@@ -883,7 +886,7 @@ fn measure_balanced_hajek(test: &'static str, cluster: bool) {
         if let Some(df) = fit.reference_df {
             reference_df.push(df);
         }
-        tally.bind(
+        tally.bind_validation(
             &basis,
             ScopeFacts {
                 row_count: n as u64,
@@ -891,6 +894,7 @@ fn measure_balanced_hajek(test: &'static str, cluster: bool) {
                 posterior_draws: None,
                 unidentified_mass: 0.0,
             },
+            "not_applicable",
         );
         tally.record(Some((fit.lower, fit.upper)), TRUTH);
     }
@@ -933,7 +937,7 @@ fn measure_population_aipw(
             tally.skip();
             continue;
         };
-        tally.bind(
+        tally.bind_validation(
             &basis,
             ScopeFacts {
                 row_count: n as u64,
@@ -941,6 +945,7 @@ fn measure_population_aipw(
                 posterior_draws: None,
                 unidentified_mass: 0.0,
             },
+            "not_applicable",
         );
         tally.record(Some((result.lower, result.upper)), TRUTH);
         diagnostics.push((
@@ -1282,7 +1287,7 @@ fn weighted_aipw_atc_interval() {
             tally.skip();
             continue;
         };
-        tally.bind(
+        tally.bind_validation(
             &basis,
             ScopeFacts {
                 row_count: n as u64,
@@ -1290,6 +1295,7 @@ fn weighted_aipw_atc_interval() {
                 posterior_draws: None,
                 unidentified_mass: 0.0,
             },
+            "not_applicable",
         );
         tally.record(Some((result.lower, result.upper)), TRUTH);
     }

@@ -459,7 +459,7 @@ fn gated(test: &'static str, design: Design) {
     let mut tally =
         if protocol_version() == 1 { tally } else { tally.labelled("discovery_fraction_0_75") };
     for scored in runs.iter().flatten() {
-        tally.bind(&scored.construction.0, scored.construction.1);
+        tally.bind_validation(&scored.construction.0, scored.construction.1, "not_applicable");
         tally.record(Some(scored.interval), scored.truth);
     }
     tally.assert();
@@ -504,7 +504,7 @@ fn boundary(test: &'static str, label: &str, variant: Variant, skewed: bool) {
             let mut construction = scored.construction.0.clone();
             let head = construction.functional.split_once(".topology_").unwrap().0;
             construction.functional = format!("{head}.topology_pooled.named_boundary:{label}");
-            tally.bind(&construction, scored.construction.1);
+            tally.bind_validation(&construction, scored.construction.1, "not_applicable");
             tally.record(Some(scored.interval), scored.truth);
         }
         tally.emit_named_boundary();
@@ -541,7 +541,7 @@ fn boundary(test: &'static str, label: &str, variant: Variant, skewed: bool) {
     let mut tally =
         CoverageTally::for_record(key, LEVEL).labelled("discovery_fraction_0_75.whole_procedure");
     for run in &runs {
-        tally.bind(&construction, requested);
+        tally.bind_validation(&construction, requested, "not_applicable");
         match run {
             Ok(scored) => tally.record(Some(scored.interval), scored.truth),
             Err(_) => tally.record(None, 0.0),

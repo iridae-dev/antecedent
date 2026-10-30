@@ -225,6 +225,8 @@ if cr.is_file():
         rid = rec.get("id", "")
         record_ids.add(rid)
         label = f"coverage_records.toml {rid}"
+        if problem := collector.validation_record_problem(rec):
+            problems.append(f"{label}: {problem}")
         test = str(rec.get("test", ""))
         # `surface_list_blob` arrives with the next collection: a registry written by a
         # collector that stores it names it in its header, and only then is it required.

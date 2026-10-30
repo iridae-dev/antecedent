@@ -902,3 +902,35 @@ fn deferred_preparation_cancelled_materialization_does_not_publish_state() {
     assert!(!compiled.materialized);
     assert!(compiled.score_table.is_none());
 }
+
+#[test]
+fn detached_execution_stamp_never_certifies_a_result() {
+    let data = data();
+    let graph =
+        Dag::from_named_edges(data.schema(), &[("z", "t"), ("z", "y"), ("t", "y")]).unwrap();
+    let query = AverageEffectQuery::with_levels(
+        data.schema().id_of("t").unwrap(),
+        data.schema().id_of("y").unwrap(),
+        0.0,
+        1.0,
+    );
+    let ctx = ExecutionContext::for_tests(3);
+    let prepared = Study::tabular(data.clone())
+        .graph(graph)
+        .query(query)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let mut result = prepared.estimate(&data, &ctx).unwrap();
+    assert!(result.executed_contract.is_some());
+    result.executed_contract = None;
+    let contract = prepared.contract().unwrap();
+    assert!(
+        result.calibration_bases(&contract).unwrap().iter().all(|b| b.key.validation.is_empty())
+    );
+    let err = prepared.encode_contracted_result(&result, "detached", &ctx).unwrap_err();
+    assert!(format!("{err}").contains("prepared handle"), "{err}");
+}

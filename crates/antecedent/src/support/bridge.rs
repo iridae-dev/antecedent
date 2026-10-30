@@ -17,8 +17,8 @@ use crate::inference::InferenceMode;
 
 use super::axis::{naming_class, query_axis};
 use super::cell::{
-    StructureSource, SupportCell, SupportGraphClass, SupportInference, SupportQuery, SupportRefusal,
-    SupportValidation,
+    StructureSource, SupportCell, SupportGraphClass, SupportInference, SupportQuery,
+    SupportRefusal, SupportValidation,
 };
 
 /// Query kinds that intentionally sit off the matrix axes: the mechanism- and unit-change
@@ -72,7 +72,7 @@ fn inference_axis(mode: &InferenceMode) -> SupportInference {
     }
 }
 
-fn validation_axis(suite: RefuteSuite) -> SupportValidation {
+pub(crate) fn validation_axis(suite: RefuteSuite) -> SupportValidation {
     match suite {
         RefuteSuite::None => SupportValidation::None,
         RefuteSuite::Cheap => SupportValidation::Cheap,

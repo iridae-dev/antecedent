@@ -338,10 +338,10 @@ fn estimator_level_records_key_the_facade_construction() {
         let reported = constructions(&contract, &result);
         let expected = case_for(case.test).construction();
         assert!(
-            reported.iter().any(|(construction, _)| *construction == expected),
+            reported.iter().any(|(construction, _, _)| *construction == expected),
             "{}: the facade reports {:#?}, not the construction the record claims {expected:#?}",
             case.test,
-            reported.iter().map(|(c, _)| c).collect::<Vec<_>>()
+            reported.iter().map(|(c, _, _)| c).collect::<Vec<_>>()
         );
     }
 }
@@ -379,13 +379,18 @@ fn frontdoor_saturated_effect(data: &TabularData) -> f64 {
     value(1.0) - value(0.0)
 }
 
-fn assert_owned_static_construction(study: &Study, result: &StudyResult, owner: &str) {
+fn assert_owned_static_construction(
+    study: &Study,
+    result: &StudyResult,
+    owner: &str,
+    accepted: bool,
+) {
     let reported = constructions(&study.inspect().unwrap(), result);
     assert!(
-        reported.iter().any(|(key, scope)| {
+        reported.iter().any(|(key, scope, _)| {
             key.query == "AverageEffect"
                 && key.graph_class == "Dag"
-                && key.structure == "fixed"
+                && key.structure == (if accepted { "accepted" } else { "fixed" })
                 && key.inference == "Frequentist"
                 && key.estimator == owner
                 && key.interval_method == "analytic_se"
@@ -430,9 +435,23 @@ fn checked_score_learner_calibration_owners_execute_all_static_coordinates() {
                     .build()
                     .unwrap();
                 let result = study.run(&context).unwrap();
-                assert_owned_static_construction(&study, &result, owner);
+                assert_owned_static_construction(&study, &result, owner, accepted);
                 let prepared = study.prepare(&context).unwrap();
                 let replay = prepared.estimate(&data, &context).unwrap();
+                let contract = prepared.contract_for_result(&replay).unwrap();
+                let expected_validation = match suite {
+                    RefuteSuite::None => "none",
+                    RefuteSuite::Cheap => "cheap",
+                    RefuteSuite::Full => "full",
+                    _ => unreachable!("this fixture only runs these suites"),
+                };
+                let reported = constructions(&contract, &replay);
+                assert!(
+                    reported.iter().any(|(key, _, validation)| key.structure
+                        == (if accepted { "accepted" } else { "fixed" })
+                        && *validation == expected_validation),
+                    "{reported:?}"
+                );
                 assert_eq!(
                     replay.estimate().as_effect().unwrap().ate.to_bits(),
                     result.estimate().as_effect().unwrap().ate.to_bits()
@@ -471,7 +490,7 @@ fn checked_frontdoor_functional_calibration_owner_executes_all_static_coordinate
                     .build()
                     .unwrap();
                 let result = study.run(&context).unwrap();
-                assert_owned_static_construction(&study, &result, "frontdoor.functional");
+                assert_owned_static_construction(&study, &result, "frontdoor.functional", accepted);
                 if discrete {
                     let reference = frontdoor_saturated_effect(&data);
                     let ate = result.estimate().as_effect().unwrap().ate;
@@ -482,6 +501,20 @@ fn checked_frontdoor_functional_calibration_owner_executes_all_static_coordinate
                 }
                 let prepared = study.prepare(&context).unwrap();
                 let replay = prepared.estimate(&data, &context).unwrap();
+                let contract = prepared.contract_for_result(&replay).unwrap();
+                let expected_validation = match suite {
+                    RefuteSuite::None => "none",
+                    RefuteSuite::Cheap => "cheap",
+                    RefuteSuite::Full => "full",
+                    _ => unreachable!("this fixture only runs these suites"),
+                };
+                let reported = constructions(&contract, &replay);
+                assert!(
+                    reported.iter().any(|(key, _, validation)| key.structure
+                        == (if accepted { "accepted" } else { "fixed" })
+                        && *validation == expected_validation),
+                    "{reported:?}"
+                );
                 assert_eq!(
                     replay.estimate().as_effect().unwrap().ate.to_bits(),
                     result.estimate().as_effect().unwrap().ate.to_bits()
@@ -496,4 +529,44 @@ fn checked_frontdoor_functional_calibration_owner_executes_all_static_coordinate
             }
         }
     }
+}
+
+#[test]
+fn coverage_tally_versions_validation_and_rejects_mixed_replicates() {
+    use common::calibration::{CoverageTally, RecordKey, ScopeFacts};
+    let case = &CASES[0];
+    let key = RecordKey { test: case.test, dgp: "validation_test", interval: case.interval };
+    let construction = case.construction();
+    let scope = ScopeFacts {
+        row_count: 300,
+        replicates_ok: None,
+        posterior_draws: None,
+        unidentified_mass: 0.0,
+    };
+    let mut none = CoverageTally::for_record(key, 0.95);
+    none.bind_validation(&construction, scope, "none");
+    let none_id = none.record_id().unwrap();
+    assert!(none_id.contains(".v2_validation_none"));
+    let mut graphless = CoverageTally::for_record(key, 0.95);
+    graphless.bind_validation(&construction, scope, "not_applicable");
+    assert!(graphless.record_id().unwrap().contains(".v2_validation_not_applicable"));
+    let mut cheap = CoverageTally::for_record(key, 0.95);
+    cheap.bind_validation(&construction, scope, "cheap");
+    assert_ne!(none_id, cheap.record_id().unwrap());
+    let mut accepted_construction = construction.clone();
+    accepted_construction.structure = "accepted".into();
+    let mut accepted = CoverageTally::for_record(key, 0.95);
+    accepted.bind_validation(&accepted_construction, scope, "none");
+    let accepted_id = accepted.record_id().unwrap();
+    assert!(accepted_id.contains(".v2_validation_none.v2_structure_accepted"));
+    assert_ne!(none_id, accepted_id);
+    assert!(
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            none.bind_validation(&construction, scope, "full");
+        }))
+        .is_err()
+    );
+    let mut unknown = CoverageTally::for_record(key, 0.95);
+    unknown.bind(&construction, scope);
+    assert!(unknown.record_id().unwrap().contains(".v2_validation_unknown"));
 }

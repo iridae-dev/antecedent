@@ -1002,7 +1002,7 @@ fn measure_sampled_transport_coverage(
                 assert!(estimate.point.is_some());
                 assert!(estimate.inference.standard_error.is_some());
                 assert_eq!(interval.method, "delta_wald_clamped");
-                tally.bind(
+                tally.bind_validation(
                     &construction,
                     ScopeFacts {
                         row_count: n,
@@ -1010,13 +1010,17 @@ fn measure_sampled_transport_coverage(
                         posterior_draws: None,
                         unidentified_mass: 0.0,
                     },
+                    &interval.basis.validation,
                 );
                 tally.record(Some((interval.lower, interval.upper)), truth);
             }
             None => tally.skip(),
         }
     }
-    assert_eq!(tally.record_id().as_deref(), Some(expected_id));
+    assert_eq!(
+        tally.record_id().as_deref(),
+        Some(format!("{expected_id}.v2_validation_not_applicable").as_str())
+    );
     tally.assert();
 }
 

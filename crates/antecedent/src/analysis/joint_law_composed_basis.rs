@@ -70,6 +70,7 @@ pub fn composed_basis(
         None,
         0.0,
     )
+    .with_validation("not_applicable")
 }
 
 /// What the registry says about a composed key.
@@ -97,6 +98,7 @@ pub enum Resolution {
 pub fn resolve(basis: &CalibrationBasis) -> Resolution {
     let wire = CalibrationBasisWire {
         key: CalibrationKeyWire {
+            validation: basis.validation.to_string(),
             query: basis.query.to_string(),
             graph_class: basis.graph_class.to_string(),
             structure: basis.structure.to_string(),

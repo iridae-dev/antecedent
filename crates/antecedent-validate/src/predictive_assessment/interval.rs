@@ -213,6 +213,7 @@ pub fn score_interval_basis(facts: &IntervalFacts<'_>) -> CalibrationBasisWire {
     let (construction, dependence) = score_interval_construction(facts.dependence);
     CalibrationBasisWire {
         key: CalibrationKeyWire {
+            validation: "not_applicable".into(),
             query: SCORE_INTERVAL_QUERY.to_owned(),
             graph_class: "NotApplicable".to_owned(),
             structure: "fixed".to_owned(),

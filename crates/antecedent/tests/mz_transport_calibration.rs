@@ -207,7 +207,7 @@ fn measure(
     for row in rows {
         match row {
             Some((replicates_ok, band)) => {
-                tally.bind(
+                tally.bind_validation(
                     &construction(dependence),
                     ScopeFacts {
                         row_count: n as u64,
@@ -215,6 +215,7 @@ fn measure(
                         posterior_draws: None,
                         unidentified_mass: 0.0,
                     },
+                    "not_applicable",
                 );
                 tally.record(band, truth);
             }

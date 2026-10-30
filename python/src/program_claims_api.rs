@@ -307,8 +307,7 @@ impl PyNativeResponseClaim {
     fn execution_program_id(&self) -> Option<String> {
         self.authority
             .result
-            .executed_contract
-            .as_ref()
+            .executed_contract()
             .and_then(|contract| contract.identities.program)
             .map(|id| id.to_hex())
     }
@@ -468,7 +467,7 @@ fn native_response_claim(
     if supplied != raw.claim_projection() {
         return Ok((None, Some(refusal_json(refusal("native_claims.projection_mismatch"))?)));
     }
-    let Some(executed) = &authority.result.executed_contract else {
+    let Some(executed) = authority.result.executed_contract() else {
         return Ok((None, Some(refusal_json(refusal("native_claims.native_state_unavailable"))?)));
     };
     let actual_snapshot = executed.identities.data_snapshot.to_hex();

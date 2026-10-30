@@ -544,16 +544,17 @@ fn measure_small_arm(
         let interval = result.randomized_effect().expect("a randomized result").interval_95;
         let bound = constructions(&study.inspect().expect("inspect"), &result)
             .into_iter()
-            .find(|(construction, _)| construction.interval_method == INTERVAL);
+            .find(|(construction, _, _)| construction.interval_method == INTERVAL);
         (interval, truth, bound)
     });
     for (interval, truth, bound) in runs {
         // A replicate that publishes no interval is a skip (a miss), never a free pass.
-        let (Some([lower, upper]), Some((construction, scope))) = (interval, bound) else {
+        let (Some([lower, upper]), Some((construction, scope, validation))) = (interval, bound)
+        else {
             tally.skip();
             continue;
         };
-        tally.bind(&construction, scope);
+        tally.bind_validation(&construction, scope, validation);
         tally.record(Some((lower, upper)), truth);
     }
     tally.assert();
@@ -608,9 +609,9 @@ fn the_small_arm_interval_is_published_under_its_own_construction() {
             (upper - lower) / (2.0 * standard_error) > 1.96,
             "a Student reference, not the normal"
         );
-        let (construction, _) = constructions(&study.inspect().expect("inspect"), &result)
+        let (construction, _, _) = constructions(&study.inspect().expect("inspect"), &result)
             .into_iter()
-            .find(|(construction, _)| construction.interval_method == INTERVAL)
+            .find(|(construction, _, _)| construction.interval_method == INTERVAL)
             .expect("an analytic interval is reported");
         assert_eq!(construction.se_kind, "hc2");
     }

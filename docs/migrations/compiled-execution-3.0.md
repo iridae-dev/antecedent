@@ -187,3 +187,16 @@ silently replaced by serial computation. The non-parallel `mcmc_summary` is unch
 Synchronous numerical helpers reuse an enclosing map worker’s CPU reservation from
 the same admission pool. Their scratch bytes remain separately admitted. Direct
 serial calls still reserve one CPU slot. This does not authorize additional threads.
+
+## Execution contract access
+
+Rust callers read a `StudyResult` execution stamp with `result.executed_contract()`.
+The returned reference is read-only; execution stamps are attached by the engine
+and can no longer be replaced or mutated by callers. Match `None` when no prepared
+execution produced the result. To run another validation suite, request that suite
+through the study or prepared execution rather than changing the result's stamp.
+
+The execution stamp retains both the full snapshot identity and the engine-computed
+base snapshot digest used by cheap inspection. Replay evidence remains part of the
+full identity. External `ExecutedContract` literals must supply the new
+`inspection_data_snapshot` field.

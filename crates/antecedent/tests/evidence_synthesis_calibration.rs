@@ -305,7 +305,7 @@ fn measure(
                     identification: basis.identification.to_string(),
                     reported_level: candidate.level,
                 };
-                tally.bind(
+                tally.bind_validation(
                     &construction,
                     ScopeFacts {
                         row_count: basis.row_count,
@@ -313,6 +313,7 @@ fn measure(
                         posterior_draws: None,
                         unidentified_mass: 0.0,
                     },
+                    "not_applicable",
                 );
                 tally.record(Some((candidate.lower, candidate.upper)), MEAN);
                 ratios.push(ratio);

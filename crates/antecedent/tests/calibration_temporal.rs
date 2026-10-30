@@ -407,7 +407,7 @@ fn temporal_cpdag_mediation_class_reports_the_circular_block_interval() {
     let contract = study.inspect().expect("inspect");
     let methods: Vec<String> = constructions(&contract, &result)
         .into_iter()
-        .map(|(construction, _)| construction.interval_method)
+        .map(|(construction, _, _)| construction.interval_method)
         .collect();
     assert_eq!(methods, ["circular_block_se"], "the class publishes a readable interval");
     let set =
@@ -432,7 +432,7 @@ fn temporal_cpdag_mediation_class_reports_the_circular_block_interval() {
     let capped_contract = capped_study.inspect().expect("inspect");
     let capped_methods: Vec<String> = constructions(&capped_contract, &capped)
         .into_iter()
-        .map(|(construction, _)| construction.interval_method)
+        .map(|(construction, _, _)| construction.interval_method)
         .collect();
     assert_eq!(capped_methods, ["none"], "a capped class reports no interval");
     assert!(

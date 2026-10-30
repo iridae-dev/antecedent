@@ -564,6 +564,7 @@ fn basis_with_structure(structure: &str, rows: u64, level: f64, draws: u32) -> C
         Some(draws),
         0.0,
     )
+    .with_validation("not_applicable")
 }
 
 #[cfg(test)]

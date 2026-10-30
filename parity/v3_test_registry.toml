@@ -20788,3 +20788,10 @@ crate = "antecedent-prob"
 cargo_target = "lib"
 path = "crates/antecedent-prob/src/mcmc_admission_tests.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-coverage-validation-bindings"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_coverage_validation_bindings.py"
+gates = ["inventory"]

@@ -113,7 +113,8 @@ pub fn sampled_transport_interval(
         None,
         None,
         0.0,
-    );
+    )
+    .with_validation("not_applicable");
     Ok(SampledTransportInterval {
         level,
         point: point.probability,

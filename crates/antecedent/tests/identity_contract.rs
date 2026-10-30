@@ -5328,6 +5328,54 @@ fn gcomp_measured_study(
 }
 
 #[test]
+fn calibration_validation_requires_the_executed_contract_coordinate() {
+    let ctx = ExecutionContext::for_tests(21);
+    let (prepared, data) = gcomp_measured_study(500, 400, 21);
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let contract = prepared.contract().unwrap();
+    let bases = result.calibration_bases(&contract).unwrap();
+    assert!(!bases.is_empty());
+    assert!(bases.iter().all(|b| b.key.validation == "none"));
+    let inspected = prepared.inspect().unwrap();
+    assert!(inspected.identities.program.is_none());
+    assert!(
+        result.calibration_bases(&inspected).unwrap().iter().all(|b| b.key.validation == "none")
+    );
+
+    let claim = result.claim(&contract, &ctx).unwrap();
+    assert_eq!(claim.calibration.basis.as_ref().unwrap().validation.as_ref(), "none");
+    let encoded = prepared.encode_contracted_result(&result, "validation-roundtrip", &ctx).unwrap();
+    let consumed = consume_analysis_result(&encoded).unwrap();
+    let slot = &consumed.contract.as_ref().unwrap().claim.as_ref().unwrap().calibration;
+    assert_eq!(slot.basis.as_ref().unwrap().key.validation, "none");
+}
+
+#[test]
+fn executed_modes_survive_cheap_inspection_and_claim_roundtrip() {
+    let ctx = ExecutionContext::for_tests(53);
+    let (data, dag, query) = confounded_scm(400, 53);
+    for (suite, expected) in
+        [(RefuteSuite::None, "none"), (RefuteSuite::Cheap, "cheap"), (RefuteSuite::Full, "full")]
+    {
+        let study = Study::tabular(data.clone())
+            .graph(dag.clone())
+            .query(query.clone())
+            .refute(suite)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap();
+        let inspected = study.inspect().unwrap();
+        let prepared = study.prepare(&ctx).unwrap();
+        let result = prepared.estimate(&data, &ctx).unwrap();
+        let bases = result.calibration_bases(&inspected).unwrap();
+        assert!(!bases.is_empty(), "{expected}");
+        assert!(bases.iter().all(|basis| basis.key.validation == expected), "{expected}");
+        let claim = result.claim(&prepared.contract().unwrap(), &ctx).unwrap();
+        assert_eq!(claim.calibration.basis.as_ref().unwrap().validation.as_ref(), expected);
+    }
+}
+
+#[test]
 fn calibration_slot_is_calibrated_inside_record_scope() {
     let ctx = ExecutionContext::for_tests(21);
     let (prepared, data) = gcomp_measured_study(500, 400, 21);
@@ -6078,11 +6126,6 @@ fn encoder_refuses_a_result_from_another_program() {
         "{err}"
     );
     assert!(confounded.encode_contracted_result(&own, "own", &ctx).is_ok());
-    // A result no prepared handle executed cannot be certified either.
-    let mut detached = own.clone();
-    detached.executed_contract = None;
-    let err = confounded.encode_contracted_result(&detached, "detached", &ctx).unwrap_err();
-    assert!(format!("{err}").contains("prepared handle"), "{err}");
 }
 
 #[test]
@@ -6973,4 +7016,127 @@ fn rebind_estimate(
     let result = branch.estimate_retained(ctx)?;
     *prepared = branch;
     Ok(result)
+}
+
+#[test]
+fn cheap_validation_uses_the_executed_base_snapshot_without_losing_full_identity() {
+    let ctx = ExecutionContext::for_tests(141);
+    let (data, dag, query) = confounded_scm(400, 141);
+    let build = |data: TabularData, suite: RefuteSuite, bootstrap: u32| {
+        Study::tabular(data)
+            .graph(dag.clone())
+            .query(query.clone())
+            .refute(suite)
+            .bootstrap_replicates(bootstrap)
+            .build()
+            .unwrap()
+    };
+    let study = build(data.clone(), RefuteSuite::None, 0);
+    let inspected = study.inspect().unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let executed = result.executed_contract().unwrap();
+    assert_eq!(executed.inspection_data_snapshot, inspected.identities.data_snapshot);
+    assert_ne!(
+        executed.identities.data_snapshot, inspected.identities.data_snapshot,
+        "prepared-only linear replay moments contribute to the full snapshot"
+    );
+    assert!(
+        result.calibration_bases(&inspected).unwrap().iter().all(|b| b.key.validation == "none")
+    );
+    assert_eq!(prepared.contract_for_result(&result).unwrap().identities, executed.identities);
+
+    let (foreign_data, _, _) = confounded_scm(400, 142);
+    let other_snapshot = build(foreign_data, RefuteSuite::None, 0).inspect().unwrap();
+    assert_ne!(other_snapshot.identities.data_snapshot, inspected.identities.data_snapshot);
+    assert!(
+        result
+            .calibration_bases(&other_snapshot)
+            .unwrap()
+            .iter()
+            .all(|b| b.key.validation.is_empty())
+    );
+
+    let other_suite = build(data.clone(), RefuteSuite::Cheap, 0).inspect().unwrap();
+    assert_ne!(other_suite.identities.inference_binding, inspected.identities.inference_binding);
+    assert!(
+        result.calibration_bases(&other_suite).unwrap().iter().all(|b| b.key.validation.is_empty())
+    );
+
+    let other_bootstrap = build(data.clone(), RefuteSuite::None, 8).inspect().unwrap();
+    assert_ne!(
+        other_bootstrap.identities.inference_binding,
+        inspected.identities.inference_binding
+    );
+    assert!(
+        result
+            .calibration_bases(&other_bootstrap)
+            .unwrap()
+            .iter()
+            .all(|b| b.key.validation.is_empty())
+    );
+
+    let mut other_graph = Dag::with_variables(3);
+    other_graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let other_identification = Study::tabular(data.clone())
+        .graph(other_graph)
+        .query(query.clone())
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .inspect()
+        .unwrap();
+    assert_ne!(other_identification.identities.identification, inspected.identities.identification);
+    assert!(
+        result
+            .calibration_bases(&other_identification)
+            .unwrap()
+            .iter()
+            .all(|b| b.key.validation.is_empty())
+    );
+
+    let other_target = Study::tabular(data.clone())
+        .graph(dag.clone())
+        .query(AverageEffectQuery::with_levels(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            0.0,
+            2.0,
+        ))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .inspect()
+        .unwrap();
+    assert_ne!(other_target.identities.target, inspected.identities.target);
+    assert!(
+        result
+            .calibration_bases(&other_target)
+            .unwrap()
+            .iter()
+            .all(|b| b.key.validation.is_empty())
+    );
+
+    let other_estimator = Study::tabular(data)
+        .graph(dag)
+        .query(query)
+        .estimator(antecedent_estimate::AipwAte::new().with_bootstrap_replicates(0))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .inspect()
+        .unwrap();
+    assert_ne!(
+        other_estimator.identities.inference_binding,
+        inspected.identities.inference_binding
+    );
+    assert!(
+        result
+            .calibration_bases(&other_estimator)
+            .unwrap()
+            .iter()
+            .all(|b| b.key.validation.is_empty())
+    );
 }

@@ -181,6 +181,7 @@ fn refusal(detail: &str, message: &str) -> IoError {
 fn basis_wire(b: &CalibrationBasis) -> CalibrationBasisWire {
     CalibrationBasisWire {
         key: CalibrationKeyWire {
+            validation: b.validation.to_string(),
             query: b.query.to_string(),
             graph_class: b.graph_class.to_string(),
             structure: b.structure.to_string(),

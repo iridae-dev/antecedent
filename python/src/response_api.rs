@@ -153,8 +153,8 @@ impl ResponseAnalysisResult {
             "has_envelope": self.identified_mass.is_some(), "support_status": self.support_status,
             "point_status": if self.support_point_status.is_empty() {None} else {Some(&self.support_point_status)},
             "provenance_id": self.provenance_id,
-            "data_snapshot_id": self.authority.as_ref().and_then(|a| a.result.executed_contract.as_ref()).map(|c| c.identities.data_snapshot.to_hex()),
-            "program_id": self.authority.as_ref().and_then(|a| a.result.executed_contract.as_ref()).and_then(|c| c.identities.program).map(|id| id.to_hex()),
+            "data_snapshot_id": self.authority.as_ref().and_then(|a| a.result.executed_contract()).map(|c| c.identities.data_snapshot.to_hex()),
+            "program_id": self.authority.as_ref().and_then(|a| a.result.executed_contract()).and_then(|c| c.identities.program).map(|id| id.to_hex()),
             "uncertainty": {"kind": self.uncertainty_kind, "lower": self.lower, "upper": self.upper,
                 "level": self.level, "standard_error": self.standard_error, "replicates": self.replicates,
                 "artifact_id": self.artifact_id, "interpretation": self.interval_interpretation},
@@ -168,7 +168,7 @@ impl ResponseAnalysisResult {
         result: &antecedent::StudyResult,
         context: &antecedent_core::ExecutionContext,
     ) -> Self {
-        if let (Some(response), Some(_)) = (result.response(), &result.executed_contract) {
+        if let (Some(response), Some(_)) = (result.response(), result.executed_contract()) {
             self.authority = Some(Arc::new(NativeResponseAuthority {
                 response: response.clone(),
                 prepared: Arc::new(prepared.clone()),
@@ -215,7 +215,7 @@ impl ResponseAnalysisResult {
         let Some(authority) = &self.authority else {
             return Ok(None);
         };
-        let Some(contract) = &authority.result.executed_contract else {
+        let Some(contract) = authority.result.executed_contract() else {
             return Ok(None);
         };
         let antecedent_core::ResponseFunctional::MeanCurve { outcome, treatment } =
@@ -884,7 +884,11 @@ fn validate_surface_shape(grid: usize, dimension: usize, means: usize) -> Result
     Ok(())
 }
 
-fn validate_jacobian_shape(outcomes: usize, treatments: usize, values: usize) -> Result<(), &'static str> {
+fn validate_jacobian_shape(
+    outcomes: usize,
+    treatments: usize,
+    values: usize,
+) -> Result<(), &'static str> {
     if treatments == 0 || outcomes.checked_mul(treatments) != Some(values) {
         return Err("invalid Jacobian result shape");
     }
@@ -904,7 +908,8 @@ fn value_parts(value: ResponseValue) -> PyResult<ValueParts> {
             Ok((Vec::new(), Vec::new(), None, Some(vec![values.to_vec()])))
         }
         ResponseValue::Jacobian { outcomes, treatments, values } => {
-            validate_jacobian_shape(outcomes, treatments, values.len()).map_err(crate::value_err)?;
+            validate_jacobian_shape(outcomes, treatments, values.len())
+                .map_err(crate::value_err)?;
             Ok((
                 Vec::new(),
                 Vec::new(),

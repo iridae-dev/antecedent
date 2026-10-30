@@ -319,6 +319,8 @@ fn record_for(
     let leak = |value: &str| -> &'static str { Box::leak(value.to_owned().into_boxed_str()) };
     antecedent_io::coverage_records_data::CoverageRecord {
         id,
+        validation_schema: 2,
+        validation: leak(&key.validation),
         query: leak(&key.query),
         graph_class: leak(&key.graph_class),
         structure: leak(&key.structure),
