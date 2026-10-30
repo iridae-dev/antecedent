@@ -1,10 +1,11 @@
 //! Observation weights on a table are never silently ignored by a static effect route.
 //!
 //! A table that carries observation weights (`TabularData::with_weights`) is read by the
-//! randomized and panel designs and by a single series. The static effect routes (the average
-//! effect, the conditional effect, natural-direct mediation, the counterfactual, the mean
-//! curve, the average derivative, the intervention response, and the dose, regression
-//! discontinuity and temporal-design routes) read none of them: the unweighted number would
+//! randomized and panel designs, by a single series and by the conditional effect (a weighted
+//! interaction regression whose error is the weighted sandwich; its known-answer tests are
+//! below). The other static effect routes (the average effect, natural-direct mediation, the
+//! counterfactual, the mean curve, the average derivative, the intervention response, and the
+//! dose, regression discontinuity and temporal-design routes) read none of them: the unweighted number would
 //! describe a population the weights do not declare. Each is therefore refused with
 //! `option_not_applicable` and the detail `sampling_weights.route_unsupported`, which names the
 //! next attempt. The average effect does honour weights declared on its estimator
@@ -343,12 +344,12 @@ fn temporal_design(name: &'static str, functional: TemporalDesignFunctional) -> 
 /// arm means and the weighted unit-cluster sandwich; its known-answer test is
 /// `unavailable_b_measurement_route_declarations`), so it is not among the routes that refuse them.
 fn reads_table_weights(route: &Route) -> bool {
-    route.name == "temporal design mean"
+    matches!(route.name, "temporal design mean" | "conditional effect")
 }
 
 #[test]
 fn the_temporal_arm_design_runs_on_a_weighted_table_and_scale_free_weights_change_nothing() {
-    let route = routes().into_iter().find(reads_table_weights).unwrap();
+    let route = routes().into_iter().find(|r| r.name == "temporal design mean").unwrap();
     let n = route.data.row_count();
     let varying = run(&route, weighted(&route.data, integer_weights(n)), None).unwrap();
     let scaled = run(
@@ -478,4 +479,278 @@ fn weights_declared_on_an_estimator_a_route_does_not_run_are_refused() {
             .unwrap_or_else(|| panic!("{}: declared weights were ignored", route.name));
         assert_typed_weight_refusal(route.name, &error);
     }
+}
+
+
+// ---------------------------------------------------------------------------------------------
+// The conditional effect under sampling weights.
+// ---------------------------------------------------------------------------------------------
+
+use antecedent_core::OutcomeFunctional;
+use antecedent_graph::Cpdag;
+
+/// An exact rational, enough for the weighted stratum contrasts of integer data.
+#[derive(Clone, Copy, Debug)]
+struct Q(i128, i128);
+
+fn gcd(a: i128, b: i128) -> i128 {
+    if b == 0 { a.abs() } else { gcd(b, a % b) }
+}
+
+impl Q {
+    fn new(n: i128, d: i128) -> Self {
+        let g = gcd(n, d).max(1);
+        let sign = if d < 0 { -1 } else { 1 };
+        Q(sign * n / g, sign * d / g)
+    }
+    fn int(n: i128) -> Self {
+        Q(n, 1)
+    }
+    fn add(self, o: Q) -> Q {
+        Q::new(self.0 * o.1 + o.0 * self.1, self.1 * o.1)
+    }
+    fn sub(self, o: Q) -> Q {
+        Q::new(self.0 * o.1 - o.0 * self.1, self.1 * o.1)
+    }
+    fn mul(self, o: Q) -> Q {
+        Q::new(self.0 * o.0, self.1 * o.1)
+    }
+    fn f64(self) -> f64 {
+        self.0 as f64 / self.1 as f64
+    }
+}
+
+/// Rows `(w, t, y, weight)` of a saturated design: a binary modifier `w`, a binary treatment `t`
+/// and an integer outcome, every `(w, t)` cell holding several rows with unequal weights.
+fn saturated_rows() -> Vec<(i128, i128, i128, i128)> {
+    (0..48_i128)
+        .map(|i| {
+            let (w, t) = (i % 2, (i / 2) % 2);
+            let y = 3 + 2 * t + 5 * w + 4 * t * w + (i * 7) % 5;
+            (w, t, y, 1 + (i * 5) % 4)
+        })
+        .collect()
+}
+
+fn saturated_table(rows: &[(i128, i128, i128, i128)], weights: bool) -> TabularData {
+    let col = |f: fn(&(i128, i128, i128, i128)) -> i128| -> Vec<f64> {
+        rows.iter().map(|r| f(r) as f64).collect()
+    };
+    let data = table(&[
+        ("t", col(|r| r.1)),
+        ("w", col(|r| r.0)),
+        ("y", col(|r| r.2)),
+    ]);
+    if weights { weighted(&data, col(|r| r.3)) } else { data }
+}
+
+fn saturated_dag() -> Dag {
+    let mut graph = Dag::with_variables(3);
+    for (from, to) in [(0, 2), (1, 2)] {
+        graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+    }
+    graph
+}
+
+fn conditional_on(modifier: u32, functional: Option<OutcomeFunctional>) -> CausalQuery {
+    let mut inner = AverageEffectQuery::binary_ate(v(0), v(2)).with_effect_modifiers(vec![v(modifier)]);
+    if let Some(functional) = functional {
+        inner = inner.with_outcome_functional(functional);
+    }
+    CausalQuery::ConditionalEffect(ConditionalEffectQuery::try_new(inner).unwrap())
+}
+
+fn saturated_run(data: TabularData, suite: RefuteSuite) -> Result<StudyResult, CausalError> {
+    Study::tabular(data)
+        .graph(saturated_dag())
+        .refute(suite)
+        .bootstrap_replicates(0)
+        .query(conditional_on(1, None))
+        .build()?
+        .run(&ExecutionContext::for_tests(5))
+}
+
+/// Weighted cell sums `(Σ s, Σ s y)` of the rows with modifier `w` and treatment `t`.
+fn cell(rows: &[(i128, i128, i128, i128)], w: i128, t: i128) -> (i128, i128) {
+    rows.iter()
+        .filter(|r| r.0 == w && r.1 == t)
+        .fold((0, 0), |(s, sy), r| (s + r.3, sy + r.3 * r.2))
+}
+
+#[test]
+fn a_weighted_conditional_effect_is_the_exact_weighted_stratum_contrast_with_the_weighted_sandwich() {
+    let rows = saturated_rows();
+    // Exact: tau_w = weighted mean of y at t=1 minus at t=0 in stratum w; the effect averages
+    // tau_w over the weighted modifier shares p_w.
+    let mean = |w, t| {
+        let (s, sy) = cell(&rows, w, t);
+        Q::new(sy, s)
+    };
+    let tau = [mean(0, 1).sub(mean(0, 0)), mean(1, 1).sub(mean(1, 0))];
+    let stratum_weight = |w| (0..2).map(|t| cell(&rows, w, t).0).sum::<i128>();
+    let total = stratum_weight(0) + stratum_weight(1);
+    let p1 = Q::new(stratum_weight(1), total);
+    let p = [Q::int(1).sub(p1), p1];
+    let exact = tau[0].mul(p[0]).add(tau[1].mul(p[1]));
+
+    let result = saturated_run(saturated_table(&rows, true), RefuteSuite::None).unwrap();
+    let effect = result.estimate().as_effect().unwrap();
+    assert!((effect.ate - exact.f64()).abs() < 1e-12, "{} vs exact {:?}", effect.ate, exact);
+    let plain = saturated_run(saturated_table(&rows, false), RefuteSuite::None).unwrap();
+    assert!(
+        (plain.estimate().as_effect().unwrap().ate - effect.ate).abs() > 1e-6,
+        "the weights must move the contrast"
+    );
+
+    // Independent weighted sandwich of the saturated model: row i in cell (w, t) carries
+    // s_i * (sign_t p_w e_i / S_cell + (tau_w - tau_bar) / S), HC1 factor n / (n - 4).
+    let tau_bar = exact.f64();
+    let mut sum_squares = 0.0;
+    for &(w, t, y, s) in &rows {
+        let (cell_weight, _) = cell(&rows, w, t);
+        let e = y as f64 - mean(w, t).f64();
+        let sign = if t == 1 { 1.0 } else { -1.0 };
+        let phi = sign * p[w as usize].f64() * e / cell_weight as f64
+            + (tau[w as usize].f64() - tau_bar) / total as f64;
+        sum_squares += (s as f64 * phi).powi(2);
+    }
+    let n = rows.len() as f64;
+    let se = (n / (n - 4.0) * sum_squares).sqrt();
+    assert!(
+        (effect.se_analytic() - se).abs() < 1e-10 * se.max(1.0),
+        "se {} vs sandwich {se}",
+        effect.se_analytic()
+    );
+    let record = effect.diagnostics.sampling_weights.expect("a weight record");
+    assert_eq!(record.rows_used, rows.len() as u64);
+    assert!((record.weight_sum - total as f64).abs() < 1e-9);
+}
+
+#[test]
+fn integer_weights_on_the_conditional_effect_equal_the_replicated_rows_and_scale_free_weights_change_nothing()
+{
+    let route = routes().into_iter().find(|r| r.name == "conditional effect").unwrap();
+    let weights = integer_weights(N);
+    let honoured = run(&route, weighted(&route.data, weights.clone()), None).unwrap();
+    let copies = run(&route, replicated(&columns(), &weights), None).unwrap();
+    let plain = run(&route, route.data.clone(), None).unwrap();
+    let (got, want) = (headline(&honoured), headline(&copies));
+    assert!((got - want).abs() < 1e-9, "weighted {got} vs replicated {want}");
+    let se = |r: &StudyResult| r.estimate().as_effect().unwrap().se_analytic();
+    assert!((se(&honoured) - se(&plain)).abs() > 1e-6, "weights changed nothing ({})", se(&plain));
+
+    let scaled = run(
+        &route,
+        weighted(&route.data, weights.iter().map(|w| 7.0 * w).collect()),
+        None,
+    )
+    .unwrap();
+    assert!((headline(&scaled) - got).abs() < 1e-12 && (se(&scaled) - se(&honoured)).abs() < 1e-12);
+    let unit = run(&route, weighted(&route.data, vec![1.0; N]), None).unwrap();
+    assert!((headline(&unit) - headline(&plain)).abs() < 1e-12);
+    assert!(se(&honoured).is_finite() && se(&honoured) > 0.0);
+
+    // A zero-weight row stands for no population unit: the fit equals the one without the row.
+    let mut with_zeros = weights.clone();
+    for i in (0..N).step_by(5) {
+        with_zeros[i] = 0.0;
+    }
+    let kept: Vec<usize> = (0..N).filter(|i| i % 5 != 0).collect();
+    let trimmed_columns: Vec<(&str, Vec<f64>)> = columns()
+        .into_iter()
+        .map(|(name, c)| (name, kept.iter().map(|&i| c[i]).collect()))
+        .collect();
+    let trimmed_weights: Vec<f64> = kept.iter().map(|&i| weights[i]).collect();
+    let zeroed = run(&route, weighted(&route.data, with_zeros), None).unwrap();
+    let deleted =
+        run(&route, weighted(&table(&trimmed_columns), trimmed_weights), None).unwrap();
+    assert!((headline(&zeroed) - headline(&deleted)).abs() < 1e-9);
+    assert!((se(&zeroed) - se(&deleted)).abs() < 1e-9);
+    let record = zeroed.estimate().as_effect().unwrap().diagnostics.sampling_weights.unwrap();
+    assert_eq!(record.zero_weight_rows, (N / 5) as u64);
+}
+
+#[test]
+fn a_weighted_conditional_effect_is_read_on_a_cpdag_class_and_equals_the_dag() {
+    let weights = integer_weights(N);
+    let query = conditional_on(3, None);
+    let data = weighted(&table(&columns()), weights);
+    let mut cpdag = Cpdag::with_variables(4);
+    for (from, to) in edges() {
+        cpdag.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+    }
+    let on_class = Study::tabular(data.clone())
+        .graph(cpdag)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .query(query.clone())
+        .build()
+        .and_then(|study| study.run(&ExecutionContext::for_tests(5)))
+        .unwrap();
+    let on_dag = Study::tabular(data)
+        .graph(dag())
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .query(query)
+        .build()
+        .and_then(|study| study.run(&ExecutionContext::for_tests(5)))
+        .unwrap();
+    assert!((headline(&on_class) - headline(&on_dag)).abs() < 1e-9);
+    assert!(on_class.estimate().as_effect().unwrap().diagnostics.sampling_weights.is_some());
+}
+
+#[test]
+fn weights_the_conditional_effect_cannot_read_are_refused_with_the_typed_detail() {
+    let weights = integer_weights(N);
+    let data = weighted(&table(&columns()), weights.clone());
+    let build = |query: CausalQuery, suite: RefuteSuite, graph: Graph| {
+        let builder = Study::tabular(data.clone());
+        let builder = match graph {
+            Graph::Admg => builder.graph(admg()),
+            _ => builder.graph(dag()),
+        };
+        builder.refute(suite).bootstrap_replicates(0).query(query).build()?.run(&ExecutionContext::for_tests(5))
+    };
+    // Refuters refit the unweighted rows.
+    for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
+        let error = build(conditional_on(3, None), suite, Graph::Dag).err().expect("refused");
+        assert_typed_weight_refusal("conditional effect with refuters", &error);
+    }
+    // The quantile grid is built from unweighted cross-fitted scores.
+    let error = build(
+        conditional_on(3, Some(OutcomeFunctional::quantile(0.5))),
+        RefuteSuite::None,
+        Graph::Dag,
+    )
+    .err()
+    .expect("refused");
+    assert_typed_weight_refusal("conditional quantile", &error);
+    // The general-ID functional of a bidirected ADMG fits unweighted rows.
+    let mut bidirected = Admg::with_variables(4);
+    for (from, to) in edges() {
+        bidirected
+            .insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to))
+            .unwrap();
+    }
+    bidirected.insert_bidirected(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+    let error = Study::tabular(data.clone())
+        .graph(bidirected)
+        .refute(RefuteSuite::None)
+        .query(conditional_on(3, None))
+        .build()
+        .and_then(|study| study.run(&ExecutionContext::for_tests(5)))
+        .err()
+        .expect("refused");
+    assert_typed_weight_refusal("conditional effect on a bidirected ADMG", &error);
+    // Weights declared on an estimator are read by nothing on this route.
+    let error = run(
+        &routes().into_iter().find(|r| r.name == "conditional effect").unwrap(),
+        table(&columns()),
+        Some(linear(Some(weights))),
+    )
+    .err()
+    .expect("refused");
+    // The conditional route runs no `linear.adjustment.ate` fit, so the declaration is refused
+    // by strategy compatibility before any weight is read.
+    assert!(error.to_string().starts_with("reason=strategy_incompatible"), "{error}");
 }

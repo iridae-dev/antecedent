@@ -209,6 +209,14 @@ impl ConditionalLinearAdjustment {
         }
         refuse_undeclared_levels(data, &query.inner)?;
         if binary_zero_one(&query.inner)? {
+            if data.storage().weights().is_some() {
+                return Err(crate::sampling_weights::unsupported_route(
+                    "the cross-fitted AIPW arm scores of a 0/1 treatment fit their propensity and \
+                     outcome models on unweighted rows, so they would describe the unweighted \
+                     population. Next attempt: read the contrast from the weighted interaction fit \
+                     (`estimate`), or drop the weights",
+                ));
+            }
             let (scores, overlap, overlap_report) =
                 aipw_conditional_arm_scores(data, estimand, &query.inner, self.fold_seed)?;
             let n = scores.influence[0].len() as f64;
@@ -306,8 +314,16 @@ impl ConditionalLinearAdjustment {
         let mut ids = vec![query.treatment, query.outcome];
         ids.extend_from_slice(modifier_ids);
         ids.extend_from_slice(&extra_z);
-        let crate::prepare::AdmittedColumns { data, row_mask, receipt } =
+        let crate::prepare::AdmittedColumns { data, mut row_mask, receipt } =
             crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
+        // Observation weights the table carries declare the weighted population as the target.
+        let retained = match data.storage().weights() {
+            Some(source) => {
+                let weights = crate::sampling_weights::SamplingWeights::new(source.to_vec())?;
+                Some(weights.restrict(&mut row_mask)?)
+            }
+            None => None,
+        };
         let t = data.float64_selected(query.treatment, &row_mask).map_err(EstimationError::from)?;
         let y = data.float64_selected(query.outcome, &row_mask).map_err(EstimationError::from)?;
         let w_columns = modifier_ids
@@ -338,6 +354,49 @@ impl ConditionalLinearAdjustment {
             let base = (layout.z_start() + k) * n;
             data.float64_selected_into(z, &row_mask, &mut design[base..base + n])
                 .map_err(EstimationError::from)?;
+        }
+
+        if let Some(retained) = retained {
+            let mut row_index = Vec::with_capacity(n);
+            for (i, &keep) in row_mask.iter().enumerate() {
+                if keep {
+                    row_index.push(antecedent_data::GlobalId::new(u64::try_from(i).map_err(
+                        |_| EstimationError::data_msg("row index does not fit u64"),
+                    )?));
+                }
+            }
+            let mut assumptions = AssumptionSet::default();
+            if m > 1 {
+                assumptions.push(joint_modifier_record());
+            }
+            let weighted = WeightedInteraction {
+                backend: &self.backend,
+                design: &design,
+                y: &y,
+                w: &w,
+                s: &retained.weights,
+                layout,
+                n,
+                control,
+                active,
+            }
+            .fit()?;
+            let estimate = EffectEstimate::new(
+                weighted.point,
+                weighted.se,
+                assumptions,
+                OverlapPolicy::ExplicitOverride,
+            )
+            .with_preparation(Some(crate::prepare::preparation_summary(&receipt)))
+            .with_sampling_weights(Some(retained.record))
+            .with_influence(Some(Arc::from(weighted.influence)));
+            let scores = ConditionalArmScores {
+                means: weighted.arm_means,
+                influence: weighted.arm_influence,
+                row_index,
+                treatment: t.into_owned(),
+            };
+            return Ok((estimate, weighted.arm_means, scores));
         }
 
         let mut ws = LeastSquaresWorkspace::default();
@@ -498,6 +557,127 @@ fn mean_response(
         value += coef[layout.interaction(k)] * level * column[row];
     }
     value
+}
+
+/// The interaction fit under sampling weights.
+///
+/// The weights `s` (mean one) declare the weighted population as the target. The model
+/// `Y ~ 1 + T + W + T×W + Z` is fitted by weighted least squares, the effect averages the
+/// modifier-specific contrast over the weighted modifier mean `w̄_s = Σ s_i w_i / n`, and the
+/// standard error is the linearization (sandwich) variance of the weighted estimating
+/// equations with the HC1 factor `n / (n − p)`: with `A = Σ s_i x_i x_iᵀ`, `e_i = y_i − x_iᵀβ̂`
+/// and `g` the contrast of the coefficients, the estimator's influence on row `i` is
+/// `s_i (n gᵀ A⁻¹ x_i e_i + Σ_k c_k (w_ik − w̄_k))`, and `se² = n/(n−p) · Σ influence_i² / n²`.
+struct WeightedInteraction<'a> {
+    backend: &'a FaerBackend,
+    /// Column-major unweighted design.
+    design: &'a [f64],
+    y: &'a [f64],
+    w: &'a [&'a [f64]],
+    s: &'a [f64],
+    layout: InteractionLayout,
+    n: usize,
+    control: f64,
+    active: f64,
+}
+
+struct WeightedInteractionFit {
+    point: f64,
+    se: f64,
+    influence: Vec<f64>,
+    arm_means: [f64; 2],
+    arm_influence: [Vec<f64>; 2],
+}
+
+impl WeightedInteraction<'_> {
+    fn fit(&self) -> Result<WeightedInteractionFit, EstimationError> {
+        let Self { design, y, w, s, layout, n, control, active, .. } = *self;
+        let ncols = layout.ncols();
+        let m = layout.m;
+        let n_f = n as f64;
+        let delta = active - control;
+        let root: Vec<f64> = s.iter().map(|v| v.sqrt()).collect();
+        let mut scaled = design.to_vec();
+        for column in scaled.chunks_exact_mut(n) {
+            for (value, r) in column.iter_mut().zip(&root) {
+                *value *= r;
+            }
+        }
+        let scaled_y: Vec<f64> = y.iter().zip(&root).map(|(v, r)| v * r).collect();
+        let mut ws = LeastSquaresWorkspace::default();
+        let fit = self
+            .backend
+            .least_squares(&scaled, n, ncols, &scaled_y, &mut ws)
+            .map_err(EstimationError::from)?;
+        let coef = fit.coefficients;
+        let inv = gram_inverse(&scaled, n, ncols).ok_or_else(|| {
+            EstimationError::stats_msg("singular weighted design in conditional ATE")
+        })?;
+        let fitted = linear_predictors(design, n, ncols, &coef);
+        let residuals: Vec<f64> = y.iter().zip(&fitted).map(|(v, f)| v - f).collect();
+
+        let w_bar: Vec<f64> = w
+            .iter()
+            .map(|column| column.iter().zip(s).map(|(v, sw)| v * sw).sum::<f64>() / n_f)
+            .collect();
+        let mut cate_at_mean = coef[1];
+        for (k, mean) in w_bar.iter().enumerate() {
+            cate_at_mean += coef[layout.interaction(k)] * mean;
+        }
+        let point = cate_at_mean * delta;
+
+        let mut g = vec![0.0; ncols];
+        g[1] = delta;
+        for (k, mean) in w_bar.iter().enumerate() {
+            g[layout.interaction(k)] = delta * mean;
+        }
+        let modifier_terms: Vec<f64> =
+            (0..m).map(|k| delta * coef[layout.interaction(k)]).collect();
+        let leverage = inverse_weighted_leverage(&inv, design, n, ncols, &g);
+        let influence: Vec<f64> = (0..n)
+            .map(|i| {
+                let mut value = n_f * leverage[i] * residuals[i];
+                for (k, column) in w.iter().enumerate() {
+                    value += modifier_terms[k] * (column[i] - w_bar[k]);
+                }
+                s[i] * value
+            })
+            .collect();
+        let hc1 = n_f / (n.saturating_sub(ncols)).max(1) as f64;
+        let se = (hc1 * influence.iter().map(|v| v * v).sum::<f64>()).sqrt() / n_f;
+
+        let n_z = layout.n_z;
+        let zterms = linear_predictors(&design[layout.z_start() * n..], n, n_z, &coef[layout.z_start()..]);
+        let mut z_bar = vec![0.0; n_z];
+        for (k, zmean) in z_bar.iter_mut().enumerate() {
+            let base = (layout.z_start() + k) * n;
+            *zmean =
+                design[base..base + n].iter().zip(s).map(|(v, sw)| v * sw).sum::<f64>() / n_f;
+        }
+        let mut arm_means = [0.0; 2];
+        let mut arm_influence = [Vec::new(), Vec::new()];
+        for (slot, level) in [control, active].into_iter().enumerate() {
+            let mu_rows: Vec<f64> = (0..n)
+                .map(|i| mean_response(&coef, layout, level, w, i) + zterms[i])
+                .collect();
+            let mu = mu_rows.iter().zip(s).map(|(v, sw)| v * sw).sum::<f64>() / n_f;
+            let mut xbar = vec![0.0; ncols];
+            xbar[0] = 1.0;
+            xbar[1] = level;
+            for (k, mean) in w_bar.iter().enumerate() {
+                xbar[2 + k] = *mean;
+                xbar[layout.interaction(k)] = level * mean;
+            }
+            for (k, zmean) in z_bar.iter().enumerate() {
+                xbar[layout.z_start() + k] = *zmean;
+            }
+            let lev = inverse_weighted_leverage(&inv, design, n, ncols, &xbar);
+            arm_means[slot] = mu;
+            arm_influence[slot] =
+                (0..n).map(|i| s[i] * ((mu_rows[i] - mu) + n_f * lev[i] * residuals[i])).collect();
+        }
+        Ok(WeightedInteractionFit { point, se, influence, arm_means, arm_influence })
+    }
 }
 
 /// Sampling variance of `Σ_k c_k · w̄_k` for the modifier means: with one modifier the

@@ -227,11 +227,26 @@ impl Study {
                         antecedent_core::ResponseFunctional::InterventionResponse { .. }
                     )
             );
-        if table.storage().weights().is_some() && !joint_cell {
+        let conditional = self.conditional_reads_table_weights();
+        if table.storage().weights().is_some() && !joint_cell && !conditional {
+            let message = if matches!(self.query, CausalQuery::ConditionalEffect(_)) {
+                "the table carries observation weights, which the conditional effect reads only \
+                 through the frequentist weighted interaction regression on the Mean functional \
+                 over an explicit DAG, an ADMG without bidirected edges or a CPDAG / PAG class, \
+                 with no refuters or custom validators (they refit unweighted rows). The Bayesian \
+                 conditional estimators, the cross-fitted AIPW scores, the quantile and \
+                 exceedance grids and the general-ID functional of a bidirected ADMG fit \
+                 unweighted rows, so the estimate would describe the unweighted population. Next \
+                 attempt: use the frequentist conditional estimator with the Mean functional and \
+                 refute(None), or drop the weights from the table"
+            } else {
+                "the table carries observation weights, which this static effect route does \
+                 not read, so the estimate would describe the unweighted rows. Next attempt: \
+                 declare the weights on the estimator of an average effect \
+                 (with_sampling_weights), or drop them from the table"
+            };
             return Err(CausalError::Estimate(
-                antecedent_estimate::sampling_weights::unsupported_route(
-                    "the table carries observation weights, which this static effect route does                      not read, so the estimate would describe the unweighted rows. Next attempt:                      declare the weights on the estimator of an average effect                      (with_sampling_weights), or drop them from the table",
-                ),
+                antecedent_estimate::sampling_weights::unsupported_route(message),
             ));
         }
         let declared = self
@@ -247,6 +262,35 @@ impl Study {
             ));
         }
         Ok(())
+    }
+
+    /// Whether the conditional effect this study runs reads the observation weights its table
+    /// carries: the frequentist weighted interaction regression of the Mean functional, on a
+    /// graph whose conditional route fits that regression (an explicit or accepted DAG, an
+    /// ADMG without bidirected edges, a CPDAG or a PAG), with no refuter that would refit
+    /// unweighted rows.
+    fn conditional_reads_table_weights(&self) -> bool {
+        let CausalQuery::ConditionalEffect(query) = &self.query else {
+            return false;
+        };
+        let estimator_ok = matches!(
+            self.declared.estimator,
+            None | Some(crate::strategy_table::EstimatorId::ConditionalLinearAdjustment)
+        );
+        let graph_ok = match self.graph.class() {
+            GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag => true,
+            GraphClass::Admg => match self.graph.graph_ref() {
+                super::GraphRef::Admg(admg) => !admg.has_bidirected(),
+                _ => false,
+            },
+            _ => false,
+        };
+        estimator_ok
+            && graph_ok
+            && !self.settings.inference.is_bayesian()
+            && matches!(query.inner.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+            && self.settings.refute == super::RefuteSuite::None
+            && self.declared.custom_validators.is_empty()
     }
 
     /// Classify the study's query against `data` and open the payload its executor reads.

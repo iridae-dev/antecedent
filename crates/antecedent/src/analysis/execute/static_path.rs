@@ -2336,6 +2336,8 @@ struct ConditionalAtoms {
     refute_atoms: Vec<EnvelopeRefuteAtom>,
     grid_atoms: Vec<(f64, IdentifiedEstimand)>,
     outcomes: Vec<ClassAtomOutcome>,
+    /// What the table's sampling weights did to the first atom's fit, when the table has any.
+    sampling_weights: Option<antecedent_estimate::sampling_weights::SamplingWeightRecord>,
 }
 
 /// Fits the conditional linear adjustment on each identified atom of the envelope.
@@ -2358,6 +2360,7 @@ fn evaluate_conditional_atoms<G>(
         refute_atoms: Vec::new(),
         grid_atoms: Vec::new(),
         outcomes: vec![ClassAtomOutcome::NotEvaluated; envelope.cases.len()],
+        sampling_weights: None,
     };
     let est = ConditionalLinearAdjustment::new();
     for (i, case) in envelope.cases.iter().enumerate() {
@@ -2388,6 +2391,7 @@ fn evaluate_conditional_atoms<G>(
         if atoms.primary_estimand.is_none() {
             atoms.primary_estimand = Some(estimand.clone());
             atoms.assumptions = estimate.provenance.assumptions.clone();
+            atoms.sampling_weights = estimate.diagnostics.sampling_weights;
         }
         atoms.grid_atoms.push((w, estimand.clone()));
         atoms.refute_atoms.push(EnvelopeRefuteAtom {
@@ -2426,7 +2430,8 @@ impl ConditionalAtoms {
             se,
             self.assumptions.clone(),
             OverlapPolicy::ExplicitOverride,
-        );
+        )
+        .with_sampling_weights(self.sampling_weights);
         if self.atom_ifs.len() == n_contributing {
             if let Some(inf) = mixed_static_influence(&self.atom_ifs, &self.atom_weights) {
                 estimate.scores.influence = Some(inf);

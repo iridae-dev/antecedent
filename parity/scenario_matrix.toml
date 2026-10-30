@@ -614,9 +614,9 @@ what = "sequential cross-fit contrast refusals are typed"
 family = "P15.conditional"
 axis = "weights_missingness"
 value = "sampling_weights"
-status = "unavailable"
-test = "crates/antecedent/tests/static_route_table_weights.rs::table_weights_are_never_silently_ignored_on_any_static_effect_route"
-reason = "the conditional effect has no sampling-weighted construction; observation weights on the table and weights declared on an estimator it does not run are refused with sampling_weights.route_unsupported and a next attempt, never estimated as unweighted rows"
+status = "delivered"
+test = "crates/antecedent/tests/static_route_table_weights.rs::a_weighted_conditional_effect_is_the_exact_weighted_stratum_contrast_with_the_weighted_sandwich"
+what = "observation weights on the table make the conditional effect the weighted-population contrast: it equals the exact weighted stratum contrasts in rationals and its error the independent weighted sandwich, integer weights equal the replicated rows, scale-free weights change nothing and zero weights equal deleted rows, on a DAG, an ADMG without bidirected edges and a CPDAG; refuters, quantile and exceedance grids, the Bayesian and cross-fitted AIPW estimators and a bidirected ADMG fit unweighted rows and refuse with sampling_weights.route_unsupported"
 
 [[cell]]
 family = "P15.conditional"
