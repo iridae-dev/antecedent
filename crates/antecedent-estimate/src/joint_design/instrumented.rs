@@ -166,6 +166,64 @@ pub fn instrumented_joint_contrasts(
 mod tests {
     use super::*;
     #[test]
+    fn world_mean_jackknife_includes_source_covariate_sampling_and_legacy_refuses() {
+        let mut units = Vec::new();
+        for rep in 0..4 {
+            for z in [-1.0, 1.0] {
+                for u in [-1.0, 1.0] {
+                    let x = rep as f64 - 1.5;
+                    let dose = z + 0.25 * u;
+                    units.push(JointInstrumentedUnit {
+                        id: format!("{rep}/{z}/{u}"),
+                        endogenous: vec![dose],
+                        instruments: vec![z],
+                        exogenous: vec![1.0, x],
+                        outcome: 2.0 * dose + x + u,
+                    });
+                }
+            }
+        }
+        let design = JointInstrumentedDesign {
+            contrasts: vec![("dose".into(), vec![1.0])],
+            structural_model: "linear structural model".into(),
+            moment_restrictions: "independent instrument".into(),
+            population: "source".into(),
+        };
+        let features =
+            JointStructuralFeatureBinding { raw_feature_indices: vec![0], powers: vec![vec![1]] };
+        let fit = fit_instrumented_joint_polynomial(
+            &design,
+            &units,
+            features,
+            &antecedent_core::ExecutionContext::for_tests(3),
+        )
+        .unwrap();
+        let (mean, variance) = fit.world_mean(&[0.0]).unwrap();
+        let mut values = Vec::new();
+        for omitted in 0..units.len() {
+            let kept: Vec<_> =
+                units.iter().enumerate().filter_map(|(i, u)| (i != omitted).then_some(u)).collect();
+            let coefficients = coefficients(&kept).unwrap();
+            let xmean = kept.iter().map(|u| u.exogenous[1]).sum::<f64>() / kept.len() as f64;
+            values.push(coefficients[1] + coefficients[2] * xmean);
+        }
+        let center = values.iter().sum::<f64>() / values.len() as f64;
+        let reference = (values.len() - 1) as f64 / values.len() as f64
+            * values.iter().map(|v| (v - center).powi(2)).sum::<f64>();
+        assert!(mean.abs() < 1e-10);
+        assert!(reference > 0.0);
+        assert!((variance - reference).abs() < 1e-10);
+        let encoded = serde_json::to_value(&fit).unwrap();
+        let restored: JointInstrumentedModelFit = serde_json::from_value(encoded.clone()).unwrap();
+        assert_eq!(fit.world_mean(&[0.0]).unwrap(), restored.world_mean(&[0.0]).unwrap());
+        let mut legacy = encoded;
+        legacy.as_object_mut().unwrap().remove("world_mean_covariance");
+        let old: JointInstrumentedModelFit = serde_json::from_value(legacy).unwrap();
+        assert!(old.world_mean(&[0.0]).is_err());
+        assert_eq!(old.covariance, fit.covariance);
+    }
+
+    #[test]
     fn instruments_identify_actual_joint_features_and_refuse_joint_rank_loss() {
         let mut units = Vec::new();
         for replicate in 0..3 {
@@ -455,6 +513,10 @@ pub struct JointInstrumentedModelFit {
     pub coefficients: Vec<f64>,
     /// Full row-major coefficient covariance from complete independent-unit deletion.
     pub covariance: Vec<f64>,
+    /// Delete-unit covariance of endogenous coefficients and the exogenous population mean contribution.
+    /// Absent on legacy serialized fits, which cannot quantify a population world mean.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub world_mean_covariance: Option<Vec<f64>>,
     /// Native structural feature expansion checked against every original observation.
     pub features: JointStructuralFeatureBinding,
     /// Included exogenous feature count.
@@ -535,19 +597,47 @@ pub fn fit_instrumented_joint_polynomial(
     let _lease = super::budget::admit_cells(
         ctx,
         "structural IV delete-unit realizations",
-        n.saturating_mul(k).saturating_add(k.saturating_mul(k)),
+        n.saturating_mul(k.saturating_add(p).saturating_add(1))
+            .saturating_add(k.saturating_mul(k))
+            .saturating_add((p + 1).saturating_mul(p + 1)),
         1,
     )?;
+    let exogenous_sums: Vec<f64> =
+        (0..r).map(|j| units.iter().map(|u| u.exogenous[j]).sum()).collect();
     let mut deletes = Vec::with_capacity(n);
+    let mut world_deletes = Vec::with_capacity(n);
     for omitted in 0..n {
         super::budget::check_cancelled(ctx)?;
-        deletes.push(coefficients(
+        let beta = coefficients(
             &refs
                 .iter()
                 .enumerate()
                 .filter_map(|(i, u)| (i != omitted).then_some(*u))
                 .collect::<Vec<_>>(),
-        )?);
+        )?;
+        let mut world = beta[..p].to_vec();
+        let mean_contribution = (0..r)
+            .map(|j| {
+                beta[p + j] * (exogenous_sums[j] - units[omitted].exogenous[j]) / (n - 1) as f64
+            })
+            .sum();
+        world.push(mean_contribution);
+        world_deletes.push(world);
+        deletes.push(beta);
+    }
+    let world_width = p + 1;
+    let world_center: Vec<f64> = (0..world_width)
+        .map(|j| world_deletes.iter().map(|v| v[j]).sum::<f64>() / n as f64)
+        .collect();
+    let mut world_covariance = vec![0.0; world_width * world_width];
+    for world in world_deletes {
+        for j in 0..world_width {
+            for l in 0..world_width {
+                world_covariance[j * world_width + l] += (n - 1) as f64 / n as f64
+                    * (world[j] - world_center[j])
+                    * (world[l] - world_center[l]);
+            }
+        }
     }
     let center =
         (0..k).map(|j| deletes.iter().map(|v| v[j]).sum::<f64>() / n as f64).collect::<Vec<_>>();
@@ -565,6 +655,7 @@ pub fn fit_instrumented_joint_polynomial(
     Ok(JointInstrumentedModelFit {
         coefficients: point,
         covariance,
+        world_mean_covariance: Some(world_covariance),
         features,
         exogenous_columns: r,
         source_exogenous_means,
@@ -594,11 +685,23 @@ impl JointInstrumentedModelFit {
             })
             .collect::<Vec<_>>();
         row.extend_from_slice(&self.source_exogenous_means);
-        let n = row.len();
         let mean = row.iter().zip(&self.coefficients).map(|(x, b)| x * b).sum::<f64>();
-        let variance = (0..n)
-            .flat_map(|j| (0..n).map(move |l| (j, l)))
-            .map(|(j, l)| row[j] * row[l] * self.covariance[j * n + l])
+        let p = self.features.powers.len();
+        let width = p + 1;
+        let covariance = self
+            .world_mean_covariance
+            .as_ref()
+            .ok_or("world-mean uncertainty is unavailable on a legacy structural fit")?;
+        if covariance.len() != width.saturating_mul(width)
+            || covariance.iter().any(|v| !v.is_finite())
+        {
+            return Err("invalid world-mean covariance".into());
+        }
+        let mut world_row = row[..p].to_vec();
+        world_row.push(1.0);
+        let variance = (0..width)
+            .flat_map(|j| (0..width).map(move |l| (j, l)))
+            .map(|(j, l)| world_row[j] * world_row[l] * covariance[j * width + l])
             .sum::<f64>();
         if !mean.is_finite() || !variance.is_finite() || variance < -1e-10 {
             return Err("structural world arithmetic overflow or invalid covariance".into());
