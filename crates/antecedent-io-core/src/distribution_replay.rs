@@ -74,6 +74,13 @@ pub(crate) fn replay_distribution_atoms(
             .map_err(|_| ContractReason::DistributionFunctionalProgram)?;
     verify_requirements(&program, query, laws)?;
     validate_law_size(laws, limits)?;
+    let atom_width = query.outcomes.len().saturating_add(query.conditioning.len()).max(1);
+    let atom_scans =
+        result.atoms.len().saturating_mul(result.atoms.len()).saturating_mul(atom_width);
+    let scan_work = law_scan_work(laws).saturating_add(atom_scans);
+    if scan_work == usize::MAX || scan_work > limits.max_operations {
+        return Err(ContractReason::DistributionReplayResourceLimit);
+    }
     let provider = provider_from_laws(laws)?;
 
     let outcomes: Vec<_> = query.outcomes.iter().copied().map(VariableId::from_raw).collect();
@@ -113,10 +120,11 @@ pub(crate) fn replay_distribution_atoms(
     let free_cells = support_cells(laws, &free, limits)?;
     let max_program_nodes = program.arena().len().max(1);
     if outcome_cells
-        .saturating_mul(conditioning_cells)
-        .saturating_mul(free_cells)
-        .saturating_mul(max_program_nodes)
-        > limits.max_operations
+        .checked_mul(conditioning_cells)
+        .and_then(|n| n.checked_mul(free_cells))
+        .and_then(|n| n.checked_mul(max_program_nodes))
+        .and_then(|n| n.checked_add(scan_work))
+        .is_none_or(|n| n > limits.max_operations)
     {
         return Err(ContractReason::DistributionReplayResourceLimit);
     }
@@ -275,6 +283,10 @@ pub(crate) fn replay_functional_scalar(
     verify_scalar_requirements(&program, laws)?;
     validate_law_size(laws, limits)
         .map_err(|_| ContractReason::FunctionalEffectFactorLawsResourceLimit)?;
+    let scan_work = law_scan_work(laws);
+    if scan_work == usize::MAX || scan_work > limits.max_operations {
+        return Err(ContractReason::FunctionalEffectReplayResourceLimit);
+    }
     let provider = provider_from_laws(laws).map_err(|reason| match reason {
         ContractReason::DistributionFactorNormalization => {
             ContractReason::FunctionalEffectFactorNormalization
@@ -284,7 +296,11 @@ pub(crate) fn replay_functional_scalar(
     let free = program.free_variables();
     let free_cells = support_cells(laws, free, limits)
         .map_err(|_| ContractReason::FunctionalEffectFactorDomains)?;
-    if free_cells.saturating_mul(program.arena().len().max(1)) > limits.max_operations {
+    if free_cells
+        .checked_mul(program.arena().len().max(1))
+        .and_then(|n| n.checked_add(scan_work))
+        .is_none_or(|n| n > limits.max_operations)
+    {
         return Err(ContractReason::FunctionalEffectReplayResourceLimit);
     }
     let support = provider
@@ -562,6 +578,34 @@ fn insert_factor_table(
     Ok(())
 }
 
+// Conservative comparison bounds for the linear scans performed while building the
+// empirical provider. Saturation turns an unrepresentable bound into a refusal.
+fn law_scan_work(laws: &DistributionFactorLawsWire) -> usize {
+    let domain_count = laws.domains.len();
+    let max_levels = laws.domains.iter().map(|(_, levels)| levels.len()).max().unwrap_or(0);
+    let mut work = domain_count.saturating_mul(domain_count);
+    for (_, levels) in &laws.domains {
+        work = work.saturating_add(levels.len().saturating_mul(levels.len()));
+    }
+    for table in &laws.factors {
+        let width = table.key.variables.len().saturating_add(table.key.conditioned_on.len());
+        let rows = table.rows.len();
+        // Duplicate assignments and condition groups each scan prior rows. Comparing a
+        // row or condition may examine every value. Domain lookups and level membership
+        // are repeated for every row and column; table shape also looks up each domain.
+        let duplicates = rows.saturating_mul(rows).saturating_mul(width.max(1));
+        let groups =
+            rows.saturating_mul(rows).saturating_mul(table.key.conditioned_on.len().max(1));
+        let domain_lookups = rows
+            .saturating_add(1)
+            .saturating_mul(width)
+            .saturating_mul(domain_count.saturating_add(max_levels));
+        work =
+            work.saturating_add(duplicates).saturating_add(groups).saturating_add(domain_lookups);
+    }
+    work
+}
+
 fn validate_law_size(
     laws: &DistributionFactorLawsWire,
     limits: &ReplayLimits,
@@ -753,6 +797,25 @@ mod tests {
             }],
         };
         (query, crate::functional_program_to_wire(&program).unwrap(), laws)
+    }
+
+    #[test]
+    fn replay_charges_quadratic_provider_and_atom_scans_before_work() {
+        let (query, result, program, mut laws) = replay_fixture();
+        let row = laws.factors[0].rows[0].clone();
+        laws.factors[0].rows = vec![row; 128];
+        let limits = ReplayLimits { max_operations: 1_000, ..ReplayLimits::default() };
+        assert_eq!(
+            super::replay_distribution_atoms(&query, &result, &program, &laws, &limits),
+            Err(ContractReason::DistributionReplayResourceLimit)
+        );
+
+        let (query, mut result, program, laws) = replay_fixture();
+        result.atoms = vec![result.atoms[0].clone(); 128];
+        assert_eq!(
+            super::replay_distribution_atoms(&query, &result, &program, &laws, &limits),
+            Err(ContractReason::DistributionReplayResourceLimit)
+        );
     }
 
     #[test]

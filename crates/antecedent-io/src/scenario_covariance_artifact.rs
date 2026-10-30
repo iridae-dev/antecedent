@@ -158,6 +158,12 @@ pub struct RowTableWire {
 
 impl RowTableWire {
     fn check(&self) -> Result<(), IoError> {
+        if self.rows.is_empty() {
+            return Err(invalid(
+                "scenario_covariance.invalid_row_table",
+                "the row table has no rows",
+            ));
+        }
         if self.columns.is_empty() {
             return Err(invalid(
                 "scenario_covariance.invalid_row_table",

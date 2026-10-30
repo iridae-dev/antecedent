@@ -335,6 +335,34 @@ impl UtilityTerm {
         }
     }
 
+    // Quantities outside the active box are constants at this point. A min/max of
+    // constants is also constant; a min/max depending on the box is not multilinear.
+    fn multilinear_over<'a>(&'a self, active: &BTreeSet<&str>) -> Option<BTreeSet<&'a str>> {
+        match self {
+            Self::Const(_) => Some(BTreeSet::new()),
+            Self::Quantity(id) => Some(if active.contains(id.as_str()) {
+                BTreeSet::from([id.as_str()])
+            } else {
+                BTreeSet::new()
+            }),
+            Self::Neg(a) => a.multilinear_over(active),
+            Self::Add(a, b) | Self::Sub(a, b) | Self::Mul(a, b) => {
+                let mut left = a.multilinear_over(active)?;
+                let mut right = b.multilinear_over(active)?;
+                if matches!(self, Self::Mul(..)) && !left.is_disjoint(&right) {
+                    return None;
+                }
+                left.append(&mut right);
+                Some(left)
+            }
+            Self::Min(a, b) | Self::Max(a, b) => {
+                let left = a.multilinear_over(active)?;
+                let right = b.multilinear_over(active)?;
+                if left.is_empty() && right.is_empty() { Some(left) } else { None }
+            }
+        }
+    }
+
     /// Evaluate with each quantity's value in `values`; `None` for an unknown quantity.
     #[must_use]
     pub fn evaluate(&self, values: &HashMap<&str, f64>) -> Option<f64> {
@@ -1634,6 +1662,21 @@ impl SensitivityArtifact {
         let scenarios = self.scenario_count();
         let mut inputs = Vec::new();
         for point in self.considered_points(range)? {
+            let active: BTreeSet<&str> = self
+                .parts
+                .quantities
+                .iter()
+                .filter(|q| !same(q.lower[point], q.upper[point]))
+                .map(|q| q.quantity.variable_id.as_str())
+                .collect();
+            if self
+                .parts
+                .actions
+                .iter()
+                .any(|action| action.utility.multilinear_over(&active).is_none())
+            {
+                return Err(invalid_surface("utility must be multilinear in ranged quantities"));
+            }
             inputs.push(PointLeaders {
                 coordinate: self.parts.grid[point],
                 input: self.point_input(point, scenarios)?,

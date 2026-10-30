@@ -124,6 +124,31 @@ fn assert_wrong_contract(result: Result<SensitivityArtifact, IoError>, needle: &
 }
 
 #[test]
+fn ranged_nonlinear_utility_does_not_claim_vertex_winner_is_invariant() {
+    let mut parts = frozen_parts();
+    parts.quantities = vec![surface("q", &[-1.0; 3], &[1.0; 3])];
+    parts.actions = vec![
+        ActionUtility {
+            id: "A".into(),
+            utility: UtilityTerm::product(UtilityTerm::quantity("q"), UtilityTerm::quantity("q")),
+        },
+        ActionUtility { id: "B".into(), utility: UtilityTerm::Const(0.5) },
+    ];
+    // A wins at both vertices, but B wins at q=0.
+    let error = SensitivityArtifact::new(parts.clone()).unwrap_err();
+    let (code, message) = refusal(&error);
+    assert_eq!(code, "invalid_argument");
+    assert!(message.contains("multilinear"));
+
+    // A nonlinear expression over a point quantity remains valid, even if another
+    // unrelated quantity has a range.
+    parts.quantities[0] = surface("q", &[2.0; 3], &[2.0; 3]);
+    SensitivityArtifact::new(parts.clone()).unwrap();
+    parts.quantities.push(surface("unused", &[-1.0; 3], &[1.0; 3]));
+    SensitivityArtifact::new(parts).unwrap();
+}
+
+#[test]
 fn artifact_round_trips_and_its_consumer_replays_the_decision() {
     let artifact = SensitivityArtifact::new(frozen_parts()).unwrap();
     assert_eq!(artifact.outcome(), Some(&frozen_switch()));
@@ -560,11 +585,31 @@ fn caller_intake_limits_refuse_what_the_defaults_admit() {
     const EVALUATIONS: &str = "sensitivity_decision_composition.bounds_exceeded: the range vertices of the surface need more utility evaluations than the bound";
     const DEPTH: &str = "sensitivity_decision_composition.invalid_surface: utility expression is too deep or not finite";
     for (limits, built, consumed) in [
-        (SensitivityLimits { max_grid_points: 2, ..defaults }, (BOUNDS, ALL_THREE), (BOUNDS, GRID_QUANTITY)),
-        (SensitivityLimits { max_quantities: 1, ..defaults }, (BOUNDS, ALL_THREE), (BOUNDS, GRID_QUANTITY)),
-        (SensitivityLimits { max_actions: 1, ..defaults }, (BOUNDS, ALL_THREE), (BOUNDS, ALL_THREE)),
-        (SensitivityLimits { max_scenario_evaluations: 0, ..defaults }, (BOUNDS, EVALUATIONS), (BOUNDS, EVALUATIONS)),
-        (SensitivityLimits { max_utility_depth: 0, ..defaults }, ("invalid_argument", DEPTH), ("invalid_argument", DEPTH)),
+        (
+            SensitivityLimits { max_grid_points: 2, ..defaults },
+            (BOUNDS, ALL_THREE),
+            (BOUNDS, GRID_QUANTITY),
+        ),
+        (
+            SensitivityLimits { max_quantities: 1, ..defaults },
+            (BOUNDS, ALL_THREE),
+            (BOUNDS, GRID_QUANTITY),
+        ),
+        (
+            SensitivityLimits { max_actions: 1, ..defaults },
+            (BOUNDS, ALL_THREE),
+            (BOUNDS, ALL_THREE),
+        ),
+        (
+            SensitivityLimits { max_scenario_evaluations: 0, ..defaults },
+            (BOUNDS, EVALUATIONS),
+            (BOUNDS, EVALUATIONS),
+        ),
+        (
+            SensitivityLimits { max_utility_depth: 0, ..defaults },
+            ("invalid_argument", DEPTH),
+            ("invalid_argument", DEPTH),
+        ),
     ] {
         let error = SensitivityArtifact::new_within(frozen_parts(), &limits).unwrap_err();
         assert_eq!(refusal(&error), built, "{limits:?}");
@@ -576,9 +621,6 @@ fn caller_intake_limits_refuse_what_the_defaults_admit() {
         SensitivityArtifact::from_bytes_within(&bytes, None, &tight),
         Err(IoError::TooLarge)
     ));
-    assert!(matches!(
-        artifact.to_bytes_within("tight", bytes.len() - 1),
-        Err(IoError::TooLarge)
-    ));
+    assert!(matches!(artifact.to_bytes_within("tight", bytes.len() - 1), Err(IoError::TooLarge)));
     assert_eq!(artifact.to_bytes_within("tight", bytes.len()).expect("fits"), bytes);
 }

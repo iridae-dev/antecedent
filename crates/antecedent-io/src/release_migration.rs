@@ -382,7 +382,8 @@ pub fn migrate_route_record(
     let status = ManifestRouteStatus::from_manifest_word(record.status).ok_or_else(|| {
         RouteRecordError::UnknownStatus { id: id.clone(), status: record.status.to_owned() }
     })?;
-    let linked: Vec<&CurrentMethod> = current.iter().filter(|m| m.route == record.id).collect();
+    let linked: Vec<&CurrentMethod> =
+        current.iter().filter(|m| m.route != "unlisted" && m.route == record.id).collect();
     if linked.is_empty() {
         return match status {
             ManifestRouteStatus::Closed => Ok(RouteRecordOutcome::RefusalKept),
@@ -428,7 +429,10 @@ pub fn added_methods<'a>(
     current: &'a [CurrentMethod],
     previous_route_ids: &[&str],
 ) -> Vec<&'a CurrentMethod> {
-    current.iter().filter(|m| !previous_route_ids.contains(&m.route.as_str())).collect()
+    current
+        .iter()
+        .filter(|m| m.route == "unlisted" || !previous_route_ids.contains(&m.route.as_str()))
+        .collect()
 }
 
 /// One intentional break between the previous release and the current contracts.
@@ -650,6 +654,12 @@ pub fn consume_previous_route_records(
 ) -> Result<Vec<RouteRecordMigration>, PreviousReleaseError> {
     let wire: PreviousRoutesWire =
         serde_json::from_slice(bytes).map_err(|_| PreviousReleaseError::ArtifactNotDecoded)?;
+    let mut ids = std::collections::BTreeSet::new();
+    if wire.routes.iter().any(|route| {
+        route.id.is_empty() || route.id == "unlisted" || !ids.insert(route.id.as_str())
+    }) {
+        return Err(PreviousReleaseError::ArtifactNotDecoded);
+    }
     Ok(wire
         .routes
         .into_iter()
@@ -950,6 +960,31 @@ mod tests {
         assert_eq!(added.len(), 1);
         assert_eq!(added[0].id, "m.new");
         assert!(added[0].axes().is_empty());
+    }
+
+    #[test]
+    fn reserved_route_never_links_and_invalid_previous_ids_are_refused() {
+        use super::{ManifestRouteRecord, PreviousReleaseError, RouteRecordError};
+        let current = [method("m.new", "unlisted", "static", "frequentist", "licensed")];
+        let record = ManifestRouteRecord {
+            id: "unlisted",
+            status: "licensed",
+            design_time_model: "static",
+            inference: "frequentist",
+        };
+        assert!(matches!(
+            super::migrate_route_record(&record, &current),
+            Err(RouteRecordError::RouteWithoutCurrentMethod { .. })
+        ));
+        assert_eq!(super::added_methods(&current, &["unlisted"]).len(), 1);
+        for bytes in [
+            br#"{"routes":[{"id":"","status":"licensed","design_time_model":"static","inference":"frequentist"}]}"#.as_slice(),
+            br#"{"routes":[{"id":"unlisted","status":"licensed","design_time_model":"static","inference":"frequentist"}]}"#.as_slice(),
+            br#"{"routes":[{"id":"r","status":"licensed","design_time_model":"static","inference":"frequentist"},{"id":"r","status":"licensed","design_time_model":"static","inference":"frequentist"}]}"#.as_slice(),
+        ] {
+            assert!(matches!(super::consume_previous_route_records(bytes, &current),
+                Err(PreviousReleaseError::ArtifactNotDecoded)));
+        }
     }
 
     #[test]

@@ -411,6 +411,21 @@ fn covariance_artifact_invalid_declarations_refuse_with_typed_details() {
 }
 
 #[test]
+fn covariance_artifact_rejects_empty_table_before_constructing_estimators() {
+    for name in ["a", "adjusted"] {
+        let mut declared = spec(&[name], exact(0.0));
+        declared.table.rows.clear();
+        declared.table.unit_ids.clear();
+        let (code, message) = match declared.estimators() {
+            Err(IoError::Refused { code, message }) => (code, message),
+            _ => panic!("expected a coded refusal"),
+        };
+        assert_eq!(code, "invalid_argument");
+        assert!(message.starts_with("scenario_covariance.invalid_row_table"), "{message}");
+    }
+}
+
+#[test]
 fn covariance_artifact_consumer_row_bound_is_configurable_on_the_producer_too() {
     let declared = spec(&["a", "b"], exact(0.0));
     let base = ScenarioCovarianceConsumeLimits::default();
@@ -419,5 +434,8 @@ fn covariance_artifact_consumer_row_bound_is_configurable_on_the_producer_too() 
     let (code, message) = refused(declared.compute_within(&ctx(), &tight));
     assert_eq!(code, "cell_not_licensed");
     assert!(message.starts_with("scenario_covariance.table_too_large"), "{message}");
-    assert_eq!(declared.estimators_within(&tight).err().unwrap().to_string(), "reason=cell_not_licensed: scenario_covariance.table_too_large: at most 5 rows");
+    assert_eq!(
+        declared.estimators_within(&tight).err().unwrap().to_string(),
+        "reason=cell_not_licensed: scenario_covariance.table_too_large: at most 5 rows"
+    );
 }
