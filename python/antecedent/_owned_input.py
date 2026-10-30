@@ -17,6 +17,7 @@ def project_prepared_input(
     estimator: Any = None,
     estimator_config: Mapping[str, Any] | None = None,
     participant: str | None = None,
+    missing: Any = None,
 ) -> Any:
     """Keep analysis, declared design and identifier columns before ownership.
 
@@ -31,7 +32,7 @@ def project_prepared_input(
 
     supplied = graph.graph if isinstance(graph, AcceptedGraph) else graph
     _estimator, config = _unwrap_estimator(estimator, estimator_config)
-    projection = analysis_columns(query, supplied, config)
+    projection = analysis_columns(query, supplied, config, missing=missing)
     if projection is None:
         return data
     required = set(projection.names)

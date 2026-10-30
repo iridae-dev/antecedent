@@ -1199,6 +1199,8 @@ struct Pooling {
     lags: usize,
     spec: ImputationSpec,
     digest: Arc<str>,
+    imputation_domains: Arc<[(Arc<str>, antecedent_data::ImputationDomain)]>,
+    binary_boundary_variables: Arc<[(Arc<str>, u8)]>,
 }
 
 /// Publish the multivariate Rubin moments and joint Wald summary without changing
@@ -1291,6 +1293,8 @@ fn pool_into_result(
                     .is_finite()
                     .then_some(first.relative_increase),
                 assumptions_digest: Arc::clone(&meta.digest),
+                imputation_domains: Arc::clone(&meta.imputation_domains),
+                binary_boundary_variables: Arc::clone(&meta.binary_boundary_variables),
                 lags: meta.lags,
                 vector: Some(vector),
             }
@@ -1340,6 +1344,8 @@ fn pool_into_result(
                 fraction_missing_information: None,
                 relative_increase: None,
                 assumptions_digest: Arc::clone(&meta.digest),
+                imputation_domains: Arc::clone(&meta.imputation_domains),
+                binary_boundary_variables: Arc::clone(&meta.binary_boundary_variables),
                 lags: meta.lags,
                 vector: Some(vector),
             }
@@ -1518,6 +1524,8 @@ where
         lags: 0,
         spec,
         digest: Arc::from(assumptions.digest()),
+        imputation_domains: assumptions.domains.clone().into(),
+        binary_boundary_variables: assumptions.binary_boundary_variables.clone().into(),
     };
     let (mut result, report) = pool_into_result(study, &run, collected, &meta)?;
     let variables: Vec<VariableId> = analysed_variables(&result);
@@ -1668,7 +1676,7 @@ fn series_imputer(
         series_block(rows, lags),
     )
     .map_err(|error| CausalError::Estimate(error.into()))?;
-    let imputer = Imputer::new(columns, spec, units)
+    let imputer = Imputer::new_with_domains(columns, spec, units, &declaration.imputation_domains)
         .and_then(|imputer| imputer.with_dynamics(lags))
         .map_err(|error| CausalError::Estimate(error.into()))?;
     Ok((imputer, ids, lags))
@@ -1760,6 +1768,8 @@ where
         lags,
         spec,
         digest: Arc::from(assumptions.digest()),
+        imputation_domains: assumptions.domains.clone().into(),
+        binary_boundary_variables: assumptions.binary_boundary_variables.clone().into(),
     };
     let (mut result, report) = pool_into_result(study, &run, collected, &meta)?;
     let variables: Vec<VariableId> = ids.clone();

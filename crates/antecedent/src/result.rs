@@ -763,6 +763,11 @@ pub struct ImputationReport {
     /// sampling design and every variable's kind and imputed-cell count. Two reports with
     /// different digests are different analyses.
     pub assumptions_digest: std::sync::Arc<str>,
+    /// Canonical declared model-column domains.
+    pub imputation_domains:
+        std::sync::Arc<[(std::sync::Arc<str>, antecedent_data::ImputationDomain)]>,
+    /// Binary model variables and their single observed class under empirical-bootstrap support.
+    pub binary_boundary_variables: std::sync::Arc<[(std::sync::Arc<str>, u8)]>,
     /// Neighbouring time steps on each side the imputation model conditioned on, for a series;
     /// zero for exchangeable rows.
     pub lags: usize,
@@ -963,6 +968,8 @@ impl PartialEq for ImputationReport {
             fraction_missing_information,
             relative_increase,
             assumptions_digest,
+            imputation_domains,
+            binary_boundary_variables,
             lags,
             vector,
         } = self;
@@ -982,6 +989,8 @@ impl PartialEq for ImputationReport {
             fraction_missing_information: other_fraction,
             relative_increase: other_relative_increase,
             assumptions_digest: other_assumptions_digest,
+            imputation_domains: other_imputation_domains,
+            binary_boundary_variables: other_binary_boundary_variables,
             lags: other_lags,
             vector: other_vector,
         } = other;
@@ -1001,6 +1010,8 @@ impl PartialEq for ImputationReport {
             && same_option_bits(*fraction_missing_information, *other_fraction)
             && same_option_bits(*relative_increase, *other_relative_increase)
             && assumptions_digest == other_assumptions_digest
+            && imputation_domains == other_imputation_domains
+            && binary_boundary_variables == other_binary_boundary_variables
             && lags == other_lags
             && vector == other_vector
     }

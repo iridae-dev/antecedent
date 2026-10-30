@@ -10,6 +10,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 #[path = "../../../examples/rust/joint_panel_fixture.rs"]
 mod fixture;
+use antecedent::analysis::joint_panel::JointPanelFit;
 use antecedent::{
     Study,
     analysis::joint_panel::{
@@ -18,8 +19,8 @@ use antecedent::{
     },
 };
 use antecedent_core::{
-    CategoryDomainId, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
-    InferenceSelection, ScientificWorldId, SmallRoleSet, ValueType, VariableId,
+    CategoryDomainId, CausalSchemaBuilder, ExecutionContext, InferenceSelection, MeasurementSpec,
+    RoleHint, ScientificWorldId, SmallRoleSet, ValueType, VariableId,
 };
 use antecedent_data::TableView;
 use antecedent_data::{
@@ -28,7 +29,6 @@ use antecedent_data::{
     UnknownCategoryPolicy, ValidityBitmap,
 };
 use antecedent_estimate::joint_panel::PanelInference;
-use antecedent::analysis::joint_panel::JointPanelFit;
 use std::sync::Arc;
 
 const INTERVAL_NS: u64 = 604_800_000_000_000;
@@ -232,8 +232,11 @@ fn masked(data: &PanelData, unit: usize, hidden: &[usize]) -> PanelData {
     let series = &data.units()[unit].series;
     let rows = series.row_count();
     let keep: Vec<bool> = (0..rows).map(|row| !hidden.contains(&row)).collect();
-    data.with_unit_series(unit, series.with_analysis_mask(ValidityBitmap::from_bools(&keep)).unwrap())
-        .unwrap()
+    data.with_unit_series(
+        unit,
+        series.with_analysis_mask(ValidityBitmap::from_bools(&keep)).unwrap(),
+    )
+    .unwrap()
 }
 
 /// The panel with its units listed by source position, each a fresh unit, and every world's
@@ -283,7 +286,9 @@ fn replicated(
     (copy, request)
 }
 
-fn all_means(prepared: &antecedent::PreparedStudy<antecedent::analysis::joint_panel::JointPanelState>) -> Vec<Vec<f64>> {
+fn all_means(
+    prepared: &antecedent::PreparedStudy<antecedent::analysis::joint_panel::JointPanelState>,
+) -> Vec<Vec<f64>> {
     prepared.estimate(&ctx()).unwrap().point.iter().map(|world| world.means.clone()).collect()
 }
 
@@ -417,9 +422,11 @@ fn cells_03_joint_panel_refuses_weights_it_has_no_likelihood_for() {
     // A time-varying mechanism is selected on complete, equally weighted series.
     let mut temporal = plain_request(&data);
     temporal.temporal = Some(antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec {
-        varying: vec![antecedent_estimate::joint_panel::time_varying::PanelMeanParameter::Interaction {
-            id: "ab".into(),
-        }],
+        varying: vec![
+            antecedent_estimate::joint_panel::time_varying::PanelMeanParameter::Interaction {
+                id: "ab".into(),
+            },
+        ],
         change_points: vec![8, 12, 16],
         minimum_segment: 4,
         weak_change_gap: 4.0,
@@ -704,82 +711,85 @@ fn cells_03_joint_panel_dummy_codes_a_categorical_channel_with_a_declared_level_
     }
     // A fit on the dummy-coded panel is the fit on the same indicators supplied as numbers,
     // and the high level shifts the response by its own coefficient.
-    let request = |panel: &PanelData, columns: &antecedent::analysis::joint_panel::JointPanelColumns| {
-        let scenarios: Vec<_> = panel
-            .units()
-            .iter()
-            .map(|unit| {
-                let chan = |id: VariableId| unit.series.float64_cow(id).unwrap().into_owned();
-                antecedent_estimate::joint_panel::PanelScenario {
-                    group: unit.unit_id.to_string(),
-                    history: columns
-                        .channels
-                        .iter()
-                        .map(|&id| antecedent_estimate::joint_panel::PanelChannelHistory {
-                            id: id.raw().to_string(),
-                            values: [chan(id)[0], chan(id)[1]],
-                        })
-                        .collect(),
-                    confounder: chan(columns.confounder)[2..].to_vec(),
-                    season: chan(columns.season)[2..].iter().map(|v| *v as usize).collect(),
-                }
-            })
-            .collect();
-        let programs = [
-            ("reference", [0.0, 0.0, 0.0]),
-            ("low", [1.0, 0.0, 0.0]),
-            ("high", [0.0, 1.0, 0.0]),
-        ];
-        let worlds: Vec<_> = programs
-            .into_iter()
-            .enumerate()
-            .map(|(index, (id, doses))| antecedent::analysis::joint_panel::JointPanelWorld {
-                world: ScientificWorldId::from_raw(u32::try_from(index).unwrap()),
-                reference: index == 0,
-                program: antecedent_estimate::joint_panel::PanelProgram {
-                    id: id.into(),
-                    channels: columns
-                        .channels
-                        .iter()
-                        .zip(doses)
-                        .map(|(id, dose)| antecedent_estimate::joint_panel::PanelChannelProgram {
-                            id: id.raw().to_string(),
-                            values: vec![dose; 24],
-                        })
-                        .collect(),
-                    scenarios: scenarios.clone(),
+    let request =
+        |panel: &PanelData, columns: &antecedent::analysis::joint_panel::JointPanelColumns| {
+            let scenarios: Vec<_> = panel
+                .units()
+                .iter()
+                .map(|unit| {
+                    let chan = |id: VariableId| unit.series.float64_cow(id).unwrap().into_owned();
+                    antecedent_estimate::joint_panel::PanelScenario {
+                        group: unit.unit_id.to_string(),
+                        history: columns
+                            .channels
+                            .iter()
+                            .map(|&id| antecedent_estimate::joint_panel::PanelChannelHistory {
+                                id: id.raw().to_string(),
+                                values: [chan(id)[0], chan(id)[1]],
+                            })
+                            .collect(),
+                        confounder: chan(columns.confounder)[2..].to_vec(),
+                        season: chan(columns.season)[2..].iter().map(|v| *v as usize).collect(),
+                    }
+                })
+                .collect();
+            let programs = [
+                ("reference", [0.0, 0.0, 0.0]),
+                ("low", [1.0, 0.0, 0.0]),
+                ("high", [0.0, 1.0, 0.0]),
+            ];
+            let worlds: Vec<_> = programs
+                .into_iter()
+                .enumerate()
+                .map(|(index, (id, doses))| antecedent::analysis::joint_panel::JointPanelWorld {
+                    world: ScientificWorldId::from_raw(u32::try_from(index).unwrap()),
+                    reference: index == 0,
+                    program: antecedent_estimate::joint_panel::PanelProgram {
+                        id: id.into(),
+                        channels: columns
+                            .channels
+                            .iter()
+                            .zip(doses)
+                            .map(|(id, dose)| {
+                                antecedent_estimate::joint_panel::PanelChannelProgram {
+                                    id: id.raw().to_string(),
+                                    values: vec![dose; 24],
+                                }
+                            })
+                            .collect(),
+                        scenarios: scenarios.clone(),
+                    },
+                })
+                .collect();
+            let target = joint_panel_target(
+                panel.schema(),
+                columns,
+                2,
+                &worlds,
+                JointPanelFunctional::Worlds,
+                antecedent_core::InferenceSelection::Frequentist,
+            )
+            .unwrap();
+            JointPanelRequest {
+                columns: columns.clone(),
+                interactions: vec![],
+                seasons: 4,
+                lag_order: 2,
+                options: antecedent_estimate::joint_panel::PanelFitOptions {
+                    optimizer: antecedent_estimate::joint_panel::PanelOptimizerOptions {
+                        max_iterations: 3000,
+                        gradient_tolerance: 1e-5,
+                    },
+                    inference: PanelInference::Frequentist { draws: 0 },
+                    initial: None,
                 },
-            })
-            .collect();
-        let target = joint_panel_target(
-            panel.schema(),
-            columns,
-            2,
-            &worlds,
-            JointPanelFunctional::Worlds,
-            antecedent_core::InferenceSelection::Frequentist,
-        )
-        .unwrap();
-        JointPanelRequest {
-            columns: columns.clone(),
-            interactions: vec![],
-            seasons: 4,
-            lag_order: 2,
-            options: antecedent_estimate::joint_panel::PanelFitOptions {
-                optimizer: antecedent_estimate::joint_panel::PanelOptimizerOptions {
-                    max_iterations: 3000,
-                    gradient_tolerance: 1e-5,
-                },
-                inference: PanelInference::Frequentist { draws: 0 },
-                initial: None,
-            },
-            family: antecedent_estimate::joint_panel::PanelFamily::default(),
-            worlds,
-            target,
-            assignment: None,
-            temporal: None,
-        }
-    };
+                family: antecedent_estimate::joint_panel::PanelFamily::default(),
+                worlds,
+                target,
+                assignment: None,
+                temporal: None,
+            }
+        };
     let coded_request = request(&coded.data, &coded.columns);
     let by_levels = Study::prepare_joint_panel(coded.data.clone(), coded_request, &ctx()).unwrap();
     // The same indicators as hand-coded numeric channels.
@@ -1024,7 +1034,13 @@ fn cells_03_joint_panel_weighted_masked_and_missing_fits_match_the_dense_covaria
     for (name, hidden, weights, policy, source) in [
         ("weighted", vec![], true, PanelMissingPolicy::Refuse, "weighted"),
         ("gapped", vec![], false, PanelMissingPolicy::DropPeriods, "gapped"),
-        ("weighted_and_gapped", vec![], true, PanelMissingPolicy::DropPeriods, "weighted_and_gapped"),
+        (
+            "weighted_and_gapped",
+            vec![],
+            true,
+            PanelMissingPolicy::DropPeriods,
+            "weighted_and_gapped",
+        ),
         ("masked_rows", vec![(2, 7), (4, 2)], false, PanelMissingPolicy::Refuse, "weighted"),
     ] {
         let case = by_name(name);
@@ -1080,9 +1096,19 @@ fn cells_03_joint_panel_pools_multiply_imputed_responses_with_rubins_rules() {
             columns[3][12] = f64::NAN;
         }
     });
-    let prepared = Study::prepare_joint_panel_imputed(missing.clone(), request.clone(), spec, &ctx)
-        .unwrap_or_else(|error| panic!("{error}"));
+    let domains = [(Arc::<str>::from("confounder"), antecedent_data::ImputationDomain::Continuous)];
+    let prepared = Study::prepare_joint_panel_imputed_with_domains(
+        missing.clone(),
+        request.clone(),
+        spec,
+        &domains,
+        &ctx,
+    )
+    .unwrap_or_else(|error| panic!("{error}"));
     let result = prepared.estimate(&ctx).unwrap();
+    assert_eq!(result.imputation_assumptions.domains.as_slice(), &domains);
+    assert!(result.imputation_assumptions.binary_boundary_variables.is_empty());
+    assert_eq!(result.imputation_assumptions.digest().len(), 64);
     assert_eq!(result.programs.len(), 4);
     assert_eq!(result.horizons, vec![24; 4]);
     assert_eq!(result.fits.len(), 4);

@@ -629,10 +629,8 @@ fn graph_selection_is_rerun_on_every_completed_table_and_the_posteriors_are_stac
     assert!(report.between >= 0.0 && report.total >= report.within);
 
     // Variables out of column order cannot index the posterior's atoms.
-    let shuffled = GraphSelectionPerImputation::new(
-        BayesianDiscoverParams::default(),
-        vec![v(1), v(0), v(2)],
-    );
+    let shuffled =
+        GraphSelectionPerImputation::new(BayesianDiscoverParams::default(), vec![v(1), v(0), v(2)]);
     let error = estimate_with_graph_selection_per_imputation(
         &data,
         spec(),
@@ -642,4 +640,69 @@ fn graph_selection_is_rerun_on_every_completed_table_and_the_posteriors_are_stac
     )
     .unwrap_err();
     refusal(&error);
+}
+
+#[test]
+fn graph_selection_receives_completed_binary_domains_and_binds_assumptions() {
+    use antecedent_data::{ImputationDomain, TableView};
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let mut values: Vec<Vec<f64>> = raw_columns(700, 59).into_iter().take(3).collect();
+    for row in (0..values[0].len()).step_by(10) {
+        values[0][row] = f64::NAN;
+    }
+    let names = ["t", "y", "z"];
+    let data = TabularData::from_f64_columns(
+        names.iter().zip(&values).map(|(name, col)| (*name, col.as_slice())),
+    )
+    .unwrap();
+    let domains = [(Arc::<str>::from("t"), ImputationDomain::Binary)];
+    let spec = spec().with_imputations(2);
+    let selection =
+        GraphSelectionPerImputation::new(BayesianDiscoverParams::default(), vec![v(0), v(1), v(2)])
+            .with_domains(domains.to_vec());
+    let seen = AtomicUsize::new(0);
+    let result = estimate_with_graph_selection_per_imputation(
+        &data,
+        spec,
+        &selection,
+        &ctx(),
+        |completed, posterior| {
+            let treatment = completed.float64_values(v(0)).unwrap();
+            assert!(treatment.iter().all(|value| *value == 0.0 || *value == 1.0));
+            seen.fetch_add(1, Ordering::Relaxed);
+            selection_study(completed, posterior)
+        },
+    )
+    .unwrap();
+    assert_eq!(seen.load(Ordering::Relaxed), 2);
+    let columns = names
+        .iter()
+        .zip(&values)
+        .map(|(name, col)| ImputationColumn::new(*name, col.clone()))
+        .collect();
+    let reference =
+        Imputer::new_with_domains(columns, spec, ImputationUnits::Rows, &domains).unwrap();
+    let expected =
+        antecedent_estimate::multiple_imputation::ImputationAssumptions::of(&reference, None)
+            .digest();
+    assert_eq!(report_of(&result).assumptions_digest.as_ref(), expected);
+    assert!(reference.binary_boundary_variables().is_empty());
+    assert_ne!(
+        expected,
+        antecedent_estimate::multiple_imputation::ImputationAssumptions::of(
+            &Imputer::new(
+                names
+                    .iter()
+                    .zip(&values)
+                    .map(|(name, col)| ImputationColumn::new(*name, col.clone()))
+                    .collect(),
+                spec,
+                ImputationUnits::Rows
+            )
+            .unwrap(),
+            None
+        )
+        .digest()
+    );
 }

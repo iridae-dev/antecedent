@@ -754,7 +754,7 @@ def _declared_strings(value: Any, into: set[str]) -> None:
 
 
 def analysis_columns(
-    query: Any, graph: Any, estimator_config: Mapping[str, Any] | None
+    query: Any, graph: Any, estimator_config: Mapping[str, Any] | None, *, missing: Any = None
 ) -> AnalysisColumns | None:
     """The columns a typed-graph analysis reads, or ``None`` when every column is read.
 
@@ -778,6 +778,12 @@ def analysis_columns(
         return None
     _declared_strings(query, declared)
     _declared_strings(estimator_config, declared)
+    # Auxiliary imputation variables are inputs even when they are not graph nodes.
+    from .missing import coerce_missing
+
+    policy = coerce_missing(missing)
+    if policy is not None:
+        declared.update(policy.covariates)
     return AnalysisColumns(tuple(sorted(declared)), ordered=False)
 
 

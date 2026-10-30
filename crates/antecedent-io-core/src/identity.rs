@@ -1903,6 +1903,9 @@ pub struct ImputationSpecWire {
     /// Absent on older artifacts, and when the data cannot be imputed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub assumptions_digest: Option<String>,
+    /// Explicit model-column domains; absent for legacy inferred domains.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub domains: Vec<(String, String)>,
 }
 
 /// Data-snapshot payload binding contents and ordered unit/environment partitions.
@@ -3135,6 +3138,31 @@ pub fn external_compose_identity(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn imputation_domains_preserve_legacy_wire_and_identity_when_absent() {
+        #[derive(serde::Serialize)]
+        struct Legacy<'a> {
+            model: &'a str,
+            imputations: u32,
+            iterations: u32,
+            seed: u64,
+            assumption: &'a str,
+            unit: &'a str,
+        }
+        let old = Legacy { model: "chained_equations", imputations: 20, iterations: 10,
+            seed: 0, assumption: "missing_at_random", unit: "row" };
+        let mut wire = super::ImputationSpecWire { model: old.model.into(), imputations: old.imputations,
+            iterations: old.iterations, seed: old.seed, assumption: old.assumption.into(),
+            unit: old.unit.into(), bootstrap_replicates: 0, assumptions_digest: None, domains: Vec::new() };
+        assert_eq!(crate::to_cbor(&old).unwrap(), crate::to_cbor(&wire).unwrap());
+        let old_digest = super::digest_wire(antecedent_core::IdentityDomain::DataSnapshot, &old).unwrap();
+        assert_eq!(old_digest, super::digest_wire(antecedent_core::IdentityDomain::DataSnapshot, &wire).unwrap());
+        wire.domains.push(("x".into(), "binary".into()));
+        let encoded = crate::to_cbor(&wire).unwrap();
+        let decoded: super::ImputationSpecWire = crate::from_cbor(&encoded).unwrap();
+        assert_eq!(decoded, wire);
+        assert_ne!(old_digest, super::digest_wire(antecedent_core::IdentityDomain::DataSnapshot, &wire).unwrap());
+    }
     #[test]
     fn programmed_interventions_have_canonical_distinct_identities() {
         use antecedent_core::{Intervention, Value, ValueExpr, VariableId};

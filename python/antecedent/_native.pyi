@@ -6322,6 +6322,7 @@ def graph_selection_imputation_run(
     n_draws: int = 1000,
     prior_scale: float = 10.0,
     level: float = 0.95,
+    domains: list[tuple[str, str]] = ...,
 ) -> tuple[str | None, str | None]: ...
 def mnar_sensitivity_run(
     treatment: list[float],
@@ -8909,6 +8910,7 @@ def mechanism_composition_consume(
 def mechanism_composition_fitted_source(
     model: FittedGcm, variable: str
 ) -> tuple[str | None, str | None]: ...
+
 class TypedMechanismFitHandle:
     def variable(self) -> str: ...
     def summary_json(self) -> str: ...

@@ -48,6 +48,23 @@ pub enum MissingPolicy {
     MultipleImputation(ImputationSpec),
 }
 
+/// Domain declared for a named variable of the imputation model.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum ImputationDomain {
+    /// Exactly zero or one.
+    Binary,
+    /// Real-valued, even if the observed sample happens to be constant zero or one.
+    Continuous,
+}
+
+impl ImputationDomain {
+    /// Stable identity spelling.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self { Self::Binary => "binary", Self::Continuous => "continuous" }
+    }
+}
+
 /// The imputation model of [`MissingPolicy::MultipleImputation`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Default)]
 #[non_exhaustive]
@@ -292,13 +309,27 @@ pub struct MissingDeclaration {
     /// Covariates of the observation model; empty declares missing completely at random
     /// within arm.
     pub covariates: Arc<[VariableId]>,
+    /// Explicit domains by imputation-model column name, sorted for identity.
+    pub imputation_domains: Arc<[(Arc<str>, ImputationDomain)]>,
 }
 
 impl MissingDeclaration {
     /// A declaration with no covariates.
     #[must_use]
     pub fn new(policy: MissingPolicy) -> Self {
-        Self { policy, covariates: Arc::from([]) }
+        Self { policy, covariates: Arc::from([]), imputation_domains: Arc::from([]) }
+    }
+
+    /// Declare variable domains; duplicate and unknown names are refused by the imputer.
+    #[must_use]
+    pub fn with_imputation_domains(
+        mut self,
+        domains: impl Into<Arc<[(Arc<str>, ImputationDomain)]>>,
+    ) -> Self {
+        let mut domains = domains.into().to_vec();
+        domains.sort_by(|a, b| a.0.cmp(&b.0));
+        self.imputation_domains = domains.into();
+        self
     }
 
     /// Declare the covariates the observation probability depends on.

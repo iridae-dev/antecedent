@@ -96,12 +96,14 @@ def test_graph_selection_converts_pandas_na_before_native_call(monkeypatch):
     def capture(names, columns, *args, **kwargs):
         assert names == ["t", "y"]
         assert np.isnan(columns[1][1])
+        assert kwargs["domains"] == [("y", "binary")]
         raise Captured
 
     monkeypatch.setattr(_native, "graph_selection_imputation_run", capture)
     with pytest.raises(Captured):
         multiple_imputation_with_graph_selection(
-            {"t": [0, 1], "y": [1, pd.NA]}, treatment="t", outcome="y"
+            {"t": [0, 1], "y": [1, pd.NA]}, treatment="t", outcome="y",
+            domains=(("y", "binary"),),
         )
 
 
@@ -220,8 +222,9 @@ def test_graph_selection_is_rerun_on_every_completed_table():
     )
 
     data = _selection_data(500, 3)
+    data["t"][::10] = np.nan
     result = multiple_imputation_with_graph_selection(
-        data, treatment="t", outcome="y", imputations=4,
+        data, treatment="t", outcome="y", imputations=4, domains=(("t", "binary"),),
         iterations=3,
         n_draws=200,
         execution=ant.Execution(seed=2),
@@ -233,6 +236,9 @@ def test_graph_selection_is_rerun_on_every_completed_table():
     assert result.imputations == 4 and len(result.points) == 4
     assert result.posterior_draws == 4 * 200
     assert result.imputed_cells["y"] > 0
+    assert result.imputed_cells["t"] == 50
+    assert result.domains == {"t": "binary"}
+    assert result.binary_boundaries == {}
     # The stack's mean is the mean of the tables' posterior means, up to Monte Carlo error.
     assert result.effect == pytest.approx(np.mean(result.points), abs=8 * result.posterior_sd / 28)
     lower, upper = result.credible_interval["lower"], result.credible_interval["upper"]
@@ -242,3 +248,29 @@ def test_graph_selection_is_rerun_on_every_completed_table():
     with pytest.raises(GraphSelectionImputationRefusal) as unknown:
         multiple_imputation_with_graph_selection(data, treatment="t", outcome="nope")
     assert unknown.value.detail == "graph_selection_imputation.variables"
+
+
+def test_explicit_constant_domains_are_carried_and_change_identity():
+    data = _data(300, 71)
+    data["w"] = np.zeros(300)
+    data["w"][::10] = np.nan
+    # With an explicit auxiliary list, include the missing confounder as well as
+    # the constant column: only queried variables and named auxiliaries are imputed.
+    kwargs = dict(imputations=3, iterations=2, seed=3, auxiliary=("z", "w"))
+    binary = MissingPolicy.multiple_imputation(**kwargs, domains=(("w", "binary"),))
+    continuous = MissingPolicy.multiple_imputation(**kwargs, domains=(("w", "continuous"),))
+    assert native_declaration(binary, data.keys())["imputation"]["domains"] == [("w", "binary")]
+    assert binary.imputation.domains == (("w", "binary"),)
+    with pytest.raises(CausalError, match="ambiguous_variable_domain|declare its domain"):
+        _analyze(data, MissingPolicy.multiple_imputation(**kwargs))
+    a = _analyze(data, binary)
+    b = _analyze(data, continuous)
+    assert a.missing_data.imputation.assumptions_digest != b.missing_data.imputation.assumptions_digest
+    assert a.missing_data.imputation.domains == {"w": "binary"}
+    assert a.missing_data.imputation.binary_boundaries == {"w": {"class": 0, "method": "binary_single_class_empirical_boundary_v1"}}
+    assert b.missing_data.imputation.domains == {"w": "continuous"}
+    assert not b.missing_data.imputation.binary_boundaries
+    with pytest.raises(CausalError, match="binary_under_joint_normal|binary"):
+        _analyze(data, MissingPolicy.multiple_imputation(**kwargs, model="joint_normal", domains=(("w", "binary"),)))
+    with pytest.raises(CausalValueError):
+        ImputationSpec(domains=(("w", "binary"), ("w", "continuous")))

@@ -488,6 +488,10 @@ pub struct ImputationAssumptions {
     /// Pairs of variables whose product the conditional models read (empty for an additive
     /// model).
     pub interactions: Vec<(Arc<str>, Arc<str>)>,
+    /// Explicit column-domain declarations, in canonical name order.
+    pub domains: Vec<(Arc<str>, antecedent_data::ImputationDomain)>,
+    /// Binary variables using degenerate single-class empirical-bootstrap support.
+    pub binary_boundary_variables: Vec<(Arc<str>, u8)>,
 }
 
 impl ImputationAssumptions {
@@ -503,6 +507,8 @@ impl ImputationAssumptions {
             design,
             lags: imputer.lags(),
             interactions: imputer.interaction_names(),
+            domains: imputer.declared_domains().to_vec(),
+            binary_boundary_variables: imputer.binary_boundary_variables(),
         }
     }
 
@@ -540,6 +546,15 @@ impl ImputationAssumptions {
             for (a, b) in &self.interactions {
                 writer.text(a).text(b);
             }
+        }
+        if !self.domains.is_empty() {
+            writer.text("variable_domains_v1").word(self.domains.len() as u64);
+            for (name, domain) in &self.domains { writer.text(name).text(domain.name()); }
+        }
+        if !self.binary_boundary_variables.is_empty() {
+            writer.text("binary_single_class_empirical_boundary_v1")
+                .word(self.binary_boundary_variables.len() as u64);
+            for (name, value) in &self.binary_boundary_variables { writer.text(name).word(u64::from(*value)); }
         }
         writer.finish_hex()
     }

@@ -502,6 +502,7 @@ def prepare(
             estimator=estimator,
             estimator_config=estimator_config,
             participant=participant,
+            missing=missing,
         )
         owned = policy._call(table, projected)
     options = replay_declaration(declarations)
@@ -989,6 +990,7 @@ def rebind(study: Any, *, data: Any) -> Any:
                 estimator=declaration["estimator"],
                 estimator_config=declaration["estimator_config"],
                 participant=declaration["participant"],
+                missing=declaration["missing"],
             ),
         )
     bind = getattr(engine, "_bind", None)

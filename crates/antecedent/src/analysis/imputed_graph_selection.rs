@@ -40,6 +40,7 @@ use crate::result::{ImputationReport, StudyResult};
 pub struct GraphSelectionPerImputation {
     params: BayesianDiscoverParams,
     variables: Arc<[VariableId]>,
+    domains: Arc<[(Arc<str>, antecedent_data::ImputationDomain)]>,
 }
 
 impl GraphSelectionPerImputation {
@@ -47,7 +48,19 @@ impl GraphSelectionPerImputation {
     /// (the posterior's atoms index the searched variables by position).
     #[must_use]
     pub fn new(params: BayesianDiscoverParams, variables: impl Into<Arc<[VariableId]>>) -> Self {
-        Self { params, variables: variables.into() }
+        Self { params, variables: variables.into(), domains: Arc::from([]) }
+    }
+
+    /// Declare domains of named imputation columns; duplicate and unknown names are refused.
+    #[must_use]
+    pub fn with_domains(
+        mut self,
+        domains: impl Into<Arc<[(Arc<str>, antecedent_data::ImputationDomain)]>>,
+    ) -> Self {
+        let mut domains = domains.into().to_vec();
+        domains.sort_by(|a, b| a.0.cmp(&b.0));
+        self.domains = domains.into();
+        self
     }
 
     /// The searched variables.
@@ -121,8 +134,8 @@ where
     }
     let units = multiple_imputation::bind_units(None, None, data.row_count())
         .map_err(|error| CausalError::Estimate(error.into()))?;
-    let imputer =
-        Imputer::new(columns, spec, units).map_err(|error| CausalError::Estimate(error.into()))?;
+    let imputer = Imputer::new_with_domains(columns, spec, units, &selection.domains)
+        .map_err(|error| CausalError::Estimate(error.into()))?;
     let imputed: Vec<usize> = imputer
         .variables()
         .iter()
@@ -196,6 +209,8 @@ where
         fraction_missing_information: None,
         relative_increase: None,
         assumptions_digest: Arc::from(run.assumptions.digest()),
+        imputation_domains: run.assumptions.domains.clone().into(),
+        binary_boundary_variables: run.assumptions.binary_boundary_variables.clone().into(),
         lags: 0,
         vector: None,
     };

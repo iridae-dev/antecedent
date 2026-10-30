@@ -4,8 +4,8 @@
 
 use antecedent::result::MissingDataReport;
 use antecedent_data::{
-    ImputationModel, ImputationSpec, MissingDeclaration, MissingPolicy, MissingnessAssumption,
-    RowAccounting,
+    ImputationDomain, ImputationModel, ImputationSpec, MissingDeclaration, MissingPolicy,
+    MissingnessAssumption, RowAccounting,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
@@ -60,8 +60,38 @@ pub(crate) fn report_json(report: Option<&MissingDataReport>) -> Option<String> 
 }
 
 /// The impute-fit-pool record of a multiple-imputation result.
+pub(crate) fn add_imputation_domains(
+    payload: &mut serde_json::Value,
+    report: &antecedent::result::ImputationReport,
+) {
+    let Some(object) = payload.as_object_mut() else { return };
+    if !report.imputation_domains.is_empty() {
+        let domains: serde_json::Map<String, serde_json::Value> = report
+            .imputation_domains
+            .iter()
+            .map(|(name, domain)| (name.to_string(), serde_json::json!(domain.name())))
+            .collect();
+        object.insert("domains".to_owned(), serde_json::Value::Object(domains));
+    }
+    if !report.binary_boundary_variables.is_empty() {
+        let boundaries: serde_json::Map<String, serde_json::Value> = report
+            .binary_boundary_variables
+            .iter()
+            .map(|(name, class)| {
+                (
+                    name.to_string(),
+                    serde_json::json!({
+                        "class": class, "method": "binary_single_class_empirical_boundary_v1"
+                    }),
+                )
+            })
+            .collect();
+        object.insert("binary_boundaries".to_owned(), serde_json::Value::Object(boundaries));
+    }
+}
+
 fn imputation_json(report: &antecedent::result::ImputationReport) -> serde_json::Value {
-    serde_json::json!({
+    let mut payload = serde_json::json!({
         "model": report.spec.model.name(),
         "imputations": report.spec.imputations,
         "iterations": report.spec.iterations,
@@ -88,7 +118,9 @@ fn imputation_json(report: &antecedent::result::ImputationReport) -> serde_json:
         "assumptions_digest": report.assumptions_digest.as_ref(),
         "lags": report.lags,
         "vector": report.vector.as_ref().map(vector_json),
-    })
+    });
+    add_imputation_domains(&mut payload, report);
+    payload
 }
 
 /// The joint pooling of an answer with several coordinates. A non-finite number (an infinite
@@ -155,9 +187,29 @@ pub(crate) fn parse_declaration(value: &Bound<'_, PyAny>) -> PyResult<MissingDec
         }
         policy = MissingPolicy::MultipleImputation(parse_imputation(&spec)?);
     }
-    Ok(MissingDeclaration::new(policy).with_covariates(
+    let mut declaration = MissingDeclaration::new(policy).with_covariates(
         covariates.into_iter().map(antecedent_core::VariableId::from_raw).collect::<Vec<_>>(),
-    ))
+    );
+    if let Some(spec) = dict.get_item("imputation")?.filter(|value| !value.is_none()) {
+        let spec = spec.cast::<PyDict>()?;
+        let domains: Vec<(String, String)> =
+            spec.get_item("domains")?.map_or(Ok(Vec::new()), |v| v.extract())?;
+        let domains = domains
+            .into_iter()
+            .map(|(name, kind)| {
+                let domain = match kind.as_str() {
+                    "binary" => ImputationDomain::Binary,
+                    "continuous" => ImputationDomain::Continuous,
+                    _ => {
+                        return Err(crate::value_err(format!("unknown imputation domain {kind:?}")));
+                    }
+                };
+                Ok((std::sync::Arc::<str>::from(name), domain))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        declaration = declaration.with_imputation_domains(domains);
+    }
+    Ok(declaration)
 }
 
 /// The `imputation` member of the `missing` option:

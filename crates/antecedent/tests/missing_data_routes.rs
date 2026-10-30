@@ -125,6 +125,17 @@ fn run_trial(
 }
 
 #[test]
+fn imputation_domains_refuse_non_imputation_policies() {
+    let trial = trial(400, 1);
+    let declaration = MissingDeclaration::new(MissingPolicy::CompleteCase).with_imputation_domains(
+        vec![(Arc::from("outcome"), antecedent_data::ImputationDomain::Binary)],
+    );
+    let error = run_trial(&trial, Some(declaration)).unwrap_err();
+    assert_eq!(error.reason_code(), Some("invalid_argument"));
+    assert!(error.to_string().contains("multiple_imputation.variable_domain"));
+}
+
+#[test]
 fn a_randomized_trial_with_missing_outcomes_refuses_without_a_policy() {
     let t = trial(400, 1);
     let first = t.responded.iter().position(|seen| !seen).unwrap();

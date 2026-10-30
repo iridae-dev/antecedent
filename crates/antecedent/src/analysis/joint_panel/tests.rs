@@ -38,7 +38,7 @@ fn regular_columns(unit: u32) -> [Vec<f64>; 6] {
         .collect();
     [a, b, c, y, z, vec![0.0; n]]
 }
-fn fixture() -> (PanelData, JointPanelRequest) {
+pub(super) fn fixture() -> (PanelData, JointPanelRequest) {
     let units = (0..4)
         .map(|unit_id| {
             let [a, b, _, y, z, season] = regular_columns(unit_id);
@@ -155,7 +155,9 @@ fn changed_program_cannot_borrow_old_scientific_target() {
         Err(JointPanelError::Compile(message)) => {
             assert!(message.contains("differs from the retained program"), "{message}");
         }
-        other => panic!("a changed program must be refused as differing, got {:?}", other.map(|_| ())),
+        other => {
+            panic!("a changed program must be refused as differing, got {:?}", other.map(|_| ()))
+        }
     }
 }
 #[test]
@@ -1434,7 +1436,9 @@ fn panel_source_refuses_a_categorical_channel_instead_of_coding_it() {
                     Float64Column::new(
                         VariableId::from_raw(u32::try_from(index).unwrap()),
                         Arc::from(values.clone()),
-                        ValidityBitmap::from_bools(&values.iter().map(|v| !v.is_nan()).collect::<Vec<_>>()),
+                        ValidityBitmap::from_bools(
+                            &values.iter().map(|v| !v.is_nan()).collect::<Vec<_>>(),
+                        ),
                     )
                     .unwrap(),
                 ));
@@ -1443,7 +1447,10 @@ fn panel_source_refuses_a_categorical_channel_instead_of_coding_it() {
                 unit_id,
                 series: TimeSeriesData::try_new(
                     OwnedColumnarStorage::try_new(schema.clone(), owned, None, None).unwrap(),
-                    TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 100 }, length: 8 },
+                    TimeIndex {
+                        regularity: SamplingRegularity::Regular { interval_ns: 100 },
+                        length: 8,
+                    },
                 )
                 .unwrap(),
             }
@@ -1545,14 +1552,22 @@ fn continuous_search_grants_only_conditional_use_and_refuses_a_causal_scope_for_
         },
         initial: vec![0.0; 12],
     };
-    match result.compile_continuous_search(search_request(JointPanelScientificScope::IdentifiedCausal), &ctx) {
+    match result.compile_continuous_search(
+        search_request(JointPanelScientificScope::IdentifiedCausal),
+        &ctx,
+    ) {
         Err(JointPanelError::Unsupported(message)) => {
             assert!(message.contains("own causal design proof"), "{message}");
         }
-        other => panic!("a causal scope for a new program must be refused, got {:?}", other.map(|_| ())),
+        other => {
+            panic!("a causal scope for a new program must be refused, got {:?}", other.map(|_| ()))
+        }
     }
     let granted = result
-        .compile_continuous_search(search_request(JointPanelScientificScope::ModelConditional), &ctx)
+        .compile_continuous_search(
+            search_request(JointPanelScientificScope::ModelConditional),
+            &ctx,
+        )
         .unwrap()
         .execute(&ctx)
         .unwrap();

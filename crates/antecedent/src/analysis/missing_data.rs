@@ -238,6 +238,13 @@ pub(crate) fn validate_declaration(
     let (Some(query), Some(declaration)) = (context.query, declaration) else {
         return Ok(());
     };
+    if !declaration.imputation_domains.is_empty() && declaration.policy.imputation().is_none() {
+        return Err(CausalError::Estimate(antecedent_estimate::EstimationError::refused_detail(
+            antecedent_core::reason_code!("invalid_argument"),
+            "multiple_imputation.variable_domain",
+            "imputation variable domains require the multiple-imputation policy",
+        )));
+    }
     let cell = route_cell(query, context.data, context.inference);
     let Some(row) = route_missing_support(cell) else {
         return Err(CausalError::Estimate(policy_not_applicable(
@@ -393,8 +400,10 @@ pub(crate) fn non_default(
 ) -> Option<&MissingDeclaration> {
     let declaration = declaration?;
     let default = route.map(MissingRoute::default_policy);
-    (Some(declaration.policy) != default || !declaration.covariates.is_empty())
-        .then_some(declaration)
+    (Some(declaration.policy) != default
+        || !declaration.covariates.is_empty()
+        || !declaration.imputation_domains.is_empty())
+    .then_some(declaration)
 }
 
 /// Build the report a result carries.
@@ -449,6 +458,15 @@ pub(crate) fn policy_wire(
             }
             .to_owned(),
             assumptions_digest: super::missing_imputation::declared_assumptions_digest(study),
+            domains: {
+                let mut domains: Vec<_> = declaration
+                    .imputation_domains
+                    .iter()
+                    .map(|(name, domain)| (name.to_string(), domain.name().to_owned()))
+                    .collect();
+                domains.sort_unstable();
+                domains
+            },
         });
     Some(antecedent_io::MissingPolicyWire {
         policy: declaration.policy.name().to_owned(),

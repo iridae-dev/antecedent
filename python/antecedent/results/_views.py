@@ -836,6 +836,8 @@ class ImputationView(ResultModel):
     fraction_missing_information: float | None = None
     relative_increase: float | None = None
     assumptions_digest: str | None = None
+    domains: Mapping[str, str] = Field(default_factory=dict)
+    binary_boundaries: Mapping[str, Mapping[str, str | int]] = Field(default_factory=dict)
     lags: int = 0
     vector: ImputationVectorView | None = None
 

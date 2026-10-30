@@ -52,6 +52,8 @@ pub struct JointPanelImputedResult {
     pub fits: Vec<Vec<f64>>,
     /// Cells imputed per imputation-model variable.
     pub imputed_cells: Vec<(Arc<str>, usize)>,
+    /// Model declarations and single-class boundary facts, including their identity digest.
+    pub imputation_assumptions: multiple_imputation::ImputationAssumptions,
 }
 
 impl Study {
@@ -69,6 +71,20 @@ impl Study {
         data: PanelData,
         request: JointPanelRequest,
         spec: ImputationSpec,
+        _ctx: &ExecutionContext,
+    ) -> Result<PreparedJointPanelImputation, JointPanelError> {
+        Self::prepare_joint_panel_imputed_with_domains(data, request, spec, &[], _ctx)
+    }
+
+    /// Prepare with explicit domains for the named panel imputation-model columns.
+    ///
+    /// # Errors
+    /// As [`Self::prepare_joint_panel_imputed`], or an invalid domain declaration.
+    pub fn prepare_joint_panel_imputed_with_domains(
+        data: PanelData,
+        request: JointPanelRequest,
+        spec: ImputationSpec,
+        domains: &[(Arc<str>, antecedent_data::ImputationDomain)],
         _ctx: &ExecutionContext,
     ) -> Result<PreparedJointPanelImputation, JointPanelError> {
         let columns = &request.columns;
@@ -169,10 +185,14 @@ impl Study {
             .zip(table)
             .map(|(name, values)| ImputationColumn::new(name, values))
             .collect();
-        let imputer =
-            Imputer::new(imputation_columns, spec, ImputationUnits::Groups(groups.into()))
-                .and_then(|imputer| imputer.with_dynamics(1))
-                .map_err(|error| JointPanelError::compile(error.to_string()))?;
+        let imputer = Imputer::new_with_domains(
+            imputation_columns,
+            spec,
+            ImputationUnits::Groups(groups.into()),
+            domains,
+        )
+        .and_then(|imputer| imputer.with_dynamics(1))
+        .map_err(|error| JointPanelError::compile(error.to_string()))?;
         Ok(PreparedJointPanelImputation { source: data, request, imputer, layout: layout.into() })
     }
 }
@@ -269,6 +289,7 @@ impl PreparedJointPanelImputation {
         Ok(JointPanelImputedResult {
             programs: self.request.worlds.iter().map(|world| world.program.id.clone()).collect(),
             horizons: self.request.worlds.iter().map(super::JointPanelWorld::horizon).collect(),
+            imputation_assumptions: run.assumptions,
             pooled: run.pooled,
             fits: run.fits.iter().map(|fit| fit.point.clone()).collect(),
             imputed_cells: self
@@ -318,4 +339,66 @@ fn rebuilt(
         series = series.with_weights(Arc::from(weights)).map_err(JointPanelError::compile)?;
     }
     Ok(series)
+}
+
+#[cfg(test)]
+mod domain_tests {
+    use super::*;
+    use antecedent_core::VariableId;
+    use antecedent_data::{ImputationDomain, TableView, TimeSeriesData};
+
+    #[test]
+    fn retained_panel_imputer_keeps_binary_boundary_support_and_identity() {
+        let (source, mut request) = super::super::tests::fixture();
+        request.options.inference = PanelInference::Frequentist { draws: 2 };
+        let mut data = source.clone();
+        for (i, unit) in source.units().iter().enumerate() {
+            let mut columns: Vec<Vec<f64>> = (0..5)
+                .map(|id| unit.series.float64_cow(VariableId::from_raw(id)).unwrap().into_owned())
+                .collect();
+            columns[3].fill(0.0);
+            if i == 0 {
+                columns[3][10] = f64::NAN;
+            }
+            let rebuilt = TimeSeriesData::from_f64_columns(
+                ["a", "b", "y", "z", "season"]
+                    .iter()
+                    .zip(&columns)
+                    .map(|(name, column)| (*name, column.as_slice())),
+                100,
+            )
+            .unwrap();
+            data = data.with_unit_series(i, rebuilt).unwrap();
+        }
+        let ctx = ExecutionContext::for_tests(42);
+        let spec = ImputationSpec::new().with_imputations(2).with_iterations(1);
+        let err = Study::prepare_joint_panel_imputed(data.clone(), request.clone(), spec, &ctx)
+            .unwrap_err();
+        assert!(err.to_string().contains("ambiguous_variable_domain"));
+        let domains = [(Arc::<str>::from("confounder"), ImputationDomain::Binary)];
+        let prepared = Study::prepare_joint_panel_imputed_with_domains(
+            data.clone(),
+            request.clone(),
+            spec,
+            &domains,
+            &ctx,
+        )
+        .unwrap();
+        let completed = prepared.imputer.impute(0, &ctx).unwrap();
+        assert!(completed.column("confounder").unwrap().iter().all(|&value| value == 0.0));
+        let assumptions = multiple_imputation::ImputationAssumptions::of(&prepared.imputer, None);
+        assert_eq!(
+            assumptions.binary_boundary_variables,
+            vec![(Arc::<str>::from("confounder"), 0)]
+        );
+        assert_eq!(assumptions.domains.as_slice(), &domains);
+        let continuous = [(Arc::<str>::from("confounder"), ImputationDomain::Continuous)];
+        let other =
+            Study::prepare_joint_panel_imputed_with_domains(data, request, spec, &continuous, &ctx)
+                .unwrap();
+        assert_ne!(
+            assumptions.digest(),
+            multiple_imputation::ImputationAssumptions::of(&other.imputer, None).digest()
+        );
+    }
 }

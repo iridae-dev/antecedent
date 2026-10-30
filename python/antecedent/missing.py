@@ -35,7 +35,7 @@ reason for each exclusion and a digest of exactly which rows were dropped.
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
@@ -78,6 +78,11 @@ class ImputationSpec:
       Bayesian-bootstrap fit of its conditional model: normal linear for a continuous
       variable, logistic for a 0/1 one) or ``"joint_normal"`` (multivariate normal data
       augmentation with a Jeffreys posterior draw; refuses an incomplete binary variable).
+      An incomplete column observed only at 0 or only at 1 needs an explicit ``domains``
+      declaration. A declared binary single-class column uses the degenerate empirical
+      bootstrap at that class; it makes no claim about unseen-class probability.
+    * ``domains``: (column name, ``"binary"`` or ``"continuous"``) pairs. Every declaration
+      enters the identity. Undeclared columns with both 0 and 1 remain inferred as binary.
     * ``imputations``: number of completed tables ``m`` (2 to 1000; default 20).
     * ``iterations``: sweeps before each completed table is taken (1 to 1000; default 10).
     * ``seed``: seed of the keyed random streams; table ``j`` opens its own stream, so the
@@ -96,8 +101,19 @@ class ImputationSpec:
     seed: int = 0
     assumption: str = "missing_at_random"
     bootstrap_replicates: int = 0
+    domains: tuple[tuple[str, str], ...] = ()
 
     def __post_init__(self) -> None:
+        try:
+            domains = tuple((name, domain) for name, domain in self.domains)
+        except (TypeError, ValueError) as exc:
+            raise CausalTypeError("imputation domains must be name and domain pairs", reason_code="invalid_argument") from exc
+        if any(not isinstance(name, str) or not name or domain not in ("binary", "continuous") for name, domain in domains):
+            raise CausalValueError("imputation domains require a name and binary or continuous", reason_code="invalid_argument")
+        domains = tuple(sorted(domains))
+        if len({name for name, _ in domains}) != len(domains):
+            raise CausalValueError("imputation domain names must be unique", reason_code="invalid_argument")
+        object.__setattr__(self, "domains", domains)
         if self.model not in _MODELS:
             raise CausalValueError(
                 f"unknown imputation model {self.model!r}; use one of {list(_MODELS)}",
@@ -132,6 +148,8 @@ class ImputationSpec:
         }
         if self.bootstrap_replicates:
             native["bootstrap_replicates"] = self.bootstrap_replicates
+        if self.domains:
+            native["domains"] = list(self.domains)
         return native
 
 
@@ -252,13 +270,14 @@ class MissingPolicy:
         assumption: str = "missing_at_random",
         auxiliary: Iterable[str] = (),
         bootstrap_replicates: int = 0,
+        domains: Iterable[tuple[str, str]] = (),
     ) -> MissingPolicy:
         """Impute the missing cells ``imputations`` times, fit every completed table, pool."""
         return cls(
             "multiple_imputation",
             tuple(auxiliary),
             ImputationSpec(
-                model, imputations, iterations, seed, assumption, bootstrap_replicates
+                model, imputations, iterations, seed, assumption, bootstrap_replicates, tuple(domains)
             ),
         )
 
@@ -336,6 +355,8 @@ class GraphSelectionImputationResult:
     assumptions_digest: str
     assumption: str
     structure: str
+    domains: Mapping[str, str] = field(default_factory=dict)
+    binary_boundaries: Mapping[str, Mapping[str, str | int]] = field(default_factory=dict)
 
 
 def multiple_imputation_with_graph_selection(
@@ -349,6 +370,7 @@ def multiple_imputation_with_graph_selection(
     n_draws: int = 1000,
     prior_scale: float = 10.0,
     level: float = 0.95,
+    domains: Iterable[tuple[str, str]] = (),
     execution: Execution | None = None,
 ) -> GraphSelectionImputationResult:
     """Multiple imputation of a Bayesian average effect with graph selection re-run per table.
@@ -374,7 +396,7 @@ def multiple_imputation_with_graph_selection(
 
     if not isinstance(data, Mapping) or not data:
         raise CausalTypeError("data must be a non-empty mapping of column names to values")
-    ImputationSpec(imputations=imputations, iterations=iterations)
+    declaration = ImputationSpec(imputations=imputations, iterations=iterations, domains=tuple(domains))
     names = [str(name) for name in data]
     columns = [
         [float("nan") if _is_missing_scalar(v) else float(v) for v in data[name]]
@@ -391,6 +413,7 @@ def multiple_imputation_with_graph_selection(
         n_draws=n_draws,
         prior_scale=float(prior_scale),
         level=float(level),
+        domains=list(declaration.domains),
         **native_controls(execution, seed="seed"),
     )
     raise_refusal(refusal, GraphSelectionImputationRefusal)
@@ -411,6 +434,8 @@ def multiple_imputation_with_graph_selection(
         estimator=raw["estimator"],
         imputed_cells={entry["variable"]: entry["cells"] for entry in raw["imputed_cells"]},
         assumptions_digest=raw["assumptions_digest"],
+        domains=raw.get("domains", {}),
+        binary_boundaries=raw.get("binary_boundaries", {}),
         assumption=raw["assumption"],
         structure=raw["structure"],
     )

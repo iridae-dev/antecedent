@@ -114,7 +114,7 @@ pub use sample::{
     LaggedSampleWorkspace,
 };
 pub use sample_policy::{
-    ImputationModel, ImputationSpec, MaskPolicy, MissingDeclaration, MissingPolicy,
+    ImputationDomain, ImputationModel, ImputationSpec, MaskPolicy, MissingDeclaration, MissingPolicy,
     MissingnessAssumption,
 };
 pub use split::{DiscoveryEstimationSplit, EnvHoldoutSplit, TimeRange};

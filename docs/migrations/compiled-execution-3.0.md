@@ -92,3 +92,21 @@ Version 1 artifacts remain readable when their overlap result can be checked wit
 ledger provenance. A stored version 1 held-out verification is refused because its key
 section did not preserve that premise. Re-export keeps the legacy version; reseal from
 the original typed observation identities to write version 2.
+
+## Explicit imputation domains
+
+An incomplete column whose observed values are only zero or only one now requires an
+explicit binary or continuous domain. Python callers can pass
+`MissingPolicy.multiple_imputation(domains=(("x", "binary"),))`; Rust callers can use
+`MissingDeclaration::with_imputation_domains` or `Imputer::new_with_domains`.
+Declared binary columns retain zero/one support. With only one observed class,
+the empirical Bayesian bootstrap stays at that class; it does not assign probability
+to an unseen class. Reports disclose this boundary and bind the domain and class
+into the imputation assumptions identity. Joint-normal imputation still refuses
+incomplete binary columns.
+
+Rust struct literals for `MissingDeclaration`, `ImputationSpecWire`,
+`ImputationAssumptions` and `ImputationReport` must supply their new domain fields;
+prefer constructors where available. Empty domain declarations preserve earlier
+wire bytes and identities. The separate graph-selection and joint-panel preparation
+APIs also accept explicit domains.

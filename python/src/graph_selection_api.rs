@@ -8,15 +8,15 @@
 //! posterior, runs it, and stacks the effect posteriors; the adjustment set is whatever each
 //! sampled graph identifies, never a Python declaration. A refusal comes back as structured
 //! JSON for the Python layer to raise as its own typed exception.
-use crate::bridge::{split_detail, RefusalJson};
+use crate::bridge::{RefusalJson, split_detail};
 use crate::detach_catch;
 use antecedent::discovery::BayesianDiscoverParams;
 use antecedent::{
-    estimate_with_graph_selection_per_imputation, BayesianConfig, CausalError,
-    GraphSelectionPerImputation, InferenceMode, RefuteSuite, Study,
+    BayesianConfig, CausalError, GraphSelectionPerImputation, InferenceMode, RefuteSuite, Study,
+    estimate_with_graph_selection_per_imputation,
 };
-use antecedent_core::{reason_code, AverageEffectQuery, ExecutionContext, VariableId};
-use antecedent_data::{ImputationModel, ImputationSpec, TabularData};
+use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId, reason_code};
+use antecedent_data::{ImputationDomain, ImputationModel, ImputationSpec, TabularData};
 use pyo3::prelude::*;
 use serde_json::json;
 
@@ -45,7 +45,7 @@ fn central_interval(draws: &[f64], level: f64) -> (f64, f64) {
 #[pyfunction]
 #[pyo3(signature = (
     names, columns, treatment, outcome, *, model="chained_equations".to_owned(), imputations=20,
-    iterations=10, seed=1, n_draws=1000, prior_scale=10.0, level=0.95
+    iterations=10, seed=1, n_draws=1000, prior_scale=10.0, level=0.95, domains=Vec::new()
 ))]
 #[doc(hidden)]
 #[allow(clippy::too_many_arguments)]
@@ -62,6 +62,7 @@ fn graph_selection_imputation_run(
     n_draws: usize,
     prior_scale: f64,
     level: f64,
+    domains: Vec<(String, String)>,
 ) -> PyResult<(Option<String>, Option<String>)> {
     detach_catch(py, move || {
         let invalid = |detail: &str, message: String| {
@@ -106,8 +107,23 @@ fn graph_selection_imputation_run(
             .with_imputations(imputations)
             .with_iterations(iterations)
             .with_seed(seed);
+        let mut parsed_domains = Vec::with_capacity(domains.len());
+        for (name, domain) in domains {
+            let domain = match domain.as_str() {
+                "binary" => ImputationDomain::Binary,
+                "continuous" => ImputationDomain::Continuous,
+                _ => {
+                    return invalid(
+                        "graph_selection_imputation.domain",
+                        format!("unknown domain {domain:?}"),
+                    );
+                }
+            };
+            parsed_domains.push((std::sync::Arc::<str>::from(name), domain));
+        }
         let selection =
-            GraphSelectionPerImputation::new(BayesianDiscoverParams::default(), variables);
+            GraphSelectionPerImputation::new(BayesianDiscoverParams::default(), variables)
+                .with_domains(parsed_domains);
         let ctx = ExecutionContext::production_default(seed);
         let result = estimate_with_graph_selection_per_imputation(
             &table,
@@ -146,7 +162,7 @@ fn graph_selection_imputation_run(
             let n = posterior.draws.n_draws;
             Some(central_interval(&posterior.draws.values[column * n..(column + 1) * n], level))
         });
-        let payload = json!({
+        let mut payload = json!({
             "effect": effect.ate,
             "posterior_sd": effect.uncertainty.analytic.se,
             "credible_interval": interval.map(|(lower, upper)| json!({
@@ -169,6 +185,7 @@ fn graph_selection_imputation_run(
             "assumption": report.spec.assumption.name(),
             "structure": "graph_selection_rerun_per_imputation",
         });
+        crate::missing_report::add_imputation_domains(&mut payload, report);
         Ok((Some(payload.to_string()), None))
     })
 }

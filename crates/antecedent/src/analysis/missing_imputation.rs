@@ -147,8 +147,8 @@ pub(super) fn build_imputer_with(
     let units =
         multiple_imputation::bind_units(study.declared.sampling_design, groups, data.row_count())
             .map_err(|error| CausalError::Estimate(error.into()))?;
-    let imputer =
-        Imputer::new(columns, spec, units).map_err(|error| CausalError::Estimate(error.into()))?;
+    let imputer = Imputer::new_with_domains(columns, spec, units, &declaration.imputation_domains)
+        .map_err(|error| CausalError::Estimate(error.into()))?;
     // A treatment-by-modifier target reads a dependence an additive conditional model cannot
     // put into the cells it fills: the products enter every other variable's model.
     let pairs = treatment_modifier_pairs(&study.query, data, &ids);
@@ -375,6 +375,8 @@ where
                     .is_finite()
                     .then_some(pooled.relative_increase),
                 assumptions_digest,
+                imputation_domains: assumptions.domains.clone().into(),
+                binary_boundary_variables: assumptions.binary_boundary_variables.clone().into(),
                 lags: 0,
                 vector: None,
             }
@@ -408,6 +410,8 @@ where
                 fraction_missing_information: None,
                 relative_increase: None,
                 assumptions_digest,
+                imputation_domains: assumptions.domains.clone().into(),
+                binary_boundary_variables: assumptions.binary_boundary_variables.clone().into(),
                 lags: 0,
                 vector: None,
             }
@@ -550,6 +554,8 @@ mod tests {
             fraction_missing_information: None,
             relative_increase: None,
             assumptions_digest: Arc::from("abc"),
+            imputation_domains: Arc::from([]),
+            binary_boundary_variables: Arc::from([]),
             lags: 0,
             vector: None,
         }

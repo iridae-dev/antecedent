@@ -1709,7 +1709,7 @@ class _PreparedEngine(Generic[ResultT]):
             frame = None
         else:
             names, columns, frame = _frame_payload(
-                data, analysis_columns(query, graph, estimator_config)
+                data, analysis_columns(query, graph, estimator_config, missing=missing_policy)
             )
             table_names = tuple(names) if frame is None else None
         predicates, distributions = registry_wire(population_registry)
