@@ -1335,7 +1335,6 @@ pub fn nominal_z_transport_interval(
         coverage_level,
         keep_counts: true,
     };
-    let mut indexes = Vec::new();
     z_interval_over_draws(
         functional,
         data,
@@ -1343,7 +1342,7 @@ pub fn nominal_z_transport_interval(
         limits,
         &spec,
         ctx,
-        |counts, rng, out, resampled| bootstrap_draw(counts, rng, &mut indexes, out, resampled),
+        |counts, rng, out, resampled| bootstrap_draw(counts, rng, out, resampled, ctx),
     )
 }
 
@@ -1351,17 +1350,17 @@ pub fn nominal_z_transport_interval(
 fn bootstrap_draw(
     counts: &[u64],
     rng: &mut antecedent_core::CausalRng,
-    indexes: &mut Vec<antecedent_data::GlobalId>,
     probabilities: &mut Vec<f64>,
     resampled: &mut [u64],
-) -> bool {
-    if !resample_cited_counts(counts, rng, indexes, resampled) {
-        return false;
+    ctx: &ExecutionContext,
+) -> Result<bool, EstimationError> {
+    if !resample_cited_counts(counts, rng, resampled, ctx)? {
+        return Ok(false);
     }
     let total = resampled.iter().sum::<u64>() as f64;
     probabilities.clear();
     probabilities.extend(resampled.iter().map(|count| *count as f64 / total));
-    true
+    Ok(true)
 }
 
 #[cfg(feature = "calibration-internal")]
@@ -1523,13 +1522,12 @@ pub fn mz_transport_bootstrap_law_draws(
         Ok(tables) => tables,
         Err(reason) => return Ok(Err(reason)),
     };
-    let mut indexes = Vec::new();
     let mut drawer = TableDrawer::new(&tables, data.max_support_rows());
     let mut out = Vec::with_capacity(replicates as usize);
     for replicate in 0..replicates {
         crate::transport::refuse_cancelled(ctx, spec.stage)?;
         out.push(drawer.draw(&spec, replicate, ctx, &mut |counts, rng, p, resampled| {
-            bootstrap_draw(counts, rng, &mut indexes, p, resampled)
+            bootstrap_draw(counts, rng, p, resampled, ctx)
         })?);
     }
     Ok(Ok(out))
@@ -1572,13 +1570,12 @@ pub fn z_transport_bootstrap_law_draws(
         .map_err(|error| refuse_eval(&error))?;
     let tables = CitedTables::new(functional, data, AliasPolicy::Identical)?
         .map_err(EstimationError::data_msg)?;
-    let mut indexes = Vec::new();
     let mut drawer = TableDrawer::new(&tables, data.max_support_rows());
     let mut out = Vec::with_capacity(replicates as usize);
     for replicate in 0..replicates {
         crate::transport::refuse_cancelled(ctx, spec.stage)?;
         out.push(drawer.draw(&spec, replicate, ctx, &mut |counts, rng, p, resampled| {
-            bootstrap_draw(counts, rng, &mut indexes, p, resampled)
+            bootstrap_draw(counts, rng, p, resampled, ctx)
         })?);
     }
     Ok(Ok(out))
@@ -1624,7 +1621,6 @@ pub fn mz_transport_bootstrap_interval(
         Ok(tables) => tables,
         Err(reason) => return Ok(Err(reason)),
     };
-    let mut indexes = Vec::new();
     let drawn = z_draws(
         functional,
         TableDrawer::new(&tables, data.max_support_rows()),
@@ -1632,7 +1628,7 @@ pub fn mz_transport_bootstrap_interval(
         limits,
         &spec,
         ctx,
-        |counts, rng, out, resampled| bootstrap_draw(counts, rng, &mut indexes, out, resampled),
+        |counts, rng, out, resampled| bootstrap_draw(counts, rng, out, resampled, ctx),
     )?;
     let ok = drawn.columns[0].ok;
     if let Err(reason) = ReplicatePolicy::BOOTSTRAP.decide(replicates, ok, drawn.failed) {
@@ -1704,13 +1700,13 @@ pub fn bayesian_z_transport_interval(
         keep_counts: false,
     };
     z_interval_over_draws(functional, data, request, limits, &spec, ctx, |counts, rng, out, _| {
-        match dirichlet_posterior_probabilities(counts, prior, rng) {
+        Ok(match dirichlet_posterior_probabilities(counts, prior, rng) {
             Some(drawn) => {
                 *out = drawn;
                 true
             }
             None => false,
-        }
+        })
     })
 }
 
@@ -1740,7 +1736,12 @@ fn z_interval_over_draws(
     limits: ExactEvaluationLimits,
     spec: &ZDrawSpec,
     ctx: &ExecutionContext,
-    draw: impl FnMut(&[u64], &mut antecedent_core::CausalRng, &mut Vec<f64>, &mut Vec<u64>) -> bool,
+    draw: impl FnMut(
+        &[u64],
+        &mut antecedent_core::CausalRng,
+        &mut Vec<f64>,
+        &mut Vec<u64>,
+    ) -> Result<bool, EstimationError>,
 ) -> Result<Result<NominalZTransportInterval, &'static str>, EstimationError> {
     if data.laws().iter().any(|law| law.empirical_counts().is_none()) {
         return Ok(Err("exact_supplied_law_no_sampling_uncertainty"));
@@ -1822,7 +1823,7 @@ impl<'t, 'a> TableDrawer<'t, 'a> {
             &mut antecedent_core::CausalRng,
             &mut Vec<f64>,
             &mut Vec<u64>,
-        ) -> bool,
+        ) -> Result<bool, EstimationError>,
     ) -> Result<Option<antecedent_expr::ExactTransportData>, EstimationError> {
         for (dataset, counts) in self.tables.counts.iter().enumerate() {
             let mut rng =
@@ -1832,7 +1833,7 @@ impl<'t, 'a> TableDrawer<'t, 'a> {
                 &mut rng,
                 &mut self.probabilities[dataset],
                 &mut self.resampled[dataset],
-            ) {
+            )? {
                 return Ok(None);
             }
         }
@@ -1855,7 +1856,12 @@ fn z_draws(
     limits: ExactEvaluationLimits,
     spec: &ZDrawSpec,
     ctx: &ExecutionContext,
-    mut draw: impl FnMut(&[u64], &mut antecedent_core::CausalRng, &mut Vec<f64>, &mut Vec<u64>) -> bool,
+    mut draw: impl FnMut(
+        &[u64],
+        &mut antecedent_core::CausalRng,
+        &mut Vec<f64>,
+        &mut Vec<u64>,
+    ) -> Result<bool, EstimationError>,
 ) -> Result<ZDraws, EstimationError> {
     let outcomes = functional.outcomes().clone();
     let mut columns = requests.iter().map(|_| ReplicateColumns::new(&outcomes)).collect::<Vec<_>>();
@@ -1945,50 +1951,46 @@ fn finish_z_interval(
     })
 }
 
-/// Resample a count table by an iid row bootstrap of its observations.
-///
-/// The rows are never materialized: each drawn row index is located in the
-/// cumulative count table, so the memory is one index buffer (reused across
-/// datasets and replicates) plus the output cells. The draws are the same as
-/// the row bootstrap of the expanded table.
+/// Resample a count table by the same iid row draws without materializing indexes.
 fn resample_cited_counts(
     counts: &[u64],
     rng: &mut antecedent_core::CausalRng,
-    indexes: &mut Vec<antecedent_data::GlobalId>,
     out: &mut [u64],
-) -> bool {
+    ctx: &ExecutionContext,
+) -> Result<bool, EstimationError> {
     let total = counts.iter().try_fold(0u64, |n, k| n.checked_add(*k));
     let Some(total) = total.and_then(|total| usize::try_from(total).ok()) else {
-        return false;
+        return Ok(false);
     };
     if total == 0 || out.len() != counts.len() {
-        return false;
+        return Ok(false);
     }
+    crate::transport::refuse_cancelled(ctx, "z-transport bootstrap")?;
     let mut cumulative = Vec::with_capacity(counts.len());
     let mut running = 0u64;
     for count in counts {
         running += count;
         cumulative.push(running);
     }
-    indexes.clear();
     if antecedent_core::DeclaredSamplingDesign::IndependentSubjectTrajectories
         .apply_resampling(antecedent_core::ResamplingRule::RowSubjectIid)
         .is_err()
-        || fill_resample_indexes(ResamplingPlan::IidBootstrap, total, rng, indexes).is_err()
-        || indexes.len() != total
     {
-        return false;
+        return Ok(false);
     }
     out.fill(0);
-    for index in indexes.iter() {
-        // The first cell whose cumulative count exceeds the row index holds that row.
-        let cell = cumulative.partition_point(|end| *end <= index.get());
+    for draw in 0..total {
+        if draw % 1024 == 0 {
+            crate::transport::refuse_cancelled(ctx, "z-transport bootstrap")?;
+        }
+        let index = antecedent_kernels::unbiased_index(rng, total);
+        let cell = cumulative.partition_point(|end| *end <= index as u64);
         if cell >= out.len() {
-            return false;
+            return Ok(false);
         }
         out[cell] += 1;
     }
-    true
+    Ok(true)
 }
 
 /// Linear-interpolation (type-7) percentile interval of resampled replicates.
@@ -2092,10 +2094,9 @@ mod tests {
     fn resampled_counts_match_the_expanded_row_bootstrap() {
         let counts = [3u64, 0, 2, 5];
         let ctx = ExecutionContext::for_tests(5);
-        let mut indexes = Vec::new();
         let mut out = vec![0u64; 4];
         let mut rng = ctx.rng.stream_for(StreamDomain::Transport, 9);
-        assert!(resample_cited_counts(&counts, &mut rng, &mut indexes, &mut out));
+        assert!(resample_cited_counts(&counts, &mut rng, &mut out, &ctx).unwrap());
         assert_eq!(out.iter().sum::<u64>(), 10);
         assert_eq!(out[1], 0);
         // Expanding the rows and drawing the same indexes gives the same table.
@@ -2112,7 +2113,13 @@ mod tests {
             expected[rows[usize::try_from(index.get()).expect("row id")]] += 1;
         }
         assert_eq!(out, expected);
-        assert!(!resample_cited_counts(&[0, 0], &mut rng, &mut indexes, &mut out[..2]));
+        assert!(!resample_cited_counts(&[0, 0], &mut rng, &mut out[..2], &ctx).unwrap());
+        let cancelled = ExecutionContext::for_tests(5);
+        cancelled.cancellation.cancel();
+        let error =
+            resample_cited_counts(&[usize::MAX as u64], &mut rng, &mut out[..1], &cancelled)
+                .unwrap_err();
+        assert_eq!(error.reason_code(), Some("transport_budget_cancel"));
     }
 
     #[test]
