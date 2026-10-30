@@ -76,7 +76,10 @@ pub(super) fn simultaneous_multiplier_band(
         .zip(standard_errors)
         .map(|(estimate, se)| estimate + critical * se)
         .collect::<Vec<_>>();
-    if !critical.is_finite() || lower.iter().chain(&upper).any(|v| !v.is_finite()) {
+    // An unavailable Monte Carlo rank deliberately produces the whole real
+    // line. Keep that exact finite-replicate convention; only a finite critical
+    // value with overflowing endpoints, or NaNs, is a numerical failure.
+    if !valid_band_endpoints(critical, &lower, &upper) {
         return Err(EstimationError::unsupported("simultaneous band has non-finite endpoints"));
     }
     Ok(ResponseUncertainty::SimultaneousBand {
@@ -158,7 +161,10 @@ pub(super) fn simultaneous_posterior_band(
         mean.iter().zip(standard_deviations).map(|(m, sd)| m - critical * sd).collect();
     let upper: Vec<f64> =
         mean.iter().zip(standard_deviations).map(|(m, sd)| m + critical * sd).collect();
-    if !critical.is_finite() || lower.iter().chain(&upper).any(|v| !v.is_finite()) {
+    // An unavailable Monte Carlo rank deliberately produces the whole real
+    // line. Keep that exact finite-replicate convention; only a finite critical
+    // value with overflowing endpoints, or NaNs, is a numerical failure.
+    if !valid_band_endpoints(critical, &lower, &upper) {
         return Err(EstimationError::unsupported("simultaneous band has non-finite endpoints"));
     }
     Ok(ResponseUncertainty::SimultaneousBand {
@@ -170,6 +176,14 @@ pub(super) fn simultaneous_posterior_band(
         })?,
         interpretation: IntervalInterpretation::Credible,
     })
+}
+
+fn valid_band_endpoints(critical: f64, lower: &[f64], upper: &[f64]) -> bool {
+    if critical == f64::INFINITY {
+        lower.iter().all(|v| *v == f64::NEG_INFINITY) && upper.iter().all(|v| *v == f64::INFINITY)
+    } else {
+        critical.is_finite() && lower.iter().chain(upper).all(|v| v.is_finite())
+    }
 }
 
 #[cfg(test)]
@@ -201,6 +215,10 @@ mod tests {
             simultaneous_multiplier_band(&[1.0], &influences, 4, &[0.0], 0.95, 200, 4).is_err()
         );
         assert!(
+            simultaneous_multiplier_band(&[f64::MAX], &influences, 4, &[f64::MAX], 0.95, 200, 4)
+                .is_err()
+        );
+        assert!(
             simultaneous_multiplier_band(
                 &[1.0],
                 &[f64::NAN, 0.0, 0.0, 0.0],
@@ -214,6 +232,11 @@ mod tests {
         );
         let draws: Vec<f64> = (0..120).map(|i| 1.0 + (f64::from(i) - 60.0) / 100.0).collect();
         let scaled_draws: Vec<f64> = draws.iter().map(|v| v * scale).collect();
+        let unbounded = endpoints(
+            simultaneous_posterior_band(&[1.0], &[draws.clone()], &[0.5], &[1.5], &[0.35], 0.999)
+                .unwrap(),
+        );
+        assert_eq!(unbounded, (vec![f64::NEG_INFINITY], vec![f64::INFINITY]));
         let a = endpoints(
             simultaneous_posterior_band(&[1.0], &[draws], &[0.5], &[1.5], &[0.35], 0.95).unwrap(),
         );
