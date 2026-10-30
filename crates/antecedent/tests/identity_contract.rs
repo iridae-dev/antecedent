@@ -31,14 +31,14 @@ use antecedent_contract::{
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
     AverageEffectQuery, CacheBudget, CausalQuery, CausalRng, CausalSchemaBuilder,
-    ConditionalEffectQuery, ContinuousDomain, CounterfactualQuery, ExecutionContext,
-    ExecutionReceipt, ExecutionRequestState, GridSpec, IdentificationStatus, Intervention,
-    InterventionSequence, InterventionalDistributionQuery, Lag, MeasurementSpec, MediationContrast,
-    MediationQuery, ObservationAssumption, ObservationSpec, PathSpecificEffectQuery, ProgressSink,
-    QueryId, RequestIdentity, ResponseFunctional, ResponseIdentification, ResponseQuery,
-    ResponseValue, RoleHint, SemanticDigest, SequencedIntervention, SmallRoleSet,
-    TEMPORAL_OBSERVATION_UNLICENSED, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec,
-    Value, ValueType, VariableId,
+    ChangeAttributionQuery, ConditionalEffectQuery, ContinuousDomain, CounterfactualQuery,
+    ExecutionContext, ExecutionReceipt, ExecutionRequestState, GridSpec, IdentificationStatus,
+    Intervention, InterventionSequence, InterventionalDistributionQuery, Lag, MeasurementSpec,
+    MediationContrast, MediationQuery, ObservationAssumption, ObservationSpec,
+    PathSpecificEffectQuery, PopulationSelector, ProgressSink, QueryId, RequestIdentity,
+    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseValue, RoleHint,
+    SemanticDigest, SequencedIntervention, SmallRoleSet, TEMPORAL_OBSERVATION_UNLICENSED,
+    TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, Value, ValueType, VariableId,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TableView, TabularData,
@@ -349,7 +349,8 @@ fn refresh_same_shape_changes_snapshot_and_expires_preview() {
     assert!((refreshed.effect() - original.effect() - 1.0).abs() < 1e-10);
     assert!((refreshed.effect() - 3.0).abs() < 0.2);
     let failure = data.with_replaced_float(VariableId::from_raw(0), vec![0.0; 256].into()).unwrap();
-    let refused = rebind_estimate(&mut prepared, failure, &ctx).err().expect("a constant treatment");
+    let refused =
+        rebind_estimate(&mut prepared, failure, &ctx).err().expect("a constant treatment");
     assert!(refused.to_string().contains("reason=arm_not_populated"), "{refused}");
     assert_eq!(after.identities, prepared.contract().unwrap().identities);
 }
@@ -753,7 +754,8 @@ fn apply_refresh_requires_a_bound_preview() {
     let mut prepared = study(data.clone(), dag, query).prepare(&ctx).unwrap();
     let preview = prepared.preview_transform(TransformIntent::CompatibleDataReplace).unwrap();
     let stale = prepared.preview_transform(TransformIntent::ChangeGraph).unwrap();
-    let refused = prepared.apply_refresh(&stale, data.clone(), &ctx).err().expect("a stale preview");
+    let refused =
+        prepared.apply_refresh(&stale, data.clone(), &ctx).err().expect("a stale preview");
     assert!(
         refused.to_string().contains("refresh preview does not bind the current prepared contract"),
         "{refused}"
@@ -1113,20 +1115,30 @@ fn path_specific_fixture() -> (TabularData, Dag, PathSpecificEffectQuery) {
     (data, dag, query)
 }
 
-/// A refused cell the route table lets execute: a path-specific effect on an explicit mixed
-/// graph. It builds and runs, and its result states `refused`; the conditional effect on that
-/// graph is licensed, so it cannot stand in for it.
+/// Full validation of a mixed-graph change attribution is currently refused:
+/// it does not license the underlying operation or allow a prepared claim.
 fn refused_admg_cell() -> antecedent::StudyBuilder {
-    let (data, _, query) = path_specific_fixture();
+    let (data, _, _) = path_specific_fixture();
     let mut admg = Admg::with_variables(3);
     admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     admg.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+    let query = ChangeAttributionQuery::new(
+        VariableId::from_raw(2),
+        PopulationSelector::TimeRange { start: 0, end: 100 },
+        PopulationSelector::TimeRange { start: 100, end: 200 },
+    );
     Study::tabular(data)
         .graph(admg)
-        .query(CausalQuery::PathSpecific(query))
-        .identifier(IdentifierId::PathSpecificNatural)
-        .estimator(EstimatorId::FunctionalEffect)
+        .query(CausalQuery::ChangeAttribution(query))
+        .refute(RefuteSuite::Full)
         .bootstrap_replicates(0)
+}
+
+fn assert_refused_build(builder: antecedent::StudyBuilder) {
+    assert!(matches!(
+        builder.build(),
+        Err(antecedent::CausalError::Support { id: antecedent::SupportRefusal::Refused, .. })
+    ));
 }
 
 #[test]
@@ -2299,10 +2311,11 @@ fn composition_prior_transfer_keeps_identification_and_refuses_mismatch() {
         .graph(graph)
         .temporal_query(pulse_query())
         .inference(InferenceMode::Bayesian(
-            BayesianConfig::conjugate().n_draws(32).prior_from_composed(
+            BayesianConfig::conjugate().n_draws(32).prior_from_composed_with_baseline(
                 sources,
                 composed,
                 Some(ConflictPolicy::try_new(0.05, 1.0).unwrap()),
+                PriorSet::weakly_informative(2),
             ),
         ))
         .bootstrap_replicates(0)
@@ -2432,9 +2445,7 @@ fn licensed_family_refused_cell_inspects_as_structured_refusal() {
     assert_eq!(inspected.support_status.unwrap().as_str(), "refused");
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
     assert!(inspected.identities.identification_product.is_none());
-    // The closed rule marks the cell as executing: it builds and its status stays refused.
-    let study = builder.build().unwrap();
-    assert_eq!(study.support_status().unwrap().as_str(), "refused");
+    assert_refused_build(builder);
 }
 
 #[test]
@@ -2489,10 +2500,8 @@ fn capability_preflight_and_build_agree_on_refused_blockers() {
     assert_eq!(inspected.support_status.unwrap().as_str(), "refused");
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
     assert_eq!(inspected.capability().primary_blocker_id(), preflight.primary_blocker_id());
-    // The cell executes unlicensed: build succeeds and carries the refused status the
-    // preflight reports as its blocker.
-    let study = builder.build().unwrap();
-    assert_eq!(study.support_status().unwrap().as_str(), "refused");
+    // The preflight blocker also prevents constructing a licensed study.
+    assert_refused_build(builder);
 }
 
 #[test]
@@ -2529,8 +2538,7 @@ fn capability_inspect_cannot_open_a_refused_cell() {
     assert!(!report.is_executable());
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
     assert!(inspected.identities.identification_product.is_none());
-    // Refused does not mean unbuildable here: the cell executes and reports `refused`.
-    assert_eq!(builder.build().unwrap().support_status().unwrap().as_str(), "refused");
+    assert_refused_build(builder);
 }
 
 #[test]
@@ -2609,7 +2617,7 @@ fn capability_rank_designs_uses_scoped_operation_not_matrix_row() {
         refused_rank
             .coordinate
             .as_deref()
-            .is_some_and(|coord| coord.starts_with("PathSpecificEffect:Admg:")),
+            .is_some_and(|coord| coord.starts_with("ChangeAttribution:Admg:")),
         "scoped ops keep the real matrix coordinate, got {:?}",
         refused_rank.coordinate
     );
