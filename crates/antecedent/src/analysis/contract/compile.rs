@@ -525,7 +525,11 @@ pub(super) fn compile_with_payloads(
             modality: Arc::from(snapshot_modality(&study.data)),
             inference: Arc::from(declared_inference(study)),
             query_kind: Arc::from(
-                crate::support::query_axis_name(&study.query, study.graph.class())
+                (matches!(study.data, DataInput::Temporal(_))
+                    && matches!(study.query, CausalQuery::Mediation(_))
+                    && study.graph.class() == GraphClass::TemporalAdmg)
+                    .then_some("TemporalMediationEffect")
+                    .or_else(|| crate::support::query_axis_name(&study.query, study.graph.class()))
                     .or_else(|| compiled_off_axis_kind(&study.query))
                     .unwrap_or("Unknown"),
             ),

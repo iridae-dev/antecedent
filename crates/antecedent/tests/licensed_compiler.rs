@@ -1010,6 +1010,166 @@ struct CellSetup {
 }
 
 
+/// The path-specific, interventional-distribution and mediation cells over a graph posterior read
+/// the identified atoms of the mixture fixture: each class has atoms the identifier decides, on
+/// the count table the fixture enumerates, so the mixture is the posterior-weighted mean of
+/// identified functionals.
+fn mixture_setup(cell: antecedent::SupportCell) -> Option<Result<CellSetup, String>> {
+    let family = match cell.query.as_str() {
+        "PathSpecificEffect" => "path_specific",
+        "InterventionalDistribution" => "distribution",
+        "MediationEffect" => "mediation",
+        _ => return None,
+    };
+    if cell.structure.as_str() != "graph_posterior" {
+        return None;
+    }
+    let class = match cell.graph_class.as_str() {
+        "Dag" => "dag",
+        "Admg" => "admg",
+        "TemporalAdmg" => "temporal_admg",
+        "Cpdag" => "cpdag",
+        "Pag" => "pag",
+        _ => return None,
+    };
+    let pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/estimate/functional_graph_posterior_mixtures/expected.json"
+    ))
+    .expect("mixture fixture");
+    let fixture_class = if class == "temporal_admg" { "admg" } else { class };
+    let entry = &pin["posteriors"][family][fixture_class];
+    let table = &pin["tables"][entry["table"].as_str().unwrap()];
+    let names: Vec<String> =
+        table["columns"].as_array().unwrap().iter().map(|c| c.as_str().unwrap().to_owned()).collect();
+    let index_of = |name: &str| u32::try_from(names.iter().position(|n| n == name).unwrap()).unwrap();
+    let scale: u64 = if entry["table"] == "linear_mediation" || cell.validation.as_str() == "none" {
+        1
+    } else {
+        40
+    };
+    let mut values: Vec<Vec<f64>> = vec![Vec::new(); names.len()];
+    for row in table["contingency_table"].as_array().unwrap() {
+        let count = usize::try_from(row["count"].as_u64().unwrap() * scale).unwrap();
+        for (j, name) in names.iter().enumerate() {
+            values[j].extend(std::iter::repeat_n(row[name.as_str()].as_f64().unwrap(), count));
+        }
+    }
+    let rows = values[0].len();
+    let order: Vec<usize> = (0..rows).map(|row| (row * 97) % rows).collect();
+    let shuffled: Vec<Vec<f64>> =
+        values.iter().map(|column| order.iter().map(|&row| column[row]).collect()).collect();
+    let data = TabularData::from_f64_columns(
+        names.iter().zip(&shuffled).map(|(n, v)| (n.as_str(), v.as_slice())),
+    )
+    .unwrap();
+    let edges = |list: &serde_json::Value| -> Vec<(u32, u32)> {
+        list.as_array()
+            .map(|list| {
+                list.iter()
+                    .map(|e| (index_of(e[0].as_str().unwrap()), index_of(e[1].as_str().unwrap())))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let n = names.len();
+    let atoms = entry["atoms"].as_array().unwrap();
+    let masks: Vec<u64> = atoms
+        .iter()
+        .map(|atom| {
+            let graph = &atom["graph"];
+            match class {
+                "dag" | "pag" => edges(&graph["directed"])
+                    .iter()
+                    .fold(0_u64, |m, &(a, b)| {
+                        antecedent_discovery::set_edge(m, n, a as usize, b as usize, true)
+                    }),
+                "admg" | "temporal_admg" => {
+                    let mut g = Admg::with_variables(n as u32);
+                    for (a, b) in edges(&graph["directed"]) {
+                        g.insert_directed(nid(a), nid(b)).unwrap();
+                    }
+                    for (a, b) in edges(&graph["bidirected"]) {
+                        g.insert_bidirected(nid(a), nid(b)).unwrap();
+                    }
+                    antecedent_discovery::adjacency_mask_from_admg(&g).unwrap()
+                }
+                _ => {
+                    let mut g = Cpdag::with_variables(n as u32);
+                    for (a, b) in edges(&graph["directed"]) {
+                        g.insert_directed(nid(a), nid(b)).unwrap();
+                    }
+                    for (a, b) in edges(&graph["undirected"]) {
+                        g.insert_undirected(nid(a), nid(b)).unwrap();
+                    }
+                    antecedent_discovery::adjacency_mask_from_cpdag(&g).unwrap()
+                }
+            }
+        })
+        .collect();
+    let weights: Vec<f64> = atoms
+        .iter()
+        .map(|atom| {
+            let (num, den) = atom["weight"].as_str().unwrap().split_once('/').unwrap();
+            num.parse::<f64>().unwrap() / den.parse::<f64>().unwrap()
+        })
+        .collect();
+    let kind = match class {
+        "dag" => GraphPosteriorAtomKind::Dag,
+        "admg" => GraphPosteriorAtomKind::Admg,
+        "temporal_admg" => GraphPosteriorAtomKind::TemporalAdmg,
+        "cpdag" => GraphPosteriorAtomKind::Cpdag,
+        _ => GraphPosteriorAtomKind::Pag,
+    };
+    let mut posterior = GraphPosterior::new(
+        n,
+        weights,
+        masks.clone(),
+        vec![0.0; n * n],
+        vec![0.0; n * n],
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("licensed-compiler-mixture"),
+            rejected_invalid: 0,
+        },
+    )
+    .unwrap()
+    .with_atom_kind(kind);
+    if kind == GraphPosteriorAtomKind::Pag {
+        posterior = posterior.with_mark_masks(vec![0; masks.len()]).unwrap();
+    }
+    let v = |name: &str| vid(index_of(name));
+    let q = &pin["queries"][family];
+    let query = match family {
+        "path_specific" => CausalQuery::PathSpecific(
+            PathSpecificEffectQuery::binary(
+                v(q["treatment"].as_str().unwrap()),
+                v(q["outcome"].as_str().unwrap()),
+            )
+            .with_path_nodes(
+                q["path_nodes"].as_array().unwrap().iter().map(|n| v(n.as_str().unwrap())).collect::<Vec<_>>(),
+            )
+            .with_max_len(4),
+        ),
+        "distribution" => CausalQuery::Distribution(InterventionalDistributionQuery::new(
+            v(q["outcome"].as_str().unwrap()),
+            [Intervention::set(v("t"), Value::f64(q["do"]["t"].as_f64().unwrap()))],
+        )),
+        _ => CausalQuery::Mediation(MediationQuery::binary(
+            v(q["treatment"].as_str().unwrap()),
+            v(q["outcome"].as_str().unwrap()),
+            q["mediators"].as_array().unwrap().iter().map(|n| v(n.as_str().unwrap())).collect::<Vec<_>>(),
+            MediationContrast::NaturalDirect,
+        )),
+    };
+    let builder = Study::tabular(data.clone())
+        .graph_posterior(posterior)
+        .query(query)
+        .inference(inference_of(cell.inference.as_str()))
+        .refute(refute_of(cell.validation.as_str()))
+        .bootstrap_replicates(0);
+    Some(Ok(CellSetup { expected: cell_coordinate(cell), builder, data: CellData::Tabular(data) }))
+}
+
 /// The counterfactual and nested-effect cells on mixed, class and graph-posterior structures read
 /// the enumerated count tables of their conformance fixtures: a table with few levels, and a
 /// graph that describes exactly its columns.
@@ -1509,6 +1669,9 @@ fn temporal_window_setup(cell: antecedent::SupportCell) -> Option<Result<CellSet
     reason = "one arm per support-matrix cell maps the cell to its builder setup"
 )]
 fn cell_setup(cell: antecedent::SupportCell) -> Result<CellSetup, String> {
+    if let Some(setup) = mixture_setup(cell) {
+        return setup;
+    }
     if let Some(setup) = cross_world_setup(cell) {
         return setup;
     }
@@ -2183,6 +2346,7 @@ fn consume_setup(setup: CellSetup) -> Result<Route, String> {
         && !linear_replay_dependency_only(&consumed)
         && !bayesian_distribution_replay_dependency_only(&consumed)
         && !class_distribution_replay_dependency_only(&consumed)
+        && !graph_posterior_distribution_replay_dependency_only(&consumed)
     {
         return Err(format!(
             "{expected}: consume did not accept a verified program: {:?}",
@@ -2699,6 +2863,36 @@ fn class_distribution_replay_dependency_only(
             contract.estimator.as_deref() == Some("functional.distribution")
                 && matches!(contract.graph_class.as_str(), "Cpdag" | "Pag")
                 && matches!(contract.target.query, antecedent_io::CausalQueryWire::Distribution(_))
+        })
+}
+
+/// A distribution over the atoms of a graph posterior is a posterior-weighted mixture: the
+/// contract carries one sealed program per atom, verified against the mixture, but no single
+/// fitted factor-law set an independent replay could rebuild the mixture from (and, under the
+/// Bayesian bootstrap, no posterior factor draws).
+fn graph_posterior_distribution_replay_dependency_only(
+    consumed: &antecedent_io::AnalysisResultConsumption,
+) -> bool {
+    !consumed.acceptance.unresolved.is_empty()
+        && consumed.acceptance.unresolved.iter().all(|item| {
+            matches!(
+                item.as_ref(),
+                "dependencies.distribution_factor_laws"
+                    | "dependencies.distribution_posterior_factor_draws"
+            )
+        })
+        && consumed.contract.as_ref().is_some_and(|contract| {
+            (contract.estimator.as_deref() == Some("functional.distribution")
+                || contract.program.as_ref().is_some_and(|program| {
+                    program.commitments.resolved_estimator.as_deref()
+                        == Some("functional.distribution")
+                }))
+                && contract.structure_source == "graph_posterior"
+                && matches!(contract.target.query, antecedent_io::CausalQueryWire::Distribution(_))
+                && contract
+                    .program
+                    .as_ref()
+                    .is_some_and(|program| program.graph_posterior_programs.is_some())
         })
 }
 

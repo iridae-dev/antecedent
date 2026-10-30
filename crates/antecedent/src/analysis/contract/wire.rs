@@ -33,6 +33,14 @@ pub(super) fn window_namespace(study: &Study) -> Option<Vec<HorizonAdjustmentNod
                 .collect(),
         );
     }
+    if let Some(nodes) = crate::analysis::execute::temporal_admg_posterior_window_namespace(study) {
+        return Some(
+            nodes
+                .into_iter()
+                .map(|(variable, offset)| HorizonAdjustmentNodeWire { variable, offset })
+                .collect(),
+        );
+    }
     crate::analysis::execute::mediation_window_namespace(
         study.graph.graph_ref(),
         &study.query,

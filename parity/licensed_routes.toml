@@ -5457,7 +5457,31 @@ estimator = "functional.effect"
 lowering = "PathSpecificMixed"
 
 [[route]]
+coordinate = "PathSpecificEffect:Admg:explicit:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "PathSpecificEffect:Admg:explicit:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
 coordinate = "PathSpecificEffect:Admg:explicit:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "PathSpecificEffect:Admg:explicit:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "PathSpecificEffect:Admg:explicit:Bayesian:full"
 identifier = "path_specific.natural"
 estimator = "functional.effect"
 lowering = "PathSpecificMixed"
@@ -5469,7 +5493,31 @@ estimator = "functional.effect"
 lowering = "PathSpecificMixed"
 
 [[route]]
+coordinate = "PathSpecificEffect:Admg:accepted:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "PathSpecificEffect:Admg:accepted:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
 coordinate = "PathSpecificEffect:Admg:accepted:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "PathSpecificEffect:Admg:accepted:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "PathSpecificEffect:Admg:accepted:Bayesian:full"
 identifier = "path_specific.natural"
 estimator = "functional.effect"
 lowering = "PathSpecificMixed"
@@ -5481,7 +5529,31 @@ estimator = "functional.effect"
 lowering = "PathSpecificMixed"
 
 [[route]]
+coordinate = "PathSpecificEffect:TemporalAdmg:explicit:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "PathSpecificEffect:TemporalAdmg:explicit:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
 coordinate = "PathSpecificEffect:TemporalAdmg:explicit:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "PathSpecificEffect:TemporalAdmg:explicit:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "PathSpecificEffect:TemporalAdmg:explicit:Bayesian:full"
 identifier = "path_specific.natural"
 estimator = "functional.effect"
 lowering = "PathSpecificMixed"
@@ -5493,7 +5565,31 @@ estimator = "functional.effect"
 lowering = "PathSpecificMixed"
 
 [[route]]
+coordinate = "PathSpecificEffect:TemporalAdmg:accepted:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "PathSpecificEffect:TemporalAdmg:accepted:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
 coordinate = "PathSpecificEffect:TemporalAdmg:accepted:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "PathSpecificEffect:TemporalAdmg:accepted:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "PathSpecificEffect:TemporalAdmg:accepted:Bayesian:full"
 identifier = "path_specific.natural"
 estimator = "functional.effect"
 lowering = "PathSpecificMixed"
@@ -5505,7 +5601,31 @@ estimator = "functional.effect"
 lowering = "PathSpecificCpdag"
 
 [[route]]
+coordinate = "PathSpecificEffect:Cpdag:explicit:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
+
+[[route]]
+coordinate = "PathSpecificEffect:Cpdag:explicit:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
+
+[[route]]
 coordinate = "PathSpecificEffect:Cpdag:explicit:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
+
+[[route]]
+coordinate = "PathSpecificEffect:Cpdag:explicit:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
+
+[[route]]
+coordinate = "PathSpecificEffect:Cpdag:explicit:Bayesian:full"
 identifier = "path_specific.natural"
 estimator = "functional.effect"
 lowering = "PathSpecificCpdag"
@@ -5517,7 +5637,31 @@ estimator = "functional.effect"
 lowering = "PathSpecificCpdag"
 
 [[route]]
+coordinate = "PathSpecificEffect:Cpdag:accepted:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
+
+[[route]]
+coordinate = "PathSpecificEffect:Cpdag:accepted:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
+
+[[route]]
 coordinate = "PathSpecificEffect:Cpdag:accepted:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
+
+[[route]]
+coordinate = "PathSpecificEffect:Cpdag:accepted:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
+
+[[route]]
+coordinate = "PathSpecificEffect:Cpdag:accepted:Bayesian:full"
 identifier = "path_specific.natural"
 estimator = "functional.effect"
 lowering = "PathSpecificCpdag"
@@ -5529,7 +5673,31 @@ estimator = "functional.effect"
 lowering = "PathSpecificPag"
 
 [[route]]
+coordinate = "PathSpecificEffect:Pag:explicit:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
+
+[[route]]
+coordinate = "PathSpecificEffect:Pag:explicit:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
+
+[[route]]
 coordinate = "PathSpecificEffect:Pag:explicit:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
+
+[[route]]
+coordinate = "PathSpecificEffect:Pag:explicit:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
+
+[[route]]
+coordinate = "PathSpecificEffect:Pag:explicit:Bayesian:full"
 identifier = "path_specific.natural"
 estimator = "functional.effect"
 lowering = "PathSpecificPag"
@@ -5541,7 +5709,31 @@ estimator = "functional.effect"
 lowering = "PathSpecificPag"
 
 [[route]]
+coordinate = "PathSpecificEffect:Pag:accepted:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
+
+[[route]]
+coordinate = "PathSpecificEffect:Pag:accepted:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
+
+[[route]]
 coordinate = "PathSpecificEffect:Pag:accepted:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
+
+[[route]]
+coordinate = "PathSpecificEffect:Pag:accepted:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
+
+[[route]]
+coordinate = "PathSpecificEffect:Pag:accepted:Bayesian:full"
 identifier = "path_specific.natural"
 estimator = "functional.effect"
 lowering = "PathSpecificPag"
@@ -13419,7 +13611,31 @@ estimator = "functional.effect"
 lowering = "PathSpecificMixed"
 
 [[route]]
+coordinate = "MediationEffect:Admg:explicit:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "MediationEffect:Admg:explicit:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
 coordinate = "MediationEffect:Admg:explicit:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "MediationEffect:Admg:explicit:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "MediationEffect:Admg:explicit:Bayesian:full"
 identifier = "path_specific.natural"
 estimator = "functional.effect"
 lowering = "PathSpecificMixed"
@@ -13431,7 +13647,31 @@ estimator = "functional.effect"
 lowering = "PathSpecificMixed"
 
 [[route]]
+coordinate = "MediationEffect:Admg:accepted:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "MediationEffect:Admg:accepted:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
 coordinate = "MediationEffect:Admg:accepted:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "MediationEffect:Admg:accepted:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "MediationEffect:Admg:accepted:Bayesian:full"
 identifier = "path_specific.natural"
 estimator = "functional.effect"
 lowering = "PathSpecificMixed"
@@ -13443,7 +13683,31 @@ estimator = "functional.effect"
 lowering = "PathSpecificMixed"
 
 [[route]]
+coordinate = "MediationEffect:TemporalAdmg:explicit:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "MediationEffect:TemporalAdmg:explicit:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
 coordinate = "MediationEffect:TemporalAdmg:explicit:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "MediationEffect:TemporalAdmg:explicit:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "MediationEffect:TemporalAdmg:explicit:Bayesian:full"
 identifier = "path_specific.natural"
 estimator = "functional.effect"
 lowering = "PathSpecificMixed"
@@ -13455,7 +13719,31 @@ estimator = "functional.effect"
 lowering = "PathSpecificMixed"
 
 [[route]]
+coordinate = "MediationEffect:TemporalAdmg:accepted:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "MediationEffect:TemporalAdmg:accepted:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
 coordinate = "MediationEffect:TemporalAdmg:accepted:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "MediationEffect:TemporalAdmg:accepted:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificMixed"
+
+[[route]]
+coordinate = "MediationEffect:TemporalAdmg:accepted:Bayesian:full"
 identifier = "path_specific.natural"
 estimator = "functional.effect"
 lowering = "PathSpecificMixed"
@@ -13467,7 +13755,31 @@ estimator = "functional.effect"
 lowering = "PathSpecificCpdag"
 
 [[route]]
+coordinate = "MediationEffect:Cpdag:explicit:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
+
+[[route]]
+coordinate = "MediationEffect:Cpdag:explicit:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
+
+[[route]]
 coordinate = "MediationEffect:Cpdag:explicit:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
+
+[[route]]
+coordinate = "MediationEffect:Cpdag:explicit:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
+
+[[route]]
+coordinate = "MediationEffect:Cpdag:explicit:Bayesian:full"
 identifier = "path_specific.natural"
 estimator = "functional.effect"
 lowering = "PathSpecificCpdag"
@@ -13479,7 +13791,31 @@ estimator = "functional.effect"
 lowering = "PathSpecificCpdag"
 
 [[route]]
+coordinate = "MediationEffect:Cpdag:accepted:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
+
+[[route]]
+coordinate = "MediationEffect:Cpdag:accepted:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
+
+[[route]]
 coordinate = "MediationEffect:Cpdag:accepted:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
+
+[[route]]
+coordinate = "MediationEffect:Cpdag:accepted:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificCpdag"
+
+[[route]]
+coordinate = "MediationEffect:Cpdag:accepted:Bayesian:full"
 identifier = "path_specific.natural"
 estimator = "functional.effect"
 lowering = "PathSpecificCpdag"
@@ -13491,7 +13827,31 @@ estimator = "functional.effect"
 lowering = "PathSpecificPag"
 
 [[route]]
+coordinate = "MediationEffect:Pag:explicit:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
+
+[[route]]
+coordinate = "MediationEffect:Pag:explicit:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
+
+[[route]]
 coordinate = "MediationEffect:Pag:explicit:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
+
+[[route]]
+coordinate = "MediationEffect:Pag:explicit:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
+
+[[route]]
+coordinate = "MediationEffect:Pag:explicit:Bayesian:full"
 identifier = "path_specific.natural"
 estimator = "functional.effect"
 lowering = "PathSpecificPag"
@@ -13503,7 +13863,31 @@ estimator = "functional.effect"
 lowering = "PathSpecificPag"
 
 [[route]]
+coordinate = "MediationEffect:Pag:accepted:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
+
+[[route]]
+coordinate = "MediationEffect:Pag:accepted:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
+
+[[route]]
 coordinate = "MediationEffect:Pag:accepted:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
+
+[[route]]
+coordinate = "MediationEffect:Pag:accepted:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "PathSpecificPag"
+
+[[route]]
+coordinate = "MediationEffect:Pag:accepted:Bayesian:full"
 identifier = "path_specific.natural"
 estimator = "functional.effect"
 lowering = "PathSpecificPag"
@@ -14421,385 +14805,1381 @@ estimator = "temporal.linear.adjustment"
 lowering = "GraphPosteriorCrossWorld"
 
 [[route]]
-coordinate = "PathSpecificEffect:Admg:explicit:Frequentist:cheap"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+coordinate = "InterventionalDistribution:Admg:explicit:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:Admg:explicit:Frequentist:full"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+coordinate = "InterventionalDistribution:Admg:explicit:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:Admg:explicit:Bayesian:cheap"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+coordinate = "InterventionalDistribution:Admg:explicit:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:Admg:explicit:Bayesian:full"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+coordinate = "InterventionalDistribution:Admg:explicit:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:Admg:accepted:Frequentist:cheap"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+coordinate = "InterventionalDistribution:Admg:accepted:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:Admg:accepted:Frequentist:full"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+coordinate = "InterventionalDistribution:Admg:accepted:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:Admg:accepted:Bayesian:cheap"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+coordinate = "InterventionalDistribution:Admg:accepted:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:Admg:accepted:Bayesian:full"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+coordinate = "InterventionalDistribution:Admg:accepted:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:TemporalAdmg:explicit:Frequentist:cheap"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+coordinate = "InterventionalDistribution:TemporalAdmg:explicit:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:TemporalAdmg:explicit:Frequentist:full"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+coordinate = "InterventionalDistribution:TemporalAdmg:explicit:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:TemporalAdmg:explicit:Bayesian:cheap"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+coordinate = "InterventionalDistribution:TemporalAdmg:explicit:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:TemporalAdmg:explicit:Bayesian:full"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+coordinate = "InterventionalDistribution:TemporalAdmg:explicit:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:TemporalAdmg:accepted:Frequentist:cheap"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+coordinate = "InterventionalDistribution:TemporalAdmg:accepted:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:TemporalAdmg:accepted:Frequentist:full"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+coordinate = "InterventionalDistribution:TemporalAdmg:accepted:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:TemporalAdmg:accepted:Bayesian:cheap"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+coordinate = "InterventionalDistribution:TemporalAdmg:accepted:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:TemporalAdmg:accepted:Bayesian:full"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+coordinate = "InterventionalDistribution:TemporalAdmg:accepted:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:Cpdag:explicit:Frequentist:cheap"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificCpdag"
+coordinate = "InterventionalDistribution:Cpdag:explicit:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:Cpdag:explicit:Frequentist:full"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificCpdag"
+coordinate = "InterventionalDistribution:Cpdag:explicit:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:Cpdag:explicit:Bayesian:cheap"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificCpdag"
+coordinate = "InterventionalDistribution:Cpdag:explicit:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:Cpdag:explicit:Bayesian:full"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificCpdag"
+coordinate = "InterventionalDistribution:Cpdag:explicit:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:Cpdag:accepted:Frequentist:cheap"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificCpdag"
+coordinate = "InterventionalDistribution:Cpdag:accepted:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:Cpdag:accepted:Frequentist:full"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificCpdag"
+coordinate = "InterventionalDistribution:Cpdag:accepted:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:Cpdag:accepted:Bayesian:cheap"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificCpdag"
+coordinate = "InterventionalDistribution:Cpdag:accepted:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:Cpdag:accepted:Bayesian:full"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificCpdag"
+coordinate = "InterventionalDistribution:Cpdag:accepted:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:Pag:explicit:Frequentist:cheap"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificPag"
+coordinate = "InterventionalDistribution:Pag:explicit:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:Pag:explicit:Frequentist:full"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificPag"
+coordinate = "InterventionalDistribution:Pag:explicit:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:Pag:explicit:Bayesian:cheap"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificPag"
+coordinate = "InterventionalDistribution:Pag:explicit:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:Pag:explicit:Bayesian:full"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificPag"
+coordinate = "InterventionalDistribution:Pag:explicit:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:Pag:accepted:Frequentist:cheap"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificPag"
+coordinate = "InterventionalDistribution:Pag:accepted:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:Pag:accepted:Frequentist:full"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificPag"
+coordinate = "InterventionalDistribution:Pag:accepted:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:Pag:accepted:Bayesian:cheap"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificPag"
+coordinate = "InterventionalDistribution:Pag:accepted:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "PathSpecificEffect:Pag:accepted:Bayesian:full"
-identifier = "path_specific.natural"
-estimator = "functional.effect"
-lowering = "PathSpecificPag"
+coordinate = "InterventionalDistribution:Pag:accepted:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "DistributionMixed"
 
 [[route]]
-coordinate = "MediationEffect:Admg:explicit:Frequentist:cheap"
-identifier = "path_specific.natural"
+coordinate = "PulseEffect:TemporalAdmg:explicit:Frequentist:none"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:Admg:explicit:Frequentist:full"
-identifier = "path_specific.natural"
+coordinate = "PulseEffect:TemporalAdmg:explicit:Frequentist:cheap"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:Admg:explicit:Bayesian:cheap"
-identifier = "path_specific.natural"
+coordinate = "PulseEffect:TemporalAdmg:explicit:Frequentist:full"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:Admg:explicit:Bayesian:full"
-identifier = "path_specific.natural"
+coordinate = "PulseEffect:TemporalAdmg:explicit:Bayesian:none"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:Admg:accepted:Frequentist:cheap"
-identifier = "path_specific.natural"
+coordinate = "PulseEffect:TemporalAdmg:explicit:Bayesian:cheap"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:Admg:accepted:Frequentist:full"
-identifier = "path_specific.natural"
+coordinate = "PulseEffect:TemporalAdmg:explicit:Bayesian:full"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:Admg:accepted:Bayesian:cheap"
-identifier = "path_specific.natural"
+coordinate = "PulseEffect:TemporalAdmg:accepted:Frequentist:none"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:Admg:accepted:Bayesian:full"
-identifier = "path_specific.natural"
+coordinate = "PulseEffect:TemporalAdmg:accepted:Frequentist:cheap"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:TemporalAdmg:explicit:Frequentist:cheap"
-identifier = "path_specific.natural"
+coordinate = "PulseEffect:TemporalAdmg:accepted:Frequentist:full"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:TemporalAdmg:explicit:Frequentist:full"
-identifier = "path_specific.natural"
+coordinate = "PulseEffect:TemporalAdmg:accepted:Bayesian:none"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:TemporalAdmg:explicit:Bayesian:cheap"
-identifier = "path_specific.natural"
+coordinate = "PulseEffect:TemporalAdmg:accepted:Bayesian:cheap"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:TemporalAdmg:explicit:Bayesian:full"
-identifier = "path_specific.natural"
+coordinate = "PulseEffect:TemporalAdmg:accepted:Bayesian:full"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:TemporalAdmg:accepted:Frequentist:cheap"
-identifier = "path_specific.natural"
+coordinate = "SustainedEffect:TemporalAdmg:explicit:Frequentist:none"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:TemporalAdmg:accepted:Frequentist:full"
-identifier = "path_specific.natural"
+coordinate = "SustainedEffect:TemporalAdmg:explicit:Frequentist:cheap"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:TemporalAdmg:accepted:Bayesian:cheap"
-identifier = "path_specific.natural"
+coordinate = "SustainedEffect:TemporalAdmg:explicit:Frequentist:full"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:TemporalAdmg:accepted:Bayesian:full"
-identifier = "path_specific.natural"
+coordinate = "SustainedEffect:TemporalAdmg:explicit:Bayesian:none"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificMixed"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:Cpdag:explicit:Frequentist:cheap"
-identifier = "path_specific.natural"
+coordinate = "SustainedEffect:TemporalAdmg:explicit:Bayesian:cheap"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificCpdag"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:Cpdag:explicit:Frequentist:full"
-identifier = "path_specific.natural"
+coordinate = "SustainedEffect:TemporalAdmg:explicit:Bayesian:full"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificCpdag"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:Cpdag:explicit:Bayesian:cheap"
-identifier = "path_specific.natural"
+coordinate = "SustainedEffect:TemporalAdmg:accepted:Frequentist:none"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificCpdag"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:Cpdag:explicit:Bayesian:full"
-identifier = "path_specific.natural"
+coordinate = "SustainedEffect:TemporalAdmg:accepted:Frequentist:cheap"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificCpdag"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:Cpdag:accepted:Frequentist:cheap"
-identifier = "path_specific.natural"
+coordinate = "SustainedEffect:TemporalAdmg:accepted:Frequentist:full"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificCpdag"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:Cpdag:accepted:Frequentist:full"
-identifier = "path_specific.natural"
+coordinate = "SustainedEffect:TemporalAdmg:accepted:Bayesian:none"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificCpdag"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:Cpdag:accepted:Bayesian:cheap"
-identifier = "path_specific.natural"
+coordinate = "SustainedEffect:TemporalAdmg:accepted:Bayesian:cheap"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificCpdag"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:Cpdag:accepted:Bayesian:full"
-identifier = "path_specific.natural"
+coordinate = "SustainedEffect:TemporalAdmg:accepted:Bayesian:full"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificCpdag"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:Pag:explicit:Frequentist:cheap"
-identifier = "path_specific.natural"
+coordinate = "TemporalConditionalPulse:TemporalAdmg:explicit:Frequentist:none"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificPag"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:Pag:explicit:Frequentist:full"
-identifier = "path_specific.natural"
+coordinate = "TemporalConditionalPulse:TemporalAdmg:explicit:Frequentist:cheap"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificPag"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:Pag:explicit:Bayesian:cheap"
-identifier = "path_specific.natural"
+coordinate = "TemporalConditionalPulse:TemporalAdmg:explicit:Frequentist:full"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificPag"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:Pag:explicit:Bayesian:full"
-identifier = "path_specific.natural"
+coordinate = "TemporalConditionalPulse:TemporalAdmg:explicit:Bayesian:none"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificPag"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:Pag:accepted:Frequentist:cheap"
-identifier = "path_specific.natural"
+coordinate = "TemporalConditionalPulse:TemporalAdmg:explicit:Bayesian:cheap"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificPag"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:Pag:accepted:Frequentist:full"
-identifier = "path_specific.natural"
+coordinate = "TemporalConditionalPulse:TemporalAdmg:explicit:Bayesian:full"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificPag"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:Pag:accepted:Bayesian:cheap"
-identifier = "path_specific.natural"
+coordinate = "TemporalConditionalPulse:TemporalAdmg:accepted:Frequentist:none"
+identifier = "general.id"
 estimator = "functional.effect"
-lowering = "PathSpecificPag"
+lowering = "TemporalEffectAdmg"
 
 [[route]]
-coordinate = "MediationEffect:Pag:accepted:Bayesian:full"
+coordinate = "TemporalConditionalPulse:TemporalAdmg:accepted:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "TemporalEffectAdmg"
+
+[[route]]
+coordinate = "TemporalConditionalPulse:TemporalAdmg:accepted:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "TemporalEffectAdmg"
+
+[[route]]
+coordinate = "TemporalConditionalPulse:TemporalAdmg:accepted:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "TemporalEffectAdmg"
+
+[[route]]
+coordinate = "TemporalConditionalPulse:TemporalAdmg:accepted:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "TemporalEffectAdmg"
+
+[[route]]
+coordinate = "TemporalConditionalPulse:TemporalAdmg:accepted:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "TemporalEffectAdmg"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalAdmg:explicit:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "TemporalEffectAdmg"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalAdmg:explicit:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "TemporalEffectAdmg"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalAdmg:explicit:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "TemporalEffectAdmg"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalAdmg:explicit:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "TemporalEffectAdmg"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalAdmg:explicit:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "TemporalEffectAdmg"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalAdmg:explicit:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "TemporalEffectAdmg"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalAdmg:accepted:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "TemporalEffectAdmg"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalAdmg:accepted:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "TemporalEffectAdmg"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalAdmg:accepted:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "TemporalEffectAdmg"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalAdmg:accepted:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "TemporalEffectAdmg"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalAdmg:accepted:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "TemporalEffectAdmg"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalAdmg:accepted:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "TemporalEffectAdmg"
+
+[[route]]
+coordinate = "PulseEffect:TemporalAdmg:graph_posterior:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalEffect"
+
+[[route]]
+coordinate = "PulseEffect:TemporalAdmg:graph_posterior:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalEffect"
+
+[[route]]
+coordinate = "PulseEffect:TemporalAdmg:graph_posterior:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalEffect"
+
+[[route]]
+coordinate = "PulseEffect:TemporalAdmg:graph_posterior:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalEffect"
+
+[[route]]
+coordinate = "PulseEffect:TemporalAdmg:graph_posterior:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalEffect"
+
+[[route]]
+coordinate = "PulseEffect:TemporalAdmg:graph_posterior:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalEffect"
+
+[[route]]
+coordinate = "SustainedEffect:TemporalAdmg:graph_posterior:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalEffect"
+
+[[route]]
+coordinate = "SustainedEffect:TemporalAdmg:graph_posterior:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalEffect"
+
+[[route]]
+coordinate = "SustainedEffect:TemporalAdmg:graph_posterior:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalEffect"
+
+[[route]]
+coordinate = "SustainedEffect:TemporalAdmg:graph_posterior:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalEffect"
+
+[[route]]
+coordinate = "SustainedEffect:TemporalAdmg:graph_posterior:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalEffect"
+
+[[route]]
+coordinate = "SustainedEffect:TemporalAdmg:graph_posterior:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalEffect"
+
+[[route]]
+coordinate = "TemporalConditionalPulse:TemporalAdmg:graph_posterior:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalEffect"
+
+[[route]]
+coordinate = "TemporalConditionalPulse:TemporalAdmg:graph_posterior:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalEffect"
+
+[[route]]
+coordinate = "TemporalConditionalPulse:TemporalAdmg:graph_posterior:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalEffect"
+
+[[route]]
+coordinate = "TemporalConditionalPulse:TemporalAdmg:graph_posterior:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalEffect"
+
+[[route]]
+coordinate = "TemporalConditionalPulse:TemporalAdmg:graph_posterior:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalEffect"
+
+[[route]]
+coordinate = "TemporalConditionalPulse:TemporalAdmg:graph_posterior:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalEffect"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalAdmg:graph_posterior:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalEffect"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalAdmg:graph_posterior:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalEffect"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalAdmg:graph_posterior:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalEffect"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalAdmg:graph_posterior:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalEffect"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalAdmg:graph_posterior:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalEffect"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalAdmg:graph_posterior:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalEffect"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalAdmg:explicit:Frequentist:none"
 identifier = "path_specific.natural"
 estimator = "functional.effect"
-lowering = "PathSpecificPag"
+lowering = "TemporalMediationAdmg"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalAdmg:explicit:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "TemporalMediationAdmg"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalAdmg:explicit:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "TemporalMediationAdmg"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalAdmg:explicit:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "TemporalMediationAdmg"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalAdmg:explicit:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "TemporalMediationAdmg"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalAdmg:explicit:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "TemporalMediationAdmg"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalAdmg:accepted:Frequentist:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "TemporalMediationAdmg"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalAdmg:accepted:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "TemporalMediationAdmg"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalAdmg:accepted:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "TemporalMediationAdmg"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalAdmg:accepted:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "TemporalMediationAdmg"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalAdmg:accepted:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "TemporalMediationAdmg"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalAdmg:accepted:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "TemporalMediationAdmg"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalAdmg:graph_posterior:Frequentist:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalMediation"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalAdmg:graph_posterior:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalMediation"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalAdmg:graph_posterior:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalMediation"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalAdmg:graph_posterior:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalMediation"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalAdmg:graph_posterior:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalMediation"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalAdmg:graph_posterior:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalMediation"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalPag:explicit:Frequentist:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "TemporalMediationPag"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalPag:explicit:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "TemporalMediationPag"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalPag:explicit:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "TemporalMediationPag"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalPag:explicit:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "TemporalMediationPag"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalPag:explicit:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "TemporalMediationPag"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalPag:explicit:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "TemporalMediationPag"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalPag:accepted:Frequentist:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "TemporalMediationPag"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalPag:accepted:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "TemporalMediationPag"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalPag:accepted:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "TemporalMediationPag"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalPag:accepted:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "TemporalMediationPag"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalPag:accepted:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "TemporalMediationPag"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalPag:accepted:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "TemporalMediationPag"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalPag:graph_posterior:Frequentist:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalMediation"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalPag:graph_posterior:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalMediation"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalPag:graph_posterior:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalMediation"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalPag:graph_posterior:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalMediation"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalPag:graph_posterior:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalMediation"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalPag:graph_posterior:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorTemporalMediation"
+
+[[route]]
+coordinate = "PathSpecificEffect:Dag:graph_posterior:Frequentist:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:Dag:graph_posterior:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:Dag:graph_posterior:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:Dag:graph_posterior:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:Dag:graph_posterior:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:Dag:graph_posterior:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:Admg:graph_posterior:Frequentist:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:Admg:graph_posterior:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:Admg:graph_posterior:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:Admg:graph_posterior:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:Admg:graph_posterior:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:Admg:graph_posterior:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:TemporalAdmg:graph_posterior:Frequentist:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:TemporalAdmg:graph_posterior:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:TemporalAdmg:graph_posterior:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:TemporalAdmg:graph_posterior:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:TemporalAdmg:graph_posterior:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:TemporalAdmg:graph_posterior:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:Cpdag:graph_posterior:Frequentist:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:Cpdag:graph_posterior:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:Cpdag:graph_posterior:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:Cpdag:graph_posterior:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:Cpdag:graph_posterior:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:Cpdag:graph_posterior:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:Pag:graph_posterior:Frequentist:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:Pag:graph_posterior:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:Pag:graph_posterior:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:Pag:graph_posterior:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:Pag:graph_posterior:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "PathSpecificEffect:Pag:graph_posterior:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:Dag:graph_posterior:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:Dag:graph_posterior:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:Dag:graph_posterior:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:Dag:graph_posterior:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:Dag:graph_posterior:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:Dag:graph_posterior:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:Admg:graph_posterior:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:Admg:graph_posterior:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:Admg:graph_posterior:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:Admg:graph_posterior:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:Admg:graph_posterior:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:Admg:graph_posterior:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:TemporalAdmg:graph_posterior:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:TemporalAdmg:graph_posterior:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:TemporalAdmg:graph_posterior:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:TemporalAdmg:graph_posterior:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:TemporalAdmg:graph_posterior:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:TemporalAdmg:graph_posterior:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:Cpdag:graph_posterior:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:Cpdag:graph_posterior:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:Cpdag:graph_posterior:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:Cpdag:graph_posterior:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:Cpdag:graph_posterior:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:Cpdag:graph_posterior:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:Pag:graph_posterior:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:Pag:graph_posterior:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:Pag:graph_posterior:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:Pag:graph_posterior:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:Pag:graph_posterior:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "InterventionalDistribution:Pag:graph_posterior:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.distribution"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:Dag:graph_posterior:Frequentist:none"
+identifier = "path_specific.natural"
+estimator = "mediation.linear"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:Dag:graph_posterior:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "mediation.linear"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:Dag:graph_posterior:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "mediation.linear"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:Dag:graph_posterior:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "mediation.linear"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:Dag:graph_posterior:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "mediation.linear"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:Dag:graph_posterior:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "mediation.linear"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:Admg:graph_posterior:Frequentist:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:Admg:graph_posterior:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:Admg:graph_posterior:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:Admg:graph_posterior:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:Admg:graph_posterior:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:Admg:graph_posterior:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:TemporalAdmg:graph_posterior:Frequentist:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:TemporalAdmg:graph_posterior:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:TemporalAdmg:graph_posterior:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:TemporalAdmg:graph_posterior:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:TemporalAdmg:graph_posterior:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:TemporalAdmg:graph_posterior:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:Cpdag:graph_posterior:Frequentist:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:Cpdag:graph_posterior:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:Cpdag:graph_posterior:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:Cpdag:graph_posterior:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:Cpdag:graph_posterior:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:Cpdag:graph_posterior:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:Pag:graph_posterior:Frequentist:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:Pag:graph_posterior:Frequentist:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:Pag:graph_posterior:Frequentist:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:Pag:graph_posterior:Bayesian:none"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:Pag:graph_posterior:Bayesian:cheap"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "MediationEffect:Pag:graph_posterior:Bayesian:full"
+identifier = "path_specific.natural"
+estimator = "functional.effect"
+lowering = "GraphPosteriorCrossWorld"

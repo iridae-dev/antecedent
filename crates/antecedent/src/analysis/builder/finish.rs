@@ -1837,19 +1837,22 @@ fn settle_refute(mut chosen: ChosenEstimator) -> Result<SettledRefute, CausalErr
                 .clone()
                 .map_or_else(|| query.clone(), CausalQuery::AverageEffect);
             let query = &support_query;
-            let requested = crate::support::support_cell_named(
+            let series = matches!(carry.data, DataInput::Temporal(_));
+            let requested = crate::support::support_cell_named_for_data(
                 query,
                 matrix_class,
                 structure,
                 &carry.settings.inference,
                 carry.settings.refute,
+                series,
             );
-            let without_validation = crate::support::support_cell_named(
+            let without_validation = crate::support::support_cell_named_for_data(
                 query,
                 matrix_class,
                 structure,
                 &carry.settings.inference,
                 RefuteSuite::None,
+                series,
             );
             if requested.is_some_and(|cell| {
                 matches!(
@@ -1927,12 +1930,13 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
             crate::support::refuse_undeclared_off_axis(query)?;
         }
         let requested = carry.lag_zero_average_effect.clone().map(CausalQuery::AverageEffect);
-        let mut support_status = if let Some(cell) = crate::support::support_cell_named(
+        let mut support_status = if let Some(cell) = crate::support::support_cell_named_for_data(
             requested.as_ref().unwrap_or(query),
             matrix_class,
             structure,
             &carry.settings.inference,
             carry.settings.refute,
+            matches!(carry.data, DataInput::Temporal(_)),
         ) {
             // Geometric n/a / refused still refuse the build (except inspect).
             // Geometric licensed is reclassified once an estimator is known so

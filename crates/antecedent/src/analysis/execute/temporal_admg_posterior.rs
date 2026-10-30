@@ -220,6 +220,96 @@ fn window_variables(
     Ok(((0..count).map(VariableId::from_raw).collect(), count))
 }
 
+/// The `(variable, offset)` of every window coordinate the identification of a contrast over a
+/// lagged temporal-ADMG graph posterior is stated on: the window of the first atom whose
+/// template identifies the contrast, which is the atom the mixed result carries the
+/// identification of. `None` for any other study.
+///
+/// The identification names its nodes by window coordinate, so the artifact declares this map for
+/// a reader to place them; the offset is the period relative to the policy origin.
+#[must_use]
+pub(crate) fn temporal_admg_posterior_window_namespace(
+    study: &super::Study,
+) -> Option<Vec<(u32, i32)>> {
+    use crate::analysis::temporal_admg_contrast::identify_window_contrast;
+
+    let gp = study.graph_posterior.as_ref()?;
+    let (crate::analysis::builder::DataInput::Temporal(series)
+    | crate::analysis::builder::DataInput::Event(series)) = &study.data
+    else {
+        return None;
+    };
+    if let (antecedent_discovery::GraphPosteriorAtomKind::Pag, Some(lag_masks), Some(max_lag)) =
+        (gp.atom_kind(), gp.lag_masks(), gp.max_lag())
+    {
+        if !matches!(study.query, antecedent_core::CausalQuery::Mediation(_)) {
+            return None;
+        }
+        let variables: Vec<VariableId> =
+            series.schema().variables().iter().map(|variable| variable.id).collect();
+        let variable_count = u32::try_from(variables.len()).ok()?;
+        for index in 0..gp.n_graphs() {
+            let Ok(template) = antecedent_discovery::dbn_posterior::temporal_pag_from_dbn_atoms(
+                &gp.atoms()[index],
+                &lag_masks[index],
+                gp.mark_atom(index),
+                gp.n_vars(),
+                max_lag,
+                &variables,
+            ) else {
+                continue;
+            };
+            if let Some(nodes) = super::mediation_window_namespace(
+                super::GraphRef::TemporalPag(&template),
+                &study.query,
+                variable_count,
+            ) {
+                return Some(nodes);
+            }
+        }
+        return None;
+    }
+    if !gp.is_lagged_temporal_admg() {
+        return None;
+    }
+    let (variables, variable_count) = window_variables(series, gp).ok()?;
+    let max_lag = gp.max_lag().unwrap_or(0);
+    let query = match &study.query {
+        antecedent_core::CausalQuery::TemporalEffect(query) => query,
+        antecedent_core::CausalQuery::Mediation(_) => {
+            for index in 0..gp.n_graphs() {
+                let Some(atom) = gp.temporal_admg_atom(index) else { continue };
+                let Ok(template) = atom.to_template(gp.n_vars(), max_lag, &variables) else {
+                    continue;
+                };
+                if let Some(nodes) = super::mediation_window_namespace(
+                    super::GraphRef::TemporalAdmg(&template),
+                    &study.query,
+                    variable_count,
+                ) {
+                    return Some(nodes);
+                }
+            }
+            return None;
+        }
+        _ => return None,
+    };
+    for index in 0..gp.n_graphs() {
+        let Some(atom) = gp.temporal_admg_atom(index) else { continue };
+        let Ok(template) = atom.to_template(gp.n_vars(), max_lag, &variables) else { continue };
+        let Ok(contrast) = identify_window_contrast(&template, query, variable_count) else {
+            continue;
+        };
+        return (0..contrast.indexer.dense_len())
+            .map(|dense| {
+                let key = contrast.indexer.key_of(u32::try_from(dense).ok()?).ok()?;
+                Some((key.variable.raw(), key.offset))
+            })
+            .collect();
+    }
+    None
+}
+
 /// Posterior position named by a position-derived graph key.
 fn position_of(key: u64) -> Result<usize, CausalError> {
     usize::try_from(key).map_err(|_| CausalError::Compile {

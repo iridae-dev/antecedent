@@ -176,13 +176,18 @@ fn functional_effect_over_class(contract: &AnalysisResultContractWire) -> bool {
 /// [`verify_graph_posterior_programs`] and [`verify_graph_posterior_mixture`] check.
 fn graph_posterior_cross_world(contract: &AnalysisResultContractWire) -> bool {
     contract.structure_source == "graph_posterior"
-        && matches!(contract.graph_class.as_str(), "Dag" | "Admg" | "Cpdag" | "Pag")
-        && ((is_scalar_functional_effect_contract(contract)
+        && ((matches!(contract.graph_class.as_str(), "Dag" | "Admg" | "Cpdag" | "Pag")
+            && is_scalar_functional_effect_contract(contract)
             && matches!(
                 contract.target.query,
                 CausalQueryWire::PathSpecific(_) | CausalQueryWire::NestedCounterfactual { .. }
             ))
-            || (is_functional_distribution_contract(contract)
+            // A distribution over the atoms of a temporal-ADMG posterior is answered per atom on
+            // the contemporaneous projection, as the static classes are.
+            || (matches!(
+                contract.graph_class.as_str(),
+                "Dag" | "Admg" | "TemporalAdmg" | "Cpdag" | "Pag"
+            ) && is_functional_distribution_contract(contract)
                 && matches!(contract.target.query, CausalQueryWire::Distribution(_))))
 }
 
@@ -1618,7 +1623,11 @@ pub(in crate::contract_section) fn verify_graph_posterior_programs(
         );
         let single_atom = matches!(
             structure,
-            Some(crate::PosteriorAtomGraphWire::Static(_) | crate::PosteriorAtomGraphWire::Admg(_))
+            Some(
+                crate::PosteriorAtomGraphWire::Static(_)
+                    | crate::PosteriorAtomGraphWire::Admg(_)
+                    | crate::PosteriorAtomGraphWire::TemporalAdmg(_)
+            )
         );
         // A single structure is answered by one program, a class by its identification
         // product; a refused or non-member atom carries neither.

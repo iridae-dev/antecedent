@@ -79,7 +79,7 @@ pub(super) fn identifies_per_execution(study: &Study) -> bool {
 pub(crate) fn matrix_coordinate(study: &Study) -> Option<String> {
     // A lag-0 AverageEffect on a temporal graph runs as its pulse; its cell is the AverageEffect.
     let requested = study.lag_zero_average_effect.clone().map(CausalQuery::AverageEffect);
-    let cell = crate::support::support_cell_named(
+    let cell = crate::support::support_cell_named_for_data(
         requested.as_ref().unwrap_or(&study.query),
         if study.graph_posterior.is_some() {
             study.graph.class().as_str()
@@ -93,6 +93,7 @@ pub(crate) fn matrix_coordinate(study: &Study) -> Option<String> {
         study.structure_source,
         &study.settings.inference,
         study.settings.refute,
+        matches!(study.data, DataInput::Temporal(_)),
     )?;
     Some(crate::support::cell_coordinate(cell))
 }

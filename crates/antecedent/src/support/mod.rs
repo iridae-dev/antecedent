@@ -59,6 +59,7 @@ pub use axis::query_axis_name;
 pub(crate) use axis::{effective_graph_class, matrix_graph_class};
 pub use bridge::{
     is_declared_off_axis, refuse_undeclared_off_axis, support_cell, support_cell_named,
+    support_cell_named_for_data,
 };
 pub use cell::{
     CellStatus, IntoGraphInput, StructureSource, SupportCell, SupportGraphClass, SupportInference,

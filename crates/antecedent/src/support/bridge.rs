@@ -17,7 +17,7 @@ use crate::inference::InferenceMode;
 
 use super::axis::{naming_class, query_axis};
 use super::cell::{
-    StructureSource, SupportCell, SupportGraphClass, SupportInference, SupportRefusal,
+    StructureSource, SupportCell, SupportGraphClass, SupportInference, SupportQuery, SupportRefusal,
     SupportValidation,
 };
 
@@ -96,6 +96,42 @@ pub fn support_cell(
 /// (`CoDetermined`, `Unknown`) that is not a [`GraphClass`] variant.
 #[must_use]
 pub fn support_cell_named(
+    query: &CausalQuery,
+    graph_class: &'static str,
+    structure: StructureSource,
+    inference: &InferenceMode,
+    refute: RefuteSuite,
+) -> Option<SupportCell> {
+    support_cell_named_for_data(query, graph_class, structure, inference, refute, false)
+}
+
+/// Like [`support_cell_named`], told whether the study reads a time series.
+///
+/// A mediation on a `TemporalAdmg` is two different queries: on tabular data it reads the
+/// contemporaneous projection of the graph (`MediationEffect`), on a series it reads the
+/// unrolled window of the stationary template (`TemporalMediationEffect`). The class alone
+/// cannot tell them apart, so the data modality decides.
+#[must_use]
+pub fn support_cell_named_for_data(
+    query: &CausalQuery,
+    graph_class: &'static str,
+    structure: StructureSource,
+    inference: &InferenceMode,
+    refute: RefuteSuite,
+    series: bool,
+) -> Option<SupportCell> {
+    let mut cell = support_cell_unadjusted(query, graph_class, structure, inference, refute)?;
+    if series
+        && matches!(query, CausalQuery::Mediation(_))
+        && cell.query == SupportQuery::MediationEffect
+        && graph_class == GraphClass::TemporalAdmg.as_str()
+    {
+        cell.query = SupportQuery::TemporalMediationEffect;
+    }
+    Some(cell)
+}
+
+fn support_cell_unadjusted(
     query: &CausalQuery,
     graph_class: &'static str,
     structure: StructureSource,
