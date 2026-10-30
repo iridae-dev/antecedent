@@ -6,6 +6,7 @@ import tomllib
 from pathlib import Path
 
 from _repo import ensure_scripts_on_path
+from metadata_integrity import author_orcid_problems, oracle_packages, oracle_rows
 
 root = Path(".")
 fail = []
@@ -66,12 +67,7 @@ else:
             fail.append(".zenodo.json has no license (Zenodo would guess from the repo)")
         elif zenodo["license"] != zenodo["license"].lower():
             fail.append(f".zenodo.json license {zenodo['license']!r} must be a lowercase Zenodo id")
-        cff_orcids = set(re.findall(r"orcid.org/(\S+?)['\"]", citation))
-        zen_orcids = {c["orcid"] for c in zenodo.get("creators", []) if "orcid" in c}
-        if cff_orcids != zen_orcids:
-            fail.append(
-                f"creator ORCIDs differ: CITATION.cff {sorted(cff_orcids)} vs .zenodo.json {sorted(zen_orcids)}"
-            )
+        fail.extend(author_orcid_problems(citation, zenodo.get("creators")))
 
 # Live generated licensed-cell markers belong only on the active documentation
 # cut.  A release-preparation target may be ahead of the package version.
@@ -236,16 +232,23 @@ def oracle_fixture_has_test(fixture_dir: str) -> bool:
     return bool(test_evidence.fixture_consumers(fixture_dir))
 
 
-for method in ledger.get("method", []):
+methods, ledger_errors = oracle_rows(ledger)
+fail.extend(ledger_errors)
+for method in methods:
     mid = method["id"]
     fail.extend(f"oracle_closure {mid}: {problem}" for problem in test_evidence.fixture_kind_problems(root, method))
     fixture = root / method["fixture_dir"] / "expected.json"
     if not fixture.exists():
         fail.append(f"oracle_closure {mid}: fixture missing {fixture}")
         continue
-    text = fixture.read_text(encoding="utf-8").lower()
+    try:
+        fixture_data = json.loads(fixture.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        fail.append(f"oracle_closure {mid}: invalid fixture JSON: {error}")
+        continue
+    packages = oracle_packages(fixture_data)
     for pkg in UPSTREAM:
-        if pkg in method["oracle_project"].lower() and pkg not in text:
+        if pkg in method["oracle_project"].lower() and pkg not in packages:
             fail.append(
                 f"oracle_closure {mid}: oracle_project names {pkg!r} but "
                 f"{fixture} never records it — the fixture is authoritative"
