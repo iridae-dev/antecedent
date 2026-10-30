@@ -210,6 +210,16 @@ class DecisionLogTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "successor"):
             self.audit([log])
 
+    def test_successor_must_belong_to_same_group_and_can_arrive_first(self):
+        first = self.write(record=False)
+        first.write_text(first.read_text() + "calibration-recheck reason\n")
+        other = self.write("other__test.p0.recheck.log", planned=2000, covered=1900, record=False)
+        self.roster.append({"index": 2, "label": "other: test", "grid": True})
+        with self.assertRaisesRegex(ValueError, "successor"):
+            self.audit([other, first])
+        successor = self.write("suite__test.p0.recheck.log", planned=2000, covered=1900, record=False)
+        self.assertEqual(len(self.audit([successor, first])), 2)
+
     def test_named_boundary_is_separate_from_coverage_family(self):
         nominal = self.write()
         boundary = self.root / "suite__test.p1.log"

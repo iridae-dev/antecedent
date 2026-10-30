@@ -24,7 +24,7 @@ pair is its own parallel job, selected in the gate with
 `ANTECEDENT_CALIBRATION_GRID_POINTS=<k>`, so the three points of a long group
 run side by side instead of one after another.
 
-Each job's `map_replicates` gets `ceil(cores / jobs)` worker threads
+Each job's `map_replicates` gets `floor(cores / jobs)` worker threads (at least one)
 (`ANTECEDENT_CALIBRATION_THREADS`), so `--jobs` jobs share the machine instead
 of each taking all of it; the default is one job per core, one thread each.
 The gate's recheck extends a first run (it computes only the replicates the
@@ -63,6 +63,7 @@ import time
 import tomllib
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
@@ -116,7 +117,30 @@ GRID_POINTS = (0, 1, 2)
 def threads_per_job(jobs: int) -> int:
     """Worker threads each job's `map_replicates` gets (ANTECEDENT_CALIBRATION_THREADS),
     so `jobs` concurrent jobs share the cores instead of each taking all of them."""
-    return max(1, math.ceil(CORES / jobs))
+    return max(1, CORES // jobs)
+
+
+class SimulationBudget:
+    """Reserve a job's workers atomically, including widened tail jobs."""
+
+    def __init__(self, workers: int):
+        self.workers = workers
+        self.available = workers
+        self.condition = threading.Condition()
+
+    @contextmanager
+    def claim(self, workers: int):
+        if not 1 <= workers <= self.workers:
+            raise ValueError("job workers must fit the simulation budget")
+        with self.condition:
+            self.condition.wait_for(lambda: workers <= self.available)
+            self.available -= workers
+        try:
+            yield
+        finally:
+            with self.condition:
+                self.available += workers
+                self.condition.notify_all()
 
 
 @dataclass
@@ -651,6 +675,7 @@ def pilot(selection: Selection, total: int, jobs: int) -> int:
             "ANTECEDENT_CALIBRATION_RECHECK_NSIM": str(PILOT_NSIM + 1),
             "ANTECEDENT_CALIBRATION_THREADS": "1",
             "ANTECEDENT_CALIBRATION_LOG_DIR": str(PILOT_LOG_DIR),
+            "RUST_TEST_THREADS": "1",
         }
     )
 
@@ -790,7 +815,7 @@ def tail_threads(tasks: list[tuple[Group, int | None]], jobs: int, threads: int)
         label = task_label(group, point)
         seconds = durations.get(label)
         if seconds is not None and seconds > share:
-            out[label] = min(MAX_TAIL_THREADS, CORES, max(threads, math.ceil(seconds / share)))
+            out[label] = min(CORES, max(threads, min(MAX_TAIL_THREADS, math.ceil(seconds / share))))
     return out
 
 
@@ -901,9 +926,9 @@ def run(selection: Selection, total: int, jobs: int) -> int:
         )
     }
     env.update(decision_env)
-    # Each job's `map_replicates` gets its share of the cores, so `jobs` jobs
-    # fill the machine without oversubscribing it. RUST_TEST_THREADS is left
-    # alone: every gate invocation runs one exact test.
+    # Whole-file groups and substring filters can run several tests. Keep
+    # libtest serial so each job owns only one map_replicates pool at a time.
+    env["RUST_TEST_THREADS"] = "1"
     env["ANTECEDENT_CALIBRATION_THREADS"] = str(threads)
     env["ANTECEDENT_CALIBRATION_NSIM"] = str(FIRST_NSIM)
     env["ANTECEDENT_CALIBRATION_RECHECK_NSIM"] = str(RECHECK_NSIM)
@@ -914,6 +939,9 @@ def run(selection: Selection, total: int, jobs: int) -> int:
 
     tasks = longest_first([(group, point) for group in groups for point in group.points])
     widened = tail_threads(tasks, jobs, threads)
+    # The executor caps processes, not the sum of their replicate workers.
+    # Explicit jobs > cores retain the user's requested process concurrency.
+    budget = SimulationBudget(max(CORES, jobs))
 
     def one(task: tuple[Group, int | None]) -> None:
         group, point = task
@@ -958,6 +986,11 @@ def run(selection: Selection, total: int, jobs: int) -> int:
                 flush=True,
             )
 
+    def budgeted_one(task: tuple[Group, int | None]) -> None:
+        group, point = task
+        with budget.claim(widened.get(task_label(group, point), threads)):
+            one(task)
+
     # last_durations includes measured wall times and falls back to old pilots.
     # Keep its longest-first schedule even when no pilot exists at this HEAD.
     ordered = tasks
@@ -965,7 +998,7 @@ def run(selection: Selection, total: int, jobs: int) -> int:
         f"running {len(tasks)} grid job(s), {jobs} at a time with {threads} thread(s) each; first-pass replicates={FIRST_NSIM}"
     )
     with ThreadPoolExecutor(max_workers=jobs) as pool:
-        list(pool.map(one, ordered))
+        list(pool.map(budgeted_one, ordered))
     print(
         f"measured {len(groups)} group(s) as {len(tasks)} grid job(s) in "
         f"{_clock(time.monotonic() - started)}"

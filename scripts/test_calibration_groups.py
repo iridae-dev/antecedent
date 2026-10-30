@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import sys
 import tempfile
+import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -13,6 +15,47 @@ from _repo import ensure_scripts_on_path
 
 ensure_scripts_on_path()
 import calibration_groups as groups  # noqa: E402
+
+
+class SimulationBudgetTest(unittest.TestCase):
+    def test_non_divisible_job_count_does_not_round_workers_up(self):
+        with patch.object(groups, "CORES", 12):
+            self.assertEqual(groups.threads_per_job(5), 2)
+            self.assertEqual(groups.threads_per_job(20), 1)
+
+    def test_widened_job_waits_for_enough_workers_and_returns_them(self):
+        budget = groups.SimulationBudget(4)
+        started, acquired = threading.Event(), threading.Event()
+
+        def other():
+            started.set()
+            with budget.claim(2):
+                acquired.set()
+                self.assertEqual(budget.available, 2)
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            with budget.claim(3):
+                future = pool.submit(other)
+                self.assertTrue(started.wait(5))
+                self.assertFalse(acquired.wait(0.05))
+                self.assertEqual(budget.available, 1)
+            future.result(timeout=5)
+        self.assertEqual(budget.available, 4)
+        with self.assertRaisesRegex(RuntimeError, "failed job"):
+            with budget.claim(4):
+                raise RuntimeError("failed job")
+        self.assertEqual(budget.available, 4)
+        with self.assertRaises(ValueError):
+            with budget.claim(5):
+                self.fail("over-budget job was admitted")
+
+    def test_tail_widening_never_reduces_base_workers(self):
+        group = groups.Group(1, "suite: long", False, False)
+        with (
+            patch.object(groups, "CORES", 12),
+            patch.object(groups, "last_durations", return_value={group.label: 100}),
+        ):
+            self.assertEqual(groups.tail_threads([(group, None)], 2, 6), {group.label: 6})
 
 
 class WorkspaceSuiteOwnershipTest(unittest.TestCase):
@@ -571,6 +614,7 @@ class EvidenceArchiveTest(unittest.TestCase):
                 self.assertEqual(env["ANTECEDENT_CALIBRATION_NSIM"], "20000")
                 self.assertEqual(env["ANTECEDENT_CALIBRATION_RECHECK_NSIM"], "20001")
                 self.assertEqual(env["ANTECEDENT_CALIBRATION_SHARD"], "0/2")
+                self.assertEqual(env["RUST_TEST_THREADS"], "1")
                 self.assertNotIn("ANTECEDENT_PARENT_PROTOCOL_VERSION", env)
                 self.assertNotIn("ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL", env)
 

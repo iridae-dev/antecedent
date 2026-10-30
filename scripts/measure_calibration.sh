@@ -92,7 +92,7 @@ if [[ "$MISSING_ONLY" == "1" ]]; then MODE+=(--missing-only); fi
 if [[ -n "$ALL" ]]; then MODE+=(--all); fi
 if [[ -z "$JOBS" ]]; then
   # One job per core: scripts/calibration_groups.py gives each job
-  # ceil(cores / jobs) worker threads (ANTECEDENT_CALIBRATION_THREADS), so the
+  # floor(cores / jobs), at least one, simulation workers, so the
   # jobs share the machine instead of each taking all of it, and scheduling
   # the many heterogeneous groups one per core packs it best.
   JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)"

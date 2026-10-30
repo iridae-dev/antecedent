@@ -667,6 +667,19 @@ UPPER = {"side": "upper", "target": "true upper extremal bound U"}
 
 
 class FacetTaggingTest(unittest.TestCase):
+    def test_collection_resolves_source_blob_once_for_all_records(self):
+        records = {str(i): {"id": str(i)} for i in range(3)}
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.object(collector, "require_frozen_collection_decisions"),
+            patch.object(collector.coverage_decision_logs, "audit_logs", return_value={}),
+            patch.object(collector, "merged_records", return_value=records),
+            patch.object(collector, "surface_list_blob", return_value="b" * 40) as resolve,
+        ):
+            self.assertEqual(collector.load_records("a" * 40, Path(directory), verify_logs=False), records)
+        resolve.assert_called_once_with("a" * 40)
+        self.assertTrue(all(row["surface_list_blob"] == "b" * 40 for row in records.values()))
+
     def test_retag_widens_dependencies_without_changing_measurement_or_attestation(self):
         record = {"id": "historical", "query": "ObservationConditionalProbability",
                   "calibration_sha": "a" * 40, "observed": 0.95,
@@ -1104,6 +1117,25 @@ class FourPointRangeTest(unittest.TestCase):
 
 
 class GateProtocolTest(unittest.TestCase):
+    def test_ledger_keeps_only_its_looks_in_original_audit_order(self):
+        with tempfile.TemporaryDirectory() as directory:
+            log = Path(directory) / "one.log"
+            log.write_text(
+                'calibration-decision-context {}\n'
+                'test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n'
+            )
+            decisions = {
+                "one.recheck.log": [{"record_id": None, "covered": 1900}],
+                "foreign.log": [{"record_id": None, "covered": 123}],
+                "one.log": [{"record_id": None, "covered": 380}],
+            }
+            with patch.object(collector.coverage_decision_logs, "audit_logs", return_value=decisions):
+                row = collector.gate_ledger([log], "a" * 40)["one"]
+            self.assertEqual(row["coverage_decisions"], [
+                {"log": "one.recheck.log", "record_id": "", "covered": 1900},
+                {"log": "one.log", "record_id": "", "covered": 380},
+            ])
+
     def test_marker_is_observed_in_log_never_inferred_and_survives_ledger_merge(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

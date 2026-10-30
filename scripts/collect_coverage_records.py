@@ -672,6 +672,7 @@ def gate_ledger(logs: list[Path], sha: str) -> dict[str, dict]:
         decisions = coverage_decision_logs.audit_logs(logs, sha)
     except (ValueError, KeyError, OSError, subprocess.CalledProcessError) as error:
         raise SystemExit(f"invalid frozen-family decision ledger: {error}") from error
+    decision_order = {name: index for index, name in enumerate(decisions)}
     for log in logs:
         text = read_text(log, errors="ignore")
         if (
@@ -688,9 +689,11 @@ def gate_ledger(logs: list[Path], sha: str) -> dict[str, dict]:
         }
         raw = [
             {"log": name, **row, "record_id": row["record_id"] or ""}
-            for name, entries in decisions.items()
-            if name in {log.name, log.name.removesuffix(".log") + ".recheck.log"}
-            for row in entries
+            for name in sorted(
+                (log.name, log.name.removesuffix(".log") + ".recheck.log"),
+                key=lambda name: decision_order.get(name, len(decisions)),
+            )
+            for row in decisions.get(name, [])
         ]
         contexts = [
             json.loads(line.partition(" ")[2])
@@ -821,9 +824,10 @@ def load_records(
         raise SystemExit(
             f"no calibration-record lines in {log_dir}: nothing measured, so nothing to commit"
         )
+    blob = surface_list_blob(sha)
     for record in records.values():
         record["calibration_sha"] = sha
-        record["surface_list_blob"] = surface_list_blob(sha)
+        record["surface_list_blob"] = blob
     return records
 
 

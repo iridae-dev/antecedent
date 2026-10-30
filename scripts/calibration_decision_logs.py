@@ -171,19 +171,16 @@ def audit_logs(
                 expected_config=config,
             )
         summary[log.name] = raw
-    for group, point, key, planned in requested:
-        successors = [
-            value
-            for (g, p, k, look), value in looks.items()
-            if (g, p, k) == (group, point, key) and look > planned
-        ]
-        if not successors:
-            raise ValueError("coverage recheck request has no complete registered successor look")
     final = {}
     for (group, point, key, planned), value in looks.items():
         slot = (group, point, key)
         if slot not in final or final[slot]["planned_replicates"] < planned:
             final[slot] = value
+    # A later registered look exists exactly when the final look for this cell
+    # is later. Index once instead of scanning every cell/look per request.
+    for group, point, key, planned in requested:
+        if final[(group, point, key)]["planned_replicates"] <= planned:
+            raise ValueError("coverage recheck request has no complete registered successor look")
     for (_, _, key), value in final.items():
         if key[3] is None and not value["compatible"]:
             raise ValueError("final recordless coverage decision is incompatible")
