@@ -342,6 +342,10 @@ fn r10_orients_with_two_disjoint_uncovered_pd_paths() {
     g.insert_directed(p2, c).unwrap();
     let mut state = OrientationState::default();
     let mut queue = OrientationQueue::new();
+    // Without a in Sep(d1,d2), the prime rule cannot orient.
+    let missing = LpcmciOrientationRule::apply(&LpcmciR10, &mut g, &mut state, &mut queue).unwrap();
+    assert_eq!(missing.edges_changed, 0);
+    state.set_sepset(d1, d2, std::sync::Arc::from([a]));
     let d = LpcmciOrientationRule::apply(&LpcmciR10, &mut g, &mut state, &mut queue).unwrap();
     assert!(d.edges_changed > 0);
     let (at_a, at_c) = marks_between(&g, a, c).unwrap();
@@ -621,6 +625,10 @@ fn static_r10_orients_with_two_disjoint_uncovered_pd_paths() {
     g.insert_directed(p2, c).unwrap();
     let mut state = OrientationState::default();
     let mut queue = OrientationQueue::new();
+    // Without a in Sep(d1,d2), the prime rule cannot orient.
+    let missing = FciOrientationRule::apply(&LpcmciR10, &mut g, &mut state, &mut queue).unwrap();
+    assert_eq!(missing.edges_changed, 0);
+    state.set_sepset(d1, d2, std::sync::Arc::from([a]));
     let d = FciOrientationRule::apply(&LpcmciR10, &mut g, &mut state, &mut queue).unwrap();
     assert!(d.edges_changed > 0);
     let (at_a, at_c) = marks_between(&g, a, c).unwrap();
@@ -784,6 +792,28 @@ fn discriminating_collider_branch_orients_both_ends_of_cb() {
     let (at_c, at_b) = marks_between(&g, c, b).unwrap();
     assert!(matches!(at_c, Endpoint::Arrow), "arrow at c");
     assert!(matches!(at_b, Endpoint::Arrow), "arrow at b");
+}
+
+#[test]
+fn r9_prime_requires_the_path_noncollider_evidence() {
+    let id = DenseNodeId::from_raw;
+    let (a, b, d, c) = (id(0), id(1), id(2), id(3));
+    let mut g = Pag::with_variables(4);
+    g.insert_circle_arrow(a, c).unwrap();
+    g.insert_circle_circle(a, b).unwrap();
+    g.insert_circle_circle(b, d).unwrap();
+    g.insert_directed(d, c).unwrap();
+    let mut state = OrientationState::default();
+    state.set_sepset(b, c, std::sync::Arc::from([a, d]));
+    state.mark_weakly_minimal(b, c);
+    let mut queue = OrientationQueue::new();
+    let delta = FciOrientationRule::apply(&LpcmciR9, &mut g, &mut state, &mut queue).unwrap();
+    assert_eq!(delta.edges_changed, 0, "b must be in Sep(a,d)");
+    assert!(matches!(marks_between(&g, a, c).unwrap().0, Endpoint::Circle));
+    state.set_sepset(a, d, std::sync::Arc::from([b]));
+    let delta = FciOrientationRule::apply(&LpcmciR9, &mut g, &mut state, &mut queue).unwrap();
+    assert_eq!(delta.edges_changed, 1);
+    assert!(matches!(marks_between(&g, a, c).unwrap().0, Endpoint::Tail));
 }
 
 /// A search whose effort budget is spent on uncovered potentially directed paths exhausts the R9
