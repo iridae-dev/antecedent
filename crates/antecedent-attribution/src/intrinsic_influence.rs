@@ -614,6 +614,31 @@ pub fn intrinsic_influence(
     ctx: &ExecutionContext,
 ) -> Result<IntrinsicInfluenceResult, AttributionError> {
     query.validate()?;
+    // Bootstrap refits operate on physical analysis rows; the fit ignores stored
+    // metadata, so compact a nontrivial mask before any refit and reject weights.
+    if let Some(data) = data {
+        crate::population::reject_storage_weights(data)?;
+        if query.fit_bootstrap_replicates > 0
+            && matches!(
+                query.fit_resampling,
+                FitResampling::BlockBootstrap { .. } | FitResampling::DirichletBlockWeights { .. }
+            )
+        {
+            crate::population::reject_mask_for_ordered(data)?;
+        }
+    }
+    let filtered_data = match data {
+        Some(data)
+            if query.fit_bootstrap_replicates > 0
+                && data.storage().analysis_mask().is_some_and(|mask| !mask.is_all_valid()) =>
+        {
+            let rows =
+                crate::population::resolve_rows(data, &antecedent_core::PopulationSelector::All)?;
+            Some(crate::population::subset_table(data, &rows)?)
+        }
+        _ => None,
+    };
+    let data = filtered_data.as_ref().or(data);
     require_independent_noise(model, noise)?;
     let target = model
         .dense_of(query.target)
@@ -1192,10 +1217,10 @@ fn bootstrap_spread(
             let mut w = Welford::new();
             draws.iter().for_each(|d| w.push(d[i]));
             let boot_var = w.sample_variance().unwrap_or(f64::NAN);
-            let noise_var =
-                pooled.component_mc_stderr.as_ref().map_or(sources_sim[i] * sources_sim[i], |se| {
-                    (se[i] * se[i]).max(sources_sim[i] * sources_sim[i])
-                });
+            // The refits reuse the same permutation stream; their spread is
+            // conditional on those permutations. Only the fresh simulation
+            // batches contribute independently to that bootstrap spread.
+            let noise_var = sources_sim[i] * sources_sim[i];
             (boot_var - noise_var).max(0.0).sqrt()
         })
         .collect();
@@ -1210,9 +1235,10 @@ fn bootstrap_spread(
 /// deviations of the contributions and the interval their normal approximation; the draws
 /// themselves are returned for the caller to summarise as a posterior.
 ///
-/// Each refit's contributions carry the same Monte Carlo noise as the point estimate, so the
-/// bootstrap variance is reduced by the noise variance of one estimate (the pooled
-/// permutation variance when sampled, else the simulation variance) before the square root.
+/// Each refit reuses the point estimate's permutation stream but draws fresh simulation batches.
+/// The fit-only variance is the bootstrap variance conditional on those permutations, less
+/// the estimated simulation variance of one estimate. The whole-procedure spread adds the
+/// point estimate's permutation variance to the raw bootstrap variance.
 /// Any failed refit leaves the component unquantified rather than dropping the failure.
 fn fit_component(
     model: &CompiledCausalModel,
@@ -1321,4 +1347,42 @@ fn fit_component(
         df,
         draws,
     })
+}
+
+#[cfg(test)]
+mod bootstrap_component_tests {
+    use super::*;
+    use crate::result::{CacheStats, ComputeBudget};
+
+    #[test]
+    fn fixed_permutations_and_fresh_simulation_have_separate_variance_terms() {
+        let query = IntrinsicInfluenceQuery::new(VariableId::from_raw(0))
+            .with_seed(19)
+            .with_allocation(IntrinsicAllocation::Permutation { n_permutations: 20 });
+        let (config, _) = allocation_config(&query, 2).unwrap();
+        assert_eq!(config.seed, query.seed);
+        assert_ne!(
+            noise_draw(query.seed, 0, 0),
+            noise_draw(query.seed, query.replicates as u64, 0)
+        );
+        let pooled = ShapleyEstimate {
+            players: vec![],
+            values: vec![],
+            interactions: vec![],
+            budget: ComputeBudget::default(),
+            monte_carlo_stderr: Some(2.0),
+            component_mc_stderr: Some(vec![2.0]),
+            efficiency_residual: None,
+            cache_stats: CacheStats::default(),
+        };
+        let a = vec![0.0];
+        let b = vec![2.0];
+        let (whole, fit) = bootstrap_spread(&[&a, &b], &pooled, &[0.5], 1);
+        // Sample variance of [0,2] is 2; permutation variance 4 is common
+        // across refits, while fresh simulation variance 0.25 is removed.
+        assert!((whole[0] - 6.0_f64.sqrt()).abs() < 1e-14);
+        assert!((fit[0] - 1.75_f64.sqrt()).abs() < 1e-14);
+        let (_, no_simulation) = bootstrap_spread(&[&a, &b], &pooled, &[0.0], 1);
+        assert!((no_simulation[0] - 2.0_f64.sqrt()).abs() < 1e-14);
+    }
 }

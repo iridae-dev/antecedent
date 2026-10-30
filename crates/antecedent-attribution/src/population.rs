@@ -52,7 +52,11 @@ pub fn resolve_rows(
     data: &TabularData,
     selector: &PopulationSelector,
 ) -> Result<Vec<usize>, AttributionError> {
-    resolve_rows_n(data.row_count(), selector)
+    let mut rows = resolve_rows_n(data.row_count(), selector)?;
+    if let Some(mask) = data.storage().analysis_mask() {
+        rows.retain(|&row| mask.is_valid(row));
+    }
+    Ok(rows)
 }
 
 fn resolve_rows_n(n: usize, selector: &PopulationSelector) -> Result<Vec<usize>, AttributionError> {
@@ -87,6 +91,26 @@ fn resolve_rows_n(n: usize, selector: &PopulationSelector) -> Result<Vec<usize>,
     }
 }
 
+/// Reject stored observation weights until the consuming attribution fit uses them.
+pub(crate) fn reject_storage_weights(data: &TabularData) -> Result<(), AttributionError> {
+    if data.storage().weights().is_some() {
+        return Err(AttributionError::unsupported(
+            "attribution does not support table observation weights",
+        ));
+    }
+    Ok(())
+}
+
+/// Compaction changes temporal adjacency, so ordered operations must refuse a hidden row.
+pub(crate) fn reject_mask_for_ordered(data: &TabularData) -> Result<(), AttributionError> {
+    if data.storage().analysis_mask().is_some_and(|mask| !mask.is_all_valid()) {
+        return Err(AttributionError::unsupported(
+            "ordered attribution does not support a nontrivial analysis mask",
+        ));
+    }
+    Ok(())
+}
+
 /// Slice float columns for selected rows into a new owned [`TabularData`].
 ///
 /// # Errors
@@ -101,6 +125,12 @@ pub(crate) fn subset_table(
     use antecedent_data::column::{Float64Column, ValidityBitmap};
     use antecedent_data::{OwnedColumn, OwnedColumnarStorage};
 
+    reject_storage_weights(data)?;
+    let rows: Vec<usize> = rows
+        .iter()
+        .copied()
+        .filter(|&r| data.storage().analysis_mask().is_none_or(|mask| mask.is_valid(r)))
+        .collect();
     let schema = data.schema().clone();
     let n = rows.len();
     let mut cols = Vec::with_capacity(schema.len());
@@ -108,7 +138,7 @@ pub(crate) fn subset_table(
         let id = var.id;
         let src = data.float64_values(id)?;
         let mut values = Vec::with_capacity(n);
-        for &r in rows {
+        for &r in &rows {
             values.push(src[r]);
         }
         let validity = ValidityBitmap::all_valid(n);
@@ -161,5 +191,23 @@ mod tests {
         assert_eq!(rows, vec![2, 3, 4]);
         let sub = subset_table(&data, &rows).unwrap();
         assert_eq!(sub.row_count(), 3);
+    }
+    #[test]
+    fn selected_rows_respect_analysis_mask_and_reject_stored_weights() {
+        let data = tiny_table(4)
+            .with_analysis_mask(
+                ValidityBitmap::from_bytes(Arc::<[u8]>::from([0b0000_1101]), 4).unwrap(),
+            )
+            .unwrap();
+        let selector = PopulationSelector::Rows(Arc::from([3usize, 1, 2, 2]));
+        let rows = resolve_rows(&data, &selector).unwrap();
+        assert_eq!(rows, vec![3, 2, 2]);
+        let subset = subset_table(&data, &[3, 1, 2, 2]).unwrap();
+        assert_eq!(subset.float64_values(VariableId::from_raw(0)).unwrap(), vec![3.0, 2.0, 2.0]);
+        let weighted = data.with_weights(Arc::from([1.0, 1.0, 1.0, 1.0])).unwrap();
+        assert!(matches!(
+            subset_table(&weighted, &rows),
+            Err(AttributionError::Unsupported { .. })
+        ));
     }
 }

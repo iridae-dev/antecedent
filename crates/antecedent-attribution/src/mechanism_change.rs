@@ -120,6 +120,9 @@ pub(crate) fn detect_mechanism_changes_with_correction(
     correction: Option<FdrAdjustment>,
 ) -> Result<Vec<MechanismChangeDetection>, AttributionError> {
     query.validate()?;
+    if matches!(method, MechanismChangeMethod::ChangePoint) {
+        crate::population::reject_mask_for_ordered(data)?;
+    }
     if query.targets.len() > query.max_targets {
         return Err(AttributionError::SizeLimit {
             kind: "targets",
@@ -422,6 +425,7 @@ pub fn detect_mechanism_changes_block(
     permutations: usize,
     ctx: &ExecutionContext,
 ) -> Result<Vec<MechanismChangeDetection>, AttributionError> {
+    crate::population::reject_mask_for_ordered(data)?;
     if permutations < MIN_BLOCK_PERMUTATIONS {
         return Err(AttributionError::invalid_input(
             "a block permutation test needs at least 99 permutations",

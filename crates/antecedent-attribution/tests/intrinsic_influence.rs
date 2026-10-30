@@ -449,10 +449,7 @@ fn the_posterior_over_the_mechanisms_returns_its_refits_beside_the_bootstrap() {
             panic!("bootstrap not quantified");
         };
         let ratio = stderr / boot;
-        assert!(
-            (0.5..2.0).contains(&ratio),
-            "source {i}: posterior over bootstrap spread {ratio}"
-        );
+        assert!((0.5..2.0).contains(&ratio), "source {i}: posterior over bootstrap spread {ratio}");
     }
 }
 
@@ -831,4 +828,43 @@ fn exact_enumeration_reports_zero_permutation_error_and_still_reports_simulation
     let factor =
         result.sources[0].component_stderr(UncertaintyComponent::PermutationSampling).unwrap();
     assert!(factor > 0.0, "{factor}");
+}
+
+#[test]
+fn intrinsic_fit_uses_active_rows_and_refuses_stored_weights() {
+    use antecedent_data::TableView;
+    let (model, data) = chain_data(80);
+    let mut bytes = vec![0xffu8; 10];
+    bytes[7] = 0x0f;
+    bytes[8] = 0;
+    bytes[9] = 0;
+    let masked = data
+        .with_analysis_mask(ValidityBitmap::from_bytes(Arc::<[u8]>::from(bytes), 80).unwrap())
+        .unwrap();
+    let x = data.float64_values(var(0)).unwrap();
+    let y = data.float64_values(var(1)).unwrap();
+    let active =
+        TabularData::try_from_schema_f64(data.schema().clone(), [("x", &x[..60]), ("y", &y[..60])])
+            .unwrap();
+    let query = IntrinsicInfluenceQuery::new(var(1))
+        .with_simulation(50, 5, 2)
+        .with_fit_bootstrap(20)
+        .with_seed(7);
+    let masked_fit =
+        intrinsic_influence(&model, NoiseIndependence::Declared, Some(&masked), &query, &ctx())
+            .unwrap();
+    let active_fit =
+        intrinsic_influence(&model, NoiseIndependence::Declared, Some(&active), &query, &ctx())
+            .unwrap();
+    assert_eq!(masked_fit.fit_draws, active_fit.fit_draws);
+    let ordered = query.clone().with_fit_resampling(FitResampling::BlockBootstrap { block: 4 });
+    assert!(matches!(
+        intrinsic_influence(&model, NoiseIndependence::Declared, Some(&masked), &ordered, &ctx()),
+        Err(AttributionError::Unsupported { .. })
+    ));
+    let weighted = data.with_weights(Arc::from(vec![1.0; 80])).unwrap();
+    assert!(matches!(
+        intrinsic_influence(&model, NoiseIndependence::Declared, Some(&weighted), &query, &ctx()),
+        Err(AttributionError::Unsupported { .. })
+    ));
 }
