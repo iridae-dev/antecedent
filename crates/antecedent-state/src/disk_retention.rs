@@ -4,19 +4,19 @@
 //! digest-checked frame and written under one byte budget by a [`SpillRegistry`]. The registry
 //! is the realisation of [`RetentionMode::DiskBacked`]:
 //!
-//! * a spill reserves its frame bytes against the budget before anything is written, and
-//!   evicts the least recently used spilled results to make room; a frame larger than the
-//!   whole budget is refused and nothing is evicted for it;
+//! * a frame larger than the logical retained-byte budget is refused without eviction;
+//!   a new frame is written before evicting old results, so commit may temporarily use one
+//!   incoming frame beyond that logical disk budget;
 //! * [`SpillHandle`] serves a read of the declared artifact ([`SpillHandle::reload`]) and
 //!   refuses every resident operation with the next attempt, exactly as
 //!   [`RetentionMode::DiskBacked`] declares;
 //! * a reload verifies the frame digest, the kind and the length, so a file that was changed or
 //!   truncated is refused, and an evicted entry is refused with the rebuild it needs;
-//! * a frame is written to a temporary name and renamed into place, so a failed write leaves no
-//!   target and returns its reservation;
+//! * a frame is exclusively created under a unique name and registered only after writing and
+//!   syncing it; a failed write removes only that new file and preserves the retained entries;
 //! * remaining files are removed when the registry drops.
 //!
-//! The directory handed to [`SpillRegistry::new`] belongs to the registry.
+//! Registries can share a directory; each registry removes only its own files.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -24,7 +24,11 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+
+#[cfg(unix)]
+use std::os::unix::fs::OpenOptionsExt;
 
 use antecedent_core::CanonicalWriter;
 
@@ -35,6 +39,7 @@ const FRAME_MAGIC: &[u8; 8] = b"ANTSPILL";
 const FRAME_TAG: &str = "antecedent.state.disk_retention.frame";
 const KEY_TAG: &str = "antecedent.state.disk_retention.key";
 const DIGEST_HEX_LEN: usize = 64;
+static SPILL_NONCE: AtomicU64 = AtomicU64::new(0);
 
 /// A prepared state that can be written to and read back from a frame.
 pub trait Spillable: Sized {
@@ -354,10 +359,27 @@ impl SpillRegistry {
         keys.into_iter().map(|(_, key)| key.clone()).collect()
     }
 
-    fn path_for(&self, key: &str, sequence: u64) -> PathBuf {
+    fn path_for(&self, key: &str, nonce: u64) -> PathBuf {
         let mut writer = CanonicalWriter::new(KEY_TAG);
-        writer.text(key).word(sequence);
+        writer.text(key).word(u64::from(std::process::id())).word(nonce);
         self.directory.join(format!("{}.spill", writer.finish_hex()))
+    }
+
+    fn create_frame(&self, key: &str) -> Result<(PathBuf, fs::File), StateError> {
+        for _ in 0..1024 {
+            let nonce = SPILL_NONCE.fetch_add(1, Ordering::Relaxed);
+            let path = self.path_for(key, nonce);
+            let mut options = fs::OpenOptions::new();
+            options.write(true).create_new(true);
+            #[cfg(unix)]
+            options.mode(0o600);
+            match options.open(&path) {
+                Ok(file) => return Ok((path, file)),
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(io_error("cannot create the spilled state", &error)),
+            }
+        }
+        Err(StateError::InvalidEvent("cannot allocate a unique spill file".into()))
     }
 
     /// Write `value` under `key`, evicting the least recently used results to fit.
@@ -381,6 +403,20 @@ impl SpillRegistry {
             return Err(StateError::CacheBudget { need, remaining: self.budget_bytes });
         }
         let mut inner = self.lock();
+        let generation = inner
+            .sequence
+            .checked_add(1)
+            .ok_or_else(|| StateError::InvalidEvent("spill generation exhausted".into()))?;
+        // Do not change retained entries until the incoming frame is durable. The exclusive
+        // file is visible only to this registry until it is registered below.
+        let (path, mut file) = self.create_frame(key)?;
+        if let Err(error) = file.write_all(&frame).and_then(|()| file.sync_all()) {
+            drop(file);
+            let _ = fs::remove_file(&path);
+            return Err(io_error("cannot write the spilled state", &error));
+        }
+        drop(file);
+        inner.sequence = generation;
         let held = inner.entries.get(key).map_or(0, |entry| entry.bytes);
         let mut evicted = Vec::new();
         while inner.used.saturating_sub(held).saturating_add(need) > self.budget_bytes {
@@ -397,20 +433,6 @@ impl SpillRegistry {
                 inner.evictions = inner.evictions.saturating_add(1);
             }
             evicted.push(oldest);
-        }
-        inner.sequence = inner
-            .sequence
-            .checked_add(1)
-            .ok_or_else(|| StateError::InvalidEvent("spill generation exhausted".into()))?;
-        let generation = inner.sequence;
-        let path = self.path_for(key, generation);
-        let temporary = path.with_extension("tmp");
-        let written = fs::File::create(&temporary)
-            .and_then(|mut file| file.write_all(&frame).and_then(|()| file.sync_all()))
-            .and_then(|()| fs::rename(&temporary, &path));
-        if let Err(error) = written {
-            let _ = fs::remove_file(&temporary);
-            return Err(io_error("cannot write the spilled state", &error));
         }
         if let Some(previous) = inner.entries.remove(key) {
             let _ = fs::remove_file(&previous.path);
@@ -694,6 +716,54 @@ mod tests {
         path.push(format!("antecedent-spill-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&path);
         path
+    }
+
+    #[test]
+    fn failed_write_preserves_existing_spills_and_accounting() {
+        let directory = scratch("write-failure");
+        let blob = Blob(vec![1.0]);
+        let frame = build_frame(Blob::KIND, &blob.encode().unwrap()).len() as u64;
+        let registry = SpillRegistry::new(&directory, frame).unwrap();
+        let old = registry.spill("old", &blob).unwrap();
+        let before = registry.stats();
+        // Temporarily move the directory so exclusive creation fails without requiring
+        // platform-specific permission behavior. Restore it before reading the old handle.
+        let moved = directory.with_extension("moved");
+        let _ = fs::remove_dir_all(&moved);
+        fs::rename(&directory, &moved).unwrap();
+        assert!(registry.spill("new", &blob).is_err());
+        fs::rename(&moved, &directory).unwrap();
+        assert_eq!(registry.stats(), before);
+        assert_eq!(old.reload::<Blob>().unwrap(), blob);
+        drop(old);
+        drop(registry);
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn registries_in_same_directory_cannot_overwrite_each_other() {
+        let directory = scratch("shared-directory");
+        let first = SpillRegistry::new(&directory, 4096).unwrap();
+        let second = SpillRegistry::new(&directory, 4096).unwrap();
+        let a = first.spill("same", &Blob(vec![1.0])).unwrap();
+        let b = second.spill("same", &Blob(vec![2.0])).unwrap();
+        let path_a = first.lock().entries["same"].path.clone();
+        let path_b = second.lock().entries["same"].path.clone();
+        assert_ne!(path_a, path_b);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(fs::metadata(&path_a).unwrap().permissions().mode() & 0o177, 0);
+            assert_eq!(fs::metadata(&path_b).unwrap().permissions().mode() & 0o177, 0);
+        }
+        assert_eq!(a.reload::<Blob>().unwrap(), Blob(vec![1.0]));
+        assert_eq!(b.reload::<Blob>().unwrap(), Blob(vec![2.0]));
+        assert!(a.remove());
+        assert_eq!(b.reload::<Blob>().unwrap(), Blob(vec![2.0]));
+        drop(b);
+        drop(first);
+        drop(second);
+        let _ = fs::remove_dir_all(directory);
     }
 
     #[test]

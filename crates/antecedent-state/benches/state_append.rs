@@ -19,7 +19,7 @@ fn run_append_once() -> CausalState {
         VariableId::from_raw(0),
         VariableId::from_raw(1),
     )));
-    let _ = state.refresh_results(&[(q, 1, 32)]);
+    let _ = state.refresh_results_at(state.version, &[(q, 1, 32)]);
     state.suff_stats.ols.insert(Arc::from("ols"), LinearOlsSuffStats::new(2).expect("dimension"));
     for i in 0..64u64 {
         state

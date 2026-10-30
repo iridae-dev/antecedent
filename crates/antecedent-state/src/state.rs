@@ -359,45 +359,32 @@ impl CausalState {
         self.queries.queries.keys().copied().filter(|q| self.is_stale(*q)).collect()
     }
 
-    /// Caller-driven recomputation hook for results that carry no lineage: marks selected
-    /// queries fresh after the caller supplies new result fingerprints. Does not run
-    /// estimators itself.
-    ///
-    /// This is the unchecked path and is refused for any query whose last publication
-    /// carried a lineage: such a query is republished only through [`Self::publish_results`]
-    /// with the identities of the recomputation, so freshness is never asserted for a result
-    /// that cannot show what it was recomputed from.
+    /// Versionless refresh cannot establish when the computation started.
+    /// Capture the current version before computing and use [`Self::refresh_results_at`].
     ///
     /// # Errors
     ///
-    /// Unknown query, a lineage-bound query, or cache budget refusal.
-    pub fn refresh_results(&mut self, updates: &[(QueryId, u64, u64)]) -> Result<(), StateError> {
-        let updates: Vec<ResultPublication> = updates
-            .iter()
-            .map(|&(query, fingerprint, bytes)| ResultPublication {
-                query,
-                fingerprint,
-                bytes,
-                lineage: None,
-                data_snapshot: None,
-                identities: None,
-            })
-            .collect();
-        self.publish_results(&updates)
+    /// Always returns an invalid-event error without changing state.
+    pub fn refresh_results(&mut self, _updates: &[(QueryId, u64, u64)]) -> Result<(), StateError> {
+        Err(StateError::InvalidEvent(
+            "capture the state version before computation and use refresh_results_at".into(),
+        ))
     }
 
-    /// Publish recomputed results, refusing a republication that the data
-    /// events say cannot be a recomputation.
-    ///
-    /// A result whose data snapshot equals the one published under an earlier
-    /// data-catalog version was not recomputed on the current data, whatever
-    /// its fingerprint says.
+    /// Versionless publication cannot establish when the computation started.
+    /// Capture the current version before computing and use [`Self::publish_results_at`].
     ///
     /// # Errors
     ///
-    /// Unknown query, a snapshot that predates the latest data event, or cache
-    /// budget refusal.
-    pub fn publish_results(&mut self, updates: &[ResultPublication]) -> Result<(), StateError> {
+    /// Always returns an invalid-event error without changing state.
+    pub fn publish_results(&mut self, _updates: &[ResultPublication]) -> Result<(), StateError> {
+        Err(StateError::InvalidEvent(
+            "capture the state version before computation and use publish_results_at".into(),
+        ))
+    }
+
+    // Called only after the caller-supplied pre-computation version is checked.
+    fn publish_results_checked(&mut self, updates: &[ResultPublication]) -> Result<(), StateError> {
         for update in updates {
             if !self.queries.queries.contains_key(&update.query) {
                 return Err(StateError::UnknownId(format!("query {}", update.query.raw())));
@@ -493,8 +480,9 @@ impl CausalState {
         Ok(())
     }
 
-    /// Like [`Self::refresh_results`], but refuse if `expected` is no longer
-    /// the current state version. A stale commit cannot mark results fresh.
+    /// Publish bare recomputation fingerprints. Capture `expected` before starting
+    /// computation; a version that advanced in the meantime is refused.
+    /// A lineage-bound query must instead use [`Self::publish_results_at`].
     ///
     /// # Errors
     ///
@@ -505,10 +493,22 @@ impl CausalState {
         updates: &[(QueryId, u64, u64)],
     ) -> Result<(), StateError> {
         self.require_version(expected)?;
-        self.refresh_results(updates)
+        let publications: Vec<ResultPublication> = updates
+            .iter()
+            .map(|&(query, fingerprint, bytes)| ResultPublication {
+                query,
+                fingerprint,
+                bytes,
+                lineage: None,
+                data_snapshot: None,
+                identities: None,
+            })
+            .collect();
+        self.publish_results_checked(&publications)
     }
 
-    /// Like [`Self::publish_results`], refusing a stale expected version.
+    /// Publish recomputed results against a version captured before computation.
+    /// Refuse a stale expected version or a lineage that fails to reflect changed inputs.
     ///
     /// # Errors
     ///
@@ -520,7 +520,7 @@ impl CausalState {
         updates: &[ResultPublication],
     ) -> Result<(), StateError> {
         self.require_version(expected)?;
-        self.publish_results(updates)
+        self.publish_results_checked(updates)
     }
 
     fn require_version(&self, expected: StateVersion) -> Result<(), StateError> {
@@ -652,7 +652,7 @@ mod tests {
             VariableId::from_raw(0),
             VariableId::from_raw(1),
         )));
-        state.refresh_results(&[(q, 42, 16)]).expect("cache");
+        state.refresh_results_at(state.version, &[(q, 42, 16)]).expect("cache");
         assert!(!state.is_stale(q));
         state
             .apply(StateEvent::AppendData(DataBatchRef {
@@ -695,7 +695,7 @@ mod tests {
             VariableId::from_raw(0),
             VariableId::from_raw(1),
         )));
-        let err = state.refresh_results(&[(q, 1, 64)]).expect_err("budget");
+        let err = state.refresh_results_at(state.version, &[(q, 1, 64)]).expect_err("budget");
         assert!(matches!(err, StateError::CacheBudget { .. }));
     }
 
@@ -720,8 +720,9 @@ mod tests {
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)),
         ));
         let unknown = QueryId::from_raw(99);
-        let err =
-            state.refresh_results(&[(known, 1, 16), (unknown, 2, 16)]).expect_err("unknown query");
+        let err = state
+            .refresh_results_at(state.version, &[(known, 1, 16), (unknown, 2, 16)])
+            .expect_err("unknown query");
         assert!(matches!(err, StateError::UnknownId(_)));
         assert!(state.cached_results.results.is_empty());
         assert_eq!(state.cache_budget.used_bytes, 0);
@@ -740,7 +741,7 @@ mod tests {
         let first = state.queries.register(query(0));
         let second = state.queries.register(query(1));
         let err = state
-            .refresh_results(&[(first, 1, 16), (second, 2, 16)])
+            .refresh_results_at(state.version, &[(first, 1, 16), (second, 2, 16)])
             .expect_err("aggregate budget");
         assert!(matches!(err, StateError::CacheBudget { .. }));
         assert!(state.cached_results.results.is_empty());
@@ -779,6 +780,37 @@ mod tests {
         })
     }
 
+    #[test]
+    fn versionless_publication_refuses_without_mutating_cache_or_lineage() {
+        let mut state = CausalState::new(CacheBudget::new(1024));
+        let q = one_query(&mut state);
+        let initial = identities(10, 20);
+        let expected = state.version;
+        state.publish_results_at(expected, &[publication(q, &initial)]).unwrap();
+        let old_version = state.version;
+        state.apply(constraint("after-computation")).unwrap();
+        let other = one_query(&mut state);
+        let current = state.version;
+        state.refresh_results_at(current, &[(other, 17, 8)]).unwrap();
+        let before = format!("{:?}", (&state.cached_results, &state.cache_budget, &state.queries));
+        let changed = publication(q, &identities(11, 20));
+        assert!(matches!(
+            state.publish_results(&[changed.clone()]),
+            Err(StateError::InvalidEvent(_))
+        ));
+        assert!(matches!(state.refresh_results(&[(q, 3, 8)]), Err(StateError::InvalidEvent(_))));
+        assert!(matches!(
+            state.publish_results_at(old_version, &[changed]),
+            Err(StateError::InvalidEvent(_))
+        ));
+        assert_eq!(
+            before,
+            format!("{:?}", (&state.cached_results, &state.cache_budget, &state.queries))
+        );
+        assert!(state.is_stale(q));
+        assert!(!state.is_stale(other));
+    }
+
     /// A premise event leaves the data snapshot alone, so the old data-snapshot check cannot
     /// see it: the identification layer has to move for the republication to count.
     #[test]
@@ -786,18 +818,22 @@ mod tests {
         let mut state = CausalState::new(CacheBudget::new(1024));
         let q = one_query(&mut state);
         let first = identities(10, 20);
-        state.publish_results(&[publication(q, &first)]).expect("first publication");
+        state
+            .publish_results_at(state.version, &[publication(q, &first)])
+            .expect("first publication");
         assert_eq!(state.revalidation(q), Some(Revalidation::StillValid));
 
         state.apply(constraint("c1")).expect("constraint");
         assert_eq!(state.revalidation(q), Some(Revalidation::Recompute));
-        let err = state.publish_results(&[publication(q, &first)]).expect_err("same layer");
+        let err = state
+            .publish_results_at(state.version, &[publication(q, &first)])
+            .expect_err("same layer");
         assert!(matches!(&err, StateError::InvalidEvent(m) if m.contains("graph layer")));
         assert_eq!(state.revalidation(q), Some(Revalidation::Recompute));
 
         // the same data but a re-derived identification is a recomputation
         let rederived = identities(11, 20);
-        state.publish_results(&[publication(q, &rederived)]).expect("recomputed");
+        state.publish_results_at(state.version, &[publication(q, &rederived)]).expect("recomputed");
         assert_eq!(state.revalidation(q), Some(Revalidation::StillValid));
         assert!(!state.is_stale(q));
     }
@@ -809,7 +845,7 @@ mod tests {
         let q = one_query(&mut state);
         let first = identities(10, 20);
         state.apply(constraint("c1")).expect("constraint");
-        state.publish_results(&[publication(q, &first)]).expect("publication");
+        state.publish_results_at(state.version, &[publication(q, &first)]).expect("publication");
         assert_eq!(state.revalidation(q), Some(Revalidation::StillValid));
         state
             .apply(StateEvent::RemoveConstraint(crate::store::ConstraintId(Arc::from("c1"))))
@@ -840,14 +876,16 @@ mod tests {
     fn a_bare_refresh_cannot_republish_a_lineage_bound_result() {
         let mut state = CausalState::new(CacheBudget::new(1024));
         let q = one_query(&mut state);
-        state.publish_results(&[publication(q, &identities(10, 20))]).expect("publication");
+        state
+            .publish_results_at(state.version, &[publication(q, &identities(10, 20))])
+            .expect("publication");
         state.apply(constraint("c1")).expect("constraint");
-        let err = state.refresh_results(&[(q, 5, 8)]).expect_err("lineage-bound");
+        let err = state.refresh_results_at(state.version, &[(q, 5, 8)]).expect_err("lineage-bound");
         assert!(matches!(err, StateError::InvalidEvent(_)));
         assert!(state.is_stale(q));
         // a query that never carried a lineage keeps the caller-driven path
         let plain = one_query(&mut state);
-        state.refresh_results(&[(plain, 5, 8)]).expect("unbound query");
+        state.refresh_results_at(state.version, &[(plain, 5, 8)]).expect("unbound query");
         assert!(!state.is_stale(plain));
     }
 
@@ -891,7 +929,7 @@ mod tests {
                 ),
             },
         )));
-        state.refresh_results(&[(q, 7, 16)]).expect("cache");
+        state.refresh_results_at(state.version, &[(q, 7, 16)]).expect("cache");
         assert!(!state.is_stale(q));
         state
             .apply(StateEvent::AppendData(DataBatchRef {
@@ -924,7 +962,7 @@ mod tests {
             })
             .with_temporal(temporal),
         ));
-        state.refresh_results(&[(q, 9, 32)]).expect("cache");
+        state.refresh_results_at(state.version, &[(q, 9, 32)]).expect("cache");
         assert!(!state.is_stale(q));
         state
             .apply(StateEvent::AppendData(DataBatchRef {

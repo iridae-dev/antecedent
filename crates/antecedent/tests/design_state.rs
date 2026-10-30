@@ -334,9 +334,12 @@ fn state_cache_budget_and_stale_queries() {
         VariableId::from_raw(0),
         VariableId::from_raw(1),
     )));
-    assert_eq!(state.refresh_results(&[(q, 1, 64)]).unwrap_err().to_string(), "cache budget exceeded (need 64 bytes, remaining 16)");
+    assert_eq!(
+        state.refresh_results_at(state.version, &[(q, 1, 64)]).unwrap_err().to_string(),
+        "cache budget exceeded (need 64 bytes, remaining 16)"
+    );
     state.cache_budget = CacheBudget::new(128);
-    state.refresh_results(&[(q, 9, 32)]).unwrap();
+    state.refresh_results_at(state.version, &[(q, 9, 32)]).unwrap();
     assert!(!state.is_stale(q));
     assert_eq!(state.stale_queries(), Vec::<QueryId>::new());
 }
