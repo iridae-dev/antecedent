@@ -1464,6 +1464,36 @@ fn off_policy_refusals_positivity_duplicates_and_inconsistent_logs() {
 }
 
 #[test]
+fn off_policy_standard_error_preserves_small_spread_at_large_location() {
+    let model = build(&base_spec(false));
+    let policy = policy_of("ship_only", &act_now_ship());
+    let log: Vec<LoggedTrajectory> = [1e9 - 1.0, 1e9 + 1.0]
+        .iter()
+        .enumerate()
+        .map(|(i, &outcome)| LoggedTrajectory {
+            id: format!("row_{i}"),
+            steps: vec![LoggedStep {
+                action: SHIP,
+                observation: None,
+                assignment_probability: 1.0,
+            }],
+            outcome_utility: outcome,
+        })
+        .collect();
+    let estimate = evaluate_off_policy(
+        &model,
+        &policy,
+        &policy,
+        &log,
+        &mut EvidenceLedger::new(),
+        EvaluationLimits::default(),
+        &ctx(),
+    )
+    .unwrap();
+    assert!((estimate.uncalibrated_standard_error.unwrap() - 1.0).abs() < 1e-12);
+}
+
+#[test]
 fn off_policy_refuses_overflowed_returns_without_recording_the_log() {
     let spec = base_spec(false);
     let mut model = build(&spec);

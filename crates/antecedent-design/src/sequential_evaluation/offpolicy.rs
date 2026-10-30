@@ -345,6 +345,7 @@ pub fn evaluate_off_policy(
     let mut sum_w = 0.0;
     let mut sum_w2 = 0.0;
     let mut sum_wg2 = 0.0;
+    let mut weighted_returns = antecedent_kernels::Welford::new();
     let mut max_weight = 0.0_f64;
     for (index, trajectory) in ordered.iter().enumerate() {
         if index % 256 == 0 && ctx.cancellation.is_cancelled() {
@@ -356,6 +357,7 @@ pub fn evaluate_off_policy(
         sum_w += weighted.weight;
         sum_w2 += weighted.weight * weighted.weight;
         sum_wg2 += product * product;
+        weighted_returns.push(product);
         max_weight = max_weight.max(weighted.weight);
         if !(sum_wg.is_finite() && sum_w.is_finite() && sum_w2.is_finite() && sum_wg2.is_finite()) {
             return Err(refusal!(
@@ -418,7 +420,7 @@ pub fn evaluate_off_policy(
     let nf = n as f64;
     let ordinary = sum_wg / nf;
     let uncalibrated_standard_error = (n > 1).then(|| {
-        let variance = ((sum_wg2 - nf * ordinary * ordinary) / (nf - 1.0)).max(0.0);
+        let variance = weighted_returns.sample_variance().unwrap_or(f64::NAN);
         (variance / nf).sqrt()
     });
     if !(ordinary.is_finite()
