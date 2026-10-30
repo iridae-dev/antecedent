@@ -877,10 +877,25 @@ fn support_status_name(status: SupportStatus) -> &'static str {
 
 type ValueParts = (Vec<Vec<f64>>, Vec<Vec<f64>>, Option<f64>, Option<Vec<Vec<f64>>>);
 
+fn validate_surface_shape(grid: usize, dimension: usize, means: usize) -> Result<(), &'static str> {
+    if dimension == 0 || grid % dimension != 0 || grid / dimension != means {
+        return Err("invalid surface result shape");
+    }
+    Ok(())
+}
+
+fn validate_jacobian_shape(outcomes: usize, treatments: usize, values: usize) -> Result<(), &'static str> {
+    if treatments == 0 || outcomes.checked_mul(treatments) != Some(values) {
+        return Err("invalid Jacobian result shape");
+    }
+    Ok(())
+}
+
 fn value_parts(value: ResponseValue) -> PyResult<ValueParts> {
     match value {
         ResponseValue::Scalar(value) => Ok((vec![vec![0.0]], vec![vec![value]], Some(value), None)),
         ResponseValue::Surface { grid, dimension, mean } => {
+            validate_surface_shape(grid.len(), dimension, mean.len()).map_err(crate::value_err)?;
             let points = grid.chunks(dimension).map(<[f64]>::to_vec).collect::<Vec<_>>();
             let values = mean.iter().map(|value| vec![*value]).collect();
             Ok((points, values, None, None))
@@ -889,9 +904,7 @@ fn value_parts(value: ResponseValue) -> PyResult<ValueParts> {
             Ok((Vec::new(), Vec::new(), None, Some(vec![values.to_vec()])))
         }
         ResponseValue::Jacobian { outcomes, treatments, values } => {
-            if values.len() != outcomes * treatments {
-                return Err(crate::value_err("invalid Jacobian result shape"));
-            }
+            validate_jacobian_shape(outcomes, treatments, values.len()).map_err(crate::value_err)?;
             Ok((
                 Vec::new(),
                 Vec::new(),
@@ -983,4 +996,21 @@ fn uncertainty_parts(value: ResponseUncertainty) -> UncertaintyParts {
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ResponseAnalysisResult>()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod response_value_shape_tests {
+    use super::{validate_jacobian_shape, validate_surface_shape};
+
+    #[test]
+    fn malformed_shapes_are_refused_before_chunking() {
+        assert!(validate_surface_shape(0, 0, 0).is_err());
+        assert!(validate_surface_shape(3, 2, 2).is_err());
+        assert!(validate_surface_shape(4, 2, 1).is_err());
+        assert!(validate_surface_shape(4, 2, 2).is_ok());
+        assert!(validate_jacobian_shape(1, 0, 0).is_err());
+        assert!(validate_jacobian_shape(usize::MAX, 2, 0).is_err());
+        assert!(validate_jacobian_shape(2, 3, 5).is_err());
+        assert!(validate_jacobian_shape(2, 3, 6).is_ok());
+    }
 }

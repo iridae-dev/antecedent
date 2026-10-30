@@ -556,6 +556,22 @@ fn l2(a: &[f64]) -> f64 {
     dot(a, a).sqrt()
 }
 
+/// A unit column and its norm as scale times factor. The ordinary path is
+/// unchanged; the scaled path avoids squaring very small or large entries.
+fn normalized_column(col: &[f64]) -> Option<(Vec<f64>, (f64, f64))> {
+    let squared = dot(col, col);
+    if squared.is_normal() {
+        let norm = squared.sqrt();
+        return Some((col.iter().map(|v| v / norm).collect(), (norm, 1.0)));
+    }
+    let scale = col.iter().fold(0.0_f64, |s, v| s.max(v.abs()));
+    if scale == 0.0 || !scale.is_finite() { return None; }
+    let mut unit: Vec<f64> = col.iter().map(|v| v / scale).collect();
+    let factor = l2(&unit);
+    for value in &mut unit { *value /= factor; }
+    Some((unit, (scale, factor)))
+}
+
 /// Result of scanning columns in priority order with twice-applied Gram-Schmidt.
 struct RankScan {
     /// Orthonormal basis of the kept columns.
@@ -587,13 +603,12 @@ fn scan_rank(cols: &[&[f64]], tol: f64, ctx: &ExecutionContext) -> Result<RankSc
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: STAGE_PREFLIGHT });
         }
-        let norm = l2(col);
-        norms.push(norm);
-        if !(norm.is_finite() && norm > 0.0) {
+        let Some((mut w, norm)) = normalized_column(col) else {
+            norms.push((0.0, 1.0));
             scanned.push(ScannedColumn { kept: false, ratio: 0.0, explained_by: Vec::new() });
             continue;
-        }
-        let mut w: Vec<f64> = col.iter().map(|v| v / norm).collect();
+        };
+        norms.push(norm);
         let mut coef = vec![0.0; basis.len()];
         for _ in 0..2 {
             for (k, q) in basis.iter().enumerate() {
@@ -623,7 +638,15 @@ fn scan_rank(cols: &[&[f64]], tol: f64, ctx: &ExecutionContext) -> Result<RankSc
                 .iter()
                 .zip(&kept_index)
                 .filter_map(|(&ck, &i)| {
-                    let original = ck * norm / norms[i];
+                    let (scale, factor) = norm;
+                    let (prior_scale, prior_factor) = norms[i];
+                    // Preserve ordinary arithmetic; scaled cases retain the original
+                    // units without first forming an unrepresentable column norm.
+                    let original = if factor == 1.0 && prior_factor == 1.0 {
+                        ck * scale / prior_scale
+                    } else {
+                        ((ck * factor / prior_factor) * scale) / prior_scale
+                    };
                     (original.abs() > COEFFICIENT_FLOOR).then_some((i, original))
                 })
                 .collect();
@@ -1494,20 +1517,26 @@ pub(super) fn kept_adjustment_ids(
 /// Residual norm over own norm of `values` after projecting out an orthonormal `basis`
 /// (twice, for orthogonality). A zero column lies in every span.
 fn residual_over_norm(basis: &[Vec<f64>], values: &[f64]) -> f64 {
-    let norm = l2(values);
-    if !(norm.is_finite() && norm > 0.0) {
-        return 0.0;
+    let squared = dot(values, values);
+    if squared.is_normal() {
+        let norm = squared.sqrt();
+        let mut w = values.to_vec();
+        for _ in 0..2 {
+            for q in basis {
+                let c = dot(q, &w);
+                for (wi, qi) in w.iter_mut().zip(q) { *wi -= c * qi; }
+            }
+        }
+        return l2(&w) / norm;
     }
-    let mut w = values.to_vec();
+    let Some((mut w, _)) = normalized_column(values) else { return 0.0; };
     for _ in 0..2 {
         for q in basis {
             let c = dot(q, &w);
-            for (wi, qi) in w.iter_mut().zip(q) {
-                *wi -= c * qi;
-            }
+            for (wi, qi) in w.iter_mut().zip(q) { *wi -= c * qi; }
         }
     }
-    l2(&w) / norm
+    l2(&w)
 }
 
 /// Verify, independently of the plan's scan, that dropping `plan.dropped` left the column
@@ -1939,5 +1968,33 @@ mod tests {
         let kept_all = verify_span_preserved(&input, &plan(3), &[ia, ib], &ctx).unwrap();
         assert_eq!((kept_all.original_rank, kept_all.retained_rank), (3, 3));
         assert!(kept_all.max_dropped_residual_ratio <= 0.0);
+    }
+}
+
+#[cfg(test)]
+mod extreme_rank_normalization_tests {
+    use super::{scan_rank, tolerance};
+    use antecedent_core::ExecutionContext;
+
+    #[test]
+    fn finite_huge_and_tiny_columns_keep_their_rank() {
+        let ones = [1.0; 4];
+        let huge = [1e308, -1e308, 1e308, -1e308];
+        let tiny = [1e-300, 1e-300, -1e-300, -1e-300];
+        let cols: Vec<&[f64]> = vec![&ones, &huge, &tiny];
+        let scan = scan_rank(&cols, tolerance(4, 3), &ExecutionContext::for_tests(1)).unwrap();
+        assert_eq!(scan.columns.iter().filter(|column| column.kept).count(), 3);
+        assert!(scan.columns.iter().all(|column| column.ratio.is_finite()));
+    }
+
+    #[test]
+    fn scaled_duplicates_remain_dependent() {
+        let ones = [1.0; 4];
+        let small = [-5e-156, 5e-156, -5e-156, 5e-156];
+        let large = [-5e153, 5e153, -5e153, 5e153];
+        let cols: Vec<&[f64]> = vec![&ones, &small, &large];
+        let scan = scan_rank(&cols, tolerance(4, 3), &ExecutionContext::for_tests(1)).unwrap();
+        assert_eq!(scan.columns.iter().filter(|column| column.kept).count(), 2);
+        assert!(scan.columns[2].explained_by.iter().any(|(i, c)| *i == 1 && c.is_infinite()));
     }
 }

@@ -15,7 +15,7 @@ use antecedent::analysis::observation_posterior::{
 };
 use antecedent::analysis::observation_query::{
     ContinuousAssignments, Direction, ObservationClaim, ObservationQueryRefusal,
-    ObservationRequest, ObservationResultWire, ParameterRedrawRequest, RedrawPrior,
+    ObservationRequest, ObservationResultWire, ObservationQueryWire, ParameterRedrawRequest, RedrawPrior,
     consume_observation_query_artifact, retain_counts, retain_regression,
 };
 use antecedent_contract::{
@@ -75,7 +75,7 @@ fn bits_levels(values: &[(String, u64)]) -> Json {
     Json::Array(values.iter().map(|(l, p)| json!([l, f64::from_bits(*p)])).collect())
 }
 
-fn result_json(result: &ObservationResultWire) -> Json {
+fn result_json(result: &ObservationResultWire, query: Option<&ObservationQueryWire>) -> Json {
     match result {
         ObservationResultWire::Conditional {
             operation,
@@ -117,17 +117,21 @@ fn result_json(result: &ObservationResultWire) -> Json {
             })).collect::<Vec<_>>(),
         }),
         ObservationResultWire::GaussianConditional {
-            operation,
-            mean_bits,
-            variance_bits,
-            evidence_log_density_bits,
-        } => json!({
-            "kind": "gaussian_conditional",
-            "operation": operation,
-            "mean": f64::from_bits(*mean_bits),
-            "variance": f64::from_bits(*variance_bits),
-            "evidence_log_density": evidence_log_density_bits.map(f64::from_bits),
-        }),
+            operation, mean_bits, variance_bits, evidence_log_density_bits,
+        } => {
+            let density = evidence_log_density_bits.map(f64::from_bits);
+            let density_status = match density {
+                None => "not_observed",
+                Some(v) if v.is_finite() => "finite",
+                Some(v) if v.is_infinite() => "out_of_range",
+                Some(_) => "undefined",
+            };
+            json!({
+                "kind": "gaussian_conditional", "operation": operation,
+                "mean": f64::from_bits(*mean_bits), "variance": f64::from_bits(*variance_bits),
+                "evidence_log_density": density, "evidence_log_density_status": density_status,
+            })
+        }
         ObservationResultWire::ParameterDraws {
             quantities,
             draws,
@@ -173,23 +177,56 @@ fn result_json(result: &ObservationResultWire) -> Json {
             "beta": f64::from_bits(*beta_bits),
             "predictive_success": f64::from_bits(*predictive_success_bits),
         }),
-        ObservationResultWire::RequiredBayesFactor { factor_bits, already_satisfied } => json!({
-            "kind": "required_bayes_factor",
-            "factor": f64::from_bits(*factor_bits),
-            "already_satisfied": already_satisfied,
-        }),
+        ObservationResultWire::RequiredBayesFactor { factor_bits, already_satisfied } => {
+            let factor = f64::from_bits(*factor_bits);
+            let log_factor = match query {
+                Some(ObservationQueryWire::RequiredBayesFactor { prior_bits, level_bits, .. }) => {
+                    let prior = f64::from_bits(*prior_bits);
+                    let level = f64::from_bits(*level_bits);
+                    if *already_satisfied { 0.0 } else {
+                        (level.ln() - (-level).ln_1p()) - (prior.ln() - (-prior).ln_1p())
+                    }
+                }
+                _ => return Json::Null,
+            };
+            let status = if factor.is_infinite() { "overflow" } else if factor == 0.0 { "underflow" } else { "finite" };
+            json!({
+                "kind": "required_bayes_factor",
+                "factor": if status == "finite" { Some(factor) } else { None },
+                "factor_status": status,
+                "log_factor": log_factor,
+                "already_satisfied": already_satisfied,
+            })
+        }
         ObservationResultWire::RequiredObservations {
-            observations,
-            value_bits,
-            already_satisfied,
-            bayes_factor_bits,
-        } => json!({
-            "kind": "required_observations",
-            "observations": observations,
-            "value": f64::from_bits(*value_bits),
-            "already_satisfied": already_satisfied,
-            "bayes_factor": bayes_factor_bits.map(f64::from_bits),
-        }),
+            observations, value_bits, already_satisfied, bayes_factor_bits,
+        } => {
+            let factor = bayes_factor_bits.map(f64::from_bits);
+            let (status, log_factor) = match (factor, query) {
+                (None, Some(ObservationQueryWire::RequiredObservationsBinarySignal { .. })) => ("not_needed", None),
+                (None, _) => ("not_applicable", None),
+                (Some(value), Some(ObservationQueryWire::RequiredObservationsBinarySignal {
+                    direction, rate_given_hypothesis_bits, rate_given_complement_bits, ..
+                })) => {
+                    let h = f64::from_bits(*rate_given_hypothesis_bits);
+                    let c = f64::from_bits(*rate_given_complement_bits);
+                    let (num, den) = if direction == "raise" { (h, c) } else { (1.0-h, 1.0-c) };
+                    if den == 0.0 { ("infinite", None) }
+                    else if num == 0.0 { ("zero", None) }
+                    else {
+                        let status = if value.is_infinite() { "overflow" } else if value == 0.0 { "underflow" } else { "finite" };
+                        (status, Some(num.ln() - den.ln()))
+                    }
+                }
+                (Some(_), _) => ("unavailable", None),
+            };
+            json!({
+                "kind": "required_observations", "observations": observations,
+                "value": f64::from_bits(*value_bits), "already_satisfied": already_satisfied,
+                "bayes_factor": factor, "bayes_factor_status": status,
+                "log_bayes_factor": log_factor,
+            })
+        }
     }
 }
 
@@ -201,7 +238,7 @@ fn claim_payload(py: Python<'_>, claim: &ObservationClaim) -> Refused<Claimed> {
                     "identity": claim.identity(),
                     "operation": claim.operation(),
                     "inference_basis": claim.inference_basis(),
-                    "result": result_json(claim.result()),
+                    "result": result_json(claim.result(), Some(claim.query())),
                 })
                 .to_string(),
                 PyBytes::new(py, &bytes).unbind(),
@@ -728,8 +765,14 @@ fn observation_query_consume(
     let expected = expected_identity.map(str::to_owned);
     let outcome = crate::detach_catch(py, move || {
         let ctx = execution_context(0, None, cancel);
-        Ok(consume_observation_query_artifact(&bytes, expected.as_deref(), &ctx))
+        let consumed = consume_observation_query_artifact(&bytes, expected.as_deref(), &ctx);
+        let query = if matches!(&consumed, Ok(value) if matches!(&value.result, ObservationResultWire::RequiredBayesFactor { .. } | ObservationResultWire::RequiredObservations { .. })) {
+            Some(antecedent_io_core::observation_query_artifact::ObservationQueryArtifactWire::decode(&bytes)
+                .map_err(|error| crate::value_err(error.to_string()))?.query)
+        } else { None };
+        Ok((consumed, query))
     })?;
+    let (outcome, query) = outcome;
     Ok(match outcome {
         Ok(consumed) => (
             Some(
@@ -737,7 +780,7 @@ fn observation_query_consume(
                     "identity": consumed.identity,
                     "operation": consumed.operation,
                     "inference_basis": consumed.inference_basis,
-                    "result": result_json(&consumed.result),
+                    "result": result_json(&consumed.result, query.as_ref()),
                 })
                 .to_string(),
             ),

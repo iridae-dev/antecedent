@@ -20704,3 +20704,24 @@ crate = "antecedent"
 cargo_target = "lib"
 path = "crates/antecedent/src/analysis/joint_panel/imputed.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-python-response_api-unit"
+crate = "python"
+cargo_target = "lib"
+path = "python/src/response_api.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-python-selective_discovery_api-unit"
+crate = "python"
+cargo_target = "lib"
+path = "python/src/selective_discovery_api.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-python-preflight_api-unit"
+crate = "python"
+cargo_target = "lib"
+path = "python/src/preflight_api.rs"
+gates = ["inventory", "named"]

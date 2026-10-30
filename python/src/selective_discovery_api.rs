@@ -439,6 +439,7 @@ fn link_json(link: &LaggedLink, statistic: f64, p_value: f64, adjusted: Option<f
         "source_lag": link.source_lag.raw(),
         "target": link.target.raw(),
         "target_lag": link.target_lag.raw(),
+        "tested": statistic.is_finite() && p_value.is_finite(),
         "statistic": statistic,
         "p_value": p_value,
         "adjusted_p_value": adjusted,
@@ -1934,4 +1935,22 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(sample_split_parent_set_effect, module)?)?;
     module.add_function(wrap_pyfunction!(sample_split_parent_set_effect_measure, module)?)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod selective_link_json_tests {
+    use super::{link_json, Lag, LaggedLink, VariableId};
+
+    #[test]
+    fn untested_nan_statistics_are_explicitly_marked() {
+        let link = LaggedLink { source: VariableId::from_raw(0), source_lag: Lag::CONTEMPORANEOUS,
+            target: VariableId::from_raw(1), target_lag: Lag::CONTEMPORANEOUS };
+        let absent = link_json(&link, f64::NAN, f64::NAN, None);
+        assert_eq!(absent["tested"], false);
+        assert!(absent["statistic"].is_null());
+        assert!(absent["p_value"].is_null());
+        let tested = link_json(&link, 1.0, 0.25, Some(0.5));
+        assert_eq!(tested["tested"], true);
+        assert_eq!(tested["p_value"], 0.25);
+    }
 }

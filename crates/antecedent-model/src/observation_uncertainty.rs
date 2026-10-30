@@ -596,6 +596,15 @@ fn evaluate(
     }
 }
 
+fn validate_redraw_point(point: &[f64], width: usize) -> Result<(), ObservationQueryError> {
+    if point.len() != width || point.iter().any(|value| !value.is_finite()) {
+        return Err(ObservationQueryError::Invalid(
+            "the parameter redraw point is non-finite or misaligned",
+        ));
+    }
+    Ok(())
+}
+
 /// Redraw the parameters of the retained mechanisms `draws` times and return
 /// the queried conditional functional under each draw, as aligned draws.
 ///
@@ -633,6 +642,7 @@ pub fn redraw_conditional(
     let plans = plan(spec, retained, prior)?;
     let point = evaluate(spec, target, ctx)?;
     let width = quantities.len();
+    validate_redraw_point(&point, width)?;
     let mut values = Vec::with_capacity(draws as usize * width);
     for draw in 0..u64::from(draws) {
         if ctx.cancellation.is_cancelled() {
@@ -668,5 +678,18 @@ mod energy_tests {
         let mut impossible = ordinary;
         impossible.yty = -1.0;
         assert!(nig(&impossible, &prior).is_err());
+    }
+}
+
+#[cfg(test)]
+mod redraw_point_shape_tests {
+    use super::validate_redraw_point;
+
+    #[test]
+    fn baseline_must_be_finite_and_match_reported_quantity_width() {
+        assert!(validate_redraw_point(&[0.25, 0.75], 2).is_ok());
+        assert!(validate_redraw_point(&[0.25], 2).is_err());
+        assert!(validate_redraw_point(&[f64::NAN, 0.75], 2).is_err());
+        assert!(validate_redraw_point(&[f64::INFINITY, 0.75], 2).is_err());
     }
 }

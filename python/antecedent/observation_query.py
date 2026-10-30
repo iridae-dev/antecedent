@@ -322,13 +322,15 @@ class ThresholdRow:
 class GaussianConditional:
     """The conditional law of a continuous outcome given observed real values.
 
-    ``evidence_log_density`` is the log density of the observed values under their marginal law
-    (``None`` when nothing was observed).
+    ``evidence_log_density`` is the log density of the observed values under their marginal law.
+    When it is ``None``, ``evidence_log_density_status`` distinguishes no observations from
+    an out-of-range or undefined calculation.
     """
 
     mean: float
     variance: float
     evidence_log_density: float | None
+    evidence_log_density_status: str = "finite"
 
 
 @dataclass(frozen=True, slots=True)
@@ -437,6 +439,7 @@ class ObservationClaim(ScientificResult):
             mean=float(r["mean"]),
             variance=float(r["variance"]),
             evidence_log_density=None if density is None else float(density),
+            evidence_log_density_status=str(r["evidence_log_density_status"]),
         )
 
     @property
@@ -554,8 +557,25 @@ class ObservationClaim(ScientificResult):
 
     @property
     def required_factor(self) -> float | None:
-        """The Bayes factor of a required-factor claim."""
-        return float(self._result["factor"]) if self.kind == "required_bayes_factor" else None
+        """The representable Bayes factor; use ``required_log_factor`` for overflow.
+
+        Raises ``CausalValueError`` when the ratio cannot be represented as a float.
+        """
+        if self.kind != "required_bayes_factor":
+            return None
+        if self._result["factor_status"] != "finite":
+            raise CausalValueError("required Bayes factor is not representable; use required_log_factor")
+        return float(self._result["factor"])
+
+    @property
+    def required_factor_status(self) -> str | None:
+        """Whether the required factor is finite, overflowed, or underflowed."""
+        return str(self._result["factor_status"]) if self.kind == "required_bayes_factor" else None
+
+    @property
+    def required_log_factor(self) -> float | None:
+        """Natural logarithm of the required Bayes factor, including when it overflows."""
+        return float(self._result["log_factor"]) if self.kind == "required_bayes_factor" else None
 
     @property
     def required_observations(self) -> int | None:
@@ -566,6 +586,19 @@ class ObservationClaim(ScientificResult):
     def value_at_requirement(self) -> float | None:
         """The probability at the minimal observation count."""
         return float(self._result["value"]) if self.kind == "required_observations" else None
+
+    @property
+    def bayes_factor_per_observation_status(self) -> str | None:
+        """Status of a binary signal's per-observation Bayes factor."""
+        return str(self._result["bayes_factor_status"]) if self.kind == "required_observations" else None
+
+    @property
+    def log_bayes_factor_per_observation(self) -> float | None:
+        """Log per-observation factor when finite and applicable."""
+        if self.kind != "required_observations":
+            return None
+        value = self._result["log_bayes_factor"]
+        return None if value is None else float(value)
 
     @property
     def already_satisfied(self) -> bool | None:

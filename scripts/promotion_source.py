@@ -967,13 +967,13 @@ def refusal_code_pair_problems(declared: set[str], registered: set[str],
 # The facade, dispatcher, producer, bindings and the two refusal tests were reviewed together.
 # Hashing their complete bytes makes any source or test change fail closed until re-reviewed.
 _OBSERVATION_DRAWS_PROOF_FILES = {
-    "crates/antecedent-model/src/observation_uncertainty.rs": "7534a57c201ddceab0be37413f5163b24b0b10ac80ca6e3110206edf399d6978",
+    "crates/antecedent-model/src/observation_uncertainty.rs": "5e86d83476f0085f61a3b31a26569f5e7adb27ea1fbf522d0176541b8ddaf82b",
     "crates/antecedent-io-core/src/observation_query_artifact.rs": "b445b4df8fd45b26d16586437d145cd8d0f1911c8b1cf318f29d835ca89b6b23",
     "crates/antecedent/src/analysis/observation_query.rs": "f59b27fc750bf311f5efdb00308b3234f68bd9e3b577635b6c302768c5530876",
     "crates/antecedent/tests/observation_query_facade.rs": "24b99901b7b173382d8cd04d1d2927a3e8a0bc8022f065ea9baea892b5bbcccb",
-    "python/src/observation_query_api.rs": "9cf17f0838de4a85c47752e8c28a232c8486d199a5ece69e054ec647757a385b",
-    "python/antecedent/observation_query.py": "15890e8334c390b54c2eb62741fbafbecae85f7d5e0ae6fd2f152afe14a1ae8b",
-    "python/tests/test_observation_query.py": "3818155a33b151eef2e19162cbad82c2dd76e4a4f087684f382933acd0d2baa3",
+    "python/src/observation_query_api.rs": "211ab22c82a88cd92eecb83ab9f92391aec7b48603f67f2c1a0b40a7fdb0d7e7",
+    "python/antecedent/observation_query.py": "e82024841c481484c9d49bc498923efdc3b1e750e50fb2c05e1d1163f61cbacc",
+    "python/tests/test_observation_query.py": "9ad244fa91540c4c086b31efb9624b0f4caf69831fab921e3ee0f5ee026c092b",
 }
 _OBSERVATION_DRAWS_RUST = (
     "antecedent.observation_query.ObservationClaim.parameter_interval",

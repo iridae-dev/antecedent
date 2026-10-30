@@ -121,7 +121,12 @@ class ColumnWeight:
     """One term ``coefficient * column`` of an exact linear relation (original units)."""
 
     column: str
-    coefficient: float
+    coefficient: float | None
+
+    @property
+    def coefficient_status(self) -> str:
+        """Whether the coefficient was numerically representable."""
+        return "unavailable" if self.coefficient is None else "available"
 
 
 @dataclass(frozen=True)
@@ -160,6 +165,7 @@ class PreflightReport:
     duplicates: tuple[DuplicateGroup, ...]
     rank: RankReport | None
     findings: tuple[PreflightFinding, ...]
+    nonfinite_numeric_fields: tuple[str, ...] = ()
 
     @property
     def blocking(self) -> tuple[PreflightFinding, ...]:
@@ -182,6 +188,7 @@ class BatchPreflightReport:
 
     reports: tuple[PreflightReport, ...]
     shares_covariates: bool
+    nonfinite_numeric_fields: tuple[str, ...] = ()
 
     @property
     def blocked_plans(self) -> tuple[int, ...]:
@@ -202,7 +209,12 @@ class ArmWeightEss:
 
     label: str
     rows: int
-    ess: float
+    ess: float | None
+
+    @property
+    def ess_status(self) -> str:
+        """Whether the effective sample size is available."""
+        return "unavailable" if self.ess is None else "available"
 
 
 @dataclass(frozen=True)
@@ -233,6 +245,7 @@ class NuisanceFitDiagnostics:
     reason: str | None
     numerical_rank: int | None
     design_columns: int | None
+    nonfinite_numeric_fields: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -255,6 +268,7 @@ class RankDropPlan:
     kept_adjustment: tuple[str, ...]
     numerical_rank: int
     design_identity: str
+    nonfinite_numeric_fields: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -282,6 +296,7 @@ class RankDropEstimate:
     projection_invariance: str
     ate: float
     note: str
+    nonfinite_numeric_fields: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -326,6 +341,7 @@ class CostEstimate:
     shared_covariate_bytes: int | None
     seconds: float | None
     seconds_basis: str
+    nonfinite_numeric_fields: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -396,6 +412,17 @@ class BatchCostEstimate:
     nuisance_fits_upper_bound: int | None
     bootstrap_replicates_total: int
     design_matrix_bytes_total: int | None
+    nonfinite_numeric_fields: tuple[str, ...] = ()
+
+
+def _nonfinite(raw: Mapping[str, Any]) -> tuple[str, ...]:
+    """JSON pointers identifying numeric values serialized as null because they were nonfinite."""
+    return tuple(raw.get("nonfinite_numeric_fields", ()))
+
+
+def _nested(raw: Mapping[str, Any], value: Mapping[str, Any], prefix: str) -> Mapping[str, Any]:
+    paths = tuple(p[len(prefix):] for p in _nonfinite(raw) if p.startswith(prefix + "/"))
+    return {**value, "nonfinite_numeric_fields": paths} if paths else value
 
 
 def _weights(raw: Sequence[Mapping[str, Any]]) -> tuple[ColumnWeight, ...]:
@@ -445,6 +472,7 @@ def _report(raw: Mapping[str, Any]) -> PreflightReport:
             ),
         ),
         findings=tuple(_finding(f) for f in raw["findings"]),
+        nonfinite_numeric_fields=_nonfinite(raw),
     )
 
 
@@ -473,6 +501,7 @@ def _fit_diagnostics(raw: Mapping[str, Any]) -> NuisanceFitDiagnostics:
             reason=None,
             numerical_rank=None,
             design_columns=None,
+            nonfinite_numeric_fields=_nonfinite(raw),
         )
     return NuisanceFitDiagnostics(
         subject=raw["subject"],
@@ -481,6 +510,7 @@ def _fit_diagnostics(raw: Mapping[str, Any]) -> NuisanceFitDiagnostics:
         reason=p["reason"],
         numerical_rank=p["numerical_rank"],
         design_columns=p["design_columns"],
+        nonfinite_numeric_fields=_nonfinite(raw),
     )
 
 
@@ -500,6 +530,7 @@ def _plan(raw: Mapping[str, Any]) -> RankDropPlan:
         kept_adjustment=tuple(raw["kept_adjustment"]),
         numerical_rank=raw["numerical_rank"],
         design_identity=raw["design_identity"],
+        nonfinite_numeric_fields=_nonfinite(raw),
     )
 
 
@@ -531,6 +562,7 @@ def _cost(raw: Mapping[str, Any]) -> CostEstimate:
         shared_covariate_bytes=raw["shared_covariate_bytes"],
         seconds=raw["seconds"],
         seconds_basis=raw["seconds_basis"],
+        nonfinite_numeric_fields=_nonfinite(raw),
     )
 
 
@@ -539,10 +571,11 @@ def _batch_cost(raw: Mapping[str, Any]) -> BatchCostEstimate:
         planning_hint=raw["planning_hint"],
         note=raw["note"],
         claims=raw["claims"],
-        plans=tuple(_cost(p) for p in raw["plans"]),
+        plans=tuple(_cost(_nested(raw, p, f"/plans/{i}")) for i, p in enumerate(raw["plans"])),
         nuisance_fits_upper_bound=raw["nuisance_fits_upper_bound"],
         bootstrap_replicates_total=raw["bootstrap_replicates_total"],
         design_matrix_bytes_total=raw["design_matrix_bytes_total"],
+        nonfinite_numeric_fields=_nonfinite(raw),
     )
 
 
@@ -742,12 +775,13 @@ def estimate_with_rank_drop(
         )
     )
     return RankDropEstimate(
-        plan=_plan(raw["plan"]),
+        plan=_plan(_nested(raw, raw["plan"], "/plan")),
         span_check=SpanCheck(**raw["span_check"]),
         estimator=raw["estimator"],
         projection_invariance=raw["projection_invariance"],
         ate=raw["ate"],
         note=raw["note"],
+        nonfinite_numeric_fields=_nonfinite(raw),
     )
 
 
@@ -928,8 +962,9 @@ def diagnose_batch(native: Any, *, seed: int, threads: int | None) -> BatchPrefl
     """``PreparedBatch.diagnose``: fit-free preflight of every plan."""
     raw = _call(native, "diagnose_json", seed=seed, threads=threads)
     return BatchPreflightReport(
-        reports=tuple(_report(r) for r in raw["reports"]),
+        reports=tuple(_report(_nested(raw, r, f"/reports/{i}")) for i, r in enumerate(raw["reports"])),
         shares_covariates=raw["shares_covariates"],
+        nonfinite_numeric_fields=_nonfinite(raw),
     )
 
 

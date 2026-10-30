@@ -110,3 +110,16 @@ Rust struct literals for `MissingDeclaration`, `ImputationSpecWire`,
 prefer constructors where available. Empty domain declarations preserve earlier
 wire bytes and identities. The separate graph-selection and joint-panel preparation
 APIs also accept explicit domains.
+
+## Python numeric report boundaries
+
+Posterior constructors now reject invalid summaries and stored-draw shapes immediately,
+using the same validation as artifact encoding. Reserved coefficient names must use
+canonical `coef_<u32>` notation; malformed names no longer encode as coefficient zero.
+
+Preflight JSON reports disclose nonfinite values through JSON-pointer paths in
+`nonfinite_numeric_fields`, distinguishing them from absent optional values. Selective
+discovery links carry a `tested` flag. Observation reports expose numeric status fields;
+when a required Bayes factor is outside float range, `required_factor` raises
+`CausalValueError` and `required_log_factor` retains the finite logarithm. These
+reporting changes do not license parameter intervals.

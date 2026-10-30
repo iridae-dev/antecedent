@@ -813,3 +813,60 @@ def test_a_probability_outside_the_open_unit_interval_has_no_required_evidence()
     assert satisfied.already_satisfied is True
     assert satisfied.required_factor == pytest.approx(1.0, abs=1e-12)
     assert oq.required_bayes_factor(0.8, 0.5, direction="lower").already_satisfied is False
+
+
+def test_required_bayes_factor_overflow_reports_log_and_survives_replay():
+    prior, level = 1e-320, 0.9
+    claim = oq.required_bayes_factor(prior, level)
+    expected = (math.log(level) - math.log1p(-level)) - (math.log(prior) - math.log1p(-prior))
+    assert claim.required_factor_status == "overflow"
+    assert claim.required_log_factor == pytest.approx(expected)
+    assert claim.to_dict()["factor"] is None
+    with pytest.raises(CausalValueError, match="required_log_factor"):
+        _ = claim.required_factor
+    replay = oq.consume_observation_query_artifact(bytes(claim.export())).claim
+    assert replay.required_factor_status == "overflow"
+    assert replay.required_log_factor == pytest.approx(expected)
+    with pytest.raises(CausalValueError, match="required_log_factor"):
+        _ = replay.required_factor
+    finite = oq.required_bayes_factor(0.2, 0.8)
+    assert finite.required_factor_status == "finite"
+    assert finite.required_log_factor == pytest.approx(math.log(16.0))
+    assert finite.required_factor == pytest.approx(16.0)
+    low = oq.required_bayes_factor(0.9, 5e-324, direction="lower")
+    assert low.required_factor_status == "underflow"
+    assert math.isfinite(low.required_log_factor)
+    with pytest.raises(CausalValueError, match="required_log_factor"):
+        _ = low.required_factor
+
+
+def test_required_observations_distinguish_settling_signal_and_numeric_overflow():
+    exact = oq.required_observations_binary_signal(
+        0.2, 0.8, rate_given_hypothesis=0.8, rate_given_complement=0.0)
+    assert exact.required_observations == 1
+    assert exact.value_at_requirement == 1.0
+    assert exact.bayes_factor_per_observation_status == "infinite"
+    assert exact.log_bayes_factor_per_observation is None
+    huge = oq.required_observations_binary_signal(
+        0.2, 0.8, rate_given_hypothesis=0.8, rate_given_complement=1e-320)
+    assert huge.required_observations == 1
+    assert huge.bayes_factor_per_observation_status == "overflow"
+    assert huge.log_bayes_factor_per_observation == pytest.approx(math.log(0.8) - math.log(1e-320))
+    replay = oq.consume_observation_query_artifact(bytes(huge.export())).claim
+    assert replay.bayes_factor_per_observation_status == "overflow"
+    assert replay.log_bayes_factor_per_observation == huge.log_bayes_factor_per_observation
+    normal = oq.required_observations_binary_signal(
+        0.2, 0.8, rate_given_hypothesis=0.8, rate_given_complement=0.2)
+    assert normal.bayes_factor_per_observation_status == "finite"
+    assert normal.log_bayes_factor_per_observation == pytest.approx(math.log(4.0))
+
+
+def test_gaussian_log_density_out_of_range_is_distinct_from_no_observations():
+    claim = oq.condition_on_values(gaussian_chain(), "Y", {"M": 1e200})
+    assert math.isfinite(claim.gaussian.mean)
+    assert claim.gaussian.evidence_log_density is None
+    assert claim.gaussian.evidence_log_density_status == "out_of_range"
+    replay = oq.consume_observation_query_artifact(bytes(claim.export())).claim
+    assert replay.gaussian.evidence_log_density_status == "out_of_range"
+    regular = oq.condition_on_values(gaussian_chain(), "Y", {"M": 3.0})
+    assert regular.gaussian.evidence_log_density_status == "finite"
