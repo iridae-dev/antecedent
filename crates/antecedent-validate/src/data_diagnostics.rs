@@ -527,10 +527,31 @@ pub fn diagnose_data(
             _ => 1,
         })
         .sum();
+    // Missing-pattern keys and JSON export repeat names; column count alone cannot
+    // bound those buffers when a valid schema uses long measurement labels.
+    let name_bytes = data
+        .schema()
+        .variables()
+        .iter()
+        .fold(0_u64, |bytes, variable| bytes.saturating_add(variable.name.len() as u64));
+    let context_bytes = context
+        .roles
+        .iter()
+        .fold(context.plan_identity.len() as u64, |bytes, (name, role)| {
+            bytes.saturating_add(name.len() as u64).saturating_add(role.len() as u64)
+        })
+        .saturating_add(context.contrasts.iter().fold(0_u64, |bytes, (name, levels)| {
+            bytes
+                .saturating_add(name.len() as u64)
+                .saturating_add((levels.len() as u64).saturating_mul(16))
+        }));
     let bytes = (k as u64)
         .saturating_mul(vector_width as u64)
         .saturating_mul(256)
-        .saturating_add((width as u64).saturating_mul(1024));
+        .saturating_add((k as u64).saturating_mul(name_bytes).saturating_mul(2))
+        .saturating_add((width as u64).saturating_mul(8192))
+        .saturating_add(name_bytes.saturating_mul(64))
+        .saturating_add(context_bytes.saturating_mul(16));
     let _lease = ctx.acquire_admission(0, bytes).map_err(|e| {
         if ctx.cancellation.is_cancelled() {
             DataDiagnosticsError::Cancelled
@@ -1081,6 +1102,14 @@ mod tests {
         let ctx = ExecutionContext::for_tests(1).with_memory_limit(Some(1));
         assert!(matches!(
             diagnose_data(&data, &DataDiagnostics::default(), &context, &ctx),
+            Err(DataDiagnosticsError::Resource(_))
+        ));
+        let long_name = "x".repeat(8192);
+        let long_labels =
+            TabularData::from_f64_columns([(long_name.as_str(), &[0., 1.][..])]).unwrap();
+        let limited = ExecutionContext::for_tests(1).with_memory_limit(Some(100_000));
+        assert!(matches!(
+            diagnose_data(&long_labels, &DataDiagnostics::default(), &context, &limited),
             Err(DataDiagnosticsError::Resource(_))
         ));
         let ctx = ExecutionContext::for_tests(1);
