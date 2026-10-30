@@ -171,6 +171,32 @@ impl TemporalMediationIdentifier {
             .collect::<Result<Vec<_>, _>>()?;
 
         let mut gws = GraphWorkspace::default();
+        // The path-product estimator models mediators at the outcome slice.
+        // An earlier mediator is covered when all its outcome paths pass through
+        // one of those modeled nodes; only bypassing paths need extra offsets.
+        let mut treatment_descendants = BitSet::with_len(dag.node_count());
+        let mut outcome_ancestors = BitSet::with_len(dag.node_count());
+        dag.descendants_of(&[t], &mut treatment_descendants, &mut gws);
+        let mediator_cut = GraphOverlay::remove_outgoing(dag.node_count(), &mediator_nodes);
+        dag.view(&mediator_cut).ancestors_of(&[y], &mut outcome_ancestors, &mut gws);
+        for index in 0..dag.node_count() {
+            let node = DenseNodeId::from_index(index);
+            if !treatment_descendants.contains(node) || !outcome_ancestors.contains(node) {
+                continue;
+            }
+            let key =
+                temporal.indexer.key_of(node.raw()).map_err(IdentificationError::construction)?;
+            if key.offset >= temporal.treatment_key.offset
+                && key.offset < temporal.outcome_key.offset
+                && query.mediators.contains(&key.variable)
+            {
+                return Err(IdentificationError::NotCertified {
+                    message: "temporal mediation: a treatment-descendant mediator at an earlier \
+                              slice reaches the outcome without a modeled outcome-slice mediator; \
+                              the current path-product estimand cannot represent that path",
+                });
+            }
+        }
         let mut downstream = BitSet::with_len(dag.node_count());
         let mut sources = Vec::with_capacity(1 + mediator_nodes.len());
         sources.push(t);
@@ -610,6 +636,54 @@ mod tests {
             TemporalMediationIdentifier::adjustment_nodes(&graph, &query),
             Err(IdentificationError::OutOfRange { .. })
         ));
+    }
+
+    #[test]
+    fn earlier_mediator_on_causal_path_refuses_without_blocking_supported_horizons() {
+        // T(-1) -> M(0) -> Y(1) via the lag-one M -> Y edge. The
+        // estimator's M(1) coefficient alone cannot represent that path.
+        let mut graph = TemporalDag::empty();
+        let t1 = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let m0 = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let m1 = graph.add_lagged(VariableId::from_raw(1), Lag::from_raw(1)).unwrap();
+        let y0 = graph.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        graph.insert_directed(t1, m0).unwrap();
+        graph.insert_directed(m0, y0).unwrap();
+        graph.insert_directed(m1, y0).unwrap();
+        let q = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(1)],
+            MediationContrast::Mediated,
+        );
+        let id = TemporalMediationIdentifier::new();
+        let error = id.identify_with_horizon(&graph, &q, 2).unwrap_err();
+        assert!(
+            matches!(error, IdentificationError::NotCertified { message } if message.contains("earlier"))
+        );
+        // At h=1 the same graph's mediated path goes through M at Y's slice.
+        assert!(id.identify_with_horizon(&graph, &q, 1).is_ok());
+        // At h=2 no earlier mediator lies on a causal path in the chain-only graph.
+        assert!(id.identify_with_horizon(&chain_template(), &q, 2).is_ok());
+        // An earlier M(0) reaching Y(1) through the modeled N(1) is covered.
+        // Use an acyclic mediator chain: autoregressive templates have a separate
+        // existing finite-history refusal and cannot serve as a positive control.
+        let mut intercepted = chain_template();
+        let prior_m = intercepted.add_lagged(VariableId::from_raw(1), Lag::from_raw(1)).unwrap();
+        let current_n =
+            intercepted.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
+        let current_y =
+            intercepted.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        intercepted.insert_directed(prior_m, current_n).unwrap();
+        intercepted.insert_directed(current_n, current_y).unwrap();
+        let block_query = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(1), VariableId::from_raw(3)],
+            MediationContrast::Mediated,
+        );
+        let result = id.identify_with_horizon(&intercepted, &block_query, 2);
+        assert!(result.is_ok(), "{result:?}");
     }
 
     #[test]
