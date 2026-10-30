@@ -16,9 +16,25 @@ use crate::error::DataError;
 use crate::storage::OwnedColumnarStorage;
 use crate::table::TableView;
 
+fn require_uniform_weights(data: &TimeSeriesData) -> Result<(), DataError> {
+    if let Some(weights) = data.storage().weights() {
+        if let Some(&first) = weights.first() {
+            if !first.is_finite() || weights.iter().any(|&w| !w.is_finite() || w != first) {
+                return Err(DataError::invalid_value(
+                    "surrogate observation weights",
+                    "nonuniform weights do not support exchangeable surrogates",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Independently permute each float64 column (destroy cross-dependence; keep marginals).
 ///
-/// Validity bitmaps, analysis mask, weights, and time index are preserved in place.
+/// Validity bitmaps, analysis mask, weights, and time index are preserved in place. Valid
+/// values are permuted separately within included and excluded rows. Nonuniform weights are
+/// refused because a row exchange would change the weighted empirical marginal.
 ///
 /// # Errors
 ///
@@ -27,6 +43,8 @@ pub fn surrogate_permute_columns(
     data: &TimeSeriesData,
     rng: &mut CausalRng,
 ) -> Result<TimeSeriesData, DataError> {
+    require_uniform_weights(data)?;
+    let mask = data.storage().analysis_mask();
     let schema = data.schema().clone();
     let mut cols = Vec::with_capacity(schema.len());
     for v in schema.variables() {
@@ -34,25 +52,29 @@ pub fn surrogate_permute_columns(
             return Err(DataError::TypeMismatch { id: v.id, expected: "float64" });
         };
         let mut values = src.values.to_vec();
-        if src.validity.is_all_valid() {
+        if src.validity.is_all_valid() && mask.is_none_or(|m| m.is_all_valid()) {
             shuffle(rng, &mut values);
         } else {
-            // Missing placeholders stay at their original positions. Moving them
-            // under a fixed bitmap would destroy observed values during reconstruction.
-            let mut observed: Vec<f64> = values
-                .iter()
-                .enumerate()
-                .filter(|(index, _)| src.validity.is_valid(*index))
-                .map(|(_, &value)| value)
-                .collect();
-            shuffle(rng, &mut observed);
-            for ((_, value), shuffled) in values
-                .iter_mut()
-                .enumerate()
-                .filter(|(index, _)| src.validity.is_valid(*index))
-                .zip(observed)
-            {
-                *value = shuffled;
+            for included in [true, false] {
+                let eligible = |index: usize| {
+                    src.validity.is_valid(index)
+                        && mask.is_none_or(|m| m.is_valid(index)) == included
+                };
+                let mut observed: Vec<f64> = values
+                    .iter()
+                    .enumerate()
+                    .filter(|(index, _)| eligible(*index))
+                    .map(|(_, &value)| value)
+                    .collect();
+                shuffle(rng, &mut observed);
+                for ((_, value), shuffled) in values
+                    .iter_mut()
+                    .enumerate()
+                    .filter(|(index, _)| eligible(*index))
+                    .zip(observed)
+                {
+                    *value = shuffled;
+                }
             }
         }
         cols.push(OwnedColumn::Float64(Float64Column::new(
@@ -70,7 +92,8 @@ pub fn surrogate_permute_columns(
 /// Phase-randomize each float64 column (preserve power spectrum / autocorr).
 ///
 /// DC and Nyquist (even `n`) bins stay real; other bins keep magnitude and get
-/// independent uniform phases. Cross-series dependence is destroyed.
+/// independent uniform phases. Cross-series dependence is destroyed. Nontrivial analysis
+/// masks and nonuniform weights are refused because the FFT mixes all time points.
 ///
 /// # Errors
 ///
@@ -79,6 +102,13 @@ pub fn surrogate_phase_randomize(
     data: &TimeSeriesData,
     rng: &mut CausalRng,
 ) -> Result<TimeSeriesData, DataError> {
+    require_uniform_weights(data)?;
+    if data.storage().analysis_mask().is_some_and(|mask| !mask.is_all_valid()) {
+        return Err(DataError::invalid_value(
+            "phase-randomize analysis mask",
+            "excluded rows cannot be mixed into the analyzed series",
+        ));
+    }
     let n = data.row_count();
     if n < 4 {
         return Err(DataError::invalid_value(
@@ -191,6 +221,41 @@ mod tests {
             },
         )
         .unwrap()
+    }
+
+    #[test]
+    fn surrogate_masks_and_weighted_exchangeability_are_respected() {
+        let base = single_column(&[1.0, 2.0, 3.0, 100.0, 200.0, 300.0]);
+        let masked = base
+            .with_analysis_mask(ValidityBitmap::from_bools(&[
+                true, true, true, false, false, false,
+            ]))
+            .unwrap();
+        let weighted = masked.with_weights(Arc::from([1.0; 6])).unwrap();
+        for seed in 0..16 {
+            let out =
+                surrogate_permute_columns(&weighted, &mut CausalRng::from_seed(seed)).unwrap();
+            let ColumnView::Float64(column) = out.column(VariableId::from_raw(0)).unwrap() else {
+                panic!("float")
+            };
+            let mut included = column.values[..3].to_vec();
+            let mut excluded = column.values[3..].to_vec();
+            included.sort_by(f64::total_cmp);
+            excluded.sort_by(f64::total_cmp);
+            assert_eq!(included, [1.0, 2.0, 3.0]);
+            assert_eq!(excluded, [100.0, 200.0, 300.0]);
+        }
+        assert!(surrogate_phase_randomize(&weighted, &mut CausalRng::from_seed(1)).is_err());
+        let unequal = base.with_weights(Arc::from([1.0, 1.0, 1.0, 2.0, 1.0, 1.0])).unwrap();
+        assert!(surrogate_permute_columns(&unequal, &mut CausalRng::from_seed(1)).is_err());
+        assert!(surrogate_phase_randomize(&unequal, &mut CausalRng::from_seed(1)).is_err());
+        let all = base
+            .with_analysis_mask(ValidityBitmap::all_valid(6))
+            .unwrap()
+            .with_weights(Arc::from([1.0; 6]))
+            .unwrap();
+        assert!(surrogate_permute_columns(&all, &mut CausalRng::from_seed(1)).is_ok());
+        assert!(surrogate_phase_randomize(&all, &mut CausalRng::from_seed(1)).is_ok());
     }
 
     #[test]

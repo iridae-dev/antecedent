@@ -104,8 +104,8 @@ impl LaggedFrame {
     ///
     /// Each unit's lag windows are built inside that unit, so no row takes a lagged parent
     /// from the previous unit's tail: the pooled design is the per-unit lagged design of
-    /// one common structural model, not one long series with seams. Units shorter than
-    /// `max_lag + 1` contribute no rows.
+    /// one common structural model, not one long series with seams. Each unit must have
+    /// at least `max_lag + 1` time points; a shorter unit refuses the whole panel.
     ///
     /// # Errors
     ///
@@ -519,6 +519,21 @@ mod tests {
         clippy::float_cmp,
         reason = "exact constants: the values compared are representable results, not measurements"
     )]
+    #[test]
+    fn panel_frame_refuses_a_unit_shorter_than_the_lag_window() {
+        let units = [float_series(6, 2), float_series(1, 2)];
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        assert!(
+            LaggedFrame::from_panel(
+                &units,
+                &vars,
+                1,
+                &antecedent_core::KernelPolicy::default_policy()
+            )
+            .is_err()
+        );
+    }
+
     #[test]
     fn panel_frame_builds_every_lag_window_inside_its_unit() {
         // v0 = t within a unit, so a row's contemporaneous value exceeds its lag-1 value by
