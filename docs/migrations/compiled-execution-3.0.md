@@ -245,3 +245,22 @@ declaration replaces the pending error. Static CI searches require finite
 `0 < alpha < 1`; temporal CI searches also require `2 * max_lag` to fit `u32`.
 Generic structural constraint validation and non-CI search options retain their
 existing semantics.
+
+## Interface calibration and evidence forwarding
+
+An `Inherited` interface calibration label now requires the output to preserve
+its connected upstream quantity, semantic identity, support, uncertainty,
+measurement assumptions, and evidence sources. The output may offer a subset
+of the upstream operations. Input requirements can be less specific than the
+upstream declaration; calibration follows the actual supplied output. A changed
+quantity requires its own measured calibration record.
+
+`ProducedPort::with_evidence([])` now declares evidence as unknown. Directly
+constructing `EvidenceBasis::Declared` with an empty set also fails a connection
+that requires declared or disjoint evidence. Declare the actual sources before
+requesting these dependence guarantees.
+
+Inherited measured outputs must retain an interval or posterior operation, as
+directly measured outputs already require. Native `check_composition` now refuses
+to infer disjoint observations from distinct source IDs alone. Use
+`check_composition_with_ledger` to establish disjointness from observation sets.

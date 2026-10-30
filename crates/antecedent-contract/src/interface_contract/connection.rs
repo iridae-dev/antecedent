@@ -189,7 +189,12 @@ pub(super) fn check_ports(
             set_text(&out.measurement_models),
         ));
     }
-    if inp.dependence.requires_declared() && out.evidence == EvidenceBasis::Undeclared {
+    if inp.dependence.requires_declared()
+        && match &out.evidence {
+            EvidenceBasis::Undeclared => true,
+            EvidenceBasis::Declared(sources) => sources.is_empty(),
+        }
+    {
         refusals.push(dependence_unknown(&out.name));
     }
     for stage in inp.provenance.difference(&out.provenance) {

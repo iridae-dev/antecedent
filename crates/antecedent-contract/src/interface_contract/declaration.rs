@@ -223,7 +223,9 @@ pub enum CalibrationStatus {
         record_id: String,
     },
     /// Declared to be inherited from a consumed port of the same component;
-    /// resolved against the upstream producer when a composition is checked.
+    /// resolved against the upstream producer when a composition is checked. The
+    /// output must keep the upstream quantity and uncertainty coordinates; the
+    /// declaration asserts that the component forwards the calibrated quantity.
     Inherited {
         /// Name of the consumed port the calibration is inherited from.
         input: String,
@@ -505,7 +507,12 @@ impl ProducedPort {
     /// Declare the evidence sources.
     #[must_use]
     pub fn with_evidence(mut self, sources: impl IntoIterator<Item = SourceId>) -> Self {
-        self.evidence = EvidenceBasis::Declared(sources.into_iter().collect());
+        let sources: BTreeSet<_> = sources.into_iter().collect();
+        self.evidence = if sources.is_empty() {
+            EvidenceBasis::Undeclared
+        } else {
+            EvidenceBasis::Declared(sources)
+        };
         self
     }
 

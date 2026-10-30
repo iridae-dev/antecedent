@@ -31,8 +31,9 @@ use super::declaration::{
     InterfaceContract,
 };
 use super::refusal::{
-    InterfaceRefusal, calibration_inherited_not_held, calibration_inherited_unfed,
-    cyclic_composition, dependence_unknown, duplicate_component, port_multiply_fed,
+    InterfaceRefusal, calibration_inherited_not_held, calibration_inherited_quantity_changed,
+    calibration_inherited_unfed, calibration_without_interval, cyclic_composition,
+    dependence_unknown, duplicate_component, evidence_overlap_unknown, port_multiply_fed,
     shared_evidence, unknown_component, unknown_port,
 };
 use crate::evidence_ledger::{EvidenceLedger, Overlap, SourceId};
@@ -309,6 +310,46 @@ fn resolve_inherited_calibration<'a>(
                             CalibrationStatus::Unmeasured
                         }
                         Some(upstream) => {
+                            // A retained unresolved declaration is inspectable, but it may
+                            // resolve to Measured only for a calibratable operation.
+                            if !port
+                                .operations
+                                .contains(&super::declaration::ContractOperation::Interval)
+                                && !port
+                                    .operations
+                                    .contains(&super::declaration::ContractOperation::Posterior)
+                            {
+                                refusals.push(calibration_without_interval(&port.name));
+                                effective.insert(
+                                    (*component, port.name.as_str()),
+                                    CalibrationStatus::Unmeasured,
+                                );
+                                continue;
+                            }
+                            let source = by_name
+                                .get(upstream.producer.as_str())
+                                .and_then(|component| component.produced(&upstream.produced_port));
+                            // An input port states requirements, which may be less specific
+                            // than the supplied quantity. Inheritance follows the actual
+                            // upstream output, including its uncertainty and evidence.
+                            if source.is_none_or(|source| {
+                                port.quantity.require_same_coordinate(&source.quantity).is_err()
+                                    || port.semantic_identity != source.semantic_identity
+                                    || port.support != source.support
+                                    || port.uncertainty != source.uncertainty
+                                    || !port.operations.is_subset(&source.operations)
+                                    || port.measurement_models != source.measurement_models
+                                    || port.evidence != source.evidence
+                            }) {
+                                refusals.push(calibration_inherited_quantity_changed(
+                                    &port.name, input,
+                                ));
+                                effective.insert(
+                                    (*component, port.name.as_str()),
+                                    CalibrationStatus::Unmeasured,
+                                );
+                                continue;
+                            }
                             let held = effective
                                 .get(&(upstream.producer.as_str(), upstream.produced_port.as_str()))
                                 .cloned()
@@ -514,13 +555,15 @@ fn check_disjoint(
                     format!("{}.{}", second.producer, second.produced_port),
                 );
                 let (shared, undecided) = match ledger {
-                    None => (a.intersection(b).count(), false),
+                    // Equal sources establish overlap. Distinct identities alone
+                    // cannot establish that the underlying observations are disjoint.
+                    None => (a.intersection(b).count(), true),
                     Some(ledger) => ledger_overlap(a, b, ledger),
                 };
                 if shared > 0 {
                     refusals.push(shared_evidence(&first_name, &second_name, shared));
                 } else if undecided {
-                    refusals.push(dependence_unknown(&second_name));
+                    refusals.push(evidence_overlap_unknown(&first_name, &second_name));
                 }
             }
         }

@@ -623,8 +623,9 @@ fn inputs_that_must_be_disjoint_cannot_share_an_evidence_source() {
         ComponentConnection::new("s1", "out", "pool", "left"),
         ComponentConnection::new("s2", "out", "pool", "right"),
     ];
-    // Distinct sources: accepted.
-    assert!(check_composition(&fan_in(1, 2), &wires).is_ok());
+    // Distinct source identities do not prove that observations are disjoint.
+    let unknown = check_composition(&fan_in(1, 2), &wires).unwrap_err();
+    assert_eq!(details(&unknown), ["interface_contract.dependence_unknown"]);
     // One source reaching the pool twice: refused, with the count of shared sources.
     let refusals = check_composition(&fan_in(5, 5), &wires).expect_err("double counted");
     assert_eq!(details(&refusals), ["interface_contract.shared_evidence"]);
@@ -728,4 +729,123 @@ fn provider_capabilities_disclose_operations_one_to_one() {
     assert!(
         !operations_of_capabilities(&[ExternalCapability::Cdf]).contains(&ContractOperation::Draws)
     );
+}
+
+#[test]
+fn empty_evidence_never_satisfies_a_dependence_requirement() {
+    use antecedent_contract::interface_contract::EvidenceBasis;
+    for requirement in
+        [DependenceRequirement::DeclaredEvidence, DependenceRequirement::DisjointEvidence]
+    {
+        let consumer =
+            consumer_of(consumed(&[ContractOperation::Mean]).with_dependence(requirement));
+        let constructor = produced(&[ContractOperation::Mean]).with_evidence([]);
+        let mut literal = produced(&[ContractOperation::Mean]);
+        literal.evidence = EvidenceBasis::Declared(BTreeSet::new());
+        for port in [constructor, literal] {
+            let producer = producer_of(port);
+            let refused = check(&producer, &consumer).unwrap_err();
+            assert!(details(&refused).contains(&"interface_contract.dependence_unknown"));
+            let edge = ComponentConnection::new(
+                &producer.component,
+                &producer.produces[0].name,
+                &consumer.component,
+                &consumer.consumes[0].name,
+            );
+            let refused = check_composition(&[producer, consumer.clone()], &[edge]).unwrap_err();
+            assert!(details(&refused).contains(&"interface_contract.dependence_unknown"));
+        }
+    }
+}
+
+#[test]
+fn inherited_calibration_does_not_cross_changed_quantity() {
+    let mut upstream = passthrough("a", None);
+    upstream.consumes.clear();
+    upstream.produces[0] = ProducedPort::new(
+        "out",
+        quantity("mmHg", "adults", "do(a=1)"),
+        "estimand:ate",
+        SupportDomain::Real,
+        [ContractOperation::Interval],
+    )
+    .with_uncertainty(DistributionMeaning::EstimatorSampling)
+    .with_calibration(CalibrationStatus::Measured { record_id: "rec".into() });
+    let mut mid = passthrough("mid", None);
+    mid.consumes[0] = ConsumedPort::new(
+        "in",
+        quantity("mmHg", "adults", "do(a=1)"),
+        "estimand:ate",
+        SupportDomain::Real,
+        [ContractOperation::Interval],
+    )
+    .with_uncertainty(DistributionMeaning::EstimatorSampling);
+    mid.produces[0] = ProducedPort::new(
+        "out",
+        quantity("mmHg", "adults", "do(a=1)"),
+        "different:quantity",
+        SupportDomain::Real,
+        [ContractOperation::Interval],
+    )
+    .with_uncertainty(DistributionMeaning::EstimatorSampling)
+    .with_calibration(CalibrationStatus::Inherited { input: "in".into() });
+    let refused = check_composition(&[upstream, mid], &[link("a", "mid")]).unwrap_err();
+    assert!(
+        details(&refused).contains(&"interface_contract.calibration_inherited_quantity_changed")
+    );
+}
+
+#[test]
+fn inherited_calibration_uses_the_actual_source_and_preserves_forwarding() {
+    let mut upstream = passthrough("a", None);
+    upstream.consumes.clear();
+    upstream.produces[0].operations.insert(ContractOperation::Interval);
+    upstream.produces[0].operations.insert(ContractOperation::Draws);
+    upstream.produces[0] =
+        upstream.produces[0].clone().with_uncertainty(DistributionMeaning::EstimatorSampling);
+    upstream.produces[0].calibration = CalibrationStatus::Measured { record_id: "rec".into() };
+    upstream.produces[0] = upstream.produces[0].clone().with_evidence([source(1)]);
+    let mut mid = passthrough("mid", None);
+    // The input accepts either uncertainty meaning; forwarding the actual sampling
+    // quantity still retains its calibration, even when fewer operations are offered.
+    mid.produces[0] = upstream.produces[0].clone();
+    mid.produces[0].operations.remove(&ContractOperation::Mean);
+    mid.produces[0].calibration = CalibrationStatus::Inherited { input: "in".into() };
+    let wires = [link("a", "mid")];
+    let accepted = check_composition(&[upstream.clone(), mid.clone()], &wires).unwrap();
+    assert_eq!(accepted.order.len(), 2);
+
+    let baseline = mid.produces[0].clone();
+    let mut changes = Vec::new();
+    let mut changed = baseline.clone();
+    changed.quantity = quantity("mmHg", "children", "do(a=1)");
+    changes.push(changed);
+    let mut changed = baseline.clone();
+    changed.measurement_models.insert(MODEL_A.into());
+    changes.push(changed);
+    let mut changed = baseline.clone();
+    changed = changed.with_uncertainty(DistributionMeaning::CausalFunctionalPosterior);
+    changes.push(changed);
+    let mut changed = baseline.clone();
+    changed.evidence = antecedent_contract::interface_contract::EvidenceBasis::Undeclared;
+    changes.push(changed);
+    let mut changed = baseline.clone();
+    changed.support = SupportDomain::NonNegative;
+    changes.push(changed);
+    let mut changed = baseline.clone();
+    changed.operations.insert(ContractOperation::JointDraws);
+    changes.push(changed);
+    let mut draws_only = baseline.clone();
+    draws_only.operations = [ContractOperation::Draws].into_iter().collect();
+    mid.produces[0] = draws_only;
+    let refused = check_composition(&[upstream.clone(), mid.clone()], &wires).unwrap_err();
+    assert!(details(&refused).contains(&"interface_contract.calibration_without_interval"));
+    for changed in changes {
+        mid.produces[0] = changed;
+        let refused = check_composition(&[upstream.clone(), mid.clone()], &wires).unwrap_err();
+        assert!(
+            details(&refused)
+                .contains(&"interface_contract.calibration_inherited_quantity_changed")
+        );
+    }
 }

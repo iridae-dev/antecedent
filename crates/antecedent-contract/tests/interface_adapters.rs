@@ -473,10 +473,10 @@ fn distinct_sources_that_share_rows_are_not_disjoint_and_unknown_overlap_is_not_
     let disjoint = observed(&mut ledger, "trial-c", &[7, 8]);
     let opaque = undeclared(&mut ledger, "trial-d");
 
-    // The declared source identities differ, so the identity comparison alone
-    // accepts the overlapping pair; the ledger does not.
+    // Distinct source identities alone cannot prove disjoint observations.
     let (components, connections) = two_consumers_requiring_disjoint(first, overlapping);
-    check_composition(&components, &connections).expect("distinct identities pass by identity");
+    let unknown = check_composition(&components, &connections).unwrap_err();
+    assert_eq!(details(&unknown), vec!["interface_contract.dependence_unknown"]);
     let shared = check_composition_with_ledger(&components, &connections, &ledger)
         .expect_err("they share observation 3");
     assert_eq!(details(&shared), vec!["interface_contract.shared_evidence"]);

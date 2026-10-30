@@ -49,6 +49,13 @@ fn transport(sources: &[&str], target: &str, assumptions: &[&str]) -> TransportI
 const INVARIANT: &str = "recovery mechanism invariant across populations";
 
 fn provider(population: &str, assumption: &str) -> ProviderTransportSource {
+    let mut ledger = EvidenceLedger::new();
+    let evidence = ledger
+        .add_source(SourceDeclaration::new(
+            format!("provider:{population}"),
+            SourceKind::ExternalClaim,
+        ))
+        .expect("declared provider evidence");
     ProviderTransportSource {
         component: "provider".into(),
         object: ExternalScientificObject::Law(LawProviderContract {
@@ -68,7 +75,7 @@ fn provider(population: &str, assumption: &str) -> ProviderTransportSource {
         semantic_identity: "estimand:recovery_under_treatment".into(),
         support: SupportDomain::Real,
         assumptions: vec![assumption.into()],
-        evidence: EvidenceBasis::Declared(std::collections::BTreeSet::new()),
+        evidence: EvidenceBasis::Declared([evidence].into_iter().collect()),
         requirement: SourceTrustRequirement::AttestationAccepted,
     }
 }
@@ -137,7 +144,16 @@ fn a_provider_of_another_population_is_not_connected_to_the_transport() {
     assert_eq!(refusals[0].detail, "provider_transport.assumptions_not_carried");
     assert_eq!(refusals[0].offending.as_deref(), Some("treatment effect homogeneous"));
 
-    // A matching provider connects.
+    // Correct population and assumptions cannot replace missing evidence.
+    let mut empty = provider("trial_a", INVARIANT);
+    empty.evidence = EvidenceBasis::Declared(std::collections::BTreeSet::new());
+    let empty = empty.admit().expect("trust admission is separate from evidence");
+    let refused =
+        connect_bound_provider_source(&empty, &identity, &consumer_a, TRANSPORT_SOURCE_PORT)
+            .expect_err("empty evidence cannot satisfy the transport input");
+    assert_eq!(refused[0].detail, "interface_contract.dependence_unknown");
+
+    // A matching provider with declared evidence connects.
     let bound = provider("trial_a", INVARIANT).admit().expect("admits");
     connect_bound_provider_source(&bound, &identity, &consumer_a, TRANSPORT_SOURCE_PORT)
         .expect("a source population carrying its assumptions connects");

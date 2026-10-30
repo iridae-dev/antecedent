@@ -338,6 +338,16 @@ pub(super) fn dependence_unknown(port: &str) -> InterfaceRefusal {
     .with_offending(port)
 }
 
+pub(super) fn evidence_overlap_unknown(first: &str, second: &str) -> InterfaceRefusal {
+    assumption_mismatch(
+        "interface_contract.dependence_unknown",
+        "known disjoint observations for the declared evidence sources",
+        "overlap unknown",
+        "supply an evidence ledger with known observation sets for both inputs, or declare the dependence the combination uses",
+    )
+    .with_offending(format!("{first}, {second}"))
+}
+
 pub(super) fn shared_evidence(first: &str, second: &str, shared: usize) -> InterfaceRefusal {
     assumption_mismatch(
         "interface_contract.shared_evidence",
@@ -436,6 +446,15 @@ pub(super) fn calibration_inherited_unresolved(port: &str) -> InterfaceRefusal {
         "check the whole composition so the inherited calibration resolves to the upstream record that holds it",
     )
     .with_offending(port)
+}
+
+pub(super) fn calibration_inherited_quantity_changed(port: &str, input: &str) -> InterfaceRefusal {
+    calibration_not_held(
+        "interface_contract.calibration_inherited_quantity_changed",
+        "the same calibrated quantity and uncertainty coordinates",
+        "changed quantity or uncertainty".to_owned(),
+        "retain the input quantity unchanged or supply calibration measured for the output construction",
+    ).with_offending(format!("{port} <- {input}"))
 }
 
 pub(super) fn calibration_inherited_not_held(
