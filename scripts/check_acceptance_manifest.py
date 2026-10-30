@@ -21,6 +21,10 @@ gate script (`scripts/gate_*.sh`).
 from __future__ import annotations
 
 import json
+import ast
+import io
+import tokenize
+import textwrap
 import math
 import re
 import sys
@@ -133,11 +137,36 @@ DEFERRED_TEST = re.compile(
     r"\btodo!|\bunimplemented!|pytest\.(?:skip|xfail)|mark\.(?:skip|xfail)|unittest\.skip"
     r"|\bskipTest\b|\bexpectedFailure\b|#\[should_panic"
 )
-# An assertion, or a helper whose job is to assert (the calibration gate, `expect_*`, `check_*`).
+# Only actual assertion operations count; helper names are resolved to their
+# bodies below, never treated as assertions merely by their spelling.
 ASSERTS = re.compile(
-    r"\b(?:assert\w*|expect\w*|verify\w*|require\w*|gate)\s*[!(]|\bassert\b|\.raises\(|\bpanic!"
-    r"|unwrap_err|is_err\(\)|\bself\.assert"
+    r"\b(?:assert|assert_eq|assert_ne|debug_assert|debug_assert_eq|debug_assert_ne|panic)!\s*\("
+    r"|\bassert\b|\.raises\s*\(|\bself\.assert[A-Z]\w*\s*\(|\bnp\.testing\.assert_\w+\s*\(|\.unwrap_err\s*\("
 )
+
+
+def assertion_code(text: str, suffix: str) -> str:
+    """Remove comments and string literals before following calls or assertions."""
+    if suffix == ".rs":
+        from _rust_source import lex
+        return lex(text).skeleton
+    text = textwrap.dedent(text)
+    lines = text.splitlines(keepends=True)
+    try:
+        for token in tokenize.generate_tokens(io.StringIO(text).readline):
+            if token.type not in (tokenize.COMMENT, tokenize.STRING):
+                continue
+            (start_line, start_col), (end_line, end_col) = token.start, token.end
+            for index in range(start_line - 1, end_line):
+                line = lines[index]
+                lo = start_col if index == start_line - 1 else 0
+                hi = end_col if index == end_line - 1 else len(line.rstrip("\r\n"))
+                lines[index] = line[:lo] + " " * (hi - lo) + line[hi:]
+    except (tokenize.TokenError, IndentationError):
+        return ""
+    return "".join(lines)
+
+
 RUST_TEST_ATTRIBUTE = re.compile(r"#\[(?:tokio::)?test\b|#\[rstest|#\[test_case")
 
 
@@ -329,6 +358,17 @@ def _attributes_above(lines: list[str], index: int) -> str:
 def test_source(text: str, suffix: str, name: str) -> tuple[str, str] | None:
     """The attributes above `name` and its source (signature included); `None` if undefined."""
     lines = text.splitlines()
+    if suffix == ".py":
+        try:
+            tree = ast.parse(text)
+        except SyntaxError:
+            return None
+        definitions = [node for node in ast.walk(tree)
+                       if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name]
+        if not definitions:
+            return None
+        node = min(definitions, key=lambda item: item.lineno)
+        return _attributes_above(lines, node.lineno - 1), "\n".join(lines[node.lineno - 1:node.end_lineno])
     pattern = re.compile(_DEFINITION[suffix].format(name=re.escape(name)))
     for index, line in enumerate(lines):
         match = pattern.match(line)
@@ -399,9 +439,9 @@ def macro_test_source(text: str, name: str) -> tuple[str, str] | None:
 def with_helpers(text: str, suffix: str, source: str, depth: int = 3) -> str:
     """`source` followed by the same-file helpers it calls, to `depth` levels."""
     if depth == 0:
-        return source
-    expanded = [source]
-    for helper in sorted(set(_CALLED[suffix].findall(source))):
+        return assertion_code(source, suffix)
+    expanded = [assertion_code(source, suffix)]
+    for helper in sorted(set(_CALLED[suffix].findall(assertion_code(source, suffix)))):
         found = test_source(text, suffix, helper)
         if found is not None and found[1] != source:
             expanded.append(with_helpers(text, suffix, found[1], depth - 1))

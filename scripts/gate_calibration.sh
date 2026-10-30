@@ -421,9 +421,9 @@ PYALLOC
 # ~50x slower with identical numbers.
 run_ignored() {
   local pkg="$1"
-  local filter="$2"
+  local filter="$2" exact="$3"
   echo "== ${pkg}: ${filter} =="
-  check "${pkg}: ${filter}" cargo test --release -p "$pkg" --lib "$filter" -- --ignored --nocapture
+  check "${pkg}: ${filter}" cargo test --release -p "$pkg" --lib "$exact" -- --ignored --exact --nocapture
 }
 
 # A pass/fail reference experiment, not a coverage claim for arbitrary input estimators.
@@ -774,59 +774,59 @@ echo "== SE analytic / bootstrap CI coverage (antecedent-estimate) =="
 # Two-sided 0.95 ± 3·MCSE band (calibration_coverage.rs), plus symmetric
 # recheck and precision floor/ceiling. Bootstrap-IPW uses the full replicate
 # count (skips count as misses, cap 1%); no halved-n band widening.
-run_ignored antecedent-estimate linear_adjustment_analytic_ci_coverage
-run_ignored antecedent-estimate linear_adjustment_hc1_ci_coverage
-run_ignored antecedent-estimate ipw_hajek_bootstrap_ci_coverage
-run_ignored antecedent-estimate ipw_hajek_analytic_ci_coverage
-run_ignored antecedent-estimate ipw_hajek_analytic_conformance_scm_ci_coverage
-run_ignored antecedent-estimate aipw_analytic_ci_coverage
-run_ignored antecedent-estimate aipw_ate_hc1_ci_coverage
-run_ignored antecedent-estimate aipw_att_hc1_ci_coverage
+run_ignored antecedent-estimate linear_adjustment_analytic_ci_coverage calibration_coverage::linear_adjustment_analytic_ci_coverage
+run_ignored antecedent-estimate linear_adjustment_hc1_ci_coverage calibration_coverage::linear_adjustment_hc1_ci_coverage
+run_ignored antecedent-estimate ipw_hajek_bootstrap_ci_coverage calibration_coverage::ipw_hajek_bootstrap_ci_coverage
+run_ignored antecedent-estimate ipw_hajek_analytic_ci_coverage calibration_coverage::ipw_hajek_analytic_ci_coverage
+run_ignored antecedent-estimate ipw_hajek_analytic_conformance_scm_ci_coverage calibration_coverage::ipw_hajek_analytic_conformance_scm_ci_coverage
+run_ignored antecedent-estimate aipw_analytic_ci_coverage calibration_coverage::aipw_analytic_ci_coverage
+run_ignored antecedent-estimate aipw_ate_hc1_ci_coverage calibration_coverage::aipw_ate_hc1_ci_coverage
+run_ignored antecedent-estimate aipw_att_hc1_ci_coverage calibration_coverage::aipw_att_hc1_ci_coverage
 # Boundary cell: measured 0.939 at 2000 replicates (the untreated arm's IF SE
 # runs about 3% short of the Monte Carlo SD at n = 600).
-run_ignored antecedent-estimate aipw_atc_hc1_boundary_within_band
-run_ignored antecedent-estimate aipw_att_cluster_ci_coverage
+run_ignored antecedent-estimate aipw_atc_hc1_boundary_within_band calibration_coverage::aipw_atc_hc1_boundary_within_band
+run_ignored antecedent-estimate aipw_att_cluster_ci_coverage calibration_coverage::aipw_att_cluster_ci_coverage
 # Penalized propensity: the cross-fitted influence-function SE and the refit
 # bootstrap (penalty and support selection repeated in every replicate), ridge and lasso.
 # Records estimate.penalized_propensity_aipw.
-run_ignored antecedent-estimate aipw_ridge_influence_ci_coverage
-run_ignored antecedent-estimate aipw_ridge_refit_bootstrap_ci_coverage
-run_ignored antecedent-estimate aipw_lasso_influence_ci_coverage
-run_ignored antecedent-estimate aipw_lasso_refit_bootstrap_ci_coverage
-run_ignored antecedent-estimate matching_homoskedastic_ci_coverage
-run_ignored antecedent-estimate wald_iv_analytic_ci_coverage
-run_ignored antecedent-estimate wald_iv_hc1_ci_coverage
-run_ignored antecedent-estimate iv_2sls_analytic_ci_coverage
-run_ignored antecedent-estimate iv_2sls_hc1_heteroskedastic_ci_coverage
-run_ignored antecedent-estimate frontdoor_stacked_hc0_ci_coverage
-run_ignored antecedent-estimate frontdoor_stacked_hc1_ci_coverage
-run_ignored antecedent-estimate frontdoor_functional_saturated_ci_coverage
-run_ignored antecedent-estimate frontdoor_functional_arm_linear_ci_coverage
-run_ignored antecedent-estimate rd_sharp_analytic_ci_coverage
-run_ignored antecedent-estimate rd_sharp_hc1_heteroskedastic_ci_coverage
+run_ignored antecedent-estimate aipw_ridge_influence_ci_coverage calibration_coverage::aipw_ridge_influence_ci_coverage
+run_ignored antecedent-estimate aipw_ridge_refit_bootstrap_ci_coverage calibration_coverage::aipw_ridge_refit_bootstrap_ci_coverage
+run_ignored antecedent-estimate aipw_lasso_influence_ci_coverage calibration_coverage::aipw_lasso_influence_ci_coverage
+run_ignored antecedent-estimate aipw_lasso_refit_bootstrap_ci_coverage calibration_coverage::aipw_lasso_refit_bootstrap_ci_coverage
+run_ignored antecedent-estimate matching_homoskedastic_ci_coverage calibration_coverage::matching_homoskedastic_ci_coverage
+run_ignored antecedent-estimate wald_iv_analytic_ci_coverage calibration_coverage::wald_iv_analytic_ci_coverage
+run_ignored antecedent-estimate wald_iv_hc1_ci_coverage calibration_coverage::wald_iv_hc1_ci_coverage
+run_ignored antecedent-estimate iv_2sls_analytic_ci_coverage calibration_coverage::iv_2sls_analytic_ci_coverage
+run_ignored antecedent-estimate iv_2sls_hc1_heteroskedastic_ci_coverage calibration_coverage::iv_2sls_hc1_heteroskedastic_ci_coverage
+run_ignored antecedent-estimate frontdoor_stacked_hc0_ci_coverage calibration_coverage::frontdoor_stacked_hc0_ci_coverage
+run_ignored antecedent-estimate frontdoor_stacked_hc1_ci_coverage calibration_coverage::frontdoor_stacked_hc1_ci_coverage
+run_ignored antecedent-estimate frontdoor_functional_saturated_ci_coverage calibration_coverage::frontdoor_functional_saturated_ci_coverage
+run_ignored antecedent-estimate frontdoor_functional_arm_linear_ci_coverage calibration_coverage::frontdoor_functional_arm_linear_ci_coverage
+run_ignored antecedent-estimate rd_sharp_analytic_ci_coverage calibration_coverage::rd_sharp_analytic_ci_coverage
+run_ignored antecedent-estimate rd_sharp_hc1_heteroskedastic_ci_coverage calibration_coverage::rd_sharp_hc1_heteroskedastic_ci_coverage
 # Out-of-assumption probe (curvature + heterogeneity): coverage printed, not gated.
-run_ignored antecedent-estimate rd_sharp_hc1_curved_heterogeneous_probe
+run_ignored antecedent-estimate rd_sharp_hc1_curved_heterogeneous_probe calibration_coverage::rd_sharp_hc1_curved_heterogeneous_probe
 # DML / DR-Learner / causal forest: reported_level (0.95) cells on confounded_scm.
-run_ignored antecedent-estimate dml_analytic_ci_coverage
-run_ignored antecedent-estimate dr_learner_analytic_ci_coverage
-run_ignored antecedent-estimate causal_forest_analytic_ci_coverage
+run_ignored antecedent-estimate dml_analytic_ci_coverage calibration_coverage::dml_analytic_ci_coverage
+run_ignored antecedent-estimate dr_learner_analytic_ci_coverage calibration_coverage::dr_learner_analytic_ci_coverage
+run_ignored antecedent-estimate causal_forest_analytic_ci_coverage calibration_coverage::causal_forest_analytic_ci_coverage
 # Boundary cells (weak IV / weak overlap / curved RD / heteroskedastic and
 # heterogeneous-effect matching / curved front-door mediator): designs outside the
 # interval's stated assumptions, recorded as named boundaries and never gated
 # (fixtures in static_dgp.rs + tests in calibration_coverage.rs).
-run_ignored antecedent-estimate wald_iv_weak_first_stage_adversarial_ci_coverage
-run_ignored antecedent-estimate ipw_hajek_weak_overlap_adversarial_ci_coverage
-run_ignored antecedent-estimate rd_sharp_hc1_curved_adversarial_ci_coverage
-run_ignored antecedent-estimate matching_heteroskedastic_adversarial_ci_coverage
-run_ignored antecedent-estimate matching_heterogeneous_att_ci_coverage
-run_ignored antecedent-estimate matching_heterogeneous_atc_ci_coverage
-run_ignored antecedent-estimate matching_heterogeneous_ate_ci_coverage
-run_ignored antecedent-estimate frontdoor_stacked_hc1_curved_mediator_ci_coverage
+run_ignored antecedent-estimate wald_iv_weak_first_stage_adversarial_ci_coverage calibration_coverage::wald_iv_weak_first_stage_adversarial_ci_coverage
+run_ignored antecedent-estimate ipw_hajek_weak_overlap_adversarial_ci_coverage calibration_coverage::ipw_hajek_weak_overlap_adversarial_ci_coverage
+run_ignored antecedent-estimate rd_sharp_hc1_curved_adversarial_ci_coverage calibration_coverage::rd_sharp_hc1_curved_adversarial_ci_coverage
+run_ignored antecedent-estimate matching_heteroskedastic_adversarial_ci_coverage calibration_coverage::matching_heteroskedastic_adversarial_ci_coverage
+run_ignored antecedent-estimate matching_heterogeneous_att_ci_coverage calibration_coverage::matching_heterogeneous_att_ci_coverage
+run_ignored antecedent-estimate matching_heterogeneous_atc_ci_coverage calibration_coverage::matching_heterogeneous_atc_ci_coverage
+run_ignored antecedent-estimate matching_heterogeneous_ate_ci_coverage calibration_coverage::matching_heterogeneous_ate_ci_coverage
+run_ignored antecedent-estimate frontdoor_stacked_hc1_curved_mediator_ci_coverage calibration_coverage::frontdoor_stacked_hc1_curved_mediator_ci_coverage
 
-run_ignored antecedent-estimate bayesian_pulse_conjugate_nominal_90_coverage
-run_ignored antecedent-estimate bayesian_sustained_single_step_conjugate_nominal_90_coverage
-run_ignored antecedent-estimate bayesian_sustained_multi_step_conjugate_nominal_90_coverage
-run_ignored antecedent-estimate bayesian_panel_hierarchical_nominal_90_coverage
+run_ignored antecedent-estimate bayesian_pulse_conjugate_nominal_90_coverage bayesian::tests::bayesian_pulse_conjugate_nominal_90_coverage
+run_ignored antecedent-estimate bayesian_sustained_single_step_conjugate_nominal_90_coverage bayesian::tests::bayesian_sustained_single_step_conjugate_nominal_90_coverage
+run_ignored antecedent-estimate bayesian_sustained_multi_step_conjugate_nominal_90_coverage bayesian::tests::bayesian_sustained_multi_step_conjugate_nominal_90_coverage
+run_ignored antecedent-estimate bayesian_panel_hierarchical_nominal_90_coverage bayesian::tests::bayesian_panel_hierarchical_nominal_90_coverage
 
 echo "== sampled counterfactual transport delta-method candidate (antecedent-estimate) =="
 run_sampled_counterfactual_transport() {
@@ -922,7 +922,10 @@ run_temporal_class frequentist_temporal_cpdag_heterogeneous_se_identified_set_in
 run_temporal_class bayesian_temporal_cpdag_heterogeneous_se_identified_set_covers_noisy_completion
 
 echo "== shared circular-block length sensitivity (x0.5 / x1 / x2 of the production length) =="
-run_ignored antecedent analysis::execute::block_length_tests::shared_block_length_sensitivity
+check "antecedent: analysis::execute::block_length_tests::shared_block_length_sensitivity" \
+  cargo test --release -p antecedent --lib -- --ignored --exact \
+  analysis::execute::block_length_tests::shared_block_length_sensitivity_iid_n160 \
+  analysis::execute::block_length_tests::shared_block_length_sensitivity_ar1_rho05_n160 --nocapture
 
 echo "== static graph-posterior mixture coverage (antecedent) =="
 run_static_mixture_test() {
@@ -930,7 +933,7 @@ run_static_mixture_test() {
   echo "== antecedent: ${filter} =="
   check "static_mixture_calibration: ${filter}" \
     cargo test --release -p antecedent --test static_mixture_calibration "$filter" \
-    -- --ignored --nocapture
+    -- --ignored --exact --nocapture
 }
 run_static_mixture_test static_graph_posterior_frequentist_ate_joint_if_nominal_90_coverage
 run_static_mixture_test static_graph_posterior_frequentist_cate_joint_if_nominal_90_coverage
@@ -975,7 +978,7 @@ run_ignored_bayes_temporal() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
   check "bayesian_temporal: ${filter}" \
-    cargo test --release -p antecedent --test bayesian_temporal "$filter" -- --ignored --nocapture
+    cargo test --release -p antecedent --test bayesian_temporal "$filter" -- --ignored --exact --nocapture
 }
 run_ignored_bayes_temporal bayesian_temporal_pulse_iid_nominal_90_coverage
 run_ignored_bayes_temporal bayesian_temporal_pulse_ar1_rho05_n160_nominal_90_coverage
@@ -1150,50 +1153,50 @@ run_static_remaining mediation_confounded_mediator_probe
 
 echo "== Bayesian posterior calibration (antecedent-validate) =="
 run_ignored antecedent-validate \
-  bayesian_checks::tests::calibration_gate::sbc_conjugate_gaussian_ranks_are_uniform
+  bayesian_checks::tests::calibration_gate::sbc_conjugate_gaussian_ranks_are_uniform bayesian_checks::tests::calibration_gate::sbc_conjugate_gaussian_ranks_are_uniform
 
 echo "== CI Type I / permutation uniformity (antecedent-stats) =="
-run_ignored antecedent-stats robust_parcorr_calibration_gate
-run_ignored antecedent-stats weighted_parcorr_calibration_gate
-run_ignored antecedent-stats gsquared_calibration_gate
-run_ignored antecedent-stats knn_dependence_calibration_gate
-run_ignored antecedent-stats parcorr_perm_pvalue_uniformity_gate
-run_ignored antecedent-stats knn_perm_pvalue_uniformity_gate
-run_ignored antecedent-stats multivariate_block_calibration_gate
-run_ignored antecedent-stats multivariate_block_shuffle_calibration_gate
-run_ignored antecedent-stats gpdc_block_shuffle_autocorrelated_type_i_gate
-run_ignored antecedent-stats knn_unconditional_block_shuffle_autocorrelated_type_i_gate
-run_ignored antecedent-stats parcorr_conditional_null_gate
-run_ignored antecedent-stats robust_parcorr_conditional_null_gate
-run_ignored antecedent-stats weighted_parcorr_conditional_null_gate
-run_ignored antecedent-stats gsquared_conditional_null_gate
-run_ignored antecedent-stats symbolic_cmi_conditional_null_gate
-run_ignored antecedent-stats knn_conditional_null_gate
-run_ignored antecedent-stats gpdc_conditional_null_gate
-run_ignored antecedent-stats gpdc_nystrom_conditional_null_gate
-run_ignored antecedent-stats gpdc_nystrom_conditional_null_large_n_gate
-run_ignored antecedent-stats gpdc_nystrom_conditional_power_gate
-run_ignored antecedent-stats conditional_gpdc_beyond_4k_8000_rows
-run_ignored antecedent-stats conditional_gpdc_beyond_4k_20000_rows
-run_ignored antecedent-stats scalable_gpdc_replacement_validated_separately
-run_ignored antecedent-validate nonparametric_sensitivity_beyond_20k_100000_rows
-run_ignored antecedent-validate scalable_sensitivity_replacement_validated_separately
-run_ignored antecedent-stats parcorr_block_shuffle_conditional_autocorrelated_type_i_gate
-run_ignored antecedent-stats weighted_parcorr_block_shuffle_conditional_autocorrelated_type_i_gate
+run_ignored antecedent-stats robust_parcorr_calibration_gate ci::calibration::tests::robust_parcorr_calibration_gate
+run_ignored antecedent-stats weighted_parcorr_calibration_gate ci::calibration::tests::weighted_parcorr_calibration_gate
+run_ignored antecedent-stats gsquared_calibration_gate ci::calibration::tests::gsquared_calibration_gate
+run_ignored antecedent-stats knn_dependence_calibration_gate ci::calibration::tests::knn_dependence_calibration_gate
+run_ignored antecedent-stats parcorr_perm_pvalue_uniformity_gate ci::calibration::tests::parcorr_perm_pvalue_uniformity_gate
+run_ignored antecedent-stats knn_perm_pvalue_uniformity_gate ci::calibration::tests::knn_perm_pvalue_uniformity_gate
+run_ignored antecedent-stats multivariate_block_calibration_gate ci::calibration::tests::multivariate_block_calibration_gate
+run_ignored antecedent-stats multivariate_block_shuffle_calibration_gate ci::calibration::tests::multivariate_block_shuffle_calibration_gate
+run_ignored antecedent-stats gpdc_block_shuffle_autocorrelated_type_i_gate ci::calibration::tests::gpdc_block_shuffle_autocorrelated_type_i_gate
+run_ignored antecedent-stats knn_unconditional_block_shuffle_autocorrelated_type_i_gate ci::calibration::tests::knn_unconditional_block_shuffle_autocorrelated_type_i_gate
+run_ignored antecedent-stats parcorr_conditional_null_gate ci::calibration::tests::parcorr_conditional_null_gate
+run_ignored antecedent-stats robust_parcorr_conditional_null_gate ci::calibration::tests::robust_parcorr_conditional_null_gate
+run_ignored antecedent-stats weighted_parcorr_conditional_null_gate ci::calibration::tests::weighted_parcorr_conditional_null_gate
+run_ignored antecedent-stats gsquared_conditional_null_gate ci::calibration::tests::gsquared_conditional_null_gate
+run_ignored antecedent-stats symbolic_cmi_conditional_null_gate ci::calibration::tests::symbolic_cmi_conditional_null_gate
+run_ignored antecedent-stats knn_conditional_null_gate ci::calibration::tests::knn_conditional_null_gate
+run_ignored antecedent-stats gpdc_conditional_null_gate ci::calibration::tests::gpdc_conditional_null_gate
+run_ignored antecedent-stats gpdc_nystrom_conditional_null_gate ci::calibration::tests::gpdc_nystrom_conditional_null_gate
+run_ignored antecedent-stats gpdc_nystrom_conditional_null_large_n_gate ci::calibration::tests::gpdc_nystrom_conditional_null_large_n_gate
+run_ignored antecedent-stats gpdc_nystrom_conditional_power_gate ci::calibration::tests::gpdc_nystrom_conditional_power_gate
+run_ignored antecedent-stats conditional_gpdc_beyond_4k_8000_rows ci::calibration::tests::conditional_gpdc_beyond_4k_8000_rows
+run_ignored antecedent-stats conditional_gpdc_beyond_4k_20000_rows ci::calibration::tests::conditional_gpdc_beyond_4k_20000_rows
+run_ignored antecedent-stats scalable_gpdc_replacement_validated_separately ci::calibration::tests::scalable_gpdc_replacement_validated_separately
+run_ignored antecedent-validate nonparametric_sensitivity_beyond_20k_100000_rows sensitivity::scalable_cases::nonparametric_sensitivity_beyond_20k_100000_rows
+run_ignored antecedent-validate scalable_sensitivity_replacement_validated_separately sensitivity::scalable_cases::scalable_sensitivity_replacement_validated_separately
+run_ignored antecedent-stats parcorr_block_shuffle_conditional_autocorrelated_type_i_gate ci::calibration::tests::parcorr_block_shuffle_conditional_autocorrelated_type_i_gate
+run_ignored antecedent-stats weighted_parcorr_block_shuffle_conditional_autocorrelated_type_i_gate ci::calibration::tests::weighted_parcorr_block_shuffle_conditional_autocorrelated_type_i_gate
 
 echo "== Discovery null FPR / power (antecedent-discovery) =="
-run_ignored antecedent-discovery pc_null_fpr_near_alpha
-run_ignored antecedent-discovery pcmci_null_fpr_near_alpha
-run_ignored antecedent-discovery pcmci_planted_lag1_power
+run_ignored antecedent-discovery pc_null_fpr_near_alpha pc::tests::pc_null_fpr_near_alpha
+run_ignored antecedent-discovery pcmci_null_fpr_near_alpha pcmci::calibration_tests::pcmci_null_fpr_near_alpha
+run_ignored antecedent-discovery pcmci_planted_lag1_power pcmci::calibration_tests::pcmci_planted_lag1_power
 # Graph-posterior samplers at ten and twelve variables reproduce the exact posterior: the gate
 # passes and every marginal is within its Monte-Carlo error of exact_dag_marginals
 # (crates/antecedent-discovery/src/graph_posterior_calibration.rs): published conditions only.
-run_ignored antecedent-discovery structure_mcmc_marginals_match_the_exact_posterior_at_ten_variables
-run_ignored antecedent-discovery structure_mcmc_marginals_match_the_exact_posterior_at_twelve_variables
-run_ignored antecedent-discovery order_mcmc_marginals_match_the_exact_posterior_at_ten_variables
-run_ignored antecedent-discovery order_mcmc_marginals_match_the_exact_posterior_at_twelve_variables
-run_ignored antecedent-discovery structure_mcmc_marginals_match_the_exact_posterior_at_other_parent_caps
-run_ignored antecedent-discovery order_mcmc_marginals_match_the_exact_posterior_at_other_parent_caps
+run_ignored antecedent-discovery structure_mcmc_marginals_match_the_exact_posterior_at_ten_variables graph_posterior_calibration::structure_mcmc_marginals_match_the_exact_posterior_at_ten_variables
+run_ignored antecedent-discovery structure_mcmc_marginals_match_the_exact_posterior_at_twelve_variables graph_posterior_calibration::structure_mcmc_marginals_match_the_exact_posterior_at_twelve_variables
+run_ignored antecedent-discovery order_mcmc_marginals_match_the_exact_posterior_at_ten_variables graph_posterior_calibration::order_mcmc_marginals_match_the_exact_posterior_at_ten_variables
+run_ignored antecedent-discovery order_mcmc_marginals_match_the_exact_posterior_at_twelve_variables graph_posterior_calibration::order_mcmc_marginals_match_the_exact_posterior_at_twelve_variables
+run_ignored antecedent-discovery structure_mcmc_marginals_match_the_exact_posterior_at_other_parent_caps graph_posterior_calibration::structure_mcmc_marginals_match_the_exact_posterior_at_other_parent_caps
+run_ignored antecedent-discovery order_mcmc_marginals_match_the_exact_posterior_at_other_parent_caps graph_posterior_calibration::order_mcmc_marginals_match_the_exact_posterior_at_other_parent_caps
 
 echo "== coordinates measured at the level the facade publishes (0.95) and at 0.90 =="
 run_suite() {

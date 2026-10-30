@@ -100,6 +100,41 @@ class ClosureTest(unittest.TestCase):
         evidence = {"status": "bound", "test": f"{rel}::{name}", **evidence}
         return manifest.evidence_problems("c", evidence, self.root, kind)
 
+    def test_multiline_signature_and_numpy_assertion(self) -> None:
+        source = ("class Suite:\n"
+                  "    def test_case(\n        self,\n    ):\n"
+                  "        np.testing.assert_allclose(actual, expected)\n")
+        path = self.put("scripts/test_s.py", source)
+        self.assertEqual(self.problems(path, "test_case"), [])
+        path = self.put("scripts/test_s.py", source.replace("np.testing.assert_allclose(actual, expected)", "verify_allclose(actual, expected)"))
+        self.assertTrue(any("asserts nothing" in p for p in self.problems(path, "test_case")))
+
+    def test_indented_python_method_and_helper_are_checked_separately(self) -> None:
+        source = ("class Suite:\n"
+                  "    def test_case(self):\n"
+                  "        check_value()\n"
+                  "        self.assertEqual(1, 1)\n"
+                  "def check_value():\n"
+                  "    return 1\n")
+        path = self.put("scripts/test_s.py", source)
+        self.assertEqual(self.problems(path, "test_case"), [])
+        source = source.replace("        self.assertEqual(1, 1)\n", "")
+        path = self.put("scripts/test_s.py", source)
+        self.assertTrue(any("asserts nothing" in p for p in self.problems(path, "test_case")))
+
+    def test_helper_names_do_not_substitute_for_real_assertions(self) -> None:
+        for helper in ("expect_value", "verify_result", "require_success", "gate"):
+            source = f"#[test]\nfn case_test() {{ {helper}(); }}\nfn {helper}() {{ let _x = 1; }}\n"
+            path = self.put("crates/c/tests/t.rs", source)
+            with self.subTest(helper=helper):
+                self.assertTrue(any("asserts nothing" in p for p in self.problems(path, "case_test")))
+        source = '#[test]\nfn case_test() { verify_result(); }\nfn verify_result() { assert_eq!(1, 2); }\n'
+        path = self.put("crates/c/tests/t.rs", source)
+        self.assertEqual(self.problems(path, "case_test"), [])
+        source = '#[test]\nfn case_test() { /* assert!(false); */ let _x = "assert!(false)"; }\n'
+        path = self.put("crates/c/tests/t.rs", source)
+        self.assertTrue(any("asserts nothing" in p for p in self.problems(path, "case_test")))
+
     def test_a_case_cannot_close_on_an_audit_limit_failed_measurement_or_deferral(self) -> None:
         rust = self.put(
             "crates/c/tests/t.rs", GOOD_RUST + "\nfn not_a_test() {\n    assert!(true);\n}\n"

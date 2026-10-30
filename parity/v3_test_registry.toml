@@ -20640,3 +20640,10 @@ crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_v3_evidence_revisions.py"
 gates = ["inventory"]
+
+[[test]]
+id = "audit-calibration-exact-filters"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_calibration_exact_filters.py"
+gates = ["inventory"]

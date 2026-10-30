@@ -2548,7 +2548,7 @@ configuration = { donors = 20000, feature = "ties" }
 expected = { kind = "value", outputs = ["ties behave exactly as in the reference path"] }
 targets = { runtime_seconds = 120, memory_bytes = 4294967296, rationale = "Sorted one-dimensional matching is O(n log n); multivariate paths use bounded-memory blocked search." }
 dataset = { generator = "propensity_matching_population", seed = 7297538, n = 20000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "crates/antecedent-estimate/src/propensity/matching/scale_tests.rs::sorted_matching_preserves_ties" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/src/propensity/matching/scale_tests.rs::sorted_matching_averages_over_ties" }
 
 [[case]]
 id = "sorted_matching_preserves_calipers"
@@ -2898,7 +2898,7 @@ configuration = { rows = 2000 }
 expected = { kind = "value", outputs = ["bit-identical to previous exact behaviour"] }
 targets = { runtime_seconds = 60, memory_bytes = 4294967296, rationale = "Scalable replacements must be near-linear; the old 4k/20k boundaries set the lower scale of interest." }
 dataset = { generator = "conditional_independence_testbed", seed = 6075547, n = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "crates/antecedent-stats/src/ci/advanced.rs::exact_conditional_gpdc_retained_at_small_sizes" }
+evidence = { status = "bound", test = "crates/antecedent-stats/src/ci/advanced/gpdc_tests.rs::exact_conditional_gpdc_retained_at_small_sizes" }
 
 [[case]]
 id = "exact_sensitivity_retained_at_small_sizes"
@@ -2958,7 +2958,7 @@ configuration = { nodes = 14 }
 expected = { kind = "value", outputs = ["audit completes", "completion membership and equivalence-audit semantics preserved"] }
 targets = { runtime_seconds = 600, memory_bytes = 8589934592, rationale = "Search is exponential in the limiting structure; completed cases are chosen to finish within minutes with explicit visited-state caps." }
 dataset = { generator = "structured_graph_family", seed = 6262955, nodes = 14, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "crates/antecedent-identify/src/sid/z_transport.rs::a_fourteen_node_graph_completes_and_its_derivation_audit_is_reproduced" }
+evidence = { status = "bound", test = "crates/antecedent-identify/src/sid/z_transport/tests.rs::a_fourteen_node_graph_completes_and_its_derivation_audit_is_reproduced" }
 
 [[case]]
 id = "completed_conditional_independence_query_with_more_than_32_columns"
@@ -3008,7 +3008,7 @@ configuration = { budget = "exhausted" }
 expected = { kind = "refusal", outputs = ["names the exhausted budget"], refusal = "graph search budget" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Search is exponential in the limiting structure; completed cases are chosen to finish within minutes with explicit visited-state caps." }
 dataset = { generator = "structured_graph_family", seed = 1870145, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "crates/antecedent-identify/src/sid/z_transport.rs::an_exhausted_search_budget_is_refused_naming_the_budget_and_its_limits" }
+evidence = { status = "bound", test = "crates/antecedent-identify/src/sid/z_transport/tests.rs::an_exhausted_search_budget_is_refused_naming_the_budget_and_its_limits" }
 
 [[case]]
 id = "shared_exogenous_finite_scm_one_realization_across_mechanisms"
@@ -3213,12 +3213,12 @@ evidence = { status = "bound", test = "python/tests/test_graph_posterior_accepta
 [[case]]
 id = "graph_posterior_beyond_supported_size_refused"
 area = "graph_posteriors"
-workflow = "antecedent.discovery.discover_exact_dag_posterior"
+workflow = "antecedent.discovery.ExactDagPosterior.run"
 configuration = { variables = 16 }
-expected = { kind = "refusal", outputs = ["names the published supported size"], refusal = "posterior size" }
+expected = { kind = "refusal", outputs = ["names the exact-marginal work budget and its 15-variable ceiling"], refusal = "exact posterior work budget" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Exact order-based posteriors are exponential in variables; 12 variables stay within minutes with subset DP." }
 dataset = { generator = "tractable_posterior_scm", seed = 1677237, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "python/tests/test_graph_posterior_acceptance.py::test_posteriors_beyond_the_supported_size_are_refused_naming_the_size" }
+evidence = { status = "bound", test = "python/tests/test_graph_posterior_acceptance.py::test_exact_marginals_beyond_their_work_budget_are_refused_naming_the_ceiling" }
 
 [[case]]
 id = "observational_survival_effect_calibrated_1000"
