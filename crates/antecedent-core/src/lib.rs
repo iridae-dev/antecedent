@@ -179,8 +179,8 @@ pub use query::{
     TheoremFamily, TheoremScope, TransportEvaluateSupport, TransportFault,
     TransportIdentifySupport, TransportLocation, TransportOutcome, TransportOutcomeKind,
     TransportQuery, TransportSupportCoordinate, TransportUncertaintySupport, UnitChangeQuery,
-    UnmetDependency, VariableCoordinate, VariableDomain, policy_graphless_coordinate,
-    randomized_graphless_coordinate,
+    UnmetDependency, VariableCoordinate, VariableDomain, policy_assignment_cost_within_budget,
+    policy_graphless_coordinate, randomized_graphless_coordinate,
 };
 pub use query::{
     AssociationFunctional, AssociationMeasure, AssociationOutcome, AssociationQuery,
@@ -192,15 +192,15 @@ pub use query::{
     IntrinsicInfluenceTarget, MechanismChangeTest, NoiseDeclaration, ScreenWeight, SearchBounds,
     SearchSchedule, SimulateQuery, SimulationTarget,
 };
-pub use query::{CounterfactualEvent, CounterfactualEventQuery};
-pub use query::{
-    CrossWorldQuery, EdgeRoute, ExogenousCoupling, WorldId, WorldObservation, WorldSpec,
-};
 pub use query::{
     AttritionShiftBound, DidAggregation, DidBasePeriod, DidComparisonGroup, DidNuisanceMethod,
     DidResampling, DidResamplingScheme, HeterogeneityRobustDid, LocalBandwidthRule,
     LocalRatioOptions, PanelObservationProcess, RolloutDidEstimator, SyntheticInterval,
     SyntheticRollout,
+};
+pub use query::{CounterfactualEvent, CounterfactualEventQuery};
+pub use query::{
+    CrossWorldQuery, EdgeRoute, ExogenousCoupling, WorldId, WorldObservation, WorldSpec,
 };
 pub use query::{
     OutcomeMisclassification, TemporalAssignment, TemporalDesignFunctional, TemporalDesignQuery,

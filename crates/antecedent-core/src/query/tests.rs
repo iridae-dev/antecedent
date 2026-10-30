@@ -257,3 +257,49 @@ fn mediation_binary_defaults_to_horizon_one() {
     assert!(matches!(q.clone().with_horizons([0u32]), Err(QueryError::NonPositiveHorizon)));
     assert!(matches!(q.with_horizons([2u32, 2]), Err(QueryError::InvalidResponse(_))));
 }
+
+#[test]
+fn contrast_queries_validate_both_declared_intervention_bodies() {
+    let t = VariableId::from_raw(0);
+    let y = VariableId::from_raw(1);
+    let templates = [
+        CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(t, y)),
+        CausalQuery::TemporalEffect(TemporalEffectQuery::pulse(t, y, 1.0)),
+        CausalQuery::Mediation(MediationQuery::binary(
+            t,
+            y,
+            Arc::from([VariableId::from_raw(2)]),
+            MediationContrast::Total,
+        )),
+        CausalQuery::PathSpecific(PathSpecificEffectQuery::binary(t, y)),
+    ];
+    let invalid = [
+        Intervention::set(t, Value::f64(f64::NAN)),
+        Intervention::set(t, Value::f64(f64::INFINITY)),
+        Intervention::Stochastic { variable: t, policy: crate::StochasticPolicy::bernoulli(2.0) },
+    ];
+    for template in templates {
+        template.validate().unwrap();
+        for body in &invalid {
+            for replace_active in [false, true] {
+                let mut query = template.clone();
+                let (control, active) = match &mut query {
+                    CausalQuery::AverageEffect(q) => (&mut q.control, &mut q.active),
+                    CausalQuery::TemporalEffect(q) => (&mut q.control, &mut q.active),
+                    CausalQuery::Mediation(q) => (&mut q.control, &mut q.active),
+                    CausalQuery::PathSpecific(q) => (&mut q.control, &mut q.active),
+                    _ => unreachable!(),
+                };
+                if replace_active {
+                    *active = body.clone();
+                } else {
+                    *control = body.clone();
+                }
+                assert!(
+                    matches!(query.validate(), Err(QueryError::InvalidIntervention(_))),
+                    "{query:?}"
+                );
+            }
+        }
+    }
+}

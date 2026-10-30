@@ -65,6 +65,13 @@ pub(crate) fn within_budget(total: f64, limit: f64) -> bool {
         <= limit + COST_ABSOLUTE_TOLERANCE + COST_RELATIVE_TOLERANCE * total.abs().max(limit.abs())
 }
 
+/// Whether a finite nonnegative assignment cost is within a finite nonnegative budget,
+/// using the same rounding allowance as policy query validation.
+#[must_use]
+pub fn policy_assignment_cost_within_budget(total: f64, budget: f64) -> bool {
+    total >= 0.0 && budget >= 0.0 && within_budget(total, budget)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -86,6 +93,14 @@ mod tests {
     fn agreement_is_tighter_than_the_row_total() {
         assert!(probabilities_agree(0.5, 0.5 + 1e-13));
         assert!(!probabilities_agree(0.5, 0.5 + 1e-9));
+    }
+
+    #[test]
+    fn public_policy_budget_check_matches_contract_and_rejects_nonfinite() {
+        assert!(policy_assignment_cost_within_budget(0.1 + 0.1 + 0.1, 0.3));
+        assert!(!policy_assignment_cost_within_budget(0.3, 0.2999));
+        assert!(!policy_assignment_cost_within_budget(f64::INFINITY, f64::INFINITY));
+        assert!(!policy_assignment_cost_within_budget(-1.0, 1.0));
     }
 
     #[test]

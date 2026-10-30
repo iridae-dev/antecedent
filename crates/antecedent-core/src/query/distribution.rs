@@ -213,6 +213,11 @@ impl PathSpecificEffectQuery {
         if self.path_nodes.iter().any(|&n| n == self.treatment || n == self.outcome) {
             return Err(QueryError::PathNodeOverlapsTreatmentOrOutcome);
         }
+        for intervention in [&self.control, &self.active] {
+            intervention.validate().map_err(|error| {
+                QueryError::InvalidIntervention(super::fault::InterventionFault::Rejected(error))
+            })?;
+        }
         let control_var =
             self.control.primary_variable().ok_or(QueryError::AmbiguousInterventionTarget)?;
         if control_var != self.treatment {

@@ -150,6 +150,11 @@ impl MediationQuery {
         if self.mediators.iter().any(|&m| m == self.treatment || m == self.outcome) {
             return Err(QueryError::MediatorOverlapsTreatmentOrOutcome);
         }
+        for intervention in [&self.control, &self.active] {
+            intervention.validate().map_err(|error| {
+                QueryError::InvalidIntervention(super::fault::InterventionFault::Rejected(error))
+            })?;
+        }
         let control_var =
             self.control.primary_variable().ok_or(QueryError::AmbiguousInterventionTarget)?;
         if control_var != self.treatment {

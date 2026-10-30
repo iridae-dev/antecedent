@@ -103,6 +103,7 @@ pub use policy_value::{
     policy_graphless_coordinate,
 };
 pub use population::{PopulationRegistry, PopulationSelection};
+pub use probability::policy_assignment_cost_within_budget;
 pub use probability_rows::{ProbabilityRows, ProbabilityTable};
 pub use randomized::{
     RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand, randomized_graphless_coordinate,
