@@ -8,11 +8,27 @@ use antecedent_stats::{
 use crate::EstimationError;
 
 use super::{
-    ADE_NUISANCE_PENALTY, CONDITIONAL_DENSITY_FLOOR, ContinuousResponseEstimator, CrossFitFold, GAM_TARGET_NOT_CONVERGED,
-    NUISANCE_BACKFIT, PLUGIN_TARGET_LAMBDA, PseudoOutcome, ensure_crossfit_size, fit_additive,
-    fit_additive_design, plugin::predict_one, require_converged_gam, sample::CompleteSample,
-    treatment_sigma, treatment_sigma_train_weighted,
+    ADE_NUISANCE_PENALTY, CONDITIONAL_DENSITY_FLOOR, ContinuousResponseEstimator, CrossFitFold,
+    GAM_TARGET_NOT_CONVERGED, NUISANCE_BACKFIT, PLUGIN_TARGET_LAMBDA, PseudoOutcome,
+    ensure_crossfit_size, fit_additive, fit_additive_design, plugin::predict_one,
+    require_converged_gam, sample::CompleteSample, treatment_sigma, treatment_sigma_train_weighted,
 };
+
+/// Density ratio with a dimensionless conditional-density floor.
+pub(super) fn kennedy_density_ratio(
+    conditional: f64,
+    marginal: f64,
+    sigma: f64,
+) -> Result<(f64, bool), EstimationError> {
+    if !sigma.is_finite() || sigma <= 0.0 {
+        return Err(EstimationError::unsupported(
+            "Gaussian treatment nuisance has degenerate residual variance",
+        ));
+    }
+    let standardized = sigma * conditional;
+    let floored = !standardized.is_finite() || standardized <= CONDITIONAL_DENSITY_FLOOR;
+    Ok((sigma * marginal / standardized.max(CONDITIONAL_DENSITY_FLOOR), floored))
+}
 
 impl ContinuousResponseEstimator {
     pub(super) fn cross_fitted_pseudo_outcome(
@@ -227,15 +243,13 @@ impl ContinuousResponseEstimator {
                 };
                 let raw_density =
                     gaussian_density(sample.treatment_matrix[i], treatment_mean, sigma);
-                if !raw_density.is_finite() || raw_density <= CONDITIONAL_DENSITY_FLOOR {
-                    density_floor_rows += 1;
-                }
-                let conditional_density = raw_density.max(CONDITIONAL_DENSITY_FLOOR);
                 let marginal_density = marginal_mixture.density(sample.treatment_matrix[i]);
+                let (density_ratio, floored) =
+                    kennedy_density_ratio(raw_density, marginal_density, sigma)?;
+                density_floor_rows += usize::from(floored);
                 let marginal_mu = covariate_offset
                     + outcome_fit.smooth_partial(treat_smooth, sample.treatment_matrix[i])?;
-                pseudo[i] = marginal_mu
-                    + (sample.outcome[i] - mu_observed) * marginal_density / conditional_density;
+                pseudo[i] = marginal_mu + (sample.outcome[i] - mu_observed) * density_ratio;
                 covariate_centered[i] = mu_observed - marginal_mu;
             }
         }

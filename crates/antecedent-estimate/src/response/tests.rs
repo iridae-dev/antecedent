@@ -338,6 +338,106 @@ fn confounded_curve(n: usize) -> (TabularData, VariableId, VariableId, VariableI
 }
 
 #[test]
+fn kennedy_density_floor_has_the_same_boundary_in_any_treatment_units() {
+    use super::nuisance::kennedy_density_ratio;
+    for relative_density in [0.5 * CONDITIONAL_DENSITY_FLOOR, 2.0 * CONDITIONAL_DENSITY_FLOOR] {
+        let expected = 0.2 / relative_density.max(CONDITIONAL_DENSITY_FLOOR);
+        for sigma in [1e-12, 1.0, 1e12] {
+            let (ratio, floored) =
+                kennedy_density_ratio(relative_density / sigma, 0.2 / sigma, sigma).unwrap();
+            assert_eq!(floored, relative_density <= CONDITIONAL_DENSITY_FLOOR);
+            assert!((ratio / expected - 1.0).abs() < 1e-12);
+        }
+    }
+    for sigma in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+        assert!(kennedy_density_ratio(0.2, 0.3, sigma).is_err());
+    }
+}
+
+#[test]
+fn kennedy_pseudo_outcomes_curves_and_derivatives_respect_treatment_units() {
+    let (data, a, y, x) = confounded_curve(160);
+    let original_a = data.float64_values(a).unwrap();
+    let original_y = data.float64_values(y).unwrap();
+    let original_x = data.float64_values(x).unwrap();
+    let run = |factor: f64| {
+        let treatments: Vec<f64> = original_a.iter().map(|v| factor * v).collect();
+        let scaled = TabularData::from_f64_columns([
+            ("a", treatments.as_slice()),
+            ("y", original_y.as_ref()),
+            ("x", original_x.as_ref()),
+        ])
+        .unwrap();
+        let mut estimator = ContinuousResponseEstimator::new([x]);
+        estimator.options.bandwidth = Some(0.35 * factor);
+        let sample = CompleteSample::read(&scaled, y, &[a], &[x]).unwrap();
+        let pseudo = estimator.cross_fitted_pseudo_outcome(&sample).unwrap();
+        let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: y,
+            treatment: ContinuousDomain::new(
+                a,
+                GridSpec::Values(Arc::from([-0.3 * factor, 0.0, 0.3 * factor])),
+            ),
+        });
+        let curve = estimator
+            .estimate_identified(
+                &scaled,
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+            )
+            .unwrap();
+        let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
+            curve.estimate
+        else {
+            panic!("expected a response curve")
+        };
+        let query = ResponseQuery::new(ResponseFunctional::PointDerivative {
+            outcome: y,
+            treatment: a,
+            at: 0.2 * factor,
+            order: 1,
+            scale: DerivativeScale::Identity,
+        });
+        let derivative = estimator
+            .estimate_identified(
+                &scaled,
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+            )
+            .unwrap();
+        let ResponseIdentification::PointIdentified(ResponseValue::Scalar(slope)) =
+            derivative.estimate
+        else {
+            panic!("expected a scalar derivative")
+        };
+        (pseudo, mean, slope * factor)
+    };
+    let (baseline, curve, slope) = run(1.0);
+    for factor in [1e-6, 1e8] {
+        let (scaled, scaled_curve, scaled_slope) = run(factor);
+        assert_eq!(scaled.density_floor_rows, baseline.density_floor_rows, "scale={factor}");
+        for (actual, expected) in scaled.values.iter().zip(&baseline.values) {
+            assert!(
+                (actual - expected).abs() < 1e-5 * expected.abs().max(1.0),
+                "scale={factor}: pseudo {actual} vs {expected}"
+            );
+        }
+        for (actual, expected) in scaled_curve.iter().zip(curve.iter()) {
+            assert!(
+                (actual - expected).abs() < 1e-5 * expected.abs().max(1.0),
+                "scale={factor}: curve {actual} vs {expected}"
+            );
+        }
+        assert!(
+            (scaled_slope - slope).abs() < 1e-5 * slope.abs().max(1.0),
+            "scale={factor}: derivative {scaled_slope} vs {slope}"
+        );
+    }
+}
+
+#[test]
 fn dr_curve_calibrates_linear_response_and_reports_support() {
     let (data, a, y, x) = confounded_curve(500);
     let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
@@ -591,7 +691,7 @@ fn pseudo_outcome_additive_hoist_matches_brute_force_double_loop() {
                 };
                 let raw_density =
                     gaussian_density(sample.treatment_matrix[i], treatment_mean, sigma);
-                let conditional_density = raw_density.max(CONDITIONAL_DENSITY_FLOOR);
+                let conditional_density = (sigma * raw_density).max(CONDITIONAL_DENSITY_FLOOR);
                 let mut marginal_density = 0.0;
                 for &j in &train {
                     let mean_j = match treatment_fit.as_ref() {
@@ -609,7 +709,8 @@ fn pseudo_outcome_additive_hoist_matches_brute_force_double_loop() {
                 }
                 marginal_mu /= n as f64;
                 brute[i] = marginal_mu
-                    + (sample.outcome[i] - mu_observed) * marginal_density / conditional_density;
+                    + (sample.outcome[i] - mu_observed) * (sigma * marginal_density)
+                        / conditional_density;
             }
         }
         for (i, (&fast_i, &brute_i)) in fast.values.iter().zip(&brute).enumerate() {

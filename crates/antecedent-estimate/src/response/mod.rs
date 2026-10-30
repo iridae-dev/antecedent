@@ -56,8 +56,8 @@ mod tests;
 mod transform;
 use band::{simultaneous_multiplier_band, simultaneous_posterior_band};
 use crossfit::{
-    ADE_NUISANCE_PENALTY, CrossFitFold, NUISANCE_BACKFIT, ensure_crossfit_size, fit_additive, fit_additive_design,
-    require_converged_gam, treatment_sigma, treatment_sigma_train_weighted,
+    ADE_NUISANCE_PENALTY, CrossFitFold, NUISANCE_BACKFIT, ensure_crossfit_size, fit_additive,
+    fit_additive_design, require_converged_gam, treatment_sigma, treatment_sigma_train_weighted,
 };
 use policy::{
     DiscreteAtom, additive_policy_rows, exact_discrete_intervention_rows,
@@ -110,7 +110,9 @@ fn local_design_refusal(
     )
 }
 
-/// Lower clamp on the fitted conditional treatment density in the Kennedy weight.
+/// Lower clamp on `sigma * conditional_density` in the Kennedy weight, where
+/// sigma is the fitted treatment model's residual standard deviation. This is
+/// dimensionless, so changing treatment units does not change the clamp.
 ///
 /// A clamped row has an unbounded inverse weight, so every clamp is counted and
 /// surfaced as a positivity diagnostic rather than absorbed silently.

@@ -540,9 +540,17 @@ fn local_variance_degrees_of_freedom(
             [d * row[0], d * row[1], d * row[2], w * inv_row[0], w * inv_row[1], w * inv_row[2]];
         basis.extend_from_slice(&u);
         for j in 0..3 {
-            for k in 0..3 {
+            for k in 0..=j {
                 h[j][k] += d * row[j] * row[k];
             }
+        }
+    }
+    // A weighted outer product is symmetric. Mirror one accumulated triangle
+    // exactly: differently associated products can round apart in dose units
+    // far from one and must not be passed off as an asymmetric quadratic core.
+    for j in 0..3 {
+        for k in 0..j {
+            h[k][j] = h[j][k];
         }
     }
     let mut c = [[0.0; 6]; 6];
@@ -621,7 +629,7 @@ fn fit_local_quadratic(
         let row = [1.0, dx, dx * dx];
         for j in 0..3 {
             rhs[j] += w * row[j] * yi;
-            for k in 0..3 {
+            for k in 0..=j {
                 gram[j][k] += w * row[j] * row[k];
                 squared_gram[j][k] += w * w * row[j] * row[k];
             }
@@ -629,6 +637,12 @@ fn fit_local_quadratic(
         workspace.weights.push((w, row, yi));
         weight_sum += w;
         weight_sq_sum += w * w;
+    }
+    for j in 0..3 {
+        for k in 0..j {
+            gram[k][j] = gram[j][k];
+            squared_gram[k][j] = squared_gram[j][k];
+        }
     }
     // A local quadratic spends three degrees of freedom; below that the residual
     // scale is not estimable and any interval would be invented rather than fitted.
@@ -1168,6 +1182,39 @@ mod tests {
         assert!((corrected.first_derivative - truth_first).abs() < 1e-9);
         assert!((corrected.second_derivative - (1.0 + 6.0 * at)).abs() < 1e-9);
         assert!((corrected.value - (1.0 + 2.0 * at + 0.5 * at * at + at.powi(3))).abs() < 1e-10);
+    }
+
+    #[test]
+    fn adjusted_local_variance_degrees_of_freedom_respect_treatment_units() {
+        let x: Vec<f64> = (-100..=100).map(|i| f64::from(i) / 50.0).collect();
+        let y: Vec<f64> = x
+            .iter()
+            .enumerate()
+            .map(|(i, x)| 1.0 + 2.0 * x + 0.5 * x * x + (i as f64 * 0.73).sin() * 0.1)
+            .collect();
+        let fit = |scale: f64| {
+            let x: Vec<f64> = x.iter().map(|x| x * scale).collect();
+            gaussian_local_quadratic_adjusted_influence_prechecked(
+                &mut LocalQuadraticWorkspace::default(),
+                &x,
+                &y,
+                0.3 * scale,
+                0.5 * scale,
+            )
+            .unwrap()
+        };
+        let original = fit(1.0);
+        for scale in [1e-6, 1e8] {
+            let scaled = fit(scale);
+            assert!((scaled.point.value - original.point.value).abs() < 1e-10);
+            assert!(
+                (scaled.variance_degrees_of_freedom.unwrap()
+                    / original.variance_degrees_of_freedom.unwrap()
+                    - 1.0)
+                    .abs()
+                    < 1e-8
+            );
+        }
     }
 
     #[test]
