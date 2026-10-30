@@ -531,10 +531,12 @@ fn fit_candidates(
         successes.sort_by(|a, b| a.0.total_cmp(&b.0));
     }
     let Some((_, values, choice)) = successes.into_iter().next() else {
-        return Err(PanelError::Numerical(format!(
-            "no temporal candidate met numerical tolerance; {} attempted",
-            attempts.len()
-        )));
+        let message = if weak {
+            "no eligible temporal candidate met numerical tolerance after the required smooth attempt"
+        } else {
+            "no temporal candidate met numerical tolerance"
+        };
+        return Err(PanelError::Numerical(format!("{message}; {} attempted", attempts.len())));
     };
     Ok(Selected { values, choice, attempts, smooth: weak })
 }

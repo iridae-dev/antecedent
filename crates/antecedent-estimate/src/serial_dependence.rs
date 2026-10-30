@@ -770,7 +770,7 @@ impl ResidualFit {
         if fit.exact {
             return Ok(fit);
         }
-        let kernel = RemlKernel::new(x, &fit.residuals, n, p);
+        let kernel = RemlKernel::new(x, &fit.residuals, n, p)?;
         fit.model = reml_autoregression(&kernel);
         let q = fit.model.z.len();
         // Quadratic forms at z and on the delta-method stencil, each with its projected trace.
@@ -1272,10 +1272,44 @@ struct RemlKernel {
     /// leading block, the factor, `X̃'ẽ`, `β̃` and the
     /// forward-substitution scratch.
     scratch: std::cell::RefCell<Vec<f64>>,
+    _admission: Option<antecedent_core::execution::AdmissionLease>,
+}
+
+fn reml_kernel_bytes(n: usize, p: usize) -> Option<usize> {
+    use std::mem::size_of;
+    let m = p.checked_add(1)?;
+    let q = schwert_order(n).min(n.checked_sub(p)?.saturating_sub(2));
+    let m2 = m.checked_mul(m)?;
+    let blocks = q.checked_add(1)?.checked_mul(q.checked_add(2)?)?.checked_div(2)?;
+    let cells = q
+        .checked_mul(m)?
+        .checked_add(q.checked_add(1)?.checked_mul(m2)?)?
+        .checked_add(blocks.checked_mul(m2)?)?
+        .checked_add(m2)?
+        .checked_add(p.checked_mul(p)?.checked_mul(2)?)?
+        .checked_add(p.checked_mul(3)?)?;
+    cells
+        .checked_mul(size_of::<f64>())?
+        .checked_add(q.checked_mul(2)?.checked_mul(size_of::<usize>())?)
+}
+
+fn reml_poll() -> Result<(), EstimationError> {
+    if antecedent_core::numerical_admission::is_cancelled() {
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("cancelled_no_claim"),
+            "REML kernel construction was cancelled",
+        ));
+    }
+    Ok(())
 }
 
 impl RemlKernel {
-    fn new(x: &[f64], residuals: &[f64], n: usize, p: usize) -> Self {
+    fn new(x: &[f64], residuals: &[f64], n: usize, p: usize) -> Result<Self, EstimationError> {
+        let bytes = reml_kernel_bytes(n, p).ok_or(EstimationError::Admission(
+            antecedent_core::execution::AdmissionError::Overflow,
+        ))?;
+        reml_poll()?;
+        let admission = crate::util::admit_bound_array::<u8>(bytes, 1)?;
         let m = p + 1;
         let big_q = schwert_order(n).min((n - p).saturating_sub(2));
         let column = |c: usize| if c < p { &x[c * n..(c + 1) * n] } else { residuals };
@@ -1288,6 +1322,7 @@ impl RemlKernel {
         // Full-range lag products T_d[a][b] = Σ_{s ≥ d} a_s[a] a_{s−d}[b].
         let mut lag_products = vec![0.0; (big_q + 1) * m * m];
         for d in 0..=big_q {
+            reml_poll()?;
             for a in 0..m {
                 let ca = &column(a)[d..n];
                 for b in 0..m {
@@ -1303,6 +1338,7 @@ impl RemlKernel {
         let mut lagged = vec![0.0; blocks * m * m];
         for j in 0..=big_q {
             for k in j..=big_q {
+                reml_poll()?;
                 let d = k - j;
                 let base = Self::block(j, k, big_q) * m * m;
                 lagged[base..base + m * m]
@@ -1319,7 +1355,7 @@ impl RemlKernel {
             }
         }
         let scratch = std::cell::RefCell::new(vec![0.0; m * m + 2 * p * p + 3 * p]);
-        Self { n, p, m, max_order: big_q, top, lagged, scratch }
+        Ok(Self { n, p, m, max_order: big_q, top, lagged, scratch, _admission: admission })
     }
 
     /// Index of block `(j, k)`, `j ≤ k ≤ q`, in the packed upper triangle.
@@ -1865,11 +1901,47 @@ mod tests {
     }
 
     #[test]
+    fn reml_kernel_checks_shape_cancellation_and_holds_scratch_lease() {
+        use antecedent_core::{ExecutionContext, execution::AdmissionPool};
+        assert!(reml_kernel_bytes(usize::MAX, usize::MAX).is_none());
+        let n = 100;
+        let p = 2;
+        let x = vec![1.0; n * p];
+        let residuals = vec![0.1; n];
+        let low = ExecutionContext::for_tests(1).with_admission(AdmissionPool::fixed(1, 1));
+        assert!(
+            antecedent_core::numerical_admission::with_context(&low, || RemlKernel::new(
+                &x, &residuals, n, p
+            ))
+            .is_err()
+        );
+        let cancelled = ExecutionContext::for_tests(1);
+        cancelled.cancellation.cancel();
+        let error = antecedent_core::numerical_admission::with_context(&cancelled, || {
+            RemlKernel::new(&x, &residuals, n, p)
+        })
+        .err()
+        .unwrap();
+        assert_eq!(error.reason_code(), Some("cancelled_no_claim"));
+        let pool = AdmissionPool::fixed(1, 16_000_000);
+        let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
+        let before = pool.available().bytes();
+        let kernel = antecedent_core::numerical_admission::with_context(&ctx, || {
+            RemlKernel::new(&x, &residuals, n, p)
+        })
+        .unwrap();
+        assert!(pool.available().bytes() < before);
+        drop(kernel);
+        assert_eq!(pool.available().bytes(), before);
+    }
+
+    #[test]
     fn lagged_kernel_reproduces_the_row_wise_likelihood() {
         for (n, rho, seed) in [(60, 0.7, 1), (233, 0.2, 2), (800, 0.9, 3)] {
             let d = design(n, rho, seed);
             let fit = ResidualFit::new(&d).unwrap();
-            let kernel = RemlKernel::new(&d.matrix[..n * d.ncols], &fit.residuals, n, d.ncols);
+            let kernel =
+                RemlKernel::new(&d.matrix[..n * d.ncols], &fit.residuals, n, d.ncols).unwrap();
             for z in [
                 vec![],
                 vec![0.3],
@@ -2020,7 +2092,8 @@ mod tests {
         for (n, rho, seed) in [(200, 0.7, 11), (400, 0.9, 12), (2000, 0.5, 13)] {
             let d = design(n, rho, seed);
             let fit = ResidualFit::new(&d).unwrap();
-            let kernel = RemlKernel::new(&d.matrix[..n * d.ncols], &fit.residuals, n, d.ncols);
+            let kernel =
+                RemlKernel::new(&d.matrix[..n * d.ncols], &fit.residuals, n, d.ncols).unwrap();
             assert!(!fit.model.z.is_empty(), "n={n}: {:?}", fit.model);
             for shift in [0.15, -0.3] {
                 let start: Vec<f64> = fit.model.z.iter().map(|z| z + shift).collect();
