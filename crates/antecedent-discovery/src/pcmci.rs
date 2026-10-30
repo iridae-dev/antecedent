@@ -62,7 +62,7 @@ impl Pcmci {
         let frame = LaggedFrame::from_series(
             data,
             variables,
-            self.engine.frame_depth(),
+            self.engine.frame_depth()?,
             &ctx.kernel_policy,
         )?;
         self.run_with(&frame, variables, workspace, ctx)
@@ -85,13 +85,14 @@ impl Pcmci {
         let frame = LaggedFrame::from_panel(
             units,
             variables,
-            self.engine.frame_depth(),
+            self.engine.frame_depth()?,
             &ctx.kernel_policy,
         )?;
         self.run_with(&frame, variables, workspace, ctx)
     }
 
     fn check_background_knowledge(&self, variables: &[VariableId]) -> Result<(), DiscoveryError> {
+        self.engine.constraints.validate_temporal_ci_options()?;
         self.engine
             .constraints
             .check_background_knowledge(KnowledgeScope::Lagged, variables)

@@ -610,6 +610,8 @@ pub struct StudyBuilder {
     /// accepted structure. Mutually exclusive with `graph` (checked at [`Self::build`]).
     graph_posterior: Option<GraphPosterior>,
     query: Option<CausalQuery>,
+    /// Deferred typed refusal from the most recent discovery declaration.
+    discovery_query_error: Option<antecedent_core::QueryError>,
     /// A requested bootstrap interval, set by [`Self::bootstrap_interval`].
     bootstrap_interval: Option<antecedent_estimate::IntervalRequest>,
     /// Set when [`Self::graph`] is called. A caller graph and a tier background
@@ -1241,6 +1243,7 @@ impl StudyBuilder {
             graph: None,
             graph_posterior: None,
             query: None,
+            discovery_query_error: None,
             bootstrap_interval: None,
             caller_graph: None,
             declared: Declarations::default(),
@@ -1268,7 +1271,16 @@ impl StudyBuilder {
         spec: super::structure_route::DiscoverySpec,
         variables: impl Into<Arc<[VariableId]>>,
     ) -> Self {
-        self.query = Some(CausalQuery::Discover(spec.query(variables)));
+        match spec.query(variables) {
+            Ok(query) => {
+                self.query = Some(CausalQuery::Discover(query));
+                self.discovery_query_error = None;
+            }
+            Err(error) => {
+                self.query = None;
+                self.discovery_query_error = Some(error);
+            }
+        }
         self.discovery = Some(Arc::new(spec));
         self
     }
@@ -1492,6 +1504,7 @@ impl StudyBuilder {
             }
         }
         self.query = Some(q);
+        self.discovery_query_error = None;
         self
     }
 
@@ -1888,7 +1901,6 @@ impl StudyBuilder {
         self
     }
 
-
     /// Build the analysis object.
     ///
     /// # Errors
@@ -1943,6 +1955,9 @@ impl StudyBuilder {
     }
 
     fn finish(mut self, inspect_only: bool) -> Result<Study, CausalError> {
+        if let Some(error) = self.discovery_query_error.take() {
+            return Err(CausalError::from(error));
+        }
         self.apply_bootstrap_interval()?;
         if let (Some(CausalQuery::SyntheticControl(query)), InferenceMode::Frequentist) =
             (self.query.as_mut(), &self.settings.inference)

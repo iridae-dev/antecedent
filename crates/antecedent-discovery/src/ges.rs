@@ -221,6 +221,7 @@ impl Ges {
 
     /// Validate the constraints, knowledge and variable list before any data is read.
     fn validate_request(&self, variables: &[VariableId]) -> Result<(), DiscoveryError> {
+        self.constraints.validate_ci_options()?;
         self.constraints.validate()?;
         self.constraints
             .check_background_knowledge(KnowledgeScope::ScoreSearch, variables)

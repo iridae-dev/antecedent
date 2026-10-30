@@ -142,6 +142,7 @@ impl Rfci {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<StaticPagDiscoveryResult, DiscoveryError> {
+        self.constraints.validate_ci_options()?;
         self.constraints.validate()?;
         self.constraints
             .check_background_knowledge(KnowledgeScope::EquivalenceClass, variables)

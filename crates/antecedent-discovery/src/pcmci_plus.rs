@@ -90,7 +90,7 @@ impl PcmciPlus {
         let frame = LaggedFrame::from_series(
             data,
             variables,
-            self.engine.frame_depth(),
+            self.engine.frame_depth()?,
             &ctx.kernel_policy,
         )
         .map_err(DiscoveryError::from)?;
@@ -113,7 +113,7 @@ impl PcmciPlus {
         let frame = LaggedFrame::from_panel(
             units,
             variables,
-            self.engine.frame_depth(),
+            self.engine.frame_depth()?,
             &ctx.kernel_policy,
         )
         .map_err(DiscoveryError::from)?;
@@ -136,6 +136,7 @@ impl PcmciPlus {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CpdagDiscoveryResult, DiscoveryError> {
+        self.engine.constraints.validate_temporal_ci_options()?;
         self.engine
             .constraints
             .check_background_knowledge(KnowledgeScope::Lagged, variables)

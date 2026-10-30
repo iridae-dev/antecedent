@@ -207,6 +207,7 @@ impl Rpcmci {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<RpcmciDiscoveryResult, DiscoveryError> {
+        self.pcmci_plus.engine().constraints.validate_temporal_ci_options()?;
         if assignments.len() != data.row_count() {
             return Err(DiscoveryError::data_msg(format!(
                 "regime assignment length {} != series length {}",
@@ -311,7 +312,9 @@ impl Rpcmci {
         }
 
         let max_lag = self.pcmci_plus.engine().constraints.temporal.max_lag.raw();
-        let frame_depth = 2 * max_lag;
+        let frame_depth = max_lag
+            .checked_mul(2)
+            .ok_or_else(|| DiscoveryError::unsupported("discovery doubled max_lag exceeds u32"))?;
         let full_frame = LaggedFrame::from_series(data, variables, frame_depth, &ctx.kernel_policy)
             .map_err(DiscoveryError::from)?;
 
@@ -621,7 +624,8 @@ fn reassign_by_lagged_residual(
         err
     };
     let steps = n - first_row;
-    let path = min_cost_label_path(steps, k, penalty, |s, ri| step_cost(first_row + s, &models[ri]));
+    let path =
+        min_cost_label_path(steps, k, penalty, |s, ri| step_cost(first_row + s, &models[ri]));
     let mut out = current.regimes.to_vec();
     for (s, &state) in path.iter().enumerate() {
         out[first_row + s] = models[state].regime;
@@ -754,6 +758,30 @@ mod tests {
             TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
         )
         .unwrap()
+    }
+
+    #[test]
+    fn rpcmci_refuses_invalid_alpha_and_overflowing_lag_before_regime_frames() {
+        let data = two_regime_series(100);
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        let assignment = two_regime_half_split(100);
+        for (alpha, max_lag) in [(f64::NAN, 1), (0.05, u32::MAX)] {
+            let constraints = DiscoveryConstraints {
+                alpha,
+                temporal: TemporalConstraints {
+                    max_lag: Lag::from_raw(max_lag),
+                    min_lag: Lag::CONTEMPORANEOUS,
+                },
+                ..DiscoveryConstraints::default()
+            };
+            let algo =
+                Rpcmci::new().with_pcmci_plus(PcmciPlus::new().with_constraints(constraints));
+            let mut ws = DiscoveryWorkspace::default();
+            assert!(
+                algo.run(&data, &vars, &assignment, &mut ws, &ExecutionContext::for_tests(7))
+                    .is_err()
+            );
+        }
     }
 
     #[test]
@@ -1091,7 +1119,10 @@ mod tests {
                 }
                 best = best.min(path_cost(&candidate, &scored, penalty));
             }
-            assert!((got - best).abs() < 1e-12, "trial {trial}: viterbi {got} vs exhaustive {best}");
+            assert!(
+                (got - best).abs() < 1e-12,
+                "trial {trial}: viterbi {got} vs exhaustive {best}"
+            );
             if path.windows(2).any(|w| w[0] != w[1]) {
                 switching_optimum += 1;
             }

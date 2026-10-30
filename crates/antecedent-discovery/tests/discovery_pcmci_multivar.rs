@@ -217,3 +217,37 @@ fn discovery_pcmci_multivar_edges_and_matrices() {
         }
     }
 }
+
+#[test]
+fn temporal_public_searches_refuse_bad_alpha_and_doubled_lag_before_frames() {
+    use antecedent_discovery::{Lpcmci, PcmciPlus};
+    let expected = load_expected_json(&fixture_dir());
+    let (data, vars, _) = load_series(&expected);
+    let ctx = ExecutionContext::for_tests(7);
+    for (alpha, max_lag) in [(f64::NAN, 1), (1.0, 1), (0.05, u32::MAX)] {
+        let constraints = DiscoveryConstraints {
+            alpha,
+            temporal: TemporalConstraints {
+                min_lag: Lag::from_raw(1),
+                max_lag: Lag::from_raw(max_lag),
+            },
+            ..Default::default()
+        };
+        let mut ws = DiscoveryWorkspace::default();
+        assert!(
+            Pcmci::new()
+                .with_constraints(constraints.clone())
+                .run(&data, &vars, &mut ws, &ctx)
+                .is_err()
+        );
+        assert!(
+            PcmciPlus::new()
+                .with_constraints(constraints.clone())
+                .run(&data, &vars, &mut ws, &ctx)
+                .is_err()
+        );
+        assert!(
+            Lpcmci::new().with_constraints(constraints).run(&data, &vars, &mut ws, &ctx).is_err()
+        );
+    }
+}

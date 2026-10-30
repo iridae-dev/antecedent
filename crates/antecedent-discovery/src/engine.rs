@@ -311,6 +311,7 @@ impl PcmciEngine {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<(Vec<(VariableId, Lag)>, u64), DiscoveryError> {
+        self.constraints.validate_temporal_ci_options()?;
         let mut parents = self.constraints.candidate_sources(variables, target);
         parents.retain(|&(src, slag)| {
             let link = LaggedLink {
@@ -530,6 +531,7 @@ impl PcmciEngine {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<(ScoredLink, u64), DiscoveryError> {
+        self.constraints.validate_temporal_ci_options()?;
         let capacity = ci_conditioning_capacity(frame, ctx);
         let truncated =
             mci_conditioning(link, parents_target, parents_source, capacity, &mut workspace.others);
@@ -567,8 +569,9 @@ impl PcmciEngine {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<DagDiscoveryResult, DiscoveryError> {
+        self.constraints.validate_temporal_ci_options()?;
         let frame =
-            LaggedFrame::from_series(data, variables, self.frame_depth(), &ctx.kernel_policy)
+            LaggedFrame::from_series(data, variables, self.frame_depth()?, &ctx.kernel_policy)
                 .map_err(DiscoveryError::from)?;
         self.run_pc_mci_on_frame(&frame, variables, workspace, ctx)
     }
@@ -588,8 +591,9 @@ impl PcmciEngine {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<DagDiscoveryResult, DiscoveryError> {
+        self.constraints.validate_temporal_ci_options()?;
         let frame =
-            LaggedFrame::from_panel(units, variables, self.frame_depth(), &ctx.kernel_policy)
+            LaggedFrame::from_panel(units, variables, self.frame_depth()?, &ctx.kernel_policy)
                 .map_err(DiscoveryError::from)?;
         self.run_pc_mci_on_frame(&frame, variables, workspace, ctx)
     }
@@ -598,8 +602,14 @@ impl PcmciEngine {
     ///
     /// Aligned with the pinned baseline's default `cut_off='2xtau_max'`: both use a frame
     /// materializing lags up to `2·max_lag` (same effective sample count).
-    pub(crate) fn frame_depth(&self) -> u32 {
-        2 * self.constraints.temporal.max_lag.raw()
+    pub(crate) fn frame_depth(&self) -> Result<u32, DiscoveryError> {
+        self.constraints.validate_temporal_ci_options()?;
+        self.constraints
+            .temporal
+            .max_lag
+            .raw()
+            .checked_mul(2)
+            .ok_or_else(|| DiscoveryError::unsupported("discovery doubled max_lag exceeds u32"))
     }
 
     /// [`Self::run_pc_mci`] on a pre-built lagged frame of depth `Self::frame_depth`.
@@ -614,6 +624,7 @@ impl PcmciEngine {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<DagDiscoveryResult, DiscoveryError> {
+        self.constraints.validate_temporal_ci_options()?;
         if let Some(hard) = ctx.memory_limit_bytes() {
             if frame.values_bytes() > hard {
                 return Err(DiscoveryError::Unsupported {
@@ -1407,3 +1418,18 @@ pub(crate) fn refuse_truncated_mci(dropped: u64) -> Result<(), DiscoveryError> {
 #[cfg(test)]
 #[path = "engine_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+mod numeric_option_regressions {
+    use super::*;
+    #[test]
+    fn doubled_lag_is_checked_before_frame_building() {
+        let mut engine = PcmciEngine::new();
+        engine.constraints.temporal.max_lag = Lag::from_raw(u32::MAX);
+        assert!(engine.frame_depth().is_err());
+        engine.constraints.temporal.max_lag = Lag::from_raw(u32::MAX / 2);
+        assert_eq!(engine.frame_depth().unwrap(), u32::MAX - 1);
+        engine.constraints.alpha = f64::NAN;
+        assert!(engine.frame_depth().is_err());
+    }
+}

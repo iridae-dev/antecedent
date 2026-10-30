@@ -682,6 +682,25 @@ impl DiscoveryConstraints {
         }
     }
 
+    /// Validate the significance threshold consumed by CI-based searches.
+    pub(crate) fn validate_ci_options(&self) -> Result<(), DiscoveryError> {
+        if !self.alpha.is_finite() || !(0.0 < self.alpha && self.alpha < 1.0) {
+            return Err(DiscoveryError::unsupported(
+                "discovery alpha must be finite and in (0, 1)",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Validate the threshold and doubled lag used by temporal CI searches.
+    pub(crate) fn validate_temporal_ci_options(&self) -> Result<(), DiscoveryError> {
+        self.validate_ci_options()?;
+        if self.temporal.max_lag.raw().checked_mul(2).is_none() {
+            return Err(DiscoveryError::unsupported("discovery doubled max_lag exceeds u32"));
+        }
+        Ok(())
+    }
+
     /// Validate required vs forbidden conflicts and multi-dataset sanity.
     ///
     /// # Errors
@@ -1474,6 +1493,32 @@ mod tests {
         ];
         for edit in edits {
             assert_ne!(edit.identity(), base.identity());
+        }
+    }
+
+    #[test]
+    fn ci_numeric_checks_are_specific_to_the_consuming_search() {
+        let mut constraints = DiscoveryConstraints {
+            alpha: 0.0,
+            temporal: TemporalConstraints {
+                min_lag: Lag::from_raw(1),
+                max_lag: Lag::from_raw(u32::MAX),
+            },
+            ..DiscoveryConstraints::default()
+        };
+        // Generic constraints are also used by priors and non-CI searches.
+        assert!(constraints.validate().is_ok());
+        assert!(constraints.validate_ci_options().is_err());
+        assert!(constraints.validate_temporal_ci_options().is_err());
+        constraints.alpha = 0.05;
+        assert!(constraints.validate().is_ok());
+        assert!(constraints.validate_ci_options().is_ok());
+        assert!(constraints.validate_temporal_ci_options().is_err());
+        constraints.temporal.max_lag = Lag::from_raw(u32::MAX / 2);
+        assert!(constraints.validate_temporal_ci_options().is_ok());
+        for alpha in [f64::NAN, f64::INFINITY, 0.0, 1.0] {
+            constraints.alpha = alpha;
+            assert!(constraints.validate_ci_options().is_err());
         }
     }
 }

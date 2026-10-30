@@ -102,6 +102,7 @@ impl JpcmciPlus {
                 message: "J-PCMCI+ needs ≥1 system variable",
             });
         }
+        self.engine.constraints.validate_temporal_ci_options()?;
         self.engine.constraints.validate()?;
 
         let md = &self.engine.constraints.multi_dataset;
@@ -114,7 +115,9 @@ impl JpcmciPlus {
         }
 
         let max_lag = self.engine.constraints.temporal.max_lag.raw();
-        let frame_depth = 2 * max_lag;
+        let frame_depth = max_lag
+            .checked_mul(2)
+            .ok_or_else(|| DiscoveryError::unsupported("discovery doubled max_lag exceeds u32"))?;
         let mut observed = variables.to_vec();
         observed.extend_from_slice(&md.context_variables);
 
@@ -804,6 +807,29 @@ mod tests {
             TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
         )
         .unwrap()
+    }
+
+    #[test]
+    fn jpcmci_refuses_invalid_alpha_and_overflowing_lag_before_pooling() {
+        let multi = MultiEnvironmentData::try_new(Arc::from([toy_env(20, 0.0)])).unwrap();
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        for (alpha, max_lag) in [(f64::NAN, 1), (0.05, u32::MAX)] {
+            let constraints = DiscoveryConstraints {
+                alpha,
+                temporal: TemporalConstraints {
+                    max_lag: Lag::from_raw(max_lag),
+                    min_lag: Lag::CONTEMPORANEOUS,
+                },
+                ..DiscoveryConstraints::default()
+            };
+            let mut ws = DiscoveryWorkspace::default();
+            assert!(
+                JpcmciPlus::new()
+                    .with_constraints(constraints)
+                    .run(&multi, &vars, &mut ws, &ExecutionContext::for_tests(7))
+                    .is_err()
+            );
+        }
     }
 
     #[test]

@@ -622,17 +622,23 @@ impl DiscoverQuery {
         if self.variables.is_empty() {
             return invalid(DiscoverFault::NoVariables);
         }
-        let mut sorted = self.variables.to_vec();
-        sorted.sort_unstable();
-        if sorted.windows(2).any(|pair| pair[0] == pair[1]) {
-            return invalid(DiscoverFault::RepeatedVariable);
-        }
         if self.method.uses_independence_tests()
             && !(self.bounds.alpha.is_finite()
                 && self.bounds.alpha > 0.0
                 && self.bounds.alpha < 1.0)
         {
             return invalid(DiscoverFault::SignificanceLevel);
+        }
+        if self.method.is_temporal()
+            && self.method.uses_independence_tests()
+            && self.bounds.max_lag.checked_mul(2).is_none()
+        {
+            return invalid(DiscoverFault::DoubledLagOverflow);
+        }
+        let mut sorted = self.variables.to_vec();
+        sorted.sort_unstable();
+        if sorted.windows(2).any(|pair| pair[0] == pair[1]) {
+            return invalid(DiscoverFault::RepeatedVariable);
         }
         if !self.method.is_temporal() && self.bounds.max_lag != 0 {
             return invalid(DiscoverFault::StaticSearchLag);
@@ -657,5 +663,37 @@ impl DiscoverQuery {
     #[must_use]
     pub fn width(&self) -> u64 {
         count(self.variables.len())
+    }
+}
+
+#[cfg(test)]
+mod numeric_option_regressions {
+    use super::*;
+    #[test]
+    fn invalid_alpha_and_doubled_lag_refuse_before_query_identity() {
+        let bounds = SearchBounds {
+            alpha: 0.05,
+            max_cond_size: 2,
+            max_lag: 1,
+            schedule: None,
+            configuration: [0; 32],
+        };
+        let variable = VariableId::from_raw(0);
+        for alpha in [f64::NAN, f64::INFINITY, 0.0, 1.0, -0.1] {
+            let mut query = DiscoverQuery::new([variable], DiscoveryMethod::Pcmci, bounds.clone());
+            query.bounds.alpha = alpha;
+            assert!(matches!(
+                query.validate(),
+                Err(QueryError::InvalidDiscover(DiscoverFault::SignificanceLevel))
+            ));
+        }
+        let mut query = DiscoverQuery::new([variable], DiscoveryMethod::Pcmci, bounds);
+        query.bounds.max_lag = u32::MAX;
+        assert!(matches!(
+            query.validate(),
+            Err(QueryError::InvalidDiscover(DiscoverFault::DoubledLagOverflow))
+        ));
+        query.bounds.max_lag = u32::MAX / 2;
+        assert!(query.validate().is_ok());
     }
 }

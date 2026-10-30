@@ -722,6 +722,12 @@ impl TemporalDiscoveryContract {
             KnowledgeScope::Lagged,
         )?;
         let t = &self.constraints.temporal;
+        if t.max_lag.raw().checked_mul(2).is_none() {
+            return Err(invalid(
+                "selective_discovery.invalid_contract",
+                "the doubled max_lag must fit u32",
+            ));
+        }
         if t.max_lag.raw() == 0 || t.min_lag.raw() > t.max_lag.raw() {
             return Err(invalid(
                 "selective_discovery.invalid_contract",
@@ -759,7 +765,14 @@ impl TemporalDiscoveryContract {
             fdr: self.fdr,
             population: &self.population,
             rng_seed: self.rng_seed,
-            frame_depth: 2 * self.constraints.temporal.max_lag.raw(),
+            frame_depth: self.constraints.temporal.max_lag.raw().checked_mul(2).ok_or_else(
+                || {
+                    invalid(
+                        "selective_discovery.invalid_contract",
+                        "the doubled max_lag must fit u32",
+                    )
+                },
+            )?,
             search_limits: Vec::new(),
             orientation: Vec::new(),
         };
@@ -902,6 +915,9 @@ mod tests {
         temporal.constraints.temporal.max_lag = Lag::from_raw(2);
         let two = temporal.stage_inputs(&data(1), kernel).unwrap();
         assert_ne!(one.component("frame_depth"), two.component("frame_depth"));
+        temporal.constraints.temporal.max_lag = Lag::from_raw(u32::MAX);
+        assert!(temporal.validate().is_err());
+        assert!(temporal.stage_inputs(&data(1), kernel).is_err());
         let static_contract = StaticDiscoveryContract::new(
             StaticAlgorithm::Pc,
             variables(2),

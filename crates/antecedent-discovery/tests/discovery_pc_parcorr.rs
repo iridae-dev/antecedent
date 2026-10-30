@@ -66,3 +66,47 @@ fn pc_graph_is_invariant_to_conditioning_column_offset() {
     let shifted = pc.run(&gaussian_chain(2000, 7, 10_000.0), &vars, &mut shifted_ws, &ctx).unwrap();
     assert_eq!(base.evidence.graph.edges(), shifted.evidence.graph.edges());
 }
+
+#[test]
+fn static_discovery_refuses_invalid_alpha_at_the_public_boundary() {
+    use antecedent_discovery::{DiscoveryConstraints, Fci, Ges, Rfci};
+    let data = gaussian_chain(80, 7, 0.0);
+    let vars = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
+    let ctx = ExecutionContext::for_tests(7);
+    for alpha in [f64::NAN, f64::INFINITY, 0.0, 1.0, -0.1] {
+        let constraints = DiscoveryConstraints { alpha, ..Default::default() };
+        let mut ws = DiscoveryWorkspace::default();
+        assert!(
+            Pc::new()
+                .with_constraints(constraints.clone())
+                .run(&data, &vars, &mut ws, &ctx)
+                .unwrap_err()
+                .to_string()
+                .contains("alpha")
+        );
+        assert!(
+            Fci::new()
+                .with_constraints(constraints.clone())
+                .run(&data, &vars, &mut ws, &ctx)
+                .unwrap_err()
+                .to_string()
+                .contains("alpha")
+        );
+        assert!(
+            Rfci::new()
+                .with_constraints(constraints.clone())
+                .run(&data, &vars, &mut ws, &ctx)
+                .unwrap_err()
+                .to_string()
+                .contains("alpha")
+        );
+        assert!(
+            Ges::new()
+                .with_constraints(constraints)
+                .run(&data, &vars, &mut ws, &ctx)
+                .unwrap_err()
+                .to_string()
+                .contains("alpha")
+        );
+    }
+}

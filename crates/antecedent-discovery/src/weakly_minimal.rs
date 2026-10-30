@@ -28,6 +28,7 @@ pub fn make_sepset_weakly_minimal(
     workspace: &mut DiscoveryWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<Vec<(VariableId, Lag)>, DiscoveryError> {
+    engine.constraints.validate_temporal_ci_options()?;
     let ancs_set: std::collections::HashSet<(u32, u32)> =
         ancs.iter().map(|&(v, l)| (v.raw(), l.raw())).collect();
 

@@ -664,3 +664,51 @@ fn a_column(n: usize) -> Vec<f64> {
     let mut rng = CausalRng::from_seed(n as u64);
     (0..n).map(|_| rng.next_f64()).collect()
 }
+
+#[test]
+fn discovery_queries_refuse_invalid_declarations_before_identity() {
+    use antecedent_core::{DiscoverFault, QueryError};
+
+    let mut params = static_params();
+    params.alpha = f64::NAN;
+    let spec = DiscoverySpec::pc(params, "parcorr");
+    assert!(matches!(
+        spec.query(three()),
+        Err(QueryError::InvalidDiscover(DiscoverFault::SignificanceLevel))
+    ));
+    let valid = DiscoverySpec::pc(static_params(), "parcorr").query(three()).unwrap();
+    assert_ne!(valid.bounds.configuration, [0; 32]);
+    let mut lag = temporal_params(u32::MAX);
+    lag.alpha = 0.05;
+    assert!(matches!(
+        DiscoverySpec::pcmci(lag, "parcorr").query(three()),
+        Err(QueryError::InvalidDiscover(DiscoverFault::DoubledLagOverflow))
+    ));
+    let ges = DiscoverySpec::ges(static_params(), "parcorr").query(three()).unwrap();
+    assert_ne!(ges.bounds.configuration, [0; 32]);
+}
+
+#[test]
+fn discovery_builder_retains_typed_refusal_until_replaced() {
+    use antecedent_core::{DiscoverFault, QueryError};
+
+    let mut params = static_params();
+    params.alpha = f64::NAN;
+    let error = Study::tabular(chain_table(20, 1))
+        .discovery(DiscoverySpec::pc(params, "parcorr"), three())
+        .build()
+        .err()
+        .expect("invalid discovery must refuse");
+    assert_eq!(
+        error,
+        antecedent::CausalError::from(QueryError::InvalidDiscover(
+            DiscoverFault::SignificanceLevel
+        ))
+    );
+    let mut invalid = static_params();
+    invalid.alpha = f64::NAN;
+    let builder = Study::tabular(chain_table(20, 1))
+        .discovery(DiscoverySpec::pc(invalid, "parcorr"), three())
+        .discovery(DiscoverySpec::pc(static_params(), "parcorr"), three());
+    assert!(builder.build().is_ok());
+}

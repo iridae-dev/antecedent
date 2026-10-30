@@ -905,8 +905,9 @@ pub fn run_lpcmci_algorithm(
     fdr: Option<FdrAdjustment>,
     n_preliminary: u32,
 ) -> Result<PagDiscoveryResult, DiscoveryError> {
-    let frame = LaggedFrame::from_series(data, variables, engine.frame_depth(), &ctx.kernel_policy)
-        .map_err(DiscoveryError::from)?;
+    let frame =
+        LaggedFrame::from_series(data, variables, engine.frame_depth()?, &ctx.kernel_policy)
+            .map_err(DiscoveryError::from)?;
     run_lpcmci_on_frame(engine, &frame, variables, workspace, ctx, fdr, n_preliminary)
 }
 
@@ -921,8 +922,9 @@ pub(crate) fn run_lpcmci_panel(
     fdr: Option<FdrAdjustment>,
     n_preliminary: u32,
 ) -> Result<PagDiscoveryResult, DiscoveryError> {
-    let frame = LaggedFrame::from_panel(units, variables, engine.frame_depth(), &ctx.kernel_policy)
-        .map_err(DiscoveryError::from)?;
+    let frame =
+        LaggedFrame::from_panel(units, variables, engine.frame_depth()?, &ctx.kernel_policy)
+            .map_err(DiscoveryError::from)?;
     run_lpcmci_on_frame(engine, &frame, variables, workspace, ctx, fdr, n_preliminary)
 }
 
@@ -939,6 +941,7 @@ fn run_lpcmci_on_frame(
     fdr: Option<FdrAdjustment>,
     n_preliminary: u32,
 ) -> Result<PagDiscoveryResult, DiscoveryError> {
+    engine.constraints.validate_temporal_ci_options()?;
     let max_lag = engine.constraints.temporal.max_lag.raw();
     let alpha = engine.constraints.alpha;
     let max_cond = engine.constraints.max_cond_size;

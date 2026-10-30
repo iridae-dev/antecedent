@@ -744,6 +744,9 @@ pub enum DiscoverFault {
     /// Refused: a static search takes no lag; set `max_lag` to 0
     #[error("a static search takes no lag; set max_lag to 0")]
     StaticSearchLag,
+    /// Refused: the doubled temporal CI lag window is not representable.
+    #[error("the doubled discovery max_lag exceeds u32")]
+    DoubledLagOverflow,
     /// Refused: an MCMC schedule needs at least one chain, draw and thin
     #[error("an MCMC schedule needs at least one chain, draw and thin")]
     McmcSchedule,

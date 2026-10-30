@@ -411,10 +411,20 @@ impl DiscoverySpec {
         &self.ci_label
     }
 
-    /// The query this search answers over `variables`.
-    #[must_use]
-    pub fn query(&self, variables: impl Into<Arc<[VariableId]>>) -> DiscoverQuery {
-        DiscoverQuery::new(variables, self.method.clone(), self.bounds())
+    /// The checked query this search answers over `variables`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed query error when the variables, method, or bounds are invalid.
+    /// No configuration identity is produced for an invalid declaration.
+    pub fn query(
+        &self,
+        variables: impl Into<Arc<[VariableId]>>,
+    ) -> Result<DiscoverQuery, antecedent_core::QueryError> {
+        let mut query = DiscoverQuery::new(variables, self.method.clone(), self.bounds());
+        query.validate()?;
+        query.bounds.configuration = self.configuration();
+        Ok(query)
     }
 
     fn bounds(&self) -> SearchBounds {
@@ -437,7 +447,7 @@ impl DiscoverySpec {
                 draws: schedule.n_draws,
                 thin: schedule.thin,
             }),
-            configuration: self.configuration(),
+            configuration: [0; 32],
         }
     }
 
@@ -516,7 +526,8 @@ impl DiscoverySpec {
 
     /// Refuse a spec that does not state `query`.
     pub(crate) fn check_query(&self, query: &DiscoverQuery) -> Result<(), CausalError> {
-        if self.query(Arc::clone(&query.variables)) != *query {
+        query.validate().map_err(CausalError::from)?;
+        if self.query(Arc::clone(&query.variables)).map_err(CausalError::from)? != *query {
             return Err(crate::compile_reason!(
                 "invalid_argument",
                 "the discovery specification does not state the study's {} query: the method, \
@@ -2545,19 +2556,22 @@ mod ges_schedule_identity_tests {
         let variables: Arc<[VariableId]> =
             Arc::from([VariableId::from_raw(0), VariableId::from_raw(1)]);
         let ges = DiscoverySpec::ges(params(), "parcorr");
-        let query = ges.query(Arc::clone(&variables));
+        let query = ges.query(Arc::clone(&variables)).unwrap();
         assert_ne!(query.bounds.configuration, historical);
         assert!(ges.check_query(&query).is_ok());
         let mut legacy = query.clone();
         legacy.bounds.configuration = historical;
         assert!(ges.check_query(&legacy).is_err());
-        let wrapped = ges.clone().bootstrap_stability(5).query(Arc::clone(&variables));
+        let wrapped = ges.clone().bootstrap_stability(5).query(Arc::clone(&variables)).unwrap();
         assert_eq!(wrapped.bounds.configuration, query.bounds.configuration);
         for spec in [
             DiscoverySpec::pc(params(), "parcorr"),
             DiscoverySpec::pc(params(), "parcorr").bootstrap_stability(5),
         ] {
-            assert_eq!(spec.query(Arc::clone(&variables)).bounds.configuration, historical);
+            assert_eq!(
+                spec.query(Arc::clone(&variables)).unwrap().bounds.configuration,
+                historical
+            );
         }
     }
 }

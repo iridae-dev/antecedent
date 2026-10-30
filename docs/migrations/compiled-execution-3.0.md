@@ -233,3 +233,15 @@ carry `ges.schedule.insert-delete.v2`; historical GES declarations require a new
 search. Other discovery configuration identities retain their existing encoding.
 
 Reference: [Chickering, Section 1](https://www.jmlr.org/papers/volume3/chickering02b/chickering02b.pdf).
+
+## Checked discovery declarations
+
+`DiscoverySpec::query(variables)` now returns `Result<DiscoverQuery, QueryError>`.
+Propagate the result with `?` before passing the query to another API. Invalid
+CI significance levels and temporal CI lags whose doubled window exceeds `u32`
+are refused before configuration identity generation. `StudyBuilder::discovery`
+retains this typed error and returns it from `build`; a later valid discovery
+declaration replaces the pending error. Static CI searches require finite
+`0 < alpha < 1`; temporal CI searches also require `2 * max_lag` to fit `u32`.
+Generic structural constraint validation and non-CI search options retain their
+existing semantics.
