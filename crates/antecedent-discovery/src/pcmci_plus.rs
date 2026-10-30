@@ -144,6 +144,7 @@ impl PcmciPlus {
         crate::ci::ensure_ci_decisions_meaningful(
             &*self.engine.ci,
             self.engine.constraints.significance,
+            frame.n_effective(),
             alpha,
             self.fdr.is_some(),
         )?;
@@ -203,6 +204,7 @@ impl PcmciPlus {
         let fdr_diagnostic = crate::ci::fdr_resolution_diagnostic(
             &*self.engine.ci,
             self.engine.constraints.significance,
+            frame.n_effective(),
             alpha,
             crate::evidence::fdr_family_size(&scored, self.fdr),
         );

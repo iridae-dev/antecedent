@@ -933,6 +933,7 @@ fn run_lpcmci_on_frame(
     crate::ci::ensure_ci_decisions_meaningful(
         &*engine.ci,
         engine.constraints.significance,
+        frame.n_effective(),
         alpha,
         fdr.is_some(),
     )?;

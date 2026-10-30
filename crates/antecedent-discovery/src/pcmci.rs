@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, VariableId};
-use antecedent_data::TimeSeriesData;
+use antecedent_data::{LaggedFrame, TimeSeriesData};
 use antecedent_graph::TemporalGraphReview;
 use antecedent_stats::FdrAdjustment;
 
@@ -59,9 +59,13 @@ impl Pcmci {
         ctx: &ExecutionContext,
     ) -> Result<DagDiscoveryResult, DiscoveryError> {
         self.check_background_knowledge(variables)?;
-        self.run_with(workspace, |engine, workspace| {
-            engine.run_pc_mci(data, variables, workspace, ctx)
-        })
+        let frame = LaggedFrame::from_series(
+            data,
+            variables,
+            self.engine.frame_depth(),
+            &ctx.kernel_policy,
+        )?;
+        self.run_with(&frame, variables, workspace, ctx)
     }
 
     /// Run lagged PCMCI over the units of a panel: every unit's lag windows are built inside
@@ -78,9 +82,13 @@ impl Pcmci {
         ctx: &ExecutionContext,
     ) -> Result<DagDiscoveryResult, DiscoveryError> {
         self.check_background_knowledge(variables)?;
-        self.run_with(workspace, |engine, workspace| {
-            engine.run_pc_mci_panel(units, variables, workspace, ctx)
-        })
+        let frame = LaggedFrame::from_panel(
+            units,
+            variables,
+            self.engine.frame_depth(),
+            &ctx.kernel_policy,
+        )?;
+        self.run_with(&frame, variables, workspace, ctx)
     }
 
     fn check_background_knowledge(&self, variables: &[VariableId]) -> Result<(), DiscoveryError> {
@@ -92,11 +100,10 @@ impl Pcmci {
 
     fn run_with(
         &self,
+        frame: &LaggedFrame,
+        variables: &[VariableId],
         workspace: &mut DiscoveryWorkspace,
-        pc_mci: impl FnOnce(
-            &PcmciEngine,
-            &mut DiscoveryWorkspace,
-        ) -> Result<DagDiscoveryResult, DiscoveryError>,
+        ctx: &ExecutionContext,
     ) -> Result<DagDiscoveryResult, DiscoveryError> {
         if self.engine.constraints.temporal.min_lag.is_contemporaneous() {
             return Err(DiscoveryError::unsupported(
@@ -108,16 +115,18 @@ impl Pcmci {
         crate::ci::ensure_ci_decisions_meaningful(
             &*self.engine.ci,
             self.engine.constraints.significance,
+            frame.n_effective(),
             self.engine.constraints.alpha,
             self.fdr.is_some(),
         )?;
-        let mut result = pc_mci(&self.engine, workspace)?;
+        let mut result = self.engine.run_pc_mci_on_frame(frame, variables, workspace, ctx)?;
         let alpha = self.engine.constraints.alpha;
 
         let links: Vec<_> = result.evidence.links.iter().copied().collect();
         let fdr_diagnostic = crate::ci::fdr_resolution_diagnostic(
             &*self.engine.ci,
             self.engine.constraints.significance,
+            frame.n_effective(),
             alpha,
             fdr_family_size(&links, self.fdr),
         );
@@ -267,6 +276,39 @@ mod calibration_tests {
     /// A permutation test with 49 replicates cannot report p below 0.02, while BH over the
     /// 8-link family keeps a lone link only at p <= 0.05/8. The strong planted link then
     /// vanishes; the result must say why instead of looking like evidence of no links.
+    #[test]
+    fn block_resolution_uses_lag_aligned_and_complete_case_rows() {
+        let constraints = DiscoveryConstraints {
+            temporal: TemporalConstraints { max_lag: Lag::from_raw(1), min_lag: Lag::from_raw(1) },
+            alpha: 0.2,
+            significance: antecedent_stats::SignificanceMethod::BlockShuffle {
+                replicates: 49,
+                block_size: 50,
+            },
+            ..DiscoveryConstraints::default()
+        };
+        let run = Pcmci::new().with_fdr(false).with_constraints(constraints);
+        let ctx = ExecutionContext::for_tests(3);
+        let (short, vars) = planted_lag1_series(102, 7);
+        // The raw series has three blocks, but the 100 aligned rows have only
+        // two arrangements, so alpha=0.2 cannot resolve a rejection.
+        let error = run.run(&short, &vars, &mut DiscoveryWorkspace::default(), &ctx).unwrap_err();
+        assert!(error.to_string().contains("smallest attainable p-value"), "{error}");
+
+        let (long, _) = planted_lag1_series(500, 7);
+        let table = antecedent_data::TabularData::new(long.storage().clone())
+            .with_analysis_mask(ValidityBitmap::from_bools(
+                &(0..500).map(|row| row < 102).collect::<Vec<_>>(),
+            ))
+            .unwrap();
+        let masked =
+            TimeSeriesData::try_new(table.storage().clone(), long.time_index().clone()).unwrap();
+        // The full frame resolves alpha, but each complete-case test still
+        // has only the first 100 aligned rows and must be refused as well.
+        let error = run.run(&masked, &vars, &mut DiscoveryWorkspace::default(), &ctx).unwrap_err();
+        assert!(error.to_string().contains("smallest attainable p-value"), "{error}");
+    }
+
     #[test]
     fn fdr_beyond_permutation_resolution_is_reported() {
         let (data, vars) = planted_lag1_series(200, 7);

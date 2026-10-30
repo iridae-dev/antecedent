@@ -203,10 +203,11 @@ impl ChunkSchedule {
 pub(crate) fn ensure_ci_decisions_meaningful(
     ci: &dyn ConditionalIndependence,
     significance: SignificanceMethod,
+    rows: usize,
     alpha: f64,
     fdr_requested: bool,
 ) -> Result<(), DiscoveryError> {
-    ensure_alpha_resolvable(ci.min_attainable_p(significance), alpha)?;
+    ensure_alpha_resolvable(ci.min_resolvable_p(significance, rows), alpha)?;
     if fdr_requested && !ci.p_value_is_frequentist() {
         return Err(DiscoveryError::unsupported(
             "FDR adjustment requires frequentist p-values; this CI test reports a posterior \
@@ -228,10 +229,11 @@ pub(crate) fn ensure_ci_decisions_meaningful(
 pub(crate) fn fdr_resolution_diagnostic(
     ci: &dyn ConditionalIndependence,
     significance: SignificanceMethod,
+    rows: usize,
     alpha: f64,
     family_size: usize,
 ) -> Option<crate::result::DiscoveryDiagnostic> {
-    let floor = ci.min_attainable_p(significance);
+    let floor = ci.min_resolvable_p(significance, rows);
     if family_size < 2 || floor <= alpha / family_size as f64 || !floor.is_finite() {
         return None;
     }
@@ -243,7 +245,8 @@ pub(crate) fn fdr_resolution_diagnostic(
             "multiple-testing correction over {family_size} hypotheses keeps a lone link only at \
              p <= {:.3e}, below this CI test's smallest attainable p-value {floor:.3e}; at least \
              {needed} links must reach that floor together for any to survive. Use at least \
-             {replicates} permutation replicates or disable the correction",
+             {replicates} permutation replicates and enough distinct block arrangements \
+             (smaller blocks or more aligned rows), or disable the correction",
             alpha / family_size as f64
         )),
     })
@@ -378,16 +381,34 @@ mod tests {
     }
 
     #[test]
+    fn block_arrangements_limit_decisions_and_fdr_resolution() {
+        let significance = SignificanceMethod::BlockShuffle { replicates: 999, block_size: 50 };
+        assert!(
+            ensure_ci_decisions_meaningful(&PartialCorrelation, significance, 100, 0.05, false)
+                .is_err()
+        );
+        assert!(
+            ensure_ci_decisions_meaningful(&PartialCorrelation, significance, 1000, 0.05, false)
+                .is_ok()
+        );
+        let diagnostic =
+            fdr_resolution_diagnostic(&PartialCorrelation, significance, 100, 0.05, 2).unwrap();
+        assert!(diagnostic.message.contains("5.000e-1"), "{}", diagnostic.message);
+        assert!(diagnostic.message.contains("distinct block arrangements"));
+    }
+
+    #[test]
     fn posterior_probability_tests_are_refused_under_fdr_but_not_without_it() {
         let significance = SignificanceMethod::Analytic;
         for ci in
             [&BayesFactorCi::new() as &dyn ConditionalIndependence, &PosteriorDependenceCi::new()]
         {
-            assert!(ensure_ci_decisions_meaningful(ci, significance, 0.05, true).is_err());
-            assert!(ensure_ci_decisions_meaningful(ci, significance, 0.05, false).is_ok());
+            assert!(ensure_ci_decisions_meaningful(ci, significance, 100, 0.05, true).is_err());
+            assert!(ensure_ci_decisions_meaningful(ci, significance, 100, 0.05, false).is_ok());
         }
         assert!(
-            ensure_ci_decisions_meaningful(&PartialCorrelation, significance, 0.05, true).is_ok()
+            ensure_ci_decisions_meaningful(&PartialCorrelation, significance, 100, 0.05, true)
+                .is_ok()
         );
     }
 

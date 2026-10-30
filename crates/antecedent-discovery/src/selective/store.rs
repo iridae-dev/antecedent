@@ -539,6 +539,10 @@ impl ConditionalIndependenceTest for SelectiveCi {
         self.inner.min_attainable_p(significance)
     }
 
+    fn min_resolvable_p(&self, significance: SignificanceMethod, rows: usize) -> f64 {
+        self.inner.min_resolvable_p(significance, rows)
+    }
+
     fn series_aligned_weights_len(&self) -> Option<usize> {
         self.inner.series_aligned_weights_len()
     }
@@ -579,6 +583,23 @@ mod tests {
             significance: SignificanceMethod::Analytic,
             confidence: ConfidenceMethod::default(),
         }
+    }
+
+    #[test]
+    fn selective_ci_preserves_arrangement_resolution_and_configured_sparse_budget() {
+        let store = Arc::new(StatisticStore::new());
+        let ci = SelectiveCi::new(Arc::new(PartialCorrelation), Arc::clone(&store), "parcorr");
+        let significance = SignificanceMethod::BlockShuffle { replicates: 999, block_size: 50 };
+        assert_eq!(ci.min_resolvable_p(significance, 100).to_bits(), 0.5_f64.to_bits());
+        let sparse = SelectiveCi::new(
+            Arc::new(antecedent_stats::SparseDiscreteCi::new(999).unwrap()),
+            store,
+            "sparse999",
+        );
+        assert_eq!(
+            sparse.min_resolvable_p(SignificanceMethod::Analytic, 100).to_bits(),
+            0.001_f64.to_bits()
+        );
     }
 
     #[test]

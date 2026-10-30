@@ -38,6 +38,10 @@ impl SparseDiscreteCi {
 }
 
 impl ConditionalIndependenceTest for SparseDiscreteCi {
+    fn attainable_p(&self) -> crate::ci::AttainableP {
+        crate::ci::AttainableP::NonparametricPermutation
+    }
+
     fn test_batch(
         &self,
         prepared: &PreparedCiTest,
@@ -144,6 +148,15 @@ mod tests {
                 })
                 .to_bits(),
             0.05_f64.to_bits()
+        );
+        let provider = SparseDiscreteCi::new(999).unwrap();
+        assert_eq!(
+            provider.min_attainable_p(SignificanceMethod::Analytic).to_bits(),
+            0.001_f64.to_bits()
+        );
+        assert_eq!(
+            provider.min_resolvable_p(SignificanceMethod::Analytic, 100).to_bits(),
+            0.001_f64.to_bits()
         );
     }
 }

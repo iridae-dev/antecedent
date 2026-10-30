@@ -206,6 +206,7 @@ impl JpcmciPlus {
         crate::ci::ensure_ci_decisions_meaningful(
             &*ci,
             constraints.significance,
+            frame.n_effective(),
             constraints.alpha,
             self.fdr.is_some(),
         )?;
@@ -386,6 +387,7 @@ impl JpcmciPlus {
         diagnostics.extend(crate::ci::fdr_resolution_diagnostic(
             &*ci,
             constraints.significance,
+            frame.n_effective(),
             constraints.alpha,
             crate::evidence::fdr_family_size(&scored, self.fdr),
         ));

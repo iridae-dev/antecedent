@@ -632,6 +632,7 @@ impl PcmciEngine {
         crate::ci::ensure_ci_decisions_meaningful(
             &*ci,
             self.constraints.significance,
+            frame.n_effective(),
             self.constraints.alpha,
             false,
         )?;
@@ -1185,6 +1186,13 @@ impl PcmciEngine {
                 "insufficient complete-case samples after mask/missingness",
             ));
         }
+        crate::ci::ensure_ci_decisions_meaningful(
+            &*self.ci,
+            self.constraints.significance,
+            n_keep,
+            self.constraints.alpha,
+            false,
+        )?;
 
         // Compact only the columns this query reads — x, y, then Z, with the
         // query remapped onto that dense layout. The historical loop compacted

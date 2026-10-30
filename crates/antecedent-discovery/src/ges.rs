@@ -145,6 +145,15 @@ impl Ges {
     ) -> Result<StaticCpdagDiscoveryResult, DiscoveryError> {
         self.validate_request(variables)?;
         let score_data = ges_score_data(data, variables)?;
+        if self.screen_pc {
+            crate::ci::ensure_ci_decisions_meaningful(
+                &*self.ci,
+                self.constraints.significance,
+                score_data.n_rows,
+                self.constraints.alpha,
+                self.fdr.is_some(),
+            )?;
+        }
         let n_vars = variables.len();
         let mut cache = LocalScoreCache::new(crate::graph_score::graph_score_cache_key(
             self.score_family,
@@ -211,14 +220,6 @@ impl Ges {
         self.constraints
             .check_background_knowledge(KnowledgeScope::ScoreSearch, variables)
             .map_err(DiscoveryError::Knowledge)?;
-        if self.screen_pc {
-            crate::ci::ensure_ci_decisions_meaningful(
-                &*self.ci,
-                self.constraints.significance,
-                self.constraints.alpha,
-                self.fdr.is_some(),
-            )?;
-        }
         if variables.is_empty() {
             return Err(DiscoveryError::Unsupported {
                 message: "GES requires at least one variable",

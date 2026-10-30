@@ -171,8 +171,13 @@ impl Pc {
         let StaticSkeleton { mut adj, sepsets, ci_tests, iterations, parent_limit_removed, .. } =
             skel;
 
-        let fdr_diagnostic =
-            self.correct_multiplicity(&mut scored, &mut adj, &family_p, &family_edge);
+        let fdr_diagnostic = self.correct_multiplicity(
+            &mut scored,
+            &mut adj,
+            &family_p,
+            &family_edge,
+            cols[0].len(),
+        );
         let (cpdag, conflicts) = self.orient(&adj, &sepsets, variables, &var_index)?;
 
         let mut diagnostics: Vec<_> = fdr_diagnostic.into_iter().collect();
@@ -233,6 +238,7 @@ impl Pc {
         adj: &mut UndirectedAdj,
         family_p: &[f64],
         family_edge: &[(u32, u32)],
+        rows: usize,
     ) -> Option<DiscoveryDiagnostic> {
         let alpha = self.constraints.alpha;
         let (tested, untested): (Vec<ScoredLink>, Vec<ScoredLink>) =
@@ -247,6 +253,7 @@ impl Pc {
             crate::ci::fdr_resolution_diagnostic(
                 &*self.ci,
                 self.constraints.significance,
+                rows,
                 alpha,
                 family_size,
             )
@@ -406,12 +413,12 @@ pub(crate) fn prepare_static_columns(
 ) -> Result<StaticColumns, DiscoveryError> {
     let StaticColumnRequest { ci, significance, alpha, fdr, empty_variables, insufficient_rows } =
         request;
-    crate::ci::ensure_ci_decisions_meaningful(ci, significance, alpha, fdr)?;
     if variables.is_empty() {
         return Err(DiscoveryError::unsupported(empty_variables));
     }
     let owned = collect_float_columns(data, variables)?;
     let n = owned.first().map_or(0, |c| c.len());
+    crate::ci::ensure_ci_decisions_meaningful(ci, significance, n, alpha, fdr)?;
     crate::ci::ensure_ci_fits_rows(ci, n)?;
     if n < 3 {
         return Err(DiscoveryError::stats_msg(insufficient_rows));

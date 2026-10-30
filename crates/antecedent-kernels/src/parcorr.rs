@@ -680,7 +680,9 @@ impl From<bool> for ParCorrMode {
 ///
 /// # Errors
 ///
-/// [`crate::view::ViewError::InvalidShape`] when `out.len() != queries.len()`.
+/// [`crate::view::ViewError::InvalidShape`] when the output length or column lengths
+/// differ, a query/conditioning column is out of range, or a conditioning range is
+/// invalid. Invalid requests leave `out` untouched.
 pub fn partial_correlation_batch(
     columns: &[&[f64]],
     queries: &[ParCorrQuery],
@@ -693,6 +695,31 @@ pub fn partial_correlation_batch(
         return Err(crate::view::ViewError::InvalidShape {
             message: "partial correlation out.len() must equal queries.len()",
         });
+    }
+    let rows = columns.first().map_or(0, |column| column.len());
+    if columns.iter().any(|column| column.len() != rows) {
+        return Err(crate::view::ViewError::InvalidShape {
+            message: "partial correlation columns must have equal lengths",
+        });
+    }
+    for query in queries {
+        if query.x >= columns.len() || query.y >= columns.len() {
+            return Err(crate::view::ViewError::InvalidShape {
+                message: "partial correlation query column out of range",
+            });
+        }
+        let conditioning = query
+            .z_start
+            .checked_add(query.z_len)
+            .and_then(|end| z_flat.get(query.z_start..end))
+            .ok_or(crate::view::ViewError::InvalidShape {
+                message: "partial correlation conditioning range out of bounds",
+            })?;
+        if conditioning.iter().any(|&column| column >= columns.len()) {
+            return Err(crate::view::ViewError::InvalidShape {
+                message: "partial correlation conditioning column out of range",
+            });
+        }
     }
     // Queries of one batch usually repeat conditioning columns; a lone query gains
     // nothing from the bookkeeping.
@@ -731,6 +758,46 @@ mod tests {
 
     use super::*;
     use crate::dispatch::{KernelImpl, select_impl};
+
+    #[test]
+    fn batch_query_indices_are_checked_before_writing_any_result() {
+        let first = [1.0, 2.0, 3.0, 4.0];
+        let second = [4.0, 1.0, 3.0, 2.0];
+        let columns = [&first[..], &second[..]];
+        let valid = ParCorrQuery { x: 0, y: 1, z_start: 0, z_len: 0 };
+        for bad in [
+            ParCorrQuery { x: 2, ..valid },
+            ParCorrQuery { y: 2, ..valid },
+            ParCorrQuery { z_start: usize::MAX, z_len: 1, ..valid },
+            ParCorrQuery { z_start: 2, ..valid },
+            ParCorrQuery { z_len: 1, ..valid },
+        ] {
+            for mode in [ParCorrMode::Native, ParCorrMode::Portable] {
+                let mut out = [Some(0.25), Some(0.5)];
+                let result = partial_correlation_batch(
+                    &columns,
+                    &[valid, bad],
+                    &[2],
+                    &mut out,
+                    &mut ParCorrWorkspace::default(),
+                    mode,
+                );
+                assert!(result.is_err());
+                assert_eq!(out, [Some(0.25), Some(0.5)]);
+            }
+        }
+        assert!(
+            partial_correlation_batch(
+                &[&first, &second[..3]],
+                &[valid],
+                &[],
+                &mut [None],
+                &mut ParCorrWorkspace::default(),
+                ParCorrMode::Native,
+            )
+            .is_err()
+        );
+    }
 
     /// The solve with each target eliminated by itself: Gram formed and eliminated once
     /// for X and again for Y, each with its own refinement decision. The joint
