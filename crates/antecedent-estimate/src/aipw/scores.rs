@@ -308,9 +308,7 @@ pub(super) fn embed_trimmed_influence(
     let mut outcome_terms = vec![0.0; m];
     correct_aipw_psi_blocks(&mut outcome_terms, fit, false)?;
     // Retained weights are the declared ones renormalized to mean one over the retained rows.
-    let scale = all.weights.map_or(1.0, |w| {
-        m as f64 / retained.iter().map(|&i| w[i]).sum::<f64>()
-    });
+    let scale = all.weights.map_or(1.0, |w| m as f64 / retained.iter().map(|&i| w[i]).sum::<f64>());
     let weight = |i: usize| all.weights.map_or(1.0, |w| scale * w[i]);
     let mut score = vec![0.0; n];
     let mut info = vec![0.0; n];
@@ -346,7 +344,7 @@ pub(super) fn embed_trimmed_influence(
     let ratio = n as f64 / m as f64;
     let mut influence: Vec<f64> = propensity_terms.iter().map(|term| ratio * term).collect();
     for (k, &i) in retained.iter().enumerate() {
-        influence[i] += ratio * (psi[k] - estimate + outcome_terms[k]);
+        influence[i] += ratio * (psi[k] - weight(i) * estimate + outcome_terms[k]);
     }
     Ok(influence)
 }

@@ -114,6 +114,8 @@ pub struct PenalizedVarianceReport {
     /// comparison: `sqrt(sum (d_i - mean d)^2 / (n (n - 1)))` with `d_i = phi1_i - phi0_i`.
     /// It treats the out-of-fold nuisances as fixed and is justified only under the remainder
     /// condition the guide states.
+    /// Declared sampling/target weights use the corresponding Hájek influence
+    /// `n w_i / sum(w) * (d_i - weighted_mean(d))`.
     pub influence_se: f64,
 }
 
@@ -147,6 +149,14 @@ impl PenalizedReport {
 ///
 /// A table without a control and a treated column, or fewer than two rows.
 pub fn crossfit_influence_se(table: &ScoreTable) -> Result<f64, EstimationError> {
+    weighted_crossfit_influence_se(table, None)
+}
+
+/// The same contrast diagnostic under the weights used by the point estimate.
+pub(crate) fn weighted_crossfit_influence_se(
+    table: &ScoreTable,
+    weights: Option<&[f64]>,
+) -> Result<f64, EstimationError> {
     let (control, treated) = (table.column(0)?, table.column(1)?);
     let n = control.len();
     if n < 2 {
@@ -154,6 +164,12 @@ pub fn crossfit_influence_se(table: &ScoreTable) -> Result<f64, EstimationError>
     }
     let nf = n as f64;
     let contrast: Vec<f64> = control.iter().zip(treated).map(|(c, t)| t - c).collect();
+    if weights.is_some() {
+        let mean = crate::joint_if::weighted_mean(&contrast, weights)?;
+        let covariance =
+            crate::joint_if::joint_influence_covariance_with_means(&[&contrast], weights, &[mean])?;
+        return Ok(covariance.se(0));
+    }
     let mean = contrast.iter().sum::<f64>() / nf;
     let squares: f64 = contrast.iter().map(|d| (d - mean) * (d - mean)).sum();
     Ok((squares / (nf * (nf - 1.0))).sqrt())

@@ -79,9 +79,8 @@ use crate::overlap::{IpwTarget, OverlapPolicy, OverlapReport};
 use crate::propensity::{
     OtherLevels, PenalizedReport, PenalizedVarianceReport, PreparedPropensityProblem,
     PropensityModel, PropensityNuisance, REFIT_BOOTSTRAP_UNCERTAINTY_KIND, ReplicatePenalties,
-    clamp_scores, clip_of, crossfit_influence_se, default_propensity_overlap, fold_supports,
-    gather, gather_into, prepare_propensity_problem_with_levels, split_by_treatment, trim_of,
-    trim_retained_rows,
+    clamp_scores, clip_of, default_propensity_overlap, fold_supports, gather, gather_into,
+    prepare_propensity_problem_with_levels, split_by_treatment, trim_of, trim_retained_rows,
 };
 use crate::sampling_weights::{RetainedSamplingWeights, SamplingWeights};
 use crate::se::AnalyticSeKind;
@@ -959,8 +958,8 @@ impl AipwAte {
             &mut workspace.psi,
         )?;
         if let Some(weights) = used_weights {
-            // The weighted estimate is the mean of `m_i ψ_i`; every later step (centering,
-            // nuisance correction, variance) reads these weighted scores.
+            // The point is the mean of `m_i ψ_i`. The influence step also
+            // differentiates the normalizing mass of this Hájek mean.
             for (value, &m) in workspace.psi.iter_mut().zip(weights) {
                 *value *= m;
             }
@@ -1023,6 +1022,14 @@ impl AipwAte {
             };
             workspace.psi = embed_trimmed_influence(&workspace.psi, ate, &fit, retained, &all)?;
             return Ok(());
+        }
+        if let Some(weights) = used_weights {
+            // The variance reader centers by the mean score (ate). Shift the
+            // weighted scores so that this centering yields m_i (ψ_i - ate),
+            // rather than m_i ψ_i - ate.
+            for (value, &weight) in workspace.psi.iter_mut().zip(weights) {
+                *value -= (weight - 1.0) * ate;
+            }
         }
         correct_aipw_psi_for_nuisances(&mut workspace.psi, &fit)
     }

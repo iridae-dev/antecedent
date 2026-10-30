@@ -59,6 +59,7 @@ pub(crate) use penalized::{
     RidgeFoldInput, RidgeFoldSelection, fallback_provenance, fit_penalized_fold, fit_ridge_fold,
     fold_supports,
 };
+pub(crate) use penalized_report::weighted_crossfit_influence_se;
 pub use penalized_report::{
     FailedFit, FallbackRecord, FoldSupport, PROPENSITY_FIT_STAGE, PenalizedReport,
     PenalizedVarianceReport, REFIT_BOOTSTRAP_UNCERTAINTY_KIND, ReplicatePenalties,

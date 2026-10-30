@@ -691,6 +691,88 @@ fn ridge_estimator(grid: &[f64], inner_folds: usize) -> AipwAte {
     .with_bootstrap_replicates(0)
 }
 
+#[test]
+fn weighted_constant_ate_has_no_spurious_normalizing_mass_variance() {
+    // Each treatment/covariate cell has both weights. Every fitted AIPW score
+    // is 10, so the Hájek mean is constant under arbitrary reweighting: its
+    // influence must be zero, including when trimming embeds it over all rows.
+    let n = 64;
+    let treatment: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+    let covariate: Vec<f64> = (0..n).map(|i| ((i / 2) % 4) as f64).collect();
+    let outcome: Vec<f64> = treatment.iter().zip(&covariate).map(|(t, z)| 10.0 * t + z).collect();
+    let weights: Vec<f64> = (0..n).map(|i| if (i / 8) % 2 == 0 { 0.5 } else { 1.5 }).collect();
+    let (data, estimand) = build_dataset(treatment, outcome, covariate);
+    for trimmed in [false, true] {
+        let mut est = AipwAte::new()
+            .with_sampling_weights(SamplingWeights::new(weights.clone()).unwrap())
+            .with_bootstrap_replicates(0);
+        let mut query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        if trimmed {
+            est.overlap = OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: Some(0.01) };
+        } else {
+            query.target_population = TargetPopulation::Predicate(
+                antecedent_core::PredicateExpr::rows((0..n).collect::<Vec<_>>()),
+            );
+        }
+        let prepared = est.prepare(&data, &estimand, &query).unwrap();
+        let fit = est
+            .fit(&prepared, &mut AipwWorkspace::default(), &ctx(), AssumptionSet::new())
+            .unwrap();
+        assert!((fit.ate - 10.0).abs() < 1e-10, "trimmed={trimmed}: {}", fit.ate);
+        assert!(fit.se_analytic() < 1e-9, "trimmed={trimmed}: {}", fit.se_analytic());
+    }
+}
+
+#[test]
+fn penalized_bootstrap_replays_the_weighted_score_contrast() {
+    let (data, estimand) = confounded_scm(300, 71);
+    let weights: Vec<f64> = (0..300).map(|i| if i % 3 == 0 { 4.0 } else { 0.25 }).collect();
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let est =
+        ridge_estimator(&[0.5], 2).with_sampling_weights(SamplingWeights::new(weights).unwrap());
+    let context = ctx();
+    let prepared = est.prepare(&data, &estimand, &query).unwrap();
+    let base = super::penalized_bootstrap_base(
+        &prepared,
+        context.rng.master_seed(),
+        est.propensity.clone(),
+    );
+    let (mut ids, mut indexes) = (Vec::new(), Vec::new());
+    let actual = match est
+        .penalized_replicate(&base, &context, &context, base.nrows, 0, (&mut ids, &mut indexes))
+        .unwrap()
+    {
+        super::PenalizedDraw::Done(ate, _) => ate,
+        _ => panic!("expected a successful replicate"),
+    };
+    let resampled = resampled_problem(&base, &indexes, None);
+    let (table, _) = est.crossfit_table(&resampled, false, &context, None).unwrap();
+    let weights = resampled.score_weights().unwrap();
+    let differences: Vec<f64> =
+        table.column(0).unwrap().iter().zip(table.column(1).unwrap()).map(|(a, b)| b - a).collect();
+    let mass: f64 = weights.iter().sum();
+    let expected: f64 =
+        differences.iter().zip(weights.iter()).map(|(d, w)| d * w).sum::<f64>() / mass;
+    let unweighted = differences.iter().sum::<f64>() / differences.len() as f64;
+    assert!((actual - expected).abs() < 1e-12, "{actual} vs weighted {expected}");
+    assert!(
+        (expected - unweighted).abs() > 1e-5,
+        "fixture must distinguish weighted and unweighted summaries"
+    );
+    let n = differences.len() as f64;
+    let expected_se = (differences
+        .iter()
+        .zip(weights.iter())
+        .map(|(d, w)| (n * w / mass * (d - expected)).powi(2))
+        .sum::<f64>()
+        / (n * (n - 1.0)))
+        .sqrt();
+    let actual_se =
+        crate::propensity::weighted_crossfit_influence_se(&table, Some(&weights)).unwrap();
+    assert!((actual_se - expected_se).abs() < 1e-12, "{actual_se} vs {expected_se}");
+}
+
 /// A resample that lists every row once, in order, is the original problem: the same score
 /// table and the same selections, to the bit.
 #[test]

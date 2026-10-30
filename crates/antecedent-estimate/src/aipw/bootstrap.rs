@@ -307,7 +307,10 @@ impl AipwAte {
         }
         let boot = crate::util::finalize_bootstrap_se_ex(&ates, attempted, cancelled, false);
         let influence_se = match point.scores.table.as_ref() {
-            Some(table) => crossfit_influence_se(table)?,
+            Some(table) => crate::propensity::weighted_crossfit_influence_se(
+                table,
+                problem.score_weights().as_deref(),
+            )?,
             None => f64::NAN,
         };
         let mut report = point.diagnostics.penalized.as_deref().cloned().unwrap_or_default();
@@ -385,7 +388,10 @@ impl AipwAte {
         let wave = crate::util::WaveBootstrap::from_run(run);
         let boot = wave.se;
         let influence_se = match point.scores.table.as_ref() {
-            Some(table) => crossfit_influence_se(table)?,
+            Some(table) => crate::propensity::weighted_crossfit_influence_se(
+                table,
+                base.score_weights().as_deref(),
+            )?,
             None => f64::NAN,
         };
         let mut report = point.diagnostics.penalized.as_deref().cloned().unwrap_or_default();
@@ -445,7 +451,7 @@ impl AipwAte {
         }
         let p = resampled_problem(base, idx, None);
         Ok(match self.crossfit_table(&p, false, inner, None) {
-            Ok((table, fit)) => match table.summarize(None) {
+            Ok((table, fit)) => match table.summarize(p.score_weights().as_deref()) {
                 Ok(summary) => {
                     let ate = summary.means[1] - summary.means[0];
                     if ate.is_finite() {
