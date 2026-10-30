@@ -220,6 +220,8 @@ pub struct TableChunkReader {
     pub(super) exhausted: bool,
     pub(super) peak_chunk_bytes: u64,
     pub(super) receipt: Option<ScanReceipt>,
+    // Partial conversion or an already-consumed unadmitted batch invalidates this pass.
+    pub(super) terminal_failure: Option<FileSourceError>,
 }
 
 impl fmt::Debug for TableChunkReader {
@@ -261,6 +263,7 @@ impl TableChunkReader {
             exhausted: false,
             peak_chunk_bytes: 0,
             receipt: None,
+            terminal_failure: None,
         })
     }
 
@@ -290,9 +293,14 @@ impl TableChunkReader {
     ///
     /// # Errors
     ///
-    /// A memory refusal, a decode or conversion refusal, or cancellation.
+    /// A memory refusal, a decode or conversion refusal, or cancellation. A conversion
+    /// refusal, or post-decode admission failure, is repeated until explicit rewind because
+    /// the pass cannot safely resume.
     pub fn next_chunk(&mut self) -> Result<Option<FileChunk>, FileSourceError> {
         loop {
+            if let Some(error) = &self.terminal_failure {
+                return Err(error.clone());
+            }
             if self.ctx.cancellation.is_cancelled() {
                 self.pending = None;
                 return Err(FileSourceError::Cancelled);
@@ -322,8 +330,19 @@ impl TableChunkReader {
                 continue;
             };
             let slice = pending.batch.slice(pending.offset, take);
-            pending.offset += take;
-            return self.convert(&slice, take, lease).map(Some);
+            match self.convert(&slice, take, lease) {
+                Ok(chunk) => {
+                    self.pending
+                        .as_mut()
+                        .expect("pending batch remains during conversion")
+                        .offset += take;
+                    return Ok(Some(chunk));
+                }
+                Err(error) => {
+                    self.terminal_failure = Some(error.clone());
+                    return Err(error);
+                }
+            }
         }
     }
 
@@ -364,10 +383,16 @@ impl TableChunkReader {
         let mut leases = vec![decode];
         if actual > reserve {
             let extra = actual - reserve;
-            leases.push(
-                self.lease(MemoryStage::DecodedBatch, extra)
-                    .map_err(|error| self.producer_remedy(error, actual))?,
-            );
+            leases.push(match self.lease(MemoryStage::DecodedBatch, extra) {
+                Ok(lease) => lease,
+                Err(error) => {
+                    // The provider already consumed this batch. Retrying would silently
+                    // skip it, and retaining unleased buffers would exceed admission.
+                    let error = self.producer_remedy(error, actual);
+                    self.terminal_failure = Some(error.clone());
+                    return Err(error);
+                }
+            });
             held = actual;
         }
         self.pending = Some(Pending { batch, offset: 0, held_bytes: held, _leases: leases });
@@ -467,6 +492,7 @@ impl TableChunkReader {
         self.chunks = 0;
         self.exhausted = false;
         self.receipt = None;
+        self.terminal_failure = None;
         Ok(())
     }
 
@@ -476,6 +502,9 @@ impl TableChunkReader {
     ///
     /// [`FileSourceError::ScanIncomplete`] before the last chunk was read.
     pub fn finish(&mut self) -> Result<ScanReceipt, FileSourceError> {
+        if let Some(error) = &self.terminal_failure {
+            return Err(error.clone());
+        }
         if let Some(receipt) = &self.receipt {
             return Ok(receipt.clone());
         }
@@ -516,5 +545,64 @@ impl TableChunkReader {
             Some(state) => state.domain(),
             None => Ok(None),
         }
+    }
+}
+
+#[cfg(all(test, feature = "ipc"))]
+mod retry_tests {
+    use super::*;
+    use arrow_array::{ArrayRef, RecordBatch, StringArray};
+    use arrow_schema::{DataType, Field, Schema};
+    use std::sync::Arc;
+
+    struct Underquoted {
+        batches: std::vec::IntoIter<RecordBatch>,
+    }
+    impl BatchProvider for Underquoted {
+        fn next_batch(&mut self) -> Result<Option<RecordBatch>, FileSourceError> {
+            Ok(self.batches.next())
+        }
+    }
+
+    #[test]
+    fn post_decode_lease_refusal_cannot_skip_the_consumed_batch() {
+        let schema = Arc::new(Schema::new(vec![Field::new("category", DataType::Utf8, false)]));
+        let make = |value: &str| {
+            RecordBatch::try_new(
+                Arc::clone(&schema),
+                vec![Arc::new(StringArray::from(vec![value])) as ArrayRef],
+            )
+            .unwrap()
+        };
+        let path =
+            std::env::temp_dir().join(format!("antecedent-retry-{}.arrow", std::process::id()));
+        let file = std::fs::File::create(&path).unwrap();
+        let mut writer = arrow_ipc::writer::FileWriter::try_new(file, &schema).unwrap();
+        writer.write(&make("original")).unwrap();
+        writer.finish().unwrap();
+        let table = TableFile::open(&path).unwrap();
+        let plan = table.plan_columns(&["category"], ReadOptions::with_chunk_rows(1)).unwrap();
+        let ctx = ExecutionContext::for_tests(1)
+            .with_admission(antecedent_core::execution::AdmissionPool::fixed(1, 65_536));
+        let huge = "x".repeat(1_000_000);
+        let fake = Underquoted { batches: vec![make(&huge), make("skipped")].into_iter() };
+        let mut reader = TableChunkReader::new(
+            Origin::File { format: TableFileFormat::ArrowIpcFile, paths: vec![path.clone()] },
+            plan,
+            &ctx,
+            Box::new(fake),
+        )
+        .unwrap();
+        let error = reader.next_chunk().unwrap_err();
+        assert!(matches!(
+            error,
+            FileSourceError::MemoryRefused { stage: MemoryStage::DecodedBatch, .. }
+        ));
+        assert_eq!(reader.position(), GlobalId::new(0));
+        assert_eq!(reader.next_chunk().unwrap_err(), error);
+        assert_eq!(reader.finish().unwrap_err(), error);
+        reader.rewind().unwrap();
+        assert_eq!(reader.next_chunk().unwrap().unwrap().rows(), 1);
+        std::fs::remove_file(path).unwrap();
     }
 }

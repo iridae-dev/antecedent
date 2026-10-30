@@ -33,7 +33,7 @@ use arrow_array::types::{Int8Type, Int32Type};
 use arrow_array::{
     Array, ArrayRef, BooleanArray, Date32Array, DictionaryArray, Float32Array, Float64Array,
     Int8Array, Int32Array, ListArray, RecordBatch, RecordBatchIterator, StringArray,
-    TimestampMillisecondArray, UInt8Array,
+    TimestampMillisecondArray, UInt8Array, UInt64Array,
 };
 use arrow_schema::{DataType, Field, Schema, SchemaRef, TimeUnit};
 
@@ -391,6 +391,52 @@ fn projection_decodes_only_the_closure_and_refuses_what_it_cannot_read() {
     assert!(next_attempt.contains("flatten"), "{next_attempt}");
     let unknown = table.plan_columns(&["missing"], ReadOptions::default()).unwrap_err();
     assert!(matches!(unknown, FileSourceError::UnknownColumn { .. }), "{unknown}");
+}
+
+#[test]
+fn failed_later_column_cannot_advance_or_publish_a_corrupt_scan() {
+    let scratch = Scratch::new("conversion-failure");
+    let path = scratch.path("values.arrow");
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("category", DataType::Utf8, false),
+        Field::new("too_large", DataType::UInt64, false),
+    ]));
+    let batch = RecordBatch::try_new(
+        schema,
+        vec![
+            Arc::new(StringArray::from(vec!["first", "second", "third"])),
+            Arc::new(UInt64Array::from(vec![1, u64::MAX, 3])),
+        ],
+    )
+    .unwrap();
+    write_ipc_file(&path, &batch, 3);
+    let table = TableFile::open(&path).unwrap();
+    let plan =
+        table.plan_columns(&["category", "too_large"], ReadOptions::with_chunk_rows(3)).unwrap();
+    let mut reader = table.reader(&plan, &ctx()).unwrap();
+    let first = reader.next_chunk().unwrap_err();
+    assert!(matches!(first, FileSourceError::UnsupportedValue { .. }));
+    assert_eq!(reader.position(), GlobalId::new(0));
+    assert_eq!(reader.next_chunk().unwrap_err(), first);
+    assert_eq!(reader.finish().unwrap_err(), first);
+    reader.rewind().unwrap();
+    assert_eq!(reader.position(), GlobalId::new(0));
+    assert_eq!(reader.next_chunk().unwrap_err(), first);
+}
+
+#[test]
+fn materialize_refuses_a_file_that_grew_after_its_quote() {
+    let scratch = Scratch::new("changed-rows");
+    let path = scratch.path("numbers.parquet");
+    write_parquet(&path, &numeric_batch(2, 0.0), 2);
+    let table = TableFile::open(&path).unwrap();
+    let plan = table.plan_columns(&["x", "y"], ReadOptions::with_chunk_rows(3)).unwrap();
+    assert_eq!(table.quote(&plan).unwrap().unwrap().rows(), GlobalId::new(2));
+    write_parquet(&path, &numeric_batch(3, 0.0), 3);
+    assert!(matches!(table.materialize(&plan, &ctx()), Err(FileSourceError::Data(_))));
+    // A shorter replacement also cannot produce a complete receipt for the original quote.
+    write_parquet(&path, &numeric_batch(1, 0.0), 1);
+    assert!(matches!(table.materialize(&plan, &ctx()), Err(FileSourceError::Data(_))));
 }
 
 #[test]

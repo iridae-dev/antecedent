@@ -257,7 +257,16 @@ pub(crate) fn materialize(
         .iter()
         .map(|column| Builder::new(&column.kind, reserve))
         .collect::<Result<Vec<_>, _>>()?;
+    let mut received = 0_u64;
     while let Some(chunk) = reader.next_chunk()? {
+        let added = u64::try_from(chunk.rows())
+            .map_err(|_| FileSourceError::CountOverflow { context: "resident row count" })?;
+        let next = received
+            .checked_add(added)
+            .ok_or(FileSourceError::CountOverflow { context: "resident row count" })?;
+        if quote.as_ref().is_some_and(|q| next > q.rows().get()) {
+            return Err(FileSourceError::Data(DataError::mismatch("declared file row count")));
+        }
         if quote.is_none() {
             let bytes = plan.quote_rows(chunk.rows())?.owned_bytes;
             leases.push(resident_lease(ctx, bytes, chunk_rows)?);
@@ -265,8 +274,12 @@ pub(crate) fn materialize(
         for (builder, column) in builders.iter_mut().zip(chunk.columns()) {
             builder.append(column)?;
         }
+        received = next;
     }
     let receipt = reader.finish()?;
+    if quote.as_ref().is_some_and(|q| receipt.rows() != q.rows()) {
+        return Err(FileSourceError::Data(DataError::mismatch("declared file row count")));
+    }
     let mut columns = Vec::with_capacity(builders.len());
     for (position, builder) in builders.into_iter().enumerate() {
         let raw = u32::try_from(position)

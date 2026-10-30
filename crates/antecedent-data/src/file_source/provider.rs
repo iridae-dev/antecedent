@@ -161,6 +161,31 @@ pub(crate) fn format_error(path: &Path, error: &impl std::fmt::Display) -> FileS
 }
 
 #[cfg(feature = "parquet")]
+fn checked_parquet_rows(
+    path: &Path,
+    footer: i64,
+    groups: impl Iterator<Item = i64>,
+) -> Result<u64, FileSourceError> {
+    let footer = u64::try_from(footer)
+        .map_err(|_| format_error(path, &"the footer records a negative row count"))?;
+    let mut total = 0_u64;
+    for rows in groups {
+        let rows = u64::try_from(rows)
+            .map_err(|_| format_error(path, &"a row group records a negative row count"))?;
+        total = total
+            .checked_add(rows)
+            .ok_or(FileSourceError::CountOverflow { context: "Parquet row group counts" })?;
+    }
+    if total != footer {
+        return Err(format_error(
+            path,
+            &"the footer row count disagrees with the sum of row groups",
+        ));
+    }
+    Ok(footer)
+}
+
+#[cfg(feature = "parquet")]
 fn parquet_inspect(path: &Path) -> Result<Inspected, FileSourceError> {
     use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 
@@ -168,8 +193,11 @@ fn parquet_inspect(path: &Path) -> Result<Inspected, FileSourceError> {
         .map_err(|error| format_error(path, &error))?;
     let schema = SchemaRef::clone(builder.schema());
     let metadata = builder.metadata();
-    let rows = u64::try_from(metadata.file_metadata().num_rows())
-        .map_err(|_| format_error(path, &"the footer records a negative row count"))?;
+    let rows = checked_parquet_rows(
+        path,
+        metadata.file_metadata().num_rows(),
+        metadata.row_groups().iter().map(|group| group.num_rows()),
+    )?;
     let descriptor = builder.parquet_schema();
     let width = schema.fields().len();
     let mut decode_per_row: Vec<Option<u64>> = vec![None; width];
@@ -381,5 +409,28 @@ impl BatchProvider for StreamBatches {
         };
         let batch = batch.map_err(|error| format_error(origin, &error))?;
         batch.project(&self.projection).map(Some).map_err(|error| format_error(origin, &error))
+    }
+}
+
+#[cfg(all(test, feature = "parquet"))]
+mod row_count_tests {
+    use super::*;
+
+    #[test]
+    fn parquet_footer_must_match_checked_row_group_sum() {
+        let path = Path::new("mismatched.parquet");
+        assert_eq!(checked_parquet_rows(path, 5, [2, 3].into_iter()).unwrap(), 5);
+        assert!(matches!(
+            checked_parquet_rows(path, 1, [2, 3].into_iter()),
+            Err(FileSourceError::Format { .. })
+        ));
+        assert!(matches!(
+            checked_parquet_rows(path, 1, [-1, 2].into_iter()),
+            Err(FileSourceError::Format { .. })
+        ));
+        assert!(matches!(
+            checked_parquet_rows(path, 1, [i64::MAX, i64::MAX, 2].into_iter()),
+            Err(FileSourceError::CountOverflow { .. })
+        ));
     }
 }
