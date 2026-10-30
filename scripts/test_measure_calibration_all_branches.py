@@ -24,7 +24,9 @@ class StubbedDriverBranches(unittest.TestCase):
             for options, expected in [
                 (["--pilot", "--group", "two words", "--replicates", "17"], ["<pilot>", "<two words>", "<17>"]),
                 (["--group", "two words", "--replace-record", "r one"], ["<run>", "<two words>", "<--keep-existing>", "<r one>"]),
-                ([], ["<run>", "<--keep-attested>"])
+                ([], ["<run>", "<--keep-attested>"]),
+                (["--all"], ["<run>", "<--all>", "<scripts/collect_coverage_records.py>"]),
+                (["--missing-only"], ["<run>", "<--missing-only>", "<--keep-existing>"])
             ]:
                 with self.subTest(options=options):
                     capture.write_text("")

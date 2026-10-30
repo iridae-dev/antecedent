@@ -146,11 +146,8 @@ for raw_path in tracked:
     parts = set(path.parts)
     if parts & skip_dirs:
         continue
-    if (
-        any(p.startswith(".") and p not in {".github"} for p in path.parts if p != ".")
-        and ".github" not in path.parts
-        and any(p.startswith(".") for p in path.parts[1:])
-    ):
+    # Skip hidden paths at every depth, except the explicitly scanned .github tree.
+    if any(part.startswith(".") and part != ".github" for part in path.parts):
         continue
     if path.suffix.lower() not in spec["suffixes"]:
         continue
