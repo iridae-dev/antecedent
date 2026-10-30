@@ -560,7 +560,7 @@ impl Pag {
         let mut definite_active = None;
         let mut possibly_active = None;
         let mut memo = crate::pag::DescendantMemo::default();
-        let cut = self.walk_simple_paths(x, y, max_len, |path| {
+        let cut = self.walk_simple_paths(x, y, max_len, max_paths, |path| {
             if examined >= max_paths {
                 capped = true;
                 return false;

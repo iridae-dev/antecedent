@@ -375,7 +375,7 @@ impl Pag {
         }
         let mut capped = false;
         let mut examined = 0usize;
-        let cut = self.walk_simple_paths(x, y, max_len, |path| {
+        let cut = self.walk_simple_paths(x, y, max_len, max_paths, |path| {
             if examined >= max_paths {
                 capped = true;
                 return false;
@@ -423,9 +423,12 @@ impl Pag {
         x: DenseNodeId,
         y: DenseNodeId,
         max_len: usize,
+        max_paths: usize,
         mut visit: impl FnMut(&[DenseNodeId]) -> bool,
     ) -> bool {
         let mut cut = false;
+        let visit_budget = max_paths.saturating_mul(max_len).saturating_mul(16);
+        let mut visits = 0usize;
         let mut on_path = vec![false; self.node_count()];
         let mut path = vec![x];
         on_path[x.as_usize()] = true;
@@ -468,6 +471,11 @@ impl Pag {
                 path.pop();
                 continue;
             }
+            if visits >= visit_budget {
+                cut = true;
+                break;
+            }
+            visits += 1;
             on_path[nbr.as_usize()] = true;
             cursor.push(self.adj_of(nbr).len());
         }
@@ -645,6 +653,36 @@ mod tests {
     use super::*;
 
     #[test]
+    fn dead_end_partial_paths_consume_the_derived_visit_budget() {
+        let mut graph = Pag::with_variables(9);
+        for a in 0..8 {
+            for b in a + 1..8 {
+                graph
+                    .insert_circle_circle(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b))
+                    .unwrap();
+            }
+        }
+        let x = DenseNodeId::from_raw(0);
+        let y = DenseNodeId::from_raw(8);
+        let paths = graph.definite_status_paths(x, y, 1, 9).unwrap();
+        assert!(paths.paths.is_empty());
+        assert!(paths.truncated);
+        assert!(matches!(
+            graph.m_separation_status(x, y, &[], 1, 9),
+            Err(GraphError::SearchBudgetExhausted { .. })
+        ));
+
+        let mut chain = Pag::with_variables(3);
+        chain.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        chain.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let paths = chain
+            .definite_status_paths(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2), 1, 3)
+            .unwrap();
+        assert_eq!(paths.paths.len(), 1);
+        assert!(!paths.truncated);
+    }
+
+    #[test]
     fn accepts_circle_marks() {
         let mut g = Pag::with_variables(2);
         g.insert_circle_arrow(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
@@ -722,7 +760,7 @@ mod tests {
                 let y = DenseNodeId::from_raw(u32::try_from(next() % u64::from(n)).unwrap());
                 let max_len = (next() % 8) as usize;
                 let mut seen = Vec::new();
-                let cut = g.walk_simple_paths(x, y, max_len, |p| {
+                let cut = g.walk_simple_paths(x, y, max_len, usize::MAX, |p| {
                     seen.push(p.to_vec());
                     true
                 });
