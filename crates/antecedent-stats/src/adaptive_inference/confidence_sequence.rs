@@ -274,18 +274,23 @@ impl SequenceState {
     /// The sequence at the current sample size.
     ///
     /// # Errors
-    /// An empty intersection (evidence that the bounded independent premise
-    /// failed).
+    /// An empty intersection. This is a possible miscoverage event even when
+    /// the bounded independent premise holds.
     pub fn reading(&self) -> Result<ArmSequence, Error> {
+        self.reading_for_coverage()
+            .ok_or(Error::Numerical("the intersected confidence sequence is empty"))
+    }
+
+    /// The nonempty interval, or an empty-set coverage miss. Simulation must
+    /// count the latter rather than discard the entire replicate.
+    pub(crate) fn reading_for_coverage(&self) -> Option<ArmSequence> {
         if self.count == 0 {
-            return Ok(ArmSequence { count: 0, mean: f64::NAN, lower: 0.0, upper: 1.0 });
+            return Some(ArmSequence { count: 0, mean: f64::NAN, lower: 0.0, upper: 1.0 });
         }
         if self.lower > self.upper {
-            return Err(Error::Numerical(
-                "the intersected confidence sequence is empty: the bounded independent premise failed",
-            ));
+            return None;
         }
-        Ok(ArmSequence {
+        Some(ArmSequence {
             count: self.count,
             mean: self.sum / self.count as f64,
             lower: self.lower,
@@ -318,7 +323,7 @@ fn read_sequence(
 /// # Errors
 /// An outcome outside `[0, 1]` or not finite, a bad level, more than
 /// [`MAX_SEQUENCE_OBSERVATIONS`] observations, cancellation, or an empty
-/// intersection (evidence that the bounded independent premise failed).
+/// intersection (a possible tail event even under the bounded independent premise).
 pub fn bounded_mean_confidence_sequence(
     values: &[f64],
     alpha: f64,
@@ -472,6 +477,26 @@ mod tests {
                     assert_eq!(batch, reading);
                 }
             }
+        }
+    }
+
+    #[test]
+    fn an_empty_intersection_is_a_persistent_coverage_miss() {
+        // This finite 0/1 trajectory has positive probability under iid
+        // Bernoulli(1/2), so emptiness is a tail miss, not an invalid premise.
+        let mut state = SequenceState::new(0.05, 100.0).unwrap();
+        for _ in 0..100 {
+            state.push(0.0).unwrap();
+        }
+        assert!(state.reading_for_coverage().is_some());
+        for _ in 0..100 {
+            state.push(1.0).unwrap();
+        }
+        assert!(state.reading_for_coverage().is_none());
+        assert!(state.reading().is_err());
+        for _ in 0..100 {
+            state.push(0.0).unwrap();
+            assert!(state.reading_for_coverage().is_none());
         }
     }
 

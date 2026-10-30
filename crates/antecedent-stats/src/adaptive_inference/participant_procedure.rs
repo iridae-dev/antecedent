@@ -108,8 +108,7 @@ use super::procedure_contract::{
     ContractGap, MAX_PROCEDURE_ARMS, MAX_PROCEDURE_UNITS, ProcedureContractError,
 };
 use super::procedure_law::{
-    apply_exploration_floor, first_maximum, first_maximum_within_tolerance,
-    normalize_probabilities,
+    apply_exploration_floor, first_maximum, first_maximum_within_tolerance, normalize_probabilities,
 };
 use super::procedure_repeated_measures::{CellLabel, MAX_UNIT_LAG};
 use super::procedure_simulation::{MAX_SIMULATION_REPLICATIONS, draw};
@@ -923,6 +922,58 @@ struct Walk {
     completed: u32,
 }
 
+/// One private look before public interval publication. Empty confidence
+/// intersections remain observable to coverage simulations without constructing
+/// an invalid public interval or interrupting posterior allocation/stopping.
+struct LookSnapshot<'a> {
+    look: usize,
+    enrolled: u32,
+    tallies: &'a [Tally],
+    sequences: &'a [SequenceState],
+    view: &'a View,
+    row: &'a [f64],
+    decision: LookDecision,
+}
+
+struct CoverageReading {
+    decision: LookDecision,
+    best_treatment: usize,
+    covered: bool,
+    contrast_covered: bool,
+}
+
+impl LookSnapshot<'_> {
+    fn reading(&self, spec: &ParticipantSpec) -> Result<LookReading, Error> {
+        spec.reading(
+            self.look,
+            self.enrolled,
+            self.tallies,
+            self.sequences,
+            self.view,
+            self.row.to_vec(),
+            self.decision,
+        )
+    }
+
+    fn coverage(&self, truth: &[f64]) -> CoverageReading {
+        let intervals: Vec<_> =
+            self.sequences.iter().map(SequenceState::reading_for_coverage).collect();
+        let covered = intervals.iter().zip(truth).all(|(interval, &truth)| {
+            interval.is_some_and(|interval| interval.lower <= truth && truth <= interval.upper)
+        });
+        let best_treatment = 1 + first_maximum(&self.view.means()[1..]);
+        let contrast_covered = match (intervals[0], intervals[best_treatment]) {
+            (Some(control), Some(treatment)) => {
+                let difference = truth[best_treatment] - truth[0];
+                treatment.lower - control.upper <= difference
+                    && difference <= treatment.upper - control.lower
+            }
+            _ => false,
+        };
+        CoverageReading { decision: self.decision, best_treatment, covered, contrast_covered }
+    }
+}
+
 impl ParticipantSpec {
     fn exact(
         &self,
@@ -1076,7 +1127,7 @@ impl ParticipantSpec {
         source: &mut dyn Enrolment,
         detail: Detail,
         cancelled: &dyn Fn() -> bool,
-        observer: &mut dyn FnMut(&LookReading) -> Result<(), Error>,
+        observer: &mut dyn FnMut(&LookSnapshot<'_>) -> Result<(), Error>,
     ) -> Result<Walk, Error> {
         let arms = self.arms();
         let looks = self.enrolment.len();
@@ -1120,9 +1171,15 @@ impl ParticipantSpec {
                 },
                 None => LookDecision::Continue,
             };
-            let reading =
-                self.reading(look, enrolled, &tallies, &sequences, &view, row, decision)?;
-            observer(&reading)?;
+            observer(&LookSnapshot {
+                look,
+                enrolled,
+                tallies: &tallies,
+                sequences: &sequences,
+                view: &view,
+                row: &row,
+                decision,
+            })?;
             if matches!(decision, LookDecision::Stop { .. }) {
                 let completed = tallies.iter().map(completed_count).sum();
                 return Ok(Walk { looks_run: look + 1, enrolled, completed });
@@ -1300,10 +1357,6 @@ fn success_pmfs(
     Ok(truth.iter().map(|&mean| beta_binomial_pmf(spec.responses(), mean, correlation)).collect())
 }
 
-fn covers(arm: &ArmReading, truth: f64) -> bool {
-    arm.lower <= truth && truth <= arm.upper
-}
-
 /// Run the declared procedure `request.replications` times under the arm
 /// means `truth`, within the library work and memory bounds.
 ///
@@ -1376,11 +1429,11 @@ pub fn simulate_participant_procedure_within(
             pmfs: &pmfs,
         };
         let mut covered_every_look = true;
-        let mut last: Option<LookReading> = None;
-        let walk = spec.walk(&mut source, Detail::Lean, cancelled, &mut |reading| {
-            covered_every_look &=
-                reading.frequentist.arms.iter().zip(truth).all(|(arm, &t)| covers(arm, t));
-            last = Some(reading.clone());
+        let mut last: Option<CoverageReading> = None;
+        let walk = spec.walk(&mut source, Detail::Lean, cancelled, &mut |snapshot| {
+            let reading = snapshot.coverage(truth);
+            covered_every_look &= reading.covered;
+            last = Some(reading);
             Ok(())
         })?;
         let Some(reading) = last else {
@@ -1389,11 +1442,8 @@ pub fn simulate_participant_procedure_within(
         let LookDecision::Stop { reason, arm } = reading.decision else {
             return Err(Error::Numerical("a replicate ended without a decision"));
         };
-        let covered_at_stop =
-            reading.frequentist.arms.iter().zip(truth).all(|(a, &t)| covers(a, t));
-        let best = reading.frequentist.best_treatment;
-        let comparison = reading.frequentist.best_treatment_comparison;
-        let difference = truth[best] - truth[0];
+        let covered_at_stop = reading.covered;
+        let best = reading.best_treatment;
         replicates.push(ParticipantReplicate {
             look: walk.looks_run - 1,
             reason,
@@ -1403,8 +1453,7 @@ pub fn simulate_participant_procedure_within(
             best_treatment: best,
             covered_every_look,
             covered_at_stop,
-            contrast_covered_at_stop: comparison.lower <= difference
-                && difference <= comparison.upper,
+            contrast_covered_at_stop: reading.contrast_covered,
         });
         receipt
             .record_replicate(walk.looks_run, walk.enrolled, spec.work_per_participant(), states)
@@ -1476,7 +1525,9 @@ pub fn simulate_participant_history(
         successes: Vec::new(),
         assignment: Vec::new(),
     };
-    let walk = spec.walk(&mut source, Detail::Lean, cancelled, &mut |_| Ok(()))?;
+    let walk = spec.walk(&mut source, Detail::Lean, cancelled, &mut |snapshot| {
+        snapshot.reading(spec).map(|_| ())
+    })?;
     Ok(source.into_history(spec, walk.looks_run))
 }
 
@@ -1569,9 +1620,9 @@ pub fn run_participant_procedure_within(
     let outcome = if cancelled() {
         Err(Error::Cancelled)
     } else {
-        spec.walk(&mut source, Detail::Lean, &uninterrupted, &mut |reading| {
-            readings.push(reading.clone());
-            if matches!(reading.decision, LookDecision::Continue) && cancelled() {
+        spec.walk(&mut source, Detail::Lean, &uninterrupted, &mut |snapshot| {
+            readings.push(snapshot.reading(spec)?);
+            if matches!(snapshot.decision, LookDecision::Continue) && cancelled() {
                 return Err(Error::Cancelled);
             }
             Ok(())
@@ -1708,8 +1759,8 @@ impl ParticipantSpec {
         }
         let mut readings = Vec::with_capacity(performed);
         let mut source = Replayed { history, cursor: 0 };
-        let walk = self.walk(&mut source, Detail::Full, cancelled, &mut |reading| {
-            readings.push(reading.clone());
+        let walk = self.walk(&mut source, Detail::Full, cancelled, &mut |snapshot| {
+            readings.push(snapshot.reading(self)?);
             Ok(())
         })?;
         if walk.looks_run != performed {
@@ -1838,5 +1889,74 @@ impl ParticipantSpec {
             });
         }
         Ok(receipt)
+    }
+}
+
+#[cfg(test)]
+mod empty_sequence_regression_tests {
+    use super::*;
+    use crate::adaptive_inference::BetaPrior;
+
+    struct TailTrajectory;
+
+    impl Enrolment for TailTrajectory {
+        fn batch(&mut self, look: usize, size: u32, _: &[f64]) -> Result<Vec<Participant>, Error> {
+            Ok((0..size)
+                .map(|i| Participant {
+                    arm: i as usize % 2,
+                    successes: if look == 0 { 0 } else { 2 },
+                })
+                .collect())
+        }
+    }
+
+    #[test]
+    fn coverage_walk_finishes_after_an_empty_sequence_and_scores_contrast_misses() {
+        // Each arm sees 200 zero proportions, then 200 ones, then 200 ones.
+        // This path has positive probability under the declared independent
+        // Bernoulli(1/2) responses and positive allocation probabilities.
+        let spec = ParticipantSpec::new(ParticipantDeclaration {
+            arms: 2,
+            responses: Some(2),
+            correlation: Some(0.0),
+            correlation_prior: None,
+            borrowing: Some(BorrowingPlan::uniform(2, BetaPrior::UNIFORM)),
+            enrolment: Some(vec![400; 3]),
+            lag_looks: 0,
+            min_exploration: Some(0.1),
+            decisions: Some(DecisionRules {
+                loss_threshold: 1e-12,
+                futility: None,
+                participant_cap: None,
+            }),
+            anytime: Some(AnytimeSettings { alpha: 0.05, tuning_samples: 100.0 }),
+        })
+        .unwrap();
+        let mut looks = 0;
+        let mut empty_looks = 0;
+        let mut final_coverage = None;
+        let walk = spec
+            .walk(&mut TailTrajectory, Detail::Lean, &|| false, &mut |snapshot| {
+                looks += 1;
+                let coverage = snapshot.coverage(&[0.5, 0.5]);
+                if snapshot.sequences.iter().any(|s| s.reading_for_coverage().is_none()) {
+                    empty_looks += 1;
+                    assert!(!coverage.covered);
+                    assert!(!coverage.contrast_covered);
+                    assert!(snapshot.reading(&spec).is_err(), "public intervals still refuse");
+                }
+                final_coverage = Some(coverage);
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(walk.looks_run, 3);
+        assert_eq!(looks, 3);
+        assert_eq!(empty_looks, 2);
+        let coverage = final_coverage.unwrap();
+        assert!(!coverage.covered && !coverage.contrast_covered);
+        assert!(matches!(
+            coverage.decision,
+            LookDecision::Stop { reason: StopReason::Horizon, .. }
+        ));
     }
 }
