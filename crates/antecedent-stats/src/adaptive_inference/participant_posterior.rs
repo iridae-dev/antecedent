@@ -70,7 +70,7 @@
 
 use std::sync::OnceLock;
 
-use antecedent_kernels::sigmoid;
+use antecedent_kernels::{Welford, sigmoid};
 
 use super::AdaptiveInferenceError as Error;
 use crate::special::{digamma, gauss_legendre, trigamma};
@@ -548,7 +548,7 @@ fn evaluate(
 
 struct NodeFunctionals {
     mean: Vec<f64>,
-    second: Vec<f64>,
+    variance: Vec<f64>,
     best: Vec<f64>,
     expected_max: f64,
     exceedance: Vec<f64>,
@@ -635,8 +635,7 @@ fn node_functionals(
         .map(|(values, &z)| values.iter().map(|&v| (v - z).exp()).collect())
         .collect();
     let cdf: Vec<Vec<f64>> = density.iter().map(|d| cdf_at_nodes(layout, d)).collect();
-    let mut mean = vec![0.0; count];
-    let mut second = vec![0.0; count];
+    let mut moments = vec![Welford::new(); count];
     let mut best = vec![0.0; count];
     let mut expected_max = 0.0;
     let mut suffix = vec![1.0; count + 1];
@@ -649,14 +648,15 @@ fn node_functionals(
         let mu = layout.mu[g];
         for k in 0..count {
             let mass = w * density[k][g];
-            mean[k] += mass * mu;
-            second[k] += mass * mu * mu;
+            moments[k].push_weighted(mass, mu);
             let others = prefix * suffix[k + 1];
             best[k] += mass * others;
             expected_max += mass * mu * others;
             prefix *= cdf[k][g];
         }
     }
+    let mean = moments.iter().map(Welford::mean).collect();
+    let variance = moments.iter().map(|moment| moment.m2() / moment.mass()).collect();
     let exceedance = match margin {
         None => Vec::new(),
         Some(margin) => {
@@ -678,7 +678,7 @@ fn node_functionals(
                 .collect()
         }
     };
-    NodeFunctionals { mean, second, best, expected_max, exceedance }
+    NodeFunctionals { mean, variance, best, expected_max, exceedance }
 }
 
 // -- Correlation nodes ----------------------------------------------------------------------------
@@ -817,8 +817,8 @@ fn assemble(
 ) -> Result<ExactPosterior, Error> {
     let count = request.arms.len();
     let q = normalized(&evaluation.ln_weight);
-    let mut mean = vec![0.0; count];
-    let mut second = vec![0.0; count];
+    let mut moments = vec![Welford::new(); count];
+    let mut within_variance = vec![0.0; count];
     let mut best = vec![0.0; count];
     let mut loss_max = 0.0;
     let mut exceedance = vec![0.0; if request.exceedance_margin.is_some() { count - 1 } else { 0 }];
@@ -833,8 +833,8 @@ fn assemble(
             request.exceedance_margin,
         );
         for k in 0..count {
-            mean[k] += weight * f.mean[k];
-            second[k] += weight * f.second[k];
+            moments[k].push_weighted(weight, f.mean[k]);
+            within_variance[k] += weight * f.variance[k];
             best[k] += weight * f.best[k];
         }
         loss_max += weight * f.expected_max;
@@ -842,7 +842,15 @@ fn assemble(
             *slot += weight * value;
         }
     }
-    let sd = mean.iter().zip(&second).map(|(m, s)| (s - m * m).max(0.0).sqrt()).collect();
+    let mean: Vec<f64> = moments.iter().map(Welford::mean).collect();
+    // Total variance = E[conditional variance] + Var[conditional mean].
+    // Both terms are centered; a concentrated probability near one must not
+    // lose its variance to subtraction of two raw moments near one.
+    let sd = moments
+        .iter()
+        .zip(&within_variance)
+        .map(|(moment, within)| ((moment.m2() + within) / moment.mass()).max(0.0).sqrt())
+        .collect();
     let expected_loss = mean.iter().map(|m| (loss_max - m).max(0.0)).collect();
     let total: f64 = best.iter().sum();
     let correlation_mean: f64 = nodes.iter().zip(&q).map(|(n, w)| n.0 * w).sum();
@@ -877,5 +885,40 @@ mod log_sum_exp_tests {
         assert_eq!(z, f64::NEG_INFINITY);
         let (z, peak) = log_sum_exp_weighted(&[0.0, 0.0], &[1.0, 1.0]);
         assert!((z - 2.0_f64.ln()).abs() < 1e-15 && peak == 0.0);
+    }
+}
+
+#[cfg(test)]
+mod centered_variance_tests {
+    use super::*;
+
+    #[test]
+    fn concentrated_beta_arms_keep_their_closed_form_variance_near_either_boundary() {
+        let counts = [0_u64; 3];
+        for (alpha, beta) in [(1e10, 1000.0), (1000.0, 1e10)] {
+            let arms = [ArmEvidence { prior_alpha: alpha, prior_beta: beta, counts: &counts }; 2];
+            let posterior = exact_posterior(
+                &PosteriorRequest {
+                    responses: 2,
+                    correlation: CorrelationModel::Declared(0.0),
+                    arms: &arms,
+                    exceedance_margin: None,
+                },
+                &|| false,
+            )
+            .unwrap();
+            // With no observations the posterior is the declared Beta prior.
+            let total = alpha + beta;
+            let mean = alpha / total;
+            let variance = alpha * beta / (total * total * (total + 1.0));
+            for arm in 0..2 {
+                assert!((posterior.mean[arm] - mean).abs() < 2e-12);
+                assert!(
+                    (posterior.sd[arm].powi(2) / variance - 1.0).abs() < 1e-4,
+                    "alpha={alpha} beta={beta}: variance {} vs {variance}",
+                    posterior.sd[arm].powi(2)
+                );
+            }
+        }
     }
 }

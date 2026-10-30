@@ -26,9 +26,6 @@ use antecedent_core::PriorAssumption;
 use crate::error::ProbError;
 use crate::prior::{GaussianCoefficientPrior, PriorSet, PriorSpec};
 
-/// Floor on conjugate-scale variance after composition.
-const COMPOSE_VAR_FLOOR: f64 = 1e-12;
-
 /// Kish (1965) effective sample size `(Σw)² / Σw²`, owned by
 /// [`antecedent_kernels::kish_ess`] (non-finite weights give `NaN`, zero mass
 /// gives `0.0`).
@@ -461,7 +458,7 @@ fn compose_power_add(
             });
         }
         mean[i] = num[i] / lam[i];
-        variance[i] = (1.0 / lam[i]).max(COMPOSE_VAR_FLOOR);
+        variance[i] = 1.0 / lam[i];
     }
     let out = GaussianCoefficientPrior { mean: Arc::from(mean), variance: Arc::from(variance) };
     out.validate()?;
@@ -520,22 +517,36 @@ fn compose_dense(
                 message: "compose_external_priors: mixture has no positive-mass components",
             });
         }
-        let mut mu = vec![0.0; n];
-        let mut second = vec![0.0; n * n];
+        let mass: f64 = comps.iter().map(|component| component.0).sum();
+        if !mass.is_finite() || mass <= 0.0 {
+            return Err(ProbError::InvalidPrior {
+                message: "compose_external_priors: invalid mixture mass",
+            });
+        }
+        let anchor = &comps[0].1;
+        let mut centered_mean = vec![0.0; n];
+        for (w, m, _, _) in &comps {
+            for i in 0..n {
+                centered_mean[i] += (w / mass) * (m[i] - anchor[i]);
+            }
+        }
+        let mu: Vec<f64> = anchor.iter().zip(&centered_mean).map(|(a, m)| a + m).collect();
+        let mut covariance = vec![0.0; n * n];
         for (w, m, v, alpha) in &comps {
             for i in 0..n {
-                mu[i] += w * m[i];
-                for j in 0..n {
-                    second[i * n + j] += w * (v[i * n + j] / alpha + m[i] * m[j]);
+                let di = (m[i] - anchor[i]) - centered_mean[i];
+                for j in 0..=i {
+                    let dj = (m[j] - anchor[j]) - centered_mean[j];
+                    covariance[i * n + j] += (w / mass) * (v[i * n + j] / alpha + di * dj);
                 }
             }
         }
         for i in 0..n {
-            for j in 0..n {
-                second[i * n + j] -= mu[i] * mu[j];
+            for j in 0..i {
+                covariance[j * n + i] = covariance[i * n + j];
             }
         }
-        (mu, second)
+        (mu, covariance)
     } else {
         let mut lam = crate::linalg::invert_spd(&base_v0, n)?;
         let mut num = vec![0.0; n];
@@ -571,7 +582,7 @@ fn compose_dense(
     };
     let mut variance = vec![0.0; n];
     for i in 0..n {
-        variance[i] = cov[i * n + i].max(COMPOSE_VAR_FLOOR);
+        variance[i] = cov[i * n + i];
     }
     let corr = crate::CoefficientCorrelation::from_covariance(&cov, n)?;
     let out = GaussianCoefficientPrior { mean: Arc::from(mean), variance: Arc::from(variance) };
@@ -612,18 +623,22 @@ fn compose_mixture(
 
     let mut mean = vec![0.0; n];
     let mut variance = vec![0.0; n];
+    let mass: f64 = comps.iter().map(|component| component.0).sum();
+    if !mass.is_finite() || mass <= 0.0 {
+        return Err(ProbError::InvalidPrior {
+            message: "compose_external_priors: invalid mixture mass",
+        });
+    }
     for i in 0..n {
-        let mut mu = 0.0;
-        let mut second = 0.0;
+        let anchor = comps[0].1.mean[i];
+        let centered_mean: f64 =
+            comps.iter().map(|&(w, coef, _)| (w / mass) * (coef.mean[i] - anchor)).sum();
         for &(w, coef, alpha) in &comps {
-            let m = coef.mean[i];
+            let deviation = (coef.mean[i] - anchor) - centered_mean;
             // Power-scale: precision α Λ ⇒ variance V/α.
-            let v = (coef.variance[i] / alpha).max(COMPOSE_VAR_FLOOR);
-            mu += w * m;
-            second += w * (v + m * m);
+            variance[i] += (w / mass) * (coef.variance[i] / alpha + deviation * deviation);
         }
-        mean[i] = mu;
-        variance[i] = (second - mu * mu).max(COMPOSE_VAR_FLOOR);
+        mean[i] = anchor + centered_mean;
     }
     let out = GaussianCoefficientPrior { mean: Arc::from(mean), variance: Arc::from(variance) };
     out.validate()?;
@@ -663,6 +678,106 @@ mod tests {
             GaussianCoefficientPrior::shared(1, mean, var).unwrap(),
         ));
         p
+    }
+
+    #[test]
+    fn mixture_variance_uses_centered_moments_at_large_locations() {
+        for offset in [0.0, 1e9] {
+            let source = ExternalPriorSource {
+                id: Arc::from("shifted"),
+                prior: gauss(offset + 2.0, 0.75),
+                weight: ExternalPriorWeight::power_mixture(1.0, 0.25).unwrap(),
+                ess: None,
+            };
+            let composed = compose_external_priors(&[source], &gauss(offset, 0.25)).unwrap();
+            let coef = composed.prior.gaussian_coefficients().unwrap();
+            assert!((coef.mean[0] - offset - 0.5).abs() < 1e-12);
+            // E[Var] = .75*.25 + .25*.75; Var(E) = .25*.75*2².
+            assert!((coef.variance[0] - 1.125).abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn composition_preserves_small_positive_variances_and_refuses_underflowed_zero() {
+        let source = |mixture| ExternalPriorSource {
+            id: Arc::from("small"),
+            prior: gauss(0.0, 1e-16),
+            weight: match mixture {
+                Some(weight) => ExternalPriorWeight::power_mixture(1.0, weight).unwrap(),
+                None => ExternalPriorWeight::power(1.0).unwrap(),
+            },
+            ess: None,
+        };
+        for (mixture, expected) in [(None, 5e-17), (Some(0.5), 1e-16)] {
+            let composed = compose_external_priors(&[source(mixture)], &gauss(0.0, 1e-16)).unwrap();
+            let variance = composed.prior.gaussian_coefficients().unwrap().variance[0];
+            assert!((variance / expected - 1.0).abs() < 1e-12);
+        }
+        let smallest = f64::from_bits(1);
+        let source = ExternalPriorSource {
+            id: Arc::from("underflow"),
+            prior: gauss(0.0, smallest),
+            weight: ExternalPriorWeight::power_mixture(1.0, 0.5).unwrap(),
+            ess: None,
+        };
+        assert!(compose_external_priors(&[source], &gauss(0.0, smallest)).is_err());
+    }
+
+    #[test]
+    fn near_unit_mixture_mass_is_normalized_before_matching_moments() {
+        let source = |id| ExternalPriorSource {
+            id: Arc::from(id),
+            prior: gauss(1e9, 1.0),
+            weight: ExternalPriorWeight::power_mixture(1.0, 0.5 + 2.5e-13).unwrap(),
+            ess: None,
+        };
+        let composed =
+            compose_external_priors(&[source("a"), source("b")], &gauss(0.0, 100.0)).unwrap();
+        let coef = composed.prior.gaussian_coefficients().unwrap();
+        assert!((coef.mean[0] - 1e9).abs() < 1e-12);
+        assert!((coef.variance[0] - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn dense_mixture_covariance_is_translation_invariant() {
+        for offset in [0.0, 1e9] {
+            let mut source = dense_source(1.0, Some(0.5));
+            for spec in &mut source.prior.specs {
+                if let PriorSpec::GaussianCoefficients(coef) = spec {
+                    coef.mean = Arc::from([offset + 1.0, offset - 1.0]);
+                }
+            }
+            let mut baseline = PriorSet::new();
+            baseline.push(PriorSpec::GaussianCoefficients(
+                GaussianCoefficientPrior::shared(2, offset, 1.0).unwrap(),
+            ));
+            let composed = compose_external_priors(&[source], &baseline).unwrap();
+            let coef = composed.prior.gaussian_coefficients().unwrap();
+            assert!((coef.variance[0] - 0.77).abs() < 1e-12);
+            assert!((coef.variance[1] - 0.795).abs() < 1e-12);
+            let correlation = composed.prior.coefficient_correlation().unwrap();
+            let covariance = correlation.matrix()[1] * (coef.variance[0] * coef.variance[1]).sqrt();
+            assert!((covariance + 0.274).abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn dense_composition_does_not_replace_small_covariance_with_a_variance_floor() {
+        let mut source = dense_source(1.0, Some(0.5));
+        for spec in &mut source.prior.specs {
+            if let PriorSpec::GaussianCoefficients(coef) = spec {
+                coef.mean = Arc::from([0.0, 0.0]);
+                coef.variance = Arc::from([1e-16, 4e-16]);
+            }
+        }
+        let mut baseline = PriorSet::new();
+        baseline.push(PriorSpec::GaussianCoefficients(
+            GaussianCoefficientPrior::shared(2, 0.0, 1e-16).unwrap(),
+        ));
+        let composed = compose_external_priors(&[source], &baseline).unwrap();
+        let coef = composed.prior.gaussian_coefficients().unwrap();
+        assert!((coef.variance[0] / 1e-16 - 1.0).abs() < 1e-12);
+        assert!((coef.variance[1] / 2.5e-16 - 1.0).abs() < 1e-12);
     }
 
     #[test]
