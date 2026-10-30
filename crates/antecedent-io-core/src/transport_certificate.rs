@@ -175,6 +175,43 @@ impl StructuralTransportCertificateWire {
         {
             return Err(err("unsupported or invalid transport certificate"));
         }
+        // Reject malformed coordinates before constructing a potentially large graph.
+        // A set avoids rescanning all nodes for every outcome, treatment and selection.
+        let nodes: std::collections::BTreeSet<u32> = self.nodes.iter().copied().collect();
+        let outcomes: std::collections::BTreeSet<u32> = self.outcomes.iter().copied().collect();
+        let treatments: std::collections::BTreeSet<u32> = self.treatments.iter().copied().collect();
+        let unique = |xs: &[u32]| {
+            xs.iter().copied().collect::<std::collections::BTreeSet<_>>().len() == xs.len()
+        };
+        if self.outcomes.is_empty()
+            || self.source == self.target
+            || self.source.is_empty()
+            || self.target.is_empty()
+            || !outcomes.is_subset(&nodes)
+            || !treatments.is_subset(&nodes)
+            || !outcomes.is_disjoint(&treatments)
+        {
+            return Err(err("invalid certificate query"));
+        }
+        if nodes.len() != self.nodes.len()
+            || outcomes.len() != self.outcomes.len()
+            || treatments.len() != self.treatments.len()
+            || !unique(&self.selections)
+            || self.selections.iter().any(|v| !nodes.contains(v))
+            || self.sources.windows(2).any(|pair| pair[0].population >= pair[1].population)
+            || self.sources.first().is_some_and(|source| {
+                source.population != self.source || source.selections != self.selections
+            })
+            || self.sources.iter().any(|source| {
+                source.population.trim().is_empty()
+                    || source.population == self.target
+                    || !unique(&source.selections)
+                    || source.selections.windows(2).any(|w| w[0] >= w[1])
+                    || source.selections.iter().any(|v| !nodes.contains(v))
+            })
+        {
+            return Err(err("invalid certificate coordinates or source collection"));
+        }
         let mut graph = Admg::empty();
         for v in &self.nodes {
             graph.add_node(NodeRef::Static(VariableId::from_raw(*v))).map_err(err)?;
@@ -201,36 +238,6 @@ impl StructuralTransportCertificateWire {
             source: Arc::from(self.source.as_str()),
             target: Arc::from(self.target.as_str()),
         };
-        if query.outcomes.is_empty()
-            || query.source == query.target
-            || query.source.is_empty()
-            || query.target.is_empty()
-            || self.outcomes.iter().any(|v| !self.nodes.contains(v) || self.treatments.contains(v))
-            || self.treatments.iter().any(|v| !self.nodes.contains(v))
-        {
-            return Err(err("invalid certificate query"));
-        }
-        let unique =
-            |xs: &[u32]| xs.iter().collect::<std::collections::BTreeSet<_>>().len() == xs.len();
-        if !unique(&self.nodes)
-            || !unique(&self.outcomes)
-            || !unique(&self.treatments)
-            || !unique(&self.selections)
-            || self.sources.windows(2).any(|pair| pair[0].population >= pair[1].population)
-            || self
-                .sources
-                .first()
-                .is_some_and(|s| s.population != self.source || s.selections != self.selections)
-            || self.sources.iter().any(|s| {
-                s.population.trim().is_empty()
-                    || s.population == self.target
-                    || !unique(&s.selections)
-                    || s.selections.windows(2).any(|w| w[0] >= w[1])
-                    || s.selections.iter().any(|v| !self.nodes.contains(v))
-            })
-        {
-            return Err(err("invalid certificate coordinates or source collection"));
-        }
         let result = match &self.outcome {
             CertificateOutcome::Identified(proof) => {
                 if proof.proof.sources != self.sources {
@@ -373,6 +380,28 @@ mod tests {
             TransportCertificateWire::from_result(&diagram, &query, sources, &result, limits, &ctx)
                 .unwrap();
         TransportCertificateWire::consume(&wire.export().unwrap(), limits, &ctx).unwrap();
+        // Coordinates are rejected before graph reconstruction, even if graph edges are bad.
+        let mut invalid = wire.clone();
+        invalid.nodes = (0..1_024).collect();
+        invalid.nodes.push(0);
+        invalid.directed = vec![(0, u32::MAX)];
+        assert!(
+            invalid
+                .check(limits, &ctx)
+                .unwrap_err()
+                .to_string()
+                .contains("invalid certificate coordinates")
+        );
+        invalid.nodes.pop();
+        invalid.outcomes = vec![u32::MAX];
+        assert!(
+            invalid
+                .check(limits, &ctx)
+                .unwrap_err()
+                .to_string()
+                .contains("invalid certificate query")
+        );
+
         let mut altered = wire.clone();
         altered.target = "other".into();
         assert!(altered.check(limits, &ctx).is_err());

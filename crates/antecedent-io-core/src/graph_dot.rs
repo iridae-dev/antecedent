@@ -550,7 +550,10 @@ impl<'a> Lexer<'a> {
     }
 
     pub(crate) fn snippet(&self) -> String {
-        let end = (self.pos + 24).min(self.src.len());
+        let mut end = self.pos.saturating_add(24).min(self.src.len());
+        while !self.src.is_char_boundary(end) {
+            end -= 1;
+        }
         self.src[self.pos..end].replace('\n', "\\n")
     }
 }
@@ -560,6 +563,18 @@ mod tests {
     use antecedent_graph::DenseNodeId;
 
     use super::*;
+
+    #[test]
+    fn invalid_dot_with_multibyte_error_context_returns_an_error() {
+        for text in
+            ["digraph { a x€€€€€€€€€€€€€€€€€€€€€€€ }", "digraph { a [x=€€€€€€€€€€€€€€€€€€€€] }"]
+        {
+            let result = std::panic::catch_unwind(|| dag_wire_from_dot(text));
+            assert!(matches!(result, Ok(Err(IoError::Convert(_)))));
+        }
+        let lexer = Lexer::new("x€€€€€€€€€");
+        assert_eq!(lexer.snippet(), "x€€€€€€€");
+    }
 
     #[test]
     fn round_trip_numeric_dot() {

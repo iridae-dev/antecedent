@@ -341,6 +341,29 @@ impl StalenessBaselineWire {
                 self.kind
             )));
         }
+        if let Some(joint) = &self.joint {
+            let dim = joint.columns.len();
+            let square = dim.checked_mul(dim);
+            let sample =
+                usize::try_from(joint.subsample_rows).ok().and_then(|rows| rows.checked_mul(dim));
+            if joint.mean.len() != dim
+                || square != Some(joint.m2.len())
+                || sample != Some(joint.subsample.len())
+            {
+                return Err(IoError::Convert(
+                    "staleness baseline joint profile shape is invalid".into(),
+                ));
+            }
+        }
+        if let Some(model) = &self.outcome_model {
+            let p = model.design.len().checked_add(1);
+            let square = p.and_then(|p| p.checked_mul(p));
+            if p != Some(model.xty.len()) || square != Some(model.xtx.len()) {
+                return Err(IoError::Convert(
+                    "staleness baseline outcome model shape is invalid".into(),
+                ));
+            }
+        }
         if self.seal != self.expected_seal()? {
             return Err(IoError::Convert("staleness baseline seal does not verify".into()));
         }
@@ -425,6 +448,62 @@ mod tests {
             checks: Vec::new(),
             outcome_model: None,
             seal: String::new(),
+        }
+    }
+
+    #[test]
+    fn resealed_staleness_profiles_require_safe_matrix_and_sample_shapes() {
+        let joint = JointProfileWire {
+            columns: vec!["x".into(), "z".into()],
+            n: 3,
+            mean: vec![1.0, 2.0],
+            m2: vec![1.0, 0.0, 0.0, 1.0],
+            subsample: vec![1.0, 2.0],
+            subsample_rows: 1,
+        };
+        let outcome = OutcomeModelWire {
+            design: vec!["x".into()],
+            outcome: "y".into(),
+            n: 3,
+            xtx: vec![1.0, 0.0, 0.0, 1.0],
+            xty: vec![1.0, 2.0],
+            yty: 3.0,
+        };
+        let mut valid = minimal();
+        valid.joint = Some(joint);
+        valid.outcome_model = Some(outcome);
+        let valid = valid.sealed().unwrap();
+        let bytes = valid.export().unwrap();
+        assert_eq!(StalenessBaselineWire::consume(&bytes).unwrap(), valid);
+        let mut malformed = Vec::new();
+        let mut v = valid.clone();
+        v.joint.as_mut().unwrap().m2.pop();
+        malformed.push(v);
+        let mut v = valid.clone();
+        v.joint.as_mut().unwrap().mean.pop();
+        malformed.push(v);
+        let mut v = valid.clone();
+        v.joint.as_mut().unwrap().subsample_rows = u64::MAX;
+        malformed.push(v);
+        let mut v = valid.clone();
+        v.outcome_model.as_mut().unwrap().xtx.pop();
+        malformed.push(v);
+        let mut v = valid.clone();
+        v.outcome_model.as_mut().unwrap().xty.pop();
+        malformed.push(v);
+        for v in malformed {
+            let v = v.sealed().unwrap();
+            assert!(matches!(v.verify(), Err(IoError::Convert(_))));
+            let mut bytes = STALENESS_BASELINE_MAGIC.to_vec();
+            ciborium::into_writer(&v, &mut bytes).unwrap();
+            assert!(StalenessBaselineWire::consume(&bytes).is_err());
+            assert!(
+                StalenessBaselineWire::consume_admitted(
+                    &bytes,
+                    &antecedent_core::ExecutionContext::for_tests(1)
+                )
+                .is_err()
+            );
         }
     }
 
