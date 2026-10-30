@@ -730,7 +730,8 @@ impl ColumnView<'_> {
                 validity,
             )?),
             Self::FixedVector(c) => {
-                let mut values = Vec::with_capacity(rows.len() * c.dim);
+                let mut values = checked_f64_buffer(rows.len(), c.dim, "fixed vector gather")?;
+                values.clear();
                 for &r in rows {
                     values.extend_from_slice(&c.values[r * c.dim..(r + 1) * c.dim]);
                 }
@@ -738,6 +739,22 @@ impl ColumnView<'_> {
             }
         })
     }
+}
+
+/// Allocate a dense f64 buffer only after checked element/byte sizing.
+pub(crate) fn checked_f64_buffer(
+    rows: usize,
+    cols: usize,
+    what: &'static str,
+) -> Result<Vec<f64>, DataError> {
+    let len = rows.checked_mul(cols).ok_or_else(|| DataError::overflow(what))?;
+    len.checked_mul(std::mem::size_of::<f64>())
+        .filter(|&bytes| bytes <= isize::MAX as usize)
+        .ok_or_else(|| DataError::overflow(what))?;
+    let mut values = Vec::new();
+    values.try_reserve_exact(len).map_err(|_| DataError::overflow(what))?;
+    values.resize(len, 0.0);
+    Ok(values)
 }
 
 impl OwnedColumn {
@@ -817,6 +834,19 @@ impl OwnedColumn {
 #[allow(clippy::float_cmp, clippy::cast_precision_loss, reason = "values are copied bit-for-bit")]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dense_f64_buffer_refuses_overflow_before_allocation() {
+        assert!(matches!(
+            checked_f64_buffer(usize::MAX, 2, "test"),
+            Err(DataError::Overflow { .. })
+        ));
+        assert!(matches!(
+            checked_f64_buffer(isize::MAX as usize, 1, "test"),
+            Err(DataError::Overflow { .. })
+        ));
+        assert_eq!(checked_f64_buffer(2, 3, "test").unwrap(), vec![0.0; 6]);
+    }
 
     #[test]
     fn gather_rows_keeps_each_column_type_and_its_validity() {

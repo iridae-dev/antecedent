@@ -369,9 +369,12 @@ pub fn compile_contrast_matrix(
     contrast: &Contrast,
 ) -> Result<ContrastMatrix, DataError> {
     let k = domain.len();
+    if k == 0 {
+        return Err(DataError::empty("category domain levels"));
+    }
     match contrast {
         Contrast::FullRankIndicator => {
-            let mut values = vec![0.0; k * k];
+            let mut values = crate::column::checked_f64_buffer(k, k, "contrast matrix")?;
             for i in 0..k {
                 values[i + i * k] = 1.0;
             }
@@ -382,7 +385,7 @@ pub fn compile_contrast_matrix(
                 return Err(DataError::invalid_value("treatment reference", "is out of range"));
             }
             let cols = k - 1;
-            let mut values = vec![0.0; k * cols];
+            let mut values = crate::column::checked_f64_buffer(k, cols, "contrast matrix")?;
             let mut col = 0usize;
             for level in 0..k {
                 if level == reference.raw() as usize {
@@ -406,7 +409,7 @@ pub fn compile_contrast_matrix(
         Contrast::SumToZero => {
             // k levels → k-1 columns; last level is -1 on every column.
             let cols = k - 1;
-            let mut values = vec![0.0; k * cols];
+            let mut values = crate::column::checked_f64_buffer(k, cols, "contrast matrix")?;
             for c in 0..cols {
                 values[c + c * k] = 1.0;
                 values[(k - 1) + c * k] = -1.0;
@@ -416,7 +419,7 @@ pub fn compile_contrast_matrix(
         Contrast::Helmert => {
             // Forward Helmert: each column contrasts a level with the mean of subsequent levels.
             let cols = k - 1;
-            let mut values = vec![0.0; k * cols];
+            let mut values = crate::column::checked_f64_buffer(k, cols, "contrast matrix")?;
             for c in 0..cols {
                 let remaining = k - c;
                 let weight = 1.0 / remaining as f64;
@@ -454,8 +457,8 @@ fn orthonormal_polynomial_basis(k: usize) -> Result<Vec<f64>, DataError> {
     const ORTHOGONALITY_TOL: f64 = 1e-10;
     let kf = k as f64;
     let mean = (kf + 1.0) / 2.0;
+    let mut basis = crate::column::checked_f64_buffer(k, k, "polynomial contrast basis")?;
     let x: Vec<f64> = (0..k).map(|r| (r + 1) as f64 - mean).collect();
-    let mut basis = vec![0.0; k * k];
     let inv_sqrt_k = 1.0 / kf.sqrt();
     basis[..k].fill(inv_sqrt_k);
     let mut beta_prev = 0.0;
@@ -526,6 +529,28 @@ mod tests {
             )
             .unwrap(),
         )
+    }
+
+    #[test]
+    fn empty_public_domain_does_not_underflow_contrast_dimensions() {
+        let domain = CategoryDomain {
+            id: CategoryDomainId::from_raw(0),
+            levels: Arc::from([]),
+            ordered: true,
+            reference: None,
+            unknown_policy: UnknownCategoryPolicy::Fail,
+        };
+        for contrast in [
+            Contrast::FullRankIndicator,
+            Contrast::SumToZero,
+            Contrast::Helmert,
+            Contrast::Polynomial,
+        ] {
+            assert!(matches!(
+                compile_contrast_matrix(&domain, &contrast),
+                Err(DataError::EmptyInput { .. })
+            ));
+        }
     }
 
     #[test]

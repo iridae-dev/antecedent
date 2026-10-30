@@ -364,7 +364,8 @@ fn align_column(
         }
         OwnedColumn::FixedVector(c) => {
             let dim = c.dim;
-            let mut values = vec![0.0_f64; n_bins * dim];
+            let mut values =
+                crate::column::checked_f64_buffer(n_bins, dim, "event grid vector values")?;
             for (b, &src) in last_in_bin.iter().enumerate() {
                 if let Some(i) = src {
                     if c.validity.is_valid(i) {
