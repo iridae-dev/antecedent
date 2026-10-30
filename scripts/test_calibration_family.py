@@ -13,6 +13,20 @@ import calibration_family as family
 
 
 class FamilyTests(unittest.TestCase):
+    def test_joint_runner_only_on_explicit_live_unsharded_or_shard_zero(self):
+        gate = (Path(__file__).resolve().parent / "gate_calibration.sh").read_text(encoding="utf-8")
+        start = gate.index('if [ -n "${ANTECEDENT_JOINT_RESPONSE_STABLE_CANDIDATE:-}" ]')
+        end = gate.index("# This complete 200-replicate", start)
+        block = gate[start:end]
+        for dry, shard_n, shard_k, expected in [("1", "", "", False), ("", "", "", True),
+                                                  ("", "2", "0", True), ("", "2", "1", False)]:
+            with self.subTest(dry=dry, shard=shard_k):
+                env = dict(os.environ, ANTECEDENT_JOINT_RESPONSE_STABLE_CANDIDATE="candidate",
+                           ANTECEDENT_CALIBRATION_DRY_RUN=dry, SHARD_N=shard_n, SHARD_K=shard_k)
+                script = 'FAILED_COUNT=0; FAILED=""; python3() { echo MOCK_INVOKED; };\n' + block
+                result = subprocess.run(["bash", "-c", script], env=env, capture_output=True, text=True, check=True)
+                self.assertEqual("MOCK_INVOKED" in result.stdout, expected)
+
     def test_only_full_object_identities_cache_source_reads(self):
         family._immutable_source.cache_clear()
         self.addCleanup(family._immutable_source.cache_clear)

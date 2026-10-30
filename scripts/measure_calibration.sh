@@ -40,6 +40,8 @@ ALL=""
 MISSING_ONLY=0
 FILTERS=()
 REPLACEMENTS=()
+HAVE_FILTERS=0
+HAVE_REPLACEMENTS=0
 REPLICATES=()
 DRY_RUN=0
 PILOT=0
@@ -51,15 +53,17 @@ while [[ $# -gt 0 ]]; do
     --group)
       [[ $# -ge 2 ]] || { echo "--group needs a full-label glob" >&2; exit 2; }
       FILTERS+=(--group "$2")
+      HAVE_FILTERS=1
       shift
       ;;
-    --group=*) FILTERS+=(--group "${1#--group=}") ;;
+    --group=*) FILTERS+=(--group "${1#--group=}"); HAVE_FILTERS=1 ;;
     --replace-record)
       [[ $# -ge 2 ]] || { echo "--replace-record needs a record ID" >&2; exit 2; }
       REPLACEMENTS+=(--replace-record "$2")
+      HAVE_REPLACEMENTS=1
       shift
       ;;
-    --replace-record=*) REPLACEMENTS+=(--replace-record "${1#--replace-record=}") ;;
+    --replace-record=*) REPLACEMENTS+=(--replace-record "${1#--replace-record=}"); HAVE_REPLACEMENTS=1 ;;
     --replicates)
       [[ $# -ge 2 ]] || { echo "--replicates needs an integer" >&2; exit 2; }
       REPLICATES=(--replicates "$2")
@@ -100,7 +104,7 @@ if [[ "$DRY_RUN" == "1" ]]; then
   if [[ -n "$DIRTY" ]]; then
     echo "note: the working tree is dirty; a real measurement will refuse to run until it is clean."
   fi
-  python3 scripts/calibration_groups.py plan "${MODE[@]}" "${FILTERS[@]}" "${REPLICATES[@]}" --jobs "$JOBS"
+  python3 scripts/calibration_groups.py plan ${MODE[@]+"${MODE[@]}"} ${FILTERS[@]+"${FILTERS[@]}"} ${REPLICATES[@]+"${REPLICATES[@]}"} --jobs "$JOBS"
   exit 0
 fi
 
@@ -109,7 +113,7 @@ if [[ "$PILOT" == "1" ]]; then
     echo "FAIL: commit the calibration implementation before timing its pilot." >&2
     exit 1
   fi
-  python3 scripts/calibration_groups.py pilot "${MODE[@]}" "${FILTERS[@]}" "${REPLICATES[@]}" --jobs "$JOBS"
+  python3 scripts/calibration_groups.py pilot ${MODE[@]+"${MODE[@]}"} ${FILTERS[@]+"${FILTERS[@]}"} ${REPLICATES[@]+"${REPLICATES[@]}"} --jobs "$JOBS"
   exit $?
 fi
 
@@ -122,8 +126,8 @@ fi
 HEAD_SHA="$(git rev-parse HEAD)"
 echo "== measuring calibration at ${HEAD_SHA} with ${JOBS} parallel job(s) =="
 RUN_STATUS=0
-python3 scripts/calibration_groups.py run "${MODE[@]}" "${FILTERS[@]}" "${REPLICATES[@]}" --jobs "$JOBS" || RUN_STATUS=$?
-if [[ "$RUN_STATUS" != "0" && "$MISSING_ONLY" != "1" && ${#FILTERS[@]} -eq 0 ]]; then
+python3 scripts/calibration_groups.py run ${MODE[@]+"${MODE[@]}"} ${FILTERS[@]+"${FILTERS[@]}"} ${REPLICATES[@]+"${REPLICATES[@]}"} --jobs "$JOBS" || RUN_STATUS=$?
+if [[ "$RUN_STATUS" != "0" && "$MISSING_ONLY" != "1" && "$HAVE_FILTERS" == 0 ]]; then
   exit "$RUN_STATUS"
 fi
 
@@ -143,8 +147,8 @@ if [[ "$(git rev-parse HEAD)" != "$HEAD_SHA" || -n "$(git status --porcelain --u
 fi
 
 echo "== collecting coverage records at ${HEAD_SHA} =="
-if [[ "$MISSING_ONLY" == "1" || ${#FILTERS[@]} -gt 0 || ${#REPLACEMENTS[@]} -gt 0 ]]; then
-  python3 scripts/collect_coverage_records.py --keep-existing --passing-only "${REPLACEMENTS[@]}"
+if [[ "$MISSING_ONLY" == "1" || "$HAVE_FILTERS" == 1 || "$HAVE_REPLACEMENTS" == 1 ]]; then
+  python3 scripts/collect_coverage_records.py --keep-existing --passing-only ${REPLACEMENTS[@]+"${REPLACEMENTS[@]}"}
 elif [[ -n "$ALL" ]]; then
   python3 scripts/collect_coverage_records.py
 else

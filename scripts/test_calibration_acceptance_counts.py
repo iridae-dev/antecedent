@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import os
 import subprocess
+import tempfile
 import tomllib
 import unittest
 from pathlib import Path
@@ -50,6 +51,21 @@ class AcceptanceReplicateCounts(unittest.TestCase):
             )
             for point in range(3)
         ]
+
+    def test_malformed_acceptance_bindings_stop_setup(self) -> None:
+        cases = [
+            '[[case]]\n[case.expected]\nkind = "calibrated_interval"\n[case.evidence]\nstatus = "bound"\n',
+            '[[case]]\n[case.expected]\nkind = "calibrated_interval"\n[case.evidence]\nstatus = "bound"\ntest = "x::y"\n[case.configuration]\ncalibration_grid_point = 8\n',
+        ]
+        for case in cases:
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
+                parity = Path(directory) / "parity"
+                parity.mkdir()
+                (parity / "acceptance_manifest.toml").write_text(case, encoding="utf-8")
+                result = subprocess.run(["bash", "-c", SETUP + '\necho SHOULD_NOT_RUN'], cwd=directory,
+                                        capture_output=True, text=True, check=False)
+                self.assertEqual(result.returncode, 2)
+                self.assertNotIn("SHOULD_NOT_RUN", result.stdout)
 
     def test_separately_frozen_sizes_each_get_the_acceptance_minimum(self) -> None:
         self.assertEqual(self.counts(PARENT), [2000, 2000, 2000])

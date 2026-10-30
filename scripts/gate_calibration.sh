@@ -54,7 +54,7 @@ print(" ".join(sorted({
     if case["expected"]["kind"] in {"calibrated_interval", "calibrated_statistical_test"} and case["evidence"]["status"] == "bound"
 })))
 PY
-) "
+) " || { echo "Failed to read calibration acceptance bindings" >&2; exit 2; }
 ACCEPTANCE_GRID_TESTS=" $(python3 - <<'PY'
 import collections
 import tomllib
@@ -72,7 +72,7 @@ print(" ".join(sorted(
     if len(values) == 3 and sorted(values) == [min(values), 2 * min(values), 4 * min(values)]
 )))
 PY
-) "
+) " || { echo "Failed to read calibration acceptance bindings" >&2; exit 2; }
 
 # Explicit non-base acceptance bindings augment the ordinary base-point minimum.
 ACCEPTANCE_POINT_TESTS=" $(python3 - <<'PYPOINT'
@@ -90,7 +90,7 @@ for case in cases:
         values.add(f"{case['evidence']['test'].rsplit('::', 1)[1]}:{point}")
 print(" ".join(sorted(values)))
 PYPOINT
-) "
+) " || { echo "Failed to read calibration acceptance bindings" >&2; exit 2; }
 
 # First-pass replicate count of the group `shown` (its label, with any grid-point suffix).
 first_pass_nsim() {
@@ -1646,7 +1646,9 @@ run_adjusted_recalc_precision adjusted_logit_fixed_target_delta_precision
 # Request them explicitly with the exact clean candidate SHA. The dedicated
 # runner validates that SHA, executes every registered ignored Cargo procedure,
 # retains original-data failures and writes logs without issuing coverage licenses.
-if [ -n "${ANTECEDENT_JOINT_RESPONSE_STABLE_CANDIDATE:-}" ]; then
+if [ -n "${ANTECEDENT_JOINT_RESPONSE_STABLE_CANDIDATE:-}" ] &&
+   [ -z "${ANTECEDENT_CALIBRATION_DRY_RUN:-}" ] &&
+   { [ -z "$SHARD_N" ] || [ "$SHARD_K" -eq 0 ]; }; then
   echo "== registered joint-response complete procedures (Q08/E14) =="
   if ! python3 scripts/joint_response_calibration.py \
       --run-stable-candidate "$ANTECEDENT_JOINT_RESPONSE_STABLE_CANDIDATE"; then

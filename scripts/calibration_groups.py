@@ -154,6 +154,7 @@ def is_long(label: str) -> bool:
 def gate_groups() -> list[Group]:
     env = dict(os.environ, ANTECEDENT_CALIBRATION_DRY_RUN="1")
     env.pop("ANTECEDENT_CALIBRATION_SHARD", None)
+    env.pop("ANTECEDENT_JOINT_RESPONSE_STABLE_CANDIDATE", None)
     out = subprocess.run(
         ["bash", str(GATE)], cwd=ROOT, env=env, capture_output=True, text=True, check=True
     ).stdout
@@ -896,6 +897,7 @@ def run(selection: Selection, total: int, jobs: int) -> int:
             "ANTECEDENT_WEIGHTED_CLUSTER_PROTOCOL",
             "ANTECEDENT_CALIBRATION_DECISION_CONFIG",
             "ANTECEDENT_CALIBRATION_VALIDATION_DOMAIN",
+            "ANTECEDENT_JOINT_RESPONSE_STABLE_CANDIDATE",
         )
     }
     env.update(decision_env)
