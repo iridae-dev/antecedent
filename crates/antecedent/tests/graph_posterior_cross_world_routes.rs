@@ -681,7 +681,10 @@ fn a_frequentist_mixture_of_several_atoms_has_the_standard_error_of_its_shared_r
         let single = run(admg_posterior(&[1.0], &[mask_of(&latent_free())]));
         let own = single.estimate().as_effect().unwrap().se_bootstrap().expect("a bootstrap SE");
         let own_reference = bootstrap_reference_se(0.0, 4000);
-        assert!(own > 0.8 * own_reference && own < 1.25 * own_reference, "{own} vs {own_reference}");
+        assert!(
+            own > 0.8 * own_reference && own < 1.25 * own_reference,
+            "{own} vs {own_reference}"
+        );
     });
 }
 
@@ -985,6 +988,12 @@ fn a_graph_posterior_functional_result_round_trips_through_the_contracted_artifa
                         program_reasons(&consumed),
                         Vec::<String>::new(),
                         "{case}: the independent consumer verifies the per-atom programs"
+                    );
+                    assert!(
+                        !consumed.acceptance.unresolved.iter().any(|reason| {
+                            reason.as_ref() == "dependencies.checked_estimator_operation"
+                        }),
+                        "{case}: the carried per-atom operation is a supported replay path"
                     );
                 }
             }

@@ -5849,10 +5849,10 @@ fn producer_and_consumer_agree_on_the_calibration_slot() {
                 )]
             );
         } else {
-            assert!(
-                consumed.acceptance.accepts_as_verified_program(),
-                "{label}: {:?}",
-                consumed.acceptance.unresolved
+            assert_eq!(
+                consumed.acceptance.unresolved.as_ref(),
+                &[std::sync::Arc::<str>::from("dependencies.checked_estimator_operation")],
+                "{label}: a calibration slot does not supply the missing portable panel replay"
             );
         }
     }
@@ -6497,7 +6497,15 @@ fn multi_env_prepares_and_exports() {
     let result = prepared.estimate_multi_env(&again_multi, &ctx).unwrap();
     let bytes = prepared.encode_contracted_result(&result, "multi-env", &ctx).unwrap();
     let consumed = consume_analysis_result(&bytes).unwrap();
-    assert!(consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(
+        consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|reason| { reason.as_ref() == "dependencies.checked_estimator_operation" })
+    );
+    assert_eq!(consumed.body.estimate, Some(result.estimate().as_effect().unwrap().ate));
 }
 
 /// Weighted posterior over the same three graphs, for identity comparisons.

@@ -142,7 +142,97 @@ pub(in crate::contract_section) fn contract_unresolved(
     note_functional_and_nested_replay(contract, body, &mut unresolved, limits);
     verify_graph_posterior_mixture(contract, body, &mut unresolved);
     note_published_claim(header, body, contract, &mut unresolved);
+    note_checked_estimator_operation(contract, body, &mut unresolved);
     unresolved
+}
+
+// Names in the wire are assertions, not proof of an executable operation. Only
+// routes with a corresponding portable replay path can clear this obligation;
+// their existing verifiers below still have to validate every carried input.
+fn note_checked_estimator_operation(
+    contract: &AnalysisResultContractWire,
+    body: &AnalysisResultWire,
+    unresolved: &mut Vec<ContractReason>,
+) {
+    let supported = contract.program.as_ref().is_some_and(|program| {
+        let resolved = program.commitments.resolved_estimator.as_deref();
+        if program.commitments.estimator != contract.estimator
+            || contract.estimator.as_deref().is_some_and(|name| Some(name) != resolved)
+        {
+            return false;
+        }
+        // These contracts carry an atom-wise program family and a published
+        // mixture, rather than one functional program. Their existing checks
+        // bind the family to the posterior graph and to the mixture below.
+        if graph_posterior_cross_world(contract)
+            && matches!(resolved, Some("functional.effect" | "functional.distribution"))
+            && program.graph_posterior_programs.is_some()
+            && posterior_identification_atoms(contract).is_some()
+            && body.structural_response.is_some()
+        {
+            return true;
+        }
+        match (resolved, &contract.target.query) {
+            (Some("linear.adjustment.ate"), CausalQueryWire::AverageEffect { .. }) => {
+                program.checked_linear_adjustment_lowering.is_some()
+                    && contract
+                        .data_snapshot
+                        .as_ref()
+                        .is_some_and(|snapshot| snapshot.linear_fit_moments.is_some())
+            }
+            (Some("aipw"), CausalQueryWire::AverageEffect { .. }) => {
+                program.checked_aipw_lowering.is_some() && contract.checked_aipw_rows.is_some()
+            }
+            (Some("functional.effect"), CausalQueryWire::Response(_)) => {
+                program.checked_functional_response_grid.is_some()
+                    && contract
+                        .data_snapshot
+                        .as_ref()
+                        .is_some_and(|snapshot| snapshot.distribution_factor_laws.is_some())
+            }
+            (
+                Some("functional.effect"),
+                CausalQueryWire::AverageEffect { .. }
+                | CausalQueryWire::ConditionalEffect { .. }
+                | CausalQueryWire::PathSpecific(_)
+                | CausalQueryWire::NestedCounterfactual { .. },
+            )
+            | (Some("functional.distribution"), CausalQueryWire::Distribution(_)) => {
+                program.functional_program.is_some()
+                    && contract
+                        .data_snapshot
+                        .as_ref()
+                        .is_some_and(|snapshot| snapshot.distribution_factor_laws.is_some())
+            }
+            (Some("mediation.linear"), CausalQueryWire::NestedCounterfactual { .. }) => {
+                program.checked_nested_counterfactual.is_some()
+            }
+            (Some("temporal.linear.adjustment"), CausalQueryWire::NestedCounterfactual { .. }) => {
+                matches!(
+                    contract.graph_class.as_str(),
+                    "TemporalDag" | "TemporalCpdag" | "TemporalPag"
+                ) && contract
+                    .data_snapshot
+                    .as_ref()
+                    .is_some_and(|snapshot| snapshot.nested_counterfactual_fit.is_some())
+            }
+            (
+                Some(crate::randomized_ipow_wire::ESTIMATOR),
+                CausalQueryWire::RandomizedEffect(_),
+            ) => body.posterior_row.as_ref().is_some_and(|row| row.randomized_ipow.is_some()),
+            _ => false,
+        }
+    });
+    // A family-specific missing-operation obligation already refuses acceptance.
+    // Keep that more precise diagnostic instead of duplicating it with this fallback.
+    // These are typed verifier outputs, not reason strings supplied by the artifact.
+    let operation_already_missing = unresolved.iter().any(|reason| {
+        let name = reason.as_str();
+        name.starts_with("dependencies.checked_") && name.ends_with("_operation")
+    });
+    if !supported && !operation_already_missing {
+        unresolved.push(ContractReason::DependenciesCheckedEstimatorOperation);
+    }
 }
 
 pub(in crate::contract_section) fn note_linear_fit_replay(

@@ -60,6 +60,8 @@ pub enum ContractReason {
     DependenciesCheckedAttributionOperation,
     /// `dependencies.checked_batch_family_operation`.
     DependenciesCheckedBatchFamilyOperation,
+    /// `dependencies.checked_estimator_operation`.
+    DependenciesCheckedEstimatorOperation,
     /// `dependencies.checked_bayesian_basis_ate_operation`.
     DependenciesCheckedBayesianBasisAteOperation,
     /// `dependencies.checked_bayesian_basis_cate_operation`.
@@ -464,6 +466,9 @@ impl ContractReason {
             Self::DependenciesCheckedBatchFamilyOperation => {
                 "dependencies.checked_batch_family_operation"
             }
+            Self::DependenciesCheckedEstimatorOperation => {
+                "dependencies.checked_estimator_operation"
+            }
             Self::DependenciesCheckedBayesianBasisAteOperation => {
                 "dependencies.checked_bayesian_basis_ate_operation"
             }
@@ -822,6 +827,7 @@ impl ContractReason {
                 | Self::DependenciesCheckedAttributionOperation
                 | Self::DependenciesCheckedBayesianDagAteOperation
                 | Self::DependenciesCheckedBatchFamilyOperation
+                | Self::DependenciesCheckedEstimatorOperation
                 | Self::DependenciesCheckedBayesianBasisAteOperation
                 | Self::DependenciesCheckedBayesianBasisCateOperation
                 | Self::DependenciesCheckedBayesianRobustAteOperation
@@ -917,6 +923,7 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::DependenciesCheckedAdmgGraphPosteriorResponseOperation,
     ContractReason::DependenciesCheckedAttributionOperation,
     ContractReason::DependenciesCheckedBatchFamilyOperation,
+    ContractReason::DependenciesCheckedEstimatorOperation,
     ContractReason::DependenciesCheckedBayesianBasisAteOperation,
     ContractReason::DependenciesCheckedBayesianBasisCateOperation,
     ContractReason::DependenciesCheckedBayesianClassConditionalOperation,
@@ -1149,6 +1156,7 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "dependencies.checked_class_graph_posterior_effect_operation",
     "dependencies.checked_conditional_effect_operation",
     "dependencies.checked_derivative_response_operation",
+    "dependencies.checked_estimator_operation",
     "dependencies.checked_glm_operation",
     "dependencies.checked_graph_posterior_effect_operation",
     "dependencies.checked_graph_posterior_response_operation",

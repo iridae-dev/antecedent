@@ -561,11 +561,11 @@ fn old_artifact_remains_readable_but_is_not_verified() {
 }
 
 #[test]
-fn contracted_artifact_is_accepted_from_bytes_alone() {
+fn contracted_artifact_without_checked_estimator_is_readable_from_bytes_alone() {
     let (body, target, names) = fixture_body();
     let contract = contract_for(target, &body);
     let consumed = consume_analysis_result(&to_bytes(&body, names, Some(&contract))).unwrap();
-    assert!(consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_verified_program());
     assert_eq!(consumed.contract.as_ref().map(|c| c.graph_class.as_str()), Some("Dag"));
     assert_eq!(consumed.body.estimate, Some(2.0));
 }
@@ -728,7 +728,7 @@ fn claim_host_projection_keeps_null_zero_unknown_distinct() {
 }
 
 #[test]
-fn verified_program_without_claim_is_not_an_accepted_claim() {
+fn unchecked_program_without_claim_is_not_an_accepted_claim() {
     let (body, target, names) = fixture_body();
     let mut contract = contract_for(target, &body);
     contract.claim = None;
@@ -737,7 +737,7 @@ fn verified_program_without_claim_is_not_an_accepted_claim() {
     seal_claim(&mut contract, &body);
     let bytes = to_bytes(&body, names, Some(&contract));
     let consumed = consume_analysis_result(&bytes).unwrap();
-    assert!(consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_verified_program());
     assert!(!consumed.acceptance.accepts_as_claim());
     assert!(!consumed.acceptance.supported_operations.iter().any(|op| &**op == "inspect_claim"));
     let (accepted, receipt) =
@@ -769,8 +769,8 @@ fn accept_claim_unknown_feature_is_storage_not_acceptance() {
     let bytes = to_bytes(&body, names, Some(&contract));
     let (full, lossless) =
         accept_claim(&bytes, &antecedent_contract::ConsumerProfile::full()).unwrap();
-    assert!(full.acceptance.accepts_as_claim());
-    assert!(lossless.equivalent_claim());
+    assert!(!full.acceptance.accepts_as_claim());
+    assert!(!lossless.equivalent_claim());
     let (restricted, receipt) =
         accept_claim(&bytes, &antecedent_contract::ConsumerProfile::restricted()).unwrap();
     assert!(!restricted.acceptance.accepts_as_claim());
@@ -809,12 +809,50 @@ fn refutation(refuter: &str, passed: bool) -> RefutationReportWire {
 }
 
 #[test]
-fn untouched_fixture_verifies() {
+fn fixture_without_checked_estimator_is_not_verified() {
     let (body, target, names) = fixture_body();
     let contract = contract_for(target, &body);
     let consumed =
         consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
-    assert!(consumed.acceptance.accepts_as_claim(), "{:?}", consumed.acceptance.unresolved);
+    assert!(!consumed.acceptance.accepts_as_claim());
+    assert!(
+        consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|reason| { reason.as_ref() == "dependencies.checked_estimator_operation" })
+    );
+}
+
+#[test]
+fn resealed_missing_unknown_and_conflicting_estimators_are_unverified() {
+    let (mut body, target, names) = fixture_body();
+    body.estimate = Some(9.0);
+    for (requested, resolved) in
+        [(None, None), (Some("zzz"), Some("zzz")), (Some("zzz"), Some("linear.adjustment.ate"))]
+    {
+        let mut contract = contract_for(target.clone(), &body);
+        contract.estimator = requested.map(str::to_owned);
+        let program = contract.program.as_mut().unwrap();
+        program.commitments.estimator = requested.map(str::to_owned);
+        program.commitments.resolved_estimator = resolved.map(str::to_owned);
+        contract.identities.program = *program_digest(program).unwrap().as_bytes();
+        seal_claim(&mut contract, &body);
+        let bytes = replace_contract_section(&body, names.clone(), &contract);
+        let consumed = consume_analysis_result(&bytes).unwrap();
+        assert_eq!(consumed.body.estimate, Some(9.0));
+        assert!(!consumed.acceptance.accepts_as_claim());
+        assert!(
+            consumed
+                .acceptance
+                .unresolved
+                .iter()
+                .any(|reason| { reason.as_ref() == "dependencies.checked_estimator_operation" })
+        );
+        let (accepted, _) =
+            accept_claim(&bytes, &antecedent_contract::ConsumerProfile::full()).unwrap();
+        assert!(!accepted.acceptance.accepts_as_claim());
+    }
 }
 
 #[test]
@@ -1641,6 +1679,10 @@ fn temporal_nested_point_must_match_the_solved_natural_direct_effect() {
     let mut contract = contract_for(target, &body);
     contract.graph_class = "TemporalDag".into();
     contract.target.query = query;
+    contract.estimator = Some("temporal.linear.adjustment".into());
+    let program = contract.program.as_mut().unwrap();
+    program.commitments.estimator = contract.estimator.clone();
+    program.commitments.resolved_estimator = contract.estimator.clone();
     contract.data_snapshot.as_mut().unwrap().nested_counterfactual_fit =
         Some(orthogonal_direct_fit());
     let header = AnalysisResultHeader { variable_names: names };
@@ -1652,11 +1694,18 @@ fn temporal_nested_point_must_match_the_solved_natural_direct_effect() {
     body.estimate = Some(2.0);
     let matched = verify_contract_against_body(&header, &body, &contract);
     assert!(
+        !matched.iter().any(|reason| reason.as_ref() == "dependencies.checked_estimator_operation"),
+        "{matched:?}"
+    );
+    assert!(
         !matched.iter().any(|reason| reason.as_ref() == "body.temporal_nested_point"),
         "{matched:?}"
     );
     contract.data_snapshot.as_mut().unwrap().nested_counterfactual_fit = None;
     let unbound = verify_contract_against_body(&header, &body, &contract);
+    assert!(
+        unbound.iter().any(|reason| reason.as_ref() == "dependencies.checked_estimator_operation")
+    );
     assert!(
         unbound
             .iter()
