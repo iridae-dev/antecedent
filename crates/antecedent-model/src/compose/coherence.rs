@@ -220,6 +220,87 @@ pub fn is_positive_semidefinite(matrix: &[f64], n: usize) -> bool {
     true
 }
 
+/// Validate finite covariance in correlation units, allowing singular PSD matrices.
+/// Symmetric pivoting retains positive pivots; only negative roundoff uses tolerance.
+pub(crate) fn valid_covariance(matrix: &[f64], n: usize) -> bool {
+    if n == 0 || n.checked_mul(n) != Some(matrix.len()) || !all_finite(matrix) {
+        return false;
+    }
+    let tolerance = 64.0 * f64::EPSILON * n as f64;
+    let mut scales = Vec::with_capacity(n);
+    for i in 0..n {
+        let diagonal = matrix[i * n + i];
+        if diagonal < 0.0 {
+            return false;
+        }
+        scales.push(diagonal.sqrt());
+    }
+    let mut corr = vec![0.0; matrix.len()];
+    for i in 0..n {
+        if scales[i] != 0.0 {
+            corr[i * n + i] = 1.0;
+        }
+        for j in 0..i {
+            let (a, b) = (matrix[i * n + j], matrix[j * n + i]);
+            if scales[i] == 0.0 || scales[j] == 0.0 {
+                if a != 0.0 || b != 0.0 {
+                    return false;
+                }
+                continue;
+            }
+            let large = scales[i].max(scales[j]);
+            let small = scales[i].min(scales[j]);
+            let x = (a / large) / small;
+            let y = (b / large) / small;
+            if !x.is_finite()
+                || !y.is_finite()
+                || (x - y).abs() > tolerance * x.abs().max(y.abs()).max(1.0)
+            {
+                return false;
+            }
+            corr[i * n + j] = x * 0.5 + y * 0.5;
+            corr[j * n + i] = corr[i * n + j];
+        }
+    }
+    for k in 0..n {
+        let Some(p) = (k..n).max_by(|&i, &j| corr[i * n + i].total_cmp(&corr[j * n + j])) else {
+            return false;
+        };
+        if p != k {
+            for j in 0..n {
+                corr.swap(k * n + j, p * n + j);
+            }
+            for i in 0..n {
+                corr.swap(i * n + k, i * n + p);
+            }
+        }
+        let pivot = corr[k * n + k];
+        if !pivot.is_finite() || pivot < -tolerance {
+            return false;
+        }
+        if pivot <= 0.0 {
+            return (k..n).all(|i| {
+                (k..n).all(|j| corr[i * n + j].is_finite() && corr[i * n + j].abs() <= tolerance)
+            });
+        }
+        let scale = pivot.sqrt();
+        for i in k + 1..n {
+            corr[i * n + k] /= scale;
+        }
+        for i in k + 1..n {
+            for j in k + 1..=i {
+                let residual = corr[i * n + j] - corr[i * n + k] * corr[j * n + k];
+                if !residual.is_finite() {
+                    return false;
+                }
+                corr[i * n + j] = residual;
+                corr[j * n + i] = residual;
+            }
+        }
+    }
+    true
+}
+
 fn is_symmetric(matrix: &[f64], n: usize) -> bool {
     (0..n).all(|i| {
         (0..i).all(|j| {
@@ -1294,6 +1375,20 @@ pub fn uncertainty_findings(spec: &ComposedModelSpec) -> Vec<CoherenceFinding> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn covariance_validator_handles_singular_mixed_scale_and_indefinite_cases() {
+        use super::valid_covariance;
+        assert!(valid_covariance(&[0.0; 4], 2));
+        assert!(valid_covariance(&[1.0, 1.0, 1.0, 1.0], 2));
+        assert!(valid_covariance(&[1e-300, 0.0, 0.0, 1e300], 2));
+        assert!(!valid_covariance(&[-1.0, 0.0, 0.0, 1.0], 2));
+        assert!(!valid_covariance(&[1.0, 0.5, 0.0, 1.0], 2));
+        assert!(!valid_covariance(&[1.0, 0.9, 0.9, 0.9, 1.0, -0.9, 0.9, -0.9, 1.0], 3));
+        assert!(valid_covariance(
+            &[1.0, 1.0 - 1e-16, 0.0, 1.0 - 1e-16, 1.0, 1e-8, 0.0, 1e-8, 1.0],
+            3
+        ));
+    }
     use super::*;
 
     #[test]

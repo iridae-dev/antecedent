@@ -19,11 +19,11 @@ use antecedent_model::compose::{
 };
 use antecedent_model::mechanism_expr::MechanismExpression;
 use antecedent_model::typed_mechanism_transport::{
-    fit_mechanism, refit_in_target, transport_typed, typed_refusal_code, FittedMechanism, MeanSpec,
-    MechanismRole, MechanismSpec, ParameterDependence, ResponseFamily, TypedFitError,
-    TypedTransportRequest, DETAIL_DEPENDENCE_UNKNOWN, DETAIL_DESIGN_NOT_SHARED,
-    DETAIL_INVARIANCE_CONTRADICTED, DETAIL_SELECTION_TARGET_UNKNOWN,
-    DETAIL_INVARIANCE_LEVEL, DETAIL_SHIFTED_WITHOUT_TARGET_EVIDENCE,
+    CrossBlock, DETAIL_DEPENDENCE_UNKNOWN, DETAIL_DESIGN_NOT_SHARED,
+    DETAIL_INVARIANCE_CONTRADICTED, DETAIL_INVARIANCE_LEVEL, DETAIL_SELECTION_TARGET_UNKNOWN,
+    DETAIL_SHIFTED_WITHOUT_TARGET_EVIDENCE, FittedMechanism, MeanSpec, MechanismRole,
+    MechanismSpec, ParameterDependence, ResponseFamily, TypedFitError, TypedTransportRequest,
+    fit_mechanism, refit_in_target, transport_typed, typed_refusal_code,
 };
 
 const OUTCOMES: [&str; 6] = ["demand", "orders", "buys", "spend", "basket", "noise_h"];
@@ -400,6 +400,40 @@ fn unknown_parameter_dependence_refuses_a_multi_mechanism_uncertainty_claim() {
 }
 
 #[test]
+fn invalid_joint_and_cross_covariance_are_refused() {
+    let w = world();
+    let base = transport_typed(&w.full()).unwrap();
+    let income = base.mechanisms().iter().find(|m| m.variable() == "income").unwrap();
+    let demand = base.mechanisms().iter().find(|m| m.variable() == "demand").unwrap();
+    let (ki, kd) = (income.parameters().len(), demand.parameters().len());
+    let d = ki + kd;
+    let mut joint = vec![0.0; d * d];
+    for i in 0..d {
+        joint[i * d + i] = 1.0;
+    }
+    joint[ki] = 0.5; // lower triangle remains zero
+    let mut request = w.full();
+    request.dependence = ParameterDependence::Joint {
+        variables: vec!["income".into(), "demand".into()],
+        covariance: joint,
+    };
+    assert!(transport_typed(&request).is_err());
+    let mut values = vec![0.0; ki * kd];
+    values[0] = 1e100;
+    let block = CrossBlock { first: "income".into(), second: "demand".into(), values };
+    request.dependence = ParameterDependence::CrossCovariance { blocks: vec![block.clone()] };
+    let model = transport_typed(&request).unwrap();
+    assert!(
+        model
+            .mean_contrast_uncertainty(&level("demand", 2.0), 1000, &ExecutionContext::for_tests(5))
+            .is_err()
+    );
+    request.dependence =
+        ParameterDependence::CrossCovariance { blocks: vec![block.clone(), block] };
+    assert!(transport_typed(&request).is_err());
+}
+
+#[test]
 fn joint_dependence_changes_the_variance_it_is_given() {
     let w = world();
     let ctx = ExecutionContext::for_tests(5);
@@ -484,14 +518,18 @@ fn populations_must_match_the_diagram() {
     let mut request = w.full();
     request.diagram.target_population = "elsewhere".into();
     let error = transport_typed(&request).unwrap_err();
-    assert!(details(&error)
-        .contains(&antecedent_model::mechanism_transport::DETAIL_DIAGRAM_TARGET_MISMATCH));
+    assert!(
+        details(&error)
+            .contains(&antecedent_model::mechanism_transport::DETAIL_DIAGRAM_TARGET_MISMATCH)
+    );
 
     let mut request = w.full();
     request.diagram.source_population = "elsewhere".into();
     let error = transport_typed(&request).unwrap_err();
-    assert!(details(&error)
-        .contains(&antecedent_model::mechanism_transport::DETAIL_DIAGRAM_SOURCE_MISMATCH));
+    assert!(
+        details(&error)
+            .contains(&antecedent_model::mechanism_transport::DETAIL_DIAGRAM_SOURCE_MISMATCH)
+    );
 
     for bad in [0.7, 0.5, 0.0, -0.01, f64::NAN] {
         let mut request = w.full();

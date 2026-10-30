@@ -275,25 +275,46 @@ impl ConditionedGaussian {
     reason = "dense triangular algebra indexes several row-major buffers by the same position"
 )]
 pub(crate) fn cholesky_lower(a: &[f64], n: usize) -> Option<Vec<f64>> {
-    let scale = (0..n).map(|i| a[i * n + i].abs()).fold(0.0_f64, f64::max);
-    if !(scale.is_finite() && scale > 0.0) {
+    if n.checked_mul(n) != Some(a.len()) || a.iter().any(|v| !v.is_finite()) {
         return None;
     }
-    let floor = scale * 1e-12;
+    let mut scales = Vec::with_capacity(n);
+    for i in 0..n {
+        let variance = a[i * n + i];
+        if variance <= 0.0 {
+            return None;
+        }
+        scales.push(variance.sqrt());
+    }
     let mut l = vec![0.0_f64; n * n];
     for i in 0..n {
         for j in 0..=i {
-            let mut sum = a[i * n + j];
+            let large = scales[i].max(scales[j]);
+            let small = scales[i].min(scales[j]);
+            let mut sum = if i == j { 1.0 } else { (a[i * n + j] / large) / small };
             for k in 0..j {
                 sum -= l[i * n + k] * l[j * n + k];
             }
+            if !sum.is_finite() {
+                return None;
+            }
             if i == j {
-                if sum.is_nan() || sum <= floor {
+                // The former relative floor applies in dimensionless correlation units.
+                if sum <= 1e-12 {
                     return None;
                 }
                 l[i * n + i] = sum.sqrt();
             } else {
                 l[i * n + j] = sum / l[j * n + j];
+            }
+        }
+    }
+    // D*L is the factor in the caller's original units.
+    for i in 0..n {
+        for j in 0..=i {
+            l[i * n + j] *= scales[i];
+            if !l[i * n + j].is_finite() {
+                return None;
             }
         }
     }
@@ -786,5 +807,27 @@ impl ComposedLinearGaussian {
             columns[v] = column;
         }
         Ok(SampleTable { variables: self.variables.clone(), columns })
+    }
+}
+
+#[cfg(test)]
+mod conditioning_scale_tests {
+    use super::*;
+
+    #[test]
+    fn gaussian_conditioning_equilibrates_observed_covariance_units() {
+        let law = JointGaussian {
+            variables: vec!["x".into(), "y".into(), "z".into()],
+            mean: vec![0.0; 3],
+            covariance: vec![1e-14, 0.0, 1e-7, 0.0, 1.0, 0.5, 1e-7, 0.5, 4.0],
+        };
+        let conditional = law.condition(&[("x", 1e-7), ("y", 1.0)]).unwrap();
+        assert!((conditional.mean[0] - 1.5).abs() < 1e-12);
+        assert!((conditional.covariance[0] - 2.75).abs() < 1e-12);
+        let expected = -(2.0 * std::f64::consts::PI).ln() - (1e-7_f64).ln() - 1.0;
+        assert!((conditional.evidence_log_density - expected).abs() < 1e-12);
+        assert!(cholesky_lower(&[1.0, 1.0, 1.0, 1.0], 2).is_none());
+        assert!(cholesky_lower(&[1.0, 1.0 - 1e-14, 1.0 - 1e-14, 1.0], 2).is_none());
+        assert!(cholesky_lower(&[0.0, 0.0, 0.0, 1.0], 2).is_none());
     }
 }

@@ -58,19 +58,19 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use antecedent_core::identity::CanonicalWriter;
-use antecedent_core::{mix64, CausalRng, ExecutionContext, StreamDomain};
+use antecedent_core::{CausalRng, ExecutionContext, StreamDomain, mix64};
 use antecedent_kernels::standard_normal;
 use antecedent_stats::gram::invert_square;
 use antecedent_stats::special::{chi_square_sf, ln_gamma};
 
-use crate::compose::coherence::CoherenceFinding;
+use crate::compose::coherence::{CoherenceFinding, valid_covariance};
 use crate::compose::{
-    is_positive_semidefinite, noise_stream_index, CoherenceKind, CompositionError,
-    ContextCoordinate, InvarianceDeclaration, MeanContrast, MechanismContext, MechanismOrigin,
-    MechanismProvenance, SelectionDiagramDeclaration,
+    CoherenceKind, CompositionError, ContextCoordinate, InvarianceDeclaration, MeanContrast,
+    MechanismContext, MechanismOrigin, MechanismProvenance, SelectionDiagramDeclaration,
+    noise_stream_index,
 };
 use crate::mechanism_expr::{MechanismExpression, MechanismTape};
-pub use crate::mechanism_transport::{selection_targets, MechanismRole, UNCERTAINTY_SCOPE};
+pub use crate::mechanism_transport::{MechanismRole, UNCERTAINTY_SCOPE, selection_targets};
 
 /// Version of this route's identity encoding.
 pub const TYPED_TRANSPORT_VERSION: u32 = 1;
@@ -288,11 +288,7 @@ fn logistic(x: f64) -> f64 {
 }
 
 fn softplus(x: f64) -> f64 {
-    if x > 30.0 {
-        x
-    } else {
-        x.exp().ln_1p()
-    }
+    if x > 30.0 { x } else { x.exp().ln_1p() }
 }
 
 fn polynomial_width(parents: usize, degree: u8, interactions: bool) -> usize {
@@ -1737,12 +1733,18 @@ fn validate_dependence(
                         .push(bad(v, "a joint covariance lists each model mechanism at most once")),
                 }
             }
-            if covariance.len() != dim * dim || !is_positive_semidefinite(covariance, dim) {
+            if covariance.len() != dim * dim || !valid_covariance(covariance, dim) {
                 out.push(bad("joint", "a joint covariance is symmetric positive semidefinite and aligned to the listed parameters"));
             }
         }
         ParameterDependence::CrossCovariance { blocks } => {
+            let mut seen = BTreeSet::new();
             for b in blocks {
+                let pair =
+                    if b.first <= b.second { (&b.first, &b.second) } else { (&b.second, &b.first) };
+                if !seen.insert(pair) {
+                    out.push(bad(&b.first, "declare each unordered cross-covariance pair once"));
+                }
                 match (chosen.get(&b.first), chosen.get(&b.second)) {
                     (Some(a), Some(c)) if b.first != b.second => {
                         if b.values.len() != a.theta.len() * c.theta.len()
@@ -1962,7 +1964,18 @@ impl TransportedTypedModel {
         let (sigma, dependence) = self.parameter_covariance(&run.involved)?;
         let d = run.gradient.len();
         let solved = matvec(&sigma, d, &run.gradient);
-        let variance: f64 = run.gradient.iter().zip(&solved).map(|(a, b)| a * b).sum();
+        let terms: Vec<f64> = run.gradient.iter().zip(&solved).map(|(a, b)| a * b).collect();
+        let variance: f64 = terms.iter().sum();
+        let magnitude: f64 = terms.iter().map(|x| x.abs()).sum();
+        let tolerance = 64.0 * f64::EPSILON * d as f64 * magnitude;
+        if !variance.is_finite() || !magnitude.is_finite() || variance < -tolerance {
+            return Err(single(
+                CoherenceKind::PosteriorDependence,
+                DETAIL_DEPENDENCE_INVALID,
+                "parameter_dependence",
+                "use a finite positive semidefinite parameter covariance",
+            ));
+        }
         let variance = variance.max(0.0);
         let offsets = self.offsets();
         let mut gradient = Vec::new();
@@ -2087,6 +2100,25 @@ impl TransportedTypedModel {
                 "cross_covariance"
             }
         };
+        let indices: Vec<usize> = involved
+            .iter()
+            .flat_map(|&i| offsets[i]..offsets[i] + self.mechanisms[i].theta.len())
+            .collect();
+        if !indices.is_empty() {
+            let principal: Vec<f64> = indices
+                .iter()
+                .flat_map(|&i| indices.iter().map(move |&j| (i, j)))
+                .map(|(i, j)| sigma[i * d + j])
+                .collect();
+            if !valid_covariance(&principal, indices.len()) {
+                return Err(single(
+                    CoherenceKind::PosteriorDependence,
+                    DETAIL_DEPENDENCE_INVALID,
+                    "parameter_dependence",
+                    "use a symmetric positive semidefinite parameter covariance",
+                ));
+            }
+        }
         Ok((sigma, label))
     }
 

@@ -474,9 +474,9 @@ impl OrnsteinUhlenbeck {
         if initial_mean.len() != n || initial_covariance.len() != n * n {
             return Err(invalid("OU initial law"));
         }
-        // Positive semidefinite deterministic zero covariance is a valid initial law.
-        if initial_covariance.iter().any(|v| *v != 0.0) {
-            cholesky(initial_covariance, n)?;
+        // Singular PSD laws, including deterministic coordinates, are valid.
+        if !crate::compose::coherence::valid_covariance(initial_covariance, n) {
+            return Err(invalid("OU initial covariance must be symmetric positive semidefinite"));
         }
         let mut initial = initial_mean.to_vec();
         initial.extend_from_slice(initial_covariance);
@@ -551,6 +551,37 @@ mod tests {
         let p = OdePolicy { max_steps: 1, ..OdePolicy::default() };
         assert!(ode.trajectory(&[1.0, 0.0], &[0.0, 10.0], &[], p, &ctx).is_err());
     }
+    #[test]
+    fn ou_transient_accepts_singular_initial_covariance_and_refuses_invalid_laws() {
+        let ou = OrnsteinUhlenbeck {
+            drift: vec![-1.0, 0.0, 0.0, -1.0],
+            center: vec![0.0, 0.0],
+            diffusion: vec![1.0, 0.0, 0.0, 1.0],
+        };
+        let ctx = ExecutionContext::for_tests(2);
+        for initial in [vec![1.0, 0.0, 0.0, 0.0], vec![1.0, 1.0, 1.0, 1.0]] {
+            let result =
+                ou.moments(&[0.0, 0.0], &initial, &[0.0, 1.0], OdePolicy::default(), &ctx).unwrap();
+            assert_eq!(result.covariances[0], initial);
+            let decay = (-2.0_f64).exp();
+            for i in 0..2 {
+                for j in 0..2 {
+                    let expected =
+                        initial[i * 2 + j] * decay + if i == j { 0.5 * (1.0 - decay) } else { 0.0 };
+                    assert!((result.covariances[1][i * 2 + j] - expected).abs() < 1e-6);
+                }
+            }
+        }
+        for invalid_law in
+            [vec![1.0, 2.0, 2.0, 1.0], vec![1.0, 0.5, 0.0, 1.0], vec![f64::NAN, 0.0, 0.0, 1.0]]
+        {
+            assert!(
+                ou.moments(&[0.0, 0.0], &invalid_law, &[0.0, 1.0], OdePolicy::default(), &ctx)
+                    .is_err()
+            );
+        }
+    }
+
     #[test]
     fn ou_stationary_is_not_static_scm_covariance_and_transients_keep_initial_law() {
         let ou = OrnsteinUhlenbeck { drift: vec![-2.0], center: vec![3.0], diffusion: vec![4.0] };
