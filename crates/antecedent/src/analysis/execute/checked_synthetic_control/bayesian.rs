@@ -40,8 +40,7 @@ pub(super) fn refuse_unread_options(
         return Err(unread_option(
             route,
             "the synthetic difference-in-differences panel method",
-            "the frequentist synthetic difference-in-differences route, or the Bayesian \
-             simplex synthetic control without the difference-in-differences method",
+            "the Bayesian simplex synthetic control without the difference-in-differences method",
         ));
     }
     if query.uniform_unit_randomization || query.sharp_null_effect.is_some() {

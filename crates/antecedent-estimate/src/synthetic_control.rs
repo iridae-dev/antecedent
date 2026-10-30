@@ -170,42 +170,102 @@ fn demean(values: &[f64]) -> Vec<f64> {
 
 /// Fit donor weights by projected gradient descent on the simplex.
 /// The fixed iteration cap and sorted donor ordering make the result deterministic.
-fn fit_weights(target: &[f64], donors: &[Vec<f64>]) -> (Vec<f64>, f64) {
+fn fit_weights(target: &[f64], donors: &[Vec<f64>]) -> Result<(Vec<f64>, f64), String> {
+    fit_weights_with_limit(target, donors, 10_000)
+}
+
+fn fit_weights_with_limit(
+    target: &[f64],
+    donors: &[Vec<f64>],
+    iterations: usize,
+) -> Result<(Vec<f64>, f64), String> {
     let n_donors = donors.len();
     let n_pre = target.len();
-    let frobenius_sq: f64 = donors.iter().flatten().map(|value| *value * *value).sum();
+    if n_donors == 0 || n_pre == 0 || donors.iter().any(|d| d.len() != n_pre) {
+        return Err("synthetic control weight inputs have invalid shape".into());
+    }
+    // Translation by a donor is exact for simplex weights and removes common
+    // levels that otherwise dominate the gradient and step size.
+    if target.iter().chain(donors.iter().flatten()).any(|value| !value.is_finite()) {
+        return Err("synthetic control weight objective is not finite".into());
+    }
+    // Subtract first to retain representable differences on large common
+    // offsets; if a subtraction overflows, halve every operand consistently.
+    let half = (0..n_pre).any(|t| {
+        !(target[t] - donors[0][t]).is_finite()
+            || donors.iter().any(|donor| !(donor[t] - donors[0][t]).is_finite())
+    });
+    let difference = |value: f64, t: usize| {
+        if half { value * 0.5 - donors[0][t] * 0.5 } else { value - donors[0][t] }
+    };
+    let mut spread = 0.0_f64;
+    for t in 0..n_pre {
+        spread = spread.max(difference(target[t], t).abs());
+        for donor in donors {
+            spread = spread.max(difference(donor[t], t).abs());
+        }
+    }
+    let divisor = if spread == 0.0 { 1.0 } else { spread };
+    let value = |x: f64, t: usize| difference(x, t) / divisor;
+    let frobenius_sq: f64 = donors
+        .iter()
+        .flat_map(|donor| donor.iter().enumerate())
+        .map(|(t, x)| value(*x, t).powi(2))
+        .sum();
     let lipschitz = 2.0 * frobenius_sq / n_pre as f64;
-    let step = if lipschitz > 1e-15 { 1.0 / lipschitz } else { 1.0 };
+    if !lipschitz.is_finite() {
+        return Err("synthetic control weight objective is not finite".into());
+    }
+    let step = if lipschitz > 0.0 { 1.0 / lipschitz } else { 1.0 };
+    if !step.is_finite() {
+        return Err("synthetic control weight step is not finite".into());
+    }
     let mut weights = vec![1.0 / n_donors as f64; n_donors];
-    for _ in 0..10_000 {
+    let mut converged = false;
+    for _ in 0..iterations {
         let mut gradient = vec![0.0; n_donors];
         for period in 0..n_pre {
             let residual: f64 = donors
                 .iter()
                 .zip(&weights)
-                .map(|(donor, weight)| donor[period] * *weight)
+                .map(|(donor, weight)| value(donor[period], period) * *weight)
                 .sum::<f64>()
-                - target[period];
+                - value(target[period], period);
             for (index, donor) in donors.iter().enumerate() {
-                gradient[index] += 2.0 * donor[period] * residual / n_pre as f64;
+                gradient[index] += 2.0 * value(donor[period], period) * residual / n_pre as f64;
             }
         }
-        let next = project_simplex(
+        if gradient.iter().any(|v| !v.is_finite()) {
+            return Err("synthetic control weight gradient is not finite".into());
+        }
+        // A projected-gradient mapping is zero exactly at simplex KKT
+        // stationarity. It is independent of the optimization step size.
+        let projected = project_simplex(
             &weights
                 .iter()
-                .zip(gradient)
-                .map(|(weight, gradient)| *weight - step * gradient)
+                .zip(&gradient)
+                .map(|(weight, gradient)| *weight - *gradient)
                 .collect::<Vec<_>>(),
         );
-        let movement = next
+        let stationarity = projected
             .iter()
             .zip(&weights)
             .map(|(next, current)| (*next - *current).abs())
             .fold(0.0_f64, f64::max);
-        weights = next;
-        if movement < 1e-12 {
+        if stationarity < 1e-12 {
+            converged = true;
             break;
         }
+        weights = project_simplex(
+            &weights
+                .iter()
+                .zip(&gradient)
+                .map(|(weight, gradient)| *weight - step * *gradient)
+                .collect::<Vec<_>>(),
+        );
+    }
+    if !converged {
+        return Err("synthetic control weight iteration did not meet its stopping criterion".into());
     }
     let rmse = ((0..n_pre)
         .map(|period| {
@@ -220,7 +280,7 @@ fn fit_weights(target: &[f64], donors: &[Vec<f64>]) -> (Vec<f64>, f64) {
         .sum::<f64>()
         / n_pre as f64)
         .sqrt();
-    (weights, rmse)
+    Ok((weights, rmse))
 }
 
 fn placebo_ratio(gap: f64, pre_rmse: f64) -> f64 {
@@ -432,7 +492,7 @@ pub fn fit_synthetic_control(
         .iter()
         .map(|(_, values)| pre.iter().map(|period| values[period]).collect())
         .collect();
-    let (weights, pre_rmse) = fit_weights(&target_pre, &donor_pre);
+    let (weights, pre_rmse) = fit_weights(&target_pre, &donor_pre)?;
     let treated_post = post.iter().map(|period| treated[period]).sum::<f64>() / post.len() as f64;
     let synthetic_post: f64 = donors
         .iter()
@@ -453,7 +513,7 @@ pub fn fit_synthetic_control(
             .map(|(_, donor)| donor.clone())
             .collect();
         let (placebo_weights, placebo_rmse) =
-            fit_weights(&donor_pre[placebo_index], &reference_pre);
+            fit_weights(&donor_pre[placebo_index], &reference_pre)?;
         let pseudo_post = post.iter().map(|period| donors[placebo_index].1[period]).sum::<f64>()
             / post.len() as f64;
         let reference_post: f64 = donors
@@ -526,7 +586,7 @@ pub fn exact_synthetic_unit_randomization_test(
             .iter()
             .map(|(_, values)| pre.iter().map(|period| values[period]).collect())
             .collect();
-        let (weights, _) = fit_weights(&target_pre, &donor_pre);
+        let (weights, _) = fit_weights(&target_pre, &donor_pre)?;
         let treated_post =
             post.iter().map(|period| values[period]).sum::<f64>() / post.len() as f64;
         let donor_post: f64 = donors
@@ -679,6 +739,30 @@ mod tests {
         )
     )]
     use super::*;
+    #[test]
+    fn synthetic_weights_refuse_iteration_exhaustion_without_losing_valid_solutions() {
+        use super::fit_weights;
+        for scale in [1e-10, 1.0, 1e10] {
+            let fit = fit_weights(&[scale], &[vec![0.0], vec![scale]]).unwrap();
+            assert!(fit.0[0] < 1e-10 && (fit.0[1] - 1.0).abs() < 1e-10);
+        }
+        let ordinary = fit_weights(&[1.0, 0.5], &[vec![1.0, 0.0], vec![1.0, 1.0]]).unwrap();
+        assert!((ordinary.0[0] - 0.5).abs() < 1e-12);
+        assert!((ordinary.0[1] - 0.5).abs() < 1e-12);
+        assert!(ordinary.1 < 1e-12);
+        let donors = vec![vec![1.0, 0.0], vec![1.0, 0.01], vec![1.0, 0.0]];
+        let solved = fit_weights(&[1.0, 0.008], &donors).unwrap();
+        assert!((solved.0[1] - 0.8).abs() < 1e-9);
+        let error = super::fit_weights_with_limit(&[1.0, 0.008], &donors, 0).unwrap_err();
+        assert!(error.contains("stopping criterion"));
+        let base = 1e12;
+        let shifted_target = base + 0.8;
+        let shifted = fit_weights(&[shifted_target], &[vec![base], vec![base + 1.0]]).unwrap();
+        assert!((shifted.0[1] - (shifted_target - base)).abs() < 1e-9);
+        let tiny = f64::from_bits(1);
+        let subnormal = fit_weights(&[tiny], &[vec![0.0], vec![2.0 * tiny]]).unwrap();
+        assert!((subnormal.0[1] - 0.5).abs() < 1e-9);
+    }
 
     #[test]
     fn augmented_synthetic_control_corrects_outside_convex_hull_bias() {
@@ -1030,7 +1114,7 @@ pub fn fit_synthetic_did(
         .iter()
         .map(|(_, observed)| pre.iter().map(|period| observed[period]).collect())
         .collect();
-    let (unit_weights, pre_rmse) = fit_weights(&target_pre, &donor_pre);
+    let (unit_weights, pre_rmse) = fit_weights(&target_pre, &donor_pre)?;
 
     // SDID time weights (Arkhangelsky et al.) represent each donor's post-period
     // mean as a convex combination of its pre-period values, up to a common
@@ -1049,7 +1133,7 @@ pub fn fit_synthetic_did(
             demean(&donors.iter().map(|(_, observed)| observed[period]).collect::<Vec<_>>())
         })
         .collect();
-    let (time_weights, _) = fit_weights(&target_donor_mean, &period_profiles);
+    let (time_weights, _) = fit_weights(&target_donor_mean, &period_profiles)?;
 
     let treated_post_mean =
         post.iter().map(|period| treated[period]).sum::<f64>() / post.len() as f64;

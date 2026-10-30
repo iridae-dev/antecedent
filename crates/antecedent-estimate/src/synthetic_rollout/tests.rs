@@ -141,9 +141,19 @@ fn staggered_panel(seed: u64) -> (Rows, Vec<(Arc<str>, i64)>) {
 }
 
 #[test]
-fn multi_unit_synthetic_did_recovers_a_staggered_effect_with_placebo_intervals() {
+fn multi_unit_synthetic_control_recovers_a_staggered_effect_with_placebo_intervals() {
     let (rows, adoptions) = staggered_panel(31);
-    for method in [SyntheticPanelMethod::DifferenceInDifferences, SyntheticPanelMethod::Control] {
+    let error = multi_unit_synthetic(
+        &rows.panel(),
+        &adoptions,
+        SyntheticPanelMethod::DifferenceInDifferences,
+        199,
+        &ExecutionContext::for_tests(4),
+    )
+    .unwrap_err();
+    assert_eq!(error.reason_code(), Some("route_not_supported"));
+    assert!(error.to_string().contains("intercept and ridge"));
+    for method in [SyntheticPanelMethod::Control] {
         let serial = multi_unit_synthetic(
             &rows.panel(),
             &adoptions,
@@ -192,4 +202,42 @@ fn too_few_never_treated_donors_are_refused() {
     .unwrap_err()
     .to_string();
     assert!(error.contains("next attempt"), "{error}");
+}
+
+#[test]
+fn unconverged_simplex_is_an_optimizer_failure_not_support_or_interval() {
+    let target = [1.0, 0.00008];
+    let donors = vec![vec![1.0, 0.0], vec![1.0, 0.0001]];
+    let fit = super::fit_simplex(&target, &donors, None).unwrap();
+    assert!((fit[1] - 0.8).abs() < 1e-8);
+    for offset in [0.0, 1e12] {
+        let shifted =
+            super::fit_simplex(&[offset + 0.25], &[vec![offset], vec![offset + 1.0]], None)
+                .unwrap();
+        assert!((shifted[1] - 0.25).abs() < 1e-9);
+    }
+    let tiny = f64::from_bits(1);
+    let subnormal = super::fit_simplex(&[tiny], &[vec![0.0], vec![2.0 * tiny]], None).unwrap();
+    assert!((subnormal[1] - 0.5).abs() < 1e-9);
+
+    assert!(super::fit_simplex_with_limit(&target, &donors, None, 0).is_err());
+    let panel = super::Panel {
+        labels: vec!["treated".into(), "a".into(), "b".into()],
+        periods: vec![0, 1, 2],
+        values: vec![vec![1.0, 0.00008, 1.0], vec![1.0, 0.0, 1.0], vec![1.0, 0.0001, 1.0]],
+    };
+    assert_eq!(
+        super::rollout_effects(&panel, &[(0, 1)], &[1, 2], SyntheticPanelMethod::Control),
+        Err(super::RolloutFailure::Support)
+    );
+    let mut invalid = panel.clone();
+    invalid.values[0][0] = f64::INFINITY;
+    assert_eq!(
+        super::rollout_effects(&invalid, &[(0, 2)], &[1, 2], SyntheticPanelMethod::Control),
+        Err(super::RolloutFailure::Optimizer)
+    );
+    assert!(super::invert(0.0, 1.0, |_| Err(super::optimizer_refusal())).is_err());
+    let ordinary =
+        super::fit_simplex(&[1.0, 0.5], &[vec![1.0, 0.0], vec![1.0, 1.0]], None).unwrap();
+    assert!((ordinary[0] - 0.5).abs() < 1e-12 && (ordinary[1] - 0.5).abs() < 1e-12);
 }
