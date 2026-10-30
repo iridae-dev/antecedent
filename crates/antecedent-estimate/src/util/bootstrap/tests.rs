@@ -13,6 +13,34 @@ use super::rows::bootstrap_se_clusters_with_scratch;
 use super::*;
 
 #[test]
+fn a_whole_series_contiguous_block_is_refused_before_any_refit() {
+    let context = ExecutionContext::for_tests(1);
+    for length in [0, 8, 9] {
+        let design = BootstrapDesign {
+            clusters: None,
+            series_block: Some(length),
+            declared: SamplingDeclaration::Undeclared,
+        };
+        let estimate = |_: &mut (), _: &[usize]| -> Result<Option<f64>, EstimationError> {
+            panic!("an invalid block must be refused before refitting")
+        };
+        assert!(bootstrap_by_design(design, 20, &context, 1, 8, || (), estimate).is_err());
+        assert!(
+            bootstrap_interval_by_design(
+                design,
+                &IntervalRequest::default().rule(20),
+                &context,
+                1,
+                8,
+                || (),
+                estimate
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
 fn cancelled_bootstrap_retains_actual_failures() {
     let ctx = ExecutionContext::for_tests(7);
     let calls = AtomicU32::new(0);

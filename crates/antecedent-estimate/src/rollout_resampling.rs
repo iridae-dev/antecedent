@@ -315,6 +315,8 @@ pub fn block_draws(
 /// A `None` replicate counts as failed. A non-finite component is left out of that component's
 /// standard error, and a replicate is counted as successful, and enters the sup-t band, only
 /// when every component is finite.
+/// More than half of the requested replicates failing withholds a component's
+/// standard error, or the joint band when the incomplete vectors exceed that fraction.
 #[must_use]
 pub fn summarize_replicates(
     point: &[f64],
@@ -328,12 +330,19 @@ pub fn summarize_replicates(
         present.iter().copied().filter(|draw| draw.iter().all(|value| value.is_finite())).collect();
     let replicates_ok = u32::try_from(complete.len()).unwrap_or(u32::MAX);
     let replicates_failed = requested.saturating_sub(replicates_ok);
+    let policy = crate::util::ReplicatePolicy {
+        min_ok: u32::try_from(MIN_FINITE_REPLICATES).unwrap_or(u32::MAX),
+        ..crate::util::ReplicatePolicy::BOOTSTRAP
+    };
     let z = antecedent_stats::NORMAL_Q975;
     let standard_errors: Vec<Option<f64>> = (0..width)
         .map(|k| {
             let mut column: Vec<f64> =
                 present.iter().map(|draw| draw[k]).filter(|value| value.is_finite()).collect();
-            if column.len() < MIN_FINITE_REPLICATES || !point[k].is_finite() {
+            let successes = u32::try_from(column.len()).unwrap_or(u32::MAX);
+            if policy.decide(requested, successes, requested.saturating_sub(successes)).is_err()
+                || !point[k].is_finite()
+            {
                 return None;
             }
             column.sort_by(f64::total_cmp);
@@ -355,15 +364,16 @@ pub fn summarize_replicates(
         })
         .collect();
     maxima.sort_by(f64::total_cmp);
-    let critical_value = (maxima.len() >= MIN_FINITE_REPLICATES)
-        .then(|| crate::util::monte_carlo_critical(&maxima, ROLLOUT_LEVEL))
-        .filter(|value| value.is_finite())
-        // The pointwise interval is `estimate ± z·se` with the normal quantile, while the
-        // replicate quantile of max|t| measures the band on the replicates' own scale. With
-        // light-tailed or bounded replicate distributions that quantile can fall below `z`,
-        // which would make the simultaneous band narrower than a pointwise interval it must
-        // contain. The band's critical value is therefore never below the pointwise one.
-        .map(|value| value.max(antecedent_stats::NORMAL_Q975));
+    let critical_value = (maxima.len() >= MIN_FINITE_REPLICATES
+        && policy.decide(requested, replicates_ok, replicates_failed).is_ok())
+    .then(|| crate::util::monte_carlo_critical(&maxima, ROLLOUT_LEVEL))
+    .filter(|value| value.is_finite())
+    // The pointwise interval is `estimate ± z·se` with the normal quantile, while the
+    // replicate quantile of max|t| measures the band on the replicates' own scale. With
+    // light-tailed or bounded replicate distributions that quantile can fall below `z`,
+    // which would make the simultaneous band narrower than a pointwise interval it must
+    // contain. The band's critical value is therefore never below the pointwise one.
+    .map(|value| value.max(antecedent_stats::NORMAL_Q975));
     let quantities = (0..width)
         .map(|k| {
             let se = standard_errors[k];
@@ -400,6 +410,31 @@ pub fn quantile_sorted(sorted: &[f64], probability: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn majority_failed_replicates_withhold_uncertainty_and_keep_counts() {
+        let mut draws: Vec<Option<Vec<f64>>> = (0..20).map(|i| Some(vec![f64::from(i)])).collect();
+        draws.resize(100, None);
+        let summary = summarize_replicates(&[0.0], &draws, 100);
+        assert_eq!((summary.replicates_ok, summary.replicates_failed), (20, 80));
+        assert!(summary.quantities[0].standard_error.is_none());
+        assert!(summary.quantities[0].band.is_none() && summary.critical_value.is_none());
+
+        // Exactly half failing remains admissible under the common rule.
+        let accepted = summarize_replicates(&[0.0], &draws[..40], 40);
+        assert!(accepted.quantities[0].standard_error.is_some());
+        assert!(accepted.quantities[0].band.is_some());
+
+        // A usable component does not license a joint band whose other
+        // component failed: distinguish component and vector success counts.
+        let partial: Vec<Option<Vec<f64>>> =
+            (0..60).map(|i| Some(vec![f64::from(i), f64::NAN])).collect();
+        let summary = summarize_replicates(&[0.0, 0.0], &partial, 100);
+        assert!(summary.quantities[0].standard_error.is_some());
+        assert!(summary.quantities[1].standard_error.is_none());
+        assert!(summary.critical_value.is_none());
+        assert_eq!((summary.replicates_ok, summary.replicates_failed), (0, 100));
+    }
 
     #[test]
     fn resample_weights_sum_to_the_unit_count_and_multipliers_are_positive() {

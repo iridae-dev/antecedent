@@ -552,9 +552,9 @@ where
         if rule.max_replicates == 0 || n == 0 {
             return Ok(WaveBootstrap::skipped());
         }
-        if block_length == 0 || block_length > n {
+        if block_length == 0 || block_length >= n {
             return Err(EstimationError::data_msg(
-                "contiguous block length must be positive and no longer than the series",
+                "contiguous block length must be positive and shorter than the series",
             ));
         }
         if ctx.cancellation.is_cancelled() {
@@ -700,9 +700,9 @@ where
     if replicates == 0 || n == 0 {
         return Ok(BootstrapSeResult::skipped());
     }
-    if block_length == 0 || block_length > n {
+    if block_length == 0 || block_length >= n {
         return Err(EstimationError::data_msg(
-            "contiguous block length must be positive and no longer than the series",
+            "contiguous block length must be positive and shorter than the series",
         ));
     }
     if ctx.cancellation.is_cancelled() {
