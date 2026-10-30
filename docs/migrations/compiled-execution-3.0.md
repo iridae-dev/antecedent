@@ -255,10 +255,10 @@ of the upstream operations. Input requirements can be less specific than the
 upstream declaration; calibration follows the actual supplied output. A changed
 quantity requires its own measured calibration record.
 
-`ProducedPort::with_evidence([])` now declares evidence as unknown. Directly
-constructing `EvidenceBasis::Declared` with an empty set also fails a connection
-that requires declared or disjoint evidence. Declare the actual sources before
-requesting these dependence guarantees.
+An empty evidence set fails a connection that requires declared or disjoint
+evidence, whether supplied through `ProducedPort::with_evidence([])` or directly
+through `EvidenceBasis::Declared`. Stored declarations retain their identities.
+Declare the actual sources before requesting these dependence guarantees.
 
 Inherited measured outputs must retain an interval or posterior operation, as
 directly measured outputs already require. Native `check_composition` now refuses

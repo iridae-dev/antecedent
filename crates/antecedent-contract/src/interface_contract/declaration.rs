@@ -504,15 +504,11 @@ impl ProducedPort {
         self
     }
 
-    /// Declare the evidence sources.
+    /// Declare the evidence sources. An empty set does not establish a dependence
+    /// guarantee; connection checks treat it as unknown evidence.
     #[must_use]
     pub fn with_evidence(mut self, sources: impl IntoIterator<Item = SourceId>) -> Self {
-        let sources: BTreeSet<_> = sources.into_iter().collect();
-        self.evidence = if sources.is_empty() {
-            EvidenceBasis::Undeclared
-        } else {
-            EvidenceBasis::Declared(sources)
-        };
+        self.evidence = EvidenceBasis::Declared(sources.into_iter().collect());
         self
     }
 
