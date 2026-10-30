@@ -1205,8 +1205,8 @@ mod tests {
     fn scoped_intervention_binding_restores_between_siblings() {
         // SumOut_z Product[ P(· | z, do(z:=1)), P(z) ]: the first factor binds
         // z:=1 for its own lookup only; the sibling P(z) must still see the
-        // row's z. Correct scoping gives Σ_z 2.0 · P(z) = 2.0; a leaked
-        // binding would give 2.0 · P(z=1) per row = 2.8.
+        // row's z. Correct scoping gives Σ_z 0.5 · P(z) = 0.5; a leaked
+        // binding would give 0.5 · P(z=1) per row = 0.7.
         let mut arena = CausalExprArena::new();
         let z = v(0);
         let zset = arena.intern_var_set([z]);
@@ -1235,7 +1235,7 @@ mod tests {
             population: "",
             regime: None,
         };
-        p.insert_probability(&shadow_spec, &Assignment::from_pairs([(z, f(1.0))]), 2.0).unwrap();
+        p.insert_probability(&shadow_spec, &Assignment::from_pairs([(z, f(1.0))]), 0.5).unwrap();
         let marg_spec = FactorSpec {
             variables: &[z],
             conditioned_on: &[],
@@ -1249,7 +1249,7 @@ mod tests {
 
         let val =
             arena.compile(sum).unwrap().evaluate(&arena, &p, &EvalContext::default()).unwrap();
-        assert!((val - 2.0).abs() < 1e-12, "val={val}");
+        assert!((val - 0.5).abs() < 1e-12, "val={val}");
     }
 
     #[test]
@@ -1439,7 +1439,7 @@ mod tests {
             population: "",
             regime: None,
         };
-        p.insert_probability(&obs_spec, &Assignment::from_pairs([]), 3.0).unwrap();
+        p.insert_probability(&obs_spec, &Assignment::from_pairs([]), 1.0).unwrap();
         p.insert_probability(&interv_spec, &Assignment::from_pairs([]), 0.0).unwrap();
 
         let err = arena
@@ -1659,7 +1659,7 @@ mod tests {
 
     #[test]
     fn ratio_that_overflows_is_an_error_not_infinity() {
-        // 3 / 5e-324 = inf. The denominator is nonzero, so only the quotient check catches it.
+        // 1 / the smallest positive subnormal overflows; the denominator is nonzero.
         let mut arena = CausalExprArena::new();
         let empty = arena.empty_var_set();
         let empty_i = arena.empty_intervention_set();
@@ -1669,7 +1669,7 @@ mod tests {
         let ratio = arena.intern(ExprNode::Ratio { numerator, denominator });
         let mut p = EmpiricalTableProvider::new();
         for (domain, value) in
-            [(DomainRef::Observational, 3.0), (DomainRef::Interventional, 5e-324)]
+            [(DomainRef::Observational, 1.0), (DomainRef::Interventional, f64::from_bits(1))]
         {
             let spec = FactorSpec {
                 variables: &[],
