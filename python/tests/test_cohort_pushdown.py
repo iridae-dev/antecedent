@@ -32,6 +32,29 @@ CLOSURE = cp.ColumnClosure(target=("y",), weights=("w",), complete_case=("x",))
 COHORT = [0, 3, 5]
 
 
+def test_object_missing_values_are_excluded_from_checked_cohorts():
+    from decimal import Decimal
+
+    values = np.array([1.0, np.float32("nan"), Decimal("NaN"), None, "present"], dtype=object)
+    source = {"x": values, "extra": np.arange(len(values))}
+    closure = cp.ColumnClosure(target=("x",))
+    assert cp.checked_projection(source, closure, ["x"]).tolist() == [0, 4]
+    assert cp.checked_push_filter(source, closure, "extra", [False] * len(values)).tolist() == [0, 4]
+
+
+@pytest.mark.parametrize("dtype, values", [
+    ("Int64", [1, None, 3]), ("Float64", [1.0, None, 3.0]),
+    ("boolean", [True, None, False]), ("string", ["a", None, "b"]),
+])
+def test_pandas_nullable_missing_values_are_excluded(dtype, values):
+    pd = pytest.importorskip("pandas")
+    source = {"x": pd.Series(values, dtype=dtype), "extra": np.arange(3)}
+    closure = cp.ColumnClosure(target=("x",))
+    assert cp.checked_projection(source, closure, ["x"]).tolist() == [0, 2]
+    assert cp.checked_push_filter(source, closure, "extra", [False] * 3).tolist() == [0, 2]
+    assert cp._observed(np.array([pd.NaT, pd.NA, "ok"], dtype=object)) == [False, False, True]
+
+
 def test_the_closure_lists_each_column_once_under_its_first_duty():
     closure = cp.ColumnClosure(target=("y", "x"), validators=("x",), complete_case=("w", "y"))
     assert closure.columns == ("y", "x", "w")

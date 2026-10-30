@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any
 
 import numpy as np
@@ -86,6 +87,23 @@ class ColumnClosure:
         return tuple(seen)
 
 
+def _missing_object(value: Any) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, (float, np.floating)):
+        return bool(np.isnan(value))
+    if isinstance(value, (np.datetime64, np.timedelta64)):
+        return bool(np.isnat(value))
+    if isinstance(value, Decimal):
+        return value.is_nan()
+    # Pandas remains optional; an actual pandas scalar implies pandas is installed.
+    if type(value).__module__.startswith("pandas."):
+        import pandas as pd
+
+        return value is pd.NA or value is pd.NaT
+    return False
+
+
 def _observed(values: Any) -> list[bool]:
     array = np.asarray(values)
     if array.ndim != 1:
@@ -95,14 +113,7 @@ def _observed(values: Any) -> list[bool]:
     if array.dtype.kind in "mM":
         return [bool(v) for v in ~np.isnat(array)]
     if array.dtype.kind == "O":
-        return [
-            not (
-                v is None
-                or (isinstance(v, float) and v != v)
-                or (isinstance(v, np.datetime64) and bool(np.isnat(v)))
-            )
-            for v in array
-        ]
+        return [not _missing_object(value) for value in array]
     return [True] * int(array.shape[0])
 
 
