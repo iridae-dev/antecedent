@@ -452,7 +452,8 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin "$BASE_REF"
-          if git diff --name-only "origin/${BASE_REF}...HEAD" | grep -qE '^crates/.+/Cargo\.toml$|^Cargo\.toml$|^scripts/publish_crates\.(sh|py)$'; then
+          changed_paths="$(git diff --name-only "origin/${BASE_REF}...HEAD")"
+          if grep -E '^crates/.+/Cargo\.toml$|^Cargo\.toml$|^scripts/publish_crates\.(sh|py)$' > /dev/null <<< "$changed_paths"; then
             bash scripts/publish_crates.sh --dry-run
           else
             echo "No crate manifest changes; skipping publish dry-run"
