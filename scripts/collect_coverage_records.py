@@ -761,6 +761,33 @@ def passing_group_logs(logs: list[Path], sha: str) -> list[Path]:
     return sorted(accepted)
 
 
+def require_frozen_collection_decisions(logs: list[Path]) -> None:
+    """New collection needs frozen decision evidence, never inferred from legacy logs.
+
+    Named boundary records are diagnostic and cannot establish a passing range.
+    The current family protocol has no independent confirmation allocation, so
+    confirmations cannot be collected as passing evidence under that protocol.
+    """
+    for log in logs:
+        if is_confirmation_log(log):
+            raise SystemExit(f"{log.name}: confirmation has no allocated decision protocol")
+        text = read_text(log, errors="strict")
+        contexts = [line for line in text.splitlines() if line.startswith("calibration-decision-context ")]
+        decisions = [line for line in text.splitlines() if line.startswith("calibration-decision ")]
+        records = [json.loads(line.partition(" ")[2]) for line in text.splitlines()
+                   if line.startswith("calibration-record ")]
+        if len(contexts) != 1:
+            raise SystemExit(f"{log.name}: collection requires one frozen decision context")
+        if not records and not decisions:
+            raise SystemExit(f"{log.name}: collection requires allocated decision evidence")
+        for record in records:
+            if record.get("role") == "named_boundary":
+                continue
+            if "decision_protocol" not in record:
+                raise SystemExit(f"{log.name}: statistical record lacks decision protocol")
+            validate_point_decision(record)
+
+
 def load_records(
     sha: str,
     log_dir: Path = LOG_DIR,
@@ -775,6 +802,8 @@ def load_records(
     logs = sorted(log_dir.glob("*.log")) if selected_logs is None else selected_logs
     if not logs and allow_empty:
         return {}
+    if not smoke:
+        require_frozen_collection_decisions(logs)
     if verify_logs and not smoke:
         logs = drop_failed_confirmations(logs)
         check_logs(logs, sha)
@@ -1181,6 +1210,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sha", help="commit the logs were measured at (default: HEAD)")
     parser.add_argument(
+        "--inspect-legacy-logs", action="store_true",
+        help="read-only inspection of legacy logs; does not collect, rewrite or attest evidence",
+    )
+    parser.add_argument(
         "--append-attested",
         action="store_true",
         help="append new attested records without deleting existing, possibly stale rows; "
@@ -1246,6 +1279,22 @@ def main() -> int:
     parser.add_argument("--log-dir", type=Path, default=LOG_DIR, help="logs to collect")
     parser.add_argument("--out", type=Path, help="scratch registry path (with --smoke only)")
     args = parser.parse_args()
+    if args.inspect_legacy_logs:
+        if (args.append_attested or args.only_cell or args.defer_generated or args.no_cells
+            or args.keep_existing or args.passing_only or args.replace_record or args.keep_attested
+            or args.retag or args.smoke or args.allow_removal or args.out):
+            raise SystemExit("--inspect-legacy-logs cannot be combined with collection options")
+        if not args.log_dir.is_dir():
+            raise SystemExit(f"missing {args.log_dir}")
+        logs = sorted(args.log_dir.glob("*.log"))
+        if not logs:
+            raise SystemExit("no logs to inspect")
+        for log in logs:
+            problems, stamps = log_problems(log)
+            print(f"{log.name}: stamps={','.join(sorted(stamps)) or '<none>'}; "
+                  + ("; ".join(problems) if problems else "no group failure detected"))
+        print("legacy inspection only; no records or attestations written")
+        return 0
     if args.defer_generated and not args.no_cells:
         raise SystemExit("--defer-generated requires --no-cells")
     if args.passing_only and not args.keep_existing:
