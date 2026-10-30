@@ -670,10 +670,10 @@ fn cell_resume_refuses_every_request_that_needs_data_or_a_fit() {
         assert_eq!(measured, 0, "{what}: no fit ran");
         let plan = refused_plan(result.unwrap_err());
         let unavailable = RefusalReason::Unavailable { missing: MissingDependency::Data };
-        assert_eq!(plan.first_refusal(), Some((Stage::DataSnapshot, unavailable)), "{what}");
+        assert_eq!(plan.first_refusal(), Some((Stage::DataSnapshot, unavailable.clone())), "{what}");
         assert_eq!(
             plan.status(Stage::ScoreArtifact),
-            Some(&StageStatus::Refused { reason: unavailable }),
+            Some(&StageStatus::Refused { reason: unavailable.clone() }),
             "{what}: the score artifact is not claimed as reused"
         );
         assert_eq!(unavailable.detail(), "recalc.unavailable_data");

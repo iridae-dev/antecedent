@@ -59,3 +59,13 @@ existing sufficient-statistics capacity component, which has a different contrac
 The retained recompilation recipe stores only the resource policy needed to bind
 new rows. It does not retain caller progress callbacks in physical plans, so the
 existing plan unwind-safety auto traits remain intact.
+
+## Recalculation route ownership
+
+Custom recalculation route names are now owned by their capabilities and receipts.
+`RequestSupport` and `RefusalReason` carry `Option<Arc<str>>`; these types and
+`RecalcCapabilities`, `StageStatus` and `StageEntry` implement `Clone` rather than
+`Copy`. Convert a route literal with `.into()` and clone a value when it must be
+retained after passing it to a planner. Python custom route strings continue to
+work. Wire names, status text and canonical identity inputs are unchanged;
+consuming distinct custom receipts no longer consumes a global intern-table slot.

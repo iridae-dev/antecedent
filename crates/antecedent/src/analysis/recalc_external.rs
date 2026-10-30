@@ -174,7 +174,7 @@ impl ExternalCallbackError {
                 .entries()
                 .iter()
                 .find_map(|entry| {
-                    if let StageStatus::Refused { reason } = entry.status {
+                    if let StageStatus::Refused { reason } = &entry.status {
                         Some(reason.reason_code())
                     } else {
                         None

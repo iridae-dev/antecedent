@@ -307,7 +307,7 @@ impl ReceiptRecorder {
             .iter()
             .map(|e| ReceiptEntry {
                 stage: e.stage,
-                status: e.status,
+                status: e.status.clone(),
                 identity: e.identity,
                 counts: self.counts(e.stage),
             })
@@ -317,7 +317,7 @@ impl ReceiptRecorder {
 }
 
 /// One stage of a receipt.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ReceiptEntry {
     /// The stage.
     pub stage: Stage,
@@ -423,7 +423,7 @@ impl RecalcReceipt {
     /// `(stage, status)` rows in topological order.
     #[must_use]
     pub fn status_table(&self) -> Vec<(Stage, StageStatus)> {
-        self.entries.iter().map(|e| (e.stage, e.status)).collect()
+        self.entries.iter().map(|e| (e.stage, e.status.clone())).collect()
     }
 
     /// Canonical identity over stage, status, stage identity and counts. It depends only on
@@ -1373,7 +1373,8 @@ impl RecalcSession {
             Some(resume) if self.live.is_none() => Boundary::FreshProcess(resume),
             _ => Boundary::InProcess,
         };
-        let caps = RecalcCapabilities { retarget: self.retarget, request: self.request, boundary };
+        let caps =
+            RecalcCapabilities { retarget: self.retarget, request: self.request.clone(), boundary };
         RecalcPlan::plan(&self.previous, &request.identities(ctx), &caps)
     }
 }

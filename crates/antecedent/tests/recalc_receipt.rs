@@ -384,13 +384,15 @@ fn recalc_refusals_run_no_work_and_leave_the_session_untouched() {
 
     // Off-grid on a cold session: nothing runs and nothing becomes live.
     session.set_request_support(RequestSupport::OffGrid {
-        licensed_route: Some("transport.smoothed_dose"),
+        licensed_route: Some("transport.smoothed_dose".into()),
     });
     let plan = refused_plan(execute_with_receipt(&mut session, &base, &ctx(SEED)).unwrap_err());
     assert_eq!(
         plan.status(Stage::TreatmentGrid),
         Some(&StageStatus::Refused {
-            reason: RefusalReason::OffGrid { licensed_route: Some("transport.smoothed_dose") }
+            reason: RefusalReason::OffGrid {
+                licensed_route: Some("transport.smoothed_dose".into())
+            }
         })
     );
     for stage in [Stage::ScoreArtifact, Stage::Law, Stage::Decision] {
@@ -514,15 +516,15 @@ fn recalc_receipt_identity_is_order_independent_and_counts_must_match_status() {
     let decided = StageCounts { decisions: 1, ..StageCounts::default() };
     // Reuse that did work is a contradiction, not a receipt.
     assert_eq!(
-        RecalcReceipt::new(vec![entry(Stage::ScoreArtifact, reused, fit)]),
+        RecalcReceipt::new(vec![entry(Stage::ScoreArtifact, reused.clone(), fit)]),
         Err(ReceiptError::UnexpectedWork { stage: Stage::ScoreArtifact })
     );
     // A recomputed decision that never ran the decision is a contradiction as well.
     assert!(matches!(
-        RecalcReceipt::new(vec![entry(Stage::Decision, recomputed, none)]),
+        RecalcReceipt::new(vec![entry(Stage::Decision, recomputed.clone(), none)]),
         Err(ReceiptError::MissingWork { stage: Stage::Decision, .. })
     ));
-    assert!(RecalcReceipt::new(vec![entry(Stage::Decision, recomputed, decided)]).is_ok());
+    assert!(RecalcReceipt::new(vec![entry(Stage::Decision, recomputed.clone(), decided)]).is_ok());
     // Work counted against a stage that does not own it is refused.
     assert_eq!(
         RecalcReceipt::new(vec![entry(Stage::Decision, recomputed, fit)]),
@@ -530,7 +532,7 @@ fn recalc_receipt_identity_is_order_independent_and_counts_must_match_status() {
     );
     assert_eq!(
         RecalcReceipt::new(vec![
-            entry(Stage::Graph, reused, none),
+            entry(Stage::Graph, reused.clone(), none),
             entry(Stage::Graph, reused, none)
         ]),
         Err(ReceiptError::DuplicateStage(Stage::Graph))

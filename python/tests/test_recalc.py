@@ -368,6 +368,39 @@ def test_external_study_change_leaves_unrelated_branches_reused() -> None:
         Stage.external_study(8)
 
 
+def test_many_dynamic_route_names_round_trip_without_process_exhaustion() -> None:
+    session = RecalcSession()
+    declared = {stage: recalc.stage_identity(stage, "custom-route") for stage in STAGES}
+
+    for i in range(80):
+        name = f"custom.route_{i}"
+        session.set_request_support("off_grid", name)
+        capabilities = session.capabilities
+        assert capabilities.licensed_route == name
+        assert Capabilities.from_wire(capabilities.to_wire()) == capabilities
+        plan = recalc.plan_recalculation(declared, declared, capabilities)
+        assert plan.status(Stage.TREATMENT_GRID).text == (
+            f"refused(recalc.off_grid_request[{name}])"
+        )
+        replay = recalc.plan_recalculation(declared, declared, capabilities)
+        assert replay.identity == plan.identity
+        assert replay.table == plan.table
+
+    # Invalid on-grid declarations used to intern a name before refusing it.
+    for i in range(80):
+        with pytest.raises(CausalValueError):
+            session.set_request_support("on_grid", f"rejected.route_{i}")
+
+    session.set_request_support("unsupported", "custom.after_rejections")
+    capabilities = session.capabilities
+    assert capabilities.licensed_route == "custom.after_rejections"
+    plan = recalc.plan_recalculation(declared, declared, capabilities)
+    assert plan.status(Stage.TREATMENT_GRID).text == (
+        "refused(recalc.unsupported_request[custom.after_rejections])"
+    )
+    assert recalc.plan_recalculation(declared, declared, capabilities).identity == plan.identity
+
+
 def test_refusals_run_no_work_and_leave_the_session_untouched() -> None:
     base = request()
     session = RecalcSession()

@@ -38,6 +38,7 @@
 
 use std::collections::BTreeMap;
 use std::fmt;
+use std::sync::Arc;
 
 use crate::identity::CanonicalWriter;
 use crate::named_variants;
@@ -473,19 +474,19 @@ pub enum RetargetSupport {
 }
 
 /// Whether the requested treatment grid or operation is inside the declared route.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RequestSupport {
     /// On the declared grid and operation set.
     OnGrid,
     /// Off the declared grid.
     OffGrid {
         /// A separately licensed route that serves the request, when one exists.
-        licensed_route: Option<&'static str>,
+        licensed_route: Option<Arc<str>>,
     },
     /// An operation the declared route does not support.
     Unsupported {
         /// A separately licensed route that serves the request, when one exists.
-        licensed_route: Option<&'static str>,
+        licensed_route: Option<Arc<str>>,
     },
 }
 
@@ -521,7 +522,7 @@ pub enum Boundary {
 }
 
 /// The declared capabilities a plan is made under.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RecalcCapabilities {
     /// Retarget license of the estimator.
     pub retarget: RetargetSupport,
@@ -642,7 +643,7 @@ pub enum MissingDependency {
 }
 
 /// Why a stage was refused.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RefusalReason {
     /// A dependency the fresh process was not given.
     Unavailable {
@@ -652,12 +653,12 @@ pub enum RefusalReason {
     /// The treatment request is off the declared grid.
     OffGrid {
         /// A separately licensed route that serves the request, when one exists.
-        licensed_route: Option<&'static str>,
+        licensed_route: Option<Arc<str>>,
     },
     /// The requested operation is outside the declared route.
     Unsupported {
         /// A separately licensed route that serves the request, when one exists.
-        licensed_route: Option<&'static str>,
+        licensed_route: Option<Arc<str>>,
     },
     /// The target weights are not a licensed function of the adjustment set.
     RetargetIncompatible,
@@ -701,7 +702,7 @@ impl RefusalReason {
 }
 
 /// Per-stage outcome of a plan.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StageStatus {
     /// The stage's artifact is valid as it is.
     Reused {
@@ -784,7 +785,7 @@ impl fmt::Display for StageStatus {
 }
 
 /// One row of a plan.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StageEntry {
     /// The stage.
     pub stage: Stage,
@@ -829,7 +830,7 @@ impl RecalcPlan {
                 continue;
             }
             let status = planner.decide(stage);
-            planner.record(stage, status);
+            planner.record(stage, status.clone());
             let identity = identities.get(&stage).copied().unwrap_or(StageIdentity::ABSENT);
             entries.push(StageEntry { stage, status, identity });
         }
@@ -887,8 +888,8 @@ impl RecalcPlan {
     /// The first refused stage and its reason.
     #[must_use]
     pub fn first_refusal(&self) -> Option<(Stage, RefusalReason)> {
-        self.entries.iter().find_map(|e| match e.status {
-            StageStatus::Refused { reason } => Some((e.stage, reason)),
+        self.entries.iter().find_map(|e| match &e.status {
+            StageStatus::Refused { reason } => Some((e.stage, reason.clone())),
             _ => None,
         })
     }
@@ -982,13 +983,13 @@ impl Planner<'_> {
         if stage != Stage::TreatmentGrid {
             return None;
         }
-        match self.caps.request {
+        match &self.caps.request {
             RequestSupport::OnGrid => None,
             RequestSupport::OffGrid { licensed_route } => {
-                Some(RefusalReason::OffGrid { licensed_route })
+                Some(RefusalReason::OffGrid { licensed_route: licensed_route.clone() })
             }
             RequestSupport::Unsupported { licensed_route } => {
-                Some(RefusalReason::Unsupported { licensed_route })
+                Some(RefusalReason::Unsupported { licensed_route: licensed_route.clone() })
             }
         }
     }

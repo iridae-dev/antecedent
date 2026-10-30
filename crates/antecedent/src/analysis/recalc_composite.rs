@@ -343,7 +343,7 @@ impl CompositeSession {
             receipt: receipt.clone(),
             previous: previous.clone(),
             requested: ids.clone(),
-            capabilities: cap,
+            capabilities: cap.clone(),
             input_order: request.input_order.clone(),
             branches: request.externals.iter().map(|e| e.branch).collect(),
         });

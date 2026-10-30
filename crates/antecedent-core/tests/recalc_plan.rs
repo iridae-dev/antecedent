@@ -114,11 +114,11 @@ fn assert_identity_consistency(
     for entry in plan.entries() {
         assert_eq!(Some(&entry.identity), after.get(&entry.stage), "{}", entry.stage);
         let same = before.get(&entry.stage) == after.get(&entry.stage);
-        match entry.status {
+        match &entry.status {
             StageStatus::Reused { .. } => {
                 assert!(same, "{} reused but identity changed", entry.stage)
             }
-            StageStatus::Recomputed { because } if because != ChangedDependency::FreshProcess => {
+            StageStatus::Recomputed { because } if *because != ChangedDependency::FreshProcess => {
                 assert!(!same, "{} recomputed but identity unchanged", entry.stage);
             }
             _ => {}
@@ -495,7 +495,7 @@ fn recalc_off_grid_and_unsupported_requests_refuse_or_name_a_licensed_route() {
             "route_not_supported",
         ),
         (
-            RequestSupport::OffGrid { licensed_route: Some("dose.smoothed_response") },
+            RequestSupport::OffGrid { licensed_route: Some("dose.smoothed_response".into()) },
             "refused(recalc.off_grid_request[dose.smoothed_response])",
             "recalc.off_grid_request",
             "route_not_supported",

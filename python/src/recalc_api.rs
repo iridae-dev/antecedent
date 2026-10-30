@@ -114,11 +114,11 @@ pub(crate) fn plan_refusal_json_with(plan: &RecalcPlan, data_remedy: &str) -> St
             Some(plan),
         );
     };
-    let offending = match reason {
+    let offending = match &reason {
         RefusalReason::Blocked { by } => Some(by.label()),
         _ => None,
     };
-    let remedy = match reason {
+    let remedy = match &reason {
         RefusalReason::OffGrid { licensed_route: Some(route) }
         | RefusalReason::Unsupported { licensed_route: Some(route) } => {
             Some(format!("use the separately licensed route `{route}`"))
@@ -405,12 +405,12 @@ impl PyRecalcSession {
             Some(resume) if !self.inner.is_live() => Boundary::FreshProcess(resume),
             _ => Boundary::InProcess,
         };
-        RecalcCapabilities { retarget: self.retarget, request: self.request, boundary }
+        RecalcCapabilities { retarget: self.retarget, request: self.request.clone(), boundary }
     }
 
     fn declare(&mut self) {
         self.inner.set_retarget_support(self.retarget);
-        self.inner.set_request_support(self.request);
+        self.inner.set_request_support(self.request.clone());
     }
 }
 

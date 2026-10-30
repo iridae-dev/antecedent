@@ -26,7 +26,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
-use std::sync::{Mutex, PoisonError};
+use std::sync::Arc;
 
 use antecedent_core::recalc::{
     Boundary, RecalcCapabilities, RecalcPlan, RequestSupport, ResumeContext, RetargetSupport,
@@ -46,7 +46,6 @@ pub const MAX_RECALC_RECEIPT_STAGES: usize = 64;
 const ARTIFACT_KIND: &str = crate::artifact_kinds::RECALC_RECEIPT;
 const META_SECTION: &str = "recalc_receipt_meta";
 const MAX_ROUTE_BYTES: usize = 96;
-const MAX_INTERNED_ROUTES: usize = 64;
 
 crate::sectioned_artifact_enum! {
     /// Why a receipt artifact was refused or could not be produced.
@@ -400,25 +399,13 @@ pub fn stage_from_label(label: &str) -> Option<Stage> {
     Stage::all().into_iter().find(|stage| stage.label() == label)
 }
 
-static ROUTES: Mutex<Vec<&'static str>> = Mutex::new(Vec::new());
-
-/// A bounded process-wide table of licensed-route names, because the core carries them as
-/// `&'static str`. At most [`MAX_INTERNED_ROUTES`] distinct names of [`MAX_ROUTE_BYTES`] bytes.
-fn intern_route(route: &str) -> Result<&'static str, RecalcReceiptArtifactError> {
+// Validate and own each route with its receipt; no process-global interning.
+fn owned_route(route: &str) -> Result<Arc<str>, RecalcReceiptArtifactError> {
     let allowed = |b: u8| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-');
     if route.is_empty() || route.len() > MAX_ROUTE_BYTES || !route.bytes().all(allowed) {
         return Err(malformed("invalid licensed route name"));
     }
-    let mut known = ROUTES.lock().unwrap_or_else(PoisonError::into_inner);
-    if let Some(found) = known.iter().copied().find(|k| *k == route) {
-        return Ok(found);
-    }
-    if known.len() >= MAX_INTERNED_ROUTES {
-        return Err(RecalcReceiptArtifactError::LimitsExceeded("licensed routes"));
-    }
-    let leaked: &'static str = Box::leak(route.to_owned().into_boxed_str());
-    known.push(leaked);
-    Ok(leaked)
+    Ok(Arc::from(route))
 }
 
 impl CapabilitiesWire {
@@ -430,10 +417,12 @@ impl CapabilitiesWire {
             RetargetSupport::NotDeclared => "not_declared",
             RetargetSupport::Incompatible => "incompatible",
         };
-        let (request, licensed_route) = match capabilities.request {
+        let (request, licensed_route) = match &capabilities.request {
             RequestSupport::OnGrid => ("on_grid", None),
-            RequestSupport::OffGrid { licensed_route } => ("off_grid", licensed_route),
-            RequestSupport::Unsupported { licensed_route } => ("unsupported", licensed_route),
+            RequestSupport::OffGrid { licensed_route } => ("off_grid", licensed_route.as_deref()),
+            RequestSupport::Unsupported { licensed_route } => {
+                ("unsupported", licensed_route.as_deref())
+            }
         };
         let (boundary, resume) = match capabilities.boundary {
             Boundary::InProcess => ("in_process", None),
@@ -461,7 +450,7 @@ impl CapabilitiesWire {
     ///
     /// # Errors
     /// An unknown name, a route on an on-grid request, a resume context without (or on) a
-    /// fresh-process boundary, or an invalid or excess route name.
+    /// fresh-process boundary, or an invalid route name.
     pub fn to_capabilities(&self) -> Result<RecalcCapabilities, RecalcReceiptArtifactError> {
         let retarget = match self.retarget.as_str() {
             "licensed" => RetargetSupport::Licensed,
@@ -469,7 +458,7 @@ impl CapabilitiesWire {
             "incompatible" => RetargetSupport::Incompatible,
             other => return Err(malformed(format!("unknown retarget support `{other}`"))),
         };
-        let route = self.licensed_route.as_deref().map(intern_route).transpose()?;
+        let route = self.licensed_route.as_deref().map(owned_route).transpose()?;
         let request = match (self.request.as_str(), route) {
             ("on_grid", None) => RequestSupport::OnGrid,
             ("on_grid", Some(_)) => {
