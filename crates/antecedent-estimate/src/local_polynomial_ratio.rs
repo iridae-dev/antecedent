@@ -426,7 +426,7 @@ pub fn fit_weighted_local_polynomial_ratio(
         variance_t = (left.var_t + right.var_t) / bandwidth.powi(2);
         covariance_yt = (left.cov_yt + right.cov_yt) / bandwidth.powi(2);
     }
-    if first_stage.abs() < 1e-10 {
+    if !first_stage.is_finite() || first_stage == 0.0 {
         return Err(String::from(
             "local treatment discontinuity is too small to form a fuzzy design estimate",
         ));
@@ -438,9 +438,16 @@ pub fn fit_weighted_local_polynomial_ratio(
         ));
     }
     let estimate = reduced_form / first_stage;
-    let variance_estimate = variance_y / first_stage.powi(2)
-        + reduced_form.powi(2) * variance_t / first_stage.powi(4)
-        - 2.0 * reduced_form * covariance_yt / first_stage.powi(3);
+    if !estimate.is_finite() {
+        return Err(String::from("local ratio estimate is not finite"));
+    }
+    // Normalize each covariance term by the same first stage before combining;
+    // this avoids forming fourth powers of an arbitrary treatment unit.
+    let normalized_y = variance_y / first_stage / first_stage;
+    let normalized_t = variance_t / first_stage / first_stage;
+    let normalized_yt = covariance_yt / first_stage / first_stage;
+    let variance_estimate =
+        normalized_y + estimate * estimate * normalized_t - 2.0 * estimate * normalized_yt;
     if variance_estimate < -1e-10 || !variance_estimate.is_finite() {
         return Err(String::from("robust ratio variance is not finite and non-negative"));
     }
@@ -485,6 +492,12 @@ mod tests {
         assert!((fit.first_stage - 0.5).abs() < 1e-10);
         assert_eq!((fit.n_left, fit.n_right), (316, 316));
         assert!(fit.standard_error > 0.0);
+        let scaled_y: Vec<f64> = outcome.iter().map(|value| value * 1e-12).collect();
+        let scaled_t: Vec<f64> = treatment.iter().map(|value| value * 1e-12).collect();
+        let scaled =
+            fit_local_polynomial_ratio(&running, &scaled_y, &scaled_t, 0.0, 1.0, false).unwrap();
+        assert!((scaled.estimate - fit.estimate).abs() < 1e-8);
+        assert!((scaled.standard_error - fit.standard_error).abs() < 1e-8);
         let sparse_running = [-0.2, -0.1, 0.1, 0.2];
         assert!(
             fit_local_polynomial_ratio(

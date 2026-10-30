@@ -770,12 +770,15 @@ fn wald_ratio(
         ));
     }
     let denom = treatment.mean[1] - treatment.mean[0];
-    if denom.abs() < 1e-10 {
+    if !denom.is_finite() || denom == 0.0 {
         return Err(EstimationError::stats_msg(
             "degenerate first stage: instrument is uncorrelated with treatment",
         ));
     }
     let ratio = (outcome.mean[1] - outcome.mean[0]) / denom;
+    if !ratio.is_finite() {
+        return Err(EstimationError::stats_msg("Wald IV ratio is not finite"));
+    }
     Ok(WaldResult { ratio })
 }
 
@@ -1116,6 +1119,17 @@ mod tests {
     use super::*;
     use crate::overlap::OverlapPolicy;
     use antecedent_kernels::standard_normal;
+
+    #[test]
+    fn wald_first_stage_respects_treatment_units_and_refuses_zero() {
+        let arms = TreatmentArm::classify(&[0.0, 0.0, 1.0, 1.0]);
+        for scale in [1.0, 1e-12] {
+            let t = [0.0, 0.0, scale, scale];
+            let y = [0.0, 0.0, 2.0 * scale, 2.0 * scale];
+            assert!((wald_ratio(&arms, &t, &y).unwrap().ratio - 2.0).abs() < 1e-12);
+        }
+        assert!(wald_ratio(&arms, &[0.0; 4], &[0.0, 0.0, 1.0, 1.0]).is_err());
+    }
 
     /// `Z → T → Y` with `U` confounding `T-Y`: `T = Z + U + noise`, `Y = 2T + U + noise`.
     /// `Z` is a continuous instrument uncorrelated with `U`. True structural effect = 2.0.
