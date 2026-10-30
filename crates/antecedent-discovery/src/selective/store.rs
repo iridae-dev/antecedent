@@ -121,8 +121,8 @@ impl StatisticReceipt {
 pub enum StoreMode {
     /// A miss runs the test and retains the result.
     Compute,
-    /// A miss is refused: the run may only consume statistics already retained. Used by
-    /// resume, where nothing may be computed.
+    /// A miss is probed to verify an untestable refusal. A successful probe is refused
+    /// and never retained or consumed; replay may only consume retained statistics.
     ReplayOnly,
 }
 
@@ -706,7 +706,12 @@ mod tests {
             .unwrap_err();
         assert!(err.to_string().contains("replay_miss"), "{err}");
         assert!(store.replay_missed());
-        assert_eq!(store.counters().attempted, 0);
+        // Replay verifies whether an absent receipt represents an untestable query.
+        // This query is testable, so its probe completes but cannot enter the replay.
+        let counters = store.counters();
+        assert_eq!((counters.attempted, counters.completed, counters.reused), (1, 1, 0));
+        assert!(store.is_empty());
+        assert!(store.consumed_receipts().is_empty());
     }
 
     #[test]
