@@ -256,7 +256,7 @@ impl CompiledEvaluator {
                 for &c in children.iter() {
                     match self.eval_slot(arena, provider, ctx, env, c, track) {
                         Ok(factor) => {
-                            zero |= factor.value.to_f64() == 0.0;
+                            zero |= factor.value.is_zero();
                             product = product.times(factor, track);
                         }
                         Err(EvalError::MissingTableEntry) => missing = true,
@@ -1305,9 +1305,61 @@ mod tests {
 
         // A positive weight on the unobserved context still refuses.
         let mut positive = p.clone();
-        positive.insert_probability(&marg_spec, &Assignment::from_pairs([(z, f(1.0))]), 0.5).unwrap();
+        positive
+            .insert_probability(&marg_spec, &Assignment::from_pairs([(z, f(1.0))]), 0.5)
+            .unwrap();
         let err = arena.compile(sum).unwrap().evaluate(&arena, &positive, &EvalContext::default());
         assert_eq!(err, Err(EvalError::MissingTableEntry));
+    }
+
+    #[test]
+    fn an_underflowed_positive_factor_cannot_hide_a_missing_table_entry() {
+        let mut arena = CausalExprArena::new();
+        let empty = arena.empty_var_set();
+        let empty_i = arena.empty_intervention_set();
+        let mut provider = EmpiricalTableProvider::new();
+        let mut factors = Vec::new();
+        let mut env = Assignment::new();
+        for id in 0..3 {
+            let variable = v(id);
+            let variables = arena.intern_var_set([variable]);
+            factors.push(arena.intern_distribution(
+                variables,
+                empty,
+                empty_i,
+                DomainRef::Observational,
+            ));
+            env.set(variable, f(0.0));
+            if id < 2 {
+                let spec = FactorSpec {
+                    variables: &[variable],
+                    conditioned_on: &[],
+                    intervention: &[],
+                    domain: DomainRef::Observational,
+                    population: "",
+                    regime: None,
+                };
+                provider.insert_probability(&spec, &env, 1e-200).unwrap();
+            }
+        }
+        // This inner product is positive in the evaluator's extended arithmetic, even
+        // though converting 1e-400 to f64 rounds to zero. Its context is still reachable.
+        let inner_list = arena.intern_list([factors[0], factors[1]]);
+        let inner = arena.intern(ExprNode::Product(inner_list));
+        for children in [[factors[2], inner], [inner, factors[2]]] {
+            let list = arena.intern_list(children);
+            let product = arena.intern(ExprNode::Product(list));
+            // Normalizing by the same tiny context makes the suppressed missing factor
+            // observable as the bogus answer 1, rather than an underflowed final answer.
+            let ratio = arena.intern(ExprNode::Ratio { numerator: product, denominator: inner });
+            let result = arena.compile(ratio).unwrap().evaluate_with(
+                &arena,
+                &provider,
+                &EvalContext::default(),
+                &env,
+            );
+            assert_eq!(result, Err(EvalError::MissingTableEntry));
+        }
     }
 
     #[test]

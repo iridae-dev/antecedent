@@ -89,6 +89,247 @@ fn v(raw: u32) -> VariableId {
     VariableId::from_raw(raw)
 }
 
+/// Orthogonal eight-period signals give exact finite-sample regression coefficients.
+/// Z has mean 5 and confounds X(t-1) and Y; M = .5 X(t-1) + e and
+/// Y = 3 + 1.5 X(t-1) + 4 M + 3 Z(t-1).
+fn confounded_series_and_graph() -> (TimeSeriesData, TemporalDag, GraphPosterior) {
+    let n = 129;
+    let sign = |t: usize, bit: usize| if (t >> bit) & 1 == 0 { -1.0 } else { 1.0 };
+    let z: Vec<f64> = (0..n).map(|t| 5.0 + sign(t, 0)).collect();
+    let x: Vec<f64> = (0..n).map(|t| z[t] + sign(t, 1)).collect();
+    let m: Vec<f64> = (0..n)
+        .map(|t| {
+            let past = t.saturating_sub(1);
+            0.5 * x[past] + sign(past, 2)
+        })
+        .collect();
+    let y: Vec<f64> = (0..n)
+        .map(|t| {
+            let past = t.saturating_sub(1);
+            3.0 + 1.5 * x[past] + 4.0 * m[t] + 3.0 * z[past]
+        })
+        .collect();
+    let data = TimeSeriesData::from_f64_columns(
+        [("x", x.as_slice()), ("m", m.as_slice()), ("y", y.as_slice()), ("z", z.as_slice())],
+        1,
+    )
+    .unwrap();
+    let mut graph = dag();
+    let z0 = ensure_lagged(&mut graph, v(3), Lag::CONTEMPORANEOUS).unwrap();
+    let x0 = ensure_lagged(&mut graph, v(0), Lag::CONTEMPORANEOUS).unwrap();
+    let z1 = ensure_lagged(&mut graph, v(3), Lag::from_raw(1)).unwrap();
+    let y0 = ensure_lagged(&mut graph, v(2), Lag::CONTEMPORANEOUS).unwrap();
+    graph.insert_directed(z0, x0).unwrap();
+    graph.insert_directed(z1, y0).unwrap();
+    let adjacency =
+        [(3, 0), (1, 2)].into_iter().fold(0, |mask, (from, to)| set_edge(mask, 4, from, to, true));
+    let lagged = [(0, 1), (0, 2), (3, 2)]
+        .into_iter()
+        .fold(0, |mask, (from, to)| mask | lag_bit(4, from, to));
+    let posterior = GraphPosterior::new(
+        4,
+        vec![1.0],
+        vec![adjacency],
+        vec![0.0; 16],
+        vec![0.0; 16],
+        sampling("confounded_cross_world"),
+    )
+    .unwrap()
+    .with_lagged_marginals(1, vec![0.0; 16])
+    .unwrap()
+    .with_lag_masks(vec![lagged])
+    .unwrap();
+    (data, graph, posterior)
+}
+
+fn on_regression_stack(body: impl FnOnce() + Send + 'static) {
+    std::thread::Builder::new().stack_size(32 * 1024 * 1024).spawn(body).unwrap().join().unwrap();
+}
+
+#[test]
+fn a_dynamic_posterior_keeps_the_cross_world_backdoor_adjustment() {
+    on_regression_stack(|| {
+        let (data, graph, posterior) = confounded_series_and_graph();
+        for (query, truth) in [
+            (
+                CausalQuery::NestedCounterfactual(
+                    NestedCounterfactualQuery::new(v(0), v(1), v(2)).unwrap(),
+                ),
+                1.5,
+            ),
+            (
+                CausalQuery::PathSpecific(
+                    PathSpecificEffectQuery::binary(v(0), v(2)).with_path_nodes([v(1)]),
+                ),
+                2.0,
+            ),
+        ] {
+            for supplied_posterior in [false, true] {
+                let builder =
+                    Study::series(data.clone()).query(query.clone()).refute(RefuteSuite::None);
+                let builder = if supplied_posterior {
+                    builder.graph_posterior(posterior.clone())
+                } else {
+                    builder.graph(graph.clone())
+                };
+                let result =
+                    builder.build().unwrap().run(&ExecutionContext::for_tests(19)).unwrap();
+                assert!(
+                    (effect(&result) - truth).abs() < 1e-9,
+                    "posterior={supplied_posterior}: {} versus {truth}",
+                    effect(&result)
+                );
+            }
+        }
+    });
+}
+
+#[test]
+fn a_temporal_interventional_mean_averages_the_adjustment_population() {
+    on_regression_stack(|| {
+        let (data, graph, posterior) = confounded_series_and_graph();
+        for supplied_posterior in [false, true] {
+            let query = CausalQuery::Distribution(InterventionalDistributionQuery::new(
+                v(2),
+                [Intervention::set(v(0), Value::f64(1.0))],
+            ));
+            let builder = Study::series(data.clone()).query(query).refute(RefuteSuite::None);
+            let builder = if supplied_posterior {
+                builder.graph_posterior(posterior.clone())
+            } else {
+                builder.graph(graph.clone())
+            };
+            let result = builder.build().unwrap().run(&ExecutionContext::for_tests(19)).unwrap();
+            let truth = 3.0 + 3.5 + 3.0 * 5.0;
+            assert!(
+                (effect(&result) - truth).abs() < 1e-9,
+                "posterior={supplied_posterior}: {} versus {truth}",
+                effect(&result)
+            );
+        }
+    });
+}
+
+#[test]
+fn temporal_log_derivatives_use_the_population_mean_response() {
+    on_regression_stack(|| {
+        let (data, graph, posterior) = confounded_series_and_graph();
+        for supplied_posterior in [false, true] {
+            for bayesian in [false, true] {
+                let query = antecedent_core::ResponseQuery::new(
+                    antecedent_core::ResponseFunctional::PointDerivative {
+                        outcome: v(2),
+                        treatment: v(0),
+                        at: 5.0,
+                        order: 1,
+                        scale: antecedent_core::DerivativeScale::LogOutcome,
+                    },
+                )
+                .with_temporal(
+                    antecedent_core::TemporalResponseSpec::new(
+                        [1],
+                        antecedent_core::TemporalPolicy::pulse(-1),
+                        Some(1),
+                    )
+                    .unwrap(),
+                );
+                let builder = Study::series(data.clone())
+                    .query(CausalQuery::Response(query))
+                    .refute(RefuteSuite::None);
+                let builder = if supplied_posterior {
+                    builder.graph_posterior(posterior.clone())
+                } else {
+                    builder.graph(graph.clone())
+                };
+                let builder = if bayesian {
+                    builder.inference(InferenceMode::Bayesian(
+                        BayesianConfig::conjugate().prior_scale(1_000.0).n_draws(32),
+                    ))
+                } else {
+                    builder
+                };
+                let result =
+                    builder.build().unwrap().run(&ExecutionContext::for_tests(19)).unwrap();
+                let antecedent_core::ResponseIdentification::PointIdentified(
+                    antecedent_core::ResponseValue::Scalar(value),
+                ) = &result.response().unwrap().estimate
+                else {
+                    panic!("expected scalar derivative")
+                };
+                let truth = 3.5 / (3.0 + 3.5 * 5.0 + 3.0 * 5.0);
+                assert!(
+                    (value - truth).abs() < 1e-6,
+                    "posterior={supplied_posterior}, bayesian={bayesian}: {value} versus {truth}"
+                );
+            }
+        }
+    });
+}
+
+#[test]
+fn temporal_cross_world_queries_do_not_silently_drop_requested_dimensions() {
+    on_regression_stack(|| {
+        let (data, graph, posterior) = confounded_series_and_graph();
+        let interventions: Arc<[Intervention]> = Arc::from([
+            Intervention::set(v(0), Value::f64(1.0)),
+            Intervention::set(v(1), Value::f64(2.0)),
+        ]);
+        let mut counterfactual =
+            CounterfactualQuery::new(v(2), Arc::from([Intervention::set(v(0), Value::f64(1.0))]));
+        counterfactual.outcomes = Arc::from([v(2), v(1)]);
+        let cases = [
+            (
+                CausalQuery::Distribution(InterventionalDistributionQuery::new(
+                    v(2),
+                    interventions.clone(),
+                )),
+                "temporal interventional distribution needs one hard intervention",
+            ),
+            (
+                CausalQuery::Distribution(
+                    InterventionalDistributionQuery::new(
+                        v(2),
+                        [Intervention::set(v(0), Value::f64(1.0))],
+                    )
+                    .with_outcomes([v(2), v(1)]),
+                ),
+                "temporal interventional distribution needs one outcome",
+            ),
+            (
+                CausalQuery::Counterfactual(counterfactual),
+                "temporal counterfactual needs one outcome",
+            ),
+            (
+                CausalQuery::Counterfactual(
+                    CounterfactualQuery::new(v(2), interventions).with_joint_control([
+                        Intervention::set(v(0), Value::f64(0.0)),
+                        Intervention::set(v(1), Value::f64(0.0)),
+                    ]),
+                ),
+                "temporal counterfactual needs one hard intervention in each world",
+            ),
+        ];
+        for (query, message) in cases {
+            for supplied_posterior in [false, true] {
+                let builder =
+                    Study::series(data.clone()).query(query.clone()).refute(RefuteSuite::None);
+                let builder = if supplied_posterior {
+                    builder.graph_posterior(posterior.clone())
+                } else {
+                    builder.graph(graph.clone())
+                };
+                let result =
+                    builder.build().and_then(|study| study.run(&ExecutionContext::for_tests(19)));
+                let error = result.err().expect("the unsupported query must be refused as a whole");
+                assert!(
+                    matches!(error, antecedent::CausalError::Unsupported { message: actual } if actual == message),
+                    "{error}"
+                );
+            }
+        }
+    });
+}
+
 /// `X(t-1) -> M`, `X(t-1) -> Y`, `M -> Y`.
 fn dag() -> TemporalDag {
     let mut graph = TemporalDag::empty();
@@ -499,4 +740,3 @@ fn temporal_cross_world_cells_execute_from_the_retained_plan_without_the_builder
         .join()
         .unwrap();
 }
-

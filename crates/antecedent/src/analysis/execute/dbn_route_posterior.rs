@@ -93,7 +93,7 @@ pub(crate) fn dbn_route_query(query: &CausalQuery) -> bool {
 enum DbnPoint<'a> {
     Conditional(&'a TemporalEffectQuery),
     Derivative { query: &'a ResponseQuery, probe: TemporalEffectQuery },
-    CrossWorld { contrast: CrossWorldContrast, probe: TemporalEffectQuery, direct: bool },
+    CrossWorld { contrast: CrossWorldContrast, probe: TemporalEffectQuery },
 }
 
 impl<'a> DbnPoint<'a> {
@@ -163,10 +163,6 @@ impl<'a> DbnPoint<'a> {
                 Ok(Self::CrossWorld {
                     contrast: CrossWorldContrast { treatment, outcome, mediator, active, control },
                     probe: super::temporal_class_point::cross_world_probe(treatment, outcome),
-                    direct: matches!(
-                        query,
-                        CausalQuery::NestedCounterfactual(_) | CausalQuery::PathSpecific(_)
-                    ),
                 })
             }
             _ => Err(CausalError::Compile {
@@ -461,20 +457,14 @@ impl super::Study {
                     ctx.kernel_policy,
                     prior_scale,
                 )),
-                DbnPoint::CrossWorld { direct, .. } => {
-                    let mut used = template.estimand.clone();
-                    if *direct {
-                        used.adjustment_set = Arc::from([]);
-                    }
-                    Ok(SlopeAtom::new(
-                        data,
-                        &used,
-                        &template.indexer,
-                        offsets,
-                        ctx.kernel_policy,
-                        prior_scale,
-                    ))
-                }
+                DbnPoint::CrossWorld { .. } => Ok(SlopeAtom::new(
+                    data,
+                    &template.estimand,
+                    &template.indexer,
+                    offsets,
+                    ctx.kernel_policy,
+                    prior_scale,
+                )),
             };
             let point = built.and_then(|atom| {
                 let (value, response) = match &point_kind {

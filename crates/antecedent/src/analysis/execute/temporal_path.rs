@@ -6251,51 +6251,8 @@ fn path_edge_product(
 /// The treatment, outcome, mediator and levels of a cross-world query, or the
 /// refusal when the query is not a mediated or hard-intervention contrast.
 fn cross_world_contrast(query: &CausalQuery) -> Result<CrossWorldContrast, CausalError> {
-    let (treatment, outcome, mediator, active, control) = match query {
-        CausalQuery::NestedCounterfactual(q) => {
-            (q.treatment, q.outcome, Some(q.mediator), q.active_value(), q.control_value())
-        }
-        CausalQuery::PathSpecific(q) => {
-            let first = require_path_nodes(&q.path_nodes)?;
-            let active = hard_level(&q.active)?;
-            let control = hard_level(&q.control)?;
-            (q.treatment, q.outcome, Some(first), active, control)
-        }
-        CausalQuery::Counterfactual(q) => {
-            let treatment =
-                q.interventions.first().and_then(Intervention::primary_variable).ok_or(
-                    CausalError::Unsupported {
-                        message: "temporal counterfactual needs one hard intervention",
-                    },
-                )?;
-            let outcome = *q.outcomes.first().ok_or(CausalError::Unsupported {
-                message: "temporal counterfactual needs one outcome",
-            })?;
-            (treatment, outcome, None, hard_level(&q.interventions[0])?, hard_level(&q.control)?)
-        }
-        CausalQuery::Distribution(q) => {
-            let treatment =
-                q.interventions.first().and_then(Intervention::primary_variable).ok_or(
-                    CausalError::Unsupported {
-                        message: "temporal interventional distribution needs one hard intervention",
-                    },
-                )?;
-            let outcome = *q.outcomes.first().ok_or(CausalError::Unsupported {
-                message: "temporal interventional distribution needs one outcome",
-            })?;
-            if !q.conditioning.is_empty() {
-                return Err(CausalError::Unsupported {
-                    message: "temporal interventional distribution is unconditional",
-                });
-            }
-            (treatment, outcome, None, hard_level(&q.interventions[0])?, 0.0)
-        }
-        _ => {
-            return Err(CausalError::Unsupported {
-                message: "temporal cross-world route does not estimate this query",
-            });
-        }
-    };
+    let (treatment, outcome, mediator, active, control) =
+        super::temporal_class_point::cross_world_endpoints(query)?;
     Ok(CrossWorldContrast { treatment, outcome, mediator, active, control })
 }
 

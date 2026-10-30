@@ -94,8 +94,8 @@ const RELATIVE_RIDGE: f64 = 1e-10;
 ///
 /// # Errors
 ///
-/// Fewer than `k + 2` replicates (the covariance would be singular), a non-finite replicate,
-/// or a covariance whose every coordinate is constant.
+/// Fewer than `k + 2` replicates (the covariance would be singular), a non-finite expected
+/// value or replicate, or a covariance whose every coordinate is constant.
 pub fn joint_mahalanobis(
     expected: &[f64],
     replicates: &[f64],
@@ -130,6 +130,9 @@ pub fn joint_mahalanobis_with_bias(
             message: "joint statistic needs at least target dimension + 2 successful replicates; \
                       next attempt: raise the replicate count",
         });
+    }
+    if expected.iter().any(|v| !v.is_finite()) {
+        return Err(ValidationError::estimation_msg("the expected target vector is not finite"));
     }
     if replicates.iter().any(|v| !v.is_finite()) {
         return Err(ValidationError::estimation_msg("a refuted target vector is not finite"));
@@ -510,5 +513,15 @@ mod tests {
     #[test]
     fn too_few_replicates_are_refused() {
         assert!(joint_mahalanobis(&[0.0, 0.0], &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], 2).is_err());
+    }
+
+    #[test]
+    fn a_non_finite_expectation_is_an_error_not_a_refuter_verdict() {
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert_eq!(
+                joint_mahalanobis_with_bias(&[value], &[0.0, 1.0, 2.0, 3.0], 1),
+                Err(ValidationError::estimation_msg("the expected target vector is not finite"))
+            );
+        }
     }
 }

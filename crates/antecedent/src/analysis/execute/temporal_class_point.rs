@@ -1671,6 +1671,16 @@ pub(super) fn cross_world_endpoints(
             ))
         }
         CausalQuery::Counterfactual(q) => {
+            if q.outcomes.len() != 1 {
+                return Err(CausalError::Unsupported {
+                    message: "temporal counterfactual needs one outcome",
+                });
+            }
+            if q.interventions.len() != 1 || !q.joint_control.is_empty() {
+                return Err(CausalError::Unsupported {
+                    message: "temporal counterfactual needs one hard intervention in each world",
+                });
+            }
             let treatment =
                 q.interventions.first().and_then(Intervention::primary_variable).ok_or(
                     CausalError::Unsupported {
@@ -1689,6 +1699,16 @@ pub(super) fn cross_world_endpoints(
             ))
         }
         CausalQuery::Distribution(q) => {
+            if q.outcomes.len() != 1 {
+                return Err(CausalError::Unsupported {
+                    message: "temporal interventional distribution needs one outcome",
+                });
+            }
+            if q.interventions.len() != 1 {
+                return Err(CausalError::Unsupported {
+                    message: "temporal interventional distribution needs one hard intervention",
+                });
+            }
             let treatment =
                 q.interventions.first().and_then(Intervention::primary_variable).ok_or(
                     CausalError::Unsupported {

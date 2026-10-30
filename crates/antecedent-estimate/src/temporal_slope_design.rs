@@ -62,7 +62,8 @@ pub struct TemporalSlopeDesign {
 /// conditional layout, the modifier mean of the rows it was fit on.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SlopeFit {
-    /// Every coefficient, intercept first.
+    /// Every coefficient, intercept first. For the slope layout the intercept includes the
+    /// adjustment slopes times their fitted-row means, so levels average over that population.
     pub coefficients: Vec<f64>,
     /// Mean of the first modifier column over the fitted rows (conditional layout);
     /// `NaN` for a slope layout.
@@ -73,7 +74,7 @@ pub struct SlopeFit {
 }
 
 impl SlopeFit {
-    /// The intercept.
+    /// The intercept marginalized over the fitted rows' adjustment distribution (slope layout).
     #[must_use]
     pub fn intercept(&self) -> f64 {
         self.coefficients[0]
@@ -109,7 +110,8 @@ pub struct SlopeRefitScratch {
 /// Gaussian-likelihood posterior draws of one design's coefficients.
 #[derive(Clone, Debug)]
 pub struct SlopePosterior {
-    /// Posterior mean of every coefficient (the ridge point the route publishes).
+    /// Posterior mean of every coefficient (the ridge point the route publishes). In the slope
+    /// layout the intercept is marginalized over the full-sample adjustment distribution.
     pub mean: Vec<f64>,
     /// `draws[d]` is draw `d` of every coefficient.
     pub draws: Vec<Vec<f64>>,
@@ -388,12 +390,46 @@ impl TemporalSlopeDesign {
             .collect()
     }
 
-    /// A [`SlopeFit`] of `coefficients` with the modifier means of `rows`.
+    /// Adjustment-column means of the selected design rows (including resample multiplicities
+    /// and declared sampling weights). Conditional effects handle modifier means separately.
+    fn adjustment_means_over(&self, rows: impl Iterator<Item = usize> + Clone) -> Vec<f64> {
+        let SlopeLayout::Slopes { treatments } = self.layout else {
+            return Vec::new();
+        };
+        self.matrix
+            .chunks_exact(self.rows)
+            .skip(1 + treatments)
+            .map(|column| {
+                let (mut sum, mut mass) = (0.0, 0.0);
+                for row in rows.clone() {
+                    let weight = self.row_weights.as_ref().map_or(1.0, |weights| weights[row]);
+                    sum += weight * column[row];
+                    mass += weight;
+                }
+                sum / mass
+            })
+            .collect()
+    }
+
+    /// Push a regression coefficient vector through population averaging, keeping every
+    /// treatment slope while adding the adjustment contribution to the intercept.
+    fn marginalize_adjustment(coefficients: &mut [f64], means: &[f64]) {
+        let shift: f64 = coefficients
+            .iter()
+            .rev()
+            .zip(means.iter().rev())
+            .map(|(coefficient, mean)| coefficient * mean)
+            .sum();
+        coefficients[0] += shift;
+    }
+
+    /// A [`SlopeFit`] of `coefficients` with the adjustment and modifier means of `rows`.
     fn fit_of(
         &self,
-        coefficients: Vec<f64>,
+        mut coefficients: Vec<f64>,
         rows: impl Iterator<Item = usize> + Clone,
     ) -> SlopeFit {
+        Self::marginalize_adjustment(&mut coefficients, &self.adjustment_means_over(rows.clone()));
         let modifier_means = self.modifier_means_over(rows);
         SlopeFit {
             coefficients,
@@ -408,7 +444,8 @@ impl TemporalSlopeDesign {
     ///
     /// # Errors
     ///
-    /// A singular design or a non-positive prior scale.
+    /// A singular design, a non-positive prior scale, or a weighted design with a prior
+    /// (the Gaussian posterior has no sampling-weight construction).
     pub fn fit(&self, prior_scale: Option<f64>) -> Result<SlopeFit, EstimationError> {
         let mut ws = LeastSquaresWorkspace::default();
         let (matrix, outcome);
@@ -421,7 +458,8 @@ impl TemporalSlopeDesign {
                 }
             }
             matrix = scaled;
-            outcome = self.outcome.iter().zip(&root).map(|(y, scale)| y * scale).collect::<Vec<_>>();
+            outcome =
+                self.outcome.iter().zip(&root).map(|(y, scale)| y * scale).collect::<Vec<_>>();
             (&matrix, &outcome)
         } else {
             (&self.matrix, &self.outcome)
@@ -499,6 +537,12 @@ impl TemporalSlopeDesign {
         ols: &[f64],
         scale: f64,
     ) -> Result<(Vec<f64>, Vec<f64>, f64), EstimationError> {
+        if self.row_weights.is_some() {
+            return Err(crate::sampling_weights::unsupported_route(
+                "the temporal slope Gaussian posterior does not read sampling weights; use \
+                 Frequentist inference for a weighted least-squares point",
+            ));
+        }
         if !(scale.is_finite() && scale > 0.0) {
             return Err(EstimationError::unsupported(
                 "temporal slope prior scale must be finite and positive",
@@ -544,7 +588,8 @@ impl TemporalSlopeDesign {
     /// # Errors
     ///
     /// A singular design, a non-positive prior scale, fewer than two draws, or a
-    /// covariance that is not positive definite.
+    /// covariance that is not positive definite, or sampling weights without a weighted
+    /// posterior construction.
     pub fn posterior(
         &self,
         spec: SlopePosteriorSpec,
@@ -606,6 +651,12 @@ impl TemporalSlopeDesign {
                 .collect();
             out.push(draw);
         }
+        let adjustment_means = self.adjustment_means_over(0..self.rows);
+        let mut mean = mean;
+        Self::marginalize_adjustment(&mut mean, &adjustment_means);
+        for draw in &mut out {
+            Self::marginalize_adjustment(draw, &adjustment_means);
+        }
         let modifier_means = self.modifier_means_over(0..self.rows);
         Ok(SlopePosterior {
             mean,
@@ -649,7 +700,8 @@ impl TemporalSlopeDesign {
     /// # Errors
     ///
     /// A singular design, a non-positive prior scale, fewer than two draws, or a joint
-    /// dependence structure that is not positive definite after a bounded ridge.
+    /// dependence structure that is not positive definite after a bounded ridge, or a weighted
+    /// design without a weighted posterior construction.
     #[allow(
         clippy::too_many_lines,
         reason = "fit each design, stack the scores on the series axis, estimate the joint dependence, then draw"
@@ -777,7 +829,12 @@ impl TemporalSlopeDesign {
             .into_iter()
             .zip(out)
             .zip(designs)
-            .map(|((part, draws), design)| {
+            .map(|((mut part, mut draws), design)| {
+                let adjustment_means = design.adjustment_means_over(0..design.rows);
+                Self::marginalize_adjustment(&mut part.mean, &adjustment_means);
+                for draw in &mut draws {
+                    Self::marginalize_adjustment(draw, &adjustment_means);
+                }
                 let modifier_means = design.modifier_means_over(0..design.rows);
                 SlopePosterior {
                     mean: part.mean,
@@ -1058,6 +1115,76 @@ mod tests {
             assert!((a - b).abs() < 1e-9);
         }
         assert!((full.slopes(1)[0] - 2.0).abs() < 0.05);
+    }
+
+    #[test]
+    fn a_slope_fit_marginalizes_adjustment_columns_in_every_realization() {
+        let n = 64;
+        let sign = |row: usize, bit: usize| if (row >> bit) & 1 == 0 { -1.0 } else { 1.0 };
+        let x: Vec<f64> = (0..n).map(|row| sign(row, 0)).collect();
+        let z: Vec<f64> = (0..n).map(|row| 5.0 + sign(row, 1)).collect();
+        let y: Vec<f64> =
+            (0..n).map(|row| 3.0 + 2.0 * x[row] + 4.0 * z[row] + 0.1 * sign(row, 2)).collect();
+        let mut design = slope_design(&x, y);
+        design.matrix.extend_from_slice(&z);
+        design.cols = 3;
+        let full = design.fit(None).unwrap();
+        assert!((full.intercept() - 23.0).abs() < 1e-9);
+        // Duplicate the high-Z periods: the resampled population has E[Z] = 16/3.
+        let rows: Vec<usize> = (0..n)
+            .flat_map(|row| std::iter::repeat_n(row, if z[row] == 6.0 { 2 } else { 1 }))
+            .collect();
+        let refit = design.refit_rows(&rows, &mut SlopeRefitScratch::default()).unwrap();
+        let weighted_truth = 3.0 + 4.0 * 16.0 / 3.0;
+        assert!((refit.intercept() - weighted_truth).abs() < 1e-9);
+        let rng = antecedent_core::RngFactory::from_seed(7);
+        let spec = SlopePosteriorSpec { prior_scale: 1_000.0, draws: 1000, structural_span: 1 };
+        let posterior = design.posterior(spec, 11, &rng).unwrap();
+        assert!((posterior.mean[0] - 23.0).abs() < 1e-6);
+        let mean = posterior.draws.iter().map(|draw| draw[0]).sum::<f64>() / spec.draws as f64;
+        assert!((mean - 23.0).abs() < 0.01);
+        let (joint, _) = TemporalSlopeDesign::joint_posterior(&[&design], spec, 11, &rng).unwrap();
+        assert!((joint[0].mean[0] - 23.0).abs() < 1e-6);
+        let mean = joint[0].draws.iter().map(|draw| draw[0]).sum::<f64>() / spec.draws as f64;
+        assert!((mean - 23.0).abs() < 0.01);
+        design.row_weights = Some(z.iter().map(|z| if *z == 6.0 { 2.0 } else { 1.0 }).collect());
+        assert!((design.fit(None).unwrap().intercept() - weighted_truth).abs() < 1e-9);
+    }
+
+    #[test]
+    fn weighted_designs_do_not_silently_publish_an_unweighted_posterior() {
+        let mut design = design(60);
+        design.row_weights =
+            Some((0..60).map(|row| if row % 3 == 0 { 20.0 } else { 1.0 }).collect());
+        let rng = antecedent_core::RngFactory::from_seed(7);
+        let spec = SlopePosteriorSpec { prior_scale: 1.0, draws: 20, structural_span: 1 };
+        let expected = crate::sampling_weights::unsupported_route(
+            "the temporal slope Gaussian posterior does not read sampling weights; use \
+             Frequentist inference for a weighted least-squares point",
+        );
+        assert_eq!(design.fit(Some(1.0)).unwrap_err(), expected);
+        assert_eq!(design.posterior(spec, 11, &rng).unwrap_err(), expected);
+        assert_eq!(
+            TemporalSlopeDesign::joint_posterior(&[&design], spec, 11, &rng).unwrap_err(),
+            expected
+        );
+        // Weighted least squares remains available and matches the independent weighted
+        // covariance / variance formula, rather than the unweighted fit.
+        let weights = design.row_weights.as_ref().unwrap();
+        let x = &design.matrix[design.rows..];
+        let sum = weights.iter().sum::<f64>();
+        let mx = x.iter().zip(weights).map(|(x, w)| x * w).sum::<f64>() / sum;
+        let my = design.outcome.iter().zip(weights).map(|(y, w)| y * w).sum::<f64>() / sum;
+        let numerator = x
+            .iter()
+            .zip(&design.outcome)
+            .zip(weights)
+            .map(|((x, y), w)| w * (x - mx) * (y - my))
+            .sum::<f64>();
+        let denominator = x.iter().zip(weights).map(|(x, w)| w * (x - mx).powi(2)).sum::<f64>();
+        let fit = design.fit(None).unwrap();
+        assert!((fit.coefficients[1] - numerator / denominator).abs() < 1e-10);
+        assert!((fit.coefficients[0] - (my - mx * numerator / denominator)).abs() < 1e-10);
     }
 
     #[test]

@@ -1016,8 +1016,10 @@ struct CellSetup {
 fn cross_world_setup(cell: antecedent::SupportCell) -> Option<Result<CellSetup, String>> {
     let class = cell.graph_class.as_str();
     let counterfactual = cell.query.as_str() == "Counterfactual"
-        && matches!(class, "Admg" | "TemporalAdmg" | "Pag")
-        && cell.structure.as_str() != "graph_posterior";
+        && (matches!(class, "Admg" | "TemporalAdmg" | "Pag")
+            && cell.structure.as_str() != "graph_posterior"
+            || cell.structure.as_str() == "graph_posterior"
+                && matches!(class, "Admg" | "TemporalAdmg" | "Pag" | "Cpdag" | "Dag"));
     let nested = cell.query.as_str() == "NestedCounterfactualEffect"
         && (matches!(class, "Admg" | "TemporalAdmg" | "Pag" | "Cpdag")
             || (cell.structure.as_str() == "graph_posterior" && class == "Dag"));
@@ -1081,7 +1083,31 @@ fn cross_world_setup(cell: antecedent::SupportCell) -> Option<Result<CellSetup, 
         }
         g
     };
+    let line_data = || {
+        let x: Vec<f64> = (0..80).map(|i| f64::from(i) / 20.0 - 2.0).collect();
+        let y: Vec<f64> = x.iter().map(|x| 1.0 + 2.0 * x).collect();
+        TabularData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())]).unwrap()
+    };
+    let gaussian_data = || {
+        let z: Vec<f64> = (0..240_u32).map(|i| (f64::from(i) * 1.37).sin()).collect();
+        let t: Vec<f64> =
+            (0..240_u32).zip(&z).map(|(i, z)| 0.6 * z + (f64::from(i) * 0.91).cos()).collect();
+        let y: Vec<f64> = (0..240_u32)
+            .zip(t.iter().zip(&z))
+            .map(|(i, (t, z))| 1.0 + 2.0 * t + z + 0.4 * (f64::from(i) * 2.3).sin())
+            .collect();
+        TabularData::from_f64_columns([("z", z.as_slice()), ("t", t.as_slice()), ("y", y.as_slice())])
+            .unwrap()
+    };
     let (data, query) = match (cell.query.as_str(), class, cell.structure.as_str()) {
+        ("Counterfactual", "Cpdag", "graph_posterior") => (line_data(), counterfactual_query(0, 1)),
+        ("Counterfactual", "Dag", "graph_posterior") => (
+            gaussian_data(),
+            CausalQuery::Counterfactual(
+                CounterfactualQuery::new(vid(2), [Intervention::set(vid(1), Value::f64(1.5))])
+                    .with_control_level(0.0),
+            ),
+        ),
         ("Counterfactual", "Pag", _) => (table("side_path_chain"), counterfactual_query(1, 3)),
         ("Counterfactual", _, _) => (table("front_door"), counterfactual_query(0, 2)),
         ("NestedCounterfactualEffect", "Pag", _) => {
@@ -1111,7 +1137,40 @@ fn cross_world_setup(cell: antecedent::SupportCell) -> Option<Result<CellSetup, 
         let edge_mask = |n: usize, edges: &[(usize, usize)]| {
             edges.iter().fold(0_u64, |m, &(x, z)| antecedent_discovery::set_edge(m, n, x, z, true))
         };
+        let is_counterfactual = cell.query.as_str() == "Counterfactual";
         let (n, weights, masks): (usize, Vec<f64>, Vec<u64>) = match class {
+            "Pag" if is_counterfactual => (
+                4,
+                vec![0.8, 0.2],
+                vec![
+                    edge_mask(4, &[(0, 1), (0, 2), (2, 3), (1, 3)]),
+                    edge_mask(4, &[(1, 0), (0, 2), (2, 3), (1, 3)]),
+                ],
+            ),
+            "Admg" | "TemporalAdmg" if is_counterfactual => (
+                3,
+                vec![0.5, 0.3, 0.2],
+                vec![
+                    antecedent_discovery::adjacency_mask_from_admg(&admg(&[(0, 1), (1, 2)], &[(0, 2)]))
+                        .unwrap(),
+                    antecedent_discovery::adjacency_mask_from_admg(&admg(&a, &[])).unwrap(),
+                    edge_mask(3, &[(0, 1), (1, 2), (2, 0)]),
+                ],
+            ),
+            "Cpdag" if is_counterfactual => {
+                let mut line = Cpdag::with_variables(2);
+                line.insert_undirected(nid(0), nid(1)).unwrap();
+                (2, vec![1.0], vec![antecedent_discovery::adjacency_mask_from_cpdag(&line).unwrap()])
+            }
+            "Dag" if is_counterfactual => (
+                3,
+                vec![0.5, 0.3, 0.2],
+                vec![
+                    edge_mask(3, &a.map(|(x, z)| (x as usize, z as usize))),
+                    edge_mask(3, &b.map(|(x, z)| (x as usize, z as usize))),
+                    edge_mask(3, &[(0, 1), (1, 2), (2, 0)]),
+                ],
+            ),
             "Pag" => (
                 5,
                 vec![0.8, 0.2],
@@ -1172,7 +1231,12 @@ fn cross_world_setup(cell: antecedent::SupportCell) -> Option<Result<CellSetup, 
         )
         .unwrap()
         .with_atom_kind(kind);
-        let gp = if class == "Pag" { gp.with_mark_masks(vec![0, 0]).unwrap() } else { gp };
+        let gp = if class == "Pag" {
+            let atoms = gp.n_graphs();
+            gp.with_mark_masks(vec![0; atoms]).unwrap()
+        } else {
+            gp
+        };
         builder.graph_posterior(gp)
     } else {
         match (class, cell.query.as_str()) {
@@ -1949,7 +2013,7 @@ fn every_licensed_cell_inspects_as_a_first_class_contract() {
             failures.push(err);
         }
     }
-    assert_eq!(n, 2340, "licensed inventory drifted");
+    assert_eq!(n, 2466, "licensed inventory drifted");
     assert!(
         failures.is_empty(),
         "{} licensed cells are not first-class on inspect:\n{}",
@@ -2022,7 +2086,7 @@ fn every_licensed_cell_completes_the_compiler_path() {
     if let Ok(scratch) = std::env::var("SCRATCH_ROUTES") {
         std::fs::write(scratch, render_routes(&routes)).unwrap();
     }
-    assert_eq!(n, 2340, "licensed inventory drifted");
+    assert_eq!(n, 2466, "licensed inventory drifted");
     assert!(
         failures.is_empty(),
         "{} licensed cells did not finish inspect→preview→execute→claim→consume:\n{}",
@@ -2155,7 +2219,7 @@ fn diagnostic_registry_closure_after_builder_and_study_drop() {
         not_inspectable.len(),
         not_inspectable.join("\n")
     );
-    assert_eq!(count, 2340, "licensed support inventory drifted");
+    assert_eq!(count, 2466, "licensed support inventory drifted");
 }
 
 /// Probe for the separately licensed alternate estimators. It keeps
