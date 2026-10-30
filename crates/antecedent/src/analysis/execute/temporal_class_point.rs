@@ -571,6 +571,29 @@ fn collect_class_cross_world<'a>(
     prior_scale: Option<f64>,
 ) -> Result<ClassPoints<'a>, CausalError> {
     collect_class_points(bundle, |case, indexer| {
+        if let CausalQuery::PathSpecific(path) = query {
+            match &case.graph {
+                antecedent_identify::TemporalCompletionGraph::Dag(graph) => {
+                    super::temporal_path::require_path_chain(graph, &path.path_nodes)?;
+                }
+                antecedent_identify::TemporalCompletionGraph::Mag(graph) => {
+                    let dense = |variable: VariableId| {
+                        graph.nodes().iter().position(|node| matches!(node,
+                            antecedent_graph::NodeRef::Lagged { variable: v, lag }
+                            if *v == variable && *lag == antecedent_core::Lag::CONTEMPORANEOUS
+                        )).map(antecedent_graph::DenseNodeId::from_index)
+                    };
+                    for pair in path.path_nodes.windows(2) {
+                        if !matches!((dense(pair[0]), dense(pair[1])), (Some(a), Some(b)) if graph.reaches_directed(a, b))
+                        {
+                            return Err(CausalError::Unsupported {
+                                message: "temporal path-specific path nodes must be listed in causal order, each contemporaneous node reaching the next in the graph",
+                            });
+                        }
+                    }
+                }
+            }
+        }
         let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
         if !estimand.adjustment_set.is_empty() {
             let message = cross_world_backdoor_refusal(query);

@@ -10,7 +10,7 @@ use antecedent_core::{
     Value, VariableId,
 };
 use antecedent_data::TimeSeriesData;
-use antecedent_graph::{TemporalDag, ensure_lagged};
+use antecedent_graph::{TemporalCpdag, TemporalDag, ensure_lagged};
 
 fn series() -> TimeSeriesData {
     let n = 200;
@@ -353,28 +353,35 @@ fn a_multi_node_path_is_the_product_of_the_edge_coefficients_along_it() {
         )
     };
     let ctx = ExecutionContext::for_tests(13);
-    let run = |nodes: [VariableId; 2]| {
+    let run = |nodes: [VariableId; 2], class: bool| {
         Study::series(chain_series())
             .query(query(nodes))
-            .graph(chain_graph())
+            .graph(if class {
+                AcceptedGraph::from(TemporalCpdag::from_temporal_dag(&chain_graph()))
+            } else {
+                AcceptedGraph::from(chain_graph())
+            })
             .refute(RefuteSuite::None)
             .build()
             .unwrap()
             .prepare(&ctx)
             .and_then(|prepared| prepared.estimate_retained(&ctx))
     };
-    let result = run(ids).unwrap();
-    let ate = result.estimate().as_effect().unwrap().ate;
-    assert!((ate - 3.0).abs() < 0.15, "two-node path product {ate}");
-    assert_eq!(result.estimand.mediators.as_ref(), &ids);
-    assert!(matches!(
-        result.identification.arena.node(result.estimand.functional),
-        antecedent_expr::ExprNode::Product(_)
-    ));
-    // Listed against the graph's causal order, the nodes are not a directed chain.
-    let reversed = run([ids[1], ids[0]]).expect_err("a reversed node order is not a chain");
-    assert!(
-        reversed.to_string().contains("path nodes must be listed in causal order"),
-        "{reversed}"
-    );
+    for class in [false, true] {
+        let result = run(ids, class).unwrap();
+        let ate = result.estimate().as_effect().unwrap().ate;
+        assert!((ate - 3.0).abs() < 0.15, "two-node path product {ate}");
+        assert_eq!(result.estimand.mediators.as_ref(), &ids);
+        assert!(matches!(
+            result.identification.arena.node(result.estimand.functional),
+            antecedent_expr::ExprNode::Product(_)
+        ));
+        // Listed against the graph's causal order, the nodes are not a directed chain.
+        let reversed =
+            run([ids[1], ids[0]], class).expect_err("a reversed node order is not a chain");
+        assert!(
+            reversed.to_string().contains("path nodes must be listed in causal order"),
+            "{reversed}"
+        );
+    }
 }

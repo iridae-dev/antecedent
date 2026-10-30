@@ -6205,7 +6205,10 @@ pub(super) fn require_path_nodes(path: &[VariableId]) -> Result<VariableId, Caus
 /// Refuses a multi-node path whose nodes are not a contemporaneous directed chain of `graph` in
 /// the order listed. The temporal product reads the nodes as one path from the treatment to the
 /// outcome in listed order, so an order the graph contradicts would multiply the wrong edges.
-fn require_path_chain(graph: &TemporalDag, path: &[VariableId]) -> Result<(), CausalError> {
+pub(super) fn require_path_chain(
+    graph: &TemporalDag,
+    path: &[VariableId],
+) -> Result<(), CausalError> {
     let dense = |variable: VariableId| {
         (0..graph.node_count()).map(antecedent_graph::DenseNodeId::from_index).find(|&id| {
             graph.temporal_key(id).is_some_and(|key| key.variable == variable && key.offset == 0)
