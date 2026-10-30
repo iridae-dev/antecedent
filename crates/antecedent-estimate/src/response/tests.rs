@@ -1,6 +1,6 @@
 use antecedent_core::{
     Assumption, AssumptionSet, CausalResponse, ContinuousDomain, DerivativeScale,
-    DerivativeWeighting, GridSpec, IdentificationStatus, Intervention, ResponseFunctional,
+    DerivativeWeighting, ExecutionContext, GridSpec, IdentificationStatus, Intervention, ResponseFunctional,
     ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, StochasticPolicy,
     SupportRegion, SupportReport, SupportStatus, Value, VariableId,
 };
@@ -241,6 +241,30 @@ fn inflate_draws_by_edf_scales_spread_and_keeps_mean() {
         inflate_draws_by_edf(&mut untouched, 100, edf);
         assert_eq!(untouched, vec![1.0, 2.0, 4.0, 5.0], "edf={edf}");
     }
+}
+
+#[test]
+fn prepared_response_folds_hold_admission_until_last_fold_drops() {
+    use antecedent_core::execution::AdmissionPool;
+    let (data, a, y, x) = confounded_curve(240);
+    let estimator = ContinuousResponseEstimator::new([x]);
+    let sample = CompleteSample::read(&data, y, &[a], &[x]).unwrap();
+    let tiny = ExecutionContext::for_tests(3).with_admission(AdmissionPool::fixed(1, 1));
+    assert!(
+        antecedent_core::numerical_admission::with_context(&tiny, || estimator
+            .cross_fit_folds(&sample))
+        .is_err()
+    );
+    let pool = AdmissionPool::fixed(1, 16_000_000);
+    let ctx = ExecutionContext::for_tests(3).with_admission(pool.clone());
+    let before = pool.available().bytes();
+    let folds = antecedent_core::numerical_admission::with_context(&ctx, || {
+        estimator.cross_fit_folds(&sample)
+    })
+    .unwrap();
+    assert!(pool.available().bytes() < before);
+    drop(folds);
+    assert_eq!(pool.available().bytes(), before);
 }
 
 #[test]

@@ -641,10 +641,14 @@ impl ContinuousResponseEstimator {
             ));
         }
         let sample = CompleteSample::read(data, *outcome, &[*treatment], &self.adjustment_set)?;
-        let (_, _, support) = self.average_derivative(data, *outcome, *treatment, weighting)?;
+        let (_, _, support) = antecedent_core::numerical_admission::with_context(ctx, || {
+            self.average_derivative(data, *outcome, *treatment, weighting)
+        })?;
         // Folds, their training designs and knots are fixed across draws:
         // expanded once here, refit under each draw's weights.
-        let folds = self.cross_fit_folds_ade(&sample)?;
+        let folds = antecedent_core::numerical_admission::with_context(ctx, || {
+            self.cross_fit_folds_ade(&sample)
+        })?;
         // One RNG stream per draw: draws are independent, so they run across
         // the context's thread budget and return in draw order.
         let values = ctx.map_indexed::<_, EstimationError, _>(draws_n, |draw, ctx| {
@@ -679,7 +683,10 @@ impl ContinuousResponseEstimator {
         draws_n: usize,
         ctx: &antecedent_core::ExecutionContext,
     ) -> Result<DerivativePosterior, EstimationError> {
-        let (point, mut support, provenance) = self.derivative_baseline(data, functional)?;
+        let (point, mut support, provenance) =
+            antecedent_core::numerical_admission::with_context(ctx, || {
+                self.derivative_baseline(data, functional)
+            })?;
         // The Frequentist withheld / bias-corrected notes describe the
         // analytic interval; the draws below supply their own interval and
         // their own disclosure.
@@ -694,7 +701,9 @@ impl ContinuousResponseEstimator {
             )
         });
         let point_derivative = matches!(functional, ResponseFunctional::PointDerivative { .. });
-        let inputs = self.derivative_inputs(data, functional, point_derivative)?;
+        let inputs = antecedent_core::numerical_admission::with_context(ctx, || {
+            self.derivative_inputs(data, functional, point_derivative)
+        })?;
         let n = inputs.samples[0].len();
         let sample_count = inputs.samples.len();
         let draws = self.derivative_draws(functional, &inputs, draws_n, ctx)?;
@@ -867,8 +876,7 @@ impl ContinuousResponseEstimator {
                             Some(&weights),
                         )?;
                         out.edf[s] += fit.edf_approx;
-                        let (_, gradient) =
-                            Self::plugin_gradient_at_fit(&fit, sample, at, Some(&weights))?;
+                        let gradient = Self::plugin_gradient_only_at_fit(&fit, at)?;
                         out.vector
                             .push(gradient.iter().zip(direction.iter()).map(|(a, b)| a * b).sum());
                     }
@@ -881,8 +889,15 @@ impl ContinuousResponseEstimator {
                             Some(&weights),
                         )?;
                         out.edf[s] += fit.edf_approx;
-                        let (level, gradient) =
-                            Self::plugin_gradient_at_fit(&fit, sample, at, Some(&weights))?;
+                        let (level, gradient) = if matches!(
+                            scale,
+                            antecedent_core::DerivativeScale::Identity
+                                | antecedent_core::DerivativeScale::LogTreatment
+                        ) {
+                            (0.0, Self::plugin_gradient_only_at_fit(&fit, at)?)
+                        } else {
+                            Self::plugin_gradient_at_fit(&fit, sample, at, Some(&weights))?
+                        };
                         for (j, raw) in gradient.into_iter().enumerate() {
                             out.vector.push(transform_derivative(raw, at[j], level, *scale)?);
                         }

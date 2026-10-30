@@ -7,8 +7,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::{
-    AdditiveDesign, FaerBackend, GamOptions, GamWorkspace, PredictorMatrix, RoughnessPenalty,
-    SmoothSpec, fit_gam, fit_gam_weighted_design,
+    AdditiveDesign, GamOptions, GamWorkspace, RoughnessPenalty, SmoothSpec,
+    fit_gam_fixed_weighted_design, fit_gam_weighted_design,
 };
 
 use super::sample::CompleteSample;
@@ -45,23 +45,12 @@ pub(super) fn fit_additive(
     penalty: RoughnessPenalty,
     workspace: &mut GamWorkspace,
 ) -> Result<antecedent_stats::GamFit, EstimationError> {
-    let specs: Vec<SmoothSpec> = (0..ncols)
-        .map(|col| SmoothSpec::new(col, basis, lambda).with_penalty(penalty))
-        .collect();
-    // Response nuisances use a longer backfitting budget than the GAM default: the default
-    // 100-iteration / 1e-6 tolerance combination routinely returns converged=false on the
-    // cross-fitted Kennedy fixtures while the fit itself is already stable enough to use.
-    let fit = fit_gam(
-        &PredictorMatrix::new(x, nrows, ncols),
-        y,
-        &specs,
-        &NUISANCE_BACKFIT,
-        &FaerBackend,
-        workspace,
-    )?;
-    // Observation logistics already call `GlmFit::require_ok`. An unfinished backfit after the
-    // extended budget is refused rather than published into a Kennedy curve or ADE.
-    require_converged_gam(fit, GAM_NUISANCE_NOT_CONVERGED)
+    let specs: Vec<SmoothSpec> =
+        (0..ncols).map(|col| SmoothSpec::new(col, basis, lambda).with_penalty(penalty)).collect();
+    // Raw and retained fold designs share a solver: uniform row weights must
+    // reproduce the unweighted fit, including its numerical stopping policy.
+    let design = AdditiveDesign::expand(x, nrows, ncols, &specs)?;
+    fit_additive_design(&design, y, None, workspace)
 }
 
 /// Refusal of an unfinished additive-GAM nuisance backfit.
@@ -103,7 +92,11 @@ pub(super) fn fit_additive_design(
     weights: Option<&[f64]>,
     workspace: &mut GamWorkspace,
 ) -> Result<antecedent_stats::GamFit, EstimationError> {
-    let fit = fit_gam_weighted_design(design, y, &NUISANCE_BACKFIT, weights, workspace)?;
+    let direct = fit_gam_fixed_weighted_design(design, y, weights, workspace)?;
+    let fit = match direct {
+        Some(fit) => fit,
+        None => fit_gam_weighted_design(design, y, &NUISANCE_BACKFIT, weights, workspace)?,
+    };
     require_converged_gam(
         fit,
         if weights.is_some() {
@@ -125,6 +118,8 @@ pub(super) fn fit_additive_design(
 /// full basis evaluation, twice per fold per draw) was pure repetition. The
 /// refit on a prepared fold is bit-identical to the per-fit expansion.
 pub(super) struct CrossFitFold {
+    /// Shared admission for all prepared folds, kept until the last fold is dropped.
+    pub(super) _admission: Option<std::sync::Arc<antecedent_core::execution::AdmissionLease>>,
     /// Training rows (indices into the sample), ascending.
     pub(super) train: Vec<usize>,
     /// Held-out rows, ascending.
