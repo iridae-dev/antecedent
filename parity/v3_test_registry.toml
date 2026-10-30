@@ -20739,3 +20739,10 @@ crate = "antecedent-model"
 cargo_target = "lib"
 path = "crates/antecedent-model/src/typed_mechanism_transport.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-support-snapshot-roles"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_support_snapshot_roles.py"
+gates = ["inventory"]

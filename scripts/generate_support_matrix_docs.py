@@ -885,14 +885,17 @@ CALIBRATION_ESTIMATOR_TOKENS: list[tuple[str, str]] = [
 ]
 
 
-def estimators_from_calibration(record_ids: list[str]) -> list[str]:
+def estimators_from_calibration(
+    record_ids: list[str], roles: dict[str, str] | None = None
+) -> list[str]:
     """Wire-ids implied by unambiguous tokens in calibration record ids.
 
     Only gated and named-boundary records are licensing evidence. A
     `reported_level` record is an unasserted diagnostic that a cell may cite,
     but it never licenses the estimator it measures.
     """
-    roles = {r["id"]: r["role"] for r in load("parity/coverage_records.toml").get("record") or []}
+    if roles is None:
+        roles = {r["id"]: r["role"] for r in load("parity/coverage_records.toml").get("record") or []}
     found: set[str] = set()
     for cid in record_ids:
         if not isinstance(cid, str) or roles.get(cid) == "reported_level":
@@ -914,7 +917,9 @@ def cell_route_estimator(row: dict, routes: dict[str, dict]) -> str | None:
     return None
 
 
-def cell_estimators(row: dict, routes: dict[str, dict]) -> list[str]:
+def cell_estimators(
+    row: dict, routes: dict[str, dict], calibration_roles: dict[str, str] | None = None
+) -> list[str]:
     """Estimator wire-ids whose evidence ran for this geometric cell.
 
     Union of the licensed_routes compiler-plan estimator, explicitly licensed
@@ -934,7 +939,7 @@ def cell_estimators(row: dict, routes: dict[str, dict]) -> list[str]:
         add(route)
     for wire in row.get("estimators") or []:
         add(wire)
-    for wire in estimators_from_calibration(list(row.get("calibration") or [])):
+    for wire in estimators_from_calibration(list(row.get("calibration") or []), calibration_roles):
         add(wire)
     return out
 
@@ -963,6 +968,12 @@ def support_snapshot(
 ) -> dict:
     """Resolved support matrix. Omitted rule axes stay JSON null (`None` in Rust)."""
     routes = external_evidence.routes()
+    # The registry is immutable during this generation pass. Parse it once,
+    # rather than once per geometric cell.
+    calibration_roles = {
+        row["id"]: row["role"]
+        for row in load("parity/coverage_records.toml").get("record") or []
+    }
     licensed = []
     for row in cells:
         licensed.append(
@@ -973,7 +984,7 @@ def support_snapshot(
                 "inference": row["inference"],
                 "validation": row["validation"],
                 "route_estimator": cell_route_estimator(row, routes),
-                "estimators": cell_estimators(row, routes),
+                "estimators": cell_estimators(row, routes, calibration_roles),
             }
         )
     return {
