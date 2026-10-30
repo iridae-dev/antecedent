@@ -501,7 +501,9 @@ impl SensitivityGram {
                     "sensitivity Gram row_selection exceeds confounder length",
                 ));
             }
-            w[n * p + i] = u[row];
+            // The compiled intercept is sqrt(weight), or one for an unweighted
+            // fit. The perturbing column must use the same row measure as X/Y.
+            w[n * p + i] = u[row] * prep.design.matrix[i];
         }
         let mut g = vec![0.0; q * q];
         form_xtx(&w, n, q, &mut g);
@@ -2664,6 +2666,41 @@ mod scalable_cases {
         ::std::eprintln!(
             "calibration-assertion-receipt {{\"profile\":\"neighborhood_tipping_bracket.v1\",\"rows\":{n},\"attempted\":{replicates},\"reported\":{reported},\"covered\":{covered},\"conditional_coverage\":{coverage:.17},\"median_width\":{median_width:.17},\"effect\":{effect:.17}}}"
         );
+    }
+}
+
+#[cfg(test)]
+mod weighted_gram_regression {
+    use super::*;
+    use crate::test_support::{ate_query, backdoor, linear_original, tabular};
+    use antecedent_estimate::SamplingWeights;
+
+    #[test]
+    fn weighted_gram_perturbations_match_refitting_the_same_weighted_rows() {
+        let t: Vec<f64> = (0..80).map(|i| (i % 2) as f64).collect();
+        let z: Vec<f64> = (0..80).map(|i| (i % 7) as f64 * 0.3).collect();
+        let y: Vec<f64> =
+            (0..80).map(|i| 2.0 * t[i] + z[i] + ((i * 13 % 17) as f64 * 0.17).sin()).collect();
+        let data = tabular(&[t, y, z]);
+        let estimand = backdoor(1);
+        let query = ate_query();
+        let (original, mut workspace, ctx) = linear_original(&data, &estimand, &query);
+        let problem = RefutationProblem::new(&data, &estimand, &query, &original, None, None);
+        let weights: Vec<f64> = (0..80).map(|i| if i % 3 == 0 { 0.2 } else { 2.0 }).collect();
+        let estimator = LinearAdjustmentAte::new()
+            .with_bootstrap_replicates(0)
+            .with_se_kind(antecedent_estimate::AnalyticSeKind::Hc3)
+            .with_sampling_weights(SamplingWeights::new(weights).unwrap());
+        let grid = [0.01, 0.1, 0.4];
+        let direct =
+            grid_ates_data_pass(&problem, &mut workspace, &ctx, &estimator, &grid, 42, false)
+                .unwrap();
+        let fast = grid_ates_gram(&problem, &estimator, &ctx, &grid, 42, false)
+            .unwrap()
+            .expect("weighted OLS Gram");
+        for (fast, direct) in fast.iter().zip(direct) {
+            assert!((fast - direct).abs() < 1e-9, "{fast} vs {direct}");
+        }
     }
 }
 
