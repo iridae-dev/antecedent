@@ -1,5 +1,6 @@
 //! Bayesian arm contrasts and switchback effect of the randomized designs through the public
-//! study facade. The routes are explicitly unlicensed and uncalibrated: each posterior is compared
+//! study facade. The two-arm Gaussian IPW pseudo-posterior is licensed with calibration
+//! unmeasured; other constructions retain their separate scope. Each posterior is compared
 //! with a reference computed outside the library (quadrature of the Beta and Student-t densities,
 //! enumeration of the Beta-Binomial missing-count laws, exact conjugate moments, a whitened
 //! least-squares derivation for the switchback), the retained artifact is read with an
@@ -283,7 +284,9 @@ fn the_boundaries_are_refused_with_their_next_attempt() {
     let error = run(&data, query, bayes(Some(uniform_arms())), None).err().expect("refused");
     assert_eq!(error.reason_code(), Some("route_not_supported"));
     assert!(
-        error.to_string().contains("does not read a cluster, stratified or switchback assignment design"),
+        error
+            .to_string()
+            .contains("does not read a cluster, stratified or switchback assignment design"),
         "{error}"
     );
 
@@ -781,7 +784,100 @@ fn weighted_conjugate_update_matches_the_closed_form_pseudo_outcome_posterior() 
         let report = result.missing_data().as_ref().expect("a missing-data report");
         assert_eq!(report.policy().name(), "inverse_probability");
         assert_eq!(report.accounting.rows_total, 24);
-        assert_eq!(result.support_status(), None, "the weighted Bayesian route is unlicensed");
+        assert_eq!(result.support_status(), Some(antecedent::CellStatus::Licensed));
+        assert!(result.posterior_row().unwrap().licensed);
+    }
+}
+
+#[test]
+fn licensed_ipow_posterior_recovers_the_causal_target_and_declared_prior_update() {
+    // In each arm, half the units have baseline z=0 and half z=1, with
+    // Y(a)=1+2a+5z+e and balanced e=+-1. Response is 3/4 vs 1/4 by z in
+    // control, reversed in treatment. Thus complete-case bias is 2.5, while
+    // the post-stratified arm contrast is exactly the structural effect 2.
+    for design in
+        [RandomizationDesign::Bernoulli, RandomizationDesign::Complete { treated_units: 64 }]
+    {
+        for pseudo_units in [0.001, 5.0] {
+            let mut y = Vec::new();
+            let mut z = Vec::new();
+            let mut assigned = Vec::new();
+            let mut independent_pseudo = [Vec::new(), Vec::new()];
+            let mut responder_sums = [0.0; 2];
+            let mut responder_counts = [0; 2];
+            for unit in 0..64 {
+                let baseline = usize::from(unit >= 32);
+                for arm in 0..2 {
+                    let count = if arm == baseline { 24 } else { 8 };
+                    let pi = count as f64 / 32.0;
+                    let seen = unit % 32 < count;
+                    let centre = 1.0 + 2.0 * arm as f64 + 5.0 * baseline as f64;
+                    let noise = if unit % 2 == 0 { -1.0 } else { 1.0 };
+                    y.push(if seen { centre + noise } else { f64::NAN });
+                    z.push(baseline as f64);
+                    assigned.push(arm == 1);
+                    independent_pseudo[arm].push(centre + if seen { noise / pi } else { 0.0 });
+                    if seen {
+                        responder_sums[arm] += centre + noise;
+                        responder_counts[arm] += 1;
+                    }
+                }
+            }
+            let naive = responder_sums[1] / responder_counts[1] as f64
+                - responder_sums[0] / responder_counts[0] as f64;
+            assert!((naive - 4.5).abs() < 1e-12);
+            let data =
+                TabularData::from_f64_columns([("outcome", y.as_slice()), ("z", z.as_slice())])
+                    .unwrap();
+            let query = RandomizedEffectQuery::with_design(
+                design.clone(),
+                VariableId::from_raw(0),
+                assigned,
+                vec![0.5; 128],
+                units(128, "unit"),
+                units(128, "outcome"),
+                ("control", "treated"),
+            );
+            let prior = antecedent_estimate::randomized_posterior::ArmNormalPrior {
+                mean: 0.0,
+                pseudo_units,
+                variance_shape: 2.0,
+                variance_scale: 1.0,
+            };
+            // Definition-level NIG update on independently derived saturated-stratum
+            // pseudo-outcomes, without either product fitting routine.
+            let moments: Vec<(f64, f64)> = independent_pseudo
+                .iter()
+                .map(|values| {
+                    let n = values.len() as f64;
+                    let mean = values.iter().sum::<f64>() / n;
+                    let kappa = prior.pseudo_units + n;
+                    let shape = prior.variance_shape + n / 2.0;
+                    let scale = prior.variance_scale
+                        + 0.5 * values.iter().map(|v| (v - mean).powi(2)).sum::<f64>()
+                        + prior.pseudo_units * n * (mean - prior.mean).powi(2) / (2.0 * kappa);
+                    (
+                        (prior.pseudo_units * prior.mean + n * mean) / kappa,
+                        scale / (kappa * (shape - 1.0)),
+                    )
+                })
+                .collect();
+            let result = run_weighted(
+                &data,
+                query,
+                bayes(Some(DesignPosteriorModel::ArmOutcome {
+                    model: ArmOutcomeModel::Gaussian(prior),
+                })),
+                Some(EstimatorId::BayesianRandomizedSuperpopulation),
+                inverse_probability(&[1]),
+            )
+            .unwrap();
+            assert_eq!(result.support_status(), Some(antecedent::CellStatus::Licensed));
+            let (mean, sd, _, _) = column(&result, 0);
+            close(mean, moments[1].0 - moments[0].0, 5e-3, "known-target posterior mean");
+            close(sd, (moments[0].1 + moments[1].1).sqrt(), 6e-3, "known-target posterior spread");
+            close(mean, 2.0 * 64.0 / (64.0 + pseudo_units), 5e-3, "declared prior shrinkage");
+        }
     }
 }
 
@@ -800,6 +896,89 @@ fn the_weighted_posterior_is_not_the_responder_only_posterior() {
     .unwrap();
     let (mean, _, _, _) = column(&result, 0);
     assert!((mean - 1.667_857_142_857).abs() > 0.01, "{mean}");
+}
+
+#[test]
+fn licensed_ipow_posterior_replays_after_the_builder_is_dropped() {
+    use antecedent::analysis::RetainedOperation;
+    for design in
+        [RandomizationDesign::Bernoulli, RandomizationDesign::Complete { treated_units: 12 }]
+    {
+        let (data, query) = ipw_trial(design);
+        let ctx = ExecutionContext::for_tests(0xB1A6);
+        let prepare = || {
+            Study::tabular(data.clone())
+                .query(query.clone())
+                .inference(bayes(Some(gaussian_arms())))
+                .estimator(EstimatorId::BayesianRandomizedSuperpopulation)
+                .missing(inverse_probability(&[1]).unwrap())
+                .build()
+                .unwrap()
+                .prepare(&ctx)
+                .unwrap()
+        };
+        let prepared = prepare();
+        assert!(matches!(prepared.retained_operation(), RetainedOperation::Randomized));
+        let result = prepared.estimate_retained(&ctx).unwrap();
+        assert_eq!(result.support_status(), Some(antecedent::CellStatus::Licensed));
+        close(column(&result, 0).0, 1.683_193_067_244_396_4, 5e-3, "retained IPW posterior mean");
+        let bytes = prepared.encode_contracted_result(&result, "licensed-ipow", &ctx).unwrap();
+        drop(prepared);
+        let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+        assert!(consumed.acceptance.accepts_as_claim(), "{:?}", consumed.acceptance);
+        let (accepted, receipt) =
+            antecedent_io::accept_claim(&bytes, &antecedent_contract::ConsumerProfile::full())
+                .unwrap();
+        assert!(accepted.acceptance.accepts_as_claim());
+        assert!(receipt.equivalent_claim());
+        let (forwarded, receipt) = antecedent_io::accept_claim(
+            &bytes,
+            &antecedent_contract::ConsumerProfile::forwarding(),
+        )
+        .unwrap();
+        assert!(!forwarded.acceptance.accepts_as_claim());
+        assert!(!receipt.equivalent_claim());
+        let bounds = antecedent_io::distribution_replay::ReplayLimits {
+            max_operations: 0,
+            ..Default::default()
+        };
+        assert!(antecedent_io::consume_analysis_result_within(&bytes, &bounds).is_err());
+        let row = consumed.body.posterior_row.as_ref().unwrap();
+        assert!(row.licensed);
+        assert_eq!(row.calibration, "unmeasured");
+        let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+        for edit in 0..3 {
+            let mut changed = body.clone();
+            let row = changed.posterior_row.as_mut().unwrap();
+            match edit {
+                0 => row.mean[0] += 0.1,
+                1 => row.randomized_ipow.as_mut().unwrap().prior[0] += 0.1,
+                _ => {
+                    let y = row
+                        .randomized_ipow
+                        .as_mut()
+                        .unwrap()
+                        .outcomes
+                        .iter_mut()
+                        .flatten()
+                        .next()
+                        .unwrap();
+                    *y += 1.0;
+                }
+            }
+            // Re-encode a valid container: numerical replay must reject a changed result,
+            // prior or source even after the outer container checksums have been replaced.
+            let forged = antecedent_io::encode_analysis_result_artifact(
+                &changed,
+                header.variable_names.clone(),
+                "edited",
+            )
+            .unwrap();
+            let mut forged_bytes = Vec::new();
+            forged.write_to(&mut forged_bytes).unwrap();
+            assert!(antecedent_io::consume_analysis_result(&forged_bytes).is_err(), "edit {edit}");
+        }
+    }
 }
 
 #[test]
@@ -834,4 +1013,46 @@ fn weighted_bayesian_boundaries_are_typed_refusals() {
     .expect("refused");
     assert_eq!(error.reason_code(), Some("route_not_supported"), "{error}");
     assert!(error.to_string().contains("Normal-Inverse-Gamma"), "{error}");
+}
+
+#[test]
+fn unlicensed_multi_arm_and_factorial_ipow_are_typed_refusals() {
+    let (mut y, cells) = four_arm_data();
+    for i in [1, 11, 21, 31] {
+        y[i] = f64::NAN;
+    }
+    let data = TabularData::from_f64_columns([("outcome", y.as_slice())]).unwrap();
+    for design in [
+        RandomizationDesign::MultiArm {
+            assignment: cells.clone().into(),
+            probabilities: vec![vec![0.25; 4]; 40].into(),
+            arms: ["control", "a", "b", "c"].map(Arc::<str>::from).into(),
+        },
+        RandomizationDesign::Factorial2x2 {
+            second_factor_assignment: cells.iter().map(|c| c % 2 == 1).collect::<Vec<_>>().into(),
+            cell_counts: [10; 4],
+            second_factor_arms: (Arc::from("b0"), Arc::from("b1")),
+        },
+    ] {
+        let multi = matches!(design, RandomizationDesign::MultiArm { .. });
+        let query = RandomizedEffectQuery::with_design(
+            design,
+            VariableId::from_raw(0),
+            cells.iter().map(|c| if multi { *c != 0 } else { *c >= 2 }).collect::<Vec<_>>(),
+            vec![if multi { 0.25 } else { 0.5 }; 40],
+            units(40, "u"),
+            units(40, "o"),
+            ("control", if multi { "a" } else { "treated" }),
+        );
+        let error = run_weighted(
+            &data,
+            query,
+            bayes(Some(gaussian_arms())),
+            Some(EstimatorId::BayesianRandomizedSuperpopulation),
+            inverse_probability(&[]),
+        )
+        .err()
+        .expect("unsupported IPW design must refuse");
+        assert_eq!(error.reason_code(), Some("route_not_supported"), "{error}");
+    }
 }

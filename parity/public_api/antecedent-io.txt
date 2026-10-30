@@ -109,6 +109,7 @@ impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::Adjac
 impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration
 impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire
 impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::CategoricalResultWire
+impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::CategoricalRowsRequest
 impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire
 impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact
 impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError
@@ -117,6 +118,7 @@ impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::Categ
 impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire
 impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest
 impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::CovarianceKindWire
+impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::DeclaredRowsWire
 impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::LevelContrastWire
 impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::LevelCountWire
 impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::LevelScaleWire
@@ -209,6 +211,7 @@ impl core::clone::Clone for antecedent_io::dose_grid_functional_artifact::DoseBi
 impl core::clone::Clone for antecedent_io::dose_grid_functional_artifact::DoseBiasAwareResultWire
 impl core::clone::Clone for antecedent_io::dose_grid_functional_artifact::DoseClaimsWire
 impl core::clone::Clone for antecedent_io::dose_grid_functional_artifact::DoseContrastWire
+impl core::clone::Clone for antecedent_io::dose_grid_functional_artifact::DoseDeclaredRowsResultWire
 impl core::clone::Clone for antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire
 impl core::clone::Clone for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError
 impl core::clone::Clone for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactWire
@@ -702,6 +705,7 @@ impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::Adj
 impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration
 impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire
 impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::CategoricalResultWire
+impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::CategoricalRowsRequest
 impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire
 impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact
 impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError
@@ -710,6 +714,7 @@ impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::Cat
 impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire
 impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest
 impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::CovarianceKindWire
+impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::DeclaredRowsWire
 impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::LevelContrastWire
 impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::LevelCountWire
 impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::LevelScaleWire
@@ -795,6 +800,7 @@ impl core::cmp::PartialEq for antecedent_io::dose_grid_functional_artifact::Dose
 impl core::cmp::PartialEq for antecedent_io::dose_grid_functional_artifact::DoseBiasAwareResultWire
 impl core::cmp::PartialEq for antecedent_io::dose_grid_functional_artifact::DoseClaimsWire
 impl core::cmp::PartialEq for antecedent_io::dose_grid_functional_artifact::DoseContrastWire
+impl core::cmp::PartialEq for antecedent_io::dose_grid_functional_artifact::DoseDeclaredRowsResultWire
 impl core::cmp::PartialEq for antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire
 impl core::cmp::PartialEq for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError
 impl core::cmp::PartialEq for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactWire
@@ -1103,6 +1109,7 @@ impl core::convert::From<antecedent_model::nonlinear_equilibrium::EquilibriumErr
 impl core::default::Default for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalConsumeLimits
 impl core::default::Default for antecedent_io::array_fit_artifact::ArrayFitConsumeLimits
 impl core::default::Default for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits
+impl core::default::Default for antecedent_io::categorical_treatment_artifact::CategoricalRowsRequest
 impl core::default::Default for antecedent_io::counterfactual_transport_artifact::CounterfactualTransportConsumeLimits
 impl core::default::Default for antecedent_io::cpdag_completion_artifact::CpdagConsumeLimits
 impl core::default::Default for antecedent_io::cyclic_family_artifact::CoefficientCovarianceWire
@@ -1215,6 +1222,7 @@ impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::Adjacen
 impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration
 impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire
 impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::CategoricalResultWire
+impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::CategoricalRowsRequest
 impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire
 impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact
 impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError
@@ -1223,6 +1231,7 @@ impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::Categor
 impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire
 impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest
 impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::CovarianceKindWire
+impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::DeclaredRowsWire
 impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::LevelContrastWire
 impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::LevelCountWire
 impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::LevelScaleWire
@@ -1320,6 +1329,7 @@ impl core::fmt::Debug for antecedent_io::dose_grid_functional_artifact::DoseBias
 impl core::fmt::Debug for antecedent_io::dose_grid_functional_artifact::DoseBiasAwareResultWire
 impl core::fmt::Debug for antecedent_io::dose_grid_functional_artifact::DoseClaimsWire
 impl core::fmt::Debug for antecedent_io::dose_grid_functional_artifact::DoseContrastWire
+impl core::fmt::Debug for antecedent_io::dose_grid_functional_artifact::DoseDeclaredRowsResultWire
 impl core::fmt::Debug for antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire
 impl core::fmt::Debug for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError
 impl core::fmt::Debug for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactWire
@@ -1796,6 +1806,7 @@ impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::Adj
 impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration [auto]
 impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire [auto]
 impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::CategoricalResultWire [auto]
+impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::CategoricalRowsRequest [auto]
 impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire [auto]
 impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact [auto]
 impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError [auto]
@@ -1804,6 +1815,7 @@ impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::Cat
 impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire [auto]
 impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest [auto]
 impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::CovarianceKindWire [auto]
+impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::DeclaredRowsWire [auto]
 impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::LevelContrastWire [auto]
 impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::LevelCountWire [auto]
 impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::LevelScaleWire [auto]
@@ -1901,6 +1913,7 @@ impl core::marker::Freeze for antecedent_io::dose_grid_functional_artifact::Dose
 impl core::marker::Freeze for antecedent_io::dose_grid_functional_artifact::DoseBiasAwareResultWire [auto]
 impl core::marker::Freeze for antecedent_io::dose_grid_functional_artifact::DoseClaimsWire [auto]
 impl core::marker::Freeze for antecedent_io::dose_grid_functional_artifact::DoseContrastWire [auto]
+impl core::marker::Freeze for antecedent_io::dose_grid_functional_artifact::DoseDeclaredRowsResultWire [auto]
 impl core::marker::Freeze for antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire [auto]
 impl core::marker::Freeze for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError [auto]
 impl core::marker::Freeze for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactWire [auto]
@@ -2279,6 +2292,7 @@ impl core::marker::Send for antecedent_io::categorical_treatment_artifact::Adjac
 impl core::marker::Send for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration [auto]
 impl core::marker::Send for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire [auto]
 impl core::marker::Send for antecedent_io::categorical_treatment_artifact::CategoricalResultWire [auto]
+impl core::marker::Send for antecedent_io::categorical_treatment_artifact::CategoricalRowsRequest [auto]
 impl core::marker::Send for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire [auto]
 impl core::marker::Send for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact [auto]
 impl core::marker::Send for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError [auto]
@@ -2287,6 +2301,7 @@ impl core::marker::Send for antecedent_io::categorical_treatment_artifact::Categ
 impl core::marker::Send for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire [auto]
 impl core::marker::Send for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest [auto]
 impl core::marker::Send for antecedent_io::categorical_treatment_artifact::CovarianceKindWire [auto]
+impl core::marker::Send for antecedent_io::categorical_treatment_artifact::DeclaredRowsWire [auto]
 impl core::marker::Send for antecedent_io::categorical_treatment_artifact::LevelContrastWire [auto]
 impl core::marker::Send for antecedent_io::categorical_treatment_artifact::LevelCountWire [auto]
 impl core::marker::Send for antecedent_io::categorical_treatment_artifact::LevelScaleWire [auto]
@@ -2384,6 +2399,7 @@ impl core::marker::Send for antecedent_io::dose_grid_functional_artifact::DoseBi
 impl core::marker::Send for antecedent_io::dose_grid_functional_artifact::DoseBiasAwareResultWire [auto]
 impl core::marker::Send for antecedent_io::dose_grid_functional_artifact::DoseClaimsWire [auto]
 impl core::marker::Send for antecedent_io::dose_grid_functional_artifact::DoseContrastWire [auto]
+impl core::marker::Send for antecedent_io::dose_grid_functional_artifact::DoseDeclaredRowsResultWire [auto]
 impl core::marker::Send for antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire [auto]
 impl core::marker::Send for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError [auto]
 impl core::marker::Send for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactWire [auto]
@@ -2755,6 +2771,7 @@ impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_
 impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration
 impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire
 impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::CategoricalResultWire
+impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::CategoricalRowsRequest
 impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire
 impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact
 impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError
@@ -2763,6 +2780,7 @@ impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_
 impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire
 impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest
 impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::CovarianceKindWire
+impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::DeclaredRowsWire
 impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::LevelContrastWire
 impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::LevelCountWire
 impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::LevelScaleWire
@@ -2847,6 +2865,7 @@ impl core::marker::StructuralPartialEq for antecedent_io::dose_grid_functional_a
 impl core::marker::StructuralPartialEq for antecedent_io::dose_grid_functional_artifact::DoseBiasAwareResultWire
 impl core::marker::StructuralPartialEq for antecedent_io::dose_grid_functional_artifact::DoseClaimsWire
 impl core::marker::StructuralPartialEq for antecedent_io::dose_grid_functional_artifact::DoseContrastWire
+impl core::marker::StructuralPartialEq for antecedent_io::dose_grid_functional_artifact::DoseDeclaredRowsResultWire
 impl core::marker::StructuralPartialEq for antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire
 impl core::marker::StructuralPartialEq for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError
 impl core::marker::StructuralPartialEq for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactWire
@@ -3161,6 +3180,7 @@ impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::Adjac
 impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration [auto]
 impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire [auto]
 impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::CategoricalResultWire [auto]
+impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::CategoricalRowsRequest [auto]
 impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire [auto]
 impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact [auto]
 impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError [auto]
@@ -3169,6 +3189,7 @@ impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::Categ
 impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire [auto]
 impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest [auto]
 impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::CovarianceKindWire [auto]
+impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::DeclaredRowsWire [auto]
 impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::LevelContrastWire [auto]
 impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::LevelCountWire [auto]
 impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::LevelScaleWire [auto]
@@ -3266,6 +3287,7 @@ impl core::marker::Sync for antecedent_io::dose_grid_functional_artifact::DoseBi
 impl core::marker::Sync for antecedent_io::dose_grid_functional_artifact::DoseBiasAwareResultWire [auto]
 impl core::marker::Sync for antecedent_io::dose_grid_functional_artifact::DoseClaimsWire [auto]
 impl core::marker::Sync for antecedent_io::dose_grid_functional_artifact::DoseContrastWire [auto]
+impl core::marker::Sync for antecedent_io::dose_grid_functional_artifact::DoseDeclaredRowsResultWire [auto]
 impl core::marker::Sync for antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire [auto]
 impl core::marker::Sync for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError [auto]
 impl core::marker::Sync for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactWire [auto]
@@ -3644,6 +3666,7 @@ impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::Adja
 impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration [auto]
 impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire [auto]
 impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::CategoricalResultWire [auto]
+impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::CategoricalRowsRequest [auto]
 impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire [auto]
 impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact [auto]
 impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError [auto]
@@ -3652,6 +3675,7 @@ impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::Cate
 impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire [auto]
 impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest [auto]
 impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::CovarianceKindWire [auto]
+impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::DeclaredRowsWire [auto]
 impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::LevelContrastWire [auto]
 impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::LevelCountWire [auto]
 impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::LevelScaleWire [auto]
@@ -3749,6 +3773,7 @@ impl core::marker::Unpin for antecedent_io::dose_grid_functional_artifact::DoseB
 impl core::marker::Unpin for antecedent_io::dose_grid_functional_artifact::DoseBiasAwareResultWire [auto]
 impl core::marker::Unpin for antecedent_io::dose_grid_functional_artifact::DoseClaimsWire [auto]
 impl core::marker::Unpin for antecedent_io::dose_grid_functional_artifact::DoseContrastWire [auto]
+impl core::marker::Unpin for antecedent_io::dose_grid_functional_artifact::DoseDeclaredRowsResultWire [auto]
 impl core::marker::Unpin for antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire [auto]
 impl core::marker::Unpin for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError [auto]
 impl core::marker::Unpin for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactWire [auto]
@@ -4126,6 +4151,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_trea
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalResultWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalRowsRequest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError [auto]
@@ -4134,6 +4160,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_trea
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::CovarianceKindWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::DeclaredRowsWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::LevelContrastWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::LevelCountWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::LevelScaleWire [auto]
@@ -4226,6 +4253,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::dose_grid_functi
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::dose_grid_functional_artifact::DoseBiasAwareResultWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::dose_grid_functional_artifact::DoseClaimsWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::dose_grid_functional_artifact::DoseContrastWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::dose_grid_functional_artifact::DoseDeclaredRowsResultWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactWire [auto]
@@ -4603,6 +4631,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatme
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalResultWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalRowsRequest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError [auto]
@@ -4611,6 +4640,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatme
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::CovarianceKindWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::DeclaredRowsWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::LevelContrastWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::LevelCountWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::LevelScaleWire [auto]
@@ -4703,6 +4733,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::dose_grid_functiona
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::dose_grid_functional_artifact::DoseBiasAwareResultWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::dose_grid_functional_artifact::DoseClaimsWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::dose_grid_functional_artifact::DoseContrastWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::dose_grid_functional_artifact::DoseDeclaredRowsResultWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactWire [auto]
@@ -5069,6 +5100,7 @@ impl serde_core::ser::Serialize for antecedent_io::categorical_treatment_artifac
 impl serde_core::ser::Serialize for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMeta
 impl serde_core::ser::Serialize for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire
 impl serde_core::ser::Serialize for antecedent_io::categorical_treatment_artifact::CovarianceKindWire
+impl serde_core::ser::Serialize for antecedent_io::categorical_treatment_artifact::DeclaredRowsWire
 impl serde_core::ser::Serialize for antecedent_io::categorical_treatment_artifact::LevelContrastWire
 impl serde_core::ser::Serialize for antecedent_io::categorical_treatment_artifact::LevelCountWire
 impl serde_core::ser::Serialize for antecedent_io::categorical_treatment_artifact::LevelScaleWire
@@ -5151,6 +5183,7 @@ impl serde_core::ser::Serialize for antecedent_io::dose_grid_functional_artifact
 impl serde_core::ser::Serialize for antecedent_io::dose_grid_functional_artifact::DoseBiasAwareResultWire
 impl serde_core::ser::Serialize for antecedent_io::dose_grid_functional_artifact::DoseClaimsWire
 impl serde_core::ser::Serialize for antecedent_io::dose_grid_functional_artifact::DoseContrastWire
+impl serde_core::ser::Serialize for antecedent_io::dose_grid_functional_artifact::DoseDeclaredRowsResultWire
 impl serde_core::ser::Serialize for antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire
 impl serde_core::ser::Serialize for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactWire
 impl serde_core::ser::Serialize for antecedent_io::dose_grid_functional_artifact::DoseGridRequestWire
@@ -5559,6 +5592,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::categorical_treatm
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMeta
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::categorical_treatment_artifact::CovarianceKindWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::categorical_treatment_artifact::DeclaredRowsWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::categorical_treatment_artifact::LevelContrastWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::categorical_treatment_artifact::LevelCountWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::categorical_treatment_artifact::LevelScaleWire
@@ -5639,6 +5673,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::dose_grid_function
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::dose_grid_functional_artifact::DoseBiasAwareResultWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::dose_grid_functional_artifact::DoseClaimsWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::dose_grid_functional_artifact::DoseContrastWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::dose_grid_functional_artifact::DoseDeclaredRowsResultWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::dose_grid_functional_artifact::DoseGridRequestWire
@@ -5907,6 +5942,7 @@ pub const antecedent_io::bridge_interval::BRIDGE_INTERVAL_MAX_RATE_SD: f64
 pub const antecedent_io::bridge_interval::BRIDGE_INTERVAL_MIN_LEVEL: f64
 pub const antecedent_io::bridge_interval::BRIDGE_INTERVAL_MIN_YOUDEN: f64
 pub const antecedent_io::bridge_interval::BRIDGE_INTERVAL_QUERY: &str
+pub const antecedent_io::categorical_treatment_artifact::CATEGORICAL_DECLARED_ROWS_FORMAT: &str
 pub const antecedent_io::categorical_treatment_artifact::CATEGORICAL_HC_ROW_CAP: usize
 pub const antecedent_io::categorical_treatment_artifact::CATEGORICAL_INFERENCE_CAVEAT: &str
 pub const antecedent_io::categorical_treatment_artifact::CATEGORICAL_MAX_LEVELS: usize
@@ -5924,6 +5960,7 @@ pub const antecedent_io::dose_grid_functional_artifact::DOSE_GRID_BAND_BIAS_AWAR
 pub const antecedent_io::dose_grid_functional_artifact::DOSE_GRID_BAND_CLOSED: &str
 pub const antecedent_io::dose_grid_functional_artifact::DOSE_GRID_BIAS_AWARE_FEATURE: &str
 pub const antecedent_io::dose_grid_functional_artifact::DOSE_GRID_CALIBRATION: &str
+pub const antecedent_io::dose_grid_functional_artifact::DOSE_GRID_DECLARED_ROWS_FEATURE: &str
 pub const antecedent_io::dose_grid_functional_artifact::DOSE_GRID_INFERENCE_CLAIM: &str
 pub const antecedent_io::dose_grid_functional_artifact::DOSE_GRID_QUADRATIC_FEATURE: &str
 pub const antecedent_io::effect_constancy_artifact::EFFECT_CONSTANCY_ARTIFACT_FEATURE: &str
@@ -6496,6 +6533,9 @@ pub field antecedent_io::categorical_treatment_artifact::CategoricalResultWire::
 pub field antecedent_io::categorical_treatment_artifact::CategoricalResultWire::pairwise: alloc::vec::Vec<antecedent_io::categorical_treatment_artifact::PairContrastWire>
 pub field antecedent_io::categorical_treatment_artifact::CategoricalResultWire::reference: alloc::string::String
 pub field antecedent_io::categorical_treatment_artifact::CategoricalResultWire::scale: antecedent_io::categorical_treatment_artifact::LevelScaleWire
+pub field antecedent_io::categorical_treatment_artifact::CategoricalRowsRequest::cluster: core::option::Option<alloc::vec::Vec<u32>>
+pub field antecedent_io::categorical_treatment_artifact::CategoricalRowsRequest::sampling_weights: core::option::Option<alloc::vec::Vec<f64>>
+pub field antecedent_io::categorical_treatment_artifact::CategoricalRowsRequest::serial_lag: core::option::Option<u64>
 pub field antecedent_io::categorical_treatment_artifact::CategoricalSpecWire::covariance: antecedent_io::categorical_treatment_artifact::CovarianceKindWire
 pub field antecedent_io::categorical_treatment_artifact::CategoricalSpecWire::declared_levels: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_io::categorical_treatment_artifact::CategoricalSpecWire::min_level_rows: u64
@@ -6518,6 +6558,7 @@ pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMet
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMeta::caveats: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMeta::counts: alloc::vec::Vec<antecedent_io::categorical_treatment_artifact::LevelCountWire>
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMeta::data_digest: core::option::Option<alloc::string::String>
+pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMeta::declared_rows: core::option::Option<antecedent_io::categorical_treatment_artifact::DeclaredRowsWire>
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMeta::feature: alloc::string::String
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMeta::identity: antecedent_io::categorical_treatment_artifact::CategoricalTreatmentIdentity
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMeta::inference_claim: alloc::string::String
@@ -6535,6 +6576,7 @@ pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRep
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire::calibration: alloc::string::String
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire::caveats: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire::data_digest: core::option::Option<alloc::string::String>
+pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire::declared_rows: core::option::Option<antecedent_io::categorical_treatment_artifact::DeclaredRowsWire>
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire::feature: alloc::string::String
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire::identity: antecedent_io::categorical_treatment_artifact::CategoricalTreatmentIdentity
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire::inference_claim: alloc::string::String
@@ -6551,6 +6593,14 @@ pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReq
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest::outcome: alloc::vec::Vec<f64>
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest::row_snapshot: alloc::string::String
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest::spec: antecedent_io::categorical_treatment_artifact::CategoricalSpecWire
+pub field antecedent_io::categorical_treatment_artifact::DeclaredRowsWire::clusters: core::option::Option<u64>
+pub field antecedent_io::categorical_treatment_artifact::DeclaredRowsWire::format: alloc::string::String
+pub field antecedent_io::categorical_treatment_artifact::DeclaredRowsWire::rows_used: u64
+pub field antecedent_io::categorical_treatment_artifact::DeclaredRowsWire::serial_lag: core::option::Option<u64>
+pub field antecedent_io::categorical_treatment_artifact::DeclaredRowsWire::weight_effective_sample_size: core::option::Option<f64>
+pub field antecedent_io::categorical_treatment_artifact::DeclaredRowsWire::weight_sum: core::option::Option<f64>
+pub field antecedent_io::categorical_treatment_artifact::DeclaredRowsWire::weights_declared: bool
+pub field antecedent_io::categorical_treatment_artifact::DeclaredRowsWire::zero_weight_rows: u64
 pub field antecedent_io::categorical_treatment_artifact::LevelContrastWire::estimate: f64
 pub field antecedent_io::categorical_treatment_artifact::LevelContrastWire::level: alloc::string::String
 pub field antecedent_io::categorical_treatment_artifact::LevelContrastWire::p_holm: f64
@@ -6834,6 +6884,13 @@ pub field antecedent_io::dose_grid_functional_artifact::DoseContrastWire::standa
 pub field antecedent_io::dose_grid_functional_artifact::DoseContrastWire::to: f64
 pub field antecedent_io::dose_grid_functional_artifact::DoseContrastWire::to_support: alloc::string::String
 pub field antecedent_io::dose_grid_functional_artifact::DoseContrastWire::upper: f64
+pub field antecedent_io::dose_grid_functional_artifact::DoseDeclaredRowsResultWire::clusters: core::option::Option<u64>
+pub field antecedent_io::dose_grid_functional_artifact::DoseDeclaredRowsResultWire::interval_reference: alloc::string::String
+pub field antecedent_io::dose_grid_functional_artifact::DoseDeclaredRowsResultWire::rows_used: u64
+pub field antecedent_io::dose_grid_functional_artifact::DoseDeclaredRowsResultWire::serial_lag: core::option::Option<u64>
+pub field antecedent_io::dose_grid_functional_artifact::DoseDeclaredRowsResultWire::weight_effective_sample_size: core::option::Option<f64>
+pub field antecedent_io::dose_grid_functional_artifact::DoseDeclaredRowsResultWire::weight_sum: core::option::Option<f64>
+pub field antecedent_io::dose_grid_functional_artifact::DoseDeclaredRowsResultWire::zero_weight_rows: u64
 pub field antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire::from: core::option::Option<f64>
 pub field antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire::kind: alloc::string::String
 pub field antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire::to: core::option::Option<f64>
@@ -6849,6 +6906,7 @@ pub field antecedent_io::dose_grid_functional_artifact::DoseGridRequestWire::ban
 pub field antecedent_io::dose_grid_functional_artifact::DoseGridRequestWire::bandwidth_range: (f64, f64)
 pub field antecedent_io::dose_grid_functional_artifact::DoseGridRequestWire::bias_aware: core::option::Option<antecedent_io::dose_grid_functional_artifact::DoseBiasAwareRequestWire>
 pub field antecedent_io::dose_grid_functional_artifact::DoseGridRequestWire::claims: antecedent_io::dose_grid_functional_artifact::DoseClaimsWire
+pub field antecedent_io::dose_grid_functional_artifact::DoseGridRequestWire::cluster: core::option::Option<alloc::vec::Vec<u32>>
 pub field antecedent_io::dose_grid_functional_artifact::DoseGridRequestWire::design: alloc::string::String
 pub field antecedent_io::dose_grid_functional_artifact::DoseGridRequestWire::dose: alloc::vec::Vec<f64>
 pub field antecedent_io::dose_grid_functional_artifact::DoseGridRequestWire::functional: antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire
@@ -6856,10 +6914,13 @@ pub field antecedent_io::dose_grid_functional_artifact::DoseGridRequestWire::gri
 pub field antecedent_io::dose_grid_functional_artifact::DoseGridRequestWire::minimum_local_ess: f64
 pub field antecedent_io::dose_grid_functional_artifact::DoseGridRequestWire::outcome: alloc::vec::Vec<f64>
 pub field antecedent_io::dose_grid_functional_artifact::DoseGridRequestWire::quadratic_mean: bool
+pub field antecedent_io::dose_grid_functional_artifact::DoseGridRequestWire::sampling_weights: core::option::Option<alloc::vec::Vec<f64>>
+pub field antecedent_io::dose_grid_functional_artifact::DoseGridRequestWire::serial_lag: core::option::Option<u64>
 pub field antecedent_io::dose_grid_functional_artifact::DoseGridResultWire::bandwidth: f64
 pub field antecedent_io::dose_grid_functional_artifact::DoseGridResultWire::bias_aware: core::option::Option<antecedent_io::dose_grid_functional_artifact::DoseBiasAwareResultWire>
 pub field antecedent_io::dose_grid_functional_artifact::DoseGridResultWire::calibration: alloc::string::String
 pub field antecedent_io::dose_grid_functional_artifact::DoseGridResultWire::contrast: core::option::Option<antecedent_io::dose_grid_functional_artifact::DoseContrastWire>
+pub field antecedent_io::dose_grid_functional_artifact::DoseGridResultWire::declared_rows: core::option::Option<antecedent_io::dose_grid_functional_artifact::DoseDeclaredRowsResultWire>
 pub field antecedent_io::dose_grid_functional_artifact::DoseGridResultWire::derivatives: alloc::vec::Vec<antecedent_io::dose_grid_functional_artifact::DosePointWire>
 pub field antecedent_io::dose_grid_functional_artifact::DoseGridResultWire::design: alloc::string::String
 pub field antecedent_io::dose_grid_functional_artifact::DoseGridResultWire::fits: usize
@@ -8778,6 +8839,7 @@ pub fn <antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire
 pub fn <antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire>::fn seal(request: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire) -> core::result::Result<Self, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
 pub fn <antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire>::fn seal_with_context(request: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
 pub fn <antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire>::const fn estimator(&self) -> &'static str
+pub fn <antecedent_io::categorical_treatment_artifact::CategoricalRowsRequest>::fn is_plain(&self) -> bool
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn fit(&self) -> &antecedent_estimate::categorical_treatment::CategoricalTreatmentFit
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn from_bytes(bytes: &[u8], expected: core::option::Option<&antecedent_io::categorical_treatment_artifact::CategoricalTreatmentIdentity>) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn from_bytes_with(bytes: &[u8], expected: core::option::Option<&antecedent_io::categorical_treatment_artifact::CategoricalTreatmentIdentity>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
@@ -8786,10 +8848,12 @@ pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtif
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn posterior(&self) -> core::option::Option<&antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire>
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn report(&self) -> antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn seal(request: &antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
+pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn seal_declared(request: &antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest, rows: &antecedent_io::categorical_treatment_artifact::CategoricalRowsRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn seal_with(request: &antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn to_bytes(&self, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn to_bytes_within(&self, artifact_id: &str, export_budget: usize) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn verify_data(&self, request: &antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest) -> core::result::Result<(), antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
+pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn verify_data_declared(&self, request: &antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest, rows: &antecedent_io::categorical_treatment_artifact::CategoricalRowsRequest) -> core::result::Result<(), antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn with_posterior(self, declaration: &antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>::fn refusal(&self) -> core::option::Option<(&'static str, alloc::string::String, alloc::string::String)>
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>::fn refused(code: &'static str, detail: impl core::convert::Into<alloc::string::String>, explanation: impl core::convert::Into<alloc::string::String>) -> Self
@@ -9281,6 +9345,7 @@ pub fn <antecedent_io::z_transport_artifact::ZTransportArtifactWire>::fn consume
 pub fn <antecedent_io::z_transport_artifact::ZTransportArtifactWire>::fn decode(bytes: &[u8]) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::z_transport_artifact::ZTransportArtifactWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::z_transport_artifact::ZTransportArtifactWire>::fn reconstruct(bytes: &[u8], limits: antecedent_io::z_transport_artifact::ZTransportConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(antecedent_graph::selection::SelectionDiagram, antecedent_identify::sid::z_transport::BoundZTransportFunctional, antecedent_expr::exact::ExactTransportData, antecedent_expr::provider::Assignment, antecedent_expr::exact_plan::ExactEvaluationLimits, Self), antecedent_io_core::error::IoError>
+pub fn antecedent_io::accept_claim(bytes: &[u8], profile: &antecedent_contract::claim::ConsumerProfile) -> core::result::Result<(antecedent_io_core::contract_section::AnalysisResultConsumption, antecedent_contract::claim::HandoffReceipt), antecedent_io_core::error::IoError>
 pub fn antecedent_io::adaptive_inference_result_artifact::compute_adaptive_result(contract: &antecedent_contract::adaptive_design::declaration::AdaptiveDesignContract, spec: &antecedent_io::adaptive_inference_result_artifact::AdaptiveResultSpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::adaptive_inference_result_artifact::AdaptiveResult, antecedent_io::adaptive_inference_result_artifact::AdaptiveResultError>
 pub fn antecedent_io::analysis_wire::effect_estimate_from_owned_wire(w: antecedent_io::EffectEstimateWire) -> core::result::Result<antecedent_estimate::effect_estimate::EffectEstimate, antecedent_io_core::error::IoError>
 pub fn antecedent_io::analysis_wire::effect_estimate_from_wire(w: &antecedent_io::EffectEstimateWire) -> core::result::Result<antecedent_estimate::effect_estimate::EffectEstimate, antecedent_io_core::error::IoError>
@@ -9295,6 +9360,8 @@ pub fn antecedent_io::bayesian_posterior_row_artifact::survival_row(posterior: &
 pub fn antecedent_io::bridge_distribution_interval::bridged_distribution_interval(bridged: &antecedent_io_core::bridge_distribution::BridgedDistribution, level: f64) -> core::result::Result<antecedent_io::bridge_interval::BridgedClaimInterval, antecedent_contract::external_refusal::ExternalRefusal>
 pub fn antecedent_io::bridge_interval::bridged_claim_interval(bridged: &antecedent_contract::bridge::claim::BridgedClaim, source_standard_error: core::option::Option<f64>, level: f64) -> core::result::Result<antecedent_io::bridge_interval::BridgedClaimInterval, antecedent_contract::external_refusal::ExternalRefusal>
 pub fn antecedent_io::bridge_interval::construct_bridged_claim_interval(bridged: &antecedent_contract::bridge::claim::BridgedClaim, source_standard_error: core::option::Option<f64>, level: f64) -> core::result::Result<antecedent_io::bridge_interval::ConstructedBridgeInterval, antecedent_contract::external_refusal::ExternalRefusal>
+pub fn antecedent_io::consume_analysis_result(bytes: &[u8]) -> core::result::Result<antecedent_io_core::contract_section::AnalysisResultConsumption, antecedent_io_core::error::IoError>
+pub fn antecedent_io::consume_analysis_result_within(bytes: &[u8], limits: &antecedent_io_core::distribution_replay::ReplayLimits) -> core::result::Result<antecedent_io_core::contract_section::AnalysisResultConsumption, antecedent_io_core::error::IoError>
 pub fn antecedent_io::counterfactual_transport_artifact::consume_counterfactual_transport_with_limits(bytes: &[u8], expected: &antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportExpectedIdentity, limits: antecedent_io::counterfactual_transport_artifact::CounterfactualTransportConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransport, antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactError>
 pub fn antecedent_io::counterfactual_transport_artifact::identified_counterfactual_transport_artifact(derivation: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportDerivation, data: &antecedent_expr::exact::ExactTransportData, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, variable_names: &[alloc::string::String], point: &antecedent_estimate::counterfactual_transport::CounterfactualTransportPoint) -> core::result::Result<antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactWire, antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactError>
 pub fn antecedent_io::counterfactual_transport_artifact::obstructed_counterfactual_transport_artifact(obstruction: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportObstruction, search: antecedent_core::search::SearchLimits, memory_limit_bytes: u64, variable_names: &[alloc::string::String]) -> core::result::Result<antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactWire, antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactError>
@@ -9314,6 +9381,7 @@ pub fn antecedent_io::cyclic_system_artifact::consume_cyclic_artifact(bytes: &[u
 pub fn antecedent_io::cyclic_system_artifact::consume_cyclic_artifact_with_request(bytes: &[u8], expected_identity: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(antecedent_io::cyclic_system_artifact::CyclicExecutionRequest, antecedent_io::cyclic_system_artifact::CyclicExecutionReport), antecedent_io::cyclic_system_artifact::CyclicArtifactError>
 pub fn antecedent_io::cyclic_system_artifact::cyclic_decode_admission(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_core::execution::admission::AdmissionLease, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
 pub fn antecedent_io::cyclic_system_artifact::cyclic_serialized_size<T: serde_core::ser::Serialize>(value: &T, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<usize, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
+pub fn antecedent_io::decode_analysis_result_artifact(bytes: &[u8]) -> core::result::Result<(antecedent_io_core::container::EncodedArtifact, antecedent_io_core::analysis_result_artifact::AnalysisResultHeader, antecedent_io_core::analysis_result_artifact::AnalysisResultWire), antecedent_io_core::error::IoError>
 pub fn antecedent_io::decode_model_bundle(artifact: &antecedent_io_core::container::EncodedArtifact) -> core::result::Result<antecedent_io::ModelBundle, antecedent_io_core::error::IoError>
 pub fn antecedent_io::distribution_factor_laws_to_wire(snapshot: &antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot) -> core::result::Result<antecedent_io_core::identity::DistributionFactorLawsWire, antecedent_io_core::error::IoError>
 pub fn antecedent_io::dose_grid_functional_artifact::dose_support_table(dose: &[f64], points: &[f64], bandwidth: f64, minimum_local_ess: f64) -> core::result::Result<alloc::vec::Vec<antecedent_io::dose_grid_functional_artifact::DoseSupportWire>, antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError>
@@ -9352,6 +9420,8 @@ pub fn antecedent_io::measured_inference::split_parent_set_effect::run_with_coll
 pub fn antecedent_io::measured_inference::split_parent_set_effect::treatment_parent_set(structure: &antecedent_discovery::selective::structure::DiscoveredStructure, names: &[alloc::string::String], treatment: u32, outcome: u32) -> core::result::Result<antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::split_parent_set_effect::treatment_parent_set_under_conflicts(structure: &antecedent_discovery::selective::structure::DiscoveredStructure, evidence: &antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'_>, names: &[alloc::string::String], treatment: u32, outcome: u32, max_colliders: usize) -> core::result::Result<antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood, antecedent_io_core::error::IoError>
 pub fn antecedent_io::msm_sensitivity_adapter::msm_sensitivity_artifact(result: &antecedent_validate::msm_sensitivity::MsmSensitivityResult, effect: &antecedent_contract::quantity::ScientificQuantity, point_quantities: &[(antecedent_contract::quantity::ScientificQuantity, alloc::vec::Vec<f64>)], actions: alloc::vec::Vec<antecedent_io_core::sensitivity_artifact::ActionUtility>, causal_contract_id: &str) -> core::result::Result<antecedent_io_core::sensitivity_artifact::SensitivityArtifact, antecedent_io_core::error::IoError>
+pub fn antecedent_io::randomized_ipow_artifact::posterior_row(source: antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire, posterior: &antecedent_estimate::randomized_posterior::RandomizedPosterior, coordinates: alloc::vec::Vec<alloc::string::String>) -> antecedent_io_core::analysis_result_artifact::PosteriorRowWire
+pub fn antecedent_io::randomized_ipow_artifact::replay(source: &antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire, draws: usize) -> core::result::Result<antecedent_estimate::randomized_posterior::RandomizedPosterior, antecedent_io_core::error::IoError>
 pub fn antecedent_io::release_migration::added_methods<'a>(current: &'a [antecedent_io::release_migration::CurrentMethod], previous_route_ids: &[&str]) -> alloc::vec::Vec<&'a antecedent_io::release_migration::CurrentMethod>
 pub fn antecedent_io::release_migration::adopt_carried_target_digest(retained: &[u8; 32], current: &[u8; 32]) -> core::result::Result<[u8; 32], antecedent_io::release_migration::MigrationError>
 pub fn antecedent_io::release_migration::adopt_retained_score_row_digest(retained: &[u8; 32], row_ids: &[u64]) -> core::result::Result<[u8; 32], antecedent_io::release_migration::MigrationError>
@@ -9416,6 +9486,7 @@ pub mod antecedent_io::nonlinear_mediation_artifact
 pub mod antecedent_io::period_refresh_artifact
 pub mod antecedent_io::posterior_convert
 pub mod antecedent_io::predictive_assessment_artifact
+pub mod antecedent_io::randomized_ipow_artifact
 pub mod antecedent_io::recovery_artifact
 pub mod antecedent_io::recovery_chain_artifact
 pub mod antecedent_io::release_migration
@@ -9482,6 +9553,7 @@ pub struct antecedent_io::categorical_treatment_artifact::AdjacentStepWire
 pub struct antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration
 pub struct antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire
 pub struct antecedent_io::categorical_treatment_artifact::CategoricalResultWire
+pub struct antecedent_io::categorical_treatment_artifact::CategoricalRowsRequest
 pub struct antecedent_io::categorical_treatment_artifact::CategoricalSpecWire
 pub struct antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact
 pub struct antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact has private fields
@@ -9489,6 +9561,7 @@ pub struct antecedent_io::categorical_treatment_artifact::CategoricalTreatmentId
 pub struct antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMeta
 pub struct antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire
 pub struct antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest
+pub struct antecedent_io::categorical_treatment_artifact::DeclaredRowsWire
 pub struct antecedent_io::categorical_treatment_artifact::LevelContrastWire
 pub struct antecedent_io::categorical_treatment_artifact::LevelCountWire
 pub struct antecedent_io::categorical_treatment_artifact::MonotonicityWire
@@ -9561,6 +9634,7 @@ pub struct antecedent_io::dose_grid_functional_artifact::DoseBiasAwareRequestWir
 pub struct antecedent_io::dose_grid_functional_artifact::DoseBiasAwareResultWire
 pub struct antecedent_io::dose_grid_functional_artifact::DoseClaimsWire
 pub struct antecedent_io::dose_grid_functional_artifact::DoseContrastWire
+pub struct antecedent_io::dose_grid_functional_artifact::DoseDeclaredRowsResultWire
 pub struct antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire
 pub struct antecedent_io::dose_grid_functional_artifact::DoseGridArtifactWire
 pub struct antecedent_io::dose_grid_functional_artifact::DoseGridConsumeLimits
@@ -10155,7 +10229,6 @@ pub use antecedent_io::UpliftBinWire = antecedent_io_core::UpliftBinWire
 pub use antecedent_io::ValueTypeWire = antecedent_io_core::ValueTypeWire
 pub use antecedent_io::ValueWire = antecedent_io_core::ValueWire
 pub use antecedent_io::VariableSchemaWire = antecedent_io_core::VariableSchemaWire
-pub use antecedent_io::accept_claim = antecedent_io_core::accept_claim
 pub use antecedent_io::adaptive_monitoring_contract_artifact = antecedent_io_core::adaptive_monitoring_contract_artifact
 pub use antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactError = antecedent_io_core::transport_errors::AdmgConditionalArtifactError
 pub use antecedent_io::admg_from_dot = antecedent_io_core::admg_from_dot
@@ -10231,8 +10304,6 @@ pub use antecedent_io::cohort_decision = antecedent_io_core::cohort_decision
 pub use antecedent_io::compact_export = antecedent_io_core::compact_export
 pub use antecedent_io::compiled_identification_wire = antecedent_io_core::compiled_identification_wire
 pub use antecedent_io::composition_verification_artifact = antecedent_io_core::composition_verification_artifact
-pub use antecedent_io::consume_analysis_result = antecedent_io_core::consume_analysis_result
-pub use antecedent_io::consume_analysis_result_within = antecedent_io_core::consume_analysis_result_within
 pub use antecedent_io::container = antecedent_io_core::container
 pub use antecedent_io::container_kind = antecedent_io_core::container_kind
 pub use antecedent_io::contract_seal = antecedent_io_core::contract_seal
@@ -10280,7 +10351,6 @@ pub use antecedent_io::dag_wire_from_gml = antecedent_io_core::dag_wire_from_gml
 pub use antecedent_io::dag_wire_to_dot = antecedent_io_core::dag_wire_to_dot
 pub use antecedent_io::dag_wire_to_gml = antecedent_io_core::dag_wire_to_gml
 pub use antecedent_io::data_snapshot_digest = antecedent_io_core::data_snapshot_digest
-pub use antecedent_io::decode_analysis_result_artifact = antecedent_io_core::decode_analysis_result_artifact
 pub use antecedent_io::decode_analysis_result_contract = antecedent_io_core::decode_analysis_result_contract
 pub use antecedent_io::decode_causal_payload_artifact = antecedent_io_core::decode_causal_payload_artifact
 pub use antecedent_io::decode_causal_posterior_bytes = posterior_convert::decode_causal_posterior_bytes
@@ -10437,6 +10507,11 @@ pub use antecedent_io::provider_envelope = antecedent_io_core::provider_envelope
 pub use antecedent_io::provider_verification_artifact = antecedent_io_core::provider_verification_artifact
 pub use antecedent_io::quantity_wire = antecedent_io_core::quantity_wire
 pub use antecedent_io::query_wire = antecedent_io_core::query_wire
+pub use antecedent_io::randomized_ipow_artifact::accept_claim = antecedent_io::accept_claim
+pub use antecedent_io::randomized_ipow_artifact::consume_analysis_result = antecedent_io::consume_analysis_result
+pub use antecedent_io::randomized_ipow_artifact::consume_analysis_result_within = antecedent_io::consume_analysis_result_within
+pub use antecedent_io::randomized_ipow_artifact::decode_analysis_result_artifact = antecedent_io::decode_analysis_result_artifact
+pub use antecedent_io::randomized_ipow_wire = antecedent_io_core::randomized_ipow_wire
 pub use antecedent_io::read_and_migrate = antecedent_io_core::read_and_migrate
 pub use antecedent_io::reader = antecedent_io_core::reader
 pub use antecedent_io::recalc_receipt_artifact = antecedent_io_core::recalc_receipt_artifact
@@ -10623,11 +10698,13 @@ pub variant antecedent_io::categorical_treatment_artifact::CategoricalTreatmentA
 pub variant antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError::ResultMismatch(&'static str)
 pub variant antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError::UnsupportedSemantics(&'static str)
 pub variant antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError::UnsupportedVersion { version: u16 }
+pub variant antecedent_io::categorical_treatment_artifact::CovarianceKindWire::ClusterRobust
 pub variant antecedent_io::categorical_treatment_artifact::CovarianceKindWire::Hc0
 pub variant antecedent_io::categorical_treatment_artifact::CovarianceKindWire::Hc1
 pub variant antecedent_io::categorical_treatment_artifact::CovarianceKindWire::Hc2
 pub variant antecedent_io::categorical_treatment_artifact::CovarianceKindWire::Hc3
 pub variant antecedent_io::categorical_treatment_artifact::CovarianceKindWire::ModelBased
+pub variant antecedent_io::categorical_treatment_artifact::CovarianceKindWire::NeweyWest
 pub variant antecedent_io::categorical_treatment_artifact::LevelScaleWire::Ordered
 pub variant antecedent_io::categorical_treatment_artifact::LevelScaleWire::Unordered
 pub variant antecedent_io::categorical_treatment_artifact::MonotonicityDirectionWire::NonDecreasing

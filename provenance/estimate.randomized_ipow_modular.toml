@@ -1,0 +1,63 @@
+feature_id = "estimate.randomized_ipow_modular"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = []
+upstream_implementations_observed = []
+implementation_deviations = [
+  "This defines a modular Gaussian pseudo-posterior conditional on an armwise fitted logistic observation model, rather than a joint Bayesian missing-data model. It makes no repeated-sampling coverage claim.",
+  "The mean of the score-adjusted R Y / pi pseudo-outcomes need not be a Hajek ratio for a general logistic model. A proper Normal-Inverse-Gamma prior shrinks each arm pseudo-mean.",
+  "Only two-arm Bernoulli and complete randomization, the superpopulation estimand, constant known assignment probabilities and pointwise 95 percent posterior quantiles are licensed. Multi-arm and factorial IPW refuse; their marginal quantile grids do not establish a joint posterior draw law.",
+]
+test_sources = ["crates/antecedent/tests/bayesian_randomized_routes.rs"]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The composition of responder_pseudo_outcomes with posterior_arm_contrasts_with_draws for two-arm Gaussian superpopulation IPW, its exact graphless support, retained source and prior binding, and estimator-aware detached numerical replay. The pseudo-outcome helper computes R Y / pi minus the fitted-logistic score correction h' I^-1 s, with all assigned units retained. The underlying conjugate and observation-fit numerics have the separate reviews estimate.randomized.bayesian and estimate.randomized_missing_outcomes; this review checks the composition rather than expanding their scope."
+assumptions = [
+  "Observation is missing at random given assignment and the declared complete baseline covariates. The armwise linear-logistic observation model with an intercept is correctly specified; positivity and an estimable fit are required.",
+  "The Gaussian working likelihood is on data-dependent score-adjusted pseudo-outcomes with a declared proper Normal-Inverse-Gamma prior. Observation-model coefficients are fitted and conditioned upon, not assigned a posterior.",
+  "The published interval is a pointwise 95 percent quantile interval of the discretized contrast law; its frequentist calibration is unmeasured.",
+]
+historical_exposure = "This review read the repository implementations and wrote definition-level assertions without consulting or copying any upstream implementation, test or publication. It does not claim a page-level review of a primary paper. Historical exposure of earlier authors is not independently established."
+redistribution = "Repository-authored code and tests under MIT OR Apache-2.0. No external source, reference software or paper is redistributed."
+limitations = "The independent new known-target check has 128 units, a saturated binary-baseline response model, nonuniform response by arm and stratum, structural effect 2 versus naive responder contrast 4.5, two prior strengths, and both licensed designs. Its independently derived pseudo-outcomes and NIG moments agree with the numerical contrast law within 0.005 for the mean and 0.006 for the standard deviation. A separate 24-unit fixture checks intercept-only and binary-baseline moments. These are deterministic definition checks, not a calibration campaign, a reference for unsaturated logistic models, or evidence for joint multicontrast draws. Detached replay reuses the product numerical routines and establishes internal consistency of retained inputs, not external authenticity of observations."
+sources = ["provenance/estimate.randomized.bayesian.toml", "provenance/estimate.randomized_missing_outcomes.toml", "crates/antecedent-estimate/src/randomized_missing.rs", "crates/antecedent-estimate/src/randomized_posterior.rs"]
+findings_resolved = [
+  "Replaced the blanket unlicensed execution of the supported IPW construction with a narrow graphless license and retained numerical replay; unsupported IPW designs now refuse.",
+  "Corrected the claim that every proper-prior posterior mean equals a Hajek responder mean, and identified the conditional working law explicitly.",
+  "Tests reject changed posterior means, source outcomes and priors after valid container re-encoding, respect consumer capability restrictions and bounded replay, and exercise retained execution after the builder has been dropped.",
+]
+record_sha256 = "ca92cf94c15bfb112834a42ad4ab5b1cb0f59174f30b1f45190edc03ab082ad3"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/randomized_missing.rs"
+sha256 = "e5449c8a5a1259a34cc47bf136474fe7543ad08101460d6a314c79a8e6ec6dc9"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/execute/checked_randomized/bayesian_arms.rs"
+sha256 = "abbe11048697e1e408ee9650cbf2022e65682bf32585c869d738bf1e7262fa89"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/randomized_ipow_wire.rs"
+sha256 = "dc972a11b2aca4e44ce73fad4bc159208833422c9b82fed1aafe55b733911d7c"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io/src/randomized_ipow_artifact.rs"
+sha256 = "1db6abf84a0cb44a58e17348c888f1eb1a63b8f75298195cf62e1418292d70ab"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/contract_section/verify.rs"
+sha256 = "48407451e1a904efbe0fda6888b1cdbc372517385b91c02becef920d2a2f4dfb"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/bayesian_randomized_routes.rs"
+sha256 = "31fce63cb3793f68085f7c8b17fa4f40d17e616da52fb70f48cef50f478f981d"

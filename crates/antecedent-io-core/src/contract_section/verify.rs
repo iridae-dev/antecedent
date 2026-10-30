@@ -99,6 +99,45 @@ pub(in crate::contract_section) fn contract_unresolved(
     if contract.target.query != body.query {
         unresolved.push(ContractReason::BodyQuery);
     }
+    if let Some(source) = body.posterior_row.as_ref().and_then(|row| row.randomized_ipow.as_ref()) {
+        let key = source.key();
+        let coordinate = format!(
+            "graphless:{}/{}/{}/{}",
+            key.family, key.design, key.method, key.inference_claim
+        );
+        if contract.reasoning.support.value.as_ref().is_none_or(|slot| {
+            slot.matrix_status != "licensed"
+                || slot.matrix_coordinate.as_deref() != Some(coordinate.as_str())
+        }) || !contract_uses_estimator(contract, crate::randomized_ipow_wire::ESTIMATOR)
+        {
+            unresolved.push(ContractReason::ReasoningSupport);
+        }
+        let names: Option<Vec<String>> = source
+            .covariate_ids
+            .iter()
+            .map(|id| header.variable_names.get(*id as usize).cloned())
+            .collect();
+        if contract
+            .data_snapshot
+            .as_ref()
+            .and_then(|snapshot| snapshot.missing.as_ref())
+            .is_none_or(|missing| {
+                missing.policy != "inverse_probability"
+                    || names.as_ref() != Some(&missing.covariates)
+            })
+            || contract
+                .inference_binding
+                .as_ref()
+                .and_then(|binding| binding.bayesian.as_ref())
+                .is_none_or(|config| {
+                    config.design_model.as_deref() != Some(source.prior_identity().as_str())
+                        || config.n_draws as usize
+                            != body.posterior_row.as_ref().map_or(0, |row| row.draws)
+                })
+        {
+            unresolved.push(ContractReason::ReasoningSupport);
+        }
+    }
     note_replay_dependencies(contract, body, &mut unresolved);
     note_functional_and_nested_replay(contract, body, &mut unresolved, limits);
     verify_graph_posterior_mixture(contract, body, &mut unresolved);
@@ -1211,6 +1250,17 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
                 && key.query == "Unknown"
                 && key.graph_class == contract.graph_class
                 && key.structure == "fixed"
+        })
+        || contract.reasoning.support.value.as_ref().is_some_and(|slot| {
+            slot.matrix_status == "licensed"
+                && slot.matrix_coordinate.as_deref().is_some_and(|coordinate| {
+                    coordinate.starts_with("graphless:randomized_effect/")
+                        && coordinate.ends_with("/gaussian_ipow_modular_posterior/conditional_pseudo_posterior_pointwise_95_quantiles")
+                })
+                && matches!(contract.target.query, crate::CausalQueryWire::RandomizedEffect(_))
+                && key.query == "Unknown" && key.graph_class == contract.graph_class
+                && key.structure == "fixed" && key.inference.eq_ignore_ascii_case("bayesian")
+                && key.interval_method == "posterior_quantile"
         })
         || contract.reasoning.support.value.as_ref().is_some_and(|slot| {
             // Off-axis design results retain their interval construction in

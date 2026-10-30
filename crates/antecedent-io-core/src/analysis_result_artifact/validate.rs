@@ -189,9 +189,25 @@ pub(super) fn validate_result(
     }
     validate_ratio_graphless(result)?;
     if let Some(row) = &result.posterior_row {
+        if row.randomized_ipow.is_some()
+            && !matches!(result.query, crate::CausalQueryWire::RandomizedEffect(_))
+        {
+            return Err(IoError::Convert(
+                "IPW replay inputs require a randomized-effect query".into(),
+            ));
+        }
         // A posterior row replaces the frequentist section of exactly the queries that have a
         // Bayesian counterpart on the same coordinate, and rides with its posterior artifact.
         let attached = match &result.query {
+            crate::CausalQueryWire::RandomizedEffect(query) => {
+                let Some(source) = &row.randomized_ipow else {
+                    return Err(IoError::Convert(
+                        "a randomized posterior row needs IPW replay inputs".into(),
+                    ));
+                };
+                source.validate_query(query, &row.coordinates, variable_names.len())?;
+                result.randomized_effect.is_none() && row.licensed
+            }
             crate::CausalQueryWire::Survival(_) => result.survival.is_none(),
             crate::CausalQueryWire::ContinuousDoseResponse(query) => {
                 query.fixed_policy.is_some() && result.continuous_dose_response.is_none()

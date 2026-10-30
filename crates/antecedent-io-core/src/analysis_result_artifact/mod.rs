@@ -824,12 +824,13 @@ pub struct SurvivalDifferenceBandWire {
     pub graphless_support_status: Option<String>,
 }
 
-/// The retained posterior of an unlicensed Bayesian randomized-design row.
+/// The retained posterior of a Bayesian analysis row.
 ///
 /// Every coordinate has a posterior mean and an equal-tailed 95% credible interval; the
 /// covariance across coordinates is the covariance of the retained joint draws, so draw `k` of
 /// every coordinate comes from one posterior sample. The calibration is always `unmeasured`
-/// and the row is never licensed.
+/// and licensing is separate from calibration. The IPW randomized-arm row has its own exact
+/// graphless license and retained replay inputs; other rows remain unlicensed.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct PosteriorRowWire {
@@ -841,8 +842,11 @@ pub struct PosteriorRowWire {
     pub uncertainty: String,
     /// Calibration status of every interval (`unmeasured`).
     pub calibration: String,
-    /// Always `false`: these rows are not licensed.
+    /// Whether an exact graphless license admits this row's construction.
     pub licensed: bool,
+    /// Whole-procedure replay inputs of a licensed randomized-arm IPW pseudo-posterior.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub randomized_ipow: Option<crate::randomized_ipow_wire::RandomizedIpowWire>,
     /// Name of every coordinate, in order.
     pub coordinates: Vec<String>,
     /// Posterior mean of each coordinate.
@@ -880,6 +884,7 @@ impl PosteriorRowWire {
             uncertainty: POSTERIOR_ROW_UNCERTAINTY.to_owned(),
             calibration: POSTERIOR_ROW_CALIBRATION.to_owned(),
             licensed: false,
+            randomized_ipow: None,
             coordinates,
             mean: Vec::new(),
             lower: Vec::new(),
@@ -919,7 +924,7 @@ impl PosteriorRowWire {
     /// The shape and marker checks every consumer applies before trusting the row.
     ///
     /// # Errors
-    /// A licensed row, a changed uncertainty or calibration marker, misaligned arrays or a
+    /// An unsupported license, a changed uncertainty or calibration marker, misaligned arrays or a
     /// non-finite value.
     pub fn validate(&self) -> Result<(), crate::IoError> {
         let width = self.coordinates.len();
@@ -927,7 +932,12 @@ impl PosteriorRowWire {
             |values: &Option<Vec<f64>>| values.as_ref().is_none_or(|v| v.len() == width * width);
         if self.uncertainty != POSTERIOR_ROW_UNCERTAINTY
             || self.calibration != POSTERIOR_ROW_CALIBRATION
-            || self.licensed
+            || self.licensed != self.randomized_ipow.is_some()
+            || self.randomized_ipow.as_ref().is_some_and(|source| {
+                self.estimator != crate::randomized_ipow_wire::ESTIMATOR
+                    || self.target != crate::randomized_ipow_wire::TARGET
+                    || !source.licensed(width)
+            })
             || self.estimator.is_empty()
             || width == 0
             || self.mean.len() != width
@@ -941,7 +951,7 @@ impl PosteriorRowWire {
             || self.lower.iter().zip(&self.upper).any(|(lower, upper)| lower > upper)
         {
             return Err(crate::IoError::Convert(
-                "a posterior row must be an unlicensed, unmeasured-calibration posterior with aligned finite arrays".into(),
+                "a posterior row must have supported licensing semantics, unmeasured calibration and aligned finite arrays".into(),
             ));
         }
         Ok(())
@@ -1268,7 +1278,7 @@ pub struct AnalysisResultWire {
     /// Randomized survival or competing-risk curve.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub survival: Option<SurvivalWire>,
-    /// Posterior of an unlicensed Bayesian randomized-design row, in place of the
+    /// Posterior of a Bayesian analysis row, in place of the
     /// frequentist section of the same query.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub posterior_row: Option<PosteriorRowWire>,

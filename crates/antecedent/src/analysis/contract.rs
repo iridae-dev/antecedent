@@ -145,7 +145,8 @@ fn bind_graphless_reasoning(
         || result.randomized_effect().is_some()
         || result.longitudinal_regime().is_some()
         || result.sequential_contrast().is_some()
-        || result.history_match().is_some();
+        || result.history_match().is_some()
+        || matches!(&result.payload, crate::result::ResultPayload::PosteriorRow(row) if row.randomized_ipow.is_some());
     if !graphless {
         return Ok(());
     }
@@ -184,6 +185,16 @@ fn graphless_coordinate(
         detail: "licensed graphless result does not match this handle's query",
     };
     let mut coordinate = None;
+    if let crate::result::ResultPayload::PosteriorRow(row) = &result.payload {
+        if let Some(source) = &row.randomized_ipow {
+            let CausalQuery::RandomizedEffect(_) = query else { return Err(MISMATCH) };
+            let key = source.key();
+            coordinate = Some(format!(
+                "graphless:{}/{}/{}/{}",
+                key.family, key.design, key.method, key.inference_claim
+            ));
+        }
+    }
     if result.continuous_dose_response().is_some() {
         coordinate = Some(
             "graphless:continuous_dose_policy/fixed_group_kernel/inverse_density_kernel_paired_scores/policy_reference_incremental_pointwise_95_normal_intervals"

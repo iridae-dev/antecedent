@@ -9,8 +9,9 @@
 //! declared with `BayesianConfig::design_model`; it has no default, because a prior alone never
 //! identifies a contrast. Assignment probabilities must be known and identical across units.
 //!
-//! The route is explicitly unlicensed and uncalibrated: no coverage evidence covers the credible
-//! interval, and the draws are the exact posterior's quantile grid, not Monte Carlo samples.
+//! The two-arm Gaussian IPW superpopulation construction has an exact graphless license as a
+//! modular pseudo-posterior conditional on the fitted observation model. Its interval calibration
+//! is unmeasured. Other arm constructions retain their separate scope. Draws are quantile grids.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::bayesian_quasi_common::{
@@ -392,6 +393,8 @@ impl super::CheckedRandomizedOperation {
         };
         let rows = arm_rows(&self.query)?;
         let (outcomes, observed) = self.arm_outcomes(data, &rows, model, estimand)?;
+        let ipow_source =
+            if observed.is_some() { Some(self.ipow_source(data, &rows, model)?) } else { None };
         let weights: Vec<Vec<f64>> = rows.contrasts.iter().map(|(_, w)| w.clone()).collect();
         let started = Instant::now();
         let posterior = posterior_arm_contrasts_with_draws(
@@ -408,16 +411,26 @@ impl super::CheckedRandomizedOperation {
         )?;
         let mut fit = arm_design_posterior(&rows, &posterior, model, estimand, outcomes.len())?;
         if observed.is_some() {
+            fit.backend = "bayesian.randomized_arm_ipow_modular";
+            fit.model = format!(
+                "Normal-Inverse-Gamma working likelihood on data-dependent, score-adjusted inverse-probability pseudo-outcomes; {}; conditional on the estimated observation model",
+                prior_text(model)
+            );
+            fit.assumptions = vec![
+                ("randomized_ipow.missing_at_random", "Outcome observation is independent of the potential outcome conditional on arm and the declared, complete pre-assignment covariates; observation probabilities are positive. These are identifying assumptions, not checks the prior establishes.".to_owned()),
+                ("randomized_ipow.observation_model", "The arm-wise logistic observation model with an intercept and the declared linear covariates is correctly specified. Estimated probabilities are not clipped to repair a positivity failure; a separated or singular fit refuses.".to_owned()),
+                ("randomized_ipow.working_likelihood", "The Gaussian working likelihood is on the score-adjusted R*Y/pi pseudo-outcomes of every assigned unit, conditional on the fitted logistic observation model. The declared proper Normal-Inverse-Gamma prior shrinks the arm pseudo-means. This is a modular pseudo-posterior, not a joint Bayesian model for outcomes and observation; its pointwise 95% quantiles have no measured repeated-sampling coverage.".to_owned()),
+            ];
+            fit.notes.push("The observation-model score correction enters the pseudo-outcome spread; no posterior is assigned to its coefficients. With saturated response strata the unshrunk pseudo-mean is the post-stratified responder mean; finite priors still shrink it.".to_owned());
             fit.diagnostics.push(Diagnostic::new(
                 "estimate.randomized.bayesian_arm_contrast.inverse_probability",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
-                "missing outcomes are handled by inverse-probability-of-observation weights as a \
-                 design weight in the conjugate update: each arm's Normal-Inverse-Gamma update \
-                 reads the responder pseudo-outcomes of every assigned unit, whose arm mean is the \
-                 Hajek responder mean and whose spread carries the influence of the fitted \
-                 observation model; the observation model is estimated, not given a posterior of \
-                 its own",
+                "licensed modular IPW pseudo-posterior: every assigned unit contributes its \
+                 score-adjusted inverse-probability pseudo-outcome to a Gaussian working \
+                 likelihood. The observation model is estimated and held fixed in the posterior, \
+                 with its score correction incorporated in the pseudo-outcome spread. \
+                 Quantiles are pointwise and calibration remains unmeasured",
             ));
         }
         let mut result = finish_design_posterior_as(
@@ -437,7 +450,82 @@ impl super::CheckedRandomizedOperation {
         if let Some(observed) = observed {
             result.extras.missing_data = Some(self.missing_report(data, &observed)?);
         }
+        if let Some(source) = ipow_source {
+            let row = antecedent_io::randomized_ipow_artifact::posterior_row(
+                source,
+                &posterior,
+                rows.contrasts.iter().map(|(name, _)| name.clone()).collect(),
+            );
+            row.validate()?;
+            result.payload = crate::result::ResultPayload::PosteriorRow(row);
+            result.support_status = Some(crate::support::CellStatus::Licensed);
+            result.diagnostics.retain(|d| d.code.as_ref() != "estimate.quasi.bayesian.unlicensed");
+        }
         Ok(result)
+    }
+
+    fn ipow_source(
+        &self,
+        data: &TabularData,
+        rows: &ArmRows,
+        model: ArmOutcomeModel,
+    ) -> Result<antecedent_io::randomized_ipow_wire::RandomizedIpowWire, CausalError> {
+        // Multi-arm and factorial quantile grids represent marginal laws, not joint draws.
+        // Their joint pseudo-posterior has no earned license; do not run it as unlicensed.
+        let design = match self.query.design {
+            RandomizationDesign::Bernoulli => "bernoulli",
+            RandomizationDesign::Complete { .. } => "complete",
+            _ => {
+                return Err(unread_option(
+                    ROUTE,
+                    "IPW outside the licensed two-arm Bernoulli or complete design",
+                    "a two-arm Bernoulli or complete design, or the Frequentist responder estimator",
+                ));
+            }
+        };
+        let ArmOutcomeModel::Gaussian(prior) = model else {
+            return Err(unread_option(
+                ROUTE,
+                "non-Gaussian IPW pseudo-outcomes",
+                "a Gaussian arm model",
+            ));
+        };
+        let declaration = self.require_missing_policy(data)?;
+        let antecedent_data::ColumnView::Float64(column) = data.column(self.query.outcome)? else {
+            return Err(CausalError::Unsupported {
+                message: "randomized outcome must be continuous",
+            });
+        };
+        let mut covariates = Vec::new();
+        for id in declaration.covariates.iter() {
+            covariates.extend_from_slice(&data.float64_cow(*id)?);
+        }
+        let source = antecedent_io::randomized_ipow_wire::RandomizedIpowWire {
+            design: design.to_owned(),
+            assignment: rows.assignment.clone(),
+            probabilities: rows.probabilities.clone(),
+            outcomes: column
+                .values
+                .as_slice()
+                .iter()
+                .enumerate()
+                .map(|(i, y)| column.validity.is_valid(i).then_some(*y))
+                .collect(),
+            covariate_ids: declaration.covariates.iter().map(|id| id.raw()).collect(),
+            covariates,
+            contrasts: rows.contrasts.iter().map(|(_, w)| w.clone()).collect(),
+            prior: [prior.mean, prior.pseudo_units, prior.variance_shape, prior.variance_scale],
+        };
+        let query = antecedent_io::causal_query_to_wire(
+            &antecedent_core::CausalQuery::RandomizedEffect(self.query.clone()),
+        )?;
+        let antecedent_io::CausalQueryWire::RandomizedEffect(query) = query else { unreachable!() };
+        source.validate_query(
+            &query,
+            &rows.contrasts.iter().map(|(name, _)| name.clone()).collect::<Vec<_>>(),
+            data.schema().len(),
+        )?;
+        Ok(source)
     }
 
     /// The outcomes the arm posterior reads, and the response indicator when they are weighted.

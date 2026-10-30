@@ -713,3 +713,33 @@ disposition = "counterpart"
 routes = ["quasi.temporal_local_ratio", "bayesian.temporal_local_ratio"]
 reason = "Discontinuity in time with a block bootstrap respecting the sampling design; retained and unlicensed."
 exit_by = "2027-03-31"
+
+[[license]]
+family = "randomized_effect"
+design = "bernoulli"
+method = "gaussian_ipow_modular_posterior"
+inference_claim = "conditional_pseudo_posterior_pointwise_95_quantiles"
+assignment_unit = "unit"
+min_rows = 6
+min_assignment_units_per_arm = 3
+min_action_rows = 3
+min_reported_intervals = 1
+all_reported_intervals = true
+known_truth_test = "crates/antecedent/tests/bayesian_randomized_routes.rs::licensed_ipow_posterior_recovers_the_causal_target_and_declared_prior_update"
+retained_route_test = "crates/antecedent/tests/bayesian_randomized_routes.rs::licensed_ipow_posterior_replays_after_the_builder_is_dropped"
+limitations = "Two-arm bernoulli randomization of independent units, known identical per-unit assignment probabilities, ITT superpopulation contrast, Gaussian working likelihood on score-adjusted inverse-probability-of-observation pseudo-outcomes, and an explicitly declared proper Normal-Inverse-Gamma prior. Every arm needs at least three assigned units and one responder. Outcome observation must be ignorable given arm and the declared complete pre-assignment covariates; the arm-wise linear-logit observation model must be correctly specified and positive (a responder probability at or below 0.02, separation or singularity refuses). The observation-model score correction enters the pseudo-outcome spread, but its coefficients have no posterior. This is a modular pseudo-posterior conditional on that fitted observation model, not a joint Bayesian outcome/missingness posterior. The prior shrinks the arm pseudo-means; an unshrunk pseudo-mean equals the post-stratified responder mean in saturated response strata. The equal-tailed 95% quantiles are pointwise and repeated-sampling calibration is unmeasured, not a prerequisite for this execution license. No finite-population, Bernoulli-likelihood, multi-arm, factorial, clustered, weighted-sampling, transferred-prior or simultaneous claim inherits this row. Retained source observations, covariates, assignments and prior replay the observation fit and the whole pseudo-posterior; edited source or posterior values are refused."
+
+[[license]]
+family = "randomized_effect"
+design = "complete"
+method = "gaussian_ipow_modular_posterior"
+inference_claim = "conditional_pseudo_posterior_pointwise_95_quantiles"
+assignment_unit = "unit"
+min_rows = 6
+min_assignment_units_per_arm = 3
+min_action_rows = 3
+min_reported_intervals = 1
+all_reported_intervals = true
+known_truth_test = "crates/antecedent/tests/bayesian_randomized_routes.rs::licensed_ipow_posterior_recovers_the_causal_target_and_declared_prior_update"
+retained_route_test = "crates/antecedent/tests/bayesian_randomized_routes.rs::licensed_ipow_posterior_replays_after_the_builder_is_dropped"
+limitations = "Two-arm complete randomization of independent units, known identical per-unit assignment probabilities, ITT superpopulation contrast, Gaussian working likelihood on score-adjusted inverse-probability-of-observation pseudo-outcomes, and an explicitly declared proper Normal-Inverse-Gamma prior. Every arm needs at least three assigned units and one responder. Outcome observation must be ignorable given arm and the declared complete pre-assignment covariates; the arm-wise linear-logit observation model must be correctly specified and positive (a responder probability at or below 0.02, separation or singularity refuses). The observation-model score correction enters the pseudo-outcome spread, but its coefficients have no posterior. This is a modular pseudo-posterior conditional on that fitted observation model, not a joint Bayesian outcome/missingness posterior. The prior shrinks the arm pseudo-means; an unshrunk pseudo-mean equals the post-stratified responder mean in saturated response strata. The equal-tailed 95% quantiles are pointwise and repeated-sampling calibration is unmeasured, not a prerequisite for this execution license. No finite-population, Bernoulli-likelihood, multi-arm, factorial, clustered, weighted-sampling, transferred-prior or simultaneous claim inherits this row. Retained source observations, covariates, assignments and prior replay the observation fit and the whole pseudo-posterior; edited source or posterior values are refused."

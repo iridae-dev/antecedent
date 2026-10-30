@@ -188,12 +188,22 @@ for a non-responder), with the observation model fitted within each assignment g
 variance is computed on pseudo-outcomes that carry the influence of the fitted response model (stacked M-estimation), so estimating the response probabilities is accounted for; across strata or clusters the shared coefficients are treated as independent between blocks.
 CUPED, ANCOVA and receipt-adjusted fits read further per-unit inputs and refuse.
 
-Under Bayesian inference, `inverse_probability` runs the arm-contrast posterior on the same
-pseudo-outcomes: each arm's Normal-Inverse-Gamma update reads every assigned unit's weighted
-outcome as a design weight, so the posterior mean is the Hajek responder mean and its spread is
-the influence-function spread. It needs `estimator="bayesian.randomized_superpopulation"` and a
-Gaussian arm model; the finite-population estimand and Beta-Bernoulli arms are refused. The
-observation model is estimated, not given a posterior, and the route is unlicensed.
+Under Bayesian inference, `inverse_probability` has a graphless license for two-arm
+Bernoulli and complete randomization with `estimator="bayesian.randomized_superpopulation"`
+and a proper Gaussian Normal-Inverse-Gamma arm prior. Every assigned unit contributes its
+score-adjusted `R Y / pi` pseudo-outcome to the Gaussian working likelihood. The observation
+model is fitted and held fixed; its score correction enters the pseudo-outcome spread, but
+its coefficients do not receive a posterior. This is a modular pseudo-posterior conditional
+on the fitted observation model. Its license covers pointwise 95% posterior quantiles under
+the declared MAR, positivity and correct logistic-model assumptions; repeated-sampling
+calibration remains **unmeasured**.
+
+The prior shrinks each arm's pseudo-mean, so the posterior mean is not exactly a Hajek
+responder mean. With saturated response strata the unshrunk pseudo-mean equals the
+post-stratified responder mean. Retained results include source outcomes, response indicators,
+covariates, assignment and prior so the consumer can replay the observation fit and posterior.
+Other Bayesian IPW designs, the finite-population estimand and Beta-Bernoulli arm models
+refuse rather than execute outside this license.
 
 **Panel difference-in-differences, `balanced_panel`.** Units with a missing outcome in any
 period are dropped whole; single unit-periods are never deleted, so no unit is relabelled and

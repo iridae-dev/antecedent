@@ -76,7 +76,7 @@ pub use antecedent_io_core::{
     TemporalPolicyWire, TemporalResponseSpecWire, TransportFactorView, TransportIdentityWire,
     TransportProofStepView, TransportProofView, TransportQueryWire, UncertaintyComponentWire,
     UncertaintySlotWire, UnitEffectIntervalsWire, UnitEffectsWire, UpliftBinWire, ValueTypeWire,
-    ValueWire, VariableSchemaWire, accept_claim, admg_from_dot, admg_from_gml, admg_from_json,
+    ValueWire, VariableSchemaWire, admg_from_dot, admg_from_gml, admg_from_json,
     admg_from_networkx_node_link, admg_from_wire, admg_identity, admg_to_dot, admg_to_gml,
     admg_to_json, admg_to_networkx_node_link, admg_to_wire, analysis_result_artifact,
     artifact_codec, assumptions_to_wire, attach_prior_source_meta, attested_external_estimate,
@@ -85,9 +85,8 @@ pub use antecedent_io_core::{
     causal_query_to_wire_with_registry, causal_response_from_wire, causal_response_to_wire,
     checked_aipw_rows_digest, claim_digest, claim_domain_statuses,
     claim_domain_statuses_of_section, claim_domains, claim_domains_of_section, claim_kind,
-    claim_kind_name, claim_kind_name_of_section, claim_kind_of_section, compact_export,
-    consume_analysis_result, consume_analysis_result_within, container, container_kind,
-    contract_seal, contract_section, contract_wire, contrast_wire, convert,
+    claim_kind_name, claim_kind_name_of_section, claim_kind_of_section, compact_export, container,
+    container_kind, contract_seal, contract_section, contract_wire, contrast_wire, convert,
     counterfactual_id_artifact, counterfactual_transport_wire, coverage_records_data,
     cpdag_from_dot, cpdag_from_gml, cpdag_from_json, cpdag_from_networkx_node_link,
     cpdag_from_wire, cpdag_identity, cpdag_to_dot, cpdag_to_gml, cpdag_to_json,
@@ -96,12 +95,11 @@ pub use antecedent_io_core::{
     dag_identity, dag_json_from_str, dag_to_dot, dag_to_gml, dag_to_json,
     dag_to_networkx_adjacency, dag_to_networkx_node_link, dag_to_wire, dag_wire_from_dot,
     dag_wire_from_gml, dag_wire_to_dot, dag_wire_to_gml, data_snapshot_digest,
-    decode_analysis_result_artifact, decode_analysis_result_contract,
-    decode_causal_payload_artifact, decode_container, decode_external_estimate_claim,
-    decode_posterior_artifact, decode_posterior_meta_from_path, decode_posterior_meta_from_seek,
-    decode_prior_source_meta, decode_with_version, diagnostic_from_wire, diagnostic_to_wire,
-    digest_canonical, digest_hex, digest_wire, discovery_wire, distribution_artifact,
-    distribution_replay, encode_analysis_result_artifact,
+    decode_analysis_result_contract, decode_causal_payload_artifact, decode_container,
+    decode_external_estimate_claim, decode_posterior_artifact, decode_posterior_meta_from_path,
+    decode_posterior_meta_from_seek, decode_prior_source_meta, decode_with_version,
+    diagnostic_from_wire, diagnostic_to_wire, digest_canonical, digest_hex, digest_wire,
+    discovery_wire, distribution_artifact, distribution_replay, encode_analysis_result_artifact,
     encode_analysis_result_artifact_with_contract, encode_causal_payload_artifact,
     encode_container, encode_external_estimate_claim, encode_posterior_artifact,
     encode_prior_source_meta, error, exact_law_wire, executed_functional_labels, execution_digest,
@@ -171,8 +169,8 @@ pub mod cyclic_functional;
 pub mod cyclic_gaussian_functional;
 pub mod cyclic_graph;
 pub mod cyclic_system_artifact;
-pub mod external_cyclic_artifact;
 mod distribution_factor_laws;
+pub mod external_cyclic_artifact;
 pub use distribution_factor_laws::distribution_factor_laws_to_wire;
 pub mod joint_bayesian_transport_artifact;
 pub mod learned_joint_transport_artifact;
@@ -537,3 +535,12 @@ pub mod joint_panel_artifact;
 
 /// Exact conditional experimental update and historical frozen-panel replay.
 pub mod joint_panel_experiment_artifact;
+
+/// Exact source and scope of randomized-arm IPW pseudo-posteriors.
+pub use antecedent_io_core::randomized_ipow_wire;
+/// Whole-procedure numerical replay of licensed randomized-arm IPW results.
+pub mod randomized_ipow_artifact;
+pub use randomized_ipow_artifact::{
+    accept_claim, consume_analysis_result, consume_analysis_result_within,
+    decode_analysis_result_artifact,
+};

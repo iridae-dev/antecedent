@@ -775,6 +775,7 @@ impl core::clone::Clone for antecedent_io_core::query_wire::StochasticPolicyWire
 impl core::clone::Clone for antecedent_io_core::query_wire::SurvivalQueryWire
 impl core::clone::Clone for antecedent_io_core::query_wire::SyntheticControlQueryWire
 impl core::clone::Clone for antecedent_io_core::query_wire::ValueExprWire
+impl core::clone::Clone for antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire
 impl core::clone::Clone for antecedent_io_core::recalc_receipt_artifact::CapabilitiesWire
 impl core::clone::Clone for antecedent_io_core::recalc_receipt_artifact::CountsWire
 impl core::clone::Clone for antecedent_io_core::recalc_receipt_artifact::DeclaredStageWire
@@ -1992,6 +1993,7 @@ impl core::cmp::PartialEq for antecedent_io_core::query_wire::StochasticPolicyWi
 impl core::cmp::PartialEq for antecedent_io_core::query_wire::SurvivalQueryWire
 impl core::cmp::PartialEq for antecedent_io_core::query_wire::SyntheticControlQueryWire
 impl core::cmp::PartialEq for antecedent_io_core::query_wire::ValueExprWire
+impl core::cmp::PartialEq for antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire
 impl core::cmp::PartialEq for antecedent_io_core::recalc_receipt_artifact::CapabilitiesWire
 impl core::cmp::PartialEq for antecedent_io_core::recalc_receipt_artifact::CountsWire
 impl core::cmp::PartialEq for antecedent_io_core::recalc_receipt_artifact::DeclaredStageWire
@@ -2965,6 +2967,7 @@ impl core::fmt::Debug for antecedent_io_core::query_wire::StochasticPolicyWire
 impl core::fmt::Debug for antecedent_io_core::query_wire::SurvivalQueryWire
 impl core::fmt::Debug for antecedent_io_core::query_wire::SyntheticControlQueryWire
 impl core::fmt::Debug for antecedent_io_core::query_wire::ValueExprWire
+impl core::fmt::Debug for antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire
 impl core::fmt::Debug for antecedent_io_core::recalc_receipt_artifact::CapabilitiesWire
 impl core::fmt::Debug for antecedent_io_core::recalc_receipt_artifact::CountsWire
 impl core::fmt::Debug for antecedent_io_core::recalc_receipt_artifact::DeclaredStageWire
@@ -3964,6 +3967,7 @@ impl core::marker::Freeze for antecedent_io_core::query_wire::StochasticPolicyWi
 impl core::marker::Freeze for antecedent_io_core::query_wire::SurvivalQueryWire [auto]
 impl core::marker::Freeze for antecedent_io_core::query_wire::SyntheticControlQueryWire [auto]
 impl core::marker::Freeze for antecedent_io_core::query_wire::ValueExprWire [auto]
+impl core::marker::Freeze for antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire [auto]
 impl core::marker::Freeze for antecedent_io_core::recalc_receipt_artifact::CapabilitiesWire [auto]
 impl core::marker::Freeze for antecedent_io_core::recalc_receipt_artifact::CountsWire [auto]
 impl core::marker::Freeze for antecedent_io_core::recalc_receipt_artifact::DeclaredStageWire [auto]
@@ -4789,6 +4793,7 @@ impl core::marker::Send for antecedent_io_core::query_wire::StochasticPolicyWire
 impl core::marker::Send for antecedent_io_core::query_wire::SurvivalQueryWire [auto]
 impl core::marker::Send for antecedent_io_core::query_wire::SyntheticControlQueryWire [auto]
 impl core::marker::Send for antecedent_io_core::query_wire::ValueExprWire [auto]
+impl core::marker::Send for antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire [auto]
 impl core::marker::Send for antecedent_io_core::recalc_receipt_artifact::CapabilitiesWire [auto]
 impl core::marker::Send for antecedent_io_core::recalc_receipt_artifact::CountsWire [auto]
 impl core::marker::Send for antecedent_io_core::recalc_receipt_artifact::DeclaredStageWire [auto]
@@ -5567,6 +5572,7 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::query_wire::Stoch
 impl core::marker::StructuralPartialEq for antecedent_io_core::query_wire::SurvivalQueryWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::query_wire::SyntheticControlQueryWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::query_wire::ValueExprWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::recalc_receipt_artifact::CapabilitiesWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::recalc_receipt_artifact::CountsWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::recalc_receipt_artifact::DeclaredStageWire
@@ -6383,6 +6389,7 @@ impl core::marker::Sync for antecedent_io_core::query_wire::StochasticPolicyWire
 impl core::marker::Sync for antecedent_io_core::query_wire::SurvivalQueryWire [auto]
 impl core::marker::Sync for antecedent_io_core::query_wire::SyntheticControlQueryWire [auto]
 impl core::marker::Sync for antecedent_io_core::query_wire::ValueExprWire [auto]
+impl core::marker::Sync for antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire [auto]
 impl core::marker::Sync for antecedent_io_core::recalc_receipt_artifact::CapabilitiesWire [auto]
 impl core::marker::Sync for antecedent_io_core::recalc_receipt_artifact::CountsWire [auto]
 impl core::marker::Sync for antecedent_io_core::recalc_receipt_artifact::DeclaredStageWire [auto]
@@ -7209,6 +7216,7 @@ impl core::marker::Unpin for antecedent_io_core::query_wire::StochasticPolicyWir
 impl core::marker::Unpin for antecedent_io_core::query_wire::SurvivalQueryWire [auto]
 impl core::marker::Unpin for antecedent_io_core::query_wire::SyntheticControlQueryWire [auto]
 impl core::marker::Unpin for antecedent_io_core::query_wire::ValueExprWire [auto]
+impl core::marker::Unpin for antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire [auto]
 impl core::marker::Unpin for antecedent_io_core::recalc_receipt_artifact::CapabilitiesWire [auto]
 impl core::marker::Unpin for antecedent_io_core::recalc_receipt_artifact::CountsWire [auto]
 impl core::marker::Unpin for antecedent_io_core::recalc_receipt_artifact::DeclaredStageWire [auto]
@@ -8035,6 +8043,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::query_wire:
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::query_wire::SurvivalQueryWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::query_wire::SyntheticControlQueryWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::query_wire::ValueExprWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::recalc_receipt_artifact::CapabilitiesWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::recalc_receipt_artifact::CountsWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::recalc_receipt_artifact::DeclaredStageWire [auto]
@@ -8860,6 +8869,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::query_wire::St
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::query_wire::SurvivalQueryWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::query_wire::SyntheticControlQueryWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::query_wire::ValueExprWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::recalc_receipt_artifact::CapabilitiesWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::recalc_receipt_artifact::CountsWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::recalc_receipt_artifact::DeclaredStageWire [auto]
@@ -9521,6 +9531,7 @@ impl serde_core::ser::Serialize for antecedent_io_core::query_wire::StochasticPo
 impl serde_core::ser::Serialize for antecedent_io_core::query_wire::SurvivalQueryWire
 impl serde_core::ser::Serialize for antecedent_io_core::query_wire::SyntheticControlQueryWire
 impl serde_core::ser::Serialize for antecedent_io_core::query_wire::ValueExprWire
+impl serde_core::ser::Serialize for antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire
 impl serde_core::ser::Serialize for antecedent_io_core::recalc_receipt_artifact::CapabilitiesWire
 impl serde_core::ser::Serialize for antecedent_io_core::recalc_receipt_artifact::CountsWire
 impl serde_core::ser::Serialize for antecedent_io_core::recalc_receipt_artifact::DeclaredStageWire
@@ -10262,6 +10273,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::query_wire::S
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::query_wire::SurvivalQueryWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::query_wire::SyntheticControlQueryWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::query_wire::ValueExprWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::recalc_receipt_artifact::CapabilitiesWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::recalc_receipt_artifact::CountsWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::recalc_receipt_artifact::DeclaredStageWire
@@ -10603,6 +10615,10 @@ pub const antecedent_io_core::provider_verification_artifact::MAX_PROBES_PER_REQ
 pub const antecedent_io_core::provider_verification_artifact::MAX_PROVIDER_VERIFICATION_ARTIFACT_BYTES: usize
 pub const antecedent_io_core::provider_verification_artifact::MAX_VERIFIED_REQUESTS: usize
 pub const antecedent_io_core::quantity_wire::QUANTITY_WIRE_VERSION: u16
+pub const antecedent_io_core::randomized_ipow_wire::CLAIM: &str
+pub const antecedent_io_core::randomized_ipow_wire::ESTIMATOR: &str
+pub const antecedent_io_core::randomized_ipow_wire::METHOD: &str
+pub const antecedent_io_core::randomized_ipow_wire::TARGET: &str
 pub const antecedent_io_core::recalc_receipt_artifact::MAX_RECALC_RECEIPT_ARTIFACT_BYTES: usize
 pub const antecedent_io_core::recalc_receipt_artifact::MAX_RECALC_RECEIPT_STAGES: usize
 pub const antecedent_io_core::recalc_receipt_artifact::RECALC_RECEIPT_ARTIFACT_FEATURE: &str
@@ -11405,11 +11421,18 @@ pub field antecedent_io_core::HistoryMatchWire::calibration: alloc::string::Stri
 pub field antecedent_io_core::HistoryMatchWire::caliper: core::option::Option<f64>
 pub field antecedent_io_core::HistoryMatchWire::contrast: f64
 pub field antecedent_io_core::HistoryMatchWire::differences: alloc::vec::Vec<f64>
+pub field antecedent_io_core::HistoryMatchWire::donor_variances: alloc::vec::Vec<f64>
+pub field antecedent_io_core::HistoryMatchWire::interval_lower: core::option::Option<f64>
+pub field antecedent_io_core::HistoryMatchWire::interval_upper: core::option::Option<f64>
 pub field antecedent_io_core::HistoryMatchWire::licensed: bool
 pub field antecedent_io_core::HistoryMatchWire::matched_donors: alloc::vec::Vec<usize>
 pub field antecedent_io_core::HistoryMatchWire::matched_queries: alloc::vec::Vec<usize>
+pub field antecedent_io_core::HistoryMatchWire::pair_periods: alloc::vec::Vec<i64>
 pub field antecedent_io_core::HistoryMatchWire::pair_weights: alloc::vec::Vec<f64>
 pub field antecedent_io_core::HistoryMatchWire::periods_matched: usize
+pub field antecedent_io_core::HistoryMatchWire::query_variances: alloc::vec::Vec<f64>
+pub field antecedent_io_core::HistoryMatchWire::serial_bandwidth: usize
+pub field antecedent_io_core::HistoryMatchWire::serial_standard_error: core::option::Option<f64>
 pub field antecedent_io_core::HistoryMatchWire::standard_error: core::option::Option<f64>
 pub field antecedent_io_core::HistoryMatchWire::uncertainty: alloc::string::String
 pub field antecedent_io_core::HistoryMatchWire::unmatched_treated: alloc::vec::Vec<usize>
@@ -11811,6 +11834,7 @@ pub field antecedent_io_core::PosteriorRowWire::extras: alloc::collections::btre
 pub field antecedent_io_core::PosteriorRowWire::licensed: bool
 pub field antecedent_io_core::PosteriorRowWire::lower: alloc::vec::Vec<f64>
 pub field antecedent_io_core::PosteriorRowWire::mean: alloc::vec::Vec<f64>
+pub field antecedent_io_core::PosteriorRowWire::randomized_ipow: core::option::Option<antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire>
 pub field antecedent_io_core::PosteriorRowWire::target: alloc::string::String
 pub field antecedent_io_core::PosteriorRowWire::uncertainty: alloc::string::String
 pub field antecedent_io_core::PosteriorRowWire::upper: alloc::vec::Vec<f64>
@@ -13714,6 +13738,14 @@ pub field antecedent_io_core::query_wire::SyntheticControlQueryWire::sharp_null_
 pub field antecedent_io_core::query_wire::SyntheticControlQueryWire::treated_unit: alloc::string::String
 pub field antecedent_io_core::query_wire::SyntheticControlQueryWire::uniform_unit_randomization: bool
 pub field antecedent_io_core::query_wire::SyntheticControlQueryWire::units: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire::assignment: alloc::vec::Vec<usize>
+pub field antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire::contrasts: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire::covariate_ids: alloc::vec::Vec<u32>
+pub field antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire::covariates: alloc::vec::Vec<f64>
+pub field antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire::design: alloc::string::String
+pub field antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire::outcomes: alloc::vec::Vec<core::option::Option<f64>>
+pub field antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire::prior: [f64; 4]
+pub field antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire::probabilities: alloc::vec::Vec<alloc::vec::Vec<f64>>
 pub field antecedent_io_core::recalc_receipt_artifact::CapabilitiesWire::boundary: alloc::string::String
 pub field antecedent_io_core::recalc_receipt_artifact::CapabilitiesWire::licensed_route: core::option::Option<alloc::string::String>
 pub field antecedent_io_core::recalc_receipt_artifact::CapabilitiesWire::request: alloc::string::String
@@ -15038,6 +15070,10 @@ pub fn <antecedent_io_core::query_wire::ValueExprWire>::fn from_domain(expr: &an
 pub fn <antecedent_io_core::query_wire::ValueExprWire>::fn from_domain_recoverable(expr: &antecedent_core::value_expr::ValueExpr) -> core::result::Result<Self, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::query_wire::ValueExprWire>::fn to_domain(&self) -> antecedent_core::value_expr::ValueExpr
 pub fn <antecedent_io_core::query_wire::ValueExprWire>::fn to_domain_with<E>(&self, resolve: &mut antecedent_io_core::query_wire::ResolveCallback<'_, E>) -> core::result::Result<antecedent_core::value_expr::ValueExpr, E>
+pub fn <antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire>::fn key(&self) -> antecedent_io_core::graphless_support::GraphlessSupportKey<'_>
+pub fn <antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire>::fn licensed(&self, intervals: usize) -> bool
+pub fn <antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire>::fn prior_identity(&self) -> alloc::string::String
+pub fn <antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire>::fn validate_query(&self, query: &antecedent_io_core::RandomizedEffectQueryWire, coordinates: &[alloc::string::String], variables: usize) -> core::result::Result<(), antecedent_io_core::IoError>
 pub fn <antecedent_io_core::recalc_receipt_artifact::CapabilitiesWire>::fn from_capabilities(capabilities: &antecedent_core::recalc::RecalcCapabilities) -> Self
 pub fn <antecedent_io_core::recalc_receipt_artifact::CapabilitiesWire>::fn to_capabilities(&self) -> core::result::Result<antecedent_core::recalc::RecalcCapabilities, antecedent_io_core::recalc_receipt_artifact::RecalcReceiptArtifactError>
 pub fn <antecedent_io_core::recalc_receipt_artifact::CountsWire>::const fn as_array(&self) -> [u64; 5]
@@ -15636,6 +15672,7 @@ pub mod antecedent_io_core::provider_replay
 pub mod antecedent_io_core::provider_verification_artifact
 pub mod antecedent_io_core::quantity_wire
 pub mod antecedent_io_core::query_wire
+pub mod antecedent_io_core::randomized_ipow_wire
 pub mod antecedent_io_core::reader
 pub mod antecedent_io_core::recalc_receipt_artifact
 pub mod antecedent_io_core::replay_tolerance
@@ -16225,6 +16262,7 @@ pub struct antecedent_io_core::query_wire::SequencedInterventionWire
 pub struct antecedent_io_core::query_wire::SequentialContrastQueryWire
 pub struct antecedent_io_core::query_wire::SurvivalQueryWire
 pub struct antecedent_io_core::query_wire::SyntheticControlQueryWire
+pub struct antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire
 pub struct antecedent_io_core::recalc_receipt_artifact::CapabilitiesWire
 pub struct antecedent_io_core::recalc_receipt_artifact::CountsWire
 pub struct antecedent_io_core::recalc_receipt_artifact::DeclaredStageWire
