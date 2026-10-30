@@ -105,7 +105,8 @@ impl JointGaussian {
     /// # Errors
     /// An unknown or repeated variable, a value that is not finite, or an
     /// observed block that is singular (an intervened or deterministic
-    /// coordinate has no conditional law given a value other than its own).
+    /// coordinate has no conditional law given a value other than its own), or
+    /// a conditional mean or covariance that cannot be represented as a finite `f64`.
     pub fn condition(
         &self,
         observed: &[(&str, f64)],
@@ -133,6 +134,9 @@ impl JointGaussian {
         let remaining: Vec<String> = rest.iter().map(|&i| self.variables[i].clone()).collect();
         let named: Vec<(String, f64)> =
             evidence.iter().map(|&(i, x)| (self.variables[i].clone(), x)).collect();
+        if self.mean.iter().chain(&self.covariance).any(|value| !value.is_finite()) {
+            return Err(GaussianConditioningError::Unrepresentable);
+        }
         if k == 0 {
             return Ok(ConditionedGaussian {
                 variables: remaining,
@@ -150,35 +154,46 @@ impl JointGaussian {
             }
         }
         let factor = cholesky_lower(&s_oo, k).ok_or(GaussianConditioningError::SingularEvidence)?;
-        let residual: Vec<f64> = evidence.iter().map(|&(i, x)| x - self.mean[i]).collect();
-        // z = L^-1 r gives the Mahalanobis term; w = S_oo^-1 r gives the mean shift.
+        // Exponent-tracked residual and solves avoid overflowing intermediates
+        // when the final Gaussian functional is representable.
+        let residual: Vec<Wide> = evidence.iter().map(|&(i, x)|
+            Wide::sum(vec![Wide::from_finite(x), Wide::from_finite(-self.mean[i])])
+        ).collect();
         let z = forward_solve(&factor, k, &residual);
         let w = backward_solve(&factor, k, &z);
-        let mahalanobis: f64 = z.iter().map(|v| v * v).sum();
+        let mahalanobis = Wide::sum(z.iter().map(|v| v.mul(*v)).collect());
         let log_det: f64 = (0..k).map(|i| factor[i * k + i].ln()).sum::<f64>() * 2.0;
-        let evidence_log_density =
-            -0.5 * (k as f64 * (2.0 * std::f64::consts::PI).ln() + log_det + mahalanobis);
+        let evidence_log_density = Wide::sum(vec![
+            Wide::from_finite(k as f64 * (2.0 * std::f64::consts::PI).ln()),
+            Wide::from_finite(log_det),
+            mahalanobis,
+        ]).mul(Wide::from_finite(-0.5)).to_f64();
         let mut mean = vec![0.0_f64; m];
         for (r, &ir) in rest.iter().enumerate() {
-            let shift: f64 =
-                evidence.iter().enumerate().map(|(a, &(ia, _))| cov(ir, ia) * w[a]).sum();
-            mean[r] = self.mean[ir] + shift;
+            let mut terms = Vec::with_capacity(k + 1);
+            terms.push(Wide::from_finite(self.mean[ir]));
+            for (a, &(ia, _)) in evidence.iter().enumerate() {
+                terms.push(Wide::from_finite(cov(ir, ia)).mul(w[a]));
+            }
+            mean[r] = Wide::sum(terms).to_f64();
+            if !mean[r].is_finite() { return Err(GaussianConditioningError::Unrepresentable); }
         }
-        // A = S_oo^-1 S_or, one column per remaining variable.
-        let mut a_columns: Vec<Vec<f64>> = Vec::with_capacity(m);
+        // A = S_oo^-1 S_or, one exponent-tracked column per remaining variable.
+        let mut a_columns: Vec<Vec<Wide>> = Vec::with_capacity(m);
         for &ir in &rest {
-            let column: Vec<f64> = evidence.iter().map(|&(ia, _)| cov(ia, ir)).collect();
+            let column: Vec<Wide> = evidence.iter().map(|&(ia, _)| Wide::from_finite(cov(ia, ir))).collect();
             a_columns.push(backward_solve(&factor, k, &forward_solve(&factor, k, &column)));
         }
         let mut covariance = vec![0.0_f64; m * m];
         for (r, &ir) in rest.iter().enumerate() {
             for (c, &ic) in rest.iter().enumerate().take(r + 1) {
-                let reduction: f64 = evidence
-                    .iter()
-                    .enumerate()
-                    .map(|(a, &(ia, _))| cov(ir, ia) * a_columns[c][a])
-                    .sum();
-                let value = cov(ir, ic) - reduction;
+                let mut terms = Vec::with_capacity(k + 1);
+                terms.push(Wide::from_finite(cov(ir, ic)));
+                for (a, &(ia, _)) in evidence.iter().enumerate() {
+                    terms.push(Wide::from_finite(-cov(ir, ia)).mul(a_columns[c][a]));
+                }
+                let value = Wide::sum(terms).to_f64();
+                if !value.is_finite() { return Err(GaussianConditioningError::Unrepresentable); }
                 covariance[r * m + c] = value;
                 covariance[c * m + r] = value;
             }
@@ -209,6 +224,9 @@ pub enum GaussianConditioningError {
     /// The covariance of the observed block is not positive definite.
     #[error("the covariance of the observed block is singular")]
     SingularEvidence,
+    /// A mathematically defined conditional output is outside finite `f64` range.
+    #[error("the Gaussian conditional output is not representable as a finite number")]
+    Unrepresentable,
 }
 
 /// The Gaussian law of the unobserved variables after conditioning, with the
@@ -321,36 +339,83 @@ pub(crate) fn cholesky_lower(a: &[f64], n: usize) -> Option<Vec<f64>> {
     Some(l)
 }
 
-/// Solve `L z = b` for lower-triangular `L`.
-#[allow(
-    clippy::needless_range_loop,
-    reason = "dense triangular algebra indexes several row-major buffers by the same position"
-)]
-fn forward_solve(l: &[f64], n: usize, b: &[f64]) -> Vec<f64> {
-    let mut z = vec![0.0_f64; n];
-    for i in 0..n {
-        let mut sum = b[i];
-        for k in 0..i {
-            sum -= l[i * n + k] * z[k];
+// A signed binary significand and extended exponent. This carries finite input
+// values beyond f64's exponent range without imposing a new magnitude limit.
+#[derive(Clone, Copy, Debug)]
+struct Wide { mantissa: f64, exponent: i32 }
+impl Wide {
+    fn from_finite(value: f64) -> Self {
+        if value == 0.0 { return Self { mantissa: 0.0, exponent: 0 }; }
+        let bits = value.to_bits();
+        let raw = ((bits >> 52) & 0x7ff) as i32;
+        if raw == 0 {
+            let mut scaled = Self::from_finite(value * 18_014_398_509_481_984.0); // 2^54
+            scaled.exponent -= 54;
+            return scaled;
         }
-        z[i] = sum / l[i * n + i];
+        let sign = bits & (1_u64 << 63);
+        let significand = sign | (1023_u64 << 52) | (bits & ((1_u64 << 52) - 1));
+        Self { mantissa: f64::from_bits(significand), exponent: raw - 1023 }
+    }
+    fn normalized(mantissa: f64, exponent: i32) -> Self {
+        if mantissa == 0.0 { return Self { mantissa: 0.0, exponent: 0 }; }
+        let mut result = Self::from_finite(mantissa);
+        result.exponent += exponent;
+        result
+    }
+    fn mul(self, other: Self) -> Self {
+        Self::normalized(self.mantissa * other.mantissa, self.exponent + other.exponent)
+    }
+    fn div(self, other: Self) -> Self {
+        Self::normalized(self.mantissa / other.mantissa, self.exponent - other.exponent)
+    }
+    fn neg(self) -> Self { Self { mantissa: -self.mantissa, exponent: self.exponent } }
+    fn add(self, other: Self) -> Self {
+        if self.mantissa == 0.0 { return other; }
+        if other.mantissa == 0.0 { return self; }
+        let (large, small) = if self.exponent >= other.exponent { (self, other) } else { (other, self) };
+        let difference = large.exponent - small.exponent;
+        let scaled = if difference > 1074 { 0.0 } else if difference > 1022 {
+            (small.mantissa * 2.0_f64.powi(-(difference - 1022))) * 2.0_f64.powi(-1022)
+        } else { small.mantissa * 2.0_f64.powi(-difference) };
+        Self::normalized(large.mantissa + scaled, large.exponent)
+    }
+    // Larger terms cancel before smaller terms are added, retaining a small
+    // intercept after equal and opposite huge shifts.
+    fn sum(mut values: Vec<Self>) -> Self {
+        values.sort_by(|a, b| b.exponent.cmp(&a.exponent));
+        values.into_iter().fold(Self { mantissa: 0.0, exponent: 0 }, Self::add)
+    }
+    fn to_f64(self) -> f64 {
+        if self.mantissa == 0.0 { return self.mantissa; }
+        if self.exponent > 1023 { return self.mantissa.signum() * f64::INFINITY; }
+        if self.exponent < -1075 { return self.mantissa.signum() * 0.0; }
+        if self.exponent < -1022 {
+            (self.mantissa * 2.0_f64.powi(self.exponent + 1022)) * 2.0_f64.powi(-1022)
+        } else { self.mantissa * 2.0_f64.powi(self.exponent) }
+    }
+}
+
+/// Solve `L z = b` without narrowing intermediate results to f64's exponent range.
+fn forward_solve(l: &[f64], n: usize, b: &[Wide]) -> Vec<Wide> {
+    let mut z = vec![Wide::from_finite(0.0); n];
+    for i in 0..n {
+        let mut terms = Vec::with_capacity(i + 1);
+        terms.push(b[i]);
+        for k in 0..i { terms.push(Wide::from_finite(l[i * n + k]).mul(z[k]).neg()); }
+        z[i] = Wide::sum(terms).div(Wide::from_finite(l[i * n + i]));
     }
     z
 }
 
-/// Solve `L' x = z` for lower-triangular `L`.
-#[allow(
-    clippy::needless_range_loop,
-    reason = "dense triangular algebra indexes several row-major buffers by the same position"
-)]
-fn backward_solve(l: &[f64], n: usize, z: &[f64]) -> Vec<f64> {
-    let mut x = vec![0.0_f64; n];
+/// Solve `L' x = z` in the same extended range.
+fn backward_solve(l: &[f64], n: usize, z: &[Wide]) -> Vec<Wide> {
+    let mut x = vec![Wide::from_finite(0.0); n];
     for i in (0..n).rev() {
-        let mut sum = z[i];
-        for k in (i + 1)..n {
-            sum -= l[k * n + i] * x[k];
-        }
-        x[i] = sum / l[i * n + i];
+        let mut terms = Vec::with_capacity(n - i);
+        terms.push(z[i]);
+        for k in (i + 1)..n { terms.push(Wide::from_finite(l[k * n + i]).mul(x[k]).neg()); }
+        x[i] = Wide::sum(terms).div(Wide::from_finite(l[i * n + i]));
     }
     x
 }
@@ -813,6 +878,65 @@ impl ComposedLinearGaussian {
 #[cfg(test)]
 mod conditioning_scale_tests {
     use super::*;
+
+    #[test]
+    fn gaussian_conditional_mean_survives_overflow_and_refuses_unrepresentable_results() {
+        let residual_overflow = JointGaussian {
+            variables: vec!["x".into(), "y".into()], mean: vec![1e308, 0.0],
+            covariance: vec![1.0, 0.5, 0.5, 1.0],
+        };
+        let result = residual_overflow.condition(&[("x", -1e308)]).unwrap();
+        assert!((result.mean[0] / -1e308 - 1.0).abs() < 1e-14);
+        assert!((result.covariance[0] - 0.75).abs() < 1e-14);
+        assert_eq!(result.evidence_log_density, f64::NEG_INFINITY);
+
+        // Mahalanobis itself exceeds f64, but the final -1/2 log-density
+        // is representable; narrowing before the multiplication is incorrect.
+        let finite_log = JointGaussian {
+            variables: vec!["x".into(), "y".into()], mean: vec![0.0, 0.0],
+            covariance: vec![1.0, 0.0, 0.0, 1.0],
+        }.condition(&[("x", 1.4e154)]).unwrap();
+        assert!(finite_log.evidence_log_density.is_finite());
+        assert!((finite_log.evidence_log_density / -9.8e307 - 1.0).abs() < 1e-14);
+
+        let cancelling_shift = JointGaussian {
+            variables: vec!["x".into(), "y".into()], mean: vec![0.0, -1e308],
+            covariance: vec![1.0, 2.0, 2.0, 5.0],
+        };
+        let result = cancelling_shift.condition(&[("x", 1e308)]).unwrap();
+        assert!((result.mean[0] / 1e308 - 1.0).abs() < 1e-14);
+        assert!((result.covariance[0] - 1.0).abs() < 1e-14);
+        // Solving S^-1 r exceeds f64 even though its multiplication by the
+        // cross-covariance and the final conditional mean are finite.
+        let tiny_observed_variance = JointGaussian {
+            variables: vec!["x".into(), "y".into()], mean: vec![0.0, 0.0],
+            covariance: vec![1e-300, 1e-150, 1e-150, 2.0],
+        };
+        let result = tiny_observed_variance.condition(&[("x", 1e158)]).unwrap();
+        assert!((result.mean[0] / 1e308 - 1.0).abs() < 1e-12);
+        assert!((result.covariance[0] - 1.0).abs() < 1e-12);
+        let truly_unrepresentable = JointGaussian { mean: vec![0.0, 0.0], ..cancelling_shift };
+        assert_eq!(truly_unrepresentable.condition(&[("x", 1e308)]).unwrap_err(), GaussianConditioningError::Unrepresentable);
+    }
+
+    #[test]
+    fn gaussian_conditional_multi_observation_cancels_before_small_intercept() {
+        // Independent observed variables, cov(y,x1)=1 and cov(y,x2)=-1;
+        // the two huge shifts cancel and leave the exact intercept 3.
+        let law = JointGaussian {
+            variables: vec!["x1".into(), "x2".into(), "y".into()],
+            mean: vec![0.0, 0.0, 3.0],
+            covariance: vec![1.0, 0.0, 1.0, 0.0, 1.0, -1.0, 1.0, -1.0, 3.0],
+        };
+        let first = law.condition(&[("x1", 1e308), ("x2", 1e308)]).unwrap();
+        let reversed = law.condition(&[("x2", 1e308), ("x1", 1e308)]).unwrap();
+        assert_eq!(first.mean, vec![3.0]);
+        assert_eq!(first.covariance, vec![1.0]);
+        assert_eq!(first, reversed);
+        let ordinary = law.condition(&[("x1", 2.0), ("x2", -1.0)]).unwrap();
+        assert_eq!(ordinary.mean, vec![6.0]);
+        assert_eq!(ordinary.covariance, vec![1.0]);
+    }
 
     #[test]
     fn gaussian_conditioning_equilibrates_observed_covariance_units() {

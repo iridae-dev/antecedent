@@ -490,6 +490,11 @@ pub fn condition_gaussian(
             ObservationQueryError::Invalid("an observed value must be finite")
         }
         GaussianConditioningError::SingularEvidence => ObservationQueryError::EvidenceSingular,
+        GaussianConditioningError::Unrepresentable => {
+            ObservationQueryError::Composition(CompositionError::Numerical {
+                message: "the Gaussian conditional output is not representable as a finite number".into(),
+            })
+        }
     })?;
     let (Some(mean), Some(variance)) =
         (conditioned.mean_of(outcome), conditioned.variance_of(outcome))
