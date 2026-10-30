@@ -49,6 +49,7 @@ use antecedent_identify::sid::scenarios::ScenarioCoordinate;
 use serde::{Deserialize, Serialize};
 
 use crate::IoError;
+use crate::artifact_budget::ReplayWork;
 use crate::exact_law_wire::ExactLawWire;
 use crate::query_wire::ValueWire;
 use crate::transport_catalog_wire::EvidenceCatalogWire;
@@ -64,6 +65,27 @@ pub const CPDAG_COMPLETION_ARTIFACT_FEATURE: &str = "cpdag_completion_scenarios_
 
 /// Most completion records, laws or bindings a consumer accepts in one artifact.
 const MAX_STORED_ITEMS: usize = 4096;
+
+// Each insertion scans an adjacency list, and each directed insertion can also
+// initialize reachability scratch and scan both adjacency halves. Charge these
+// structural units before rebuilding an untrusted graph, independently of the
+// later completion-search budget. This is a planning bound, not a time estimate.
+fn admit_cpdag_reconstruction(
+    nodes: usize,
+    directed: usize,
+    undirected: usize,
+    limit: usize,
+) -> Result<(), CpdagArtifactError> {
+    let edges = directed.checked_add(undirected);
+    let mut work = ReplayWork::new();
+    work.add(&[directed, nodes]);
+    work.add(&[2, directed, directed]);
+    match edges {
+        Some(edges) => work.add(&[edges, edges]),
+        None => return Err(CpdagArtifactError::LimitsExceeded("cpdag reconstruction work")),
+    }
+    work.admit(limit).map_err(|_| CpdagArtifactError::LimitsExceeded("cpdag reconstruction work"))
+}
 
 /// Why a completion artifact was refused.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -231,12 +253,14 @@ impl CompletionCpdagWire {
     /// Rebuild the CPDAG (nodes added in ascending variable order).
     ///
     /// # Errors
-    /// More nodes than the artifact may store, a repeated variable, or an
-    /// edge naming a variable that is not a node.
+    /// More nodes than the artifact may store, reconstruction work above the
+    /// default replay allowance, a repeated variable, or an edge naming a
+    /// variable that is not a node.
     pub fn to_cpdag(&self) -> Result<Cpdag, IoError> {
         if self.variables.len() > MAX_STORED_ITEMS {
             return Err(CpdagArtifactError::LimitsExceeded("cpdag node count").into());
         }
+        self.check_reconstruction_work()?;
         let mut graph = Cpdag::empty();
         let mut ids = BTreeMap::new();
         for raw in &self.variables {
@@ -263,6 +287,15 @@ impl CompletionCpdagWire {
                 .map_err(|e| IoError::Convert(e.to_string()))?;
         }
         Ok(graph)
+    }
+
+    fn check_reconstruction_work(&self) -> Result<(), CpdagArtifactError> {
+        admit_cpdag_reconstruction(
+            self.variables.len(),
+            self.directed.len(),
+            self.undirected.len(),
+            antecedent_io_core::distribution_replay::MAX_REPLAY_OPERATIONS,
+        )
     }
 }
 
@@ -752,6 +785,7 @@ impl CpdagCompletionArtifactWire {
         if self.cpdag.variables.len() > MAX_STORED_ITEMS {
             return Err(exceeded("cpdag node count"));
         }
+        self.cpdag.check_reconstruction_work()?;
         if self.report.completions.len() > MAX_STORED_ITEMS
             || self.evidence.bindings.len() > MAX_STORED_ITEMS
         {
@@ -846,5 +880,19 @@ impl CpdagCompletionArtifactWire {
             return Err(CpdagArtifactError::ReportMismatch.into());
         }
         Ok((wire, report))
+    }
+}
+
+#[cfg(test)]
+mod reconstruction_budget_tests {
+    use super::admit_cpdag_reconstruction;
+
+    #[test]
+    fn reconstruction_work_checks_boundary_and_overflow() {
+        // 1 * 3 nodes + 2 * 1 directed^2 + 2 total edges^2 = 9.
+        assert!(admit_cpdag_reconstruction(3, 1, 1, 9).is_ok());
+        assert!(admit_cpdag_reconstruction(3, 1, 1, 8).is_err());
+        assert!(admit_cpdag_reconstruction(1, usize::MAX, 1, usize::MAX).is_err());
+        assert!(admit_cpdag_reconstruction(usize::MAX, 2, 0, usize::MAX).is_err());
     }
 }

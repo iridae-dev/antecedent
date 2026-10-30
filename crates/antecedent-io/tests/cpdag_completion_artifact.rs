@@ -222,6 +222,23 @@ fn cpdag_artifact_replay_equals_original() {
 }
 
 #[test]
+fn cpdag_artifact_refuses_reconstruction_amplification_before_digest_or_graph_build() {
+    let context = ctx();
+    let (bytes, _) = produce(&premises(shared(), SEARCH, &context), &context);
+    let mut wire = CpdagCompletionArtifactWire::decode(&bytes).unwrap();
+    wire.cpdag.variables = (0..110).collect();
+    wire.cpdag.directed = (0..110).flat_map(|a| ((a + 1)..110).map(move |b| (a, b))).collect();
+    wire.cpdag.undirected.clear();
+    // Leave the old digest in place: admission must precede hashing and rebuilding.
+    let bytes = wire.export().unwrap();
+    let (code, message) = refused(consume(&bytes));
+    assert_eq!(code, "transport_budget_cancel");
+    assert!(message.contains("cpdag reconstruction work"), "{message}");
+    let error = wire.cpdag.to_cpdag().unwrap_err();
+    assert!(error.to_string().contains("cpdag reconstruction work"), "{error}");
+}
+
+#[test]
 fn cpdag_artifact_resealed_changes_are_refused() {
     let ctx = ctx();
     let (bytes, _) = produce(&premises(shared(), SEARCH, &ctx), &ctx);

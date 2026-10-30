@@ -20647,3 +20647,10 @@ crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_calibration_exact_filters.py"
 gates = ["inventory"]
+
+[[test]]
+id = "audit-cpdag-reconstruction-budget"
+crate = "antecedent-io"
+cargo_target = "lib"
+path = "crates/antecedent-io/src/cpdag_completion_artifact.rs"
+gates = ["inventory"]
