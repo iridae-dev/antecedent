@@ -2,6 +2,23 @@ use super::*;
 use antecedent_core::{CausalRng, RngFactory};
 use antecedent_kernels::standard_normal;
 
+#[test]
+fn initial_covariance_requires_psd_and_retains_singular_and_small_positive_pivots() {
+    let check = |covariance: Vec<f64>| {
+        validate_initial(&OuInitialLaw::Gaussian { mean: vec![0.0; 2], covariance }, 2)
+    };
+    assert!(check(vec![1.0, 2.0, 2.0, 1.0]).is_err());
+    assert!(check(vec![1e-20, 1e-10, -1e-10, 1e-20]).is_err());
+    assert!(check(vec![1e-20, 0.5e-20, 0.5e-20, 1e-20]).is_ok());
+    assert!(check(vec![1.0, 1.0, 1.0, 1.0]).is_ok());
+    assert!(check(vec![0.0, 0.0, 0.0, 0.0]).is_ok());
+    assert!(check(vec![0.0, 1e-20, 1e-20, 1.0]).is_err());
+    let tiny = f64::EPSILON;
+    assert!(check(vec![1.0, 1.0 - tiny, 1.0 - tiny, 1.0]).is_ok());
+    assert!(check(vec![1e-18, 1.0 - tiny, 1.0 - tiny, 1e18]).is_ok());
+    assert!(check(vec![1e18, 1.0 - tiny, 1.0 - tiny, 1e-18]).is_ok());
+}
+
 const DT: f64 = 0.002;
 const BURN_IN_STEPS: u64 = 20_000;
 
@@ -716,8 +733,35 @@ fn the_analytic_score_matches_the_central_difference_score_and_information_is_ps
             );
             assert!(info[i * 9 + i] >= 0.0);
             for j in 0..9 {
-                assert!((info[i * 9 + j] - info[j * 9 + i]).abs() < 1e-9 * (1.0 + info[i * 9 + j].abs()));
+                assert!(
+                    (info[i * 9 + j] - info[j * 9 + i]).abs()
+                        < 1e-9 * (1.0 + info[i * 9 + j].abs())
+                );
             }
         }
     }
+}
+
+#[test]
+fn transition_cache_holds_entry_lease_and_reuses_it() {
+    use antecedent_core::execution::AdmissionPool;
+    let schedule = [OuScheduleSegment { start: 0.0, replacements: vec![] }];
+    let mut prop = Propagator::new(&truth(), &schedule, false).unwrap();
+    let mut mean = vec![0.0; 2];
+    let mut covariance = vec![0.0; 4];
+    let low = ExecutionContext::for_tests(3).with_admission(AdmissionPool::fixed(1, 1));
+    assert!(matches!(
+        prop.advance(0.0, 1.0, &mut mean, &mut covariance, &low),
+        Err(OuTrajectoryError::Resource(_))
+    ));
+    let pool = AdmissionPool::fixed(1, 1_000_000);
+    let ctx = ExecutionContext::for_tests(3).with_admission(pool.clone());
+    let before = pool.available().bytes();
+    prop.advance(0.0, 1.0, &mut mean, &mut covariance, &ctx).unwrap();
+    let after = pool.available().bytes();
+    assert!(after < before);
+    prop.advance(0.0, 1.0, &mut mean, &mut covariance, &ctx).unwrap();
+    assert_eq!(pool.available().bytes(), after);
+    drop(prop);
+    assert_eq!(pool.available().bytes(), before);
 }

@@ -16,9 +16,9 @@
 //! carried through the Kalman recursion); the information is the Gauss–Newton form.
 use crate::cyclic_gradient::CyclicGradientPolicy;
 use crate::cyclic_optim::InverseCurvature;
-use crate::linalg::{symmetrize_average, SpdFactor};
+use crate::linalg::{SpdFactor, symmetrize_average};
 use crate::ou_mechanisms::{
-    bind, parameters, OuEquationReplacement, OuMechanismParameter, OuMechanisms,
+    OuEquationReplacement, OuMechanismParameter, OuMechanisms, bind, parameters,
 };
 use antecedent_core::ExecutionContext;
 use antecedent_model::nonlinear_equilibrium::EquilibriumError;
@@ -326,6 +326,37 @@ struct Transition {
     q: Vec<f64>,
 }
 
+// Payload lease for one cached transition and optional sensitivity coordinates.
+fn transition_cache_bytes(n: usize, coordinates: usize) -> Result<u64, OuTrajectoryError> {
+    use std::mem::size_of;
+    let per =
+        n.checked_mul(n).and_then(|v| v.checked_mul(2)).and_then(|v| v.checked_add(n)).ok_or_else(
+            || OuTrajectoryError::Resource("OU transition cache size overflow".into()),
+        )?;
+    let payload = per
+        .checked_mul(coordinates.checked_add(1).ok_or_else(|| {
+            OuTrajectoryError::Resource("OU transition cache size overflow".into())
+        })?)
+        .and_then(|v| v.checked_mul(size_of::<f64>()))
+        .ok_or_else(|| OuTrajectoryError::Resource("OU transition cache size overflow".into()))?;
+    let vector_headers = coordinates
+        .checked_mul(3)
+        .and_then(|v| v.checked_mul(size_of::<Vec<f64>>()))
+        .ok_or_else(|| OuTrajectoryError::Resource("OU transition cache size overflow".into()))?;
+    let metadata = size_of::<Transition>()
+        .checked_add(size_of::<(usize, u64)>())
+        .and_then(|v| v.checked_add(size_of::<antecedent_core::execution::AdmissionLease>()))
+        .and_then(|v| v.checked_add(size_of::<Vec<Vec<f64>>>().checked_mul(3)?))
+        .and_then(|v| v.checked_add(vector_headers))
+        .ok_or_else(|| OuTrajectoryError::Resource("OU transition cache size overflow".into()))?;
+    u64::try_from(
+        payload.checked_add(metadata).ok_or_else(|| {
+            OuTrajectoryError::Resource("OU transition cache size overflow".into())
+        })?,
+    )
+    .map_err(|_| OuTrajectoryError::Resource("OU transition cache size overflow".into()))
+}
+
 /// Exact transition over `h` of `dX = (M X + b) dt + L dW`.
 fn transition(
     model: &OuMechanisms,
@@ -387,7 +418,7 @@ struct Propagator {
     n: usize,
     starts: Vec<f64>,
     models: Vec<OuMechanisms>,
-    cache: BTreeMap<(usize, u64), Transition>,
+    cache: BTreeMap<(usize, u64), (Transition, antecedent_core::execution::AdmissionLease)>,
     check: bool,
     residual: f64,
 }
@@ -430,15 +461,23 @@ impl Propagator {
         to: f64,
         mean: &mut Vec<f64>,
         covariance: &mut Vec<f64>,
+        ctx: &ExecutionContext,
     ) -> Result<(), OuTrajectoryError> {
         let n = self.n;
         let mut time = from;
         while time < to {
+            if ctx.cancellation.is_cancelled() {
+                return Err(OuTrajectoryError::Resource("cancelled".into()));
+            }
             let k = self.segment_of(time);
             let end = self.starts.get(k + 1).map_or(to, |next| next.min(to));
             let h = end - time;
             let key = (k, h.to_bits());
             if !self.cache.contains_key(&key) {
+                let bytes = transition_cache_bytes(n, 0)?;
+                let lease = ctx
+                    .acquire_admission(0, bytes)
+                    .map_err(|error| OuTrajectoryError::Resource(error.to_string()))?;
                 let mut residual = 0.0;
                 let computed = transition(
                     &self.models[k],
@@ -446,9 +485,9 @@ impl Propagator {
                     if self.check { Some(&mut residual) } else { None },
                 )?;
                 self.residual = self.residual.max(residual);
-                self.cache.insert(key, computed);
+                self.cache.insert(key, (computed, lease));
             }
-            let step = &self.cache[&key];
+            let step = &self.cache[&key].0;
             let moved = matmul(&step.phi, mean, n, n, 1);
             for i in 0..n {
                 mean[i] = moved[i] + step.shift[i];
@@ -490,24 +529,80 @@ fn initial_law(
 
 fn validate_initial(initial: &OuInitialLaw, n: usize) -> Result<(), OuTrajectoryError> {
     if let OuInitialLaw::Gaussian { mean, covariance } = initial {
-        let symmetric = (0..n).all(|i| {
-            (0..n).all(|j| {
-                (covariance.get(i * n + j).copied().unwrap_or(f64::NAN)
-                    - covariance.get(j * n + i).copied().unwrap_or(f64::NAN))
-                .abs()
-                    <= 1e-9 * (1.0 + covariance.get(i * n + j).copied().unwrap_or(0.0).abs())
-            })
-        });
         if mean.len() != n
-            || covariance.len() != n * n
+            || n.checked_mul(n) != Some(covariance.len())
             || mean.iter().chain(covariance).any(|v| !v.is_finite())
-            || !symmetric
             || (0..n).any(|i| covariance[i * n + i] < 0.0)
+            || !initial_covariance_is_psd(covariance, n)
         {
             return Err(bad("OU initial Gaussian law shape/finiteness"));
         }
     }
     Ok(())
+}
+
+// Correlation equilibration keeps the test independent of units. Pivot on the
+// largest remaining diagonal and retain every positive pivot, however small.
+fn initial_covariance_is_psd(covariance: &[f64], n: usize) -> bool {
+    let scales: Vec<f64> = (0..n).map(|i| covariance[i * n + i].sqrt()).collect();
+    for i in 0..n {
+        if scales[i] == 0.0
+            && (0..n).any(|j| covariance[i * n + j] != 0.0 || covariance[j * n + i] != 0.0)
+        {
+            return false;
+        }
+    }
+    let mut matrix = vec![0.0; n * n];
+    let tolerance = 64.0 * f64::EPSILON * n as f64;
+    for i in 0..n {
+        for j in 0..n {
+            if scales[i] > 0.0 && scales[j] > 0.0 {
+                // Divide by the larger scale first to avoid avoidable overflow
+                // in otherwise representable correlations.
+                let large = scales[i].max(scales[j]);
+                let small = scales[i].min(scales[j]);
+                let forward = (covariance[i * n + j] / large) / small;
+                let reverse = (covariance[j * n + i] / large) / small;
+                if !forward.is_finite()
+                    || !reverse.is_finite()
+                    || (forward - reverse).abs()
+                        > tolerance * forward.abs().max(reverse.abs()).max(1.0)
+                {
+                    return false;
+                }
+                matrix[i * n + j] = forward * 0.5 + reverse * 0.5;
+            }
+        }
+    }
+    for k in 0..n {
+        let pivot =
+            (k..n).max_by(|&i, &j| matrix[i * n + i].total_cmp(&matrix[j * n + j])).unwrap();
+        if pivot != k {
+            for j in 0..n {
+                matrix.swap(k * n + j, pivot * n + j);
+            }
+            for i in 0..n {
+                matrix.swap(i * n + k, i * n + pivot);
+            }
+        }
+        let diagonal = matrix[k * n + k];
+        if diagonal <= 0.0 {
+            return (k..n).all(|i| (k..n).all(|j| matrix[i * n + j].abs() <= tolerance));
+        }
+        let root = diagonal.sqrt();
+        for i in (k + 1)..n {
+            for j in i..n {
+                let value =
+                    matrix[i * n + j] - (matrix[i * n + k] / root) * (matrix[j * n + k] / root);
+                if !value.is_finite() {
+                    return false;
+                }
+                matrix[i * n + j] = value;
+                matrix[j * n + i] = value;
+            }
+        }
+    }
+    true
 }
 
 // ---------------------------------------------------------------------------
@@ -569,7 +664,7 @@ impl Problem<'_> {
             if ctx.cancellation.is_cancelled() {
                 return Err(OuTrajectoryError::Resource("cancelled".into()));
             }
-            propagator.advance(time, point.time, &mut mean, &mut covariance)?;
+            propagator.advance(time, point.time, &mut mean, &mut covariance, ctx)?;
             time = point.time;
             let hp = matmul(&observation.matrix, &covariance, m, n, n);
             let mut innovation = matmul(&hp, &h_transpose, m, n, m);
@@ -1434,7 +1529,7 @@ fn design_output(
         if ctx.cancellation.is_cancelled() {
             return Err(OuTrajectoryError::Resource("cancelled".into()));
         }
-        propagator.advance(time, t, &mut mean, &mut covariance)?;
+        propagator.advance(time, t, &mut mean, &mut covariance, ctx)?;
         time = t;
         means.extend_from_slice(&mean);
         covariances.extend_from_slice(&covariance);
@@ -1626,7 +1721,7 @@ pub fn predict_ou_stationary(
         let center = match stationary_output(&fit.model, &design.replacements, ctx) {
             Ok(center) => center,
             Err(OuTrajectoryError::Resource(reason)) => {
-                return Err(OuTrajectoryError::Resource(reason))
+                return Err(OuTrajectoryError::Resource(reason));
             }
             Err(error) => {
                 output.push(failed(error.to_string()));

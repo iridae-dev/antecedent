@@ -108,7 +108,11 @@ fn sens_transition(
         }
     }
     let aug = augmented(&model.drift, &model.forcing, n, h);
-    let mut out = Sens { dphi: vec![], dshift: vec![], dq: vec![] };
+    let mut out = Sens {
+        dphi: Vec::with_capacity(dmodels.len()),
+        dshift: Vec::with_capacity(dmodels.len()),
+        dq: Vec::with_capacity(dmodels.len()),
+    };
     for dm in dmodels {
         let daug = augmented(&dm.dm, &dm.db, n, h);
         let mean = frechet(&aug, &daug, n + 1)?;
@@ -152,7 +156,7 @@ struct SensPropagator {
     starts: Vec<f64>,
     models: Vec<OuMechanisms>,
     dmodels: Vec<Vec<DModel>>,
-    cache: BTreeMap<(usize, u64), (Transition, Sens)>,
+    cache: BTreeMap<(usize, u64), (Transition, Sens, antecedent_core::execution::AdmissionLease)>,
 }
 
 impl SensPropagator {
@@ -182,20 +186,28 @@ impl SensPropagator {
         cov: &mut Vec<f64>,
         dmean: &mut [Vec<f64>],
         dcov: &mut [Vec<f64>],
+        ctx: &ExecutionContext,
     ) -> Result<(), OuTrajectoryError> {
         let n = self.n;
         let mut time = from;
         while time < to {
+            if ctx.cancellation.is_cancelled() {
+                return Err(OuTrajectoryError::Resource("cancelled".into()));
+            }
             let k = self.starts.partition_point(|s| *s <= time).saturating_sub(1);
             let end = self.starts.get(k + 1).map_or(to, |next| next.min(to));
             let h = end - time;
             let key = (k, h.to_bits());
             if !self.cache.contains_key(&key) {
+                let bytes = transition_cache_bytes(n, self.dmodels[k].len())?;
+                let lease = ctx
+                    .acquire_admission(0, bytes)
+                    .map_err(|error| OuTrajectoryError::Resource(error.to_string()))?;
                 let step = transition(&self.models[k], h, None)?;
                 let sens = sens_transition(&self.models[k], &self.dmodels[k], h)?;
-                self.cache.insert(key, (step, sens));
+                self.cache.insert(key, (step, sens, lease));
             }
-            let (step, sens) = &self.cache[&key];
+            let (step, sens, _) = &self.cache[&key];
             let phi_t = transpose(&step.phi, n, n);
             for j in 0..dmean.len() {
                 let mut next = matmul(&sens.dphi[j], mean, n, n, 1);
@@ -313,7 +325,7 @@ impl Problem<'_> {
                 if ctx.cancellation.is_cancelled() {
                     return Err(OuTrajectoryError::Resource("cancelled".into()));
                 }
-                prop.advance(time, point.time, &mut mean, &mut cov, &mut dmean, &mut dcov)?;
+                prop.advance(time, point.time, &mut mean, &mut cov, &mut dmean, &mut dcov, ctx)?;
                 time = point.time;
                 let hp = matmul(&observation.matrix, &cov, m, n, n);
                 let mut s = matmul(&hp, &h_transpose, m, n, m);
@@ -432,4 +444,42 @@ impl Problem<'_> {
 
 fn dot(a: &[f64], b: &[f64]) -> f64 {
     a.iter().zip(b).map(|(x, y)| x * y).sum()
+}
+
+#[cfg(test)]
+mod cache_admission_tests {
+    use super::*;
+    use antecedent_core::execution::AdmissionPool;
+
+    #[test]
+    fn sensitivity_transition_cache_keeps_and_releases_its_lease() {
+        let model = OuMechanisms {
+            equations: vec!["x".into()],
+            drift: vec![-1.0],
+            forcing: vec![0.0],
+            diffusion_factor: vec![1.0],
+        };
+        let schedule = [OuScheduleSegment { start: 0.0, replacements: vec![] }];
+        let coords = [OuMechanismParameter::Drift { equation: 0, parent: 0 }];
+        let mut prop = SensPropagator::new(&model, &schedule, &coords).unwrap();
+        let mut mean = vec![0.0];
+        let mut covariance = vec![1.0];
+        let mut dmean = vec![vec![0.0]];
+        let mut dcov = vec![vec![0.0]];
+        let low = ExecutionContext::for_tests(3).with_admission(AdmissionPool::fixed(1, 1));
+        assert!(matches!(
+            prop.advance(0.0, 1.0, &mut mean, &mut covariance, &mut dmean, &mut dcov, &low),
+            Err(OuTrajectoryError::Resource(_))
+        ));
+        let pool = AdmissionPool::fixed(1, 1_000_000);
+        let ctx = ExecutionContext::for_tests(3).with_admission(pool.clone());
+        let before = pool.available().bytes();
+        prop.advance(0.0, 1.0, &mut mean, &mut covariance, &mut dmean, &mut dcov, &ctx).unwrap();
+        let after = pool.available().bytes();
+        assert!(after < before);
+        prop.advance(0.0, 1.0, &mut mean, &mut covariance, &mut dmean, &mut dcov, &ctx).unwrap();
+        assert_eq!(pool.available().bytes(), after);
+        drop(prop);
+        assert_eq!(pool.available().bytes(), before);
+    }
 }
