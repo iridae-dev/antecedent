@@ -883,6 +883,34 @@ fn samples_of(
     Ok(samples)
 }
 
+/// Preserve typed operational failures at the discovered transport IO boundary.
+#[doc(hidden)]
+#[must_use]
+pub fn discovered_transport_io_failure(error: IoError) -> DiscoveredTransportError {
+    use antecedent_core::execution::AdmissionError;
+    use antecedent_identify::discovered_transport::{
+        DiscoveredTransportOperational, DiscoveredTransportOperationalKind as K,
+    };
+    let (kind, code) = match &error {
+        IoError::Admission(AdmissionError::Cancelled) | IoError::StreamCancelled => {
+            (K::Cancelled, None)
+        }
+        IoError::Admission(
+            AdmissionError::ExceedsRemainder { .. }
+            | AdmissionError::Overflow
+            | AdmissionError::WaitBoundExceeded { .. },
+        )
+        | IoError::StreamBudgetRefused { .. } => (K::Resource, None),
+        IoError::Refused { code, .. } => (K::OtherRefused, Some(*code)),
+        _ => return DiscoveredTransportError::Estimation(error.to_string()),
+    };
+    DiscoveredTransportError::Operational(DiscoveredTransportOperational {
+        kind,
+        code,
+        message: error.to_string(),
+    })
+}
+
 fn estimation_failure(error: &impl std::fmt::Display) -> DiscoveredTransportError {
     DiscoveredTransportError::Estimation(error.to_string())
 }
@@ -918,7 +946,7 @@ fn identify_member(
     };
     Ok(
         match identify_classical_transport(&diagram, &query, settings.evidence.sid_limits, ctx)
-            .map_err(|e| estimation_failure(&e))?
+            .map_err(DiscoveredTransportError::Identification)?
         {
             ClassicalTransportResult::Identified(_) => {
                 Ok(Identified { diagram, chosen_derivation: RefCell::new(None) })
@@ -993,7 +1021,7 @@ fn evaluate_member(
             identify_catalog_transport_standardization_first
         };
         identify(diagram, &query, &catalog, settings.evidence.sid_limits, ctx)
-            .map_err(|error| estimation_failure(&error))?
+            .map_err(DiscoveredTransportError::Identification)?
     };
     drop(cached);
     let functional = match selected {
@@ -1055,7 +1083,7 @@ fn evaluate_member(
         Err(error) if is_evidence_gap(&error) => {
             return Ok(MemberOutcome::Unestimable { detail: error.to_string() });
         }
-        Err(error) => return Err(estimation_failure(&error)),
+        Err(error) => return Err(discovered_transport_io_failure(error)),
     };
     member_estimate(&result, problem.outcome, expression, export)
 }
@@ -1158,7 +1186,12 @@ fn blocked_contrast_interval(
     let mut contrasts = Vec::new();
     for replicate in 0..requested {
         if ctx.cancellation.is_cancelled() {
-            return Err(DiscoveredTransportError::Estimation("cancelled".to_owned()));
+            return Err(DiscoveredTransportError::Operational(
+                antecedent_identify::discovered_transport::DiscoveredTransportOperational {
+                    kind: antecedent_identify::discovered_transport::DiscoveredTransportOperationalKind::Cancelled,
+                    code: None, message: "cancelled".into(),
+                },
+            ));
         }
         let (Some(source_times), Some(target_times)) =
             (draw(0, replicate, rows(&columns.source)), draw(1, replicate, rows(&columns.target)))

@@ -189,6 +189,28 @@ pub fn refuse_pag_transport(
     })
 }
 
+/// Operational category preserved across the discovered transport boundary.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DiscoveredTransportOperationalKind {
+    /// The caller cancelled the work.
+    Cancelled,
+    /// Admission or another typed resource limit refused work.
+    Resource,
+    /// A coded refusal whose exact operational cause is not known.
+    OtherRefused,
+}
+
+/// Operational failure and its original registered reason, when available.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DiscoveredTransportOperational {
+    /// The explicitly known category.
+    pub kind: DiscoveredTransportOperationalKind,
+    /// Original registered code; a combined budget/cancel code does not identify a category.
+    pub code: Option<&'static str>,
+    /// Original diagnostic.
+    pub message: String,
+}
+
 /// Failure of a transport request over a discovered class.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -201,6 +223,8 @@ pub enum DiscoveredTransportError {
     /// The estimation step failed for a reason that is not a scientific refusal: a resource
     /// bound, a cancellation or an internal check.
     Estimation(String),
+    /// A typed operational failure from estimation or artifact execution.
+    Operational(DiscoveredTransportOperational),
 }
 
 impl std::fmt::Display for DiscoveredTransportError {
@@ -209,6 +233,7 @@ impl std::fmt::Display for DiscoveredTransportError {
             Self::Refused(refusal) => refusal.fmt(f),
             Self::Identification(error) => error.fmt(f),
             Self::Estimation(message) => write!(f, "estimation failed: {message}"),
+            Self::Operational(error) => write!(f, "estimation failed: {}", error.message),
         }
     }
 }

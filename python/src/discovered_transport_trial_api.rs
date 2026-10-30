@@ -39,8 +39,8 @@ type TrialReply<T> = (Option<T>, Option<String>, Option<String>, Option<String>)
 type ArtifactReply =
     (Option<String>, Option<String>, Option<String>, Option<String>, Option<Py<PyBytes>>);
 
-fn estimation(message: impl ToString) -> DiscoveredTransportError {
-    DiscoveredTransportError::Estimation(message.to_string())
+fn estimation(error: antecedent_io::IoError) -> DiscoveredTransportError {
+    antecedent::analysis::discovered_transport_estimate::discovered_transport_io_failure(error)
 }
 
 fn options(alpha: f64) -> TrialCompatibilityOptions {
