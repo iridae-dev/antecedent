@@ -915,15 +915,24 @@ pub fn bootstrap_cyclic_structure_with_design(
     design: CyclicBootstrapDesign,
     ctx: &ExecutionContext,
 ) -> Result<Vec<Option<CyclicStructureFit>>, EquilibriumError> {
-    let groups = bootstrap_groups(training, design);
-    let bytes = training
-        .len()
-        .checked_mul(template.order() * 16 + 128)
-        .and_then(|v| v.checked_add(replicates * (template.order() * template.order() * 32 + 1024)))
+    let order = template.order();
+    let bytes = order
+        .checked_mul(16)
+        .and_then(|v| v.checked_add(128))
+        .and_then(|per_row| training.len().checked_mul(per_row))
+        .and_then(|rows| {
+            order
+                .checked_mul(order)
+                .and_then(|v| v.checked_mul(32))
+                .and_then(|v| v.checked_add(1024))
+                .and_then(|per_replicate| replicates.checked_mul(per_replicate))
+                .and_then(|slots| rows.checked_add(slots))
+        })
         .ok_or_else(|| invalid("whole-selection bootstrap size overflow"))?;
     let _lease = ctx
         .acquire_admission(0, bytes as u64)
         .map_err(|e| EquilibriumError::Resource(e.to_string()))?;
+    let groups = bootstrap_groups(training, design);
     let mut output = Vec::with_capacity(replicates);
     for r in 0..replicates {
         if ctx.cancellation.is_cancelled() {
@@ -965,6 +974,22 @@ pub fn bootstrap_cyclic_structure_with_design(
 mod selection_tests {
     use super::*;
     use antecedent_model::nonlinear_equilibrium::{Activation, Clamp, Equation};
+    #[test]
+    fn whole_selection_bootstrap_rejects_unrepresentable_slot_bytes() {
+        let template = EquilibriumModel { equations: vec![], noise_covariance: vec![] };
+        let result = bootstrap_cyclic_structure_with_design(
+            &template,
+            &[],
+            &[],
+            CyclicFitOptions::default(),
+            0.0,
+            usize::MAX,
+            CyclicBootstrapDesign::FixedAssignments,
+            &antecedent_core::ExecutionContext::for_tests(1),
+        );
+        assert!(result.is_err());
+    }
+
     #[test]
     fn selected_nonlinear_model_predicts_a_whole_unseen_joint_intervention_regime() {
         let template = EquilibriumModel {

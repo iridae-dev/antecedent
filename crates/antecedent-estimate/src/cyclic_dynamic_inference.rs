@@ -1568,6 +1568,13 @@ fn replicate<F: Family>(
     }
 }
 
+fn validate_bootstrap_replicates(replicates: usize) -> Result<(), DynamicInferenceError> {
+    if !(1..=10_000).contains(&replicates) {
+        return Err(invalid("bootstrap replicate count"));
+    }
+    Ok(())
+}
+
 fn bootstrap<F: Family>(
     family: &F,
     request: DynamicBootstrapRequest,
@@ -1577,9 +1584,7 @@ fn bootstrap<F: Family>(
     if ctx.cancellation.is_cancelled() {
         return Err(cancelled());
     }
-    if request.replicates == 0 {
-        return Err(invalid("bootstrap replicate count"));
-    }
+    validate_bootstrap_replicates(request.replicates)?;
     check_quantities(family, quantities)?;
     let (word, resampling, stratification) = match request.method {
         DynamicBootstrapMethod::Nonparametric => {
@@ -1607,7 +1612,12 @@ fn bootstrap<F: Family>(
     // and the stratum index.
     let bytes = request
         .replicates
-        .checked_mul((p + q) * 16 + 128)
+        .checked_mul(
+            p.checked_add(q)
+                .and_then(|v| v.checked_mul(16))
+                .and_then(|v| v.checked_add(128))
+                .ok_or_else(|| invalid("bootstrap size overflow"))?,
+        )
         .and_then(|slots| {
             family
                 .data_bytes()
@@ -1920,6 +1930,15 @@ pub fn sample_dynamic_posterior(
             ctx,
         ),
     }
+}
+
+#[cfg(test)]
+#[test]
+fn dynamic_replicate_limit_preflight_checks_documented_boundaries() {
+    assert!(validate_bootstrap_replicates(1).is_ok());
+    assert!(validate_bootstrap_replicates(10_000).is_ok());
+    assert!(validate_bootstrap_replicates(0).is_err());
+    assert!(validate_bootstrap_replicates(10_001).is_err());
 }
 
 #[cfg(test)]
