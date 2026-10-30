@@ -1878,7 +1878,7 @@ const ESTABLISHED: &[(&str, &[&str])] = &[
     (
         "P06",
         &[
-            "horizon_one_cpdag_average_effect_has_the_static_estimate_and_envelope_but_not_its_licence",
+            "horizon_one_cpdag_average_effect_has_the_static_estimate_envelope_and_licence",
         ],
     ),
     (

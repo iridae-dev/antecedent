@@ -2769,7 +2769,7 @@ fn diagnostic_optional_estimator_closure_after_builder_and_study_drop() {
         dependency_refusals.len(),
         dependency_refusals.join("\n")
     );
-    assert_eq!(inspected, 60, "optional estimator registry drifted");
+    assert_eq!(inspected, 136, "optional estimator registry drifted");
 }
 
 /// The sealed outcome. Every licensed route executes on a retained checked

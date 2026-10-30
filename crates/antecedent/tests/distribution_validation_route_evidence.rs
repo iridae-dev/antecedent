@@ -375,55 +375,324 @@ fn verify_coordinate(spec: &Coordinate<'_>) {
     consume_analysis_result(&artifact).unwrap();
 }
 
-macro_rules! coordinate_tests {
-    ($($name:ident: $class:literal, $accepted:literal, $bayesian:literal, $validation:literal;)+) => {
-        $(
-            #[test]
-            fn $name() {
-                verify_coordinate(&Coordinate {
-                    class: $class,
-                    accepted: $accepted,
-                    bayesian: $bayesian,
-                    validation: $validation,
-                });
-            }
-        )+
-    };
+#[test]
+fn distribution_admg_explicit_frequentist_cheap() {
+    verify_coordinate(&Coordinate {
+        class: "Admg",
+        accepted: false,
+        bayesian: false,
+        validation: "cheap",
+    });
 }
 
-coordinate_tests! {
-    distribution_admg_explicit_frequentist_cheap: "Admg", false, false, "cheap";
-    distribution_admg_explicit_frequentist_full: "Admg", false, false, "full";
-    distribution_admg_explicit_bayesian_cheap: "Admg", false, true, "cheap";
-    distribution_admg_explicit_bayesian_full: "Admg", false, true, "full";
-    distribution_admg_accepted_frequentist_cheap: "Admg", true, false, "cheap";
-    distribution_admg_accepted_frequentist_full: "Admg", true, false, "full";
-    distribution_admg_accepted_bayesian_cheap: "Admg", true, true, "cheap";
-    distribution_admg_accepted_bayesian_full: "Admg", true, true, "full";
-    distribution_temporal_admg_explicit_frequentist_cheap: "TemporalAdmg", false, false, "cheap";
-    distribution_temporal_admg_explicit_frequentist_full: "TemporalAdmg", false, false, "full";
-    distribution_temporal_admg_explicit_bayesian_cheap: "TemporalAdmg", false, true, "cheap";
-    distribution_temporal_admg_explicit_bayesian_full: "TemporalAdmg", false, true, "full";
-    distribution_temporal_admg_accepted_frequentist_cheap: "TemporalAdmg", true, false, "cheap";
-    distribution_temporal_admg_accepted_frequentist_full: "TemporalAdmg", true, false, "full";
-    distribution_temporal_admg_accepted_bayesian_cheap: "TemporalAdmg", true, true, "cheap";
-    distribution_temporal_admg_accepted_bayesian_full: "TemporalAdmg", true, true, "full";
-    distribution_cpdag_explicit_frequentist_cheap: "Cpdag", false, false, "cheap";
-    distribution_cpdag_explicit_frequentist_full: "Cpdag", false, false, "full";
-    distribution_cpdag_explicit_bayesian_cheap: "Cpdag", false, true, "cheap";
-    distribution_cpdag_explicit_bayesian_full: "Cpdag", false, true, "full";
-    distribution_cpdag_accepted_frequentist_cheap: "Cpdag", true, false, "cheap";
-    distribution_cpdag_accepted_frequentist_full: "Cpdag", true, false, "full";
-    distribution_cpdag_accepted_bayesian_cheap: "Cpdag", true, true, "cheap";
-    distribution_cpdag_accepted_bayesian_full: "Cpdag", true, true, "full";
-    distribution_pag_explicit_frequentist_cheap: "Pag", false, false, "cheap";
-    distribution_pag_explicit_frequentist_full: "Pag", false, false, "full";
-    distribution_pag_explicit_bayesian_cheap: "Pag", false, true, "cheap";
-    distribution_pag_explicit_bayesian_full: "Pag", false, true, "full";
-    distribution_pag_accepted_frequentist_cheap: "Pag", true, false, "cheap";
-    distribution_pag_accepted_frequentist_full: "Pag", true, false, "full";
-    distribution_pag_accepted_bayesian_cheap: "Pag", true, true, "cheap";
-    distribution_pag_accepted_bayesian_full: "Pag", true, true, "full";
+#[test]
+fn distribution_admg_explicit_frequentist_full() {
+    verify_coordinate(&Coordinate {
+        class: "Admg",
+        accepted: false,
+        bayesian: false,
+        validation: "full",
+    });
+}
+
+#[test]
+fn distribution_admg_explicit_bayesian_cheap() {
+    verify_coordinate(&Coordinate {
+        class: "Admg",
+        accepted: false,
+        bayesian: true,
+        validation: "cheap",
+    });
+}
+
+#[test]
+fn distribution_admg_explicit_bayesian_full() {
+    verify_coordinate(&Coordinate {
+        class: "Admg",
+        accepted: false,
+        bayesian: true,
+        validation: "full",
+    });
+}
+
+#[test]
+fn distribution_admg_accepted_frequentist_cheap() {
+    verify_coordinate(&Coordinate {
+        class: "Admg",
+        accepted: true,
+        bayesian: false,
+        validation: "cheap",
+    });
+}
+
+#[test]
+fn distribution_admg_accepted_frequentist_full() {
+    verify_coordinate(&Coordinate {
+        class: "Admg",
+        accepted: true,
+        bayesian: false,
+        validation: "full",
+    });
+}
+
+#[test]
+fn distribution_admg_accepted_bayesian_cheap() {
+    verify_coordinate(&Coordinate {
+        class: "Admg",
+        accepted: true,
+        bayesian: true,
+        validation: "cheap",
+    });
+}
+
+#[test]
+fn distribution_admg_accepted_bayesian_full() {
+    verify_coordinate(&Coordinate {
+        class: "Admg",
+        accepted: true,
+        bayesian: true,
+        validation: "full",
+    });
+}
+
+#[test]
+fn distribution_temporal_admg_explicit_frequentist_cheap() {
+    verify_coordinate(&Coordinate {
+        class: "TemporalAdmg",
+        accepted: false,
+        bayesian: false,
+        validation: "cheap",
+    });
+}
+
+#[test]
+fn distribution_temporal_admg_explicit_frequentist_full() {
+    verify_coordinate(&Coordinate {
+        class: "TemporalAdmg",
+        accepted: false,
+        bayesian: false,
+        validation: "full",
+    });
+}
+
+#[test]
+fn distribution_temporal_admg_explicit_bayesian_cheap() {
+    verify_coordinate(&Coordinate {
+        class: "TemporalAdmg",
+        accepted: false,
+        bayesian: true,
+        validation: "cheap",
+    });
+}
+
+#[test]
+fn distribution_temporal_admg_explicit_bayesian_full() {
+    verify_coordinate(&Coordinate {
+        class: "TemporalAdmg",
+        accepted: false,
+        bayesian: true,
+        validation: "full",
+    });
+}
+
+#[test]
+fn distribution_temporal_admg_accepted_frequentist_cheap() {
+    verify_coordinate(&Coordinate {
+        class: "TemporalAdmg",
+        accepted: true,
+        bayesian: false,
+        validation: "cheap",
+    });
+}
+
+#[test]
+fn distribution_temporal_admg_accepted_frequentist_full() {
+    verify_coordinate(&Coordinate {
+        class: "TemporalAdmg",
+        accepted: true,
+        bayesian: false,
+        validation: "full",
+    });
+}
+
+#[test]
+fn distribution_temporal_admg_accepted_bayesian_cheap() {
+    verify_coordinate(&Coordinate {
+        class: "TemporalAdmg",
+        accepted: true,
+        bayesian: true,
+        validation: "cheap",
+    });
+}
+
+#[test]
+fn distribution_temporal_admg_accepted_bayesian_full() {
+    verify_coordinate(&Coordinate {
+        class: "TemporalAdmg",
+        accepted: true,
+        bayesian: true,
+        validation: "full",
+    });
+}
+
+#[test]
+fn distribution_cpdag_explicit_frequentist_cheap() {
+    verify_coordinate(&Coordinate {
+        class: "Cpdag",
+        accepted: false,
+        bayesian: false,
+        validation: "cheap",
+    });
+}
+
+#[test]
+fn distribution_cpdag_explicit_frequentist_full() {
+    verify_coordinate(&Coordinate {
+        class: "Cpdag",
+        accepted: false,
+        bayesian: false,
+        validation: "full",
+    });
+}
+
+#[test]
+fn distribution_cpdag_explicit_bayesian_cheap() {
+    verify_coordinate(&Coordinate {
+        class: "Cpdag",
+        accepted: false,
+        bayesian: true,
+        validation: "cheap",
+    });
+}
+
+#[test]
+fn distribution_cpdag_explicit_bayesian_full() {
+    verify_coordinate(&Coordinate {
+        class: "Cpdag",
+        accepted: false,
+        bayesian: true,
+        validation: "full",
+    });
+}
+
+#[test]
+fn distribution_cpdag_accepted_frequentist_cheap() {
+    verify_coordinate(&Coordinate {
+        class: "Cpdag",
+        accepted: true,
+        bayesian: false,
+        validation: "cheap",
+    });
+}
+
+#[test]
+fn distribution_cpdag_accepted_frequentist_full() {
+    verify_coordinate(&Coordinate {
+        class: "Cpdag",
+        accepted: true,
+        bayesian: false,
+        validation: "full",
+    });
+}
+
+#[test]
+fn distribution_cpdag_accepted_bayesian_cheap() {
+    verify_coordinate(&Coordinate {
+        class: "Cpdag",
+        accepted: true,
+        bayesian: true,
+        validation: "cheap",
+    });
+}
+
+#[test]
+fn distribution_cpdag_accepted_bayesian_full() {
+    verify_coordinate(&Coordinate {
+        class: "Cpdag",
+        accepted: true,
+        bayesian: true,
+        validation: "full",
+    });
+}
+
+#[test]
+fn distribution_pag_explicit_frequentist_cheap() {
+    verify_coordinate(&Coordinate {
+        class: "Pag",
+        accepted: false,
+        bayesian: false,
+        validation: "cheap",
+    });
+}
+
+#[test]
+fn distribution_pag_explicit_frequentist_full() {
+    verify_coordinate(&Coordinate {
+        class: "Pag",
+        accepted: false,
+        bayesian: false,
+        validation: "full",
+    });
+}
+
+#[test]
+fn distribution_pag_explicit_bayesian_cheap() {
+    verify_coordinate(&Coordinate {
+        class: "Pag",
+        accepted: false,
+        bayesian: true,
+        validation: "cheap",
+    });
+}
+
+#[test]
+fn distribution_pag_explicit_bayesian_full() {
+    verify_coordinate(&Coordinate {
+        class: "Pag",
+        accepted: false,
+        bayesian: true,
+        validation: "full",
+    });
+}
+
+#[test]
+fn distribution_pag_accepted_frequentist_cheap() {
+    verify_coordinate(&Coordinate {
+        class: "Pag",
+        accepted: true,
+        bayesian: false,
+        validation: "cheap",
+    });
+}
+
+#[test]
+fn distribution_pag_accepted_frequentist_full() {
+    verify_coordinate(&Coordinate {
+        class: "Pag",
+        accepted: true,
+        bayesian: false,
+        validation: "full",
+    });
+}
+
+#[test]
+fn distribution_pag_accepted_bayesian_cheap() {
+    verify_coordinate(&Coordinate {
+        class: "Pag",
+        accepted: true,
+        bayesian: true,
+        validation: "cheap",
+    });
+}
+
+#[test]
+fn distribution_pag_accepted_bayesian_full() {
+    verify_coordinate(&Coordinate {
+        class: "Pag",
+        accepted: true,
+        bayesian: true,
+        validation: "full",
+    });
 }
 
 /// Twelve rows of the front-door design (`t -> m -> y`, `t <-> y`) with one row carrying the only

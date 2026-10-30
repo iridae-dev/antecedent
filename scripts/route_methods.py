@@ -709,8 +709,8 @@ def licensed_methods(src: Sources) -> list[dict]:
                 asserted -= {"none"}
                 inherited = sibling[(estimator, inference, design_of(graph), structure)]
                 inherited_design = design_of(graph)
-                if not inherited and graph == "TemporalAdmg":
-                    # A TemporalAdmg answers through the contemporaneous projection of the
+                if not inherited and graph in ("TemporalAdmg", "TemporalPag"):
+                    # A TemporalAdmg or TemporalPag answers through the contemporaneous projection of the
                     # static class executor, so its procedure is that executor's: the static
                     # sibling of the same structure, else of any structure.
                     inherited_design = "static"

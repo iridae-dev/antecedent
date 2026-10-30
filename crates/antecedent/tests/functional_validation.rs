@@ -211,7 +211,7 @@ fn an_interventional_distribution_on_an_admg_is_refuted_by_its_atom_vector() {
     let first_is_one = first_atom.outcomes[0].1 == Value::f64(1.0);
     let expected_first = if first_is_one { truth } else { 1.0 - truth };
     assert!((first - expected_first).abs() < 0.02, "{first} vs {expected_first} (Y=1: {first_is_one})");
-    assert_eq!(result.support_status(), Some(CellStatus::Refused));
+    assert_eq!(result.support_status(), Some(CellStatus::Licensed));
     for refuter in ["target.subset_stability", "target.bootstrap_stability"] {
         let check = report(&result, refuter);
         assert!((check.original_ate - first).abs() < 1e-12);

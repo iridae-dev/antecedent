@@ -3274,53 +3274,53 @@ notes = "Licensed coordinates (18): graph_posterior:Frequentist:none, graph_post
 id = "licensed.Counterfactual.Admg"
 target = "Counterfactual"
 graph_class = "Admg"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
 uncertainty = "validation=none,cheap,full; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "licensed"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-notes = "Licensed coordinates (12): explicit:Frequentist:none, explicit:Frequentist:cheap, explicit:Frequentist:full, explicit:Bayesian:none, explicit:Bayesian:cheap, explicit:Bayesian:full, accepted:Frequentist:none, accepted:Frequentist:cheap, accepted:Frequentist:full, accepted:Bayesian:none, accepted:Bayesian:cheap, accepted:Bayesian:full. Estimators: functional.effect. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
+notes = "Licensed coordinates (18): graph_posterior:Frequentist:none, graph_posterior:Frequentist:cheap, graph_posterior:Frequentist:full, graph_posterior:Bayesian:none, graph_posterior:Bayesian:cheap, graph_posterior:Bayesian:full, explicit:Frequentist:none, explicit:Frequentist:cheap, explicit:Frequentist:full, explicit:Bayesian:none, explicit:Bayesian:cheap, explicit:Bayesian:full, accepted:Frequentist:none, accepted:Frequentist:cheap, accepted:Frequentist:full, accepted:Bayesian:none, accepted:Bayesian:cheap, accepted:Bayesian:full. Estimators: functional.effect. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
 
 [[route]]
 id = "licensed.Counterfactual.Cpdag"
 target = "Counterfactual"
 graph_class = "Cpdag"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
 uncertainty = "validation=none,cheap,full; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "licensed"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-notes = "Licensed coordinates (12): explicit:Frequentist:none, explicit:Frequentist:cheap, explicit:Frequentist:full, explicit:Bayesian:none, explicit:Bayesian:cheap, explicit:Bayesian:full, accepted:Frequentist:none, accepted:Frequentist:cheap, accepted:Frequentist:full, accepted:Bayesian:none, accepted:Bayesian:cheap, accepted:Bayesian:full. Estimators: gcm.fit. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
+notes = "Licensed coordinates (18): graph_posterior:Frequentist:none, graph_posterior:Frequentist:cheap, graph_posterior:Frequentist:full, graph_posterior:Bayesian:none, graph_posterior:Bayesian:cheap, graph_posterior:Bayesian:full, explicit:Frequentist:none, explicit:Frequentist:cheap, explicit:Frequentist:full, explicit:Bayesian:none, explicit:Bayesian:cheap, explicit:Bayesian:full, accepted:Frequentist:none, accepted:Frequentist:cheap, accepted:Frequentist:full, accepted:Bayesian:none, accepted:Bayesian:cheap, accepted:Bayesian:full. Estimators: gcm.fit. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
 
 [[route]]
 id = "licensed.Counterfactual.Pag"
 target = "Counterfactual"
 graph_class = "Pag"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
 uncertainty = "validation=none; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "licensed"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-notes = "Licensed coordinates (4): explicit:Frequentist:none, explicit:Bayesian:none, accepted:Frequentist:none, accepted:Bayesian:none. Estimators: functional.effect. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
+notes = "Licensed coordinates (6): graph_posterior:Frequentist:none, graph_posterior:Bayesian:none, explicit:Frequentist:none, explicit:Bayesian:none, accepted:Frequentist:none, accepted:Bayesian:none. Estimators: functional.effect. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
 
 [[route]]
 id = "licensed.Counterfactual.TemporalAdmg"
 target = "Counterfactual"
 graph_class = "TemporalAdmg"
-design_time_model = "temporal; structure=explicit,accepted"
+design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
 uncertainty = "validation=none,cheap,full; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "licensed"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-notes = "Licensed coordinates (12): explicit:Frequentist:none, explicit:Frequentist:cheap, explicit:Frequentist:full, explicit:Bayesian:none, explicit:Bayesian:cheap, explicit:Bayesian:full, accepted:Frequentist:none, accepted:Frequentist:cheap, accepted:Frequentist:full, accepted:Bayesian:none, accepted:Bayesian:cheap, accepted:Bayesian:full. Estimators: functional.effect. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
+notes = "Licensed coordinates (18): graph_posterior:Frequentist:none, graph_posterior:Frequentist:cheap, graph_posterior:Frequentist:full, graph_posterior:Bayesian:none, graph_posterior:Bayesian:cheap, graph_posterior:Bayesian:full, explicit:Frequentist:none, explicit:Frequentist:cheap, explicit:Frequentist:full, explicit:Bayesian:none, explicit:Bayesian:cheap, explicit:Bayesian:full, accepted:Frequentist:none, accepted:Frequentist:cheap, accepted:Frequentist:full, accepted:Bayesian:none, accepted:Bayesian:cheap, accepted:Bayesian:full. Estimators: functional.effect. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
 
 [[route]]
 id = "licensed.DirectionalDerivative.Admg"
@@ -3482,79 +3482,79 @@ notes = "Licensed coordinates (18): accepted:Frequentist:none, accepted:Frequent
 id = "licensed.InterventionalDistribution.Cpdag"
 target = "InterventionalDistribution"
 graph_class = "Cpdag"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
-uncertainty = "validation=none; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
+uncertainty = "validation=none,cheap,full; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "licensed"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-notes = "Licensed coordinates (4): explicit:Frequentist:none, explicit:Bayesian:none, accepted:Frequentist:none, accepted:Bayesian:none. Estimators: functional.distribution. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
+notes = "Licensed coordinates (18): explicit:Frequentist:none, explicit:Bayesian:none, accepted:Frequentist:none, accepted:Bayesian:none, explicit:Frequentist:cheap, explicit:Frequentist:full, explicit:Bayesian:cheap, explicit:Bayesian:full, accepted:Frequentist:cheap, accepted:Frequentist:full, accepted:Bayesian:cheap, accepted:Bayesian:full, graph_posterior:Frequentist:none, graph_posterior:Frequentist:cheap, graph_posterior:Frequentist:full, graph_posterior:Bayesian:none, graph_posterior:Bayesian:cheap, graph_posterior:Bayesian:full. Estimators: functional.distribution. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
 
 [[route]]
 id = "licensed.InterventionalDistribution.Pag"
 target = "InterventionalDistribution"
 graph_class = "Pag"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
-uncertainty = "validation=none; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
+uncertainty = "validation=none,cheap,full; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "licensed"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-notes = "Licensed coordinates (4): explicit:Frequentist:none, explicit:Bayesian:none, accepted:Frequentist:none, accepted:Bayesian:none. Estimators: functional.distribution. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
+notes = "Licensed coordinates (18): explicit:Frequentist:none, explicit:Bayesian:none, accepted:Frequentist:none, accepted:Bayesian:none, explicit:Frequentist:cheap, explicit:Frequentist:full, explicit:Bayesian:cheap, explicit:Bayesian:full, accepted:Frequentist:cheap, accepted:Frequentist:full, accepted:Bayesian:cheap, accepted:Bayesian:full, graph_posterior:Frequentist:none, graph_posterior:Frequentist:cheap, graph_posterior:Frequentist:full, graph_posterior:Bayesian:none, graph_posterior:Bayesian:cheap, graph_posterior:Bayesian:full. Estimators: functional.distribution. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
 
 [[route]]
 id = "licensed.MediationEffect.Admg"
 target = "MediationEffect"
 graph_class = "Admg"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
-uncertainty = "validation=none; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
+uncertainty = "validation=none,cheap,full; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "licensed"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-notes = "Licensed coordinates (4): explicit:Frequentist:none, explicit:Bayesian:none, accepted:Frequentist:none, accepted:Bayesian:none. Estimators: functional.effect. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
+notes = "Licensed coordinates (18): explicit:Frequentist:none, explicit:Frequentist:cheap, explicit:Frequentist:full, explicit:Bayesian:none, explicit:Bayesian:cheap, explicit:Bayesian:full, accepted:Frequentist:none, accepted:Frequentist:cheap, accepted:Frequentist:full, accepted:Bayesian:none, accepted:Bayesian:cheap, accepted:Bayesian:full, graph_posterior:Frequentist:none, graph_posterior:Frequentist:cheap, graph_posterior:Frequentist:full, graph_posterior:Bayesian:none, graph_posterior:Bayesian:cheap, graph_posterior:Bayesian:full. Estimators: functional.effect. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
 
 [[route]]
 id = "licensed.MediationEffect.Cpdag"
 target = "MediationEffect"
 graph_class = "Cpdag"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
-uncertainty = "validation=none; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
+uncertainty = "validation=none,cheap,full; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "licensed"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-notes = "Licensed coordinates (4): explicit:Frequentist:none, explicit:Bayesian:none, accepted:Frequentist:none, accepted:Bayesian:none. Estimators: functional.effect. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
+notes = "Licensed coordinates (18): explicit:Frequentist:none, explicit:Frequentist:cheap, explicit:Frequentist:full, explicit:Bayesian:none, explicit:Bayesian:cheap, explicit:Bayesian:full, accepted:Frequentist:none, accepted:Frequentist:cheap, accepted:Frequentist:full, accepted:Bayesian:none, accepted:Bayesian:cheap, accepted:Bayesian:full, graph_posterior:Frequentist:none, graph_posterior:Frequentist:cheap, graph_posterior:Frequentist:full, graph_posterior:Bayesian:none, graph_posterior:Bayesian:cheap, graph_posterior:Bayesian:full. Estimators: functional.effect. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
 
 [[route]]
 id = "licensed.MediationEffect.Pag"
 target = "MediationEffect"
 graph_class = "Pag"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
-uncertainty = "validation=none; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
+uncertainty = "validation=none,cheap,full; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "licensed"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-notes = "Licensed coordinates (4): explicit:Frequentist:none, explicit:Bayesian:none, accepted:Frequentist:none, accepted:Bayesian:none. Estimators: functional.effect. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
+notes = "Licensed coordinates (18): explicit:Frequentist:none, explicit:Frequentist:cheap, explicit:Frequentist:full, explicit:Bayesian:none, explicit:Bayesian:cheap, explicit:Bayesian:full, accepted:Frequentist:none, accepted:Frequentist:cheap, accepted:Frequentist:full, accepted:Bayesian:none, accepted:Bayesian:cheap, accepted:Bayesian:full, graph_posterior:Frequentist:none, graph_posterior:Frequentist:cheap, graph_posterior:Frequentist:full, graph_posterior:Bayesian:none, graph_posterior:Bayesian:cheap, graph_posterior:Bayesian:full. Estimators: functional.effect. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
 
 [[route]]
 id = "licensed.MediationEffect.TemporalAdmg"
 target = "MediationEffect"
 graph_class = "TemporalAdmg"
-design_time_model = "temporal; structure=explicit,accepted"
+design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
-uncertainty = "validation=none; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
+uncertainty = "validation=none,cheap,full; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "licensed"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-notes = "Licensed coordinates (4): explicit:Frequentist:none, explicit:Bayesian:none, accepted:Frequentist:none, accepted:Bayesian:none. Estimators: functional.effect. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
+notes = "Licensed coordinates (18): explicit:Frequentist:none, explicit:Frequentist:cheap, explicit:Frequentist:full, explicit:Bayesian:none, explicit:Bayesian:cheap, explicit:Bayesian:full, accepted:Frequentist:none, accepted:Frequentist:cheap, accepted:Frequentist:full, accepted:Bayesian:none, accepted:Bayesian:cheap, accepted:Bayesian:full, graph_posterior:Frequentist:none, graph_posterior:Frequentist:cheap, graph_posterior:Frequentist:full, graph_posterior:Bayesian:none, graph_posterior:Bayesian:cheap, graph_posterior:Bayesian:full. Estimators: functional.effect. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
 
 [[route]]
 id = "licensed.NestedCounterfactualEffect.Admg"
@@ -3612,53 +3612,53 @@ notes = "Licensed coordinates (18): explicit:Frequentist:none, explicit:Frequent
 id = "licensed.PathSpecificEffect.Admg"
 target = "PathSpecificEffect"
 graph_class = "Admg"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
-uncertainty = "validation=none; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
+uncertainty = "validation=none,cheap,full; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "licensed"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-notes = "Licensed coordinates (4): explicit:Frequentist:none, explicit:Bayesian:none, accepted:Frequentist:none, accepted:Bayesian:none. Estimators: functional.effect. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
+notes = "Licensed coordinates (18): explicit:Frequentist:none, explicit:Frequentist:cheap, explicit:Frequentist:full, explicit:Bayesian:none, explicit:Bayesian:cheap, explicit:Bayesian:full, accepted:Frequentist:none, accepted:Frequentist:cheap, accepted:Frequentist:full, accepted:Bayesian:none, accepted:Bayesian:cheap, accepted:Bayesian:full, graph_posterior:Frequentist:none, graph_posterior:Frequentist:cheap, graph_posterior:Frequentist:full, graph_posterior:Bayesian:none, graph_posterior:Bayesian:cheap, graph_posterior:Bayesian:full. Estimators: functional.effect. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
 
 [[route]]
 id = "licensed.PathSpecificEffect.Cpdag"
 target = "PathSpecificEffect"
 graph_class = "Cpdag"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
-uncertainty = "validation=none; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
+uncertainty = "validation=none,cheap,full; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "licensed"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-notes = "Licensed coordinates (4): explicit:Frequentist:none, explicit:Bayesian:none, accepted:Frequentist:none, accepted:Bayesian:none. Estimators: functional.effect. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
+notes = "Licensed coordinates (18): explicit:Frequentist:none, explicit:Frequentist:cheap, explicit:Frequentist:full, explicit:Bayesian:none, explicit:Bayesian:cheap, explicit:Bayesian:full, accepted:Frequentist:none, accepted:Frequentist:cheap, accepted:Frequentist:full, accepted:Bayesian:none, accepted:Bayesian:cheap, accepted:Bayesian:full, graph_posterior:Frequentist:none, graph_posterior:Frequentist:cheap, graph_posterior:Frequentist:full, graph_posterior:Bayesian:none, graph_posterior:Bayesian:cheap, graph_posterior:Bayesian:full. Estimators: functional.effect. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
 
 [[route]]
 id = "licensed.PathSpecificEffect.Pag"
 target = "PathSpecificEffect"
 graph_class = "Pag"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
-uncertainty = "validation=none; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
+uncertainty = "validation=none,cheap,full; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "licensed"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-notes = "Licensed coordinates (4): explicit:Frequentist:none, explicit:Bayesian:none, accepted:Frequentist:none, accepted:Bayesian:none. Estimators: functional.effect. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
+notes = "Licensed coordinates (18): explicit:Frequentist:none, explicit:Frequentist:cheap, explicit:Frequentist:full, explicit:Bayesian:none, explicit:Bayesian:cheap, explicit:Bayesian:full, accepted:Frequentist:none, accepted:Frequentist:cheap, accepted:Frequentist:full, accepted:Bayesian:none, accepted:Bayesian:cheap, accepted:Bayesian:full, graph_posterior:Frequentist:none, graph_posterior:Frequentist:cheap, graph_posterior:Frequentist:full, graph_posterior:Bayesian:none, graph_posterior:Bayesian:cheap, graph_posterior:Bayesian:full. Estimators: functional.effect. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
 
 [[route]]
 id = "licensed.PathSpecificEffect.TemporalAdmg"
 target = "PathSpecificEffect"
 graph_class = "TemporalAdmg"
-design_time_model = "temporal; structure=explicit,accepted"
+design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
-uncertainty = "validation=none; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
+uncertainty = "validation=none,cheap,full; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "licensed"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
-notes = "Licensed coordinates (4): explicit:Frequentist:none, explicit:Bayesian:none, accepted:Frequentist:none, accepted:Bayesian:none. Estimators: functional.effect. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
+notes = "Licensed coordinates (18): explicit:Frequentist:none, explicit:Frequentist:cheap, explicit:Frequentist:full, explicit:Bayesian:none, explicit:Bayesian:cheap, explicit:Bayesian:full, accepted:Frequentist:none, accepted:Frequentist:cheap, accepted:Frequentist:full, accepted:Bayesian:none, accepted:Bayesian:cheap, accepted:Bayesian:full, graph_posterior:Frequentist:none, graph_posterior:Frequentist:cheap, graph_posterior:Frequentist:full, graph_posterior:Bayesian:none, graph_posterior:Bayesian:cheap, graph_posterior:Bayesian:full. Estimators: functional.effect. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
 
 [[route]]
 id = "licensed.PointDerivative.Admg"
@@ -3711,6 +3711,19 @@ artifact_consumer = "unlisted"
 status = "licensed"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 notes = "Licensed coordinates (18): graph_posterior:Frequentist:none, graph_posterior:Frequentist:cheap, graph_posterior:Frequentist:full, graph_posterior:Bayesian:none, graph_posterior:Bayesian:cheap, graph_posterior:Bayesian:full, explicit:Frequentist:none, explicit:Frequentist:cheap, explicit:Frequentist:full, explicit:Bayesian:none, explicit:Bayesian:cheap, explicit:Bayesian:full, accepted:Frequentist:none, accepted:Frequentist:cheap, accepted:Frequentist:full, accepted:Bayesian:none, accepted:Bayesian:cheap, accepted:Bayesian:full. Estimators: response.kennedy_dr, temporal.response.gcomp, response.temporal.bayesian. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
+
+[[route]]
+id = "licensed.PulseEffect.TemporalAdmg"
+target = "PulseEffect"
+graph_class = "TemporalAdmg"
+design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
+inference = "Frequentist,Bayesian"
+uncertainty = "validation=none,cheap,full; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
+decision_ports = "unlisted"
+artifact_consumer = "unlisted"
+status = "licensed"
+owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
+notes = "Licensed coordinates (18): explicit:Frequentist:none, explicit:Frequentist:cheap, explicit:Frequentist:full, explicit:Bayesian:none, explicit:Bayesian:cheap, explicit:Bayesian:full, accepted:Frequentist:none, accepted:Frequentist:cheap, accepted:Frequentist:full, accepted:Bayesian:none, accepted:Bayesian:cheap, accepted:Bayesian:full, graph_posterior:Frequentist:none, graph_posterior:Frequentist:cheap, graph_posterior:Frequentist:full, graph_posterior:Bayesian:none, graph_posterior:Bayesian:cheap, graph_posterior:Bayesian:full. Estimators: functional.effect. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
 
 [[route]]
 id = "licensed.ResponseJacobian.Admg"
@@ -3815,6 +3828,71 @@ artifact_consumer = "unlisted"
 status = "licensed"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 notes = "Licensed coordinates (18): graph_posterior:Frequentist:none, graph_posterior:Frequentist:cheap, graph_posterior:Frequentist:full, graph_posterior:Bayesian:none, graph_posterior:Bayesian:cheap, graph_posterior:Bayesian:full, explicit:Frequentist:none, explicit:Frequentist:cheap, explicit:Frequentist:full, explicit:Bayesian:none, explicit:Bayesian:cheap, explicit:Bayesian:full, accepted:Frequentist:none, accepted:Frequentist:cheap, accepted:Frequentist:full, accepted:Bayesian:none, accepted:Bayesian:cheap, accepted:Bayesian:full. Estimators: response.kennedy_dr, temporal.response.gcomp, response.temporal.bayesian. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
+
+[[route]]
+id = "licensed.SustainedEffect.TemporalAdmg"
+target = "SustainedEffect"
+graph_class = "TemporalAdmg"
+design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
+inference = "Frequentist,Bayesian"
+uncertainty = "validation=none,cheap,full; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
+decision_ports = "unlisted"
+artifact_consumer = "unlisted"
+status = "licensed"
+owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
+notes = "Licensed coordinates (18): explicit:Frequentist:none, explicit:Frequentist:cheap, explicit:Frequentist:full, explicit:Bayesian:none, explicit:Bayesian:cheap, explicit:Bayesian:full, accepted:Frequentist:none, accepted:Frequentist:cheap, accepted:Frequentist:full, accepted:Bayesian:none, accepted:Bayesian:cheap, accepted:Bayesian:full, graph_posterior:Frequentist:none, graph_posterior:Frequentist:cheap, graph_posterior:Frequentist:full, graph_posterior:Bayesian:none, graph_posterior:Bayesian:cheap, graph_posterior:Bayesian:full. Estimators: functional.effect. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
+
+[[route]]
+id = "licensed.TemporalConditionalPulse.TemporalAdmg"
+target = "TemporalConditionalPulse"
+graph_class = "TemporalAdmg"
+design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
+inference = "Frequentist,Bayesian"
+uncertainty = "validation=none,cheap,full; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
+decision_ports = "unlisted"
+artifact_consumer = "unlisted"
+status = "licensed"
+owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
+notes = "Licensed coordinates (18): explicit:Frequentist:none, explicit:Frequentist:cheap, explicit:Frequentist:full, explicit:Bayesian:none, explicit:Bayesian:cheap, explicit:Bayesian:full, accepted:Frequentist:none, accepted:Frequentist:cheap, accepted:Frequentist:full, accepted:Bayesian:none, accepted:Bayesian:cheap, accepted:Bayesian:full, graph_posterior:Frequentist:none, graph_posterior:Frequentist:cheap, graph_posterior:Frequentist:full, graph_posterior:Bayesian:none, graph_posterior:Bayesian:cheap, graph_posterior:Bayesian:full. Estimators: functional.effect. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
+
+[[route]]
+id = "licensed.TemporalConditionalSustained.TemporalAdmg"
+target = "TemporalConditionalSustained"
+graph_class = "TemporalAdmg"
+design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
+inference = "Frequentist,Bayesian"
+uncertainty = "validation=none,cheap,full; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
+decision_ports = "unlisted"
+artifact_consumer = "unlisted"
+status = "licensed"
+owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
+notes = "Licensed coordinates (18): explicit:Frequentist:none, explicit:Frequentist:cheap, explicit:Frequentist:full, explicit:Bayesian:none, explicit:Bayesian:cheap, explicit:Bayesian:full, accepted:Frequentist:none, accepted:Frequentist:cheap, accepted:Frequentist:full, accepted:Bayesian:none, accepted:Bayesian:cheap, accepted:Bayesian:full, graph_posterior:Frequentist:none, graph_posterior:Frequentist:cheap, graph_posterior:Frequentist:full, graph_posterior:Bayesian:none, graph_posterior:Bayesian:cheap, graph_posterior:Bayesian:full. Estimators: functional.effect. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
+
+[[route]]
+id = "licensed.TemporalMediationEffect.TemporalAdmg"
+target = "TemporalMediationEffect"
+graph_class = "TemporalAdmg"
+design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
+inference = "Frequentist,Bayesian"
+uncertainty = "validation=none,cheap,full; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
+decision_ports = "unlisted"
+artifact_consumer = "unlisted"
+status = "licensed"
+owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
+notes = "Licensed coordinates (18): explicit:Frequentist:none, explicit:Frequentist:cheap, explicit:Frequentist:full, explicit:Bayesian:none, explicit:Bayesian:cheap, explicit:Bayesian:full, accepted:Frequentist:none, accepted:Frequentist:cheap, accepted:Frequentist:full, accepted:Bayesian:none, accepted:Bayesian:cheap, accepted:Bayesian:full, graph_posterior:Frequentist:none, graph_posterior:Frequentist:cheap, graph_posterior:Frequentist:full, graph_posterior:Bayesian:none, graph_posterior:Bayesian:cheap, graph_posterior:Bayesian:full. Estimators: functional.effect. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
+
+[[route]]
+id = "licensed.TemporalMediationEffect.TemporalPag"
+target = "TemporalMediationEffect"
+graph_class = "TemporalPag"
+design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
+inference = "Frequentist,Bayesian"
+uncertainty = "validation=none,cheap,full; per-estimator uncertainty procedure is stated by the method records of this route; calibration pending, estimator_grid_not_measured, no boundary record"
+decision_ports = "unlisted"
+artifact_consumer = "unlisted"
+status = "licensed"
+owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
+notes = "Licensed coordinates (18): explicit:Frequentist:none, explicit:Frequentist:cheap, explicit:Frequentist:full, explicit:Bayesian:none, explicit:Bayesian:cheap, explicit:Bayesian:full, accepted:Frequentist:none, accepted:Frequentist:cheap, accepted:Frequentist:full, accepted:Bayesian:none, accepted:Bayesian:cheap, accepted:Bayesian:full, graph_posterior:Frequentist:none, graph_posterior:Frequentist:cheap, graph_posterior:Frequentist:full, graph_posterior:Bayesian:none, graph_posterior:Bayesian:cheap, graph_posterior:Bayesian:full. Estimators: functional.effect. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Coordinates outside this list are listed in parity/support_closed.toml."
 
 [[route]]
 id = "licensed.TransportQuery.Cpdag"
@@ -6477,7 +6555,7 @@ estimator = "functional.effect"
 identifier = ["general.id"]
 lowering = ["CounterfactualClass", "GraphPosteriorCrossWorld"]
 inference = "bayesian"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -6505,7 +6583,7 @@ estimator = "functional.effect"
 identifier = ["general.id"]
 lowering = ["CounterfactualClass", "GraphPosteriorCrossWorld"]
 inference = "frequentist"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -6533,7 +6611,7 @@ estimator = "gcm.fit"
 identifier = ["gcm.parametric"]
 lowering = ["CounterfactualClass", "GraphPosteriorCrossWorld"]
 inference = "bayesian"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -6561,7 +6639,7 @@ estimator = "gcm.fit"
 identifier = ["gcm.parametric"]
 lowering = ["CounterfactualClass", "GraphPosteriorCrossWorld"]
 inference = "frequentist"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -6645,7 +6723,7 @@ estimator = "functional.effect"
 identifier = ["general.id"]
 lowering = ["CounterfactualClass", "GraphPosteriorCrossWorld"]
 inference = "bayesian"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["none"]
@@ -6673,7 +6751,7 @@ estimator = "functional.effect"
 identifier = ["general.id"]
 lowering = ["CounterfactualClass", "GraphPosteriorCrossWorld"]
 inference = "frequentist"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["none"]
@@ -6701,7 +6779,7 @@ estimator = "functional.effect"
 identifier = ["general.id"]
 lowering = ["CounterfactualClass", "GraphPosteriorCrossWorld"]
 inference = "bayesian"
-design_time_model = "temporal; structure=explicit,accepted"
+design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -6729,7 +6807,7 @@ estimator = "functional.effect"
 identifier = ["general.id"]
 lowering = ["CounterfactualClass", "GraphPosteriorCrossWorld"]
 inference = "frequentist"
-design_time_model = "temporal; structure=explicit,accepted"
+design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -8771,7 +8849,7 @@ graph_class = "Admg"
 design = "static"
 estimator = "functional.distribution"
 identifier = ["general.id"]
-lowering = ["DistributionMixed"]
+lowering = ["DistributionMixed", "GraphPosteriorCrossWorld"]
 inference = "bayesian"
 design_time_model = "static; structure=explicit,accepted"
 status = "licensed"
@@ -8799,7 +8877,7 @@ graph_class = "Admg"
 design = "static"
 estimator = "functional.distribution"
 identifier = ["general.id"]
-lowering = ["DistributionMixed"]
+lowering = ["DistributionMixed", "GraphPosteriorCrossWorld"]
 inference = "frequentist"
 design_time_model = "static; structure=explicit,accepted"
 status = "licensed"
@@ -8827,9 +8905,9 @@ graph_class = "Cpdag"
 design = "static"
 estimator = "functional.distribution"
 identifier = ["general.id"]
-lowering = ["DistributionMixed"]
+lowering = ["DistributionMixed", "GraphPosteriorCrossWorld"]
 inference = "bayesian"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -8855,9 +8933,9 @@ graph_class = "Cpdag"
 design = "static"
 estimator = "functional.distribution"
 identifier = ["general.id"]
-lowering = ["DistributionMixed"]
+lowering = ["DistributionMixed", "GraphPosteriorCrossWorld"]
 inference = "frequentist"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -8883,7 +8961,7 @@ graph_class = "Dag"
 design = "static"
 estimator = "functional.distribution"
 identifier = ["general.id"]
-lowering = ["DistributionDag"]
+lowering = ["DistributionDag", "GraphPosteriorCrossWorld"]
 inference = "bayesian"
 design_time_model = "static; structure=explicit,accepted"
 status = "licensed"
@@ -8911,7 +8989,7 @@ graph_class = "Dag"
 design = "static"
 estimator = "functional.distribution"
 identifier = ["general.id"]
-lowering = ["DistributionDag"]
+lowering = ["DistributionDag", "GraphPosteriorCrossWorld"]
 inference = "frequentist"
 design_time_model = "static; structure=explicit,accepted"
 status = "licensed"
@@ -8939,9 +9017,9 @@ graph_class = "Pag"
 design = "static"
 estimator = "functional.distribution"
 identifier = ["general.id"]
-lowering = ["DistributionMixed"]
+lowering = ["DistributionMixed", "GraphPosteriorCrossWorld"]
 inference = "bayesian"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -8967,9 +9045,9 @@ graph_class = "Pag"
 design = "static"
 estimator = "functional.distribution"
 identifier = ["general.id"]
-lowering = ["DistributionMixed"]
+lowering = ["DistributionMixed", "GraphPosteriorCrossWorld"]
 inference = "frequentist"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -8995,7 +9073,7 @@ graph_class = "TemporalAdmg"
 design = "temporal"
 estimator = "functional.distribution"
 identifier = ["general.id"]
-lowering = ["DistributionMixed"]
+lowering = ["DistributionMixed", "GraphPosteriorCrossWorld"]
 inference = "bayesian"
 design_time_model = "temporal; structure=explicit,accepted"
 status = "licensed"
@@ -9023,7 +9101,7 @@ graph_class = "TemporalAdmg"
 design = "temporal"
 estimator = "functional.distribution"
 identifier = ["general.id"]
-lowering = ["DistributionMixed"]
+lowering = ["DistributionMixed", "GraphPosteriorCrossWorld"]
 inference = "frequentist"
 design_time_model = "temporal; structure=explicit,accepted"
 status = "licensed"
@@ -9219,9 +9297,9 @@ graph_class = "Admg"
 design = "static"
 estimator = "functional.effect"
 identifier = ["path_specific.natural"]
-lowering = ["PathSpecificMixed"]
+lowering = ["GraphPosteriorCrossWorld", "PathSpecificMixed"]
 inference = "bayesian"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -9247,9 +9325,9 @@ graph_class = "Admg"
 design = "static"
 estimator = "functional.effect"
 identifier = ["path_specific.natural"]
-lowering = ["PathSpecificMixed"]
+lowering = ["GraphPosteriorCrossWorld", "PathSpecificMixed"]
 inference = "frequentist"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -9275,9 +9353,9 @@ graph_class = "Cpdag"
 design = "static"
 estimator = "functional.effect"
 identifier = ["path_specific.natural"]
-lowering = ["PathSpecificCpdag"]
+lowering = ["GraphPosteriorCrossWorld", "PathSpecificCpdag"]
 inference = "bayesian"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -9303,9 +9381,9 @@ graph_class = "Cpdag"
 design = "static"
 estimator = "functional.effect"
 identifier = ["path_specific.natural"]
-lowering = ["PathSpecificCpdag"]
+lowering = ["GraphPosteriorCrossWorld", "PathSpecificCpdag"]
 inference = "frequentist"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -9331,7 +9409,7 @@ graph_class = "Dag"
 design = "static"
 estimator = "mediation.linear"
 identifier = ["path_specific.natural"]
-lowering = ["StaticMediationDag"]
+lowering = ["GraphPosteriorCrossWorld", "StaticMediationDag"]
 inference = "bayesian"
 design_time_model = "static; structure=explicit,accepted"
 status = "licensed"
@@ -9359,7 +9437,7 @@ graph_class = "Dag"
 design = "static"
 estimator = "mediation.linear"
 identifier = ["path_specific.natural"]
-lowering = ["StaticMediationDag"]
+lowering = ["GraphPosteriorCrossWorld", "StaticMediationDag"]
 inference = "frequentist"
 design_time_model = "static; structure=explicit,accepted"
 status = "licensed"
@@ -9387,9 +9465,9 @@ graph_class = "Pag"
 design = "static"
 estimator = "functional.effect"
 identifier = ["path_specific.natural"]
-lowering = ["PathSpecificPag"]
+lowering = ["GraphPosteriorCrossWorld", "PathSpecificPag"]
 inference = "bayesian"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -9415,9 +9493,9 @@ graph_class = "Pag"
 design = "static"
 estimator = "functional.effect"
 identifier = ["path_specific.natural"]
-lowering = ["PathSpecificPag"]
+lowering = ["GraphPosteriorCrossWorld", "PathSpecificPag"]
 inference = "frequentist"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -9443,9 +9521,9 @@ graph_class = "TemporalAdmg"
 design = "temporal"
 estimator = "functional.effect"
 identifier = ["path_specific.natural"]
-lowering = ["PathSpecificMixed"]
+lowering = ["GraphPosteriorCrossWorld", "PathSpecificMixed"]
 inference = "bayesian"
-design_time_model = "temporal; structure=explicit,accepted"
+design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -9471,9 +9549,9 @@ graph_class = "TemporalAdmg"
 design = "temporal"
 estimator = "functional.effect"
 identifier = ["path_specific.natural"]
-lowering = ["PathSpecificMixed"]
+lowering = ["GraphPosteriorCrossWorld", "PathSpecificMixed"]
 inference = "frequentist"
-design_time_model = "temporal; structure=explicit,accepted"
+design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -10003,9 +10081,9 @@ graph_class = "Admg"
 design = "static"
 estimator = "functional.effect"
 identifier = ["path_specific.natural"]
-lowering = ["PathSpecificMixed"]
+lowering = ["GraphPosteriorCrossWorld", "PathSpecificMixed"]
 inference = "bayesian"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -10031,9 +10109,9 @@ graph_class = "Admg"
 design = "static"
 estimator = "functional.effect"
 identifier = ["path_specific.natural"]
-lowering = ["PathSpecificMixed"]
+lowering = ["GraphPosteriorCrossWorld", "PathSpecificMixed"]
 inference = "frequentist"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -10059,9 +10137,9 @@ graph_class = "Cpdag"
 design = "static"
 estimator = "functional.effect"
 identifier = ["path_specific.natural"]
-lowering = ["PathSpecificCpdag"]
+lowering = ["GraphPosteriorCrossWorld", "PathSpecificCpdag"]
 inference = "bayesian"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -10087,9 +10165,9 @@ graph_class = "Cpdag"
 design = "static"
 estimator = "functional.effect"
 identifier = ["path_specific.natural"]
-lowering = ["PathSpecificCpdag"]
+lowering = ["GraphPosteriorCrossWorld", "PathSpecificCpdag"]
 inference = "frequentist"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -10115,7 +10193,7 @@ graph_class = "Dag"
 design = "static"
 estimator = "functional.effect"
 identifier = ["path_specific.natural"]
-lowering = ["PathSpecificDag"]
+lowering = ["GraphPosteriorCrossWorld", "PathSpecificDag"]
 inference = "bayesian"
 design_time_model = "static; structure=explicit,accepted"
 status = "licensed"
@@ -10143,7 +10221,7 @@ graph_class = "Dag"
 design = "static"
 estimator = "functional.effect"
 identifier = ["path_specific.natural"]
-lowering = ["PathSpecificDag"]
+lowering = ["GraphPosteriorCrossWorld", "PathSpecificDag"]
 inference = "frequentist"
 design_time_model = "static; structure=explicit,accepted"
 status = "licensed"
@@ -10171,9 +10249,9 @@ graph_class = "Pag"
 design = "static"
 estimator = "functional.effect"
 identifier = ["path_specific.natural"]
-lowering = ["PathSpecificPag"]
+lowering = ["GraphPosteriorCrossWorld", "PathSpecificPag"]
 inference = "bayesian"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -10199,9 +10277,9 @@ graph_class = "Pag"
 design = "static"
 estimator = "functional.effect"
 identifier = ["path_specific.natural"]
-lowering = ["PathSpecificPag"]
+lowering = ["GraphPosteriorCrossWorld", "PathSpecificPag"]
 inference = "frequentist"
-design_time_model = "static; structure=explicit,accepted"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -10227,9 +10305,9 @@ graph_class = "TemporalAdmg"
 design = "temporal"
 estimator = "functional.effect"
 identifier = ["path_specific.natural"]
-lowering = ["PathSpecificMixed"]
+lowering = ["GraphPosteriorCrossWorld", "PathSpecificMixed"]
 inference = "bayesian"
-design_time_model = "temporal; structure=explicit,accepted"
+design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -10255,9 +10333,9 @@ graph_class = "TemporalAdmg"
 design = "temporal"
 estimator = "functional.effect"
 identifier = ["path_specific.natural"]
-lowering = ["PathSpecificMixed"]
+lowering = ["GraphPosteriorCrossWorld", "PathSpecificMixed"]
 inference = "frequentist"
-design_time_model = "temporal; structure=explicit,accepted"
+design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -10954,10 +11032,10 @@ target = "PulseEffect"
 graph_class = "TemporalAdmg"
 design = "temporal"
 estimator = "functional.effect"
-identifier = []
-lowering = []
+identifier = ["general.id"]
+lowering = ["GraphPosteriorTemporalEffect", "TemporalEffectAdmg"]
 inference = "bayesian"
-design_time_model = "unlisted"
+design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -10967,7 +11045,7 @@ uncertainty_structure = "explicit"
 uncertainty_basis = "estimator_records|estimator:functional.effect:Bayesian:static:explicit"
 uncertainty_by_structure = ["explicit=design_aware_resampling,posterior|estimator_records|estimator:functional.effect:Bayesian:static:explicit", "accepted=design_aware_resampling,posterior|estimator_records|estimator:functional.effect:Bayesian:static:accepted", "graph_posterior=posterior|estimator_records|estimator:functional.effect:Bayesian:static:graph_posterior"]
 decision_ports = "unlisted"
-owning_module = "unlisted"
+owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_admg_window_contrasts_run_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_admg_window_posterior_runs_from_the_retained_plan_without_the_builder"]
@@ -10982,10 +11060,10 @@ target = "PulseEffect"
 graph_class = "TemporalAdmg"
 design = "temporal"
 estimator = "functional.effect"
-identifier = []
-lowering = []
+identifier = ["general.id"]
+lowering = ["GraphPosteriorTemporalEffect", "TemporalEffectAdmg"]
 inference = "frequentist"
-design_time_model = "unlisted"
+design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -10995,7 +11073,7 @@ uncertainty_structure = "explicit"
 uncertainty_basis = "estimator_records|estimator:functional.effect:Frequentist:static:explicit"
 uncertainty_by_structure = ["explicit=design_aware_resampling,posterior|estimator_records|estimator:functional.effect:Frequentist:static:explicit", "accepted=design_aware_resampling,posterior|estimator_records|estimator:functional.effect:Frequentist:static:accepted", "graph_posterior=design_aware_resampling|estimator_records|estimator:functional.effect:Frequentist:static:graph_posterior"]
 decision_ports = "unlisted"
-owning_module = "unlisted"
+owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_admg_window_contrasts_run_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_admg_window_posterior_runs_from_the_retained_plan_without_the_builder"]
@@ -12634,10 +12712,10 @@ target = "SustainedEffect"
 graph_class = "TemporalAdmg"
 design = "temporal"
 estimator = "functional.effect"
-identifier = []
-lowering = []
+identifier = ["general.id"]
+lowering = ["GraphPosteriorTemporalEffect", "TemporalEffectAdmg"]
 inference = "bayesian"
-design_time_model = "unlisted"
+design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -12647,7 +12725,7 @@ uncertainty_structure = "explicit"
 uncertainty_basis = "estimator_records|estimator:functional.effect:Bayesian:static:explicit"
 uncertainty_by_structure = ["explicit=design_aware_resampling,posterior|estimator_records|estimator:functional.effect:Bayesian:static:explicit", "accepted=design_aware_resampling,posterior|estimator_records|estimator:functional.effect:Bayesian:static:accepted", "graph_posterior=posterior|estimator_records|estimator:functional.effect:Bayesian:static:graph_posterior"]
 decision_ports = "unlisted"
-owning_module = "unlisted"
+owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_admg_window_contrasts_run_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_admg_window_posterior_runs_from_the_retained_plan_without_the_builder"]
@@ -12662,10 +12740,10 @@ target = "SustainedEffect"
 graph_class = "TemporalAdmg"
 design = "temporal"
 estimator = "functional.effect"
-identifier = []
-lowering = []
+identifier = ["general.id"]
+lowering = ["GraphPosteriorTemporalEffect", "TemporalEffectAdmg"]
 inference = "frequentist"
-design_time_model = "unlisted"
+design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -12675,7 +12753,7 @@ uncertainty_structure = "explicit"
 uncertainty_basis = "estimator_records|estimator:functional.effect:Frequentist:static:explicit"
 uncertainty_by_structure = ["explicit=design_aware_resampling,posterior|estimator_records|estimator:functional.effect:Frequentist:static:explicit", "accepted=design_aware_resampling,posterior|estimator_records|estimator:functional.effect:Frequentist:static:accepted", "graph_posterior=design_aware_resampling|estimator_records|estimator:functional.effect:Frequentist:static:graph_posterior"]
 decision_ports = "unlisted"
-owning_module = "unlisted"
+owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_admg_window_contrasts_run_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_admg_window_posterior_runs_from_the_retained_plan_without_the_builder"]
@@ -12858,10 +12936,10 @@ target = "TemporalConditionalPulse"
 graph_class = "TemporalAdmg"
 design = "temporal"
 estimator = "functional.effect"
-identifier = []
-lowering = []
+identifier = ["general.id"]
+lowering = ["GraphPosteriorTemporalEffect", "TemporalEffectAdmg"]
 inference = "bayesian"
-design_time_model = "unlisted"
+design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -12871,7 +12949,7 @@ uncertainty_structure = "explicit"
 uncertainty_basis = "estimator_records|estimator:functional.effect:Bayesian:static:explicit"
 uncertainty_by_structure = ["explicit=design_aware_resampling,posterior|estimator_records|estimator:functional.effect:Bayesian:static:explicit", "accepted=design_aware_resampling,posterior|estimator_records|estimator:functional.effect:Bayesian:static:accepted", "graph_posterior=posterior|estimator_records|estimator:functional.effect:Bayesian:static:graph_posterior"]
 decision_ports = "unlisted"
-owning_module = "unlisted"
+owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_admg_window_contrasts_run_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_admg_window_posterior_runs_from_the_retained_plan_without_the_builder"]
@@ -12886,10 +12964,10 @@ target = "TemporalConditionalPulse"
 graph_class = "TemporalAdmg"
 design = "temporal"
 estimator = "functional.effect"
-identifier = []
-lowering = []
+identifier = ["general.id"]
+lowering = ["GraphPosteriorTemporalEffect", "TemporalEffectAdmg"]
 inference = "frequentist"
-design_time_model = "unlisted"
+design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -12899,7 +12977,7 @@ uncertainty_structure = "explicit"
 uncertainty_basis = "estimator_records|estimator:functional.effect:Frequentist:static:explicit"
 uncertainty_by_structure = ["explicit=design_aware_resampling,posterior|estimator_records|estimator:functional.effect:Frequentist:static:explicit", "accepted=design_aware_resampling,posterior|estimator_records|estimator:functional.effect:Frequentist:static:accepted", "graph_posterior=design_aware_resampling|estimator_records|estimator:functional.effect:Frequentist:static:graph_posterior"]
 decision_ports = "unlisted"
-owning_module = "unlisted"
+owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_admg_window_contrasts_run_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_admg_window_posterior_runs_from_the_retained_plan_without_the_builder"]
@@ -13082,10 +13160,10 @@ target = "TemporalConditionalSustained"
 graph_class = "TemporalAdmg"
 design = "temporal"
 estimator = "functional.effect"
-identifier = []
-lowering = []
+identifier = ["general.id"]
+lowering = ["GraphPosteriorTemporalEffect", "TemporalEffectAdmg"]
 inference = "bayesian"
-design_time_model = "unlisted"
+design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -13095,7 +13173,7 @@ uncertainty_structure = "explicit"
 uncertainty_basis = "estimator_records|estimator:functional.effect:Bayesian:static:explicit"
 uncertainty_by_structure = ["explicit=design_aware_resampling,posterior|estimator_records|estimator:functional.effect:Bayesian:static:explicit", "accepted=design_aware_resampling,posterior|estimator_records|estimator:functional.effect:Bayesian:static:accepted", "graph_posterior=posterior|estimator_records|estimator:functional.effect:Bayesian:static:graph_posterior"]
 decision_ports = "unlisted"
-owning_module = "unlisted"
+owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_admg_window_contrasts_run_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_admg_window_posterior_runs_from_the_retained_plan_without_the_builder"]
@@ -13110,10 +13188,10 @@ target = "TemporalConditionalSustained"
 graph_class = "TemporalAdmg"
 design = "temporal"
 estimator = "functional.effect"
-identifier = []
-lowering = []
+identifier = ["general.id"]
+lowering = ["GraphPosteriorTemporalEffect", "TemporalEffectAdmg"]
 inference = "frequentist"
-design_time_model = "unlisted"
+design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -13123,7 +13201,7 @@ uncertainty_structure = "explicit"
 uncertainty_basis = "estimator_records|estimator:functional.effect:Frequentist:static:explicit"
 uncertainty_by_structure = ["explicit=design_aware_resampling,posterior|estimator_records|estimator:functional.effect:Frequentist:static:explicit", "accepted=design_aware_resampling,posterior|estimator_records|estimator:functional.effect:Frequentist:static:accepted", "graph_posterior=design_aware_resampling|estimator_records|estimator:functional.effect:Frequentist:static:graph_posterior"]
 decision_ports = "unlisted"
-owning_module = "unlisted"
+owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_admg_window_contrasts_run_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_admg_window_posterior_runs_from_the_retained_plan_without_the_builder"]
@@ -13306,10 +13384,10 @@ target = "TemporalMediationEffect"
 graph_class = "TemporalAdmg"
 design = "temporal"
 estimator = "functional.effect"
-identifier = []
-lowering = []
+identifier = ["path_specific.natural"]
+lowering = ["GraphPosteriorTemporalMediation", "TemporalMediationAdmg"]
 inference = "bayesian"
-design_time_model = "unlisted"
+design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -13319,7 +13397,7 @@ uncertainty_structure = "explicit"
 uncertainty_basis = "estimator_records|estimator:functional.effect:Bayesian:static:explicit"
 uncertainty_by_structure = ["explicit=design_aware_resampling,posterior|estimator_records|estimator:functional.effect:Bayesian:static:explicit", "accepted=design_aware_resampling,posterior|estimator_records|estimator:functional.effect:Bayesian:static:accepted", "graph_posterior=posterior|estimator_records|estimator:functional.effect:Bayesian:static:graph_posterior"]
 decision_ports = "unlisted"
-owning_module = "unlisted"
+owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_admg_window_mediation_runs_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_admg_window_mediation_posterior_mixes_each_component_over_the_atoms_that_identify_it"]
@@ -13334,10 +13412,10 @@ target = "TemporalMediationEffect"
 graph_class = "TemporalAdmg"
 design = "temporal"
 estimator = "functional.effect"
-identifier = []
-lowering = []
+identifier = ["path_specific.natural"]
+lowering = ["GraphPosteriorTemporalMediation", "TemporalMediationAdmg"]
 inference = "frequentist"
-design_time_model = "unlisted"
+design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
@@ -13347,7 +13425,7 @@ uncertainty_structure = "explicit"
 uncertainty_basis = "estimator_records|estimator:functional.effect:Frequentist:static:explicit"
 uncertainty_by_structure = ["explicit=design_aware_resampling,posterior|estimator_records|estimator:functional.effect:Frequentist:static:explicit", "accepted=design_aware_resampling,posterior|estimator_records|estimator:functional.effect:Frequentist:static:accepted", "graph_posterior=design_aware_resampling|estimator_records|estimator:functional.effect:Frequentist:static:graph_posterior"]
 decision_ports = "unlisted"
-owning_module = "unlisted"
+owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_admg_window_mediation_runs_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_admg_window_mediation_posterior_mixes_each_component_over_the_atoms_that_identify_it"]
@@ -13474,20 +13552,20 @@ target = "TemporalMediationEffect"
 graph_class = "TemporalPag"
 design = "temporal"
 estimator = "functional.effect"
-identifier = []
-lowering = []
+identifier = ["path_specific.natural"]
+lowering = ["GraphPosteriorTemporalMediation", "TemporalMediationPag"]
 inference = "bayesian"
-design_time_model = "unlisted"
+design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
 coordinates = 9
-uncertainty = "unresolved"
+uncertainty = "design_aware_resampling"
 uncertainty_structure = "explicit"
-uncertainty_basis = ""
-uncertainty_by_structure = ["explicit=|", "accepted=|", "graph_posterior=|"]
+uncertainty_basis = "estimator_records|estimator:functional.effect:Bayesian:static:explicit"
+uncertainty_by_structure = ["explicit=design_aware_resampling,posterior|estimator_records|estimator:functional.effect:Bayesian:static:explicit", "accepted=design_aware_resampling,posterior|estimator_records|estimator:functional.effect:Bayesian:static:accepted", "graph_posterior=posterior|estimator_records|estimator:functional.effect:Bayesian:static:graph_posterior"]
 decision_ports = "unlisted"
-owning_module = "unlisted"
+owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_pag_window_mediation_runs_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_pag_window_mediation_posterior_accounts_for_the_atom_it_cannot_identify"]
@@ -13502,20 +13580,20 @@ target = "TemporalMediationEffect"
 graph_class = "TemporalPag"
 design = "temporal"
 estimator = "functional.effect"
-identifier = []
-lowering = []
+identifier = ["path_specific.natural"]
+lowering = ["GraphPosteriorTemporalMediation", "TemporalMediationPag"]
 inference = "frequentist"
-design_time_model = "unlisted"
+design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 status = "licensed"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
 coordinates = 9
-uncertainty = "unresolved"
+uncertainty = "design_aware_resampling"
 uncertainty_structure = "explicit"
-uncertainty_basis = ""
-uncertainty_by_structure = ["explicit=|", "accepted=|", "graph_posterior=|"]
+uncertainty_basis = "estimator_records|estimator:functional.effect:Frequentist:static:explicit"
+uncertainty_by_structure = ["explicit=design_aware_resampling,posterior|estimator_records|estimator:functional.effect:Frequentist:static:explicit", "accepted=design_aware_resampling,posterior|estimator_records|estimator:functional.effect:Frequentist:static:accepted", "graph_posterior=design_aware_resampling|estimator_records|estimator:functional.effect:Frequentist:static:graph_posterior"]
 decision_ports = "unlisted"
-owning_module = "unlisted"
+owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_pag_window_mediation_runs_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_pag_window_mediation_posterior_accounts_for_the_atom_it_cannot_identify"]
