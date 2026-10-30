@@ -69,13 +69,13 @@ impl InferenceSpec {
         let item = |key: &str| -> PyResult<Option<Bound<'_, PyAny>>> {
             Ok(dict.get_item(key)?.filter(|value| !value.is_none()))
         };
-        Ok(Self {
+        let spec = Self {
             mode: item("mode")?.map(|value| value.extract()).transpose()?,
             n_draws: item("n_draws")?.map(|value| value.extract()).transpose()?,
             prior_scale: item("prior_scale")?
                 .map(|value| value.extract())
                 .transpose()?
-                .ok_or_else(|| crate::value_err("inference requires prior_scale"))?,
+                .unwrap_or(10.0),
             prior_artifact: item("prior_artifact")?.map(|value| value.extract()).transpose()?,
             prior_mapping: item("prior_mapping")?
                 .map(|value| crate::prior_bank::mapping_from_dict(value.cast::<PyDict>()?))
@@ -100,7 +100,38 @@ impl InferenceSpec {
             predictive_replicates: item("predictive_replicates")?
                 .map(|value| value.extract::<(u32, u32)>())
                 .transpose()?,
-        })
+        };
+        if !spec.prior_scale.is_finite() || spec.prior_scale <= 0.0 {
+            return Err(crate::value_err("prior_scale must be finite and positive"));
+        }
+        if spec.white_innovation.is_some_and(|(lag, level)| {
+            lag == 0 || !level.is_finite() || !(0.0 < level && level < 1.0)
+        }) {
+            return Err(crate::value_err(
+                "white_innovation requires max_lag >= 1 and level in (0, 1)",
+            ));
+        }
+        if spec.prior_mapping.is_some() && spec.prior_artifact.is_none() {
+            return Err(crate::value_err("prior_mapping requires prior_artifact"));
+        }
+        if spec.prior_artifact.is_some() && spec.composed_prior.is_some() {
+            return Err(crate::value_err("choose either prior_artifact or composed_prior"));
+        }
+        if !spec.is_bayesian()
+            && (spec.n_draws.is_some()
+                || spec.prior_artifact.is_some()
+                || spec.prior_mapping.is_some()
+                || spec.composed_prior.is_some()
+                || spec.likelihood.is_some()
+                || spec.draw_controls.is_some()
+                || spec.white_innovation.is_some()
+                || spec.design_model.is_some()
+                || spec.predictive_replicates.is_some()
+                || spec.prior_scale != 10.0)
+        {
+            return Err(crate::value_err("Bayesian inference options require a Bayesian mode"));
+        }
+        Ok(spec)
     }
 
     /// Whether this is a Bayesian declaration.
@@ -483,5 +514,44 @@ impl PrepareOptions {
             self.progress.clone(),
             Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
         )
+    }
+}
+
+#[cfg(test)]
+mod inference_declaration_tests {
+    use super::InferenceSpec;
+    use pyo3::prelude::*;
+    use pyo3::types::PyDict;
+
+    #[test]
+    fn inference_rejects_ignored_options_and_invalid_scales() {
+        Python::initialize();
+        Python::attach(|py| {
+            let empty = PyDict::new(py);
+            assert!(InferenceSpec::parse(&empty).is_ok());
+            let frequentist = PyDict::new(py);
+            frequentist.set_item("mode", "frequentist").unwrap();
+            frequentist.set_item("prior_scale", 10.0).unwrap();
+            assert!(InferenceSpec::parse(&frequentist).is_ok());
+            frequentist.set_item("n_draws", 12).unwrap();
+            assert!(InferenceSpec::parse(&frequentist).is_err());
+            let absent_mode = PyDict::new(py);
+            absent_mode.set_item("prior_artifact", vec![1u8]).unwrap();
+            assert!(InferenceSpec::parse(&absent_mode).is_err());
+            for scale in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+                let bayesian = PyDict::new(py);
+                bayesian.set_item("mode", "bayesian").unwrap();
+                bayesian.set_item("prior_scale", scale).unwrap();
+                assert!(InferenceSpec::parse(&bayesian).is_err());
+            }
+            let bayesian = PyDict::new(py);
+            bayesian.set_item("mode", "bayesian").unwrap();
+            bayesian.set_item("white_innovation", (0usize, 0.5)).unwrap();
+            assert!(InferenceSpec::parse(&bayesian).is_err());
+            bayesian.set_item("white_innovation", (1usize, 1.0)).unwrap();
+            assert!(InferenceSpec::parse(&bayesian).is_err());
+            bayesian.set_item("white_innovation", (1usize, 0.05)).unwrap();
+            assert!(InferenceSpec::parse(&bayesian).is_ok());
+        });
     }
 }
