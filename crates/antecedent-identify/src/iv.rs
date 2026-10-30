@@ -109,6 +109,7 @@ impl InstrumentalVariableIdentifier {
         query: CausalQuery,
         workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
+        crate::identification_run::require_marginal_target(ate)?;
         let run = IdentificationRun::open(prepared, ate, "iv")?;
         let dag = run.dag();
         let (t, y) = (run.t, run.y);

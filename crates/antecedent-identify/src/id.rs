@@ -624,6 +624,7 @@ impl IdIdentifier {
         query
             .validate()
             .map_err(|_| IdentificationError::unsupported("invalid average-effect query"))?;
+        crate::identification_run::require_marginal_target(query)?;
         let t = prepared.var_to_dense(query.treatment)?;
         let y = prepared.var_to_dense(query.outcome)?;
         let mut y_set = BitSet::with_len(prepared.admg().node_count());

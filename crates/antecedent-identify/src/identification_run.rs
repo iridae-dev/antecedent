@@ -89,3 +89,71 @@ impl<'p> IdentificationRun<'p> {
         }
     }
 }
+
+/// The marginal contrast does not encode the distribution of treated or untreated units.
+pub(crate) fn require_marginal_target(ate: &AverageEffectQuery) -> Result<(), IdentificationError> {
+    if matches!(
+        ate.target_population,
+        antecedent_core::TargetPopulation::Treated | antecedent_core::TargetPopulation::Untreated
+    ) {
+        return Err(IdentificationError::UnsupportedQuery {
+            message: "this marginal identifier does not identify treated or untreated population effects",
+        });
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod target_population_tests {
+    use super::*;
+    use crate::{
+        BackdoorIdentifier, EfficientBackdoorIdentifier, FrontDoorIdentifier, IdIdentifier,
+        IdentificationWorkspace, InstrumentalVariableIdentifier,
+    };
+    use antecedent_core::{CausalQuery, TargetPopulation};
+    use antecedent_graph::{Dag, DenseNodeId};
+
+    #[test]
+    fn marginal_strategies_refuse_treated_and_untreated_targets() {
+        // W ~ Bernoulli(.5), P(X=1 | W=1)=.8, P(X=1 | W=0)=.2, Y=X W.
+        // Marginal ATE is E[W]=.5; ATT is E[W | X=1]=.8.
+        let ate: f64 = 0.5;
+        let treated: f64 = (0.5 * 0.8) / (0.5 * 0.8 + 0.5 * 0.2);
+        assert!((ate - 0.5).abs() < 1e-12 && (treated - 0.8).abs() < 1e-12);
+        let mut dag = Dag::with_variables(3);
+        for (a, b) in [(0, 1), (0, 2), (1, 2)] {
+            dag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let id = IdIdentifier::new();
+        let prepared_id = id.prepare_dag(&dag).unwrap();
+        let front = FrontDoorIdentifier::new();
+        let efficient = EfficientBackdoorIdentifier::new();
+        let iv = InstrumentalVariableIdentifier::new();
+        let backdoor = BackdoorIdentifier::new();
+        let prepared = backdoor.prepare(&dag).unwrap();
+        for population in [TargetPopulation::Treated, TargetPopulation::Untreated] {
+            let ate =
+                AverageEffectQuery::binary_ate(VariableId::from_raw(1), VariableId::from_raw(2))
+                    .with_target_population(population);
+            let query = CausalQuery::AverageEffect(ate.clone());
+            let mut ws = IdentificationWorkspace::default();
+            assert!(matches!(
+                id.identify_ate(&prepared_id, &ate, &mut ws),
+                Err(IdentificationError::UnsupportedQuery { .. })
+            ));
+            assert!(matches!(
+                front.identify(&prepared, &query, &mut ws),
+                Err(IdentificationError::UnsupportedQuery { .. })
+            ));
+            assert!(matches!(
+                efficient.identify(&prepared, &query, &mut ws),
+                Err(IdentificationError::UnsupportedQuery { .. })
+            ));
+            assert!(matches!(
+                iv.identify(&prepared, &query, &mut ws),
+                Err(IdentificationError::UnsupportedQuery { .. })
+            ));
+            assert!(backdoor.identify(&prepared, &query, &mut ws).is_ok());
+        }
+    }
+}

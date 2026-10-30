@@ -144,6 +144,7 @@ impl EfficientBackdoorIdentifier {
         query: CausalQuery,
         workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
+        crate::identification_run::require_marginal_target(ate)?;
         let run = IdentificationRun::open(prepared, ate, "backdoor.efficient")?;
         let dag = run.dag();
         let context = crate::exact_search::context_or_default(self.config.context.as_ref());
