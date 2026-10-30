@@ -104,9 +104,13 @@ def test_publication_is_bound_to_the_lineage_that_recomputed_it():
     publish_recomputed_results(state, state.version, [(query, recomputed, 32)])
     assert state.stale_queries() == []
 
-    # The unchecked path cannot restamp a lineage-bound query.
-    with pytest.raises(CausalStateError, match="published with a lineage"):
+    # A versionless refresh cannot establish when computation began, including
+    # for a lineage-bound query. Refusal must leave the published state intact.
+    published_version = state.version
+    with pytest.raises(CausalStateError, match="capture the state version"):
         state.refresh_results([(query, 1, 16)])
+    assert state.version == published_version
+    assert state.stale_queries() == []
 
     # A premise event answered by the identical lineage is not a recomputation either.
     state.add_constraint("no-edge", 7)
