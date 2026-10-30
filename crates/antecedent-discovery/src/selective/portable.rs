@@ -6,8 +6,8 @@
 //! * Inspect it without data: the route, the declared inputs as digests, the structure, the
 //!   unresolved edges, the bounded-search receipts, the producer's work counters.
 //! * Resume from it with the raw data and the same contract: the algorithm is replayed over
-//!   the receipts only (a statistic it does not hold is a refusal) and must reproduce the
-//!   recorded result identity.
+//!   the receipts, recomputing missing queries only to verify an untestable outcome. A missing
+//!   usable statistic is refused, and the recorded result identity must be reproduced.
 //!
 //! It is not a transcript the consumer trusts on its own say-so: statistics are bound to the
 //! content they were computed from, so missing raw data, different data, a different
@@ -16,8 +16,9 @@
 //!
 //! # Limit
 //!
-//! A receipt the replay never consumes is retained but is not re-derived: replay validates
-//! the receipts the algorithm reads, through the result it must reproduce. A producer that
+//! A receipt the replay never consumes is not re-derived and is not seeded into the
+//! resumed live cache: replay validates the receipts the algorithm reads, through the result
+//! it must reproduce. A producer that
 //! wants every receipt checked recomputes from the raw data with an empty store.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -217,7 +218,7 @@ impl PortableDiscoveryState {
                 ),
             ));
         }
-        if self.data_identity != data.digest {
+        if self.data_identity != data.digest || self.rows != data.rows {
             return Err(refuse(
                 "selective_discovery.data_mismatch",
                 "the supplied data differ from the data the statistics were computed from; \
@@ -247,9 +248,22 @@ impl PortableDiscoveryState {
     pub(crate) fn verify_replayed(
         &self,
         outcome: &DiscoveryOutcome,
+        work: WorkUnits,
     ) -> Result<(), SelectiveDiscoveryError> {
+        let recorded = self.work;
         if outcome.result_identity != self.result_identity
             || outcome.structure_identity != self.structure.identity()
+            || outcome.search_incomplete != self.search_incomplete
+            || outcome.orientation_conflict != self.orientation_conflict
+            || outcome.bounded_search_receipts != self.bounded_search_receipts
+            || recorded.ci_tests_completed > recorded.ci_tests_attempted
+            || recorded.ci_tests_consumed != work.ci_tests_consumed
+            || recorded.search_passes != work.search_passes
+            || recorded.orientation_runs != work.orientation_runs
+            || recorded.orientation_rounds != work.orientation_rounds
+            || recorded.orientations_applied != work.orientations_applied
+            || recorded.score_evaluations != 0
+            || recorded.algorithm_executions != 1
         {
             return Err(refuse(
                 "selective_discovery.replay_diverged",

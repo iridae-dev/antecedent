@@ -21,8 +21,9 @@
 //!   previous graph is never used as the start of a search; there is no incremental
 //!   discovery here.
 //!
-//! The reused result is bit-identical to a full run because every retained statistic is the
-//! value the test returned for exactly that coordinate. Retaining the *skeleton state*
+//! The reused result matches a fresh selective run because every retained statistic is the
+//! value the test returned for exactly that coordinate. A native unwrapped run may use a
+//! covariance-session optimization and is not covered by this bitwise claim. Retaining the *skeleton state*
 //! between runs is not offered: the algorithms interleave orientation with the final search
 //! passes and expose no resumable state, so that stage is a closed route.
 //!
@@ -86,6 +87,7 @@ pub struct SelectiveRunReport {
     pub retained_statistics: usize,
 }
 
+#[derive(Clone)]
 struct LiveState {
     inputs: StageInputs,
     data: DataIdentity,
@@ -323,9 +325,9 @@ fn resume_candidate(
     let before = replay.counters();
     let (executed, orientation) = observe_orientation(|| execute(ci));
     let outcome = executed.map_err(|error| map_failure(&replay, error))?;
-    state.verify_replayed(&outcome)?;
     let work = work_between(before, &replay, &outcome, orientation);
-    let live_store = Arc::new(StatisticStore::seeded_within(&state.receipts, limits)?);
+    state.verify_replayed(&outcome, work)?;
+    let live_store = Arc::new(StatisticStore::seeded_within(&replay.consumed_receipts(), limits)?);
     let plan = DiscoveryPlan::between(Some(&prepared.inputs), &prepared.inputs);
     let report = SelectiveRunReport {
         plan,
@@ -339,7 +341,7 @@ fn resume_candidate(
         contract_identity: prepared.contract_identity,
         store: live_store,
         outcome,
-        work,
+        work: state.work,
     };
     Ok((live, report))
 }
@@ -369,6 +371,12 @@ impl StaticSelectiveDiscovery {
     #[must_use]
     pub const fn with_limits(limits: SelectiveLimits) -> Self {
         Self { live: None, limits }
+    }
+
+    // Candidate population runs share the immutable current state. Changed runs fork
+    // the store before executing, so a failed candidate cannot mutate this adapter.
+    pub(crate) fn fork_candidate(&self) -> Self {
+        Self { live: self.live.clone(), limits: self.limits }
     }
 
     /// The bounds this adapter retains and exports under.
@@ -459,7 +467,8 @@ impl StaticSelectiveDiscovery {
         export(live, &self.limits)
     }
 
-    /// Resume from a portable state: replay the algorithm over the retained statistics only.
+    /// Resume from a portable state: replay retained statistics, recomputing missing queries only
+    /// to verify that they are untestable.
     ///
     /// Resuming needs the raw data. Receipts alone cannot be validated, because a statistic
     /// is bound to the content it was computed from, and absent data is refused rather than
@@ -624,7 +633,8 @@ impl TemporalSelectiveDiscovery {
         export(live, &self.limits)
     }
 
-    /// Resume from a portable state: replay the algorithm over the retained statistics only.
+    /// Resume from a portable state: replay retained statistics, recomputing missing queries only
+    /// to verify that they are untestable.
     ///
     /// # Errors
     ///

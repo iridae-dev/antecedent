@@ -231,6 +231,85 @@ fn changed_rows_at_unchanged_shape_move_only_that_population() {
 }
 
 #[test]
+fn failed_later_population_does_not_publish_earlier_candidate() {
+    let north = collider_table(200, 41, 0.9);
+    let south = collider_table(200, 42, 0.0);
+    let north_changed = collider_table(200, 43, 0.9);
+    // A declared CI test supplies an operational failure only for the later
+    // population, after both plans have passed and the first candidate ran.
+    struct RejectLarge;
+    impl antecedent_stats::ConditionalIndependenceTest for RejectLarge {
+        fn test_batch(
+            &self,
+            prepared: &antecedent_stats::PreparedCiTest,
+            request: &antecedent_stats::CiBatchRequest<'_>,
+            _workspace: &mut antecedent_stats::CiWorkspace,
+            _ctx: &ExecutionContext,
+        ) -> Result<antecedent_stats::CiBatchResult, antecedent_stats::StatsError> {
+            prepared.ensure_compatible(request)?;
+            if request.nrows()? > 200 {
+                return Err(antecedent_stats::StatsError::Cancelled);
+            }
+            Ok(antecedent_stats::CiBatchResult {
+                results: request
+                    .queries
+                    .iter()
+                    .map(|_| antecedent_stats::CiResult {
+                        statistic: 0.0,
+                        p_value: 1.0,
+                        df: 0.0,
+                        ci: None,
+                    })
+                    .collect(),
+            })
+        }
+    }
+    let bad = collider_table(201, 44, 0.0);
+    let mut request_contract = contract();
+    request_contract.ci_test = CiTestSpec::Declared {
+        identity: "reject-large-for-atomicity".into(),
+        test: Arc::new(RejectLarge),
+    };
+    let mut driver = PerPopulationDiscovery::new();
+    driver
+        .run(
+            &request_contract,
+            &[
+                PopulationRows { population: "north", data: &north },
+                PopulationRows { population: "south", data: &south },
+            ],
+            &ctx(),
+        )
+        .unwrap();
+    let before = driver.adapter("north").unwrap().export_state().unwrap();
+    let report = driver.report().unwrap().identity;
+    // Both plans must pass: otherwise the failing request never reaches the second execution.
+    let mut south_contract = request_contract.clone();
+    south_contract.population = "south".into();
+    assert!(driver.adapter("south").unwrap().plan(&south_contract, &bad, &ctx()).is_ok());
+    let mut north_contract = request_contract.clone();
+    north_contract.population = "north".into();
+    let mut north_probe = StaticSelectiveDiscovery::new();
+    assert!(north_probe.run(&north_contract, &north_changed, &ctx()).is_ok());
+    assert!(
+        driver
+            .run(
+                &request_contract,
+                &[
+                    PopulationRows { population: "north", data: &north_changed },
+                    PopulationRows { population: "south", data: &bad }
+                ],
+                &ctx()
+            )
+            .is_err()
+    );
+    let after = driver.adapter("north").unwrap().export_state().unwrap();
+    assert_eq!(after.data_identity, before.data_identity);
+    assert_eq!(after.receipts_identity, before.receipts_identity);
+    assert_eq!(driver.report().unwrap().identity, report);
+}
+
+#[test]
 fn malformed_and_pooled_requests_refuse_by_name_and_leave_the_report_untouched() {
     let north = collider_table(600, 21, 0.9);
     let south = collider_table(600, 22, 0.0);

@@ -4,11 +4,12 @@
 //!
 //! # Claims this module makes
 //!
-//! * **Algorithmic match.** A selective run returns, bit for bit, the result a full run of
-//!   the same contract on the same data returns. A statistic is retained only at an
+//! * **Algorithmic match.** A selective run returns, bit for bit, the result a fresh
+//!   selective adapter returns for the same contract and data. A statistic is retained only at an
 //!   identical input coordinate, and the retained value is the value the test returned for
 //!   it. The result identity ([`outcome::DiscoveryOutcome::result_identity`]) makes the
-//!   comparison executable.
+//!   comparison executable. This does not claim bitwise identity with an unwrapped PC run:
+//!   the wrapper does not use that run's covariance-session optimization.
 //! * **Work.** The counters in [`work::WorkUnits`] are observed where tests reach the test
 //!   implementation, where orientation rounds run and where search passes are recorded, and
 //!   a retained statistic is not work.

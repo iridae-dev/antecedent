@@ -44,10 +44,10 @@ pub struct DiscoveryOutcome {
     pub native: NativeResult,
     /// `(code, message)` of every diagnostic, in the algorithm's order.
     pub diagnostics: Vec<(String, String)>,
-    /// Diagnostics that record an exhausted search bound: the structure was produced under a
-    /// budget and stays incomplete where the budget ran out.
+    /// Diagnostics recording exhausted search bounds or parent-limit removals without
+    /// separating evidence; those absences do not establish a complete structure.
     pub bounded_search_receipts: Vec<(String, String)>,
-    /// Whether any search bound was exhausted.
+    /// Whether a bound left the search incomplete or removed an unseparated adjacency.
     pub search_incomplete: bool,
     /// Whether orientation evidence conflicted (a collider or an orientation rule disagreed).
     pub orientation_conflict: bool,
@@ -141,13 +141,19 @@ impl DiscoveryOutcome {
         native: NativeResult,
     ) -> Self {
         let diagnostics = diagnostics_of(result);
-        let bounded: Vec<(String, String)> =
-            diagnostics.iter().filter(|(code, _)| code.contains("budget")).cloned().collect();
-        let conflict = diagnostics.iter().any(|(code, _)| code.contains("orientation_conflict"))
-            || structure
-                .edges()
-                .iter()
-                .any(|e| matches!(e.unresolved_reason(), Some("orientation_conflict")));
+        let bounded: Vec<(String, String)> = diagnostics
+            .iter()
+            .filter(|(code, _)| {
+                code.contains("budget") || code.ends_with(".parent_limit_removed_adjacencies")
+            })
+            .cloned()
+            .collect();
+        let conflict = diagnostics.iter().any(|(code, _)| {
+            code.contains("orientation_conflict") || code == "orientation.conflicts"
+        }) || structure
+            .edges()
+            .iter()
+            .any(|e| matches!(e.unresolved_reason(), Some("orientation_conflict")));
         let structure_identity = structure.identity();
         let result_identity = result_identity(result, structure_identity);
         Self {

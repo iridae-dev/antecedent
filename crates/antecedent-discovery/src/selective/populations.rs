@@ -146,9 +146,8 @@ impl PerPopulationReport {
 
 /// Per-population discovery with one retained statistic store per population.
 ///
-/// Each population's adapter is atomic on its own: a refused or failed request leaves that
-/// population's retained state, outcome and identities as they were. The set-level report is
-/// replaced only by a request in which every population succeeded.
+/// A refused or failed request leaves every population adapter and the set-level report
+/// unchanged. The new set is published only after every population succeeds.
 #[derive(Debug)]
 pub struct PerPopulationDiscovery {
     adapters: BTreeMap<String, StaticSelectiveDiscovery>,
@@ -222,13 +221,17 @@ impl PerPopulationDiscovery {
         }
         refuse_duplicate_rows(&identities)?;
 
-        // Execute. Each adapter replaces its own state atomically; the set-level report is
-        // committed only when all of them succeed.
+        // Execute into private candidate adapters; publish the set only after every run succeeds.
+        let mut candidates: BTreeMap<String, StaticSelectiveDiscovery> = self
+            .adapters
+            .iter()
+            .map(|(name, adapter)| (name.clone(), adapter.fork_candidate()))
+            .collect();
         let mut results: Vec<PopulationDiscovery> = Vec::with_capacity(populations.len());
         let mut structures: Vec<(String, Vec<super::structure::StructureEdge>)> = Vec::new();
         for (rows, (_, identity)) in populations.iter().zip(identities) {
             let per_population = for_population(contract, rows.population);
-            let adapter = self.adapters.entry(rows.population.to_owned()).or_default();
+            let adapter = candidates.entry(rows.population.to_owned()).or_default();
             let report = adapter.run(&per_population, rows.data, ctx)?;
             let outcome = adapter.outcome().ok_or_else(|| {
                 invalid(
@@ -257,6 +260,7 @@ impl PerPopulationDiscovery {
             identity: set_identity(&results),
             populations: results,
         };
+        self.adapters = candidates;
         Ok(self.committed.insert(report))
     }
 }

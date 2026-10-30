@@ -13,7 +13,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -142,6 +142,7 @@ pub struct StoreCounters {
 #[derive(Debug, Default)]
 struct StoreInner {
     entries: HashMap<Digest, CiResult>,
+    consumed: HashSet<Digest>,
 }
 
 /// Retained statistics of one stage lineage.
@@ -346,9 +347,31 @@ impl StatisticStore {
         writer.finish()
     }
 
-    fn lookup(&self, keys: &[Digest]) -> Vec<Option<CiResult>> {
+    /// Receipts actually read by this replay, in canonical order.
+    pub(crate) fn consumed_receipts(&self) -> Vec<StatisticReceipt> {
         let inner = self.lock();
-        keys.iter().map(|key| inner.entries.get(key).copied()).collect()
+        let mut receipts: Vec<_> = inner
+            .consumed
+            .iter()
+            .filter_map(|key| {
+                inner.entries.get(key).map(|result| StatisticReceipt::from_result(*key, *result))
+            })
+            .collect();
+        receipts.sort_unstable_by(|a, b| a.coordinate.cmp(&b.coordinate));
+        receipts
+    }
+
+    fn lookup(&self, keys: &[Digest]) -> Vec<Option<CiResult>> {
+        let mut inner = self.lock();
+        keys.iter()
+            .map(|key| {
+                let result = inner.entries.get(key).copied();
+                if self.mode == StoreMode::ReplayOnly && result.is_some() {
+                    inner.consumed.insert(*key);
+                }
+                result
+            })
+            .collect()
     }
 
     fn insert(&self, key: Digest, result: CiResult) {
@@ -502,12 +525,27 @@ impl ConditionalIndependenceTest for SelectiveCi {
         self.store.reused.fetch_add((keys.len() - missing.len()) as u64, Ordering::SeqCst);
         if !missing.is_empty() {
             if self.store.mode == StoreMode::ReplayOnly {
-                self.store.replay_miss.store(true, Ordering::SeqCst);
-                return Err(StatsError::Backend(
-                    "selective_discovery.replay_miss: a statistic that was not retained was \
-                     requested during replay"
-                        .to_owned(),
-                ));
+                // Untestable outcomes have no serialized receipt. Verify a miss with the
+                // underlying test, accepting only its recognized untestable refusal.
+                let queries: Vec<CiQuery> = missing.iter().map(|&i| request.queries[i]).collect();
+                let sub = CiBatchRequest {
+                    columns: request.columns,
+                    queries: &queries,
+                    z_flat: request.z_flat,
+                    significance: request.significance,
+                    confidence: request.confidence,
+                };
+                self.store.attempted.fetch_add(queries.len() as u64, Ordering::SeqCst);
+                match self.inner.test_batch(prepared, &sub, workspace, ctx) {
+                    Err(error) => return Err(error),
+                    Ok(_) => {
+                        self.store.completed.fetch_add(queries.len() as u64, Ordering::SeqCst);
+                        self.store.replay_miss.store(true, Ordering::SeqCst);
+                        return Err(StatsError::Backend(
+                            "selective_discovery.replay_miss: a statistic that was not retained was requested during replay".to_owned(),
+                        ));
+                    }
+                }
             }
             let queries: Vec<CiQuery> = missing.iter().map(|&i| request.queries[i]).collect();
             let sub = CiBatchRequest {

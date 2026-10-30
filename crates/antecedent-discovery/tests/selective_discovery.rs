@@ -587,6 +587,170 @@ fn resume_replays_over_receipts_only_and_reproduces_the_result() {
 }
 
 #[test]
+fn resume_checks_recorded_semantics_and_retains_only_consumed_receipts() {
+    let data = collider_table(250, 41);
+    let contract = pc_contract(&[0, 1, 2, 3], "parcorr");
+    let state = exported(&contract, &data);
+    let mut variants = Vec::new();
+    let mut edited = state.clone();
+    edited.search_incomplete = !edited.search_incomplete;
+    variants.push(edited);
+    let mut edited = state.clone();
+    edited.orientation_conflict = !edited.orientation_conflict;
+    variants.push(edited);
+    let mut edited = state.clone();
+    edited.bounded_search_receipts.push(("forged".into(), "receipt".into()));
+    variants.push(edited);
+    let mut edited = state.clone();
+    edited.work.ci_tests_consumed += 1;
+    variants.push(edited);
+    let mut edited = state.clone();
+    edited.work.ci_tests_completed = edited.work.ci_tests_attempted + 1;
+    variants.push(edited);
+    let mut edited = state.clone();
+    edited.work.algorithm_executions = 0;
+    variants.push(edited);
+    for edited in variants {
+        let err =
+            StaticSelectiveDiscovery::resume(&contract, Some(&data), &edited, &ctx()).unwrap_err();
+        assert_eq!(err.detail(), Some("selective_discovery.replay_diverged"));
+    }
+    let mut wrong_rows = state.clone();
+    wrong_rows.rows += 1;
+    assert_eq!(
+        StaticSelectiveDiscovery::resume(&contract, Some(&data), &wrong_rows, &ctx())
+            .unwrap_err()
+            .detail(),
+        Some("selective_discovery.data_mismatch")
+    );
+
+    let mut extra = state.clone();
+    let mut forged = extra.receipts[0];
+    // A coordinate outside this replay, but otherwise a valid receipt.
+    loop {
+        forged.coordinate[0] = forged.coordinate[0].wrapping_add(1);
+        if !extra.receipts.iter().any(|r| r.coordinate == forged.coordinate) {
+            break;
+        }
+    }
+    extra.receipts.push(forged);
+    extra.receipts.sort_unstable_by_key(|r| r.coordinate);
+    extra.reseal();
+    let (mut resumed, _) =
+        StaticSelectiveDiscovery::resume(&contract, Some(&data), &extra, &ctx()).unwrap();
+    assert!(resumed.run(&contract, &data, &ctx()).unwrap().work.is_pure_reuse());
+    let reexport = resumed.export_state().unwrap();
+    assert!(!reexport.receipts.iter().any(|r| r.coordinate == forged.coordinate));
+    assert_eq!(reexport.work, state.work);
+    StaticSelectiveDiscovery::resume(&contract, Some(&data), &reexport, &ctx()).unwrap();
+}
+
+#[test]
+fn resume_recomputes_untestable_queries_but_not_missing_statistics() {
+    let x = [1.0; 50];
+    let y: Vec<f64> = (0..50).map(|i| i as f64).collect();
+    let z: Vec<f64> = (0..50).map(|i| (i as f64).sin()).collect();
+    let data = TabularData::from_f64_columns([
+        ("a", x.as_slice()),
+        ("b", y.as_slice()),
+        ("c", z.as_slice()),
+    ])
+    .unwrap();
+    let contract = pc_contract(&[0, 1, 2], "parcorr");
+    let state = exported(&contract, &data);
+    let (mut resumed, report) =
+        StaticSelectiveDiscovery::resume(&contract, Some(&data), &state, &ctx()).unwrap();
+    assert!(report.work.ci_tests_attempted > 0);
+    assert_eq!(resumed.outcome().unwrap().result_identity, state.result_identity);
+    assert!(resumed.run(&contract, &data, &ctx()).unwrap().work.is_pure_reuse());
+    let exported_again = resumed.export_state().unwrap();
+    assert_eq!(exported_again.work, state.work);
+    StaticSelectiveDiscovery::resume(&contract, Some(&data), &exported_again, &ctx()).unwrap();
+
+    let good = collider_table(250, 44);
+    let good_contract = pc_contract(&[0, 1, 2, 3], "parcorr");
+    let mut missing = exported(&good_contract, &good);
+    missing.receipts.clear();
+    missing.reseal();
+    let err = StaticSelectiveDiscovery::resume(&good_contract, Some(&good), &missing, &ctx())
+        .unwrap_err();
+    assert_eq!(err.detail(), Some("selective_discovery.replay_miss"));
+    let cancelled = ctx();
+    cancelled.cancellation.cancel();
+    assert!(StaticSelectiveDiscovery::resume(&contract, Some(&data), &state, &cancelled).is_err());
+}
+
+#[test]
+fn unused_forged_receipts_cannot_poison_a_later_warm_search() {
+    let data = collider_table(250, 41);
+    let mut initial = pc_contract(&[0, 1, 2, 3], "parcorr");
+    initial.constraints.max_cond_size = 0;
+    let mut later = initial.clone();
+    later.constraints.max_cond_size = 2;
+    let mut state = exported(&initial, &data);
+    let later_state = exported(&later, &data);
+    let mut added = 0;
+    for receipt in &later_state.receipts {
+        if !state.receipts.iter().any(|r| r.coordinate == receipt.coordinate) {
+            let mut forged = *receipt;
+            forged.p_value = 1.0;
+            state.receipts.push(forged);
+            added += 1;
+        }
+    }
+    assert!(added > 0, "the later search must introduce conditioning queries");
+    state.receipts.sort_unstable_by_key(|r| r.coordinate);
+    state.reseal();
+    let (mut resumed, _) =
+        StaticSelectiveDiscovery::resume(&initial, Some(&data), &state, &ctx()).unwrap();
+    let report = resumed.run(&later, &data, &ctx()).unwrap();
+    assert!(report.work.ci_tests_attempted > 0, "unread receipts must be recomputed");
+    assert_eq!(resumed.outcome().unwrap().result_identity, later_state.result_identity);
+}
+
+#[test]
+fn temporal_style_orientation_conflict_diagnostic_is_reported() {
+    let data = collider_table(250, 41);
+    let contract = pc_contract(&[0, 1, 2, 3], "parcorr");
+    let mut adapter = StaticSelectiveDiscovery::new();
+    adapter.run(&contract, &data, &ctx()).unwrap();
+    let NativeResult::StaticCpdag(result) = &adapter.outcome().unwrap().native else {
+        panic!("PC result expected")
+    };
+    assert!(!adapter.outcome().unwrap().orientation_conflict);
+    let mut result = result.clone();
+    // PCMCI+ emits this code even when an ambiguous majority leaves no Conflict mark.
+    result.diagnostics.push(antecedent_discovery::result::DiscoveryDiagnostic {
+        code: Arc::from("orientation.conflicts"),
+        message: Arc::from("ambiguous majority"),
+    });
+    assert!(DiscoveryOutcome::from_static_cpdag(&result).orientation_conflict);
+}
+
+#[test]
+fn parent_limit_removal_marks_selective_search_incomplete() {
+    let data = collider_table(250, 41);
+    let mut contract = pc_contract(&[0, 1, 2, 3], "parcorr");
+    contract.constraints.max_parents = Some(0);
+    let mut adapter = StaticSelectiveDiscovery::new();
+    adapter.run(&contract, &data, &ctx()).unwrap();
+    let outcome = adapter.outcome().unwrap();
+    assert!(outcome.search_incomplete);
+    assert!(
+        outcome
+            .bounded_search_receipts
+            .iter()
+            .any(|(code, _)| code == "pc.parent_limit_removed_adjacencies")
+    );
+    assert_eq!(
+        request_selection_diagram(outcome, &[VariableId::from_raw(2)]).unwrap_err().detail,
+        "selective_discovery.search_incomplete"
+    );
+    let exported = adapter.export_state().unwrap();
+    StaticSelectiveDiscovery::resume(&contract, Some(&data), &exported, &ctx()).unwrap();
+}
+
+#[test]
 fn resume_refuses_missing_data_other_data_and_another_contract() {
     let data = collider_table(250, 42);
     let contract = pc_contract(&[0, 1, 2, 3], "parcorr");
