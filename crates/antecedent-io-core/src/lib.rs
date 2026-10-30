@@ -186,8 +186,9 @@ pub use discovery_wire::{
 };
 pub use error::{CborFailure, CborFault, IoError, IoFailure};
 pub use expr_wire::{
-    ExprArenaWire, ExprNodeWire, FunctionalProgramWire, expr_arena_from_wire, expr_arena_to_wire,
-    functional_program_from_wire, functional_program_to_wire,
+    ExprArenaWire, ExprNodeWire, FunctionalProgramWire, expr_arena_from_wire,
+    expr_arena_from_wire_with_limits, expr_arena_to_wire, functional_program_from_wire,
+    functional_program_to_wire,
 };
 pub use external_estimate::{
     ExternalEstimateAttach, attested_external_estimate, decode_external_estimate_claim,

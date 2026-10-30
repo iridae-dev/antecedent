@@ -71,42 +71,8 @@ pub fn functional_program_from_wire(
     wire: &FunctionalProgramWire,
     limits: ProgramLimits,
 ) -> Result<FunctionalProgram, IoError> {
-    if wire.arena.nodes.len() > limits.max_nodes {
-        return Err(IoError::Convert("invalid functional program: node limit exceeded".into()));
-    }
-    if wire.arena.derivations.len() > limits.max_nodes {
-        return Err(IoError::Convert(
-            "invalid functional program: derivation limit exceeded".into(),
-        ));
-    }
-    let table_entries = wire
-        .arena
-        .var_sets
-        .iter()
-        .map(Vec::len)
-        .chain(wire.arena.interventions.iter().map(Vec::len))
-        .chain(wire.arena.lists.iter().map(Vec::len))
-        .fold(0usize, usize::saturating_add)
-        .saturating_add(wire.arena.var_sets.len())
-        .saturating_add(wire.arena.interventions.len())
-        .saturating_add(wire.arena.lists.len());
-    let populations = wire
-        .arena
-        .nodes
-        .iter()
-        .filter_map(|node| match node {
-            ExprNodeWire::Distribution { population, .. }
-            | ExprNodeWire::Kernel { population, .. } => Some(population.as_str()),
-            _ => None,
-        })
-        .collect::<std::collections::BTreeSet<_>>()
-        .len();
-    if table_entries.saturating_add(populations).saturating_add(wire.variables.len())
-        > limits.max_table_entries
-    {
-        return Err(IoError::Convert("invalid functional program: table limit exceeded".into()));
-    }
-    let arena = expr_arena_from_wire(&wire.arena)?;
+    check_arena_limits(&wire.arena, limits, wire.variables.len())?;
+    let arena = decode_arena(&wire.arena, limits.max_depth)?;
     let schema = ProgramSchema::new(wire.variables.iter().map(|(id, name)| {
         (VariableId::from_raw(*id), ProgramVariable { name: Arc::from(name.as_str()) })
     }));
@@ -295,12 +261,71 @@ pub fn expr_arena_to_wire(arena: &CausalExprArena) -> Result<ExprArenaWire, IoEr
     Ok(ExprArenaWire { derivations, var_sets, interventions, lists, nodes })
 }
 
+// The arena-only ingress shares the checked functional program's existing count
+// policy; schema variables are an additional table charge for program decoding.
+fn check_arena_limits(
+    w: &ExprArenaWire,
+    limits: ProgramLimits,
+    schema_entries: usize,
+) -> Result<(), IoError> {
+    if w.nodes.len() > limits.max_nodes {
+        return Err(IoError::Convert("invalid functional program: node limit exceeded".into()));
+    }
+    if w.derivations.len() > limits.max_nodes {
+        return Err(IoError::Convert(
+            "invalid functional program: derivation limit exceeded".into(),
+        ));
+    }
+    let table_entries = w
+        .var_sets
+        .iter()
+        .map(Vec::len)
+        .chain(w.interventions.iter().map(Vec::len))
+        .chain(w.lists.iter().map(Vec::len))
+        .fold(0usize, usize::saturating_add)
+        .saturating_add(w.var_sets.len())
+        .saturating_add(w.interventions.len())
+        .saturating_add(w.lists.len());
+    let populations = w
+        .nodes
+        .iter()
+        .filter_map(|node| match node {
+            ExprNodeWire::Distribution { population, .. }
+            | ExprNodeWire::Kernel { population, .. } => Some(population.as_str()),
+            _ => None,
+        })
+        .collect::<std::collections::BTreeSet<_>>()
+        .len();
+    if table_entries.saturating_add(populations).saturating_add(schema_entries)
+        > limits.max_table_entries
+    {
+        return Err(IoError::Convert("invalid functional program: table limit exceeded".into()));
+    }
+    Ok(())
+}
+
 /// Decode arena by re-interning in order.
 ///
 /// # Errors
 ///
 /// Unknown tags or malformed indexes.
 pub fn expr_arena_from_wire(w: &ExprArenaWire) -> Result<CausalExprArena, IoError> {
+    expr_arena_from_wire_with_limits(w, ProgramLimits::default())
+}
+
+/// Decode an arena under explicit node, table-entry and dependency-depth limits.
+///
+/// # Errors
+/// A count limit or malformed table reference.
+pub fn expr_arena_from_wire_with_limits(
+    w: &ExprArenaWire,
+    limits: ProgramLimits,
+) -> Result<CausalExprArena, IoError> {
+    check_arena_limits(w, limits, 0)?;
+    decode_arena(w, limits.max_depth)
+}
+
+fn decode_arena(w: &ExprArenaWire, max_depth: usize) -> Result<CausalExprArena, IoError> {
     let mut arena = CausalExprArena::new();
     for (index, vs) in w.var_sets.iter().enumerate() {
         if vs.windows(2).any(|pair| pair[0] >= pair[1]) {
@@ -332,8 +357,33 @@ pub fn expr_arena_from_wire(w: &ExprArenaWire) -> Result<CausalExprArena, IoErro
             return Err(IoError::Convert("duplicate expression-list table entry".into()));
         }
     }
+    let mut depths = Vec::<usize>::with_capacity(w.nodes.len());
     for (index, node) in w.nodes.iter().enumerate() {
         validate_node_indexes(node, index, w)?;
+        let child_depth = match node {
+            ExprNodeWire::Distribution { .. } => 0,
+            ExprNodeWire::Kernel { body, .. } => depths[*body as usize],
+            ExprNodeWire::Product(list) => {
+                w.lists[*list as usize].iter().map(|id| depths[*id as usize]).max().unwrap_or(0)
+            }
+            ExprNodeWire::SumOut { expr, .. } | ExprNodeWire::IntegralOut { expr, .. } => {
+                depths[*expr as usize]
+            }
+            ExprNodeWire::Ratio { numerator, denominator } => {
+                depths[*numerator as usize].max(depths[*denominator as usize])
+            }
+            ExprNodeWire::Expectation { distribution, .. } => depths[*distribution as usize],
+            ExprNodeWire::Contrast { left, right, .. } => {
+                depths[*left as usize].max(depths[*right as usize])
+            }
+        };
+        let depth = child_depth.saturating_add(1);
+        if depth > max_depth {
+            return Err(IoError::Convert(
+                "invalid functional program: depth limit exceeded".into(),
+            ));
+        }
+        depths.push(depth);
         let id = intern_node_from_wire(&mut arena, node)?;
         if id.raw() as usize != index {
             return Err(IoError::Convert("duplicate expression-node table entry".into()));
@@ -572,6 +622,60 @@ mod tests {
         let mut invalid = wire;
         invalid.executable = u32::MAX;
         assert!(functional_program_from_wire(&invalid, ProgramLimits::default()).is_err());
+    }
+
+    #[test]
+    fn standalone_arena_decoder_enforces_count_boundaries() {
+        let mut arena = CausalExprArena::new();
+        let y = VariableId::from_raw(1);
+        let variables = arena.intern_var_set([y]);
+        let condition = arena.empty_var_set();
+        let intervention = arena.empty_intervention_set();
+        arena.intern_distribution(variables, condition, intervention, DomainRef::Observational);
+        let wire = expr_arena_to_wire(&arena).unwrap();
+        assert!(expr_arena_from_wire(&wire).is_ok());
+        let exact_tables = wire.var_sets.iter().map(Vec::len).sum::<usize>()
+            + wire.interventions.iter().map(Vec::len).sum::<usize>()
+            + wire.lists.iter().map(Vec::len).sum::<usize>()
+            + wire.var_sets.len()
+            + wire.interventions.len()
+            + wire.lists.len()
+            + wire
+                .nodes
+                .iter()
+                .filter_map(|node| match node {
+                    ExprNodeWire::Distribution { population, .. }
+                    | ExprNodeWire::Kernel { population, .. } => Some(population.as_str()),
+                    _ => None,
+                })
+                .collect::<std::collections::BTreeSet<_>>()
+                .len();
+        let exact = ProgramLimits {
+            max_nodes: wire.nodes.len().max(wire.derivations.len()),
+            max_table_entries: exact_tables,
+            max_depth: 1,
+        };
+        assert!(expr_arena_from_wire_with_limits(&wire, exact).is_ok());
+        let no_depth = ProgramLimits { max_depth: 0, ..exact };
+        assert!(expr_arena_from_wire_with_limits(&wire, no_depth).is_err());
+        let mut nested = wire.clone();
+        nested.nodes.push(ExprNodeWire::SumOut { variables: 0, expr: 0 });
+        let one_level = ProgramLimits { max_nodes: 2, ..exact };
+        assert!(expr_arena_from_wire_with_limits(&nested, one_level).is_err());
+        let two_levels = ProgramLimits { max_depth: 2, ..one_level };
+        assert!(expr_arena_from_wire_with_limits(&nested, two_levels).is_ok());
+        let mut cyclic = nested;
+        cyclic.nodes[1] = ExprNodeWire::SumOut { variables: 0, expr: 1 };
+        assert!(expr_arena_from_wire_with_limits(&cyclic, two_levels).is_err());
+        let no_nodes = ProgramLimits { max_nodes: 0, ..exact };
+        assert!(expr_arena_from_wire_with_limits(&wire, no_nodes).is_err());
+        if exact_tables > 0 {
+            let tight = ProgramLimits { max_table_entries: exact_tables - 1, ..exact };
+            assert!(expr_arena_from_wire_with_limits(&wire, tight).is_err());
+        }
+        let mut too_many = wire.clone();
+        too_many.nodes.resize(ProgramLimits::default().max_nodes + 1, ExprNodeWire::Product(0));
+        assert!(expr_arena_from_wire(&too_many).is_err());
     }
 
     #[test]
