@@ -457,15 +457,14 @@ impl PreparedAdmgConditionalTransportStage {
         cancel: Option<crate::PyCancellationToken>,
         seed: Option<u64>,
     ) -> PyResult<String> {
-        if let Some(seed) = seed {
-            self.seed = seed;
-        }
-        let ctx = execution_context(self.seed, memory_bytes.or(self.memory_bytes), cancel);
+        let next_seed = seed.unwrap_or(self.seed);
+        let ctx = execution_context(next_seed, memory_bytes.or(self.memory_bytes), cancel);
         let inner = self.inner.clone();
         let result = crate::detach_catch(py, move || inner.estimate(&ctx).map_err(io_error))?;
         let mut payload =
             points_json(self.inner.requests(), result.distributions(), &self.graph.names);
-        payload["seed"] = self.seed.into();
+        payload["seed"] = next_seed.into();
+        self.seed = next_seed;
         self.last = Some(result);
         Ok(payload.to_string())
     }

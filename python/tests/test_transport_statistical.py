@@ -30,6 +30,13 @@ def estimated(study):
     return outcome, require_success(outcome)
 
 
+def test_statistical_transport_rejects_nonlaw_payload_entries():
+    identification, catalog, data = fixture()
+    invalid = transport.StatisticalTransportData(samples=data.samples, laws=(object(),))
+    with pytest.raises(ValueError, match="laws must be exact law tables"):
+        statistical_study(identification, catalog, invalid, {"x": 1.0})
+
+
 def fixture():
     graph = Admg.from_edges(["x", "y"], [("x", "y")])
     identification = transport.identify_classical(

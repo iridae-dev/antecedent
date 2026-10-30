@@ -319,80 +319,92 @@ impl TransportPyErr for &str {
     }
 }
 
-/// How a dotted `transport.` / `z_transport.` detail is raised.
+/// How an exact structured transport detail is raised.
 enum Kind {
-    /// An artifact, proof or record failed its own consistency check.
     Serialization,
-    /// A refusal carrying a registered runtime reason code.
     Refusal(&'static str),
+    Cancelled,
+    Resource,
 }
 
-/// Classify one plain message: the fallback for failures the crates still
-/// report as strings (`IoError::Convert` from the facade and the bindings'
-/// own formatted refusals). Cancellation and budgets win over any dotted
-/// detail because the budget message may itself be spelled
-/// `transport.<x>_budget`.
+/// Classify recognized transport details without interpreting user-supplied text.
+/// Untyped messages keep the generic value error; typed errors use their own mappings.
 pub(crate) fn classify(message: &str) -> PyErr {
-    let lower = message.to_ascii_lowercase();
-    if lower.contains("cancel") {
-        return crate::CausalCancelledError::new_err(message.to_string());
-    }
-    if lower.contains("memory")
-        || lower.contains("budget")
-        || lower.contains("exhausted_computation")
-    {
-        return crate::CausalResourceError::new_err(message.to_string());
-    }
-    // A record that no longer agrees with itself (digest, identity, replayed
-    // result) is a serialization failure whatever spelling the crate chose.
-    if lower.contains("mismatch") || lower.contains("digest") || lower.contains("identity changed")
-    {
+    // Legacy sensitivity consumers emit these complete, fixed messages with no
+    // user text. Preserve their serialization category without substring matching.
+    if matches!(
+        message,
+        "z-transport sensitivity baseline digest mismatch"
+            | "z-transport sensitivity baseline premises digest mismatch"
+            | "z-transport sensitivity result or provider binding mismatch"
+    ) {
         return serialization_error(message);
     }
-    if let Some(token) = dotted_token(message) {
-        return match refusal_kind(token) {
+    if let Some(kind) = dotted_token(message).and_then(refusal_kind) {
+        return match kind {
             Kind::Serialization => serialization_error(message),
             Kind::Refusal(code) => crate::refusal(code, message),
+            Kind::Cancelled => crate::CausalCancelledError::new_err(message.to_owned()),
+            Kind::Resource => crate::CausalResourceError::new_err(message.to_owned()),
         };
     }
     crate::value_err(message)
 }
 
-/// The first `transport.<detail>` or `z_transport.<detail>` token in a message.
+/// A structured transport detail is recognized only at the start of a message.
 fn dotted_token(message: &str) -> Option<&str> {
     message
         .split(|c: char| c.is_whitespace() || matches!(c, ',' | ';' | '(' | ')' | '"' | '\''))
         .map(|word| word.trim_end_matches(':'))
-        .find(|word| word.starts_with("transport.") || word.starts_with("z_transport."))
+        .find(|word| !word.is_empty())
+        .filter(|word| word.starts_with("transport.") || word.starts_with("z_transport."))
 }
 
-/// The registered reason code (or serialization class) for one dotted detail.
-fn refusal_kind(token: &str) -> Kind {
-    let detail = token.split_once('.').map_or(token, |(_, rest)| rest);
-    let consistency = detail.ends_with("_mismatch")
-        || detail.starts_with("proof_")
-        || detail.starts_with("functional_program")
-        || detail.starts_with("invalid_derivation")
-        || detail.starts_with("invalid_s_hedge")
-        || matches!(detail, "obstruction_not_reproduced" | "obstruction_replay_mismatch");
-    if consistency {
-        return Kind::Serialization;
+/// Only known stable detail spellings carry a classification.
+fn refusal_kind(token: &str) -> Option<Kind> {
+    match token {
+        "transport.cancelled" => return Some(Kind::Cancelled),
+        "transport.identification_budget"
+        | "transport.identification_memory_budget"
+        | "transport.binding_budget"
+        | "transport.memory_budget"
+        | "z_transport.exhausted_computation" => return Some(Kind::Resource),
+        _ => {}
     }
-    Kind::Refusal(match detail {
+    let detail = token.split_once('.').map_or(token, |(_, rest)| rest);
+    Some(match detail {
+        "obstruction_assignment_mismatch"
+        | "obstruction_input_mismatch"
+        | "obstruction_record_mismatch"
+        | "obstruction_replay_mismatch"
+        | "obstruction_not_reproduced"
+        | "proof_formula_mismatch"
+        | "proof_graph_mismatch"
+        | "proof_input_mismatch"
+        | "proof_rule_mismatch"
+        | "invalid_derivation"
+        | "invalid_derivation_record"
+        | "invalid_s_hedge"
+        | "invalid_s_hedge_evidence" => Kind::Serialization,
         "missing_evidence"
         | "obstruction_missing_evidence"
         | "source_experiment_missing"
         | "target_joint_observational_law_required"
-        | "experiment_assignment_required" => reason_code!("transport_missing_evidence"),
-        "empirical_counts_required" | "samples_not_embedded" => {
-            reason_code!("transport_missing_provider")
+        | "experiment_assignment_required" => {
+            Kind::Refusal(reason_code!("transport_missing_evidence"))
         }
-        "no_execution_claim" => reason_code!("not_executed"),
-        "unsupported_dependence" => reason_code!("transport_unsupported_evaluator"),
-        "bootstrap_failure_fraction" => reason_code!("transport_numerical_failure"),
-        "stale_request" | "stale_result" | "reprepare_required" => reason_code!("invalid_argument"),
-        "unknown_variable" => reason_code!("unknown_variable"),
-        _ => reason_code!("transport_not_certified"),
+        "empirical_counts_required" | "samples_not_embedded" => {
+            Kind::Refusal(reason_code!("transport_missing_provider"))
+        }
+        "no_execution_claim" => Kind::Refusal(reason_code!("not_executed")),
+        "unsupported_dependence" => Kind::Refusal(reason_code!("transport_unsupported_evaluator")),
+        "bootstrap_failure_fraction" => Kind::Refusal(reason_code!("transport_numerical_failure")),
+        "stale_request" | "stale_result" | "reprepare_required" => {
+            Kind::Refusal(reason_code!("invalid_argument"))
+        }
+        "unknown_variable" => Kind::Refusal(reason_code!("unknown_variable")),
+        "not_certified" => Kind::Refusal(reason_code!("transport_not_certified")),
+        _ => return None,
     })
 }
 
@@ -482,7 +494,14 @@ pub(crate) fn parse_law_table(
         LawTolerance { absolute, relative },
     )
     .map_err(error)?;
-    if let Ok(counts) = table.getattr("empirical_counts") {
+    let counts = match table.getattr("empirical_counts") {
+        Ok(counts) => Some(counts),
+        Err(error) if error.is_instance_of::<pyo3::exceptions::PyAttributeError>(table.py()) => {
+            None
+        }
+        Err(error) => return Err(error),
+    };
+    if let Some(counts) = counts {
         if !counts.is_none() {
             let counts: Vec<i64> = counts.extract()?;
             let counts = counts
@@ -629,4 +648,53 @@ pub(crate) fn obligation_ids(
     slot.as_ref().map_or_else(Vec::new, |assumptions| {
         assumptions.obligations.iter().map(|obligation| obligation.id.to_string()).collect()
     })
+}
+
+#[cfg(test)]
+mod structured_classification_tests {
+    use super::classify;
+    use pyo3::prelude::*;
+
+    #[test]
+    fn user_names_cannot_turn_structured_refusals_into_resource_or_cancel_errors() {
+        Python::initialize();
+        Python::attach(|py| {
+            for name in ["ad_budget", "memory_use", "digest_score", "cancel_flag"] {
+                let error = classify(&format!("transport.missing_evidence: variable {name}"));
+                assert!(error.is_instance_of::<crate::CausalUnsupportedError>(py));
+            }
+            for text in [
+                "unknown memory_budget",
+                "unknown cancel_flag",
+                "unknown digest_score",
+                "unknown variable transport.cancelled",
+                "unknown variable transport.identification_budget",
+            ] {
+                let error = classify(text);
+                assert!(!error.is_instance_of::<crate::CausalResourceError>(py));
+                assert!(!error.is_instance_of::<crate::CausalCancelledError>(py));
+                assert!(!error.is_instance_of::<crate::CausalSerializationError>(py));
+            }
+            for message in [
+                "z-transport sensitivity baseline digest mismatch",
+                "z-transport sensitivity baseline premises digest mismatch",
+                "z-transport sensitivity result or provider binding mismatch",
+            ] {
+                assert!(classify(message).is_instance_of::<crate::CausalSerializationError>(py));
+                let named = format!("unknown variable {message}");
+                assert!(!classify(&named).is_instance_of::<crate::CausalSerializationError>(py));
+            }
+            assert!(
+                classify("transport.cancelled").is_instance_of::<crate::CausalCancelledError>(py)
+            );
+            assert!(
+                classify("transport.identification_budget")
+                    .is_instance_of::<crate::CausalResourceError>(py)
+            );
+            assert!(
+                classify("z_transport.proof_graph_mismatch")
+                    .is_instance_of::<crate::CausalSerializationError>(py)
+            );
+        });
+    }
 }

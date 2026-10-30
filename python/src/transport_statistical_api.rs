@@ -660,10 +660,12 @@ pub(crate) fn parse_statistical_input(
     graph: &Admg,
     max_support_rows: usize,
 ) -> PyResult<StatisticalTransportInput> {
-    let laws = if let Ok(laws) = payload.getattr("laws") {
-        parse_optional_laws(&laws, catalog, graph, max_support_rows)?
-    } else {
-        Vec::new()
+    let laws = match payload.getattr("laws") {
+        Ok(laws) => parse_optional_laws(&laws, catalog, graph, max_support_rows)?,
+        Err(error) if error.is_instance_of::<pyo3::exceptions::PyAttributeError>(payload.py()) => {
+            Vec::new()
+        }
+        Err(error) => return Err(error),
     };
     let samples_obj = payload.getattr("samples").map_err(|_| {
         crate::value_err(
@@ -699,7 +701,7 @@ fn parse_optional_laws(
     for table in laws.try_iter()? {
         let table = table?;
         if !table.hasattr("probabilities")? {
-            continue;
+            return Err(crate::value_err("statistical transport laws must be exact law tables"));
         }
         tables.push(parse_law_table(&table, catalog, graph, RegimeCheck::Lenient)?);
     }

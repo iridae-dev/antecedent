@@ -918,12 +918,10 @@ impl PreparedZTransportStage {
                 "posterior_draws requires a Bayesian z-transport provider",
             ));
         }
-        if let Some(seed) = seed {
-            self.seed = seed;
-        }
+        let next_seed = seed.unwrap_or(self.seed);
         let draws = posterior_draws.unwrap_or(199);
         let inner = self.inner.clone();
-        let ctx = self.ctx(memory_bytes, cancel);
+        let ctx = execution_context(next_seed, memory_bytes.or(self.memory_bytes), cancel);
         let result = crate::detach_catch(py, move || match provider {
             Some(provider) => inner.estimate_bayesian(provider, draws, &ctx).map_err(error),
             None => inner.estimate(&ctx).map_err(error),
@@ -934,7 +932,7 @@ impl PreparedZTransportStage {
         let payload = serde_json::json!({
             "status":"available",
             "scope":"single_source_z_transport_cited_joints_sound_incomplete",
-            "seed": self.seed,
+            "seed": next_seed,
             "outcomes":query.outcomes.iter().map(|v| &names[v.as_usize()]).collect::<Vec<_>>(),
             "atoms":distribution.atoms.iter().map(|row| row.iter().map(Value::as_f64).collect::<Vec<_>>()).collect::<Vec<_>>(),
             "probabilities":distribution.probabilities.as_ref(),
@@ -945,6 +943,7 @@ impl PreparedZTransportStage {
             "interval": self.interval_json(&result)
         })
         .to_string();
+        self.seed = next_seed;
         self.last = Some(result);
         Ok(payload)
     }

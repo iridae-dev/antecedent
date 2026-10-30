@@ -203,6 +203,21 @@ def test_prepare_exact_compiles_a_plan_after_query_disposal():
     assert info.value.reason_code == "invalid_argument"
 
 
+def test_failed_conditional_estimate_preserves_published_seed_and_artifact():
+    from antecedent.state import CancellationToken
+
+    prepared = decide().prepare_exact(laws(), REQUESTS)
+    require_success(prepared.estimate(seed=3))
+    before = bytes(prepared.export())
+    assert prepared.seed == 3
+    token = CancellationToken()
+    token.cancel()
+    with pytest.raises(Exception):
+        require_success(prepared.estimate(seed=7, cancel=token))
+    assert prepared.seed == 3
+    assert bytes(prepared.export()) == before
+
+
 def test_estimate_returns_exact_points_only():
     builder = decide()
     prepared = builder.prepare_exact(laws(), REQUESTS)

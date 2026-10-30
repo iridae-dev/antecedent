@@ -426,10 +426,8 @@ impl PreparedMultiSourceZTransportStage {
         cancel: Option<crate::PyCancellationToken>,
         seed: Option<u64>,
     ) -> PyResult<String> {
-        if let Some(seed) = seed {
-            self.seed = seed;
-        }
-        let ctx = execution_context(self.seed, memory_bytes.or(self.memory_bytes), cancel);
+        let next_seed = seed.unwrap_or(self.seed);
+        let ctx = execution_context(next_seed, memory_bytes.or(self.memory_bytes), cancel);
         let inner = self.inner.clone();
         let result = crate::detach_catch(py, move || inner.estimate(&ctx).map_err(error))?;
         let names = &self.graph.names;
@@ -437,8 +435,9 @@ impl PreparedMultiSourceZTransportStage {
             points_json(self.inner.requests(), result.distributions(), result.contrasts(), names);
         payload["status"] = "available".into();
         payload["scope"] = SCOPE.into();
-        payload["seed"] = self.seed.into();
+        payload["seed"] = next_seed.into();
         payload["interval"] = uncertainty_json(result.uncertainty(), names);
+        self.seed = next_seed;
         self.last = Some(result);
         Ok(payload.to_string())
     }

@@ -1384,3 +1384,25 @@ def test_z_transport_plan_report_carries_the_evaluation_budget_receipt():
     assert truncated["truncated"] is True and len(proposals) == 1
     with pytest.raises(CausalValueError, match="max_evaluated"):
         transport.plan_z_transport_evidence(stage, base, candidates, max_evaluated=0)
+
+
+def test_exact_law_optional_counts_propagates_getter_failure():
+    _, stage, catalog, _, laws = fixture(False)
+    law = laws[0]
+
+    class BrokenCounts:
+        def __getattr__(self, name):
+            if name == "empirical_counts":
+                raise RuntimeError("counts could not be read")
+            return getattr(law, name)
+
+    with pytest.raises(RuntimeError, match="counts could not be read"):
+        stage.prepare_exact(catalog, (BrokenCounts(),), {"x": 0.0})
+
+    class MissingCounts:
+        def __getattr__(self, name):
+            if name == "empirical_counts":
+                raise AttributeError(name)
+            return getattr(law, name)
+
+    stage.prepare_exact(catalog, (MissingCounts(),), {"x": 0.0})
