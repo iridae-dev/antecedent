@@ -94,6 +94,17 @@ def _pooled(units):
     return names, columns, [len(u[names[0]]) for u in units]
 
 
+def test_panel_lengths_reject_usize_overflow_as_typed_refusal():
+    import sys
+    from antecedent import _native
+
+    half = sys.maxsize + 1
+    with pytest.raises(Exception) as caught:
+        _native.discover_pcmci(["x"], [np.array([0.0, 1.0, 2.0])],
+                               unit_lengths=[half, half + 3])
+    assert caught.value.reason_code == "invalid_argument"
+
+
 def test_native_panel_pcmci_builds_lag_windows_inside_each_unit():
     """The planted lag-one link is found from a panel of short units, and a wrong
     ``unit_lengths`` (rows that do not add up) is a typed refusal, not a guess."""

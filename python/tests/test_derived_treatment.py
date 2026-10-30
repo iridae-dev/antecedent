@@ -301,6 +301,11 @@ def test_the_joint_cell_cost_counts_are_the_hand_enumeration_and_never_a_time():
     assert both.conditional_strata == 6
 
 
+def test_joint_cell_cost_rejects_huge_component_count_before_allocating():
+    assert refusal(lambda: estimate_joint_cell_cost(10**9)).reason_code == "invalid_argument"
+    assert refusal(lambda: estimate_joint_cell_cost(0)).reason_code == "invalid_argument"
+
+
 def test_the_joint_cell_cost_refuses_what_the_fit_refuses():
     assert refusal(lambda: estimate_joint_cell_cost(2, ordering=[0, 0])).reason_code == (
         "invalid_argument"

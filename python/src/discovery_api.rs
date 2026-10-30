@@ -407,7 +407,8 @@ pub(crate) fn series_from_batch(
 pub(crate) fn check_unit_lengths(rows: usize, unit_lengths: &[usize]) -> PyResult<()> {
     if unit_lengths.is_empty()
         || unit_lengths.contains(&0)
-        || unit_lengths.iter().sum::<usize>() != rows
+        || unit_lengths.iter().try_fold(0usize, |total, length| total.checked_add(*length))
+            != Some(rows)
     {
         return Err(crate::refusal(
             antecedent_core::reason_code!("invalid_argument"),

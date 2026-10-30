@@ -250,6 +250,11 @@ fn joint_cell_cost_json(
     let learner = declared_joint_nuisance(nuisance).map_err(estimation_err)?;
     let grid = penalties.unwrap_or_else(|| DEFAULT_RIDGE_GRID.to_vec());
     let tuning = RidgeTuning::new(&grid, inner_folds).map_err(estimation_err)?;
+    // Ask the native validator for its existing typed refusal before a default
+    // ordering can allocate from an unchecked component count.
+    if !(1..=31).contains(&components) {
+        orderings_for(components, &[], false).map_err(estimation_err)?;
+    }
     let declared = ordering.unwrap_or_else(|| (0..components).collect());
     let orderings = orderings_for(components, &declared, all_orderings).map_err(estimation_err)?;
     let mut config = FactorizedJointConfig::new(tuning);
