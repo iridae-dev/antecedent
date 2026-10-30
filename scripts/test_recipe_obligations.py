@@ -100,6 +100,14 @@ class RecipeObligationTest(unittest.TestCase):
         )
         self.assertTrue(all("not_applicable" not in problem for problem in problems))
 
+    def test_a_license_cannot_override_not_applicable(self) -> None:
+        licensed = licensed_row()
+        matrix = matrix_cell()
+        rule = {"queries": [licensed["query"]]}
+        self.assertEqual(gate.standing(licensed, [], [rule], {gate.coordinate(licensed)}), "not_applicable")
+        problems = gate.cross_check([licensed], [matrix], [], [rule])
+        self.assertTrue(any("not_applicable and is not a license" in problem for problem in problems))
+
     def test_licensed_obligations_match_the_matrix_and_leave_calibration_on_the_license(
         self,
     ) -> None:

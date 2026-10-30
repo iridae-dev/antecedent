@@ -66,10 +66,10 @@ def standing(cell: dict, closed_rules: list[dict], na_rules: list[dict], license
     """Closed wins over a license and over ``not_applicable``."""
     if any(rule_matches(rule, cell) for rule in closed_rules):
         return "closed"
-    if coordinate(cell) in licensed:
-        return "licensed"
     if any(rule_matches(rule, cell) for rule in na_rules):
         return "not_applicable"
+    if coordinate(cell) in licensed:
+        return "licensed"
     return "unlicensed"
 
 

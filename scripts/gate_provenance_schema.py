@@ -127,6 +127,8 @@ for path in records:
 stems = {p.stem for p in (root / "provenance").glob("*.toml") if p.name != "_template.toml"}
 ids_rs = (root / "crates/antecedent/src/strategy_table/ids.rs").read_text(encoding="utf-8")
 pointers = re.findall(r'provenance:\s*(?:\n\s*)?\(\s*"([^"]+)"', ids_rs)
+if not pointers:
+    problems.append("strategy-table provenance pointer scan found no pointers")
 for feat in pointers:
     resolved = ALIAS.get(feat, feat)
     if resolved not in stems:
@@ -170,6 +172,10 @@ CI_SKIP = {"oracle"}
 factory = (root / "crates/antecedent-stats/src/ci/factory.rs").read_text(encoding="utf-8")
 fn = re.search(r"pub fn ci_from_name\b.*?(?=\n#\[cfg|\nimpl |\Z)", factory, re.S)
 factory_names = set(re.findall(r'"([a-z][a-z0-9_]*)"', fn.group(0) if fn else ""))
+if fn is None:
+    problems.append("CI factory ci_from_name definition is missing")
+elif not factory_names:
+    problems.append("CI factory ci_from_name contains no names")
 for name in sorted(factory_names):
     if name in CI_SKIP:
         continue
@@ -228,6 +234,9 @@ for spec in tomllib.loads((root / "parity/method_specs/specs.toml").read_text(en
                 problems.append(f"spec {sid}: provenance record {link!r} is not clean-room")
     if str(spec.get("api_review", "")).startswith("unreviewed") or not spec.get("api_review"):
         problems.append(f"spec {sid}: public surface of {module} is not in a reviewed API snapshot")
+
+if review_checked == 0:
+    problems.append("no admitted method provenance/API links were inspected")
 
 for extra in (
     "estimate.identified_set",

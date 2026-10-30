@@ -148,8 +148,15 @@ def honesty_problems(
 
 def evidence_map_problems(evidence: dict[str, str], manifests: list[str]) -> list[str]:
     """Each id in `evidence` must be a `done` row of one of `manifests` with real evidence."""
-    by_id = {r.get("id"): r for m in manifests for r in rows(m)}
+    all_rows = [r for m in manifests for r in rows(m)]
+    by_id = {r.get("id"): r for r in all_rows}
+    seen: set[str] = set()
     problems: list[str] = []
+    for row in all_rows:
+        cid = row.get("id")
+        if cid in seen:
+            problems.append(f"duplicate capability id {cid}")
+        seen.add(cid)
     for cid, rel in evidence.items():
         row = by_id.get(cid)
         if row is None:
@@ -163,8 +170,15 @@ def evidence_map_problems(evidence: dict[str, str], manifests: list[str]) -> lis
 
 def require_done(manifest: str, ids: list[str] | tuple[str, ...], gate: str) -> list[str]:
     """Rows other inventories must have closed for `gate` to pass."""
-    by_id = {r.get("id"): r for r in rows(manifest)}
+    all_rows = rows(manifest)
+    by_id = {r.get("id"): r for r in all_rows}
+    seen: set[str] = set()
     problems = []
+    for row in all_rows:
+        cid = row.get("id")
+        if cid in seen:
+            problems.append(f"duplicate capability id {cid} in {manifest}")
+        seen.add(cid)
     for cid in ids:
         row = by_id.get(cid)
         if row is None:
@@ -175,7 +189,8 @@ def require_done(manifest: str, ids: list[str] | tuple[str, ...], gate: str) -> 
 
 
 def exit_artifact_problems(paths: list[str]) -> list[str]:
-    return [f"required exit artifact missing: {p}" for p in paths if not (ROOT / p).exists()]
+    return [f"required exit artifact missing or empty: {p}" for p in paths
+            if not (ROOT / p).is_file() or (ROOT / p).stat().st_size == 0]
 
 
 def finish(label: str, problems: list[str], ok_message: str) -> None:
