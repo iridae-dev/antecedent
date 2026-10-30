@@ -24,6 +24,7 @@ use crate::decision_contract::{
 use crate::decision_eval::{DecisionEvalError, DecisionResult, Verdict, evaluate_contract};
 use crate::structure_aggregator::{
     AggregateChoice, AggregateDecision, AggregateFacts, AggregateKind, StructureAggregator,
+    probability_sum, unassigned_probability,
 };
 
 /// What is known about one structure.
@@ -200,7 +201,7 @@ fn validate_atoms(atoms: &[StructuralAtom]) -> Result<bool, StructuralError> {
     if with != atoms.len() {
         return Err(StructuralError::InvalidProbabilities);
     }
-    let total: f64 = atoms.iter().filter_map(|a| a.probability).sum();
+    let total = probability_sum(atoms.iter().filter_map(|a| a.probability));
     if atoms.iter().any(|a| a.probability.is_some_and(|p| !p.is_finite() || p < 0.0))
         || total > 1.0 + 1e-9
     {
@@ -260,13 +261,15 @@ pub fn evaluate_structural(
 
     let mass = |wanted: fn(&AtomStatus) -> bool| -> Option<f64> {
         has_probabilities.then(|| {
-            summaries.iter().filter(|s| wanted(&s.status)).filter_map(|s| s.probability).sum()
+            probability_sum(
+                summaries.iter().filter(|s| wanted(&s.status)).filter_map(|s| s.probability),
+            )
         })
     };
     let evaluated_mass = mass(|s| matches!(s, AtomStatus::Evaluated(_)));
     let unidentified_mass = mass(|s| matches!(s, AtomStatus::Unidentified));
     let unassigned_mass = if has_probabilities {
-        (1.0 - summaries.iter().filter_map(|s| s.probability).sum::<f64>()).max(0.0)
+        unassigned_probability(summaries.iter().filter_map(|s| s.probability))
     } else {
         0.0
     };

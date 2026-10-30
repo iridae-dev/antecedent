@@ -99,6 +99,32 @@ pub(crate) const UNRESOLVED_MASS_CAN_CHANGE_BAYES: &str =
 pub(crate) const NO_EVALUATED_POSITIVE_PROBABILITY: &str =
     "no evaluated structure has positive probability";
 
+/// Compensated sum of nonnegative declared probabilities.
+pub(crate) fn probability_sum(values: impl IntoIterator<Item = f64>) -> f64 {
+    let mut sum = 0.0_f64;
+    let mut correction = 0.0_f64;
+    for value in values {
+        let next = sum + value;
+        if !next.is_finite() {
+            return next;
+        }
+        if sum.abs() >= value.abs() {
+            correction += (sum - next) + value;
+        } else {
+            correction += (value - next) + sum;
+        }
+        sum = next;
+    }
+    sum + correction
+}
+
+/// Remaining undeclared mass, ignoring only rounding within four machine epsilons.
+/// Explicit unresolved atoms must be added separately and are never clipped.
+pub(crate) fn unassigned_probability(values: impl IntoIterator<Item = f64>) -> f64 {
+    let missing = (1.0 - probability_sum(values)).max(0.0);
+    if missing <= 4.0 * f64::EPSILON { 0.0 } else { missing }
+}
+
 /// Sign and policy that combine per-structure values.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct StructureAggregator {

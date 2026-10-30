@@ -309,3 +309,29 @@ fn zero_probability_structure_cannot_exclude_a_bayes_action() {
     let r = evaluate_structural(&c, &atoms).unwrap();
     assert!(matches!(r.verdict, StructuralVerdict::BayesChoice { action, .. } if action == "A"));
 }
+
+#[test]
+fn bayes_roundoff_does_not_invent_unresolved_mass() {
+    let c = contract(StructuralPolicy::BayesOverStructures);
+    for probabilities in [[0.7, 0.2, 0.1], [0.1, 0.2, 0.7]] {
+        let atoms = [
+            evaluated("a", Some(probabilities[0]), 2.0, 1.0),
+            evaluated("b", Some(probabilities[1]), 2.0, 1.0),
+            evaluated("c", Some(probabilities[2]), 2.0, 1.0),
+        ];
+        let result = evaluate_structural(&c, &atoms).unwrap();
+        assert_eq!(result.unevaluated_mass, Some(0.0));
+        assert!(matches!(result.verdict, StructuralVerdict::BayesChoice { .. }));
+    }
+    let explicit = [
+        evaluated("a", Some(1.0 - 1e-16), 2.0, 1.0),
+        atom("b", Some(1e-16), AtomEvidence::Unidentified),
+    ];
+    let result = evaluate_structural(&c, &explicit).unwrap();
+    assert_eq!(result.unidentified_mass, Some(1e-16));
+    assert!(matches!(result.verdict, StructuralVerdict::InsufficientScience(_)));
+    let deficit = [evaluated("a", Some(1.0 - 1e-12), 2.0, 1.0)];
+    let result = evaluate_structural(&c, &deficit).unwrap();
+    assert!(result.unevaluated_mass.unwrap() > 0.0);
+    assert!(matches!(result.verdict, StructuralVerdict::InsufficientScience(_)));
+}
