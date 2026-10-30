@@ -1241,6 +1241,41 @@ fn check_decl(decl: &Decl) -> Result<(), CategoricalTreatmentArtifactError> {
     Ok(())
 }
 
+// Structural planning units account for major dense replay operations, including the
+// quartic omnibus Wald loop and separate frequentist and posterior work.
+fn categorical_replay_work(
+    decl: &Decl,
+    replay: &str,
+    posterior: bool,
+) -> crate::artifact_budget::ReplayWork {
+    let mut work = crate::artifact_budget::ReplayWork::new();
+    let p = decl.columns();
+    let k = decl.spec.declared_levels.len().saturating_sub(1);
+    let steps = if decl.spec.monotonicity.is_some() { k } else { 0 };
+    let contrasts = k.checked_add(decl.spec.pairwise.len()).and_then(|n| n.checked_add(steps));
+    work.add(&[6, p, p, p]);
+    // assemble() calls wald_rows() with k identity restrictions: k² cells, each k² work.
+    work.add(&[k, k, k, k]);
+    match contrasts {
+        Some(count) => work.add(&[count, k, k]),
+        None => work.add(&[usize::MAX, 2]),
+    }
+    if replay == REPLAY_ROWS {
+        work.add(&[4, decl.n_rows, p, p]);
+    }
+    if posterior {
+        work.add(&[6, p, p, p]);
+        match contrasts {
+            Some(count) => work.add(&[count, p, p]),
+            None => work.add(&[usize::MAX, 2]),
+        }
+        if replay == REPLAY_ROWS {
+            work.add(&[decl.n_rows, p, p]);
+        }
+    }
+    work
+}
+
 /// The posterior section of the design a replay holds.
 fn posterior_wire(
     decl: &Decl,
@@ -1795,6 +1830,26 @@ impl CategoricalTreatmentArtifact {
         expected: Option<&CategoricalTreatmentIdentity>,
         ctx: &ExecutionContext,
     ) -> Result<Self, CategoricalTreatmentArtifactError> {
+        Self::from_bytes_with_replay_operations(
+            bytes,
+            expected,
+            ctx,
+            antecedent_io_core::distribution_replay::MAX_REPLAY_OPERATIONS,
+        )
+    }
+
+    /// Consume with an explicit structural replay-work allowance. The default consumer uses
+    /// the shared 50 million operation allowance; a trusted caller may choose another limit.
+    /// Planning units bound structural work and are not a prediction of elapsed time.
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes_with`], including a replay operation limit refusal.
+    pub fn from_bytes_with_replay_operations(
+        bytes: &[u8],
+        expected: Option<&CategoricalTreatmentIdentity>,
+        ctx: &ExecutionContext,
+        max_replay_operations: usize,
+    ) -> Result<Self, CategoricalTreatmentArtifactError> {
         let (meta, raw) = decode_parts_impl(bytes)?;
         crate::artifact_codec::require_semantics::<CategoricalTreatmentArtifactError>(
             meta.feature == CATEGORICAL_TREATMENT_ARTIFACT_FEATURE,
@@ -1810,6 +1865,9 @@ impl CategoricalTreatmentArtifact {
         ])?;
         let decl = Decl::from_meta(&meta)?;
         check_decl(&decl)?;
+        categorical_replay_work(&decl, &meta.replay, meta.posterior.is_some())
+            .admit(max_replay_operations)
+            .map_err(|_| CategoricalTreatmentArtifactError::LimitsExceeded("replay operations"))?;
         if raw.len() % 8 != 0 {
             return Err(CategoricalTreatmentArtifactError::Malformed(
                 "numbers section length".into(),
@@ -2042,6 +2100,92 @@ mod number_section_tests {
             let error = legacy.verify_data(&request).unwrap_err();
             assert_eq!(error.refusal().unwrap().1, "categorical_treatment.data_not_bound");
         }
+    }
+
+    #[test]
+    fn replay_work_counts_quartic_omnibus_and_posterior_contrasts() {
+        let mut shape = decl(128);
+        shape.adjustment.clear();
+        shape.spec.declared_levels = (0..16).map(|i| format!("l{i}")).collect();
+        let plain = super::categorical_replay_work(&shape, "summary", false).units().unwrap();
+        let with_posterior =
+            super::categorical_replay_work(&shape, "summary", true).units().unwrap();
+        assert_eq!(plain, 6 * 16_usize.pow(3) + 15_usize.pow(4) + 15 * 15_usize.pow(2));
+        assert_eq!(with_posterior - plain, 6 * 16_usize.pow(3) + 15 * 16_usize.pow(2));
+        assert!(super::categorical_replay_work(&shape, "summary", false).admit(plain - 1).is_err());
+        assert!(super::categorical_replay_work(&shape, "summary", false).admit(plain).is_ok());
+    }
+
+    #[test]
+    fn replay_work_admission_precedes_dense_fit() {
+        let artifact =
+            CategoricalTreatmentArtifact::seal(&robust_request(60, CovarianceKindWire::Hc1))
+                .unwrap();
+        let bytes = artifact.to_bytes("replay-work").unwrap();
+        let decl = Decl::from_meta(artifact.meta()).unwrap();
+        let needed =
+            super::categorical_replay_work(&decl, &artifact.meta().replay, false).units().unwrap();
+        let ctx = crate::artifact_budget::unbounded_context();
+        assert_eq!(
+            CategoricalTreatmentArtifact::from_bytes_with_replay_operations(
+                &bytes,
+                None,
+                &ctx,
+                needed - 1,
+            )
+            .unwrap_err(),
+            CategoricalTreatmentArtifactError::LimitsExceeded("replay operations")
+        );
+        assert!(
+            CategoricalTreatmentArtifact::from_bytes_with_replay_operations(
+                &bytes,
+                Some(artifact.identity()),
+                &ctx,
+                needed,
+            )
+            .is_ok()
+        );
+
+        // The declarations fit in a compact artifact but imply billions of dense terms.
+        let mut forged = artifact.meta().clone();
+        forged.spec.declared_levels = (0..128).map(|i| format!("l{i}")).collect();
+        forged.spec.reference = "l0".into();
+        forged.spec.covariance = CovarianceKindWire::ModelBased;
+        forged.spec.pairwise = (0..128)
+            .flat_map(|i| {
+                (0..128).filter(move |&j| i != j).map(move |j| (format!("l{i}"), format!("l{j}")))
+            })
+            .collect();
+        forged.adjustment.clear();
+        forged.n_rows = 512;
+        forged.replay = "summary".into();
+        forged.counts = forged
+            .spec
+            .declared_levels
+            .iter()
+            .map(|level| super::LevelCountWire { level: level.clone(), rows: 4 })
+            .collect();
+        // Positive-definite dummy-coded Gram with four observations in each level.
+        let p = 128;
+        let mut numbers = vec![0.0; p * p + p + 1];
+        numbers[0] = 512.0;
+        for j in 1..p {
+            numbers[j] = 4.0;
+            numbers[j * p] = 4.0;
+            numbers[j * p + j] = 4.0;
+        }
+        numbers[p * p + p] = 512.0;
+        let forged_bytes = encode_parts_impl(
+            &forged,
+            &reals_to_bytes(&numbers),
+            "amplified",
+            MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES,
+        )
+        .unwrap();
+        assert_eq!(
+            CategoricalTreatmentArtifact::from_bytes(&forged_bytes, None).unwrap_err(),
+            CategoricalTreatmentArtifactError::LimitsExceeded("replay operations")
+        );
     }
 
     #[test]

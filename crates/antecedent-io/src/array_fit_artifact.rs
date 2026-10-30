@@ -422,10 +422,7 @@ fn run_score(wire: &PenalizedScoreWire) -> Fit {
     let mut values = vec![value("penalty", score.penalty)];
     for (j, coefficient) in score.coefficients.iter().enumerate() {
         values.push(value(&format!("coefficient.{j}"), *coefficient));
-        values.push(value(
-            &format!("coefficient.{j}.se"),
-            interval.coefficient_standard_error[j],
-        ));
+        values.push(value(&format!("coefficient.{j}.se"), interval.coefficient_standard_error[j]));
     }
     for (i, band) in interval.scores.iter().enumerate() {
         values.push(indexed("score", i, "at_mode", band.score));
@@ -528,6 +525,40 @@ impl ArrayFitRequestWire {
             return Err(ArrayFitError::LimitsExceeded("columns"));
         }
         Ok(())
+    }
+
+    // Structural work units account for the bounded Newton iterations, dense factorization,
+    // posterior draws and per-request prediction summaries. They are not elapsed-time estimates.
+    fn replay_work(&self) -> crate::artifact_budget::ReplayWork {
+        let (n, p, draws, probes, iterations, posterior) = match self {
+            Self::PropensityPosterior(w) => {
+                (w.nrows, self.columns(), w.draws, w.rows.len(), 50, true)
+            }
+            Self::TemporalPropensity(w) => {
+                (w.design.nrows, self.columns(), 0, w.design.histories.len(), 80, false)
+            }
+            Self::TemporalPropensityPosterior(w) => {
+                (w.design.nrows, self.columns(), w.draws, w.design.histories.len(), 50, true)
+            }
+        };
+        let mut work = crate::artifact_budget::ReplayWork::new();
+        work.add(&[iterations, n, p, p]);
+        // Ridge uses Gauss–Jordan inversion with two dense elimination updates per pivot;
+        // the Laplace route uses one Cholesky solve per iteration. Allow three p³ units
+        // per iteration for either route.
+        work.add(&[iterations, 3, p, p, p]);
+        // Laplace tries at most eight objective values per iteration (no refactorization).
+        // Also account for final Hessian and dense interval calculations.
+        work.add(&[iterations, 30, n, p]);
+        work.add(&[4, n, p, p]);
+        work.add(&[6, p, p, p]);
+        if posterior {
+            work.add(&[draws, p, p]);
+            work.add(&[probes, draws, p]);
+        } else {
+            work.add(&[probes, p, p]);
+        }
+        work
     }
 
     fn evaluate(&self) -> Fit {
@@ -655,11 +686,35 @@ impl ArrayFitArtifactWire {
         limits: ArrayFitConsumeLimits,
         expected: Option<&str>,
     ) -> Result<Self, ArrayFitError> {
+        Self::consume_typed_expected_with_replay_operations(
+            bytes,
+            limits,
+            expected,
+            antecedent_io_core::distribution_replay::MAX_REPLAY_OPERATIONS,
+        )
+    }
+
+    /// Consume with an explicit structural replay-work allowance. Existing consumers use the
+    /// shared 50 million operation default; trusted callers may select another allowance.
+    /// Units are structural planning counts, not a wall-clock guarantee.
+    ///
+    /// # Errors
+    /// As [`Self::consume_typed_expected`], including a replay operation limit refusal.
+    pub fn consume_typed_expected_with_replay_operations(
+        bytes: &[u8],
+        limits: ArrayFitConsumeLimits,
+        expected: Option<&str>,
+        max_replay_operations: usize,
+    ) -> Result<Self, ArrayFitError> {
         let wire = Self::decode(bytes).map_err(|e| match e {
             IoError::Refused { .. } => ArrayFitError::UnsupportedSemantics("shape"),
             other => ArrayFitError::Undecodable(other.to_string()),
         })?;
         wire.request.check_limits(&limits)?;
+        wire.request
+            .replay_work()
+            .admit(max_replay_operations)
+            .map_err(|_| ArrayFitError::LimitsExceeded("replay operations"))?;
         if expected.is_some_and(|expected| expected != wire.request_digest) {
             return Err(ArrayFitError::RequestMismatch);
         }
@@ -737,5 +792,44 @@ mod header_and_replay_regression {
         assert_eq!(ARRAY_EVALUATIONS.with(std::cell::Cell::get), before + 2);
         assert_eq!(consumed, wire);
         assert_eq!(consumed.export().unwrap(), bytes);
+
+        let needed = wire.request.replay_work().units().unwrap();
+        let before = ARRAY_EVALUATIONS.with(std::cell::Cell::get);
+        assert_eq!(
+            ArrayFitArtifactWire::consume_typed_expected_with_replay_operations(
+                &bytes,
+                ArrayFitConsumeLimits::default(),
+                None,
+                needed - 1,
+            )
+            .unwrap_err(),
+            ArrayFitError::LimitsExceeded("replay operations"),
+        );
+        assert_eq!(ARRAY_EVALUATIONS.with(std::cell::Cell::get), before);
+        assert!(
+            ArrayFitArtifactWire::consume_typed_expected_with_replay_operations(
+                &bytes,
+                ArrayFitConsumeLimits::default(),
+                None,
+                needed,
+            )
+            .is_ok()
+        );
+
+        // A compact request can amplify into hundreds of millions of prediction operations.
+        let mut amplified = wire.clone();
+        let ArrayFitRequestWire::PropensityPosterior(ref mut request) = amplified.request else {
+            panic!("posterior")
+        };
+        request.draws = 200_000;
+        request.rows = vec![vec![1.0, 0.0]; 200];
+        let oversized = amplified.export().unwrap();
+        let before = ARRAY_EVALUATIONS.with(std::cell::Cell::get);
+        assert_eq!(
+            ArrayFitArtifactWire::consume_typed(&oversized, ArrayFitConsumeLimits::default())
+                .unwrap_err(),
+            ArrayFitError::LimitsExceeded("replay operations")
+        );
+        assert_eq!(ARRAY_EVALUATIONS.with(std::cell::Cell::get), before);
     }
 }

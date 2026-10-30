@@ -169,3 +169,50 @@ pub(crate) fn admit_export(
     }
     Ok(())
 }
+
+/// Overflow-safe sum of structural replay work units. These are conservative planning units,
+/// not a wall-clock prediction. Every product and the sum must fit the consumer's allowance.
+pub(crate) struct ReplayWork(Option<usize>);
+
+impl ReplayWork {
+    pub(crate) fn new() -> Self {
+        Self(Some(0))
+    }
+
+    pub(crate) fn add(&mut self, factors: &[usize]) {
+        self.0 = self.0.and_then(|total| {
+            factors
+                .iter()
+                .try_fold(1usize, |v, &factor| v.checked_mul(factor))
+                .and_then(|term| total.checked_add(term))
+        });
+    }
+
+    #[cfg(test)]
+    pub(crate) fn units(&self) -> Option<usize> {
+        self.0
+    }
+
+    pub(crate) fn admit(&self, limit: usize) -> Result<(), ReplayWorkExceeded> {
+        if self.0.is_some_and(|work| work <= limit) { Ok(()) } else { Err(ReplayWorkExceeded) }
+    }
+}
+
+/// The replay work estimate overflowed or exceeded the caller's allowance.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct ReplayWorkExceeded;
+
+#[cfg(test)]
+mod replay_work_tests {
+    use super::*;
+    #[test]
+    fn checked_work_boundary_and_overflow() {
+        let mut work = ReplayWork::new();
+        work.add(&[3, 4]);
+        work.add(&[2, 5]);
+        assert!(work.admit(22).is_ok());
+        assert!(work.admit(21).is_err());
+        work.add(&[usize::MAX, 2]);
+        assert!(work.admit(usize::MAX).is_err());
+    }
+}
