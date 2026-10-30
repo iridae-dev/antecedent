@@ -153,7 +153,8 @@ impl PropensityStratification {
         self
     }
 
-    /// Set the number of quantile strata (default 5).
+    /// Set the number of quantile strata (default 5). Execution requires a
+    /// positive count no greater than the complete, overlap-retained row count.
     #[must_use]
     pub const fn with_n_strata(mut self, n_strata: u32) -> Self {
         self.n_strata = n_strata;
@@ -189,7 +190,7 @@ impl PropensityStratification {
                 data.row_count(),
             )?;
         }
-        prepare_propensity_problem_with_levels(
+        let problem = prepare_propensity_problem_with_levels(
             data,
             estimand,
             query,
@@ -197,7 +198,21 @@ impl PropensityStratification {
             self.population_registry.as_ref(),
             self.other_levels,
             self.sampling_weights.as_ref(),
-        )
+        )?;
+        self.checked_strata(problem.nrows)?;
+        Ok(problem)
+    }
+
+    fn checked_strata(&self, rows: usize) -> Result<usize, EstimationError> {
+        let count = usize::try_from(self.n_strata).map_err(|_| {
+            EstimationError::data_msg("propensity strata exceed the addressable row count")
+        })?;
+        if count == 0 || count > rows {
+            return Err(EstimationError::data_msg(format!(
+                "propensity strata must lie in 1..={rows} complete retained rows, got {count}",
+            )));
+        }
+        Ok(count)
     }
 
     /// Fit the propensity model, assign quantile strata, and compute the pooled stratified ATE.
@@ -234,7 +249,7 @@ impl PropensityStratification {
         if self.inference.bootstrap_replicates == 0 {
             return Ok(point);
         }
-        let n_strata = (self.n_strata.max(1)) as usize;
+        let n_strata = self.checked_strata(problem.nrows)?;
         let trim = trim_of(problem.overlap);
         let boot = self.bootstrap_se(problem, n_strata, trim, workspace, ctx)?;
         Ok(point.with_bootstrap_outcome(boot))
@@ -246,6 +261,7 @@ impl PropensityStratification {
         workspace: &mut PropensityEstimationWorkspace,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
+        self.checked_strata(problem.nrows)?;
         if !matches!(
             problem.target_population,
             TargetPopulation::AllObserved
@@ -265,7 +281,6 @@ impl PropensityStratification {
             &mut workspace.propensity,
             &self.glm_options,
         )?;
-        let n_strata = (self.n_strata.max(1)) as usize;
         // Trim on RAW scores (mirrors PropensityWeighting): stratify only common-support rows.
         let retained = trim_retained_rows(&model.fit.scores, trim)?;
         let (t_used, y_used, s_used) = restrict_to_rows(
@@ -275,6 +290,7 @@ impl PropensityStratification {
             1,
             retained.as_deref(),
         );
+        let n_strata = self.checked_strata(t_used.len())?;
         let sampling_used: Option<Vec<f64>> = problem.sampling_weights.as_ref().map(|s| {
             retained.as_deref().map_or_else(|| s.weights.to_vec(), |idx| gather(&s.weights, idx))
         });
@@ -849,6 +865,48 @@ fn regression_stratified_ate(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn strata_count_is_bounded_by_complete_rows_and_one_is_valid() {
+        let treatment: Vec<f64> = (0..32).map(|i| f64::from(i % 2)).collect();
+        let covariate: Vec<f64> = (0..32).map(|i| f64::from((i / 2) % 4)).collect();
+        let outcome: Vec<f64> =
+            treatment.iter().enumerate().map(|(i, t)| t + (i % 5) as f64 * 0.03).collect();
+        let data = TabularData::from_f64_columns([
+            ("t", treatment.as_slice()),
+            ("y", outcome.as_slice()),
+            ("z", covariate.as_slice()),
+        ])
+        .unwrap();
+        let query = AverageEffectQuery::binary_ate(
+            data.schema().id_of("t").unwrap(),
+            data.schema().id_of("y").unwrap(),
+        );
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            std::sync::Arc::from([data.schema().id_of("z").unwrap()]),
+            antecedent_expr::ExprId::from_raw(0),
+        );
+        for count in [0, 33, u32::MAX] {
+            let estimator = PropensityStratification::new().with_n_strata(count);
+            assert!(estimator.prepare(&data, &estimand, &query).is_err(), "count={count}");
+        }
+        let estimator =
+            PropensityStratification::new().with_n_strata(1).with_bootstrap_replicates(0);
+        let problem = estimator.prepare(&data, &estimand, &query).unwrap();
+        let effect = estimator
+            .fit(
+                &problem,
+                &mut PropensityEstimationWorkspace::default(),
+                &ExecutionContext::for_tests(1),
+                AssumptionSet::new(),
+            )
+            .unwrap();
+        assert!(effect.ate.is_finite() && effect.se_analytic().is_finite());
+        // A count valid before overlap filtering must still fit the retained
+        // analysis population; this guard runs before any stratum allocation.
+        assert!(PropensityStratification::new().with_n_strata(8).checked_strata(7).is_err());
+    }
 
     #[test]
     fn tied_propensity_scores_share_a_stratum() {

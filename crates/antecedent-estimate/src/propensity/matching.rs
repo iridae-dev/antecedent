@@ -38,6 +38,7 @@ use crate::inference::InferenceSpec;
 use crate::overlap::{IpwTarget, OverlapPolicy};
 use crate::sampling_weights::SamplingWeights;
 use crate::se::{AnalyticSeKind, SeSpec};
+#[cfg(test)]
 use crate::util::sample_std;
 
 /// Queries matched between cancellation checks when several donors are searched per query.
@@ -48,14 +49,16 @@ const MATCH_CANCELLATION_CHUNK: usize = 1024;
 ///
 /// The field-standard convention (Rosenbaum & Rubin 1985; Austin 2011, "Optimal caliper
 /// widths for propensity-score matching") is that a caliper is applied to the **logit** of
-/// the propensity score, `logit(e) = ln(e / (1 - e))` — a caliper of 0.2 means "0.2 standard
-/// deviations of the logit propensity," not 0.2 of raw probability. The raw-probability scale
+/// the propensity score, `logit(e) = ln(e / (1 - e))`. This API takes an absolute
+/// distance on the selected scale: a caliper of 0.2 is 0.2 logit units. To use
+/// the conventional 0.2-standard-deviation rule, supply `0.2 * SD(logit(e))`.
+/// The raw-probability scale
 /// compresses badly near 0 and 1 (exactly where matching quality matters most for units with
 /// extreme propensities), so a caller who follows the textbook 0.2 rule of thumb but matches
 /// on raw probability gets behavior very different from the convention they intended.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum CaliperScale {
-    /// Match on `logit(e) = ln(e / (1 - e))`. This is what the 0.2 rule of thumb means.
+    /// Match on `logit(e) = ln(e / (1 - e))`, with an absolute logit-distance caliper.
     #[default]
     Logit,
     /// Match on the raw (clipped) propensity probability, `e ∈ [clip, 1 - clip]`.
@@ -79,8 +82,8 @@ pub enum CaliperScale {
 ///
 /// **Caliper scale:** [`Self::caliper`] is interpreted on [`Self::caliper_scale`], which
 /// defaults to [`CaliperScale::Logit`] — the field-standard convention (Rosenbaum & Rubin
-/// 1985; Austin 2011). A caliper of 0.2 under this default means 0.2 on the logit scale, per
-/// the literature's rule of thumb; see [`CaliperScale`] for why the raw-probability scale is
+/// 1985; Austin 2011). A caliper of 0.2 under this default means 0.2 absolute logit
+/// units; the conventional SD-based rule needs an explicitly scaled width. See [`CaliperScale`] for why the raw-probability scale is
 /// not equivalent. This is a behavior change for callers who previously relied on the
 /// undocumented raw-probability matching distance; set `caliper_scale: CaliperScale::Raw`
 /// explicitly to keep the old behavior.
@@ -177,7 +180,7 @@ impl PropensityMatching {
 
     /// Set the maximum matching distance for an accepted match, interpreted on
     /// [`Self::caliper_scale`] (default [`CaliperScale::Logit`] — see the type-level docs for
-    /// why 0.2 on that scale is the literature's rule of thumb).
+    /// converting the conventional SD-based rule to an absolute width).
     ///
     /// Defaults to `None` (no caliper): every query row is matched to its nearest donor
     /// regardless of distance.
@@ -739,8 +742,7 @@ pub(crate) fn match_diffs_with(
             }
         }
     }
-    let matched =
-        matched_outcome_diffs(donors, queries, dim, matches, &donor_rows, scalar_ties);
+    let matched = matched_outcome_diffs(donors, queries, dim, matches, &donor_rows, scalar_ties);
     workspace.matching_donor_rows = donor_rows;
     workspace.matching_distances = distances;
     Ok(matched)
@@ -925,8 +927,7 @@ impl SortedScalarIndex {
             first -= 1;
         }
         let mut last = split;
-        while last < self.scores.len()
-            && (query - self.scores[last]).abs().total_cmp(&best).is_eq()
+        while last < self.scores.len() && (query - self.scores[last]).abs().total_cmp(&best).is_eq()
         {
             last += 1;
         }
@@ -1256,7 +1257,9 @@ impl MatchedEffects {
             .passes
             .iter()
             .flat_map(|(pass, _)| pass.set_sizes())
-            .fold((0.0, 0usize), |(total, count), size| (total + 1.0 + 1.0 / size as f64, count + 1));
+            .fold((0.0, 0usize), |(total, count), size| {
+                (total + 1.0 + 1.0 / size as f64, count + 1)
+            });
         total / count.max(1) as f64
     }
 }
@@ -1283,7 +1286,10 @@ fn match_target(
         TargetPopulation::Untreated => {
             let (mut matched, rows) = arms.control_to_treated(sample, caliper, workspace)?;
             Ok(MatchedEffects {
-                per_unit_effects: std::mem::take(&mut matched.diffs).into_iter().map(|d| -d).collect(),
+                per_unit_effects: std::mem::take(&mut matched.diffs)
+                    .into_iter()
+                    .map(|d| -d)
+                    .collect(),
                 passes: vec![(matched, 0)],
                 n_donors: arms.treated_y.len(),
                 effect_rows: rows,
@@ -1350,15 +1356,14 @@ struct MatchedVariance<'a> {
 }
 
 impl MatchedVariance<'_> {
-    /// Whether both arms are queried (the two-arm ATE form of the Abadie–Imbens variance).
-    fn ate_form(&self) -> bool {
-        !matches!(self.target, TargetPopulation::Treated | TargetPopulation::Untreated)
-    }
-
     /// Coefficient of each sample row's outcome in the weighted matched estimator.
     fn coefficients(&self, weights: &[f64]) -> Vec<f64> {
-        let mass: f64 =
-            self.effects.effect_rows.iter().map(|&row| weights.get(row).copied().unwrap_or(0.0)).sum();
+        let mass: f64 = self
+            .effects
+            .effect_rows
+            .iter()
+            .map(|&row| weights.get(row).copied().unwrap_or(0.0))
+            .sum();
         let query_shares: Vec<f64> = self
             .effects
             .effect_rows
@@ -1372,7 +1377,6 @@ impl MatchedVariance<'_> {
             &self.arms.treated_idx,
             &self.arms.control_idx,
             self.sample.treatment.len(),
-            self.ate_form(),
             matches!(self.target, TargetPopulation::Untreated),
         )
     }
@@ -1384,17 +1388,7 @@ impl MatchedVariance<'_> {
         }
         let unit_weights = vec![1.0; self.sample.treatment.len()];
         let weights = self.target_weights.unwrap_or(&unit_weights);
-        let mut coefficients = self.coefficients(weights);
-        if self.ate_form() {
-            let effect_rows = &self.effects.effect_rows;
-            let mass = effect_rows.iter().map(|&row| weights[row]).sum::<f64>();
-            let queried: std::collections::HashSet<usize> = effect_rows.iter().copied().collect();
-            for (row, coefficient) in coefficients.iter_mut().enumerate() {
-                if !queried.contains(&row) {
-                    *coefficient -= weights[row] / mass;
-                }
-            }
-        }
+        let coefficients = self.coefficients(weights);
         Ok(Some(population_matching_se(
             &self.arms.treated_feat,
             &self.arms.treated_y,
@@ -1416,29 +1410,23 @@ impl MatchedVariance<'_> {
         // so each unit's outcome enters with its query weight plus the weights of the queries it
         // donates to; the equal-weight `(1 + K)/n` coefficients would describe a different
         // estimator.
-        let weighted_coefficients = self.target_weights.map(|tw| self.coefficients(tw));
+        let unit_weights = vec![1.0; self.sample.treatment.len()];
+        let weights = self.target_weights.unwrap_or(&unit_weights);
+        let coefficients = self.coefficients(weights);
         let population_se = self.population_se()?;
         let effects = self.effects;
         Ok(match se_kind {
             AnalyticSeKind::Homoskedastic if population_se.is_some() => {
                 population_se.unwrap_or(f64::NAN)
             }
-            AnalyticSeKind::Homoskedastic => match &weighted_coefficients {
-                Some(coefficients) => weighted_abadie_imbens_se(
-                    &effects.per_unit_effects,
-                    self.ate,
-                    &effects.effect_rows,
-                    coefficients,
-                    self.target_weights.unwrap_or(&[]),
-                    1.0 / effects.mean_noise_inflation(),
-                ),
-                None => abadie_imbens_se(
-                    &effects.per_unit_effects,
-                    &effects.donor_usage(None),
-                    self.ate_form(),
-                    1.0 / effects.mean_noise_inflation(),
-                ),
-            },
+            AnalyticSeKind::Homoskedastic => weighted_abadie_imbens_se(
+                &effects.per_unit_effects,
+                self.ate,
+                &effects.effect_rows,
+                &coefficients,
+                weights,
+                1.0 / effects.mean_noise_inflation(),
+            ),
             AnalyticSeKind::Hc0
             | AnalyticSeKind::Hc1
             | AnalyticSeKind::Hc2
@@ -1572,9 +1560,8 @@ pub(crate) fn matching_contrast(
 /// query weight `w_i / M` plus the weighted donor reuse `K^w_i / M`, where
 /// `K^w_i = Σ_{q: donor(q) = i} w_q` is the weight of the queries row `i` donates to.
 ///
-/// With the ATE form every unit is a query once, so a unit dropped by the caliper still counts
-/// its own `w_i / M` (the unweighted Abadie–Imbens ATE sum `Σ_j (1 + K_j)²` runs over every
-/// unit, `K_j = 0` included); the one-arm (ATT/ATC) form counts matched queries only.
+/// Only queries retained by the caliper contribute their own `w_i / M`. A dropped
+/// unit may still donate to other queries and then contributes only its donor share.
 ///
 /// At constant weights `w_i = w` this is `c_i = (1 + K_i) / n` (ATE) and `c_q = 1/n`,
 /// `c_j = K_j / n` (ATT), the coefficients behind the unweighted `(1 + K_j)²` and `n + ΣK²`
@@ -1590,21 +1577,12 @@ fn custom_unit_coefficients(
     treated_idx: &[usize],
     control_idx: &[usize],
     nrows: usize,
-    ate_form: bool,
     donors_are_treated: bool,
 ) -> Vec<f64> {
     let n_control = control_idx.len();
     let weight = |row: usize| target_weights.get(row).copied().unwrap_or(0.0);
     let mass: f64 = effect_rows.iter().map(|&r| weight(r)).sum();
     let mut coefficient = vec![0.0; nrows];
-    if ate_form {
-        for (row, slot) in coefficient.iter_mut().enumerate() {
-            *slot = weight(row) / mass;
-        }
-        for &row in effect_rows {
-            coefficient[row] -= weight(row) / mass;
-        }
-    }
     for &row in effect_rows {
         coefficient[row] += weight(row) / mass;
     }
@@ -1795,6 +1773,7 @@ fn bias_adjusted_coefficient_norm(
 /// - **ATT/ATC** (`ate_form = false`): `Var = σ̂² (n + Σⱼ uⱼ²) / n²`
 /// - **ATE** (`ate_form = true`): `Var = σ̂² Σⱼ (1 + uⱼ)² / n²`
 ///   `= σ̂² (n_donors + 2 Σ u + Σ u²) / n²` (the ATT form misses the cross term).
+#[cfg(test)]
 fn abadie_imbens_se(effects: &[f64], donor_usage: &[f64], ate_form: bool, noise_share: f64) -> f64 {
     let n = effects.len();
     if n < 2 {
@@ -2291,7 +2270,8 @@ mod tests {
         }
         let index = SortedScalarIndex::from_donors(&[10.0]);
         assert!(index.nearest(0.0, Some(f64::NAN)).is_none());
-        let found = index.nearest(0.0, Some(10.0)).expect("a distance equal to the caliper matches");
+        let found =
+            index.nearest(0.0, Some(10.0)).expect("a distance equal to the caliper matches");
         assert_eq!((tied_set(&index, found), found.distance), (vec![0], 10.0));
     }
 
@@ -2311,9 +2291,8 @@ mod tests {
         for caliper in [None, Some(0.0), Some(0.05), Some(0.125)] {
             for &query in &queries {
                 let (set, distance) = scalar_scan_ties(&donors, query);
-                let expected = (!set.is_empty()
-                    && caliper.is_none_or(|limit| distance <= limit))
-                .then_some((set, distance));
+                let expected = (!set.is_empty() && caliper.is_none_or(|limit| distance <= limit))
+                    .then_some((set, distance));
                 let got = index
                     .nearest(query, caliper)
                     .map(|found| (tied_set(&index, found), found.distance));
@@ -2325,10 +2304,8 @@ mod tests {
     /// Regression test for the caliper-scale defect: with a fixed numeric caliper of 0.2 and
     /// propensity scores near the extremes of `[0, 1]`, `CaliperScale::Raw` and
     /// `CaliperScale::Logit` must select materially different match sets. This is the
-    /// discriminating case the literature's 0.2 rule of thumb is about — raw-probability
-    /// caliper 0.2 is far too permissive near 0/1, while the logit-scale caliper (what 0.2
-    /// actually means per Rosenbaum & Rubin 1985 / Austin 2011) correctly excludes those
-    /// pairs.
+    /// raw and absolute-logit widths have different meanings, independently of
+    /// the conventional SD-based rule (which callers must scale explicitly).
     #[test]
     fn caliper_scale_logit_vs_raw_diverge_near_extremes() {
         // Donor at each extreme plus one in the middle; queries just inside each extreme.
@@ -2504,6 +2481,40 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    #[test]
+    fn caliper_dropped_queries_contribute_no_own_outcome_noise() {
+        // Two exact matched pairs have effects 2 and 3 in each direction.
+        // The other two rows cannot match and never donate. Their outcomes
+        // therefore have coefficient zero in the matched estimator.
+        let treatment = [1.0, 1.0, 1.0, 0.0, 0.0, 0.0];
+        let outcome = [3.0, 5.0, 9.0, 1.0, 2.0, 2.5];
+        let features = [0.0, 1.0, 5.0, 0.0, 1.0, 9.0];
+        for weights in [None, Some([1.0; 6]), Some([1.0, 2.0, 1_000.0, 3.0, 4.0, 1_000.0])] {
+            let actual = contrast(
+                &treatment,
+                &outcome,
+                &features,
+                &TargetPopulation::AllObserved,
+                Some(0.01),
+                weights.as_ref().map(|w| w.as_slice()),
+            );
+            let expected = if weights.is_some_and(|w| w[0] != w[1]) {
+                // Query shares .1,.2,.3,.4: effects 2,3,2,3 have mean 2.6,
+                // weighted variance .24/(1-.30), and outcome coefficients
+                // [.4,.6,0,.4,.6,0]. Each difference has two noise terms.
+                (0.5_f64 * 0.24 / 0.7 * 1.04).sqrt()
+            } else {
+                // Effect variance = 1/3; sigma² = 1/6; four coefficients .5.
+                (1.0_f64 / 6.0).sqrt()
+            };
+            assert!(
+                (actual.se_analytic - expected).abs() < 1e-12,
+                "weights={weights:?}: {} vs {expected}",
+                actual.se_analytic
+            );
         }
     }
 
@@ -2760,7 +2771,10 @@ mod tests {
             quote_exact_matching((donors, queries, 1), MatchingDistance::Absolute, 1, None, &ctx)
                 .unwrap()
                 .unwrap();
-        assert_eq!(scalar_bytes, ((2 * queries + 3 * queries) * 8 + donors * 40 + queries * 16) as u64);
+        assert_eq!(
+            scalar_bytes,
+            ((2 * queries + 3 * queries) * 8 + donors * 40 + queries * 16) as u64
+        );
         // A shape the index itself rejects is not quoted.
         assert!(
             quote_exact_matching((donors, queries, 2), MatchingDistance::Absolute, 1, None, &ctx)
