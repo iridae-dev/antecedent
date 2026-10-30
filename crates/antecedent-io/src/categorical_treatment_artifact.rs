@@ -404,6 +404,9 @@ pub struct CategoricalTreatmentIdentity {
     pub monotonicity_null: String,
     /// Coefficients, covariance, contrasts, omnibus and monotonicity results.
     pub result_id: String,
+    /// Digest of the posterior declaration, absent when there is no posterior.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub posterior_declaration_id: Option<String>,
     /// Digest over all of the above.
     pub digest: String,
 }
@@ -837,7 +840,9 @@ fn spec_of(
 }
 
 /// The declared lag as the estimator reads it.
-fn lag_of(rows: &CategoricalRowsRequest) -> Result<Option<usize>, CategoricalTreatmentArtifactError> {
+fn lag_of(
+    rows: &CategoricalRowsRequest,
+) -> Result<Option<usize>, CategoricalTreatmentArtifactError> {
     rows.serial_lag
         .map(|lag| {
             usize::try_from(lag)
@@ -1171,8 +1176,29 @@ fn identity_of(
         omnibus_null: CATEGORICAL_OMNIBUS_NULL.to_owned(),
         monotonicity_null,
         result_id,
+        posterior_declaration_id: None,
         digest: whole.finish_hex(),
     }
+}
+
+// Preserve historical v1 identities when no posterior is attached. A separate domain
+// binds the original identity and the posterior declaration for posterior-bearing artifacts.
+fn bind_posterior_declaration(
+    identity: &mut CategoricalTreatmentIdentity,
+    declaration: &CategoricalPosteriorDeclaration,
+) {
+    let mut posterior = CanonicalWriter::new("categorical_treatment_v1.posterior_declaration");
+    posterior.real(declaration.level_precision);
+    posterior.real(declaration.nuisance_precision);
+    posterior.real(declaration.variance_shape);
+    posterior.real(declaration.variance_scale);
+    posterior.real(declaration.credible_level);
+    let id = posterior.finish_hex();
+    let mut whole = CanonicalWriter::new("categorical_treatment_v1.identity_with_posterior");
+    whole.text(&identity.digest);
+    whole.text(&id);
+    identity.digest = whole.finish_hex();
+    identity.posterior_declaration_id = Some(id);
 }
 
 /// The first identity field that differs, in the order the contract names them.
@@ -1190,6 +1216,7 @@ fn identity_diff(
         omnibus_null => "null",
         monotonicity_null => "monotonicity_null",
         result_id => "result",
+        posterior_declaration_id => "posterior_declaration",
         digest => "identity",
     })
 }
@@ -1553,12 +1580,15 @@ impl CategoricalTreatmentArtifact {
                 VectorCovariance::Cluster | VectorCovariance::NeweyWest
             ) {
                 // The kind's declaration is missing: the estimator names which one.
-                Replay::RobustSummary(summarize_categorical_design_declared(&input, &spec, &structure)?.0)
+                Replay::RobustSummary(
+                    summarize_categorical_design_declared(&input, &spec, &structure)?.0,
+                )
             } else {
                 Replay::RobustSummary(summarize_categorical_design_robust(&input, &spec)?)
             }
         } else {
-            let (summary, record) = summarize_categorical_design_declared(&input, &spec, &structure)?;
+            let (summary, record) =
+                summarize_categorical_design_declared(&input, &spec, &structure)?;
             decl.n_rows = summary.design.design.n_rows;
             decl.declared = Some(DeclaredRowsWire {
                 format: CATEGORICAL_DECLARED_ROWS_FORMAT.to_owned(),
@@ -1601,8 +1631,9 @@ impl CategoricalTreatmentArtifact {
     /// Attach the Bayesian counterpart of the stored fit under a declared prior.
     ///
     /// The posterior is computed from the stored sufficient statistics of the design, not from
-    /// rows, and is recomputed bit for bit when the artifact is consumed. There is no default
-    /// prior: a prior alone never identifies a level contrast.
+    /// rows, and is recomputed bit for bit when the artifact is consumed. Its declaration is
+    /// included in the returned artifact's identity. There is no default prior: a prior alone
+    /// never identifies a level contrast.
     ///
     /// # Errors
     /// `invalid_argument` for a prior or credible level outside its range, and the stored
@@ -1614,7 +1645,18 @@ impl CategoricalTreatmentArtifact {
         let decl = Decl::from_meta(&self.meta)?;
         reject_posterior_of_declared_rows(&decl)?;
         let replay = Replay::from_parts(&decl, &self.meta, &self.numbers)?;
-        self.meta.posterior = Some(posterior_wire(&decl, &replay, declaration)?);
+        let posterior = posterior_wire(&decl, &replay, declaration)?;
+        // Reconstruct the base identity so replacing an existing posterior never compounds it.
+        let mut identity = identity_of(
+            &decl,
+            &replay,
+            &self.numbers,
+            self.meta.data_digest.as_deref(),
+            &self.meta.result,
+        );
+        bind_posterior_declaration(&mut identity, declaration);
+        self.meta.posterior = Some(posterior);
+        self.meta.identity = identity;
         Ok(self)
     }
 
@@ -1776,7 +1818,15 @@ impl CategoricalTreatmentArtifact {
         let replay = Replay::from_parts(&decl, &meta, &bytes_to_reals(&raw))?;
         let replayed_rows = if matches!(replay, Replay::Rows { .. }) { decl.n_rows } else { 0 };
         admit_regression(BUDGET, replayed_rows, decl.columns(), ctx).map_err(budget_refusal)?;
-        let computed = compute(&decl, &replay, meta.data_digest.as_deref())?;
+        let mut computed = compute(&decl, &replay, meta.data_digest.as_deref())?;
+        if let Some(posterior) = &meta.posterior {
+            if meta.identity.posterior_declaration_id.is_none() {
+                return Err(CategoricalTreatmentArtifactError::IdentityMismatch {
+                    field: "posterior_declaration",
+                });
+            }
+            bind_posterior_declaration(&mut computed.identity, &posterior.declaration);
+        }
         if let Some(field) = identity_diff(&meta.identity, &computed.identity) {
             return Err(CategoricalTreatmentArtifactError::IdentityMismatch { field });
         }
@@ -1871,6 +1921,7 @@ mod number_section_tests {
                 omnibus_null: String::new(),
                 monotonicity_null: String::new(),
                 result_id: String::new(),
+                posterior_declaration_id: None,
                 digest: String::new(),
             },
             result: CategoricalResultWire {

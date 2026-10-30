@@ -801,7 +801,10 @@ fn seal_declared(
     CategoricalTreatmentArtifact::seal_declared(request, rows, &ExecutionContext::for_tests(0))
 }
 
-fn rows_of(request: &CategoricalTreatmentRequest, rows: &CategoricalRowsRequest) -> CategoricalTreatmentFit {
+fn rows_of(
+    request: &CategoricalTreatmentRequest,
+    rows: &CategoricalRowsRequest,
+) -> CategoricalTreatmentFit {
     let input = CategoricalTreatmentInput {
         outcome: request.outcome.as_slice().into(),
         row_snapshot: request.row_snapshot.as_str().into(),
@@ -838,7 +841,10 @@ fn declared_weights_clusters_and_lags_seal_replay_and_equal_the_row_based_fit() 
         ),
         (
             CovarianceKindWire::ClusterRobust,
-            CategoricalRowsRequest { cluster: Some(vec![0, 0, 1, 1, 2, 2, 3, 3, 3]), ..Default::default() },
+            CategoricalRowsRequest {
+                cluster: Some(vec![0, 0, 1, 1, 2, 2, 3, 3, 3]),
+                ..Default::default()
+            },
         ),
         (
             CovarianceKindWire::ClusterRobust,
@@ -936,31 +942,61 @@ fn a_declaration_without_its_covariance_kind_is_refused_by_name_and_never_droppe
     };
     let hc = declared_request(CovarianceKindWire::Hc1);
     let clusters = vec![0, 0, 1, 1, 2, 2, 3, 3, 3];
-    assert!(detail(&hc, CategoricalRowsRequest { cluster: Some(clusters.clone()), ..Default::default() })
-        .contains("vector_treatment.cluster_unread"));
-    assert!(detail(&hc, CategoricalRowsRequest { serial_lag: Some(1), ..Default::default() })
-        .contains("vector_treatment.lag_unread"));
+    assert!(
+        detail(
+            &hc,
+            CategoricalRowsRequest { cluster: Some(clusters.clone()), ..Default::default() }
+        )
+        .contains("vector_treatment.cluster_unread")
+    );
+    assert!(
+        detail(&hc, CategoricalRowsRequest { serial_lag: Some(1), ..Default::default() })
+            .contains("vector_treatment.lag_unread")
+    );
     let model = declared_request(CovarianceKindWire::ModelBased);
-    assert!(detail(&model, CategoricalRowsRequest { sampling_weights: Some(weights()), ..Default::default() })
-        .contains("weights_need_robust_covariance"));
+    assert!(
+        detail(
+            &model,
+            CategoricalRowsRequest { sampling_weights: Some(weights()), ..Default::default() }
+        )
+        .contains("weights_need_robust_covariance")
+    );
     let cluster_kind = declared_request(CovarianceKindWire::ClusterRobust);
-    assert!(detail(&cluster_kind, CategoricalRowsRequest::default())
-        .contains("vector_treatment.cluster_ids_required"));
+    assert!(
+        detail(&cluster_kind, CategoricalRowsRequest::default())
+            .contains("vector_treatment.cluster_ids_required")
+    );
     let one = vec![1u32; 9];
-    assert!(detail(&cluster_kind, CategoricalRowsRequest { cluster: Some(one), ..Default::default() })
-        .contains("vector_treatment.too_few_clusters"));
+    assert!(
+        detail(&cluster_kind, CategoricalRowsRequest { cluster: Some(one), ..Default::default() })
+            .contains("vector_treatment.too_few_clusters")
+    );
     let newey = declared_request(CovarianceKindWire::NeweyWest);
-    assert!(detail(&newey, CategoricalRowsRequest::default()).contains("vector_treatment.lag_required"));
+    assert!(
+        detail(&newey, CategoricalRowsRequest::default()).contains("vector_treatment.lag_required")
+    );
     for lag in [0u64, 9, 40] {
-        assert!(detail(&newey, CategoricalRowsRequest { serial_lag: Some(lag), ..Default::default() })
-            .contains("vector_treatment.invalid_lag"));
+        assert!(
+            detail(&newey, CategoricalRowsRequest { serial_lag: Some(lag), ..Default::default() })
+                .contains("vector_treatment.invalid_lag")
+        );
     }
     let mut negative = weights();
     negative[2] = -1.0;
-    assert!(detail(&hc, CategoricalRowsRequest { sampling_weights: Some(negative), ..Default::default() })
-        .contains("sampling_weights.invalid"));
-    assert!(detail(&hc, CategoricalRowsRequest { sampling_weights: Some(vec![1.0; 8]), ..Default::default() })
-        .contains("categorical_treatment.row_count_mismatch"));
+    assert!(
+        detail(
+            &hc,
+            CategoricalRowsRequest { sampling_weights: Some(negative), ..Default::default() }
+        )
+        .contains("sampling_weights.invalid")
+    );
+    assert!(
+        detail(
+            &hc,
+            CategoricalRowsRequest { sampling_weights: Some(vec![1.0; 8]), ..Default::default() }
+        )
+        .contains("categorical_treatment.row_count_mismatch")
+    );
 }
 
 #[test]
@@ -980,4 +1016,79 @@ fn the_gaussian_posterior_is_refused_for_declared_rows_with_a_next_attempt() {
     };
     let text = artifact.with_posterior(&declaration).unwrap_err().to_string();
     assert!(text.contains("categorical_treatment.posterior_declared_rows"), "{text}");
+}
+
+#[test]
+fn posterior_declaration_is_bound_to_retained_identity() {
+    let plain = CategoricalTreatmentArtifact::seal(&abc_request()).unwrap();
+    let plain_identity = plain.identity().clone();
+    let plain_bytes = plain.to_bytes("plain").unwrap();
+    assert!(plain_identity.posterior_declaration_id.is_none());
+    assert!(CategoricalTreatmentArtifact::from_bytes(&plain_bytes, Some(&plain_identity)).is_ok());
+    let declaration = CategoricalPosteriorDeclaration {
+        level_precision: 1.0,
+        nuisance_precision: 1.0,
+        variance_shape: 2.0,
+        variance_scale: 2.0,
+        credible_level: 0.95,
+    };
+    let original = plain.clone().with_posterior(&declaration).unwrap();
+    assert_ne!(original.identity().digest, plain_identity.digest);
+    let bytes = original.to_bytes("original").unwrap();
+    assert!(CategoricalTreatmentArtifact::from_bytes(&bytes, Some(original.identity())).is_ok());
+
+    let mut variants = vec![declaration; 5];
+    variants[0].level_precision = 2.0;
+    variants[1].nuisance_precision = 2.0;
+    variants[2].variance_shape = 3.0;
+    variants[3].variance_scale = 3.0;
+    variants[4].credible_level = 0.9;
+    for variant in variants {
+        let replacement = plain.clone().with_posterior(&variant).unwrap();
+        let changed = replacement.to_bytes("changed").unwrap();
+        assert!(CategoricalTreatmentArtifact::from_bytes(&changed, None).is_ok());
+        assert_eq!(
+            CategoricalTreatmentArtifact::from_bytes(&changed, Some(original.identity()))
+                .unwrap_err(),
+            CategoricalTreatmentArtifactError::IdentityMismatch { field: "posterior_declaration" },
+        );
+    }
+
+    // Posterior addition and removal must not preserve a retained identity.
+    assert_eq!(
+        CategoricalTreatmentArtifact::from_bytes(&bytes, Some(&plain_identity)).unwrap_err(),
+        CategoricalTreatmentArtifactError::IdentityMismatch { field: "posterior_declaration" },
+    );
+    assert_eq!(
+        CategoricalTreatmentArtifact::from_bytes(&plain_bytes, Some(original.identity()))
+            .unwrap_err(),
+        CategoricalTreatmentArtifactError::IdentityMismatch { field: "posterior_declaration" },
+    );
+    // Reattaching a posterior replaces the declaration rather than nesting identities.
+    let replaced = original.clone().with_posterior(&variants_for_replacement(declaration)).unwrap();
+    let direct = plain.clone().with_posterior(&variants_for_replacement(declaration)).unwrap();
+    assert_eq!(replaced.identity(), direct.identity());
+
+    let (mut meta, numbers) = decode_parts(&bytes).unwrap();
+    meta.posterior.as_mut().unwrap().declaration.level_precision = 2.0;
+    let forged = encode_parts(&meta, &numbers, "stale").unwrap();
+    assert_eq!(
+        CategoricalTreatmentArtifact::from_bytes(&forged, None).unwrap_err(),
+        CategoricalTreatmentArtifactError::IdentityMismatch { field: "posterior_declaration" },
+    );
+    // Historical posterior-bearing v1 identities have no authenticated declaration.
+    let (mut legacy, numbers) = decode_parts(&bytes).unwrap();
+    legacy.identity = plain_identity;
+    let legacy_bytes = encode_parts(&legacy, &numbers, "legacy").unwrap();
+    assert_eq!(
+        CategoricalTreatmentArtifact::from_bytes(&legacy_bytes, None).unwrap_err(),
+        CategoricalTreatmentArtifactError::IdentityMismatch { field: "posterior_declaration" },
+    );
+}
+
+fn variants_for_replacement(
+    mut declaration: CategoricalPosteriorDeclaration,
+) -> CategoricalPosteriorDeclaration {
+    declaration.level_precision = 2.0;
+    declaration
 }
