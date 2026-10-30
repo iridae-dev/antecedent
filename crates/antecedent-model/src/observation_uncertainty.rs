@@ -315,6 +315,27 @@ fn nig(
     let mean: Vec<f64> =
         (0..p).map(|i| (0..p).map(|j| inverse[i * p + j] * stats.xty[j]).sum::<f64>()).collect();
     let explained: f64 = mean.iter().zip(&stats.xty).map(|(m, c)| m * c).sum();
+    // Raw retained X'X, X'y and y'y cannot recover small residual energy once
+    // large terms have cancelled. Screen against a conservative roundoff
+    // allowance for row-wise products/sums and the explained-energy dot.
+    // This is a refusal screen, not an error certificate for the linear solve.
+    let magnitude =
+        stats.yty.abs() + mean.iter().zip(&stats.xty).map(|(m, c)| (m * c).abs()).sum::<f64>();
+    let steps = 2.0 * stats.rows as f64 + 2.0 * p as f64 + 16.0;
+    let unit = steps * f64::EPSILON;
+    if !magnitude.is_finite() || unit >= 0.5 {
+        return Err(ObservationQueryError::Invalid(
+            "retained regression energy cannot be resolved reliably",
+        ));
+    }
+    let energy = stats.yty - explained;
+    let rounding_bound = (unit / (1.0 - unit)) * magnitude;
+    let exact_zero = stats.yty == 0.0 && stats.xty.iter().all(|v| *v == 0.0);
+    if !energy.is_finite() || energy < 0.0 || (!exact_zero && energy <= rounding_bound) {
+        return Err(ObservationQueryError::Invalid(
+            "retained regression energy is cancellation dominated; retain centered statistics or refit",
+        ));
+    }
     let factor = cholesky_lower(&inverse, p).ok_or(ObservationQueryError::Invalid(
         "the posterior covariance of a retained regression is not positive definite",
     ))?;
@@ -322,7 +343,7 @@ fn nig(
         mean,
         factor,
         shape: prior.variance_shape + stats.rows as f64 / 2.0,
-        scale: prior.variance_scale + 0.5 * (stats.yty - explained).max(0.0),
+        scale: prior.variance_scale + 0.5 * energy,
     })
 }
 
@@ -628,4 +649,24 @@ pub fn redraw_conditional(
         values.extend(row);
     }
     Ok(ParameterDraws { quantities, draws: draws as usize, values, point })
+}
+
+#[cfg(test)]
+mod energy_tests {
+    use super::*;
+
+    #[test]
+    fn retained_nig_refuses_unresolvable_raw_energy() {
+        let prior = RedrawPrior { coefficient_precision: 1e-20, ..RedrawPrior::default() };
+        let y = [1e8 - 1.0, 1e8 + 1.0, 1e8 - 1.0, 1e8 + 1.0];
+        let stats = GaussianSufficient::from_columns("y", &[], &y).unwrap();
+        assert!(nig(&stats, &prior).is_err());
+        let exact_zero = GaussianSufficient::from_columns("y", &[], &[0.0; 4]).unwrap();
+        assert_eq!(nig(&exact_zero, &prior).unwrap().scale, prior.variance_scale);
+        let ordinary = GaussianSufficient::from_columns("y", &[], &[1.0, 2.0, 3.0]).unwrap();
+        assert!(nig(&ordinary, &prior).unwrap().scale > prior.variance_scale);
+        let mut impossible = ordinary;
+        impossible.yty = -1.0;
+        assert!(nig(&impossible, &prior).is_err());
+    }
 }

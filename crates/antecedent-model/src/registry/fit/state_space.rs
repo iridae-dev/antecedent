@@ -64,6 +64,11 @@ pub(super) fn fit_lgssm_kalman_em(
     backend: FaerBackend,
     ls_ws: &mut LeastSquaresWorkspace,
 ) -> Result<MechanismSlot, ModelError> {
+    if y.len() < 3 {
+        return Err(ModelError::Unsupported {
+            message: "state-space fitting requires at least three observations to estimate its dynamics and noise".into(),
+        });
+    }
     let lg = fit_linear_gaussian(frame, y, backend, ls_ws, 0.0)?;
     let MechanismSlot::LinearGaussian { intercept, coeffs, .. } = lg else {
         return Err(ModelError::Unsupported { message: "lgssm fit requires linear base".into() });
@@ -88,6 +93,7 @@ pub(super) fn fit_lgssm_kalman_em(
 }
 
 /// EM for scalar LGSSM: `x_t` = a x_{t-1} + q ε, `y_t` = `x_t` + r η.
+/// The internal short-series fallback is heuristic; the production fitter refuses it.
 pub(in crate::registry) fn lgssm_em(y: &[f64], max_iters: usize) -> (f64, f64, f64, f64) {
     // Fit in relative units so variance floors and initialization do not change
     // the model when the outcome's measurement units change.
@@ -136,4 +142,31 @@ pub(super) fn lgssm_em_normalized(y: &[f64], max_iters: usize) -> (f64, f64, f64
         r = (r_acc / n as f64).max(1e-8);
     }
     (a, q.sqrt(), r.sqrt(), x0)
+}
+
+#[cfg(test)]
+mod short_fit_tests {
+    use super::*;
+    use crate::registry::ValidationSplits;
+
+    #[test]
+    fn lgssm_fitter_refuses_short_unidentified_series() {
+        for n in [1, 2] {
+            let frame =
+                FitFrame { parents: vec![], groups: None, n, splits: ValidationSplits::Shuffled };
+            let y = vec![1.0; n];
+            let result =
+                fit_lgssm_kalman_em(&frame, &y, FaerBackend, &mut LeastSquaresWorkspace::default());
+            assert!(matches!(result, Err(ModelError::Unsupported { .. })));
+        }
+        let frame =
+            FitFrame { parents: vec![], groups: None, n: 3, splits: ValidationSplits::Shuffled };
+        let result = fit_lgssm_kalman_em(
+            &frame,
+            &[0.0, 1.0, 0.0],
+            FaerBackend,
+            &mut LeastSquaresWorkspace::default(),
+        );
+        assert!(matches!(result, Ok(MechanismSlot::ConditionalLinearGaussianStateSpace { .. })));
+    }
 }
