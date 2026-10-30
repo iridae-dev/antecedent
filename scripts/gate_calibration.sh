@@ -9,6 +9,13 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 LOG_DIR="${ANTECEDENT_CALIBRATION_LOG_DIR:-$ROOT/target/calibration-records}"
 
+# Ordinary direct execution must carry the same complete frozen decision
+# context as the group driver. Dry-run discovery and smoke pilots do not make
+# calibration claims and remain available without it.
+if [ -z "${ANTECEDENT_CALIBRATION_DRY_RUN:-}" ] && [ "${ANTECEDENT_CALIBRATION_SMOKE:-}" != "1" ]; then
+  python3 scripts/calibration_preflight.py || exit 2
+fi
+
 FAILED=""
 FAILED_COUNT=0
 RECHECKED=""
@@ -377,6 +384,10 @@ import calibration_decision as decision
 import calibration_family as family
 family.validate_measurement_selection(json.loads(os.environ[decision.ENV]), [sys.argv[1]])
 PYALLOC
+    if [ "$?" -ne 0 ]; then
+      echo "FAIL: calibration group is outside the allocated decision domain" >&2
+      exit 2
+    fi
   fi
   local safe point shown
   mkdir -p "$LOG_DIR"
