@@ -146,12 +146,12 @@ impl TemporalBackdoorIdentifier {
             TemporalPolicy::Sustained { from, until } if from != until => {
                 let schedule: Vec<_> =
                     (*from..=*until).map(|offset| (query.treatment, offset)).collect();
-                return Self::identify_active_offsets(template, query, &schedule, outcome_at);
+                return self.identify_active_offsets(template, query, &schedule, outcome_at);
             }
             TemporalPolicy::Dynamic { active_at, .. } if active_at.len() != 1 => {
                 let schedule: Vec<_> =
                     active_at.iter().map(|&offset| (query.treatment, offset)).collect();
-                return Self::identify_active_offsets(template, query, &schedule, outcome_at);
+                return self.identify_active_offsets(template, query, &schedule, outcome_at);
             }
             TemporalPolicy::Pulse { .. }
             | TemporalPolicy::Sustained { .. }
@@ -191,6 +191,7 @@ impl TemporalBackdoorIdentifier {
             base_history,
             history_cap,
             chain_cap,
+            self.inner.config.context.as_ref(),
         ) {
             Ok(grown) => grown,
             Err(IdentificationError::NotCertified { message })
@@ -526,12 +527,13 @@ impl TemporalBackdoorIdentifier {
         })?;
         let schedule_pairs: Vec<(VariableId, i32)> =
             schedule.iter().map(|&(variable, offset, _)| (variable, offset)).collect();
-        Self::identify_active_offsets(template, &query, &schedule_pairs, outcome_at)
+        self.identify_active_offsets(template, &query, &schedule_pairs, outcome_at)
     }
 
     /// Multi-time-point interventions (sustained windows or dynamic schedules):
     /// unfold, then identify via general ID (sequential / g-formula).
     fn identify_active_offsets(
+        &self,
         template: &TemporalDag,
         query: &TemporalEffectQuery,
         schedule: &[(VariableId, i32)],
@@ -572,6 +574,7 @@ impl TemporalBackdoorIdentifier {
             base_history,
             history_cap,
             chain_cap,
+            self.inner.config.context.as_ref(),
         )?;
         let crate::temporal_window::GrownWindow { history, unfolded, dense } = grown;
         let Some((&outcome_dense, treatment_nodes)) = dense.split_last() else {
@@ -861,6 +864,24 @@ mod tests {
     /// ancestors land one slice above the boundary and would otherwise certify a window whose
     /// ancestry is cut.
     #[test]
+    fn temporal_window_observes_the_backdoor_execution_context() {
+        let mut template = TemporalDag::empty();
+        let x = template.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let y = template.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        template.insert_directed(x, y).unwrap();
+        let query =
+            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0);
+        let ctx = antecedent_core::ExecutionContext::for_tests(1);
+        ctx.cancellation.cancel();
+        let mut identifier = TemporalBackdoorIdentifier::new();
+        identifier.inner.config.context = Some(ctx);
+        assert!(matches!(
+            identifier.identify_temporal(&template, &query),
+            Err(IdentificationError::Cancelled)
+        ));
+    }
+
+    #[test]
     fn lag_two_autoregressive_ancestry_never_certifies() {
         let mut template = TemporalDag::empty();
         let x_lag = template.add_lagged(VariableId::from_raw(0), Lag::from_raw(2)).unwrap();
@@ -945,14 +966,15 @@ mod tests {
             };
             certified += 1;
             let dag = &identified.unfolded.dag;
-            let seeds: Vec<antecedent_graph::DenseNodeId> = [identified.treatment_key, identified.outcome_key]
-                .iter()
-                .map(|key| {
-                    antecedent_graph::DenseNodeId::from_raw(
-                        identified.indexer.dense_id(*key).unwrap(),
-                    )
-                })
-                .collect();
+            let seeds: Vec<antecedent_graph::DenseNodeId> =
+                [identified.treatment_key, identified.outcome_key]
+                    .iter()
+                    .map(|key| {
+                        antecedent_graph::DenseNodeId::from_raw(
+                            identified.indexer.dense_id(*key).unwrap(),
+                        )
+                    })
+                    .collect();
             let mut ancestors = BitSet::with_len(dag.node_count());
             dag.ancestors_of(&seeds, &mut ancestors, &mut GraphWorkspace::default());
             for i in 0..dag.node_count() {

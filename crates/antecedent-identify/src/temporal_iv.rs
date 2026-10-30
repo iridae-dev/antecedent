@@ -140,6 +140,7 @@ impl Window {
             self.base_history,
             self.history_cap,
             self.chain_cap,
+            None,
         )
     }
 

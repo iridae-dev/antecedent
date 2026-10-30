@@ -5,11 +5,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{TemporalIndexer, TemporalNodeKey};
+use antecedent_core::{ExecutionContext, TemporalIndexer, TemporalNodeKey};
 use antecedent_graph::algo::implicit_closure;
 #[cfg(debug_assertions)]
 use antecedent_graph::{BitSet, DenseNodeId, GraphWorkspace};
 use antecedent_graph::{TemporalDag, UnfoldedTemporalGraph};
+use std::collections::BTreeSet;
 
 use crate::error::IdentificationError;
 
@@ -42,10 +43,12 @@ pub(crate) fn grow_window(
     base_history: u32,
     history_cap: u32,
     chain_cap: u32,
+    context: Option<&ExecutionContext>,
 ) -> Result<GrownWindow, IdentificationError> {
     let edges = StationaryEdges::from_template(template, variable_count);
     let mut depth = base_history;
     let history = loop {
+        check_cancelled(context)?;
         let indexer = TemporalIndexer::new(variable_count, depth, horizon)
             .map_err(|e| IdentificationError::construction(e))?;
         for seed in seeds {
@@ -53,7 +56,7 @@ pub(crate) fn grow_window(
                 .dense_id(*seed)
                 .map_err(|_| IdentificationError::UnknownVariable { id: seed.variable })?;
         }
-        if !edges.ancestry_touches_boundary(seeds, depth, horizon) {
+        if !edges.ancestry_touches_boundary(seeds, depth, horizon, context)? {
             break depth;
         }
         if depth >= history_cap {
@@ -75,15 +78,17 @@ pub(crate) fn grow_window(
         );
     }
     #[cfg(debug_assertions)]
-    assert_stopped_at_fixed_point(
-        template,
-        &edges,
-        seeds,
-        &unfolded,
-        &dense,
-        base_history,
-    );
+    assert_stopped_at_fixed_point(template, &edges, seeds, &unfolded, &dense, base_history);
     Ok(GrownWindow { history, unfolded, dense })
+}
+
+fn check_cancelled(context: Option<&ExecutionContext>) -> Result<(), IdentificationError> {
+    if context.is_some_and(|ctx| ctx.cancellation.is_cancelled())
+        || antecedent_core::numerical_admission::is_cancelled()
+    {
+        return Err(IdentificationError::Cancelled);
+    }
+    Ok(())
 }
 
 /// Whether `from` reaches `to` in the stationary unfolding, including `from == to`.
@@ -206,14 +211,24 @@ impl StationaryEdges {
         seeds: &[TemporalNodeKey],
         history: u32,
         horizon: u32,
-    ) -> bool {
+        context: Option<&ExecutionContext>,
+    ) -> Result<bool, IdentificationError> {
         let min_off = -i64::from(history);
         let max_off = i64::from(horizon) - 1;
-        let reached = implicit_closure(
-            seeds.iter().map(|seed| (seed.variable.raw(), i64::from(seed.offset))),
-            |&(var, offset)| self.parents(var, offset, min_off, max_off),
-        );
-        reached.into_iter().any(|(var, offset)| self.has_cut_parent(var, offset, min_off))
+        let mut seen = BTreeSet::new();
+        let mut stack: Vec<_> =
+            seeds.iter().map(|seed| (seed.variable.raw(), i64::from(seed.offset))).collect();
+        while let Some((var, offset)) = stack.pop() {
+            check_cancelled(context)?;
+            if !seen.insert((var, offset)) {
+                continue;
+            }
+            if self.has_cut_parent(var, offset, min_off) {
+                return Ok(true);
+            }
+            stack.extend(self.parents(var, offset, min_off, max_off));
+        }
+        Ok(false)
     }
 
     /// Whether the node `(var, offset)` has a template parent earlier than `min_off`, which
@@ -321,4 +336,38 @@ fn assert_stopped_at_fixed_point(
         ancestry_touches_unfolded(&previous, edges, &previous_dense, history - 1),
         "grow_window grew past a history that already closed the truncated boundary"
     );
+}
+
+#[cfg(test)]
+mod cancellation_tests {
+    use super::*;
+    use antecedent_core::{Lag, VariableId};
+
+    #[test]
+    fn cancelled_context_stops_growth_before_unfolding() {
+        let mut graph = TemporalDag::empty();
+        let past = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let now = graph.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        graph.insert_directed(past, now).unwrap();
+        let seed = TemporalNodeKey { variable: VariableId::from_raw(0), offset: 0 };
+        let ctx = ExecutionContext::for_tests(1);
+        ctx.cancellation.cancel();
+        assert!(matches!(
+            grow_window(&graph, &[seed], 1, 1, 1, 100, 1, Some(&ctx)),
+            Err(IdentificationError::Cancelled)
+        ));
+        assert!(matches!(
+            antecedent_core::numerical_admission::with_context(&ctx, || grow_window(
+                &graph,
+                &[seed],
+                1,
+                1,
+                1,
+                100,
+                1,
+                None
+            )),
+            Err(IdentificationError::Cancelled)
+        ));
+    }
 }
