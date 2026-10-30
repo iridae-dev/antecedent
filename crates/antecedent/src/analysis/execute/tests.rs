@@ -1067,10 +1067,8 @@ mod identify_only_tests {
     }
 
     #[test]
-    fn bidirected_admg_distribution_cheap_builds_as_an_unlicensed_functional_refuter_state() {
-        // ADMG InterventionalDistribution is licensed at validation none; cheap and full run the
-        // functional refuter state, an executing cell that stays unlicensed, so the build
-        // succeeds and reports the refused support status.
+    fn bidirected_admg_distribution_cheap_builds_as_a_licensed_functional_refuter_state() {
+        // The mixed-graph distribution and its cheap refuter state are licensed.
         let mut admg = Admg::with_variables(2);
         admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         admg.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
@@ -1084,7 +1082,7 @@ mod identify_only_tests {
             .refute(RefuteSuite::Cheap)
             .build()
             .unwrap();
-        assert_eq!(study.support_status, Some(crate::support::CellStatus::Refused));
+        assert_eq!(study.support_status, Some(crate::support::CellStatus::Licensed));
     }
 
     #[test]
