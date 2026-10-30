@@ -626,3 +626,41 @@ fn rebind_estimate(
     *prepared = branch;
     Ok(result)
 }
+
+#[test]
+fn a_distribution_sequence_cannot_intervene_on_its_outcome_or_conditioning() {
+    use antecedent_core::{
+        InterventionSequence, QueryError, SequencedIntervention, TemporalPolicy,
+    };
+    let v = VariableId::from_raw;
+    let sequence = Intervention::sequence(InterventionSequence::new(vec![
+        SequencedIntervention::new(
+            Intervention::set(v(0), Value::f64(1.0)),
+            TemporalPolicy::pulse(0),
+        ),
+        SequencedIntervention::new(
+            Intervention::set(v(1), Value::f64(1.0)),
+            TemporalPolicy::pulse(1),
+        ),
+    ]));
+    for (query, expected) in [
+        (
+            InterventionalDistributionQuery::new(v(1), [sequence.clone()]),
+            QueryError::OutcomeIsInterventionTarget { id: v(1) },
+        ),
+        (
+            InterventionalDistributionQuery::new(v(2), [sequence]).with_conditioning([v(1)]),
+            QueryError::ConditioningOverlapsOutcomeOrIntervention,
+        ),
+    ] {
+        let (data, dag, _, _) = distribution_fixture();
+        let result = Study::tabular(data)
+            .graph(dag)
+            .query(CausalQuery::Distribution(query))
+            .identifier(IdentifierId::GeneralId)
+            .estimator(EstimatorId::FunctionalDistribution)
+            .build()
+            .and_then(|study| study.prepare(&ExecutionContext::for_tests(2_102)).map(|_| ()));
+        assert_eq!(result.unwrap_err(), antecedent::CausalError::from(expected));
+    }
+}

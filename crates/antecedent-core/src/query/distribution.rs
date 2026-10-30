@@ -92,8 +92,18 @@ impl InterventionalDistributionQuery {
             iv.validate()
                 .map_err(|e| QueryError::InvalidIntervention(InterventionFault::Rejected(e)))?;
         }
+        // Walk every sequence leaf without materializing a target vector for
+        // each outcome or conditioning variable.
+        fn targets(iv: &Intervention, variable: VariableId) -> bool {
+            match iv {
+                Intervention::Sequence(sequence) => {
+                    sequence.steps.iter().any(|step| targets(&step.intervention, variable))
+                }
+                other => other.primary_variable() == Some(variable),
+            }
+        }
         for &y in self.outcomes.iter() {
-            if self.interventions.iter().any(|iv| iv.primary_variable() == Some(y)) {
+            if self.interventions.iter().any(|iv| targets(iv, y)) {
                 return Err(QueryError::OutcomeIsInterventionTarget { id: y });
             }
         }
@@ -101,7 +111,7 @@ impl InterventionalDistributionQuery {
             if self.outcomes.iter().any(|&y| y == z) {
                 return Err(QueryError::ConditioningOverlapsOutcomeOrIntervention);
             }
-            if self.interventions.iter().any(|iv| iv.primary_variable() == Some(z)) {
+            if self.interventions.iter().any(|iv| targets(iv, z)) {
                 return Err(QueryError::ConditioningOverlapsOutcomeOrIntervention);
             }
         }
@@ -236,5 +246,58 @@ impl PathSpecificEffectQuery {
         }
         self.target_population.validate()?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod sequence_target_regressions {
+    use super::*;
+    use crate::intervention::{InterventionSequence, SequencedIntervention, TemporalPolicy};
+
+    #[test]
+    fn distribution_checks_every_sequence_target() {
+        let v = VariableId::from_raw;
+        let sequence = Intervention::sequence(InterventionSequence::new(vec![
+            SequencedIntervention::new(
+                Intervention::set(v(0), Value::f64(1.0)),
+                TemporalPolicy::pulse(0),
+            ),
+            SequencedIntervention::new(
+                Intervention::set(v(1), Value::f64(2.0)),
+                TemporalPolicy::pulse(1),
+            ),
+        ]));
+        assert!(matches!(
+            InterventionalDistributionQuery::new(v(1), [sequence.clone()]).validate(),
+            Err(QueryError::OutcomeIsInterventionTarget { .. })
+        ));
+        assert!(matches!(
+            InterventionalDistributionQuery::new(v(2), [sequence.clone()])
+                .with_conditioning([v(1)])
+                .validate(),
+            Err(QueryError::ConditioningOverlapsOutcomeOrIntervention)
+        ));
+        assert!(
+            InterventionalDistributionQuery::new(v(2), [sequence.clone()])
+                .with_conditioning([v(3)])
+                .validate()
+                .is_ok()
+        );
+        let nested =
+            Intervention::sequence(InterventionSequence::new(vec![SequencedIntervention::new(
+                sequence,
+                TemporalPolicy::pulse(2),
+            )]));
+        for intervention in [nested, Intervention::set(v(1), Value::f64(1.0))] {
+            assert!(matches!(InterventionalDistributionQuery::new(v(2), [intervention.clone()])
+                .with_outcomes([v(2), v(1)]).validate(),
+                Err(QueryError::OutcomeIsInterventionTarget { id }) if id == v(1)));
+            assert!(matches!(
+                InterventionalDistributionQuery::new(v(2), [intervention])
+                    .with_conditioning([v(1)])
+                    .validate(),
+                Err(QueryError::ConditioningOverlapsOutcomeOrIntervention)
+            ));
+        }
     }
 }

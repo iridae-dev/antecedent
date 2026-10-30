@@ -264,3 +264,8 @@ Inherited measured outputs must retain an interval or posterior operation, as
 directly measured outputs already require. Native `check_composition` now refuses
 to infer disjoint observations from distinct source IDs alone. Use
 `check_composition_with_ledger` to establish disjointness from observation sets.
+
+Interventional distribution validation now checks every target in an intervention
+sequence, including nested sequences. An outcome or observational conditioning
+variable that appears anywhere among those targets is refused with the existing
+typed overlap error, just as for a single-target intervention.
