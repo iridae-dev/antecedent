@@ -64,6 +64,18 @@ runtime = "under 1 second locally; allow up to 1 min"
 claim = "Model-based pricing and stock-flow comparison for 24 synthetic stores over 12 weeks, checked store by store against independent generating equations. Shared disturbances support paired counterfactual differences. General programmable intervention identification refuses on this route; portable program bytes contain no fitted model or policy value. Callback recovery checks the source and pinned dependency identities."
 
 [[example]]
+id = "research_from_day_zero"
+title = "Plan an HCI investigation and earn the paper's claims"
+summary = "Plan participant recruitment, analyze an interface experiment, select a factorial follow-up and connect the final claims to evidence and identification checks."
+python = "examples/python/research_from_day_zero.py"
+unreleased = true
+topic = "Tutorials"
+level = "advanced"
+dependencies = []
+runtime = "under 1 second locally; allow up to 1 min"
+claim = "Synthetic participant-level randomized and factorial effects with independent arithmetic checks, assumption-dependent power planning and Gaussian study-information values. A native identification check separates component effects from voluntary-inspection mechanism claims. Application code retains protocol snapshots and an explicit claim audit; it does not certify manuscript prose, establish construct validity or generalize beyond the recruited population."
+
+[[example]]
 id = "experiment_to_next_study"
 title = "Update a decision after an experiment, then rank the next studies"
 summary = "Incorporate a later experiment into a retained response law through an explicit estimand mapping, read the changed decision, and rank further studies by information value net of cost."

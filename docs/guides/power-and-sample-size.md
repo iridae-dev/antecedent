@@ -164,3 +164,5 @@ the simulation procedures has not been measured: every plan reports `calibration
 - [Analyze a randomized or factorial experiment](designs/randomized-experiments.md) for the analysis you are planning for.
 - [Adaptive and group-sequential inference](../adaptive-inference.md) when the plan stops early or adapts.
 - [Design ranking](../design-ranking.md) to compare planned designs by information value and cost.
+
+For a connected HCI investigation spanning planning, follow-up selection and a final claim audit, see [from day zero to publication](../tutorials/research-from-day-zero.md).

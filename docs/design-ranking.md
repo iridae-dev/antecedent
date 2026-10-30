@@ -569,3 +569,5 @@ the embedded numerical prior and signal law; it does not independently reauthent
 the posterior's producing analysis or the truth of declared observation identities.
 
 For a connected example combining historical human behavior, agent sessions and a small human pilot, see [the smallest defensible test](tutorials/synthetic-users-launch.md).
+
+For a connected HCI investigation spanning planning, follow-up selection and a final claim audit, see [from day zero to publication](tutorials/research-from-day-zero.md).
