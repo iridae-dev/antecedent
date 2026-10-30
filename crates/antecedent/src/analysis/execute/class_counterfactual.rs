@@ -617,14 +617,54 @@ fn column_name(shape: &Shape, outcome: usize) -> String {
     }
 }
 
+// Admission covers the nested matrix headers and values, plus the peak row
+// weights and block-weight vector. The lease travels with the matrix.
+fn admit_counterfactual_resamples(
+    ctx: &ExecutionContext,
+    draws: usize,
+    width: usize,
+    rows: usize,
+) -> Result<antecedent_core::execution::AdmissionLease, CausalError> {
+    let bytes = draws
+        .checked_mul(width)
+        .and_then(|n| n.checked_mul(std::mem::size_of::<f64>()))
+        .and_then(|n| {
+            draws
+                .checked_mul(std::mem::size_of::<Vec<f64>>())
+                .and_then(|headers| n.checked_add(headers))
+        })
+        .and_then(|n| {
+            rows.checked_mul(2 * std::mem::size_of::<f64>())
+                .and_then(|scratch| n.checked_add(scratch))
+        })
+        .and_then(|n| u64::try_from(n).ok())
+        .ok_or_else(|| CausalError::Resource {
+            message: "counterfactual resample size overflow".into(),
+        })?;
+    ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            CausalError::Cancelled { stage: super::super::stage::STAGE_UNCERTAINTY }
+        }
+        other => {
+            CausalError::Resource { message: format!("counterfactual resample admission: {other}") }
+        }
+    })
+}
+
+// Fields drop in declaration order: release the matrix before its admission.
+struct AdmittedCounterfactualMatrix {
+    matrix: Vec<Vec<f64>>,
+    _lease: antecedent_core::execution::AdmissionLease,
+}
+
 /// What the resampling of the identified functional produced.
 enum Resampled {
     /// Point only.
     None,
     /// Bootstrap replicates: one row of case values per successful replicate.
-    Replicates { matrix: Vec<Vec<f64>>, failed: u32, requested: u32 },
+    Replicates { held: AdmittedCounterfactualMatrix, failed: u32, requested: u32 },
     /// Bayesian-bootstrap draws: one row of case values per draw.
-    Draws { matrix: Vec<Vec<f64>> },
+    Draws { held: AdmittedCounterfactualMatrix },
 }
 
 /// Refuse a validation suite the population-level route has no refuter for.
@@ -755,6 +795,13 @@ impl super::Study {
         let cancelled = || CausalError::Cancelled { stage: super::super::stage::STAGE_UNCERTAINTY };
         match CounterfactualProcedure::for_inference(&self.settings.inference)? {
             CounterfactualProcedure::DirichletRowWeights { draws } => {
+                let width = cases
+                    .iter()
+                    .try_fold(0usize, |n, case| n.checked_add(case.prepared.len()))
+                    .ok_or_else(|| CausalError::Resource {
+                        message: "counterfactual resample width overflow".into(),
+                    })?;
+                let lease = admit_counterfactual_resamples(ctx, draws, width, rows)?;
                 let mut rng =
                     ctx.rng.stream_for(antecedent_core::StreamDomain::Attribution, BAYESIAN_STREAM);
                 let mut matrix = Vec::with_capacity(draws);
@@ -772,7 +819,9 @@ impl super::Study {
                     };
                     matrix.push(case_values(cases, &table.weighted_law(&weights)?, ctx)?);
                 }
-                Ok(Resampled::Draws { matrix })
+                Ok(Resampled::Draws {
+                    held: AdmittedCounterfactualMatrix { matrix, _lease: lease },
+                })
             }
             _ if self.settings.bootstrap_replicates == 0 => Ok(Resampled::None),
             _ => {
@@ -782,14 +831,17 @@ impl super::Study {
                     )?;
                 }
                 let requested = self.settings.bootstrap_replicates;
-                let width = cases.first().map_or(1, |case| case.prepared.len());
-                let _admitted = super::gcm_bootstrap::admit_replicates(
-                    ctx,
-                    requested,
-                    cases.len() * width,
-                    rows,
-                )?;
-                let mut matrix = Vec::new();
+                let width = cases
+                    .iter()
+                    .try_fold(0usize, |n, case| n.checked_add(case.prepared.len()))
+                    .ok_or_else(|| CausalError::Resource {
+                        message: "counterfactual resample width overflow".into(),
+                    })?;
+                let draws = usize::try_from(requested).map_err(|_| CausalError::Resource {
+                    message: "counterfactual replicate count overflow".into(),
+                })?;
+                let lease = admit_counterfactual_resamples(ctx, draws, width, rows)?;
+                let mut matrix = Vec::with_capacity(draws);
                 let mut failed = 0_u32;
                 for replicate in 0..requested {
                     if ctx.cancellation.is_cancelled() {
@@ -812,7 +864,11 @@ impl super::Study {
                         Err(_) => failed += 1,
                     }
                 }
-                Ok(Resampled::Replicates { matrix, failed, requested })
+                Ok(Resampled::Replicates {
+                    held: AdmittedCounterfactualMatrix { matrix, _lease: lease },
+                    failed,
+                    requested,
+                })
             }
         }
     }
@@ -1019,7 +1075,8 @@ impl super::Study {
                  resampled standard error, or Bayesian inference for a Dirichlet-weighted \
                  bootstrap posterior",
             )),
-            Resampled::Replicates { matrix, failed, requested } => {
+            Resampled::Replicates { held, failed, requested } => {
+                let matrix = &held.matrix;
                 let ok = u32::try_from(matrix.len()).unwrap_or(u32::MAX);
                 replicates_ok = Some(ok);
                 if publishes_own_uncertainty {
@@ -1080,7 +1137,8 @@ impl super::Study {
                     ]),
                 );
             }
-            Resampled::Draws { matrix } => {
+            Resampled::Draws { held } => {
+                let matrix = &held.matrix;
                 n_draws = Some(u32::try_from(matrix.len()).unwrap_or(u32::MAX));
                 if publishes_own_uncertainty {
                     let named: Vec<(String, Vec<f64>)> = (0..width)
@@ -1535,4 +1593,26 @@ fn population_level_diagnostic(shape: &Shape, functionals: usize) -> Diagnostic 
         ("active_level", shape.active.to_string()),
         ("control_level", shape.observed.to_string()),
     ])
+}
+
+#[cfg(test)]
+mod resample_admission_tests {
+    use super::*;
+    use antecedent_core::execution::AdmissionPool;
+
+    #[test]
+    fn resample_matrix_admission_checks_size_and_lifetime() {
+        let pool = AdmissionPool::fixed(1, 256);
+        let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
+        let lease = admit_counterfactual_resamples(&ctx, 2, 3, 4).unwrap();
+        assert_eq!(
+            pool.available().bytes(),
+            256 - 2 * 3 * 8 - 2 * std::mem::size_of::<Vec<f64>>() as u64 - 4 * 16
+        );
+        assert!(admit_counterfactual_resamples(&ctx, usize::MAX, 2, 4).is_err());
+        drop(lease);
+        assert_eq!(pool.available().bytes(), 256);
+        assert!(admit_counterfactual_resamples(&ctx, 10, 3, 4).is_err());
+        assert_eq!(pool.available().bytes(), 256);
+    }
 }
