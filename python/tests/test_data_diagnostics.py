@@ -233,6 +233,10 @@ def test_registry_has_stable_codes_and_declared_applicability():
         check["code"] for check in checks
     }
     assert all(check["family"] and check["applicability"] for check in checks)
+    report = diagnose_data({"x": np.zeros(1000)})
+    registered = {check["code"] for check in checks}
+    assert {check.code for check in report.checks} <= registered
+    assert {finding.code for finding in report.findings} <= registered
 
 
 def test_event_values_are_profiled_and_panel_inputs_are_explicitly_unavailable():

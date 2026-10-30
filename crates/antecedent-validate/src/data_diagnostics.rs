@@ -26,6 +26,16 @@ pub struct DataDiagnosticSpec {
 /// Closed built-in registry. New checks can be added without changing compiler semantics.
 pub const DATA_DIAGNOSTIC_CHECKS: &[DataDiagnosticSpec] = &[
     DataDiagnosticSpec {
+        code: "data.distribution",
+        family: "distribution",
+        applicability: "numeric scalar column summaries; selected rows",
+    },
+    DataDiagnosticSpec {
+        code: "data.treatment_imbalance",
+        family: "treatment_support",
+        applicability: "at least one observed declared contrast arm; full-table counts",
+    },
+    DataDiagnosticSpec {
         code: "data.missingness",
         family: "missingness",
         applicability: "all typed columns; exact full-table counts",
