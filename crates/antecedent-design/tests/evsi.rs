@@ -994,3 +994,22 @@ fn external_values_use_origin_independent_coherence_and_centered_evsi() {
     let error = evaluate(1e8, -0.5).unwrap_err();
     assert_eq!(error, EvsiError::DecisionValuesIncoherent("external_centered".into()));
 }
+
+#[test]
+fn external_values_do_not_hide_unnormalized_branch_mass_by_centering() {
+    let id = "missing_mass";
+    let shift = 1e8;
+    let law = ExternalLaw::DecisionValues(ExternalDecisionValues {
+        branch_probabilities: vec![0.25, 0.5, 0.25 - 1e-10],
+        action_ids: vec!["abstain".into(), "bet".into()],
+        values: vec![vec![shift, shift - 1.0], vec![shift, shift], vec![shift, shift + 1.0]],
+    });
+    let provider = external(&signal_request(id, 2), UPDATE.to_vec(), law);
+    let error = run(
+        &bet_problem(4.0, shift),
+        &bet_prior(),
+        &request(&BET_ACTIONS, vec![candidate(id, 2, provider, 0.0, "utility")], None),
+    )
+    .unwrap_err();
+    assert_eq!(error, EvsiError::DecisionValuesIncoherent(id.into()));
+}

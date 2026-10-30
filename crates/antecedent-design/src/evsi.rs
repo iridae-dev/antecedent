@@ -783,6 +783,14 @@ fn values_value<A>(
     // Center both prior and externally supplied branch values at a common
     // represented utility before summing. Coherence is an absolute error in
     // these utility differences, not relative to an arbitrary utility origin.
+    // A common anchor cancels only for a normalized branch law. Refuse
+    // substantive missing mass rather than silently renormalizing it away.
+    let branch_mass = antecedent_kernels::numeric::CompensatedSum::of(
+        values.branch_probabilities.iter().copied(),
+    );
+    if !branch_mass.is_finite() || (branch_mass - 1.0).abs() > 4.0 * f64::EPSILON {
+        return Err(EvsiError::DecisionValuesIncoherent(id.to_owned()));
+    }
     let anchor = table.utility(table.admissible[0], 0);
     let prior_eu: Vec<f64> = (0..n_actions)
         .map(|a| {
