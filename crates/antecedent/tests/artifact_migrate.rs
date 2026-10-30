@@ -192,6 +192,12 @@ fn posterior_artifact() -> EncodedArtifact {
 }
 
 fn model_bundle_artifact() -> EncodedArtifact {
+    model_bundle_with_estimate(None)
+}
+
+fn model_bundle_with_estimate(
+    estimate: Option<&antecedent_io::EffectEstimateWire>,
+) -> EncodedArtifact {
     let mut b = CausalSchemaBuilder::new();
     b.add_variable(
         "x",
@@ -238,7 +244,7 @@ fn model_bundle_artifact() -> EncodedArtifact {
         query: None,
         analysis_trace: None,
         identification: None,
-        estimate: None,
+        estimate,
         refutations: None,
         logical_plan: None,
         physical_plan: None,
@@ -249,6 +255,36 @@ fn model_bundle_artifact() -> EncodedArtifact {
         discovery: None,
     })
     .unwrap()
+}
+
+#[test]
+fn model_bundle_preserves_facade_student_t_interval_and_block_metadata() {
+    use antecedent::result::PublishedScalarUncertainty;
+    use antecedent_estimate::{
+        BlockResampling, CircularBlockFamily, EffectEstimate, OverlapPolicy,
+    };
+    let mut original =
+        EffectEstimate::new(2.0, 0.1, AssumptionSet::new(), OverlapPolicy::ExplicitOverride);
+    original.uncertainty.analytic.reference_df = Some(7.0);
+    original.uncertainty.block.resampling =
+        Some(BlockResampling { block_length: 4, rows: 40, kernel_bias: 1.2 });
+    original.uncertainty.block.family = Some(CircularBlockFamily::Mediation);
+    original.provenance.n_obs = Some(40);
+    let before = PublishedScalarUncertainty::select(&original).interval(&original).unwrap();
+    assert!((before.0 - 1.7635375).abs() < 1e-6);
+    assert!((before.1 - 2.2364625).abs() < 1e-6);
+    let estimate = antecedent_io::effect_estimate_to_wire(&original);
+    let artifact = model_bundle_with_estimate(Some(&estimate));
+    let mut bytes = Vec::new();
+    artifact.write_to(&mut bytes).unwrap();
+    let restored_bundle =
+        decode_model_bundle(&read_and_migrate(bytes.as_slice()).unwrap()).unwrap();
+    let restored =
+        antecedent_io::effect_estimate_from_wire(restored_bundle.estimate.as_ref().unwrap())
+            .unwrap();
+    assert_eq!(PublishedScalarUncertainty::select(&restored).interval(&restored), Some(before));
+    assert_eq!(restored.uncertainty.block, original.uncertainty.block);
+    assert_eq!(restored.provenance.n_obs, Some(40));
 }
 
 #[test]

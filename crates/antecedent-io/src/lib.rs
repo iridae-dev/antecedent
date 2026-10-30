@@ -151,11 +151,12 @@ mod estimate_wire;
 mod transport_effect_wire;
 
 pub use analysis_wire::{
-    CandidateSelectionWire, ClipSensitivityWire, EffectEstimateWire, EstimateOverlapPolicyWire,
-    FirstStageDiagnosticsWire, JointCovarianceWire, OverlapReportWire, PreparationWire,
-    PropensityIntervalWire, ScoreColumnWire, ScoreInferenceWire, ScoreTableWire,
-    UncertaintyWithheldWire, effect_estimate_from_owned_wire, effect_estimate_from_wire,
-    effect_estimate_to_wire, refutation_from_wire, refutation_to_wire,
+    AnalyticSeKindWire, BlockFamilyWire, BlockResamplingWire, CandidateSelectionWire,
+    ClipSensitivityWire, EffectEstimateWire, EstimateOverlapPolicyWire, FirstStageDiagnosticsWire,
+    JointCovarianceWire, OverlapReportWire, PreparationWire, PropensityIntervalWire,
+    ScoreColumnWire, ScoreInferenceWire, ScoreTableWire, UncertaintyWithheldWire,
+    effect_estimate_from_owned_wire, effect_estimate_from_wire, effect_estimate_to_wire,
+    refutation_from_wire, refutation_to_wire,
 };
 
 pub mod adaptive_inference_result_artifact;
@@ -224,7 +225,7 @@ pub use transport_interference_wire::{
     TransportEffectEstimateWire, TransportFormulaWire, TransportIdentificationWire,
     TransportOverlapDiagnosticWire, interference_estimate_from_wire, interference_estimate_to_wire,
     transport_effect_from_wire, transport_effect_to_wire, transport_identification_from_wire,
-    transport_identification_to_wire,
+    transport_identification_to_wire, try_interference_estimate_from_wire,
 };
 
 #[cfg(test)]

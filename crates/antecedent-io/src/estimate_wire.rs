@@ -3,6 +3,9 @@
 //! Re-exported from [`crate::analysis_wire`], which joins them to the
 //! identification and diagnostic wires of `antecedent-io-core`.
 //!
+//! Older readers that deny unknown fields may refuse records containing the optional
+//! uncertainty and provenance metadata added to this wire.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
@@ -20,6 +23,64 @@ use antecedent_io_core::analysis_wire::RefutationReportWire;
 use crate::error::IoError;
 use crate::trace::{AssumptionRecordWire, assumptions_from_wire, assumptions_to_wire};
 
+/// Analytic standard-error method, including the requested HAC lag.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum AnalyticSeKindWire {
+    /// IID or homoskedastic.
+    Homoskedastic,
+    /// HC0 sandwich.
+    Hc0,
+    /// HC1 sandwich.
+    Hc1,
+    /// HC2 sandwich.
+    Hc2,
+    /// HC3 sandwich.
+    Hc3,
+    /// Cluster-robust.
+    Cluster,
+    /// Multiway cluster-robust.
+    Multiway,
+    /// Newey-West with its lag.
+    NeweyWest {
+        /// Lag.
+        lag: u64,
+    },
+    /// Panel cluster HAC with its lag.
+    PanelClusterHac {
+        /// Lag.
+        lag: u64,
+    },
+}
+
+/// Circular-block SE family.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum BlockFamilyWire {
+    /// One window.
+    SingleWindow,
+    /// Mediation.
+    Mediation,
+    /// Sequential.
+    Sequential,
+    /// Mixture.
+    Mixture,
+    /// Whole-procedure row block.
+    RowBlock,
+}
+
+/// Circular-block resampling geometry.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct BlockResamplingWire {
+    /// Block length in aligned rows.
+    pub block_length: u64,
+    /// Aligned rows resampled.
+    pub rows: u64,
+    /// Kernel-bias scaling factor.
+    pub kernel_bias: f64,
+}
+
 /// Effect estimate wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -28,6 +89,21 @@ pub struct EffectEstimateWire {
     pub ate: f64,
     /// Analytic SE.
     pub se_analytic: f64,
+    /// Analytic SE method, when recorded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub analytic_kind: Option<AnalyticSeKindWire>,
+    /// Student-t reference degrees of freedom, or normal reference if absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub analytic_reference_df: Option<f64>,
+    /// Circular-block resampling geometry, when recorded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub block_resampling: Option<BlockResamplingWire>,
+    /// Circular-block SE family, when recorded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub block_family: Option<BlockFamilyWire>,
+    /// Observations that informed the fit, when recorded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub n_obs: Option<u64>,
     /// Bootstrap SE.
     pub se_bootstrap: Option<f64>,
     /// Bootstrap ok.
@@ -378,6 +454,68 @@ pub struct FirstStageDiagnosticsWire {
     pub uncertainty_withheld: Option<UncertaintyWithheldWire>,
 }
 
+fn kind_to_wire(kind: antecedent_estimate::AnalyticSeKind) -> AnalyticSeKindWire {
+    use antecedent_estimate::AnalyticSeKind as K;
+    match kind {
+        K::Homoskedastic => AnalyticSeKindWire::Homoskedastic,
+        K::Hc0 => AnalyticSeKindWire::Hc0,
+        K::Hc1 => AnalyticSeKindWire::Hc1,
+        K::Hc2 => AnalyticSeKindWire::Hc2,
+        K::Hc3 => AnalyticSeKindWire::Hc3,
+        K::Cluster => AnalyticSeKindWire::Cluster,
+        K::Multiway => AnalyticSeKindWire::Multiway,
+        K::NeweyWest { lag } => {
+            AnalyticSeKindWire::NeweyWest { lag: crate::width::lossless_u64(lag) }
+        }
+        K::PanelClusterHac { lag } => {
+            AnalyticSeKindWire::PanelClusterHac { lag: crate::width::lossless_u64(lag) }
+        }
+    }
+}
+
+fn kind_from_wire(
+    kind: AnalyticSeKindWire,
+) -> Result<antecedent_estimate::AnalyticSeKind, IoError> {
+    use antecedent_estimate::AnalyticSeKind as K;
+    Ok(match kind {
+        AnalyticSeKindWire::Homoskedastic => K::Homoskedastic,
+        AnalyticSeKindWire::Hc0 => K::Hc0,
+        AnalyticSeKindWire::Hc1 => K::Hc1,
+        AnalyticSeKindWire::Hc2 => K::Hc2,
+        AnalyticSeKindWire::Hc3 => K::Hc3,
+        AnalyticSeKindWire::Cluster => K::Cluster,
+        AnalyticSeKindWire::Multiway => K::Multiway,
+        AnalyticSeKindWire::NeweyWest { lag } => {
+            K::NeweyWest { lag: usize::try_from(lag).map_err(|_| IoError::TooLarge)? }
+        }
+        AnalyticSeKindWire::PanelClusterHac { lag } => {
+            K::PanelClusterHac { lag: usize::try_from(lag).map_err(|_| IoError::TooLarge)? }
+        }
+    })
+}
+
+fn family_to_wire(family: antecedent_estimate::CircularBlockFamily) -> BlockFamilyWire {
+    use antecedent_estimate::CircularBlockFamily as F;
+    match family {
+        F::SingleWindow => BlockFamilyWire::SingleWindow,
+        F::Mediation => BlockFamilyWire::Mediation,
+        F::Sequential => BlockFamilyWire::Sequential,
+        F::Mixture => BlockFamilyWire::Mixture,
+        F::RowBlock => BlockFamilyWire::RowBlock,
+    }
+}
+
+fn family_from_wire(family: BlockFamilyWire) -> antecedent_estimate::CircularBlockFamily {
+    use antecedent_estimate::CircularBlockFamily as F;
+    match family {
+        BlockFamilyWire::SingleWindow => F::SingleWindow,
+        BlockFamilyWire::Mediation => F::Mediation,
+        BlockFamilyWire::Sequential => F::Sequential,
+        BlockFamilyWire::Mixture => F::Mixture,
+        BlockFamilyWire::RowBlock => F::RowBlock,
+    }
+}
+
 /// Encode effect estimate.
 #[must_use]
 pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
@@ -388,6 +526,15 @@ pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
     EffectEstimateWire {
         ate: e.ate,
         se_analytic: e.se_analytic(),
+        analytic_kind: e.uncertainty.analytic.kind.map(kind_to_wire),
+        analytic_reference_df: e.uncertainty.analytic.reference_df,
+        block_resampling: e.uncertainty.block.resampling.map(|r| BlockResamplingWire {
+            block_length: crate::width::lossless_u64(r.block_length),
+            rows: crate::width::lossless_u64(r.rows),
+            kernel_bias: r.kernel_bias,
+        }),
+        block_family: e.uncertainty.block.family.map(family_to_wire),
+        n_obs: e.provenance.n_obs,
         se_bootstrap: e.se_bootstrap(),
         bootstrap_replicates_ok: e.uncertainty.bootstrap.replicates_ok,
         bootstrap_replicates_failed: e.uncertainty.bootstrap.replicates_failed,
@@ -598,6 +745,29 @@ pub fn effect_estimate_from_owned_wire(w: EffectEstimateWire) -> Result<EffectEs
         w.retained_memory_bytes,
     )
     .with_first_stage_diagnostics(first_stage);
+    if w.analytic_reference_df.is_some_and(|df| !df.is_finite() || df < 0.0) {
+        return Err(IoError::Convert(
+            "analytic reference degrees of freedom must be nonnegative and finite".into(),
+        ));
+    }
+    estimate.uncertainty.analytic.kind = w.analytic_kind.map(kind_from_wire).transpose()?;
+    estimate.uncertainty.analytic.reference_df = w.analytic_reference_df;
+    estimate.uncertainty.block.resampling = w
+        .block_resampling
+        .map(|r| {
+            if !r.kernel_bias.is_finite() {
+                return Err(IoError::Convert("block kernel bias must be finite".into()));
+            }
+            Ok(antecedent_estimate::BlockResampling {
+                block_length: usize::try_from(r.block_length).map_err(|_| IoError::TooLarge)?,
+                rows: usize::try_from(r.rows).map_err(|_| IoError::TooLarge)?,
+                kernel_bias: r.kernel_bias,
+            })
+        })
+        .transpose()?;
+    estimate.uncertainty.block.family = w.block_family.map(family_from_wire);
+    estimate.provenance.n_obs = w.n_obs;
+
     if let Some(table) = w.score_table {
         estimate = estimate.with_score_table(Some(score_table_from_wire(table)?));
     }
@@ -906,10 +1076,52 @@ mod tests {
         effect.crossfit.treatment_oof_logloss = Some(0.4);
         effect.crossfit.folds = Some(5);
         effect.crossfit.seed = Some(42);
+        effect.uncertainty.analytic.kind =
+            Some(antecedent_estimate::AnalyticSeKind::NeweyWest { lag: 3 });
+        effect.uncertainty.analytic.reference_df = Some(7.0);
+        effect.uncertainty.block.resampling = Some(antecedent_estimate::BlockResampling {
+            block_length: 4,
+            rows: 40,
+            kernel_bias: 1.2,
+        });
+        effect.uncertainty.block.family = Some(antecedent_estimate::CircularBlockFamily::Mediation);
+        effect.provenance.n_obs = Some(40);
         let wire = effect_estimate_to_wire(&effect);
         let bytes = serde_json::to_vec(&wire).unwrap();
         let decoded: EffectEstimateWire = serde_json::from_slice(&bytes).unwrap();
         let restored = effect_estimate_from_wire(&decoded).unwrap();
+        assert_eq!(restored.uncertainty.analytic, effect.uncertainty.analytic);
+        assert_eq!(restored.uncertainty.block, effect.uncertainty.block);
+        assert_eq!(restored.provenance.n_obs, effect.provenance.n_obs);
+        let critical = |e: &EffectEstimate| {
+            antecedent_stats::student_t_ppf(0.975, e.uncertainty.analytic.reference_df.unwrap())
+        };
+        assert_eq!(
+            (
+                restored.ate - critical(&restored) * restored.se_analytic(),
+                restored.ate + critical(&restored) * restored.se_analytic()
+            ),
+            (
+                effect.ate - critical(&effect) * effect.se_analytic(),
+                effect.ate + critical(&effect) * effect.se_analytic()
+            )
+        );
+        let mut legacy = serde_json::to_value(&wire).unwrap();
+        for field in
+            ["analytic_kind", "analytic_reference_df", "block_resampling", "block_family", "n_obs"]
+        {
+            legacy.as_object_mut().unwrap().remove(field);
+        }
+        let legacy: EffectEstimateWire = serde_json::from_value(legacy).unwrap();
+        let legacy = effect_estimate_from_wire(&legacy).unwrap();
+        assert_eq!(legacy.uncertainty.analytic.kind, None);
+        assert_eq!(legacy.uncertainty.analytic.reference_df, None);
+        assert_eq!(legacy.uncertainty.block, antecedent_estimate::BlockSeRecord::default());
+        assert_eq!(legacy.provenance.n_obs, None);
+        let mut zero_df = wire.clone();
+        zero_df.analytic_reference_df = Some(0.0);
+        let zero_df = effect_estimate_from_wire(&zero_df).unwrap();
+        assert_eq!(zero_df.uncertainty.analytic.reference_df, Some(0.0));
         assert_eq!(restored.crossfit.outcome_oof_r2, effect.crossfit.outcome_oof_r2);
         assert_eq!(restored.crossfit.treatment_oof_logloss, effect.crossfit.treatment_oof_logloss);
         assert_eq!(restored.crossfit.folds, effect.crossfit.folds);
@@ -1151,6 +1363,11 @@ mod tests {
         let wire = EffectEstimateWire {
             ate: 1.0,
             se_analytic: 0.1,
+            analytic_kind: None,
+            analytic_reference_df: None,
+            block_resampling: None,
+            block_family: None,
+            n_obs: None,
             se_bootstrap: Some(0.2),
             bootstrap_replicates_ok: Some(99),
             bootstrap_replicates_failed: Some(1),

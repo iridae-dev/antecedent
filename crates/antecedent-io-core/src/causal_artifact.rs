@@ -1870,7 +1870,11 @@ fn validate_probability_method(
     Ok(())
 }
 
-fn validate_interference_estimate(estimate: &InterferenceEstimateWire) -> Result<(), IoError> {
+/// Validate the numerical fields and declared probability methods of an interference estimate.
+///
+/// # Errors
+/// Returns a conversion error if a field or method is outside its declared domain.
+pub fn validate_interference_estimate(estimate: &InterferenceEstimateWire) -> Result<(), IoError> {
     require_finite(
         [
             estimate.contrast.horvitz_thompson,

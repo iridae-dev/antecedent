@@ -80,7 +80,8 @@ fn parse_payload(kind: &str, payload_json: &str) -> PyResult<CausalPayloadWire> 
         }
         "interference_estimate" => {
             let wire = parse::<InterferenceEstimateWire>(payload_json)?;
-            let domain = antecedent_io::interference_estimate_from_wire(&wire);
+            let domain = antecedent_io::try_interference_estimate_from_wire(&wire)
+                .map_err(serialization_error)?;
             CausalPayloadWire::InterferenceEstimate(Box::new(
                 antecedent_io::interference_estimate_to_wire(&domain),
             ))

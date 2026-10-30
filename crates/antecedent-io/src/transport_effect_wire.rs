@@ -27,7 +27,9 @@ pub fn interference_estimate_to_wire(value: &InterferenceEstimate) -> Interferen
     }
 }
 
-/// Decode an interference estimate.
+/// Decode an interference estimate without validating its fields.
+///
+/// Use [`try_interference_estimate_from_wire`] for untrusted wire data.
 #[must_use]
 pub fn interference_estimate_from_wire(value: &InterferenceEstimateWire) -> InterferenceEstimate {
     InterferenceEstimate {
@@ -36,6 +38,17 @@ pub fn interference_estimate_from_wire(value: &InterferenceEstimateWire) -> Inte
         to_probability_method: probability_method_from_wire(value.to_probability_method),
         minimum_exposure_probability: value.minimum_exposure_probability,
     }
+}
+
+/// Decode and validate an interference estimate.
+///
+/// # Errors
+/// Returns a conversion error if the wire estimate has invalid numerical fields or methods.
+pub fn try_interference_estimate_from_wire(
+    value: &InterferenceEstimateWire,
+) -> Result<InterferenceEstimate, IoError> {
+    antecedent_io_core::causal_artifact::validate_interference_estimate(value)?;
+    Ok(interference_estimate_from_wire(value))
 }
 
 /// Encode a trial-to-target estimate.
@@ -62,6 +75,9 @@ pub fn transport_effect_to_wire(
 pub fn transport_effect_from_wire(
     value: &TransportEffectEstimateWire,
 ) -> Result<TransportEffectEstimate, IoError> {
+    if !value.ipw.is_finite() || value.aipw.is_some_and(|v| !v.is_finite()) {
+        return Err(IoError::Convert("transport effect estimates must be finite".into()));
+    }
     Ok(TransportEffectEstimate {
         ipw: value.ipw,
         aipw: value.aipw,
@@ -133,6 +149,16 @@ fn diagnostic_to_wire(
 fn diagnostic_from_wire(
     value: TransportOverlapDiagnosticWire,
 ) -> Result<TransportOverlapDiagnostic, IoError> {
+    if !value.probability_min.is_finite()
+        || !value.probability_max.is_finite()
+        || !(0.0..=1.0).contains(&value.probability_min)
+        || !(0.0..=1.0).contains(&value.probability_max)
+        || value.probability_min > value.probability_max
+        || !value.effective_sample_size.is_finite()
+        || value.effective_sample_size < 0.0
+    {
+        return Err(IoError::Convert("invalid transport overlap diagnostic".into()));
+    }
     Ok(TransportOverlapDiagnostic {
         probability_min: value.probability_min,
         probability_max: value.probability_max,
@@ -181,6 +207,75 @@ mod tests {
         };
         let wire = transport_effect_to_wire(&transport).unwrap();
         assert_eq!(transport_effect_from_wire(&wire).unwrap(), transport);
+    }
+
+    #[test]
+    fn transport_effect_rejects_invalid_points_and_overlap() {
+        let valid = TransportEffectEstimateWire {
+            ipw: 1.0,
+            aipw: Some(2.0),
+            selection_overlap: TransportOverlapDiagnosticWire {
+                probability_min: 0.0,
+                probability_max: 1.0,
+                effective_sample_size: 0.0,
+                extreme_weight_count: 0,
+            },
+            treatment_overlap: TransportOverlapDiagnosticWire {
+                probability_min: 0.2,
+                probability_max: 0.8,
+                effective_sample_size: 1.0,
+                extreme_weight_count: 0,
+            },
+        };
+        assert!(transport_effect_from_wire(&valid).is_ok());
+        let mut invalid = valid.clone();
+        invalid.ipw = f64::NAN;
+        assert!(transport_effect_from_wire(&invalid).is_err());
+        invalid = valid.clone();
+        invalid.aipw = Some(f64::INFINITY);
+        assert!(transport_effect_from_wire(&invalid).is_err());
+        for (min, max, ess) in [
+            (0.9, 0.1, 1.0),
+            (-0.1, 1.0, 1.0),
+            (0.0, f64::NAN, 1.0),
+            (0.0, 1.0, -1.0),
+            (0.0, 1.0, f64::INFINITY),
+        ] {
+            invalid = valid.clone();
+            invalid.treatment_overlap.probability_min = min;
+            invalid.treatment_overlap.probability_max = max;
+            invalid.treatment_overlap.effective_sample_size = ess;
+            assert!(transport_effect_from_wire(&invalid).is_err());
+        }
+    }
+
+    #[test]
+    fn checked_interference_decoder_enforces_wire_domains() {
+        let estimate = InterferenceEstimate {
+            contrast: RandomizationContrast {
+                horvitz_thompson: 1.0,
+                hajek: 0.9,
+                conservative_variance: 0.2,
+            },
+            from_probability_method: ExposureProbabilityMethod::Exact,
+            to_probability_method: ExposureProbabilityMethod::MonteCarlo { draws: 1, seed: 7 },
+            minimum_exposure_probability: 0.1,
+        };
+        let wire = interference_estimate_to_wire(&estimate);
+        assert_eq!(try_interference_estimate_from_wire(&wire).unwrap(), estimate);
+        let mut invalid = wire.clone();
+        invalid.contrast.hajek = f64::NAN;
+        assert!(try_interference_estimate_from_wire(&invalid).is_err());
+        invalid = wire.clone();
+        invalid.contrast.conservative_variance = -1.0;
+        assert!(try_interference_estimate_from_wire(&invalid).is_err());
+        invalid = wire.clone();
+        invalid.minimum_exposure_probability = 0.0;
+        assert!(try_interference_estimate_from_wire(&invalid).is_err());
+        invalid = wire;
+        invalid.to_probability_method =
+            ExposureProbabilityMethodWire::MonteCarlo { draws: 0, seed: 7 };
+        assert!(try_interference_estimate_from_wire(&invalid).is_err());
     }
 
     #[test]
