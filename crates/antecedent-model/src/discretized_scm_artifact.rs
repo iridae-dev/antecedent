@@ -446,12 +446,23 @@ impl<'a> Reader<'a> {
 
     fn texts(&mut self, what: &'static str) -> Decoded<Vec<String>> {
         let n = self.count(what)?;
-        (0..n).map(|_| self.text(what)).collect()
+        let mut values = Vec::new();
+        for _ in 0..n {
+            values.push(self.text(what)?);
+        }
+        Ok(values)
     }
 
     fn reals(&mut self, what: &'static str) -> Decoded<Vec<f64>> {
         let n = self.count(what)?;
-        (0..n).map(|_| self.real(what)).collect()
+        if n > (self.bytes.len() - self.at) / std::mem::size_of::<f64>() {
+            return Err(ArtifactRefusal::malformed(what));
+        }
+        let mut values = Vec::with_capacity(n);
+        for _ in 0..n {
+            values.push(self.real(what)?);
+        }
+        Ok(values)
     }
 
     fn opt_real(&mut self, what: &'static str) -> Decoded<Option<f64>> {
@@ -481,7 +492,11 @@ impl<'a> Reader<'a> {
 
     fn terms(&mut self) -> Decoded<Vec<ParameterTerm>> {
         let n = self.count("parameters")?;
-        (0..n).map(|_| self.term()).collect()
+        let mut terms = Vec::new();
+        for _ in 0..n {
+            terms.push(self.term()?);
+        }
+        Ok(terms)
     }
 
     fn meaning(&mut self) -> Decoded<UncertaintyMeaning> {
@@ -500,7 +515,7 @@ fn read_mechanism(r: &mut Reader<'_>) -> Decoded<MechanismDescriptor> {
             let intercept = r.real("form")?;
             let sigma = r.real("form")?;
             let n = r.count("coefficients")?;
-            let mut coefficients = Vec::with_capacity(n);
+            let mut coefficients = Vec::new();
             for _ in 0..n {
                 coefficients.push((r.text("coefficients")?, r.real("coefficients")?));
             }
@@ -509,7 +524,7 @@ fn read_mechanism(r: &mut Reader<'_>) -> Decoded<MechanismDescriptor> {
         _ => return Err(ArtifactRefusal::malformed("form")),
     };
     let n = r.count("parents")?;
-    let mut parents = Vec::with_capacity(n);
+    let mut parents = Vec::new();
     for _ in 0..n {
         parents.push(ParentBinding {
             variable: r.text("parents")?,
@@ -535,7 +550,7 @@ fn read_mechanism(r: &mut Reader<'_>) -> Decoded<MechanismDescriptor> {
         evidence_id: r.text("provenance")?,
     };
     let n = r.count("latents")?;
-    let mut latents = Vec::with_capacity(n);
+    let mut latents = Vec::new();
     for _ in 0..n {
         latents.push(LatentDependence {
             latent: r.text("latents")?,
@@ -574,7 +589,7 @@ fn read_dependence(r: &mut Reader<'_>) -> Decoded<PosteriorDependence> {
         2 => {
             let meaning = r.meaning()?;
             let n = r.count("dependence")?;
-            let mut parameters = Vec::with_capacity(n);
+            let mut parameters = Vec::new();
             for _ in 0..n {
                 parameters.push(ParameterId { mechanism: r.text("dependence")?, term: r.term()? });
             }
@@ -586,7 +601,7 @@ fn read_dependence(r: &mut Reader<'_>) -> Decoded<PosteriorDependence> {
         }
         3 => {
             let n = r.count("dependence")?;
-            let mut blocks = Vec::with_capacity(n);
+            let mut blocks = Vec::new();
             for _ in 0..n {
                 blocks.push(CrossCovarianceBlock {
                     first: r.text("dependence")?,
@@ -616,17 +631,17 @@ fn same_bits(a: &[f64], b: &[f64]) -> bool {
 fn read_spec(r: &mut Reader<'_>) -> Decoded<ComposedModelSpec> {
     let target = MechanismContext { population: r.text("target")?, regime: r.text("target")? };
     let n = r.count("mechanisms")?;
-    let mut mechanisms = Vec::with_capacity(n);
+    let mut mechanisms = Vec::new();
     for _ in 0..n {
         mechanisms.push(read_mechanism(r)?);
     }
     let n = r.count("edges")?;
-    let mut edges = Vec::with_capacity(n);
+    let mut edges = Vec::new();
     for _ in 0..n {
         edges.push((r.text("edges")?, r.text("edges")?));
     }
     let n = r.count("invariances")?;
-    let mut invariances = Vec::with_capacity(n);
+    let mut invariances = Vec::new();
     for _ in 0..n {
         let variable = r.text("invariances")?;
         let coordinate = match r.tag("invariances")? {
@@ -643,12 +658,12 @@ fn read_spec(r: &mut Reader<'_>) -> Decoded<ComposedModelSpec> {
         });
     }
     let n = r.count("selection_diagrams")?;
-    let mut selection_diagrams = Vec::with_capacity(n);
+    let mut selection_diagrams = Vec::new();
     for _ in 0..n {
         let source_population = r.text("selection_diagrams")?;
         let target_population = r.text("selection_diagrams")?;
         let k = r.count("selection_nodes")?;
-        let mut selection_nodes = Vec::with_capacity(k);
+        let mut selection_nodes = Vec::new();
         for _ in 0..k {
             selection_nodes.push(SelectionNodeDeclaration {
                 name: r.text("selection_nodes")?,
@@ -686,7 +701,7 @@ fn read_plan(r: &mut Reader<'_>) -> Decoded<(DiscretizationPlan, Vec<String>)> {
     };
     let n = r.count("levels")?;
     let mut levels = BTreeMap::new();
-    let mut order = Vec::with_capacity(n);
+    let mut order = Vec::new();
     for _ in 0..n {
         let name = r.text("levels")?;
         order.push(name.clone());
@@ -790,4 +805,35 @@ pub fn consume_discretized_scm(
         }
     }
     Ok(derived)
+}
+
+#[cfg(test)]
+mod bounded_reader_tests {
+    use super::*;
+
+    #[test]
+    fn malformed_record_counts_do_not_preallocate_record_arrays() {
+        let mut w = Writer::default();
+        w.text("");
+        w.text("");
+        w.word(1_000_000);
+        w.bytes.resize(w.bytes.len() + 1_000_000, 0);
+        let mut reader = Reader { bytes: &w.bytes, at: 0 };
+        assert!(matches!(
+            read_spec(&mut reader),
+            Err(ArtifactRefusal { detail: DETAIL_MALFORMED, .. })
+        ));
+        // The first record's invalid form is reached immediately.
+        assert!(reader.at < 64);
+    }
+
+    #[test]
+    fn real_count_must_fit_remaining_fixed_width_payload() {
+        let mut w = Writer::default();
+        w.word(16);
+        w.bytes.resize(24, 0);
+        let mut reader = Reader { bytes: &w.bytes, at: 0 };
+        assert!(reader.reals("covariance").is_err());
+        assert_eq!(reader.at, 8);
+    }
 }
