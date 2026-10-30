@@ -190,7 +190,7 @@ impl LinearAdjustmentAte {
                 "a streamed reduction estimates the all-observed population",
             ));
         }
-        let (_, _, delta) = treatment_contrast(&query.active, &query.control)?;
+        let (active, control, delta) = treatment_contrast(&query.active, &query.control)?;
         let mut ids = Vec::with_capacity(2 + estimand.adjustment_set.len());
         ids.push(query.treatment);
         ids.push(query.outcome);
@@ -211,6 +211,15 @@ impl LinearAdjustmentAte {
                 )),
             }
         };
+        if !self.dose_reading {
+            crate::prepare::validate_streamed_adjustment_levels(
+                column(query.treatment)?,
+                &row_mask,
+                active,
+                control,
+                self.other_levels,
+            )?;
+        }
         let mut covariates = Vec::with_capacity(estimand.adjustment_set.len());
         for &id in estimand.adjustment_set.iter() {
             covariates.push(column(id)?);
@@ -293,6 +302,47 @@ mod tests {
 
     fn close(left: f64, right: f64, tolerance: f64) -> bool {
         (left - right).abs() <= tolerance * left.abs().max(right.abs()).max(1.0)
+    }
+
+    #[test]
+    fn streamed_adjustment_respects_discrete_levels_and_dose_policy() {
+        let treatment: Vec<f64> = (0..60).map(|i| (i % 3) as f64).collect();
+        let outcome: Vec<f64> =
+            treatment.iter().enumerate().map(|(i, t)| 2.0 * t + noise(i)).collect();
+        let data =
+            TabularData::from_f64_columns([("t", treatment.as_slice()), ("y", outcome.as_slice())])
+                .unwrap();
+        let estimand =
+            IdentifiedEstimand::backdoor("backdoor.adjustment", Arc::from([]), ExprId::from_raw(0));
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let estimator = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
+        let err = estimator.estimate_streamed(&data, &estimand, &query, 16, 1 << 20).unwrap_err();
+        assert_eq!(err.reason_code(), Some("treatment_level_undeclared"));
+        assert!(err.to_string().contains("treatment_levels.undeclared_level"));
+        let exclude =
+            estimator.clone().with_other_levels(crate::propensity::OtherLevels::ExcludeUndeclared);
+        let err = exclude.estimate_streamed(&data, &estimand, &query, 16, 1 << 20).unwrap_err();
+        assert_eq!(err.reason_code(), Some("route_not_supported"));
+        assert!(
+            estimator
+                .with_dose_reading(true)
+                .estimate_streamed(&data, &estimand, &query, 16, 1 << 20)
+                .is_ok()
+        );
+        let binary: Vec<f64> = (0..60).map(|i| (i % 2) as f64).collect();
+        let data =
+            TabularData::from_f64_columns([("t", binary.as_slice()), ("y", outcome.as_slice())])
+                .unwrap();
+        assert!(exclude.estimate_streamed(&data, &estimand, &query, 16, 1 << 20).is_ok());
+        let absent = AverageEffectQuery::with_levels(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            0.0,
+            2.0,
+        );
+        let err = exclude.estimate_streamed(&data, &estimand, &absent, 16, 1 << 20).unwrap_err();
+        assert_eq!(err.reason_code(), Some("arm_not_populated"));
     }
 
     #[test]

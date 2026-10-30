@@ -128,6 +128,13 @@ impl TwoStageLeastSquares {
                 )),
             }
         };
+        let (active, control, _) = treatment_contrast(&query.active, &query.control)?;
+        crate::prepare::validate_streamed_iv_levels(
+            column(query.treatment)?,
+            &row_mask,
+            active,
+            control,
+        )?;
         // Design column order is [1 | adjustment… | instruments… | treatment]: the exogenous
         // block, the excluded instruments, then the endogenous column the moments end with.
         let mut columns = Vec::with_capacity(1 + ids.len());
@@ -284,6 +291,40 @@ mod tests {
 
     fn close(left: f64, right: f64) -> bool {
         (left - right).abs() <= 1e-7 * left.abs().max(right.abs()).max(1.0)
+    }
+
+    #[test]
+    fn streamed_iv_refuses_other_and_unobserved_discrete_levels() {
+        let treatment: Vec<f64> = (0..60).map(|i| (i % 3) as f64).collect();
+        let outcome: Vec<f64> =
+            treatment.iter().enumerate().map(|(i, t)| 2.0 * t + noise(i, 1)).collect();
+        let instrument: Vec<f64> = (0..60).map(|i| noise(i, 2)).collect();
+        let data = TabularData::from_f64_columns([
+            ("t", treatment.as_slice()),
+            ("y", outcome.as_slice()),
+            ("z", instrument.as_slice()),
+        ])
+        .unwrap();
+        let estimand = IdentifiedEstimand::instrumental(
+            "iv",
+            Arc::from([VariableId::from_raw(2)]),
+            ExprId::from_raw(0),
+        );
+        let estimator = TwoStageLeastSquares::new().with_bootstrap_replicates(0);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let err = estimator.estimate_streamed(&data, &estimand, &query, 16, 1 << 20).unwrap_err();
+        assert_eq!(err.reason_code(), Some("treatment_level_undeclared"));
+        assert!(err.to_string().contains("iv.undeclared_level"));
+        let absent = AverageEffectQuery::with_levels(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            0.0,
+            3.0,
+        );
+        let err = estimator.estimate_streamed(&data, &estimand, &absent, 16, 1 << 20).unwrap_err();
+        assert_eq!(err.reason_code(), Some("arm_not_populated"));
+        assert!(err.to_string().contains("iv.unobserved_level"));
     }
 
     #[test]

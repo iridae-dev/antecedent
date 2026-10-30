@@ -318,6 +318,118 @@ pub(crate) fn is_discrete_with_other_levels(values: &[f64], active: f64, control
     distinct.len() >= 3 && has(active) && has(control)
 }
 
+/// Classification of a complete-case streamed treatment with at most ten levels.
+/// None means the resident path treats the column as a continuous dose.
+fn streamed_level_counts(values: &[f64], mask: &[bool]) -> Option<(Vec<(f64, usize)>, usize)> {
+    let mut levels: Vec<(f64, usize)> = Vec::new();
+    let mut rows = 0usize;
+    for (&value, &keep) in values.iter().zip(mask) {
+        if !keep {
+            continue;
+        }
+        rows += 1;
+        if let Some((_, count)) = levels.iter_mut().find(|(level, _)| *level == value) {
+            *count += 1;
+        } else {
+            levels.push((value, 1));
+            if levels.len() > MAX_DISCRETE_LEVELS {
+                return None;
+            }
+        }
+    }
+    Some((levels, rows))
+}
+
+fn streamed_levels_description(levels: &[(f64, usize)]) -> String {
+    let mut sorted = levels.to_vec();
+    sorted.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let labels: Vec<_> =
+        sorted.iter().map(|(level, count)| format!("{level} ({count} rows)")).collect();
+    format!("observed treatment levels: {}", labels.join(", "))
+}
+
+/// Apply resident treatment-level admission without allocating a selected treatment column.
+pub(crate) fn validate_streamed_adjustment_levels(
+    values: &[f64],
+    mask: &[bool],
+    active: f64,
+    control: f64,
+    other_levels: crate::propensity::levels::OtherLevels,
+) -> Result<(), EstimationError> {
+    let Some((levels, rows)) = streamed_level_counts(values, mask) else {
+        return Ok(());
+    };
+    let mut representative: Vec<f64> = levels.iter().map(|(level, _)| *level).collect();
+    if rows > levels.len() && !representative.is_empty() {
+        representative.push(representative[0]);
+    }
+    require_contrast_arms_populated(&representative, active, control)?;
+    let has = |level| levels.iter().any(|(value, _)| *value == level);
+    if levels.len() < 3 || !has(active) || !has(control) {
+        return Ok(());
+    }
+    if matches!(other_levels, crate::propensity::levels::OtherLevels::ExcludeUndeclared) {
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
+            "excluding undeclared treatment levels needs the resident route to report the restricted population",
+        ));
+    }
+    let excluded = levels
+        .iter()
+        .filter(|(value, _)| *value != active && *value != control)
+        .map(|(_, count)| *count)
+        .sum::<usize>();
+    let first = values
+        .iter()
+        .zip(mask)
+        .find(|(value, keep)| **keep && **value != active && **value != control)
+        .map(|(value, _)| *value)
+        .unwrap();
+    Err(crate::util::refuse(
+        antecedent_core::reason_code!("treatment_level_undeclared"),
+        "treatment_levels.undeclared_level",
+        &format!(
+            "{excluded} complete-case rows have a treatment value at neither declared level (active {active}, control {control}); first found {first}; {}. Excluding them would restrict the target population to the rows at the two declared levels. Next attempt: declare that restriction with OtherLevels::ExcludeUndeclared, or use the full-population generalized-propensity estimator",
+            streamed_levels_description(&levels)
+        ),
+    ))
+}
+
+/// Match the resident IV treatment-level guards on complete-case rows.
+pub(crate) fn validate_streamed_iv_levels(
+    values: &[f64],
+    mask: &[bool],
+    active: f64,
+    control: f64,
+) -> Result<(), EstimationError> {
+    let Some((levels, _)) = streamed_level_counts(values, mask) else {
+        return Ok(());
+    };
+    let has = |level| levels.iter().any(|(value, _)| *value == level);
+    let description = streamed_levels_description(&levels);
+    if levels.len() >= 3 && has(active) && has(control) {
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("treatment_level_undeclared"),
+            "iv.undeclared_level",
+            &format!(
+                "the treatment takes levels beyond the contrasted pair (active {active}, control {control}); {description}. The instrumental fit reads the treatment as one numeric dose, so it would return a slope scaled by the gap between the levels, not the contrast of the two levels, and restricting the rows to the two levels would select on the endogenous treatment and invalidate the instrument. Next attempt: recode the treatment into the binary contrast of interest before estimation, or use a continuous dose with levels the data spans"
+            ),
+        ));
+    }
+    if levels.iter().all(|(value, _)| value.fract() == 0.0) {
+        if let Some(level) = [control, active].into_iter().find(|level| !has(*level)) {
+            return Err(crate::util::refuse(
+                antecedent_core::reason_code!("arm_not_populated"),
+                "iv.unobserved_level",
+                &format!(
+                    "the contrasted level {level} is not taken by any row of the discrete treatment ({description}); the instrumental fit would return the slope scaled by the gap to a level the data never visited. Next attempt: contrast levels the treatment takes, or use a continuous dose whose range spans them"
+                ),
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Run the accepted preparation path, then hand the estimator the same finite table.
 ///
 /// `stream` is the estimator's own declaration. An estimator that declares it can
@@ -742,5 +854,39 @@ mod contrast_arm_tests {
         // Every value distinct on a small table is a dose, not repeated arms.
         let tiny: Vec<f64> = vec![0.1, 0.4, 0.9, 1.3];
         assert!(restrict(&tiny, (2.0, 0.0)).unwrap().is_none());
+    }
+}
+
+#[cfg(test)]
+mod streamed_level_tests {
+    use super::*;
+
+    #[test]
+    fn only_selected_rows_contribute_and_continuous_values_remain_doses() {
+        let values = [0.0, 1.0, 2.0, 0.0, 1.0];
+        let mask = [true, true, false, true, true];
+        assert!(
+            validate_streamed_adjustment_levels(
+                &values,
+                &mask,
+                1.0,
+                0.0,
+                crate::propensity::OtherLevels::Refuse
+            )
+            .is_ok()
+        );
+        assert!(validate_streamed_iv_levels(&values, &mask, 1.0, 0.0).is_ok());
+        let continuous: Vec<f64> = (0..11).map(|v| v as f64).collect();
+        assert!(
+            validate_streamed_adjustment_levels(
+                &continuous,
+                &[true; 11],
+                1.0,
+                0.0,
+                crate::propensity::OtherLevels::Refuse
+            )
+            .is_ok()
+        );
+        assert!(validate_streamed_iv_levels(&continuous, &[true; 11], 1.0, 0.0).is_ok());
     }
 }
