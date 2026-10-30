@@ -4,8 +4,8 @@
 //! ||I - R A||_infinity < 1 for the exact represented A = I-W; the Neumann
 //! argument then proves invertibility independently of any numerical root.
 use crate::equation_system::Interval;
-use crate::nonlinear_equilibrium::MAX_DENSE_MATRIX_BYTES;
-use crate::sparse_equilibrium::{CsrMatrix, SparseLu};
+use crate::nonlinear_equilibrium::{EquilibriumError, MAX_DENSE_MATRIX_BYTES};
+use crate::sparse_equilibrium::{CsrMatrix, FactorError, SparseLu};
 /// Prove invertibility of I-W using an outward-rounded inverse residual.
 /// Returns false when the bounded certificate fails, including ill conditioning.
 /// This is no assertion about dynamic stability or contraction of W.
@@ -38,22 +38,34 @@ pub fn certifies_affine_bijection(weights: &[f64], order: usize) -> bool {
 /// array would exceed [`MAX_DENSE_MATRIX_BYTES`]; contraction certificates still apply there.
 #[must_use]
 pub fn certifies_sparse_affine_bijection(rows: &[Vec<(usize, f64)>], order: usize) -> bool {
+    certifies_sparse_affine_checked(rows, order, usize::MAX, &mut || Ok(())).unwrap_or(false)
+}
+
+// The caller admits worst-case dense/fill storage before constructing rows.
+pub(crate) fn certifies_sparse_affine_checked(
+    rows: &[Vec<(usize, f64)>],
+    order: usize,
+    max_fill: usize,
+    tick: &mut dyn FnMut() -> Result<(), EquilibriumError>,
+) -> Result<bool, EquilibriumError> {
     if order == 0 {
-        return rows.is_empty();
+        return Ok(rows.is_empty());
     }
-    if rows.len() != order
-        || order
-            .checked_mul(order)
-            .and_then(|c| c.checked_mul(8))
-            .is_none_or(|b| b > MAX_DENSE_MATRIX_BYTES)
-        || rows.iter().flatten().any(|&(c, w)| c >= order || !w.is_finite())
+    if rows.len() != order || rows.iter().flatten().any(|&(c, w)| c >= order || !w.is_finite()) {
+        return Ok(false);
+    }
+    if order
+        .checked_mul(order)
+        .and_then(|c| c.checked_mul(8))
+        .is_none_or(|b| b > MAX_DENSE_MATRIX_BYTES)
     {
-        return false;
+        return Err(EquilibriumError::Resource("affine certificate dense matrix limit".into()));
     }
     let one = Interval { lower: 1.0, upper: 1.0 };
     let mut a_rows: Vec<Vec<(usize, Interval)>> = Vec::with_capacity(order);
     let mut numeric: Vec<Vec<(usize, f64)>> = Vec::with_capacity(order);
     for (i, row) in rows.iter().enumerate() {
+        tick()?;
         // Represent the identity exactly once. Keeping every -W entry separate
         // lets the interval residual enclose even duplicate sums that round in
         // the numerical CSR matrix used to obtain the candidate inverse.
@@ -69,13 +81,21 @@ pub fn certifies_sparse_affine_bijection(rows: &[Vec<(usize, f64)>], order: usiz
         numeric.push(numeric_row);
     }
     let Ok(matrix) = CsrMatrix::from_rows(order, numeric) else {
-        return false;
+        return Ok(false);
     };
-    let Ok(lu) = SparseLu::factor(&matrix, usize::MAX, &mut || Ok(())) else {
-        return false;
+    let lu = match SparseLu::factor(&matrix, max_fill, tick) {
+        Ok(lu) => lu,
+        Err(FactorError::Singular | FactorError::NonFinite) => return Ok(false),
+        Err(FactorError::FillBudget(required)) => {
+            return Err(EquilibriumError::Resource(format!(
+                "affine certificate factor fill {required} exceeds {max_fill}"
+            )));
+        }
+        Err(FactorError::Interrupted(error)) => return Err(error),
     };
     let mut inverse = vec![0.0; order * order];
     for k in 0..order {
+        tick()?;
         let mut unit = vec![0.0; order];
         unit[k] = 1.0;
         for (i, value) in lu.solve(&unit).into_iter().enumerate() {
@@ -83,9 +103,10 @@ pub fn certifies_sparse_affine_bijection(rows: &[Vec<(usize, f64)>], order: usiz
         }
     }
     if inverse.iter().any(|x| !x.is_finite()) {
-        return false;
+        return Ok(false);
     }
     for i in 0..order {
+        tick()?;
         let mut residual: Vec<Interval> = (0..order)
             .map(|j| {
                 let d = if i == j { 1.0 } else { 0.0 };
@@ -93,6 +114,9 @@ pub fn certifies_sparse_affine_bijection(rows: &[Vec<(usize, f64)>], order: usiz
             })
             .collect();
         for k in 0..order {
+            if k % 32 == 0 {
+                tick()?;
+            }
             let r = inverse[i * order + k];
             if r == 0.0 {
                 continue;
@@ -107,10 +131,10 @@ pub fn certifies_sparse_affine_bijection(rows: &[Vec<(usize, f64)>], order: usiz
             norm = norm.add_outward(Interval { lower: 0.0, upper: magnitude });
         }
         if !norm.upper.is_finite() || norm.upper >= 1.0 {
-            return false;
+            return Ok(false);
         }
     }
-    true
+    Ok(true)
 }
 #[cfg(test)]
 mod tests {

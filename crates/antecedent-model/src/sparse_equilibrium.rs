@@ -248,9 +248,17 @@ pub struct SparseLu {
 
 /// Greedy minimum-degree column order on the symmetrized pattern. The clique-update work is
 /// bounded; once it is exhausted the remaining columns keep their natural order.
-fn minimum_degree_order(rows: &[Vec<(usize, f64)>], n: usize, work_limit: usize) -> Vec<usize> {
+fn minimum_degree_order(
+    rows: &[Vec<(usize, f64)>],
+    n: usize,
+    work_limit: usize,
+    tick: &mut dyn FnMut() -> Result<(), EquilibriumError>,
+) -> Result<Vec<usize>, EquilibriumError> {
     let mut adjacency: Vec<BTreeSet<usize>> = vec![BTreeSet::new(); n];
     for (r, row) in rows.iter().enumerate() {
+        if r % 32 == 0 {
+            tick()?;
+        }
         for &(c, _) in row {
             if c != r {
                 adjacency[r].insert(c);
@@ -262,6 +270,7 @@ fn minimum_degree_order(rows: &[Vec<(usize, f64)>], n: usize, work_limit: usize)
     let mut order = Vec::with_capacity(n);
     let mut work = 0_usize;
     while order.len() < n {
+        tick()?;
         if work > work_limit {
             order.extend((0..n).filter(|&v| !done[v]));
             break;
@@ -278,6 +287,9 @@ fn minimum_degree_order(rows: &[Vec<(usize, f64)>], n: usize, work_limit: usize)
         work += neighbours.len() * neighbours.len();
         if work <= work_limit {
             for (a, &u) in neighbours.iter().enumerate() {
+                if a % 32 == 0 {
+                    tick()?;
+                }
                 for &w in &neighbours[a + 1..] {
                     adjacency[u].insert(w);
                     adjacency[w].insert(u);
@@ -286,7 +298,7 @@ fn minimum_degree_order(rows: &[Vec<(usize, f64)>], n: usize, work_limit: usize)
         }
         adjacency[v].clear();
     }
-    order
+    Ok(order)
 }
 
 /// `target - m * pivot` over sorted sparse rows, dropping column `skip`. Columns that the
@@ -355,7 +367,8 @@ impl SparseLu {
                 column_rows[c].push(r);
             }
         }
-        let order = minimum_degree_order(&rows, n, 64 * matrix.nnz() + 4_000_000);
+        let order = minimum_degree_order(&rows, n, 64 * matrix.nnz() + 4_000_000, tick)
+            .map_err(FactorError::Interrupted)?;
         let mut active = vec![true; n];
         let mut stored = 0_usize;
         let floor = (norm * 1e-13).max(f64::MIN_POSITIVE);

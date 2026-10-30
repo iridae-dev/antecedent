@@ -665,7 +665,16 @@ impl EquilibriumModel {
             let bound = certificate.bound;
             let contraction = bound < 1.0;
             all_contractive &= contraction;
-            globally_unique &= contraction || self.affine_certificate(block);
+            if !contraction {
+                let remaining = policy.max_bytes.saturating_sub(bytes);
+                globally_unique &= self.affine_certificate_checked(
+                    block,
+                    ctx,
+                    policy.max_factor_fill,
+                    remaining,
+                    &mut || budget.tick(),
+                )?;
+            }
             if policy.require_contraction && !contraction {
                 return Err(EquilibriumError::Uncertified { bound });
             }
@@ -909,27 +918,62 @@ impl EquilibriumModel {
         BlockCertificate { row_sum, spectral, spectral_iterations, bound: row_sum.min(spectral) }
     }
 
-    pub(crate) fn affine_certificate(&self, block: &[usize]) -> bool {
+    // Executable paths distinguish an exhausted resource from a mathematical
+    // failure of the certificate; the legacy context-free boolean remains.
+    pub(crate) fn affine_certificate_checked(
+        &self,
+        block: &[usize],
+        ctx: &ExecutionContext,
+        requested_fill: usize,
+        max_bytes: u64,
+        tick: &mut dyn FnMut() -> Result<(), EquilibriumError>,
+    ) -> Result<bool, EquilibriumError> {
         if block.iter().any(|&i| {
             self.equations[i].expression.is_some()
                 || self.equations[i].activation != Activation::Identity
         }) {
-            return false;
+            return Ok(false);
         }
-        let rows: Vec<Vec<(usize, f64)>> = block
-            .iter()
-            .map(|&i| {
+        tick()?;
+        let n = block.len();
+        let square = n
+            .checked_mul(n)
+            .ok_or_else(|| EquilibriumError::Resource("affine certificate size overflow".into()))?;
+        let fill = square
+            .checked_mul(2)
+            .and_then(|v| v.checked_add(n.checked_mul(2)?))
+            .ok_or_else(|| EquilibriumError::Resource("affine certificate fill overflow".into()))?
+            .min(requested_fill);
+        // Dense inverse, interval and numeric rows, CSR, ordering and worst-case
+        // fill, including allocation/header slack. Hold across the full check.
+        let bytes = square
+            .checked_mul(192)
+            .and_then(|v| v.checked_add(fill.checked_mul(48)?))
+            .and_then(|v| v.checked_add(n.checked_mul(1024)?))
+            .and_then(|v| v.checked_add(4096))
+            .and_then(|v| u64::try_from(v).ok())
+            .ok_or_else(|| EquilibriumError::Resource("affine certificate size overflow".into()))?;
+        if bytes > max_bytes {
+            return Err(SolverBudgetCode::Memory.refusal(bytes, max_bytes));
+        }
+        let _lease = ctx
+            .acquire_admission(0, bytes)
+            .map_err(|e| EquilibriumError::Resource(e.to_string()))?;
+        let mut rows = Vec::with_capacity(n);
+        for &i in block {
+            tick()?;
+            rows.push(
                 block
                     .iter()
                     .enumerate()
-                    .filter_map(|(b, &j)| {
-                        let w = self.equations[i].weights[j];
-                        (w != 0.0).then_some((b, w))
+                    .filter_map(|(j, &node)| {
+                        let weight = self.equations[i].weights[node];
+                        (weight != 0.0).then_some((j, weight))
                     })
-                    .collect()
-            })
-            .collect();
-        crate::affine_certificate::certifies_sparse_affine_bijection(&rows, block.len())
+                    .collect(),
+            );
+        }
+        crate::affine_certificate::certifies_sparse_affine_checked(&rows, n, fill, tick)
     }
 
     pub(crate) fn residual(&self, state: &[f64], noise: &[f64], free: &[usize]) -> Vec<f64> {
@@ -1020,7 +1064,15 @@ impl EquilibriumModel {
             let blocks = self.blocks_from_reads(&free, &reads)?;
             for block in &blocks {
                 let bound = self.block_certificate(block, &reads, 200).bound;
-                if bound >= 1.0 && !self.affine_certificate(block) {
+                if bound >= 1.0
+                    && !self.affine_certificate_checked(
+                        block,
+                        ctx,
+                        usize::MAX,
+                        u64::MAX,
+                        &mut || check_cancel(ctx),
+                    )?
+                {
                     return Err(EquilibriumError::Uncertified { bound });
                 }
             }
@@ -1275,6 +1327,30 @@ mod tests {
             noise_covariance: vec![1.0, 0.0, 0.0, 1.0],
         }
     }
+    #[test]
+    fn executable_affine_certificate_surfaces_limits_and_interruptions() {
+        let model = model(2.0, -2.0, Activation::Identity);
+        let ctx = ExecutionContext::for_tests(1);
+        assert!(
+            model.affine_certificate_checked(&[0, 1], &ctx, 100, u64::MAX, &mut || Ok(())).unwrap()
+        );
+        let limited = ExecutionContext::for_tests(1).with_memory_limit(Some(1));
+        assert!(matches!(
+            model.affine_certificate_checked(&[0, 1], &limited, 100, u64::MAX, &mut || Ok(())),
+            Err(EquilibriumError::Resource(_))
+        ));
+        assert!(matches!(
+            model.affine_certificate_checked(&[0, 1], &ctx, 1, u64::MAX, &mut || Ok(())),
+            Err(EquilibriumError::Resource(_))
+        ));
+        let mut ticks = 0;
+        let result = model.affine_certificate_checked(&[0, 1], &ctx, 100, u64::MAX, &mut || {
+            ticks += 1;
+            if ticks >= 5 { Err(EquilibriumError::Resource("cancelled".into())) } else { Ok(()) }
+        });
+        assert!(matches!(result, Err(EquilibriumError::Resource(_))));
+    }
+
     #[test]
     fn nonlinear_equilibrium_linear_truth_clamps_and_shared_noise() {
         let m = model(0.4, 0.5, Activation::Identity);

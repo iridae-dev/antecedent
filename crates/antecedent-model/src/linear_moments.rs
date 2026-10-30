@@ -34,6 +34,24 @@ fn invalid(s: &str) -> EquilibriumError {
     EquilibriumError::Invalid(s.into())
 }
 fn inverse(mut matrix: Vec<f64>, n: usize) -> Result<Vec<f64>, EquilibriumError> {
+    if n.checked_mul(n) != Some(matrix.len()) || matrix.iter().any(|v| !v.is_finite()) {
+        return Err(EquilibriumError::Singular);
+    }
+    let mut scales = Vec::with_capacity(n);
+    for i in 0..n {
+        let diagonal = matrix[i * n + i];
+        if diagonal <= 0.0 {
+            return Err(EquilibriumError::Singular);
+        }
+        scales.push(diagonal.sqrt());
+    }
+    for i in 0..n {
+        for j in 0..n {
+            let large = scales[i].max(scales[j]);
+            let small = scales[i].min(scales[j]);
+            matrix[i * n + j] = if i == j { 1.0 } else { (matrix[i * n + j] / large) / small };
+        }
+    }
     let mut out = vec![0.0; n * n];
     for i in 0..n {
         out[i * n + i] = 1.0;
@@ -41,7 +59,19 @@ fn inverse(mut matrix: Vec<f64>, n: usize) -> Result<Vec<f64>, EquilibriumError>
     if !gauss_jordan_solve(&mut matrix, &mut out, n, n) {
         return Err(EquilibriumError::Singular);
     }
-    Ok((0..n).flat_map(|i| (0..n).map(move |j| (i, j))).map(|(i, j)| out[j * n + i]).collect())
+    let mut precision = vec![0.0; n * n];
+    for i in 0..n {
+        for j in 0..n {
+            let large = scales[i].max(scales[j]);
+            let small = scales[i].min(scales[j]);
+            let value = (out[j * n + i] / large) / small;
+            if !value.is_finite() {
+                return Err(EquilibriumError::Singular);
+            }
+            precision[i * n + j] = value;
+        }
+    }
+    Ok(precision)
 }
 impl LinearRegimeMoments {
     /// Aggregate the actual observations by joint clamp target set. Actual assigned values retain their joint cross moments.
@@ -164,7 +194,13 @@ impl LinearRegimeMoments {
                 continue;
             }
             for block in model.blocks(&group.clamps)? {
-                if !model.affine_certificate(&block) {
+                if !model.affine_certificate_checked(
+                    &block,
+                    ctx,
+                    usize::MAX,
+                    u64::MAX,
+                    &mut || crate::nonlinear_equilibrium::check_cancel(ctx),
+                )? {
                     return Err(EquilibriumError::Uncertified { bound: f64::INFINITY });
                 }
             }
@@ -255,6 +291,41 @@ impl LinearRegimeMoments {
 mod tests {
     use super::*;
     use crate::nonlinear_equilibrium::Equation;
+    #[test]
+    fn covariance_precision_and_affine_scores_are_unit_equilibrated() {
+        let diagonal = inverse(vec![1e12, 0.0, 0.0, 1.0], 2).unwrap();
+        assert!((diagonal[0] / 1e-12 - 1.0).abs() < 1e-14);
+        assert_eq!(diagonal[3], 1.0);
+        let correlated = inverse(vec![1e12, 5e5, 5e5, 1.0], 2).unwrap();
+        let expected = [4e-12 / 3.0, -2e-6 / 3.0, -2e-6 / 3.0, 4.0 / 3.0];
+        for (actual, reference) in correlated.iter().zip(expected) {
+            assert!((actual / reference - 1.0).abs() < 1e-13);
+        }
+        assert!(inverse(vec![1.0, 1.0, 1.0, 1.0], 2).is_err());
+        let model = EquilibriumModel {
+            equations: (0..2)
+                .map(|i| Equation {
+                    id: format!("x{i}"),
+                    intercept: 0.0,
+                    weights: vec![0.0; 2],
+                    activation: Activation::Identity,
+                    expression: None,
+                    parameters: vec![],
+                })
+                .collect(),
+            noise_covariance: vec![1e12, 0.0, 0.0, 1.0],
+        };
+        let rows = vec![
+            RegimeRow { values: vec![1e6, 1.0], clamps: vec![] },
+            RegimeRow { values: vec![-1e6, -1.0], clamps: vec![] },
+        ];
+        let ctx = ExecutionContext::for_tests(1);
+        let moments = LinearRegimeMoments::from_rows(&rows, 2, &ctx).unwrap();
+        let (raw, _) = model.likelihood_score(&rows, &ctx).unwrap();
+        let (aggregated, _) = moments.likelihood_score(&model, &ctx).unwrap();
+        assert!((raw - aggregated).abs() < 1e-10);
+    }
+
     #[test]
     fn joint_moments_match_row_likelihood_and_jacobian_scores_across_joint_interventions() {
         let ctx = ExecutionContext::for_tests(1);
