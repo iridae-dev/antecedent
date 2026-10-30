@@ -430,6 +430,47 @@ fn em_moments(dt: f64, steps: usize, every: usize) -> (Vec<f64>, Vec<f64>) {
 }
 
 #[test]
+fn action_cells_are_stable_at_large_time_origins() {
+    let compiled = cir_system().compile().unwrap();
+    let action = SdeWorld {
+        id: "hold".into(),
+        inputs: vec![],
+        actions: vec![SdeAction { variable: 0, times: vec![1_000_005.3], values: vec![20.0] }],
+    };
+    let policy = SdeSimulationPolicy {
+        start: 1_000_000.0,
+        step: 0.1,
+        steps: 60,
+        output_every: 1,
+        scheme: SdeScheme::EulerMaruyama,
+        paths: 2,
+        seed: 7,
+        weak_tolerance: 0.05,
+        check_step: true,
+        retain_final_samples: false,
+    };
+    let report = simulate_sde(&compiled, None, &[10.0], &policy, &[action], &[], &ctx()).unwrap();
+    let held = &report.worlds[1].mean;
+    assert_ne!(held[52][0], 20.0);
+    assert_eq!(held[53][0], 20.0);
+    assert_eq!(held[54][0], 20.0);
+    let prestart = SdeWorld {
+        id: "prior".into(),
+        inputs: vec![],
+        actions: vec![SdeAction {
+            variable: 0,
+            times: vec![999_999.0, 999_999.5],
+            values: vec![15.0, 17.0],
+        }],
+    };
+    let report = simulate_sde(&compiled, None, &[10.0], &policy, &[prestart], &[], &ctx()).unwrap();
+    assert_eq!(report.worlds[1].mean[0][0], 17.0);
+    let mut invalid = policy;
+    invalid.start = 1e20;
+    assert!(invalid.validate().is_err());
+}
+
+#[test]
 fn square_root_diffusion_matches_the_exact_moment_odes_with_monte_carlo_tolerance() {
     let document = reference();
     let exact_mean = numbers(&document["cir"]["exact_mean"]);

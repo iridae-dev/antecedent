@@ -757,6 +757,31 @@ pub struct WorldPlan {
     pub inputs: Vec<SdeInput>,
 }
 
+// Map a scheduled action to a declared grid cell without comparing absolute
+// times in the path loop. Tolerance is capped below half a cell, so it cannot
+// silently select a neighboring action step.
+fn action_cell(time: f64, start: f64, step: f64) -> Result<f64, SdeError> {
+    if time <= start {
+        return Ok(0.0);
+    }
+    let cells = (time - start) / step;
+    let rounded = cells.round();
+    let tolerance =
+        1e-9 * step + 8.0 * f64::EPSILON * (time.abs() + start.abs() + (rounded * step).abs());
+    if !cells.is_finite()
+        || rounded > (1_u64 << 53) as f64
+        || !tolerance.is_finite()
+        || tolerance >= 0.5 * step
+        || (time - (start + rounded * step)).abs() > tolerance
+    {
+        return Err(unsupported(
+            "sde.action_time_off_grid",
+            format!("action time {time} is not representable on the declared grid"),
+        ));
+    }
+    Ok(rounded)
+}
+
 impl SdeSystem {
     /// Resolve a world against this system and a simulation grid.
     ///
@@ -770,6 +795,9 @@ impl SdeSystem {
         step: f64,
     ) -> Result<WorldPlan, SdeError> {
         let d = self.variables.len();
+        if !start.is_finite() || !step.is_finite() || step <= 0.0 || start + step == start {
+            return Err(bad("SDE action grid is not representable"));
+        }
         if world.id.trim().is_empty() {
             return Err(bad("SDE world identity"));
         }
@@ -790,18 +818,7 @@ impl SdeSystem {
                 return Err(bad("SDE action value outside the declared state interval"));
             }
             for &time in &action.times {
-                if time > start {
-                    let cells = (time - start) / step;
-                    if (cells - cells.round()).abs() > 1e-9 {
-                        return Err(unsupported(
-                            "sde.action_time_off_grid",
-                            format!(
-                                "action time {time} is not a multiple of the declared step {step} \
-                                 from the start {start}; an off-grid action would silently shift"
-                            ),
-                        ));
-                    }
-                }
+                action_cell(time, start, step)?;
             }
         }
         let mut inputs = self.inputs.clone();
@@ -958,6 +975,11 @@ impl SdeSimulationPolicy {
                 "SDE simulation policy (step > 0, steps divisible by output_every, 2..=2^20 paths)",
             ));
         }
+        let dt = if self.check_step { self.step / 2.0 } else { self.step };
+        let end = self.start + self.steps as f64 * self.step;
+        if !end.is_finite() || self.start + dt == self.start || end - dt == end {
+            return Err(bad("SDE simulation grid is not representable"));
+        }
         Ok(())
     }
     /// Recorded times, including the initial time.
@@ -1087,20 +1109,27 @@ fn run_path(
     let k = world.inputs.len();
     let m = if fine { 2usize } else { 1usize };
     let dt = policy.step / m as f64;
-    let tol = 1e-9 * policy.step;
+    let cells: Vec<Vec<f64>> = world
+        .actions
+        .iter()
+        .map(|action| {
+            action.times.iter().map(|&time| action_cell(time, policy.start, policy.step)).collect()
+        })
+        .collect::<Result<_, _>>()?;
     let record_every = policy.output_every * m;
     let total = policy.steps * m;
     let mut x = initial.to_vec();
     let mut vars = vec![0.0; d + k];
     let mut next = vec![0.0; d];
-    let apply_actions = |x: &mut [f64], t: f64| {
-        for action in &world.actions {
-            if let Some(value) = action.value_at(t, tol) {
-                x[action.variable] = value;
+    let apply_actions = |x: &mut [f64], step_index: usize| {
+        for (action, cells) in world.actions.iter().zip(&cells) {
+            let count = cells.partition_point(|&cell| cell * m as f64 <= step_index as f64);
+            if count > 0 {
+                x[action.variable] = action.values[count - 1];
             }
         }
     };
-    apply_actions(&mut x, policy.start);
+    apply_actions(&mut x, 0);
     out[..d].copy_from_slice(&x);
     let mut slot = 1usize;
     let sqrt_half = (policy.step / 2.0).sqrt();
@@ -1111,8 +1140,11 @@ fn run_path(
             vars[d + j] = input.value_at(t);
         }
         for i in 0..d {
-            let held =
-                world.actions.iter().any(|a| a.variable == i && a.value_at(t, tol).is_some());
+            let held = world
+                .actions
+                .iter()
+                .zip(&cells)
+                .any(|(action, cells)| action.variable == i && cells[0] * m as f64 <= n as f64);
             if held {
                 next[i] = x[i];
                 continue;
@@ -1146,7 +1178,7 @@ fn run_path(
                 "state became non-finite at step {n} of path {path}"
             )));
         }
-        apply_actions(&mut x, t + dt);
+        apply_actions(&mut x, n + 1);
         if (n + 1) % record_every == 0 {
             out[slot * d..(slot + 1) * d].copy_from_slice(&x);
             slot += 1;
