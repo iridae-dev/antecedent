@@ -927,6 +927,22 @@ impl CyclicFamilyReport {
         self
     }
 }
+// Versions 1 and 2 predate compiled block diagnostics. Keep their wire
+// representation stable; consumption recomputes diagnostics from the request.
+fn legacy_family_report(report: &CyclicFamilyReport) -> CyclicFamilyReport {
+    let mut legacy = report.clone();
+    if let CyclicFamilyAnswer::Worlds(worlds) = &mut legacy.answer {
+        for world in worlds {
+            if let worlds::CyclicWorldOutcomeAnswer::GaussianLaw { block_diagnostics, .. } =
+                &mut world.outcome
+            {
+                *block_diagnostics = None;
+            }
+        }
+    }
+    legacy
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Record {
@@ -1832,8 +1848,13 @@ impl CyclicFamilyRequest {
             request: &'a CyclicFamilyRequest,
             report: &'a CyclicFamilyReport,
         }
+        let projected_bytes =
+            crate::retained_allocation::allocation_bytes(report).map_err(invalid)?;
+        let _projection =
+            ctx.acquire_admission(0, projected_bytes).map_err(CyclicArtifactError::Admission)?;
+        let legacy = legacy_family_report(report);
         let (bytes, _record_retention) =
-            bounded_json(&View { version, request: self, report }, ctx)?;
+            bounded_json(&View { version, request: self, report: &legacy }, ctx)?;
         Ok(bytes)
     }
 
@@ -2031,7 +2052,12 @@ fn consume_decoded(
         verify_contract(&decoded.record.request, &decoded.request_bytes, contract, ctx)?;
     }
     let report = decoded.record.request.execute(ctx)?;
-    if report.identity != expected_identity || report != decoded.record.report {
+    let projected_bytes = crate::retained_allocation::allocation_bytes(&report).map_err(invalid)?;
+    let _projection =
+        ctx.acquire_admission(0, projected_bytes).map_err(CyclicArtifactError::Admission)?;
+    if report.identity != expected_identity
+        || legacy_family_report(&report) != decoded.record.report
+    {
         return Err(CyclicArtifactError::Mismatch);
     }
     Ok((decoded, report))
@@ -2222,6 +2248,29 @@ mod previous_version {
         let dir = fixture_dir();
         std::fs::create_dir_all(&dir).expect("create the fixture directory");
         std::fs::write(dir.join(GOLDEN), bytes).expect("write the golden");
+    }
+
+    #[test]
+    fn legacy_wire_omits_diagnostics_but_replay_recovers_them() {
+        let program = CompiledCyclicFamilyProgram::compile(&request(), &ctx()).unwrap();
+        let (report, bytes) = program.export(&ctx()).unwrap();
+        let stored = decode_record(&bytes).unwrap();
+        let CyclicFamilyAnswer::Worlds(stored_worlds) = &stored.record.report.answer else {
+            panic!("worlds")
+        };
+        assert!(matches!(
+            &stored_worlds[0].outcome,
+            CyclicWorldOutcomeAnswer::GaussianLaw { block_diagnostics: None, .. }
+        ));
+        assert!(
+            !serde_json::to_string(&stored.record.report).unwrap().contains("block_diagnostics")
+        );
+        let replay = consume_cyclic_family(&bytes, program.identity(), &ctx()).unwrap();
+        assert_eq!(replay, report);
+        let CyclicFamilyAnswer::Worlds(worlds) = &replay.answer else { panic!("worlds") };
+        assert!(
+            matches!(&worlds[0].outcome, CyclicWorldOutcomeAnswer::GaussianLaw { block_diagnostics: Some(blocks), .. } if !blocks.is_empty())
+        );
     }
 
     #[test]

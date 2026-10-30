@@ -770,8 +770,8 @@ fn fit_mean(
             lambda = (lambda * 10.0).max(1e-6);
         }
         if !accepted {
-            // No ascent step exists: the objective is at its maximum to working precision.
-            converged = true;
+            // Exhausted damping attempts do not establish stationarity or convergence.
+            break;
         }
         if converged {
             break;
@@ -2315,5 +2315,33 @@ impl TransportedTypedModel {
             f64::NAN
         };
         Ok(ContrastRun { value, monte_carlo_se, gradient, involved })
+    }
+}
+
+#[cfg(test)]
+mod convergence_regressions {
+    use super::*;
+
+    #[test]
+    fn exhausted_damping_with_nonfinite_objective_is_not_convergence() {
+        let spec = MechanismSpec {
+            variable: "y".into(),
+            parents: vec![],
+            mean: MeanSpec::Polynomial { degree: 1, interactions: false },
+            family: ResponseFamily::Gaussian,
+        };
+        let columns = BTreeMap::from([("y".into(), vec![1e200, -1e200, 1e200, -1e200])]);
+        let result = fit_mechanism(
+            &spec,
+            &columns,
+            MechanismContext { population: "p".into(), regime: "observational".into() },
+            MechanismProvenance {
+                origin: MechanismOrigin::Fitted,
+                artifact_id: "a".into(),
+                evidence_id: "e".into(),
+            },
+            None,
+        );
+        assert!(matches!(result, Err(TypedFitError::NotConverged(_))));
     }
 }

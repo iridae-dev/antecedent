@@ -708,11 +708,11 @@ pub struct SdeAction {
 }
 
 impl SdeAction {
-    fn value_at(&self, t: f64, tol: f64) -> Option<f64> {
-        if t + tol < self.times[0] {
+    fn value_at(&self, t: f64) -> Option<f64> {
+        if !t.is_finite() || t < self.times[0] {
             return None;
         }
-        let index = self.times.partition_point(|&x| x <= t + tol) - 1;
+        let index = self.times.partition_point(|&x| x <= t) - 1;
         Some(self.values[index])
     }
 }
@@ -876,11 +876,12 @@ impl SdeSystem {
 
 impl WorldPlan {
     /// The value coordinate `variable` is held at under this world's actions at time `t`,
-    /// if an action is in force (relative time tolerance `1e-9`).
+    /// if an action is in force. Actions take effect at their declared time, inclusive;
+    /// the preceding value is held strictly before the next action time. Non-finite
+    /// query times return `None`.
     #[must_use]
     pub fn held_value(&self, variable: usize, t: f64) -> Option<f64> {
-        let tol = 1e-9 * (1.0 + t.abs());
-        self.actions.iter().find(|a| a.variable == variable).and_then(|a| a.value_at(t, tol))
+        self.actions.iter().find(|a| a.variable == variable).and_then(|a| a.value_at(t))
     }
 }
 

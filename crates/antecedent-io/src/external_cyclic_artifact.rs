@@ -13,7 +13,7 @@
 
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_estimate::external_cyclic_fit::{
-    fit_external_feedback, ExternalFeedbackFit, ExternalFitPolicy,
+    ExternalFeedbackFit, ExternalFitPolicy, fit_external_feedback,
 };
 use antecedent_model::external_mechanism::{
     ExternalFeedbackSystem, ExternalFitParameter, ExternalMechanismEvidence,
@@ -141,6 +141,18 @@ fn refusal_from_code(code: &str, detail: &str) -> Option<ExternalMechanismRefusa
 
 fn invalid(e: impl std::fmt::Display) -> ExternalCyclicArtifactError {
     ExternalCyclicArtifactError::Invalid(e.to_string())
+}
+
+// Version 1 predates result-level contraction provenance. Replay reconstructs it;
+// its original bytes and the strict version-1 schema remain unchanged.
+fn legacy_external_report(report: &ExternalCyclicReport) -> ExternalCyclicReport {
+    let mut legacy = report.clone();
+    for result in
+        legacy.worlds.iter_mut().flatten().chain(legacy.counterfactuals.iter_mut().flatten())
+    {
+        result.evidence.contraction_bound_provenance = None;
+    }
+    legacy
 }
 
 #[derive(Serialize, Deserialize)]
@@ -274,7 +286,11 @@ impl ExternalCyclicRequest {
             return Err(invalid("artifact id"));
         }
         let report = self.execute(resolver, ctx)?;
-        let record = Record { version: 1, request: self.clone(), report: report.clone() };
+        let projected_bytes =
+            crate::retained_allocation::allocation_bytes(&report).map_err(invalid)?;
+        let _projection = ctx.acquire_admission(0, projected_bytes)?;
+        let record =
+            Record { version: 1, request: self.clone(), report: legacy_external_report(&report) };
         let bytes = serde_json::to_vec(&record).map_err(invalid)?;
         if bytes.len() > MAX_EXTERNAL_CYCLIC_ARTIFACT_BYTES {
             return Err(invalid("logical section byte limit"));
@@ -379,7 +395,9 @@ pub fn consume_external_cyclic_artifact(
         return Err(ExternalCyclicArtifactError::Mismatch);
     }
     let report = record.request.execute(resolver, ctx)?;
-    if report != record.report {
+    let projected_bytes = crate::retained_allocation::allocation_bytes(&report).map_err(invalid)?;
+    let _projection = ctx.acquire_admission(0, projected_bytes)?;
+    if legacy_external_report(&report) != record.report {
         return Err(ExternalCyclicArtifactError::Mismatch);
     }
     Ok(report)
@@ -499,6 +517,18 @@ mod tests {
         let (report, bytes) =
             request.export("external_fit", Some(&registry(SOURCE)), &ctx).unwrap();
         assert_eq!(report.trust, MechanismTrust::VerifiedExternal);
+        assert_eq!(
+            report.worlds[0][0].evidence.contraction_bound_provenance.as_deref(),
+            Some("declared_external_lipschitz")
+        );
+        let stored = decode_record(&bytes).unwrap();
+        assert_eq!(stored.version, 1);
+        assert_eq!(stored.report.worlds[0][0].evidence.contraction_bound_provenance, None);
+        assert!(
+            !serde_json::to_string(&stored.report)
+                .unwrap()
+                .contains("contraction_bound_provenance")
+        );
         assert_ne!(report.trust, MechanismTrust::Native);
         let SystemEquation::External { parameters, .. } = &report.system.equations[0] else {
             panic!("external equation");

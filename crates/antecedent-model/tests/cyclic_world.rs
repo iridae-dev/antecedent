@@ -127,6 +127,27 @@ fn close(left: f64, right: f64, tolerance: f64) -> bool {
 }
 
 #[test]
+fn certified_world_retains_ill_conditioned_block_diagnostic() {
+    let a = 1.0 - 1e-10;
+    let spec =
+        linear_spec(vec![0.0, a, a, 0.0], vec![0.0; 2], vec![0.0; 2], vec![1.0, 0.0, 0.0, 1.0]);
+    let result = evaluate_linear_world(
+        &spec,
+        &CyclicWorldRequest::observational(world(0)),
+        CertificateDemand::Required,
+        CompileBudget::unlimited(),
+    )
+    .unwrap();
+    assert!(result.certificate().is_certified());
+    let CyclicWorldOutcome::GaussianLaw { block_diagnostics: Some(blocks), .. } = result.outcome()
+    else {
+        panic!("missing conditioning");
+    };
+    assert_eq!(blocks.len(), 1);
+    assert!(blocks[0].exact && blocks[0].kappa_inf > 1e9);
+}
+
+#[test]
 fn linear_world_refuses_indefinite_disturbances_in_both_routes() {
     let request = CyclicWorldRequest::observational(world(0));
     for edge in [0.4, 1.2] {

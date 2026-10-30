@@ -123,3 +123,24 @@ discovery links carry a `tested` flag. Observation reports expose numeric status
 when a required Bayes factor is outside float range, `required_factor` raises
 `CausalValueError` and `required_log_factor` retains the finite logarithm. These
 reporting changes do not license parameter intervals.
+
+## Cyclic solver diagnostics and numerical boundaries
+
+The Rust `CyclicWorldOutcome::GaussianLaw` and
+`CyclicWorldOutcomeAnswer::GaussianLaw` variants add optional `block_diagnostics`;
+field patterns and constructors must account for it. `SolveEvidence` adds optional
+`contraction_bound_provenance`. Python world answers expose block members, residuals,
+infinity-norm condition numbers and whether those numbers are exact or estimated.
+A uniqueness certificate does not assert good numerical conditioning. External
+contraction evidence records when its proof relies on declared Lipschitz bounds.
+
+Existing cyclic v1/v2 and external v1 artifact payloads retain their earlier schema.
+Export omits these added diagnostics; a current consumer recomputes and returns them.
+Request identities remain unchanged. Persisting diagnostics in the artifact requires
+a future explicit format version.
+
+Direct held-value queries now activate actions at the exact declared time, inclusive,
+and return no value for nonfinite times. Mixed-scale Krawczyk and OU solves apply the
+existing pivot criterion to an equilibrated dimensionless matrix, refusing scaling
+that overflows or erases nonzero entries. Exhausted fitting steps no longer establish
+convergence. Confounded IPW results disclose how many raw weights hit the existing cap.

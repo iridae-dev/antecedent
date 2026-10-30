@@ -261,6 +261,20 @@ pub struct CyclicActionAnswer {
     pub node: usize,
 }
 
+/// Conditioning diagnostic for one compiled equilibrium block.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CyclicBlockDiagnosticAnswer {
+    /// Model positions in the block.
+    pub members: Vec<usize>,
+    /// Structural residual infinity norm.
+    pub residual_inf: f64,
+    /// Infinity-norm condition number or numerical estimate.
+    pub kappa_inf: f64,
+    /// Whether the condition number is the closed form.
+    pub exact: bool,
+}
+
 /// What the world evaluated to.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "status", rename_all = "snake_case", deny_unknown_fields)]
@@ -273,6 +287,9 @@ pub enum CyclicWorldOutcomeAnswer {
         covariance: Vec<f64>,
         /// Finite structural residual of the compile, when one was reported.
         residual_inf: Option<f64>,
+        /// Compiled block diagnostics; absent for direct numerical routes and older artifacts.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        block_diagnostics: Option<Vec<CyclicBlockDiagnosticAnswer>>,
     },
     /// One outcome per disturbance draw; failed draws stay in place.
     EquilibriumDraws {
@@ -451,13 +468,31 @@ fn solved_by_answer(solved_by: &WorldSolvedBy) -> WorldSolvedByAnswer {
     answer
 }
 
+fn block_diagnostic_answer(
+    block: &antecedent_model::scc_compile::BlockDiagnostic,
+) -> Result<CyclicBlockDiagnosticAnswer, CyclicArtifactError> {
+    if !block.residual_inf.is_finite() || !block.kappa_inf.is_finite() {
+        return Err(invalid("non-finite cyclic block diagnostic"));
+    }
+    Ok(CyclicBlockDiagnosticAnswer {
+        members: block.members.clone(),
+        residual_inf: block.residual_inf,
+        kappa_inf: block.kappa_inf,
+        exact: block.exact,
+    })
+}
+
 fn world_answer(result: &CyclicWorldResult) -> Result<CyclicWorldAnswer, CyclicArtifactError> {
     let outcome = match result.outcome() {
-        CyclicWorldOutcome::GaussianLaw { mean, covariance, residual_inf } => {
+        CyclicWorldOutcome::GaussianLaw { mean, covariance, residual_inf, block_diagnostics } => {
             CyclicWorldOutcomeAnswer::GaussianLaw {
                 mean: mean.clone(),
                 covariance: covariance.clone(),
                 residual_inf: residual_inf.filter(|value| value.is_finite()),
+                block_diagnostics: block_diagnostics
+                    .as_ref()
+                    .map(|blocks| blocks.iter().map(block_diagnostic_answer).collect())
+                    .transpose()?,
             }
         }
         CyclicWorldOutcome::EquilibriumDraws { outcomes } => {
@@ -2066,5 +2101,28 @@ mod preparation_status_tests {
             })
         ));
         assert_eq!(recovery_fit_count(), fits);
+    }
+}
+
+#[cfg(test)]
+mod block_diagnostic_wire_tests {
+    use super::*;
+
+    #[test]
+    fn nonfinite_diagnostics_are_refused_before_json_serialization() {
+        let mut block = antecedent_model::scc_compile::BlockDiagnostic {
+            members: vec![0],
+            residual_inf: 0.0,
+            kappa_inf: f64::MAX,
+            exact: false,
+        };
+        let valid = block_diagnostic_answer(&block).unwrap();
+        let json = serde_json::to_value(valid).unwrap();
+        assert!(json["kappa_inf"].is_number());
+        block.kappa_inf = f64::INFINITY;
+        assert!(block_diagnostic_answer(&block).is_err());
+        block.kappa_inf = 1.0;
+        block.residual_inf = f64::NAN;
+        assert!(block_diagnostic_answer(&block).is_err());
     }
 }

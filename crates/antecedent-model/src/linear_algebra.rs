@@ -5,6 +5,106 @@
 //! Every product checks that its entries stay finite, so a caller gets a typed
 //! failure rather than a silent `inf` or `NaN` in a covariance.
 
+/// Solve a general dense system after row and column equilibration.
+/// The kernel's relative pivot floor then applies to dimensionless entries.
+/// `rhs` holds column-major right-hand sides and is overwritten with solutions.
+pub(crate) fn equilibrated_general_solve(
+    matrix: &mut [f64],
+    rhs: &mut [f64],
+    n: usize,
+    nrhs: usize,
+) -> bool {
+    if n == 0 || matrix.len() < n.saturating_mul(n) || rhs.len() < n.saturating_mul(nrhs) {
+        return false;
+    }
+    for i in 0..n {
+        let row = &matrix[i * n..(i + 1) * n];
+        if row.iter().any(|v| !v.is_finite()) {
+            return false;
+        }
+        let scale = row.iter().map(|v| v.abs()).fold(0.0_f64, f64::max);
+        if scale == 0.0 {
+            return false;
+        }
+        for j in 0..n {
+            let value = matrix[i * n + j];
+            matrix[i * n + j] = value / scale;
+            if value != 0.0 && matrix[i * n + j] == 0.0 {
+                return false;
+            }
+        }
+        for col in 0..nrhs {
+            let value = rhs[col * n + i];
+            rhs[col * n + i] = value / scale;
+            if !rhs[col * n + i].is_finite() || (value != 0.0 && rhs[col * n + i] == 0.0) {
+                return false;
+            }
+        }
+    }
+    let mut scales = vec![0.0_f64; n];
+    for j in 0..n {
+        scales[j] = (0..n).map(|i| matrix[i * n + j].abs()).fold(0.0_f64, f64::max);
+        if scales[j] == 0.0 {
+            return false;
+        }
+        for i in 0..n {
+            matrix[i * n + j] /= scales[j];
+        }
+    }
+    if !antecedent_kernels::gauss_jordan_solve(matrix, rhs, n, nrhs) {
+        return false;
+    }
+    for col in 0..nrhs {
+        for j in 0..n {
+            let value = rhs[col * n + j];
+            rhs[col * n + j] = value / scales[j];
+            if !rhs[col * n + j].is_finite() || (value != 0.0 && rhs[col * n + j] == 0.0) {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+#[cfg(test)]
+mod general_solve_tests {
+    use super::equilibrated_general_solve;
+    #[test]
+    fn mixed_scales_and_pivot_policy() {
+        let mut a = [1e-100, 0.0, 0.0, 1e100];
+        let mut rhs = [1e-100, 2e100];
+        assert!(equilibrated_general_solve(&mut a, &mut rhs, 2, 1));
+        assert!((rhs[0] - 1.0).abs() < 1e-12 && (rhs[1] - 2.0).abs() < 1e-12);
+        // Two right-hand sides use column-major storage, including permutation pivots.
+        let mut off_diagonal = [0.0, 1e100, 1e-100, 0.0];
+        let mut inverse = [1.0, 0.0, 0.0, 1.0];
+        assert!(equilibrated_general_solve(&mut off_diagonal, &mut inverse, 2, 2));
+        assert_eq!(inverse[0], 0.0);
+        assert!((inverse[1] / 1e-100 - 1.0).abs() < 1e-12);
+        assert!((inverse[2] / 1e100 - 1.0).abs() < 1e-12);
+        assert_eq!(inverse[3], 0.0);
+        // Finite extremes are admissible when all scaled quantities remain representable.
+        let tiny = f64::from_bits(1);
+        let mut extreme = [tiny, 0.0, 0.0, f64::MAX];
+        let mut extreme_rhs = [tiny, f64::MAX];
+        assert!(equilibrated_general_solve(&mut extreme, &mut extreme_rhs, 2, 1));
+        assert_eq!(extreme_rhs, [1.0, 1.0]);
+        // Refuse overflow or underflow introduced while scaling instead of dropping signal.
+        let mut inverse_overflow = [tiny];
+        assert!(!equilibrated_general_solve(&mut inverse_overflow, &mut [1.0], 1, 1));
+        let mut erased_matrix_entry = [f64::MAX, tiny, 0.0, 1.0];
+        assert!(!equilibrated_general_solve(&mut erased_matrix_entry, &mut [1.0, 1.0], 2, 1));
+        let mut erased_rhs = [f64::MAX];
+        assert!(!equilibrated_general_solve(&mut erased_rhs, &mut [tiny], 1, 1));
+        let mut singular = [1.0, 1.0, 1.0, 1.0];
+        assert!(!equilibrated_general_solve(&mut singular, &mut [1.0, 1.0], 2, 1));
+        let mut below_floor = [1.0, 1.0, 1.0, 1.0 + 1e-13];
+        assert!(!equilibrated_general_solve(&mut below_floor, &mut [1.0, 1.0], 2, 1));
+        let mut above_floor = [1.0, 1.0, 1.0, 1.0 + 1e-9];
+        assert!(equilibrated_general_solve(&mut above_floor, &mut [1.0, 1.0], 2, 1));
+    }
+}
+
 /// Why a dense workspace or product could not be formed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum MatrixError {

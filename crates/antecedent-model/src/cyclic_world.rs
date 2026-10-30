@@ -79,7 +79,7 @@ use crate::nonlinear_equilibrium::{
     SolvePolicy,
 };
 use crate::scc_compile::{
-    CompileBudget, GaussianDisturbance, LinearSupportRoute, SccCompileError,
+    BlockDiagnostic, CompileBudget, GaussianDisturbance, LinearSupportRoute, SccCompileError,
     compile_routed_gaussian_equilibrium, require_psd,
 };
 
@@ -1055,6 +1055,9 @@ pub enum CyclicWorldOutcome {
         covariance: Vec<f64>,
         /// Structural residual of the compile, when the compile reported one.
         residual_inf: Option<f64>,
+        /// Conditioning and residual diagnostics for compiled free blocks, when available.
+        /// A family contraction certificate proves uniqueness, not numerical conditioning.
+        block_diagnostics: Option<Vec<BlockDiagnostic>>,
     },
     /// One outcome per disturbance draw, in draw order. Failed draws stay in place.
     EquilibriumDraws {
@@ -1816,6 +1819,7 @@ fn certified_linear_parts(
             mean: equilibrium.mean().to_vec(),
             covariance: equilibrium.covariance().to_vec(),
             residual_inf: Some(equilibrium.residual_inf()),
+            block_diagnostics: Some(equilibrium.blocks().to_vec()),
         },
         WorldCertificate::Certified {
             basis: CertificateBasis::LinearFamilyContraction {
@@ -1849,7 +1853,12 @@ fn uncertified_linear_parts(
     }
     match direct_free_block_moments(&system.model, clamp_nodes, values, &system.disturbance) {
         Ok((mean, covariance, free)) => (
-            CyclicWorldOutcome::GaussianLaw { mean, covariance, residual_inf: None },
+            CyclicWorldOutcome::GaussianLaw {
+                mean,
+                covariance,
+                residual_inf: None,
+                block_diagnostics: None,
+            },
             certificate,
             WorldSolvedBy::DirectFreeBlockSolve { free },
             WorldMass::SOLVED,

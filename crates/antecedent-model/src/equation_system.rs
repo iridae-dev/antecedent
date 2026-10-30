@@ -5,9 +5,9 @@
 //! the box and its interval derivative is a contraction. Unprocessed or small
 //! undecided boxes remain explicit; no solver seed supplies a selection law.
 
+use crate::linear_algebra::equilibrated_general_solve;
 use crate::nonlinear_equilibrium::{EquilibriumError, check_cancel};
 use antecedent_core::ExecutionContext;
-use antecedent_kernels::gauss_jordan_solve;
 use serde::{Deserialize, Serialize};
 
 /// Closed finite interval, validated at the public boundary.
@@ -388,7 +388,7 @@ impl PolynomialSystem {
         for i in 0..n {
             inverse[i * n + i] = 1.0;
         }
-        if !gauss_jordan_solve(&mut matrix, &mut inverse, n, n) {
+        if !equilibrated_general_solve(&mut matrix, &mut inverse, n, n) {
             return (false, false, Vec::new());
         }
         if inverse.iter().any(|v| !v.is_finite()) {
@@ -463,6 +463,28 @@ mod tests {
             domain: vec![Interval { lower: -2.0, upper: 2.0 }],
         }
     }
+    #[test]
+    fn krawczyk_accepts_mixed_scale_nonsingular_jacobian() {
+        let region = vec![Interval { lower: -1.0, upper: 1.0 }; 2];
+        let system = PolynomialSystem {
+            variables: vec!["x".into(), "y".into()],
+            equations: vec![
+                PolynomialEquation {
+                    id: "x".into(),
+                    terms: vec![Monomial { coefficient: 1e-100, powers: vec![1, 0] }],
+                },
+                PolynomialEquation {
+                    id: "y".into(),
+                    terms: vec![Monomial { coefficient: 1e100, powers: vec![0, 1] }],
+                },
+            ],
+            domain: region.clone(),
+        };
+        let (excluded, certified, enclosure) = system.krawczyk(&region);
+        assert!(!excluded && certified, "{enclosure:?}");
+        assert!(enclosure.iter().all(|x| x.lower <= 0.0 && x.upper >= 0.0));
+    }
+
     #[test]
     fn cubic_roots_are_isolated_and_selection_is_explicit() {
         let ctx = ExecutionContext::for_tests(0);

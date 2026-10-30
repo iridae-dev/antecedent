@@ -15,14 +15,14 @@
 use crate::continuous_cyclic::{OdePolicy, OdeTrajectory, TimedClamp};
 use crate::local_cyclic::{LocalCyclicMechanism, LocalCyclicModel};
 use crate::nonlinear_equilibrium::{
-    check_cancel, cholesky, local_positions, Clamp, Equation, EquilibriumError, EquilibriumResult,
-    RegimeRow, SolvePolicy, MAX_ORDER,
+    Clamp, Equation, EquilibriumError, EquilibriumResult, MAX_ORDER, RegimeRow, SolvePolicy,
+    check_cancel, cholesky, local_positions,
 };
 use crate::sparse_equilibrium::{
-    infinity_condition_estimate, nonnegative_spectral_upper_bound, CsrMatrix, FactorError,
-    SolveEvidence, SolverBudgetCode, SparseLu,
+    CsrMatrix, FactorError, SolveEvidence, SolverBudgetCode, SparseLu, infinity_condition_estimate,
+    nonnegative_spectral_upper_bound,
 };
-use antecedent_core::{blake3_hex, CanonicalWriter, ExecutionContext};
+use antecedent_core::{CanonicalWriter, ExecutionContext, blake3_hex};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -1422,6 +1422,18 @@ impl ResolvedFeedbackSystem {
             "factorization".into()
         };
         evidence.unique_root_basis = if all_contractive { "contraction" } else { "none" }.into();
+        if all_contractive
+            && blocks.iter().any(|block| {
+                block.iter().any(|&i| {
+            matches!(
+                &self.system.equations[i],
+                SystemEquation::External { mechanism, .. } if mechanism.input_lipschitz.is_some()
+            ) && reads[i].iter().any(|j| block.contains(j))
+        })
+            })
+        {
+            evidence.contraction_bound_provenance = Some("declared_external_lipschitz".into());
+        }
         evidence.ill_conditioned =
             jacobian_condition_estimate.is_some_and(|k| k > policy.condition_warning);
         evidence.budget_checks = checks;
@@ -1920,6 +1932,16 @@ mod tests {
         let x0 = (u0 + 0.6 * u1) / (1.0 - 0.3);
         assert!((result.values[0] - x0).abs() < 1e-9);
         assert!(result.globally_unique && result.existence_certified);
+        assert_eq!(
+            result.evidence.contraction_bound_provenance.as_deref(),
+            Some("declared_external_lipschitz")
+        );
+        let wire = serde_json::to_value(&result).unwrap();
+        assert_eq!(wire["evidence"]["contraction_bound_provenance"], "declared_external_lipschitz");
+        let mut old = wire;
+        old["evidence"].as_object_mut().unwrap().remove("contraction_bound_provenance");
+        let restored: EquilibriumResult = serde_json::from_value(old).unwrap();
+        assert_eq!(restored.evidence.contraction_bound_provenance, None);
         assert_eq!(resolved.trust(), MechanismTrust::VerifiedExternal);
         assert_eq!(resolved.evidence().len(), 1);
     }
@@ -1935,7 +1957,9 @@ mod tests {
         };
         assert!(code(system.resolve(None)).contains("mechanism_resolver_missing"));
         let empty = MechanismRegistry::new();
-        assert!(code(system.resolve(Some(&empty))).contains("mechanism_implementation_unavailable"));
+        assert!(
+            code(system.resolve(Some(&empty))).contains("mechanism_implementation_unavailable")
+        );
         let mut other_content = MechanismRegistry::new();
         other_content
             .register(Affine::new("1", "affine v1 edited", DerivativeDeclaration::Analytic))
@@ -1947,8 +1971,10 @@ mod tests {
         other_version
             .register(Affine::new("2", "affine v1", DerivativeDeclaration::Analytic))
             .unwrap();
-        assert!(code(system.resolve(Some(&other_version)))
-            .contains("mechanism_implementation_unavailable"));
+        assert!(
+            code(system.resolve(Some(&other_version)))
+                .contains("mechanism_implementation_unavailable")
+        );
     }
 
     #[test]

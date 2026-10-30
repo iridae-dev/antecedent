@@ -303,12 +303,12 @@ impl MechanismWorkspace {
     pub fn prepare(&mut self, n_rows: usize, n_parents: usize) {
         let need = n_rows.saturating_mul(n_parents.max(1));
         if self.parents.capacity() < need {
-            self.parents.reserve(need - self.parents.capacity());
+            self.parents.reserve(need - self.parents.len());
             self.grow_count = self.grow_count.saturating_add(1);
         }
         self.parents.resize(need, 0.0);
         if self.scratch.capacity() < n_rows {
-            self.scratch.reserve(n_rows.saturating_sub(self.scratch.capacity()));
+            self.scratch.reserve(n_rows.saturating_sub(self.scratch.len()));
             self.grow_count = self.grow_count.saturating_add(1);
         }
         self.scratch.resize(n_rows, 0.0);
@@ -318,6 +318,20 @@ impl MechanismWorkspace {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn prepare_reserves_from_length_after_a_smaller_reuse() {
+        let mut ws = MechanismWorkspace::default();
+        ws.prepare(64, 1);
+        ws.prepare(1, 1);
+        let target = ws.parents.capacity().max(ws.scratch.capacity()) + 1;
+        ws.prepare(target, 1);
+        assert!(ws.parents.capacity() >= target);
+        assert!(ws.scratch.capacity() >= target);
+        assert_eq!(ws.grow_count, 4);
+        ws.prepare(target, 1);
+        assert_eq!(ws.grow_count, 4);
+    }
 
     #[test]
     fn a_batch_whose_buffer_is_shorter_than_its_shape_reports_a_shape_error() {

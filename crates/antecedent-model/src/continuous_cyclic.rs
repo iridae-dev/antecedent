@@ -4,11 +4,11 @@
 //! finite-horizon moment ODEs. Convergence is numerical; a stationary law is
 //! licensed only when a positive-definite Lyapunov witness verifies stability.
 
+use crate::linear_algebra::equilibrated_general_solve;
 use crate::nonlinear_equilibrium::{
     Clamp, Equation, EquilibriumError, check_cancel, cholesky, dot,
 };
 use antecedent_core::ExecutionContext;
-use antecedent_kernels::gauss_jordan_solve;
 use serde::{Deserialize, Serialize};
 
 fn invalid(s: &str) -> EquilibriumError {
@@ -845,7 +845,7 @@ impl OrnsteinUhlenbeck {
                     .sum::<f64>()
             })
             .collect();
-        if !gauss_jordan_solve(&mut matrix, &mut delta, k, 1) {
+        if !equilibrated_general_solve(&mut matrix, &mut delta, k, 1) {
             return Err(EquilibriumError::Singular);
         }
         for (j, &i) in free.iter().enumerate() {
@@ -933,6 +933,42 @@ impl OrnsteinUhlenbeck {
 #[cfg(test)]
 mod ou_intervention_tests {
     use super::*;
+    #[test]
+    fn ou_clamp_solves_mixed_scale_free_drift() {
+        // The free mean solve's former global 1e-12 pivot floor rejected this
+        // 1e13 scale ratio. It remains within the separate Lyapunov solver's
+        // declared 1e-14 relative separation policy.
+        let model = OrnsteinUhlenbeck {
+            drift: vec![-1e-5, 0.0, 1e-5, 0.0, -1e8, 2e8, 0.0, 0.0, -1.0],
+            center: vec![0.0; 3],
+            diffusion: vec![2e-5, 0.0, 0.0, 0.0, 2e8, 0.0, 0.0, 0.0, 2.0],
+        };
+        let law = model
+            .stationary_intervention(
+                &[Clamp { variable: 2, value: 1.0 }],
+                &ExecutionContext::for_tests(0),
+            )
+            .unwrap();
+        assert!((law.mean[0] - 1.0).abs() < 1e-10);
+        assert!((law.mean[1] - 2.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn ou_clamp_preserves_the_separate_lyapunov_conditioning_policy() {
+        let model = OrnsteinUhlenbeck {
+            drift: vec![-1e-8, 0.0, 1e-8, 0.0, -1e8, 2e8, 0.0, 0.0, -1.0],
+            center: vec![0.0; 3],
+            diffusion: vec![2e-8, 0.0, 0.0, 0.0, 2e8, 0.0, 0.0, 0.0, 2.0],
+        };
+        assert!(matches!(
+            model.stationary_intervention(
+                &[Clamp { variable: 2, value: 1.0 }],
+                &ExecutionContext::for_tests(0),
+            ),
+            Err(EquilibriumError::Singular)
+        ));
+    }
+
     #[test]
     fn ou_clamp_keeps_marginal_diffusion_and_rechecks_free_stability() {
         let model = OrnsteinUhlenbeck {

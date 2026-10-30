@@ -20725,3 +20725,17 @@ crate = "python"
 cargo_target = "lib"
 path = "python/src/preflight_api.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-model-general-solve-unit"
+crate = "antecedent-model"
+cargo_target = "lib"
+path = "crates/antecedent-model/src/linear_algebra.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-model-typed-transport-convergence-unit"
+crate = "antecedent-model"
+cargo_target = "lib"
+path = "crates/antecedent-model/src/typed_mechanism_transport.rs"
+gates = ["inventory", "named"]

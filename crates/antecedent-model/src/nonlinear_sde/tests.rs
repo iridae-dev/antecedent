@@ -215,6 +215,25 @@ fn unbounded_nonlinear_growth_is_refused_with_a_typed_reason() {
 }
 
 #[test]
+fn direct_held_value_uses_inclusive_declared_boundaries() {
+    let plan = WorldPlan {
+        id: "hold".into(),
+        actions: vec![SdeAction {
+            variable: 1,
+            times: vec![1_000_000_000.0, 1_000_000_001.0],
+            values: vec![20.0, 30.0],
+        }],
+        inputs: vec![],
+    };
+    assert_eq!(plan.held_value(1, 999_999_999.5), None);
+    assert_eq!(plan.held_value(1, 1_000_000_000.0), Some(20.0));
+    assert_eq!(plan.held_value(1, 1_000_000_000.5), Some(20.0));
+    assert_eq!(plan.held_value(1, 1_000_000_001.0), Some(30.0));
+    assert_eq!(plan.held_value(1, f64::NAN), None);
+    assert_eq!(plan.held_value(1, f64::INFINITY), None);
+}
+
+#[test]
 fn milstein_is_refused_when_a_diffusion_depends_on_another_state() {
     let compiled = epidemic().compile().unwrap();
     let mut policy = epidemic_policy();

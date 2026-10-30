@@ -57,7 +57,8 @@ pub struct DoSampleResult {
 ///   kernel on the treatment margin (Silverman 1986 bandwidth) over the fitted conditional
 ///   density `f(T∣parents)`: `wᵢ ∝ Kₕ(Tᵢ − t) / f(Tᵢ∣parents)`. Hard interventions have a
 ///   Dirac interventional law, so the kernel is the localization numerator (there is no
-///   separate `lp_do` term).
+///   separate `lp_do` term). Raw weights are capped at `1e6` before normalization; this
+///   truncation changes the estimate, and its activation count is reported in `notes`.
 /// - **Density unavailable:** if the fitted treatment mechanism cannot supply `f(T∣parents)`
 ///   (e.g. an unfitted slot), `estimate` refuses rather than silently reporting an unweighted
 ///   kernel estimate as IPW. A unit whose fitted density is non-finite is dropped from the
@@ -162,11 +163,16 @@ impl WeightingDoSampler {
         }
 
         // Confounded: IPW using Gaussian propensity from fitted treatment mechanism.
-        let (values, mut weights, dropped_nonfinite, bw) =
+        let (values, mut weights, dropped_nonfinite, capped, bw) =
             confounded_ipw_weights(model, data, gather, t_dense, &t, &y, treatment_value)?;
         if dropped_nonfinite > 0 {
             notes.push(Arc::from(format!(
                 "dropped {dropped_nonfinite} of {n} units with non-finite treatment density"
+            )));
+        }
+        if capped > 0 {
+            notes.push(Arc::from(format!(
+                "capped {capped} of {n} raw IPW weights at 1e6 before normalization"
             )));
         }
         let wsum: f64 = weights.iter().sum();
@@ -312,7 +318,7 @@ fn confounded_ipw_weights(
     t: &[f64],
     y: &[f64],
     treatment_value: f64,
-) -> Result<(Vec<f64>, Vec<f64>, usize, f64), ModelError> {
+) -> Result<(Vec<f64>, Vec<f64>, usize, usize, f64), ModelError> {
     let n = y.len();
     let slot = model.mechanisms.get(t_dense);
     let mut parent_cols = Vec::new();
@@ -339,6 +345,7 @@ fn confounded_ipw_weights(
     let mut weights = Vec::with_capacity(n);
     let mut values = Vec::with_capacity(n);
     let mut dropped_nonfinite = 0usize;
+    let mut capped = 0usize;
     for i in 0..n {
         // A row whose fitted density is non-finite (e.g. zero probability under the model)
         // cannot be importance-weighted; including it at the bare kernel weight would
@@ -351,10 +358,12 @@ fn confounded_ipw_weights(
         let z = (t[i] - treatment_value) / bw;
         let kernel = inv_norm * (-0.5 * z * z).exp();
         let dens = lp_obs[i].exp().max(1e-300);
-        weights.push((kernel / dens).min(1e6));
+        let raw_weight = kernel / dens;
+        capped += usize::from(raw_weight > 1e6);
+        weights.push(raw_weight.min(1e6));
         values.push(y[i]);
     }
-    Ok((values, weights, dropped_nonfinite, bw))
+    Ok((values, weights, dropped_nonfinite, capped, bw))
 }
 
 /// Silverman bandwidth of a sampled outcome margin, from the shared rule in
@@ -649,6 +658,61 @@ mod tests {
             .assign_and_fit(&compiled, &data, SelectionPolicy::BestScore)
             .unwrap();
         (compiled.with_mechanisms(store), data)
+    }
+
+    #[test]
+    fn weighting_reports_when_raw_ipw_weights_are_capped() {
+        // Fit on a narrow-noise treatment mechanism, then evaluate observations with
+        // treatment far from that mechanism's conditional mean at z=0.
+        let (model, _) = confounded_continuous_scm(200);
+        let n = 20;
+        let mut schema = CausalSchemaBuilder::new();
+        for name in ["z", "t", "y"] {
+            schema
+                .add_variable(
+                    name,
+                    ValueType::Continuous,
+                    SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+                    None,
+                    None,
+                    MeasurementSpec::default(),
+                )
+                .unwrap();
+        }
+        let valid = ValidityBitmap::all_valid(n);
+        let columns = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(vec![0.0; n]), valid.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from((0..n).map(|i| 2.0 + i as f64 * 0.01).collect::<Vec<_>>()),
+                    valid.clone(),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(2), Arc::from(vec![1.0; n]), valid)
+                    .unwrap(),
+            ),
+        ];
+        let data = TabularData::new(
+            OwnedColumnarStorage::try_new(schema.build().unwrap(), columns, None, None).unwrap(),
+        );
+        let result = WeightingDoSampler::new(VariableId::from_raw(1), VariableId::from_raw(2))
+            .estimate(&model, &data, 2.1, &ExecutionContext::for_tests(1))
+            .unwrap();
+        assert!(
+            result
+                .notes
+                .iter()
+                .any(|note| note.contains("raw IPW weights at 1e6 before normalization")),
+            "{:?}",
+            result.notes
+        );
+        assert!((result.weights.iter().sum::<f64>() - 1.0).abs() < 1e-12);
     }
 
     /// Regression test for the confounded-continuous-treatment ESS gap: the weighting

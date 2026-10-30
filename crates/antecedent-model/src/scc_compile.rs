@@ -1382,7 +1382,11 @@ fn block_residual(
         if !image.is_finite() {
             return Err(SccCompileError::NonFiniteEquilibrium);
         }
-        residual = residual.max((image - rhs[row]).abs());
+        let error = image - rhs[row];
+        if !error.is_finite() {
+            return Err(SccCompileError::NonFiniteEquilibrium);
+        }
+        residual = residual.max(error.abs());
     }
     Ok(residual)
 }
@@ -1565,7 +1569,7 @@ impl From<MatrixError> for SccCompileError {
 #[cfg(test)]
 mod tests {
     use super::{
-        CompileBudget, GaussianDisturbance, LinearSupportRoute, SccCompileError,
+        CompileBudget, GaussianDisturbance, LinearSupportRoute, SccCompileError, block_residual,
         compile_gaussian_equilibrium, compile_routed_gaussian_equilibrium,
         gaussian_equilibrium_admission, route_linear_support,
     };
@@ -1722,6 +1726,14 @@ mod tests {
         assert!(law.residual_inf() < 1e-8);
         assert!(law.blocks()[1].exact);
         assert!(close(law.blocks()[1].kappa_inf, 2.8125));
+    }
+
+    #[test]
+    fn block_residual_refuses_overflow_from_finite_operands() {
+        assert!(matches!(
+            block_residual(&[1.0], &[f64::MAX], 1, &[-f64::MAX], 1),
+            Err(SccCompileError::NonFiniteEquilibrium)
+        ));
     }
 
     #[test]

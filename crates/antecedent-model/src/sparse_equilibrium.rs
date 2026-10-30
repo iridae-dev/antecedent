@@ -638,6 +638,11 @@ pub struct SolveEvidence {
     pub jacobian_nonsingular_basis: String,
     /// How a unique root is established: `contraction`, `affine_bijection` or `none`.
     pub unique_root_basis: String,
+    /// When present, the contraction certificate depends on externally declared
+    /// Lipschitz bounds. This records provenance, not verification of those bounds.
+    /// Absent on older serialized results and when no such declaration is used.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub contraction_bound_provenance: Option<String>,
     /// True when the condition estimate exceeds the policy warning threshold.
     pub ill_conditioned: bool,
 }
