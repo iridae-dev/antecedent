@@ -274,7 +274,7 @@ impl TemporalResponseEstimator {
                 "Bayesian temporal response requires complete observations and the AllObserved population",
             ));
         }
-        if estimator.likelihood != antecedent_prob::BayesLikelihood::GaussianIdentity {
+        if estimator.effective_likelihood() != antecedent_prob::BayesLikelihood::GaussianIdentity {
             return Err(EstimationError::unsupported_coded(
                 antecedent_core::reason_code!("option_not_applicable"),
                 ORDINARY_LIKELIHOOD_REFUSAL,

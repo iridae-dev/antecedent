@@ -1474,11 +1474,46 @@ fn bayesian_response_refuses_an_ordinary_or_non_gaussian_likelihood_and_names_th
         antecedent_prob::BayesLikelihood::BernoulliLogit,
         antecedent_prob::BayesLikelihood::PoissonLog,
     ] {
+        for backend in [crate::BayesianBackendKind::Laplace, crate::BayesianBackendKind::Hmc] {
+            let estimator = crate::BayesianGComputationAte {
+                likelihood,
+                backend,
+                ..crate::BayesianGComputationAte::new()
+            };
+            let err = TemporalResponseEstimator::new()
+                .estimate_bayesian(
+                    &data,
+                    TemporalIdentification {
+                        horizons: &[(&estimand, &indexer)],
+                        status: IdentificationStatus::NonparametricallyIdentified,
+                        assumptions: AssumptionSet::new(),
+                    },
+                    &query,
+                    &estimator,
+                    &ExecutionContext::for_tests(7),
+                )
+                .unwrap_err();
+            let text = err.to_string();
+            assert!(text.contains("long-run-tempered generalized posterior"), "{text}");
+            assert!(text.contains("serial dependence of the unfolded horizon residuals"), "{text}");
+            assert!(text.contains("Next attempt"), "{text}");
+            assert!(text.contains("GaussianIdentity"), "{text}");
+        }
+    }
+}
+
+#[test]
+fn conjugate_temporal_response_uses_effective_gaussian_likelihood() {
+    let (data, graph) = series_with_noise(260, 1.0, 3);
+    let (estimand, indexer) = identify(&graph, 1);
+    let query = surface_query(&[-1.0, 1.0], vec![1]);
+    let estimate = |likelihood| {
         let estimator = crate::BayesianGComputationAte {
             likelihood,
+            n_draws: 100,
             ..crate::BayesianGComputationAte::conjugate()
         };
-        let err = TemporalResponseEstimator::new()
+        TemporalResponseEstimator::new()
             .estimate_bayesian(
                 &data,
                 TemporalIdentification {
@@ -1490,13 +1525,12 @@ fn bayesian_response_refuses_an_ordinary_or_non_gaussian_likelihood_and_names_th
                 &estimator,
                 &ExecutionContext::for_tests(7),
             )
-            .unwrap_err();
-        let text = err.to_string();
-        assert!(text.contains("long-run-tempered generalized posterior"), "{text}");
-        assert!(text.contains("serial dependence of the unfolded horizon residuals"), "{text}");
-        assert!(text.contains("Next attempt"), "{text}");
-        assert!(text.contains("GaussianIdentity"), "{text}");
-    }
+            .unwrap()
+    };
+    let gaussian = estimate(antecedent_prob::BayesLikelihood::GaussianIdentity);
+    let poisson = estimate(antecedent_prob::BayesLikelihood::PoissonLog);
+    assert_eq!(gaussian.estimate, poisson.estimate);
+    assert_eq!(gaussian.uncertainty, poisson.uncertainty);
 }
 
 fn intervention_surface_query(horizons: Vec<u32>) -> ResponseQuery {
