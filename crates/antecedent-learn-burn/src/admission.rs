@@ -71,7 +71,7 @@ pub fn footprint(nrows: usize, ncols: usize, hidden: usize) -> Result<Footprint,
     let params = checked(
         c.checked_mul(h)
             .and_then(|a| h.checked_mul(h).and_then(|b| a.checked_add(b)))
-            .and_then(|ab| ab.checked_add(h))
+            .and_then(|ab| h.checked_mul(3).and_then(|bias| ab.checked_add(bias)))
             .and_then(|p| p.checked_add(1)),
     )?;
     // f64 design + f64 standardized copy + f32 row-major copy, f64 y + f32 y, f32 weights.
@@ -85,7 +85,8 @@ pub fn footprint(nrows: usize, ncols: usize, hidden: usize) -> Result<Footprint,
     let scratch_bytes = checked(design.checked_add(n).and_then(|d| d.checked_mul(4)))?;
     // Inputs, forward activations with their gradients (two hidden layers plus the output),
     // parameters with their gradients and two Adam moments.
-    let activations = checked(n.checked_mul(checked(h.checked_mul(2).map(|v| v + 1))?))?;
+    let activations =
+        checked(n.checked_mul(checked(h.checked_mul(2).and_then(|v| v.checked_add(1)))?))?;
     let device_elements = checked(
         design
             .checked_add(n)

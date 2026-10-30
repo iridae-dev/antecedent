@@ -66,6 +66,10 @@ impl LearnerFactory for GbtLearner {
         if y.len() != x.physical_nrows() {
             return Err(LearnError::Shape { message: "target length != physical rows" });
         }
+        crate::spec::LearnerSpec::GradientBoostedTrees(self.spec).validate()?;
+        if ctx.cancellation.is_cancelled() {
+            return Err(LearnError::Cancelled);
+        }
         let (design, nrows, ncols) = materialize_dense_colmajor(x)?;
         let gathered_y = gather_physical(y.values(), x, nrows)?;
         if matches!(self.task, PredictionTask::BinaryProbability) {
@@ -96,9 +100,20 @@ impl LearnerFactory for GbtLearner {
                 return Err(LearnError::Shape { message: "weights length != physical rows" });
             }
             let gathered_w = gather_physical(w, x, x.nrows())?;
+            if gathered_w.iter().any(|v| !v.is_finite() || *v < 0.0)
+                || !gathered_w.iter().any(|v| *v > 0.0)
+                || !gathered_w.iter().sum::<f64>().is_finite()
+            {
+                return Err(LearnError::Shape {
+                    message: "prior weights must be finite, non-negative and not all zero",
+                });
+            }
             model.fit(&matrix, &gathered_y, &gathered_w, None).map_err(|err| forust_err(&err))?;
         } else {
             model.fit_unweighted(&matrix, &gathered_y, None).map_err(|err| forust_err(&err))?;
+        }
+        if ctx.cancellation.is_cancelled() {
+            return Err(LearnError::Cancelled);
         }
         Ok(Box::new(GbtPredictor { model, task: self.task, columns: x.ncols() }))
     }
@@ -198,4 +213,41 @@ impl FittedPredictor for GbtPredictor {
 
 fn forust_err(err: &forust_ml::errors::ForustError) -> LearnError {
     LearnError::Backend(format!("{err}"))
+}
+
+#[cfg(test)]
+mod weight_tests {
+    use super::*;
+    use crate::design::RowSelection;
+
+    #[test]
+    fn gbt_checks_only_logical_weights_before_fit() {
+        let x = [0.0, 1.0, 2.0, 3.0];
+        let y = [0.0, 1.0, 2.0, 3.0];
+        let view = DesignView::from_column_major(&x, 4, 1).unwrap();
+        let learner = GbtLearner::new(
+            GbtSpec { trees: 2, depth: 2, learning_rate: 0.1 },
+            PredictionTask::Regression,
+        );
+        let ctx = ExecutionContext::for_tests(1);
+        for weights in [
+            [-1.0, 1.0, 1.0, 1.0],
+            [f64::NAN, 1.0, 1.0, 1.0],
+            [f64::INFINITY, 1.0, 1.0, 1.0],
+            [0.0; 4],
+            [f64::MAX; 4],
+        ] {
+            assert!(matches!(
+                learner.fit(view, TargetView::new(&y), Some(&weights), &ctx),
+                Err(LearnError::Shape { .. })
+            ));
+        }
+        let rows = [1, 2, 3];
+        let selected = view.with_rows(RowSelection::new(&rows)).unwrap();
+        assert!(
+            learner
+                .fit(selected, TargetView::new(&y), Some(&[f64::NAN, 1.0, 0.0, 1.0]), &ctx)
+                .is_ok()
+        );
+    }
 }

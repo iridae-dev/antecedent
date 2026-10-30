@@ -112,6 +112,11 @@ fn score(x: &[f64], n: usize, p: usize, y: &[f64], prob: &[f64], prior: &[f64]) 
 fn kkt_violation(score: &[f64], beta: &[f64], lambda: f64, pen_start: usize) -> f64 {
     let mut worst = 0.0_f64;
     for (j, (&g, &b)) in score.iter().zip(beta).enumerate() {
+        // f64::max ignores NaN: never treat an undefined score or coefficient as
+        // satisfying an optimality condition.
+        if !g.is_finite() || !b.is_finite() {
+            return f64::INFINITY;
+        }
         let violation = if j < pen_start {
             g.abs()
         } else if b == 0.0 {
@@ -248,6 +253,9 @@ fn solve(
     for _ in 0..MAX_NEWTON {
         let prob: Vec<f64> = eta.iter().map(|&e| sigmoid(e)).collect();
         let gradient_score = score(x, n, p, y, &prob, prior);
+        if gradient_score.iter().any(|g| !g.is_finite()) {
+            return Err(LearnError::Backend("logistic lasso score is non-finite".into()));
+        }
         if kkt_violation(&gradient_score, &beta, lambda, pen_start) <= tolerance {
             converged = true;
             break;
@@ -444,6 +452,14 @@ mod tests {
     /// unpenalized, so its score equation fixes `p0 = (k0 + lambda s) / n0` and the slope's
     /// stationarity fixes `p1 = (k1 - lambda s) / n1` (`s` the slope's sign) until
     /// `lambda` reaches `|k1 - n1 (k0 + k1) / n|`, where the slope is exactly zero.
+    #[test]
+    fn nonfinite_kkt_score_cannot_converge() {
+        assert!(kkt_violation(&[f64::NAN], &[0.0], 1.0, 0).is_infinite());
+        assert!(kkt_violation(&[0.0], &[f64::NAN], 1.0, 0).is_infinite());
+        // Finite inputs can overflow the score to +inf + -inf, producing NaN.
+        assert!(solve(&[1e308, 1e308], 2, 1, &[0.0, 1.0], &[1e308, 1e308], 1.0, false).is_err());
+    }
+
     #[test]
     fn the_two_group_fit_matches_its_closed_form_and_threshold() {
         let (n0, n1, k0, k1) = (20usize, 20usize, 4.0, 14.0);

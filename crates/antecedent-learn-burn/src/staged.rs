@@ -137,7 +137,9 @@ pub(crate) fn validate_fit(
     if spec.binary && y.iter().any(|&v| not_a_label(v)) {
         return Err(LearnBurnError::BinaryLabels);
     }
-    if !spec.learning_rate.is_finite() || spec.learning_rate <= 0.0 {
+    #[allow(clippy::cast_possible_truncation, reason = "training uses f32 tensors")]
+    let rate32 = spec.learning_rate as f32;
+    if !spec.learning_rate.is_finite() || !rate32.is_finite() || rate32 <= 0.0 {
         return Err(LearnBurnError::LearningRate);
     }
     Ok(())

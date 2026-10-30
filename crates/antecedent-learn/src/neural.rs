@@ -4,6 +4,7 @@
 
 use antecedent_core::ExecutionContext;
 use antecedent_core::StreamDomain;
+use antecedent_core::execution::{AdmissionError, MapExecutionError};
 use antecedent_learn_burn::TrainedMlp;
 use antecedent_learn_burn::policy::{
     AutoPolicy, ComputePolicy, FitRequest, PolicyContext, PolicyError, SystemProbe,
@@ -72,6 +73,57 @@ impl LearnerFactory for NeuralNetLearner {
         if y.len() != x.physical_nrows() {
             return Err(LearnError::Shape { message: "target length != physical rows" });
         }
+        crate::spec::LearnerSpec::NeuralNet(self.spec).validate()?;
+        let mut result = ctx
+            .try_map_indexed(1, |_, worker| {
+                antecedent_core::numerical_admission::with_context(worker, || {
+                    self.fit_admitted(x, y, worker)
+                })
+            })
+            .map_err(|error| match error {
+                MapExecutionError::Work(error) => error,
+                MapExecutionError::Admission(AdmissionError::Cancelled) => LearnError::Cancelled,
+                MapExecutionError::Admission(error) => {
+                    LearnError::Backend(format!("neural_net admission: {error}"))
+                }
+            })?;
+        Ok(result.remove(0))
+    }
+}
+
+impl NeuralNetLearner {
+    fn fit_admitted(
+        &self,
+        x: DesignView<'_>,
+        y: TargetView<'_>,
+        ctx: &ExecutionContext,
+    ) -> Result<Box<dyn FittedPredictor>, LearnError> {
+        let footprint = antecedent_learn_burn::admission::footprint(
+            x.nrows(),
+            x.ncols(),
+            self.spec.hidden as usize,
+        )
+        .map_err(|error| LearnError::Backend(format!("neural_net admission: {error}")))?;
+        // Training state is host-resident on CPU, including Auto's CPU fallback. Charge it
+        // conservatively on every route, in addition to the host and staging buffers.
+        let epoch_bytes = u64::from(self.spec.epochs)
+            .checked_mul(std::mem::size_of::<antecedent_learn_burn::device::EpochLoss>() as u64);
+        let column_bytes = u64::try_from(x.ncols()).ok().and_then(|n| n.checked_mul(16));
+        let bytes = footprint
+            .host_bytes
+            .checked_add(footprint.scratch_bytes)
+            .and_then(|v| v.checked_add(footprint.device_bytes))
+            .and_then(|v| epoch_bytes.and_then(|epoch| v.checked_add(epoch)))
+            .and_then(|v| column_bytes.and_then(|cols| v.checked_add(cols)))
+            .ok_or_else(|| {
+                LearnError::Backend("neural_net admission: footprint overflow".into())
+            })?;
+        let _lease = antecedent_core::numerical_admission::acquire(bytes)
+            .expect("worker context is installed")
+            .map_err(|error| match error {
+                AdmissionError::Cancelled => LearnError::Cancelled,
+                other => LearnError::Backend(format!("neural_net admission: {other}")),
+            })?;
         let (design, nrows, ncols) = materialize_dense_colmajor(x)?;
         let gathered_y = gather_physical(y.values(), x, nrows)?;
         if matches!(self.task, PredictionTask::BinaryProbability) {
@@ -93,9 +145,7 @@ impl LearnerFactory for NeuralNetLearner {
             DevicePolicy::Auto => ComputePolicy::Auto,
         };
         let request = FitRequest::neural(policy, &mlp, nrows, ncols);
-        // The default CPU route polls no token, so cancellation accounting and the existing
-        // fit are unchanged. A device route polls once per epoch.
-        let stop = || policy != ComputePolicy::Cpu && ctx.cancellation.is_cancelled();
+        let stop = || ctx.cancellation.is_cancelled();
         let context = PolicyContext {
             probe: &SystemProbe,
             device_pool: system_device_pool(),
@@ -152,5 +202,64 @@ impl FittedPredictor for NeuralNetPredictor {
             implementation: self.implementation.clone(),
             version: "0.16".into(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use antecedent_core::execution::AdmissionPool;
+
+    #[test]
+    fn neural_fit_obeys_admission_cancellation_and_reuses_a_worker() {
+        let data = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0];
+        let target = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0];
+        let x = DesignView::from_column_major(&data, 8, 1).unwrap();
+        let y = TargetView::new(&target);
+        let spec = NeuralSpec { hidden: 2, epochs: 1, ..NeuralSpec::default() };
+        let learner = NeuralNetLearner::new(spec, PredictionTask::Regression);
+        let cancelled = ExecutionContext::for_tests(1);
+        cancelled.cancellation.cancel();
+        assert!(matches!(learner.fit(x, y, None, &cancelled), Err(LearnError::Cancelled)));
+        let mut during = ExecutionContext::for_tests(1);
+        during.cancellation =
+            antecedent_core::execution::CancellationToken::cancel_after_checks(10);
+        let long =
+            NeuralNetLearner::new(NeuralSpec { epochs: 100, ..spec }, PredictionTask::Regression);
+        assert!(matches!(long.fit(x, y, None, &during), Err(LearnError::Cancelled)));
+        for device in [DevicePolicy::Cpu, DevicePolicy::Auto] {
+            let limited = ExecutionContext::for_tests(1).with_memory_limit(Some(1));
+            let learner =
+                NeuralNetLearner::new(NeuralSpec { device, ..spec }, PredictionTask::Regression);
+            assert!(matches!(learner.fit(x, y, None, &limited), Err(LearnError::Backend(_))));
+        }
+        // Epoch bookkeeping is allocated before the first training iteration.
+        let long_spec = NeuralSpec { epochs: u32::MAX, ..spec };
+        let limited = ExecutionContext::for_tests(1).with_memory_limit(Some(1_000_000));
+        assert!(matches!(
+            NeuralNetLearner::new(long_spec, PredictionTask::Regression).fit(x, y, None, &limited),
+            Err(LearnError::Backend(_))
+        ));
+        let pool = AdmissionPool::fixed(1, 1_000_000);
+        let ctx = ExecutionContext::for_tests(1).with_admission(pool);
+        let result = ctx.try_map_indexed(1, |_, inner| learner.fit(x, y, None, inner));
+        assert!(result.is_ok(), "nested neural fit must reuse its worker slot");
+    }
+
+    #[test]
+    fn f32_learning_rates_must_remain_finite_and_positive() {
+        for rate in [f64::MIN_POSITIVE, f64::MAX, 0.0, f64::NAN] {
+            let neural = crate::spec::LearnerSpec::NeuralNet(NeuralSpec {
+                learning_rate: rate,
+                ..NeuralSpec::default()
+            });
+            let tree = crate::spec::LearnerSpec::GradientBoostedTrees(crate::spec::GbtSpec {
+                learning_rate: rate,
+                ..crate::spec::GbtSpec::default()
+            });
+            assert!(neural.validate().is_err());
+            assert!(tree.validate().is_err());
+        }
+        assert!(crate::spec::LearnerSpec::NeuralNet(NeuralSpec::default()).validate().is_ok());
     }
 }

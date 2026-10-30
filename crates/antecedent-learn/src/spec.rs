@@ -191,6 +191,12 @@ pub enum LearnerSpec {
     NeuralNet(NeuralSpec),
 }
 
+#[allow(clippy::cast_possible_truncation, reason = "the backend stores the rate as f32")]
+fn valid_f32_rate(rate: f64) -> bool {
+    let rate32 = rate as f32;
+    rate.is_finite() && rate32.is_finite() && rate32 > 0.0
+}
+
 impl LearnerSpec {
     /// Stable exact-parameter identity, shared by compilation and provider caches.
     #[must_use]
@@ -240,11 +246,9 @@ impl LearnerSpec {
                     && (0.0..=1.0).contains(&s.l1_ratio)
             }
             Self::GradientBoostedTrees(s) => {
-                s.trees > 0 && s.depth > 0 && s.learning_rate.is_finite() && s.learning_rate > 0.0
+                s.trees > 0 && s.depth > 0 && valid_f32_rate(s.learning_rate)
             }
-            Self::NeuralNet(s) => {
-                s.hidden > 0 && s.epochs > 0 && s.learning_rate.is_finite() && s.learning_rate > 0.0
-            }
+            Self::NeuralNet(s) => s.hidden > 0 && s.epochs > 0 && valid_f32_rate(s.learning_rate),
             _ => true,
         };
         if valid {

@@ -3,8 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::device_reservation::{
-    CpuAdmissionError, FoldAdmission, LearnerAdmission, admit_fold, nested_thread_request,
-    place_physical_predictions,
+    CpuAdmissionError, FoldAdmission, LearnerAdmission, admit_fold, place_physical_predictions,
 };
 use antecedent_core::{CausalRng, ExecutionContext, StreamDomain};
 use antecedent_kernels::{ViewError, shuffled_fold_assignment};
@@ -158,16 +157,27 @@ fn admission_to_learn(error: CpuAdmissionError) -> LearnError {
     }
 }
 
+fn map_admission_error(
+    error: antecedent_core::execution::MapExecutionError<LearnError>,
+) -> LearnError {
+    use antecedent_core::execution::{AdmissionError, MapExecutionError};
+    match error {
+        MapExecutionError::Work(error) => error,
+        MapExecutionError::Admission(AdmissionError::Cancelled) => LearnError::Cancelled,
+        MapExecutionError::Admission(error) => {
+            LearnError::Backend(format!("cross-fit admission: {error}"))
+        }
+    }
+}
+
 fn lease_fold(
     ctx: &ExecutionContext,
     rows: usize,
 ) -> Result<(FoldAdmission, LearnerAdmission), LearnError> {
     let accounted = accounted_bytes(rows)?;
-    let threads = nested_thread_request(ctx.admission().available().threads());
-    let fold = admit_fold(ctx, threads, accounted, F64_BYTES).map_err(admission_to_learn)?;
-    let learner_threads = nested_thread_request(fold.held_threads());
-    let learner =
-        fold.admit_learner(learner_threads, accounted, F64_BYTES).map_err(admission_to_learn)?;
+    // The surrounding admitted map owns the worker slot; fold admission charges bytes only.
+    let fold = admit_fold(ctx, 0, accounted, F64_BYTES).map_err(admission_to_learn)?;
+    let learner = fold.admit_learner(0, accounted, F64_BYTES).map_err(admission_to_learn)?;
     Ok((fold, learner))
 }
 
@@ -272,9 +282,19 @@ pub fn cross_fit_with_folds_weighted(
     }
     let folds =
         complete_fold_count(&fold_assignment, "cross-fitting needs at least two non-empty folds")?;
-    let fold_results = ctx.map_indexed(folds, |fold, inner| {
-        fit_one_fold(factory, x, y, weights, (&fold_assignment, fold as u16), inner, transformer)
-    })?;
+    let fold_results = ctx
+        .try_map_indexed(folds, |fold, inner| {
+            fit_one_fold(
+                factory,
+                x,
+                y,
+                weights,
+                (&fold_assignment, fold as u16),
+                inner,
+                transformer,
+            )
+        })
+        .map_err(map_admission_error)?;
 
     let (predictions, model_provenance) = scatter_fold_predictions(n, fold_results)?;
     let validation = try_diagnose(factory.task(), y.values(), &predictions)?;
@@ -461,30 +481,32 @@ pub fn cross_fit_selected(
         return Err(LearnError::Shape { message: "misaligned selected cross-fit inputs" });
     }
     let folds = complete_fold_count(fold_assignment, "invalid selected cross-fit folds")?;
-    let parts = ctx.map_indexed(folds, |fold, inner| {
-        let train: Vec<u64> = (0..n)
-            .filter(|i| eligible[*i] && usize::from(fold_assignment[*i]) != fold)
-            .map(|i| u64::try_from(i).expect("row id"))
-            .collect();
-        let valid: Vec<u64> = (0..n)
-            .filter(|i| usize::from(fold_assignment[*i]) == fold)
-            .map(|i| u64::try_from(i).expect("row id"))
-            .collect();
-        if train.is_empty() {
-            return Err(LearnError::Shape { message: "empty training role in cross-fit fold" });
-        }
-        let rows = train
-            .len()
-            .checked_add(valid.len())
-            .ok_or(LearnError::Shape { message: "cross-fit fold byte account overflowed" })?;
-        let (mut fold_hold, mut learner_hold) = lease_fold(inner, rows)?;
-        stop_if_cancelled(&mut learner_hold, &mut fold_hold, inner)?;
-        let fitted = factory.fit(x.with_rows(RowSelection::new(&train))?, y, None, inner)?;
-        let mut preds = vec![0.0; valid.len()];
-        fitted.predict(x.with_rows(RowSelection::new(&valid))?, &mut preds, inner)?;
-        stop_if_cancelled(&mut learner_hold, &mut fold_hold, inner)?;
-        Ok(FoldFit { valid_phys: valid, preds, provenance: fitted.provenance() })
-    })?;
+    let parts = ctx
+        .try_map_indexed(folds, |fold, inner| {
+            let train: Vec<u64> = (0..n)
+                .filter(|i| eligible[*i] && usize::from(fold_assignment[*i]) != fold)
+                .map(|i| u64::try_from(i).expect("row id"))
+                .collect();
+            let valid: Vec<u64> = (0..n)
+                .filter(|i| usize::from(fold_assignment[*i]) == fold)
+                .map(|i| u64::try_from(i).expect("row id"))
+                .collect();
+            if train.is_empty() {
+                return Err(LearnError::Shape { message: "empty training role in cross-fit fold" });
+            }
+            let rows = train
+                .len()
+                .checked_add(valid.len())
+                .ok_or(LearnError::Shape { message: "cross-fit fold byte account overflowed" })?;
+            let (mut fold_hold, mut learner_hold) = lease_fold(inner, rows)?;
+            stop_if_cancelled(&mut learner_hold, &mut fold_hold, inner)?;
+            let fitted = factory.fit(x.with_rows(RowSelection::new(&train))?, y, None, inner)?;
+            let mut preds = vec![0.0; valid.len()];
+            fitted.predict(x.with_rows(RowSelection::new(&valid))?, &mut preds, inner)?;
+            stop_if_cancelled(&mut learner_hold, &mut fold_hold, inner)?;
+            Ok(FoldFit { valid_phys: valid, preds, provenance: fitted.provenance() })
+        })
+        .map_err(map_admission_error)?;
     let (predictions, model_provenance) = scatter_fold_predictions(n, parts)?;
     let observed: Vec<_> =
         y.values().iter().zip(eligible).filter_map(|(v, use_row)| use_row.then_some(*v)).collect();
@@ -591,6 +613,22 @@ mod tests {
         for i in 0..n {
             assert!((a.predictions[i] - b.predictions[i]).abs() < 1e-10);
         }
+    }
+
+    #[cfg(feature = "ml-neural")]
+    #[test]
+    fn neural_cross_fit_uses_the_admitted_fold_worker() {
+        let n = 12;
+        let (x, y) = line(n);
+        let pool = AdmissionPool::fixed(1, 1_000_000);
+        let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
+        let view = DesignView::from_column_major(&x, n, 2).unwrap();
+        let learner = crate::neural::NeuralNetLearner::new(
+            crate::spec::NeuralSpec { hidden: 2, epochs: 1, ..Default::default() },
+            PredictionTask::Regression,
+        );
+        assert!(cross_fit(&learner, view, TargetView::new(&y), 2, &ctx, None).is_ok());
+        assert_eq!(pool.available().threads(), 1);
     }
 
     #[test]
