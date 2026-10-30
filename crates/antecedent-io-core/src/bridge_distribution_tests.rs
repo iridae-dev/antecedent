@@ -427,6 +427,7 @@ fn only_aligned_posterior_or_predictive_draws_about_the_source_are_bridged() {
     let refused =
         bridge_draws(&bridge, &posterior_table(&source), Some(ClaimKind::Associational), 1)
             .expect_err("associational");
+    assert_eq!(refused.code, "cell_not_licensed");
     assert_eq!(refused.detail, "scientific_bridge.source_not_draws");
     assert_eq!(refused.supplied.as_deref(), Some("associational"));
     // A bootstrap is neither a posterior nor a predictive law.

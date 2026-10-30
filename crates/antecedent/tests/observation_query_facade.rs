@@ -847,6 +847,7 @@ fn dirichlet_table_redraw_agrees_with_the_count_fitted_posterior_and_labels_its_
     let refusal = claim
         .parameter_interval("probability:1", "aligned_draw_equal_tail_exchangeable_rank", 200)
         .unwrap_err();
+    assert_eq!(refusal.code(), "cell_not_licensed");
     assert!(!refusal.refusals.is_empty());
 
     // Same seed, same draws; the claim replays from its artifact.

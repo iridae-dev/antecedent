@@ -21,7 +21,8 @@ use antecedent_estimate::posterior_mean::{PosteriorRequest, covariance_entry_pos
 use antecedent_estimate::scenario_covariance::{
     CovarianceMethod, ExactEnumerationOptions, MAX_REPLICATES, MAX_SCENARIOS, RowDependence,
     ScenarioCovariance, ScenarioRowEstimator, SharedRowBootstrapOptions,
-    covariance_estimator_moments, exact_enumeration_covariance, shared_row_bootstrap_covariance,
+    covariance_estimator_moments, exact_enumeration_covariance, exact_or_bootstrap_covariance,
+    shared_row_bootstrap_covariance,
 };
 
 type Row = (u8, u8, u8);
@@ -218,6 +219,30 @@ fn enumerate_tuples() -> Oracle {
 }
 
 // ---- positive: shared rows -------------------------------------------------------------
+
+#[test]
+fn selector_uses_exact_at_the_cap_and_seeded_bootstrap_below_it() {
+    let family = vec![linear_by_name("a"), linear_by_name("b")];
+    let exact = ExactEnumerationOptions { max_compositions: 462, max_failure_mass: 0.0 };
+    let bootstrap = boot_options(20_260_101);
+    let selected = exact_or_bootstrap_covariance(&family, &exact, &bootstrap, &ctx()).unwrap();
+    assert_eq!(selected.method, CovarianceMethod::ExactEnumeration);
+    assert_eq!(selected.replicates_total, 462);
+    for (i, left) in [score_a as fn(Row) -> f64, score_b].iter().enumerate() {
+        for (j, right) in [score_a as fn(Row) -> f64, score_b].iter().enumerate() {
+            assert!((selected.entry(i, j) - closed_form(*left, *right)).abs() < 1e-12);
+        }
+    }
+
+    let limited = ExactEnumerationOptions { max_compositions: 461, ..exact };
+    let fallback = exact_or_bootstrap_covariance(&family, &limited, &bootstrap, &ctx()).unwrap();
+    assert_eq!(fallback.method, CovarianceMethod::SharedRowBootstrap);
+    assert_eq!(fallback.seed, Some(bootstrap.seed));
+    assert_eq!(fallback.replicates_total, bootstrap.replicates as u64);
+    assert_eq!(fallback, shared_row_bootstrap_covariance(&family, &bootstrap, &ctx()).unwrap());
+    let scale = closed_form(score_a, score_a);
+    assert!((fallback.entry(0, 1) - closed_form(score_a, score_b)).abs() < 0.15 * scale);
+}
 
 #[test]
 fn shared_rows_covariance_exact_matches_closed_form() {
