@@ -339,6 +339,86 @@ fn lyapunov_bytes(n: usize) -> Result<u64, EquilibriumError> {
         .ok_or_else(|| EquilibriumError::Resource("OU dimension overflows the memory model".into()))
 }
 
+// Separate a finite value into a bounded significand and a binary exponent.
+// Subnormal inputs are lifted exactly before reading their exponent bits.
+fn lyapunov_binary_parts(value: f64) -> Option<(f64, i32)> {
+    if !value.is_finite() {
+        return None;
+    }
+    if value == 0.0 {
+        return Some((value, 0));
+    }
+    let bits = value.to_bits();
+    let exponent = ((bits >> 52) & 0x7ff) as i32;
+    if exponent == 0 {
+        let (mantissa, exponent) = lyapunov_binary_parts(value * 18_014_398_509_481_984.0)?;
+        return Some((mantissa, exponent - 54));
+    }
+    let mantissa_bits = (bits & (1_u64 << 63)) | (1023_u64 << 52) | (bits & ((1_u64 << 52) - 1));
+    Some((f64::from_bits(mantissa_bits), exponent - 1023))
+}
+
+// max|MX + XM' + Q| / max(|M||X| + |X||M'| + |Q|), entrywise maxima.
+// A common binary scale is selected from actual nonzero equation terms, not
+// products of unrelated matrix maxima. No unscaled product or sum is formed.
+// This preserves the check under a uniform change of covariance units and
+// handles finite inputs whose intermediate products exceed f64's range.
+fn lyapunov_relative_residual(m: &[f64], x: &[f64], q: &[f64], n: usize) -> Option<f64> {
+    let square = n.checked_mul(n)?;
+    if n == 0 || m.len() != square || x.len() != square || q.len() != square {
+        return None;
+    }
+    let terms = |i: usize, j: usize| {
+        std::iter::once((q[i * n + j], 1.0)).chain(
+            (0..n).flat_map(move |k| [(m[i * n + k], x[k * n + j]), (x[i * n + k], m[j * n + k])]),
+        )
+    };
+    let product = |a: f64, b: f64| -> Option<(f64, i32)> {
+        let (a, ae) = lyapunov_binary_parts(a)?;
+        let (b, be) = lyapunov_binary_parts(b)?;
+        Some((a * b, ae + be))
+    };
+    let mut common = i32::MIN;
+    for i in 0..n {
+        for j in 0..n {
+            for (a, b) in terms(i, j) {
+                let (mantissa, exponent) = product(a, b)?;
+                if mantissa != 0.0 {
+                    common = common.max(exponent);
+                }
+            }
+        }
+    }
+    if common == i32::MIN {
+        return Some(0.0);
+    }
+    let mut residual = 0.0_f64;
+    let mut magnitude = 0.0_f64;
+    for i in 0..n {
+        for j in 0..n {
+            let mut signed = antecedent_kernels::numeric::CompensatedSum::default();
+            let mut absolute = antecedent_kernels::numeric::CompensatedSum::default();
+            for (a, b) in terms(i, j) {
+                let (mantissa, exponent) = product(a, b)?;
+                let shift = exponent - common;
+                let term = if mantissa == 0.0 || shift < -1076 {
+                    0.0
+                } else if shift < -1022 {
+                    (mantissa * 2.0_f64.powi(shift + 1022)) * f64::MIN_POSITIVE
+                } else {
+                    mantissa * 2.0_f64.powi(shift)
+                };
+                signed.add(term);
+                absolute.add(term.abs());
+            }
+            residual = residual.max(signed.total().abs());
+            magnitude = magnitude.max(absolute.total());
+        }
+    }
+    (residual.is_finite() && magnitude.is_finite() && magnitude > 0.0)
+        .then_some(residual / magnitude)
+}
+
 /// Linear SDE `dX = M(X - center)dt + L dW`, with supplied `diffusion = LL^T`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -385,27 +465,17 @@ impl OrnsteinUhlenbeck {
             .ok_or(EquilibriumError::Singular)?;
         for i in 0..n {
             for j in 0..i {
-                let mean = 0.5 * (rhs[i * n + j] + rhs[j * n + i]);
+                let mean = rhs[i * n + j].midpoint(rhs[j * n + i]);
                 rhs[i * n + j] = mean;
                 rhs[j * n + i] = mean;
             }
         }
-        let residual = (0..n)
-            .flat_map(|i| (0..n).map(move |j| (i, j)))
-            .map(|(i, j)| {
-                q[i * n + j]
-                    + (0..n)
-                        .map(|a| {
-                            self.drift[i * n + a] * rhs[a * n + j]
-                                + rhs[i * n + a] * self.drift[j * n + a]
-                        })
-                        .sum::<f64>()
-            })
-            .map(f64::abs)
-            .fold(0.0, f64::max);
-        if !residual.is_finite()
-            || residual > 1e-8 * (1.0 + q.iter().map(|v| v.abs()).fold(0.0, f64::max))
-        {
+        // Dimensionless residual against the magnitudes of the actual equation
+        // terms. This is a numerical consistency check, not a forward-error
+        // bound; the independent Schur separation policy remains in force.
+        let residual = lyapunov_relative_residual(&self.drift, &rhs, q, n)
+            .ok_or(EquilibriumError::Nonconvergence { residual: f64::INFINITY })?;
+        if residual > 1e-8 {
             return Err(EquilibriumError::Nonconvergence { residual });
         }
         Ok(rhs)
@@ -933,6 +1003,80 @@ impl OrnsteinUhlenbeck {
 #[cfg(test)]
 mod ou_intervention_tests {
     use super::*;
+    #[test]
+    fn lyapunov_residual_rejects_wrong_small_covariances_independently_of_units() {
+        for scale in [1e-300, 1e-24, 1.0, 1e200, 1e300] {
+            // Scalar -2X + Q = 0: X=Q/2 is exact, X=0 is entirely wrong.
+            assert_eq!(lyapunov_relative_residual(&[-1.0], &[scale / 2.0], &[scale], 1), Some(0.0));
+            assert_eq!(lyapunov_relative_residual(&[-1.0], &[0.0], &[scale], 1), Some(1.0));
+        }
+        let subnormal = f64::from_bits(2);
+        assert_eq!(
+            lyapunov_relative_residual(&[-1.0], &[subnormal / 2.0], &[subnormal], 1),
+            Some(0.0)
+        );
+        assert!(lyapunov_relative_residual(&[-1.0], &[f64::NAN], &[1.0], 1).is_none());
+    }
+
+    #[test]
+    fn lyapunov_residual_retains_cancellation_of_overflowing_products() {
+        // MX and XM' are opposite off-diagonal matrices with magnitude 1e400.
+        let m = [0.0, 1e200, -1e200, 0.0];
+        let x = [1e200, 0.0, 0.0, 1e200];
+        assert_eq!(lyapunov_relative_residual(&m, &x, &[0.0; 4], 2), Some(0.0));
+        // Global max(M)*max(X) would overflow despite every actual product
+        // being small; scaling follows the actual equation terms instead.
+        let m = [-1e200, 0.0, 0.0, -1e-200];
+        let x = [1e-200, 0.0, 0.0, 1e200];
+        assert!(lyapunov_relative_residual(&m, &x, &[2.0, 0.0, 0.0, 2.0], 2).unwrap() < 1e-15);
+    }
+
+    #[test]
+    fn lyapunov_residual_matches_a_hand_computed_nondiagonal_equation() {
+        let m = [-1.0, 0.5, 0.25, -2.0];
+        let x = [2.0, 0.5, 0.5, 1.0];
+        // Direct multiplication gives MX+XM' = [-3.5,-0.5;-0.5,-3.75].
+        let q = [3.5, 0.5, 0.5, 3.75];
+        assert_eq!(lyapunov_relative_residual(&m, &x, &q, 2), Some(0.0));
+        let wrong = [2.0, 0.5, 0.5, 1.5];
+        assert!(lyapunov_relative_residual(&m, &wrong, &q, 2).unwrap() > 0.01);
+    }
+
+    #[test]
+    fn ou_finite_large_covariance_survives_both_symmetrization_steps() {
+        let diagonal = 0.9 * f64::MAX;
+        let off_diagonal = 0.6 * f64::MAX;
+        // M=-I/2 implies X=Q. Every answer is finite, but adding the
+        // symmetric off-diagonal pair before dividing by two overflows.
+        let q = vec![diagonal, off_diagonal, off_diagonal, diagonal];
+        let model = OrnsteinUhlenbeck {
+            drift: vec![-0.5, 0.0, 0.0, -0.5],
+            center: vec![0.0; 2],
+            diffusion: q.clone(),
+        };
+        let covariance = model.stationary_covariance(&ExecutionContext::for_tests(0)).unwrap();
+        for (got, want) in covariance.iter().zip(&q) {
+            assert!(got.is_finite());
+            assert!((got / want - 1.0).abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn ou_covariance_residual_checks_preserve_the_closed_form_across_units() {
+        let ctx = ExecutionContext::for_tests(0);
+        for scale in [1e-24, 1.0, 1e12] {
+            let model = OrnsteinUhlenbeck {
+                drift: vec![-1.0],
+                center: vec![0.0],
+                diffusion: vec![2.0 * scale],
+            };
+            let covariance = model.stationary_covariance(&ctx).unwrap();
+            assert!((covariance[0] / scale - 1.0).abs() < 1e-12);
+            let direction = model.lyapunov_direction(&[2.0 * scale], &ctx).unwrap();
+            assert!((direction[0] / scale - 1.0).abs() < 1e-12);
+        }
+    }
+
     #[test]
     fn ou_clamp_solves_mixed_scale_free_drift() {
         // The free mean solve's former global 1e-12 pivot floor rejected this

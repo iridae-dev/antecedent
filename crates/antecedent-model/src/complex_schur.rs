@@ -128,11 +128,7 @@ pub(crate) fn schur(a: &[f64], n: usize) -> Option<Schur> {
             .map(|k| {
                 let (i, j) = (k / active, k % active);
                 let v = t[i * n + j];
-                if i == j {
-                    v.minus(shift)
-                } else {
-                    v
-                }
+                if i == j { v.minus(shift) } else { v }
             })
             .collect();
         let mut rotations = Vec::with_capacity(active);
@@ -212,7 +208,7 @@ pub(crate) fn solve_lyapunov(a: &[f64], q: &[f64], n: usize) -> Option<Vec<f64>>
     let mut out: Vec<f64> = x.iter().map(|z| z.re).collect();
     for i in 0..n {
         for j in 0..i {
-            let mean = 0.5 * (out[i * n + j] + out[j * n + i]);
+            let mean = out[i * n + j].midpoint(out[j * n + i]);
             out[i * n + j] = mean;
             out[j * n + i] = mean;
         }
@@ -223,6 +219,17 @@ pub(crate) fn solve_lyapunov(a: &[f64], q: &[f64], n: usize) -> Option<Vec<f64>>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn lyapunov_symmetry_preserves_large_and_subnormal_finite_entries() {
+        for (diagonal, off_diagonal) in
+            [(0.9 * f64::MAX, 0.6 * f64::MAX), (f64::from_bits(4), f64::from_bits(2))]
+        {
+            let q = [diagonal, off_diagonal, off_diagonal, diagonal];
+            let x = solve_lyapunov(&[-0.5, 0.0, 0.0, -0.5], &q, 2).unwrap();
+            assert_eq!(x, q);
+        }
+    }
 
     #[test]
     fn schur_and_bartels_stewart_solve_known_lyapunov_equations() {
@@ -239,11 +246,7 @@ mod tests {
         let a: Vec<f64> = (0..n * n)
             .map(|k| {
                 let (i, j) = (k / n, k % n);
-                if i == j {
-                    -2.0
-                } else {
-                    0.3 * ((i * 7 + j * 3) % 5) as f64 / 5.0 - 0.1
-                }
+                if i == j { -2.0 } else { 0.3 * ((i * 7 + j * 3) % 5) as f64 / 5.0 - 0.1 }
             })
             .collect();
         let mut q = vec![0.0; n * n];

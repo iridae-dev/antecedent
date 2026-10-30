@@ -212,3 +212,13 @@ after PyO3 argument extraction.
 Python family-table construction runs under its execution scope and reports
 cancellation and resource refusals. These controls preserve requested draw counts
 and add no calibration claim.
+
+## OU Lyapunov residuals
+
+OU covariance and covariance-direction solves check a dimensionless, max-entry
+relative residual against the absolute terms of `M X + X Mᵀ + Q`. The residual
+reported for a failed consistency check is now dimensionless. Binary scaling
+avoids overflowing intermediate products and removes the previous absolute unit
+floor. Symmetrization preserves finite large and subnormal entries. The Schur
+separation threshold remains unchanged; a small residual is a consistency check
+and does not establish forward accuracy for an ill-conditioned equation.
