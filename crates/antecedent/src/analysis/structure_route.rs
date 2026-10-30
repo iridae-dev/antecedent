@@ -487,6 +487,17 @@ impl DiscoverySpec {
                 static_params(&mut writer, screen);
             }
         }
+        fn uses_ges(method: &DiscoveryMethod) -> bool {
+            match method {
+                DiscoveryMethod::Ges { .. } => true,
+                DiscoveryMethod::BootstrapStability { base, .. } => uses_ges(base),
+                _ => false,
+            }
+        }
+        // The historical Insert-Turn-Delete search is a different program.
+        if uses_ges(&self.method) {
+            writer.text("ges.schedule.insert-delete.v2");
+        }
         match &self.regimes {
             Some(assignment) => {
                 writer.word(1).word(assignment.regimes.len() as u64);
@@ -2504,5 +2515,49 @@ impl CompiledExecution {
             oriented = oriented.with_provenance(provenance);
         }
         Ok(oriented)
+    }
+}
+
+#[cfg(test)]
+mod ges_schedule_identity_tests {
+    use super::*;
+
+    fn params() -> StaticDiscoverParams {
+        StaticDiscoverParams {
+            alpha: 0.05,
+            max_cond_size: 2,
+            fdr: None,
+            ci: crate::discovery_defaults::resolve_ci("parcorr", None).unwrap(),
+            screen_pc: false,
+            max_subset: None,
+            knowledge: Default::default(),
+        }
+    }
+
+    #[test]
+    fn ges_schedule_changes_identity_and_refuses_a_historical_query() {
+        // Captured from the previous compiled implementation with these options.
+        let historical_hex = "db511fe8b5b11e0f1cfc943df8ab15ded030b27fdf976f5b00e38492192570fe";
+        let mut historical = [0_u8; 32];
+        for (index, byte) in historical.iter_mut().enumerate() {
+            *byte = u8::from_str_radix(&historical_hex[index * 2..index * 2 + 2], 16).unwrap();
+        }
+        let variables: Arc<[VariableId]> =
+            Arc::from([VariableId::from_raw(0), VariableId::from_raw(1)]);
+        let ges = DiscoverySpec::ges(params(), "parcorr");
+        let query = ges.query(Arc::clone(&variables));
+        assert_ne!(query.bounds.configuration, historical);
+        assert!(ges.check_query(&query).is_ok());
+        let mut legacy = query.clone();
+        legacy.bounds.configuration = historical;
+        assert!(ges.check_query(&legacy).is_err());
+        let wrapped = ges.clone().bootstrap_stability(5).query(Arc::clone(&variables));
+        assert_eq!(wrapped.bounds.configuration, query.bounds.configuration);
+        for spec in [
+            DiscoverySpec::pc(params(), "parcorr"),
+            DiscoverySpec::pc(params(), "parcorr").bootstrap_stability(5),
+        ] {
+            assert_eq!(spec.query(Arc::clone(&variables)).bounds.configuration, historical);
+        }
     }
 }

@@ -222,3 +222,14 @@ avoids overflowing intermediate products and removes the previous absolute unit
 floor. Symmetrization preserves finite large and subnormal entries. The Schur
 separation threshold remains unchanged; a small residual is a consistency check
 and does not establish forward accuracy for an ill-conditioned equation.
+
+## GES search schedule
+
+GES now runs the forward Insert phase followed by backward Delete, matching
+Chickering (2002) and the pinned causal-learn oracle. The previous additional
+Turn phase is no longer executed. Search diagnostics and the algorithm record
+state this schedule. GES configuration identities, including bootstrap wrappers,
+carry `ges.schedule.insert-delete.v2`; historical GES declarations require a new
+search. Other discovery configuration identities retain their existing encoding.
+
+Reference: [Chickering, Section 1](https://www.jmlr.org/papers/volume3/chickering02b/chickering02b.pdf).

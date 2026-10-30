@@ -1,6 +1,6 @@
 //! Greedy Equivalence Search (GES) → static [`Cpdag`] (Chickering 2002).
 //!
-//! Forward Insert / turning Reverse / backward Delete on the CPDAG, scored by the local
+//! Forward Insert / backward Delete on the CPDAG, scored by the local
 //! score family the search is given (Gaussian BIC by default) via
 //! [`antecedent_state::LocalScoreCache`]. Optional PC-skeleton screening restricts Insert
 //! candidates.
@@ -34,6 +34,10 @@ use crate::result::{
 const ALGORITHM: &str = crate::pipeline::StaticAlgorithm::Ges.as_str();
 
 /// Chickering GES over tabular data → CPDAG.
+///
+/// The forward Insert phase is followed by backward Delete. Earlier versions
+/// ran an extra reversal phase between them; correcting the schedule can change
+/// results. The declared oracle is causal-learn's two-phase GES.
 #[derive(Clone)]
 pub struct Ges {
     /// Constraints / alpha (alpha used only when PC screening is on).
@@ -110,7 +114,7 @@ impl Ges {
         self
     }
 
-    /// Soft PC-skeleton screening for Insert (and reverse) candidates.
+    /// Soft PC-skeleton screening for Insert candidates.
     #[must_use]
     pub fn with_pc_screening(mut self, screen: bool) -> Self {
         self.screen_pc = screen;
@@ -182,11 +186,12 @@ impl Ges {
             tolerance: score_gain_tolerance(&score_data, &mut cache)?,
             pruned: &pruned,
         };
-        for phase in [SearchPhase::Insert, SearchPhase::Turn, SearchPhase::Delete] {
-            phase.run(&mut cpdag, search, &mut cache, &mut deltas, ctx)?;
-        }
+        run_ges_schedule(|phase| phase.run(&mut cpdag, search, &mut cache, &mut deltas, ctx))?;
 
-        let mut diagnostics = Vec::new();
+        let mut diagnostics = vec![DiscoveryDiagnostic {
+            code: Arc::from("ges.search_schedule"),
+            message: Arc::from("Chickering GES: forward insert, then backward delete"),
+        }];
         if pruned.get() > 0 {
             diagnostics.push(DiscoveryDiagnostic {
                 code: Arc::from("ges.operator_search_pruned"),
@@ -318,7 +323,7 @@ impl Ges {
             algorithm: crate::pipeline::algorithm_record(
                 ALGORITHM,
                 format!(
-                    "family={} screen_pc={} score={total_score:.6}{}",
+                    "family={} screen_pc={} schedule=insert-delete.v2 score={total_score:.6}{}",
                     score_family_label(self.score_family),
                     self.screen_pc,
                     self.constraints.knowledge_config()
@@ -399,10 +404,20 @@ fn score_gain_tolerance(
 enum SearchPhase {
     /// Forward equivalence search (Insert).
     Insert,
-    /// Turning phase (Reverse = Delete then Insert the opposite direction).
+    /// Historical reversal extension, retained only to test prior behavior.
+    #[cfg(test)]
     Turn,
     /// Backward equivalence search (Delete).
     Delete,
+}
+
+// Chickering (2002) and the pinned causal-learn GES oracle use these two phases.
+const GES_SCHEDULE: [SearchPhase; 2] = [SearchPhase::Insert, SearchPhase::Delete];
+fn run_ges_schedule<E>(mut run: impl FnMut(SearchPhase) -> Result<(), E>) -> Result<(), E> {
+    for phase in GES_SCHEDULE {
+        run(phase)?;
+    }
+    Ok(())
 }
 
 impl SearchPhase {
@@ -424,6 +439,7 @@ impl SearchPhase {
                 }
                 apply_insert(cpdag, best.x, best.y, &best.set)?;
             }
+            #[cfg(test)]
             Self::Turn => {
                 let Some(best) = best_reverse(cpdag, search, cache, deltas)? else {
                     return Ok(false);
@@ -474,6 +490,7 @@ struct OpCand {
     delta: f64,
 }
 
+#[cfg(test)]
 #[derive(Clone, Debug)]
 struct ReverseCand {
     x: DenseNodeId,
@@ -815,6 +832,7 @@ impl Footprint {
         }
     }
 
+    #[cfg(test)]
     fn contains(&self, node: DenseNodeId) -> bool {
         let index = node.as_usize();
         self.words.get(index / 64).is_some_and(|word| word & (1u64 << (index % 64)) != 0)
@@ -928,7 +946,8 @@ struct GesDeltaCache {
     scratch: Vec<u32>,
     /// Per-pair Insert results of the forward phase.
     pairs: InsertPairCache,
-    /// Per-candidate Insert results of the turning phase.
+    /// Per-candidate Insert results of the historical reversal phase.
+    #[cfg(test)]
     reverses: ReverseCache,
 }
 
@@ -1241,6 +1260,7 @@ fn best_delete(
 
 /// The Insert(Y, X, T) operators of a reversal candidate on its post-delete graph, with the
 /// score gain of each, and the edges the search read.
+#[cfg(test)]
 struct ReverseInsert {
     /// Edges of the post-delete graph incident to the nodes the Insert search read, sorted.
     read_edges: Vec<((u32, u32), (Endpoint, Endpoint))>,
@@ -1251,6 +1271,7 @@ struct ReverseInsert {
 }
 
 /// Most reversal results kept across the iterations of the turning phase.
+#[cfg(test)]
 const REVERSE_CACHE_ENTRY_BUDGET: usize = 1 << 16;
 
 /// Insert results of the reversal candidates `(X, Y, H)`, kept across turning iterations.
@@ -1259,12 +1280,14 @@ const REVERSE_CACHE_ENTRY_BUDGET: usize = 1 << 16;
 /// conversion to a DAG and back can re-orient edges far from `X`, `Y`), so it is rebuilt every
 /// iteration. The Insert search on it, which dominates the cost, reads only the edges incident to
 /// its footprint, so its result is reused whenever those edges are the same in the rebuilt graph.
+#[cfg(test)]
 #[derive(Default)]
 struct ReverseCache {
     entries: HashMap<(u32, u32, Vec<u32>), ReverseInsert>,
 }
 
 /// The edges of `cpdag` incident to a node of `footprint`, normalized and sorted.
+#[cfg(test)]
 fn edges_incident_to(
     cpdag: &Cpdag,
     footprint: &Footprint,
@@ -1285,6 +1308,7 @@ fn edges_incident_to(
     out
 }
 
+#[cfg(test)]
 fn best_reverse(
     cpdag: &Cpdag,
     search: GesSearch<'_>,
@@ -1300,6 +1324,7 @@ fn best_reverse(
     best
 }
 
+#[cfg(test)]
 fn best_reverse_with(
     cpdag: &Cpdag,
     search: GesSearch<'_>,
@@ -1579,6 +1604,69 @@ mod tests {
     use antecedent_core::VariableId;
     use antecedent_data::{TableView, TabularData};
 
+    /// Run the actual operator implementations with an explicit phase list.
+    fn run_test_schedule(data: &TabularData, vars: &[VariableId], phases: &[SearchPhase]) -> Cpdag {
+        let score = ges_score_data(data, vars).unwrap();
+        let mut cache = LocalScoreCache::new(crate::graph_score::graph_score_cache_key(
+            GraphScoreFamily::GaussianBic,
+            vars.len(),
+            score.n_rows,
+        ));
+        let constraints = DiscoveryConstraints::default();
+        let pruned = Cell::new(0);
+        let search = GesSearch {
+            data: &score,
+            max_parents: vars.len().saturating_sub(1),
+            subset_budget: 1 << 12,
+            screen: None,
+            constraints: &constraints,
+            variables: vars,
+            tolerance: score_gain_tolerance(&score, &mut cache).unwrap(),
+            pruned: &pruned,
+        };
+        let mut graph = empty_cpdag(vars).unwrap();
+        let mut deltas = GesDeltaCache::default();
+        let ctx = ExecutionContext::for_tests(1);
+        for &phase in phases {
+            phase.run(&mut graph, search, &mut cache, &mut deltas, &ctx).unwrap();
+        }
+        graph
+    }
+
+    fn edge_marks(graph: &Cpdag) -> Vec<(u32, u32, Endpoint, Endpoint)> {
+        let mut marks: Vec<_> =
+            graph.edges().iter().map(|e| (e.a.raw(), e.b.raw(), e.at_a, e.at_b)).collect();
+        marks.sort_unstable_by_key(|e| (e.0, e.1));
+        marks
+    }
+
+    #[test]
+    fn public_ges_runs_forward_then_backward_on_real_data() {
+        let (data, vars) = gaussian_chain_data(400);
+        let mut seen = Vec::new();
+        run_ges_schedule::<()>(|phase| {
+            seen.push(phase);
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(seen, [SearchPhase::Insert, SearchPhase::Delete]);
+        let forward_backward =
+            run_test_schedule(&data, &vars, &[SearchPhase::Insert, SearchPhase::Delete]);
+        let historical = run_test_schedule(
+            &data,
+            &vars,
+            &[SearchPhase::Insert, SearchPhase::Turn, SearchPhase::Delete],
+        );
+        let public = Ges::new()
+            .run(&data, &vars, &mut DiscoveryWorkspace::default(), &ExecutionContext::for_tests(1))
+            .unwrap();
+        assert_eq!(edge_marks(&public.evidence.graph), edge_marks(&forward_backward));
+        // The historical schedule runs real operators too, but this fixture is not
+        // claimed to distinguish its result. A pinned differing witness is needed
+        // before asserting a graph difference.
+        let _historical_marks = edge_marks(&historical);
+    }
+
     fn gaussian_chain_data(n: usize) -> (TabularData, Vec<VariableId>) {
         // X0 → X1 → X2 linear Gaussian.
         let mut x0 = vec![0.0; n];
@@ -1605,6 +1693,8 @@ mod tests {
         let ctx = ExecutionContext::for_tests(1);
         let result = ges.run(&data, &vars, &mut ws, &ctx).unwrap();
         assert_eq!(result.algorithm.id.as_ref(), "ges");
+        assert!(result.algorithm.config.contains("schedule=insert-delete.v2"));
+        assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "ges.search_schedule"));
         let g = &result.evidence.graph;
         // Score of the chosen graph under the centered, compensated Gram. The cached search must
         // keep these bits.

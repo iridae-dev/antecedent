@@ -371,7 +371,7 @@ impl UnshieldedTriples {
     }
 }
 
-/// Colombo–Maathuis Lemma 3.1: local CI around unshielded triples.
+/// Colombo et al. (2012), Lemma 3.1: local CI around unshielded triples.
 fn rfci_unshielded_triples(
     ci: &mut StaticCiRun<'_>,
     graph: &mut RfciGraph<'_>,
@@ -400,6 +400,9 @@ fn rfci_unshielded_triples(
         let Some(sep_ac) = sepset_vars(graph.sepsets, a, c) else {
             continue;
         };
+        // Lemma 3.1 and Step 2 in the original RFCI paper, Section 3.2:
+        // https://arxiv.org/pdf/1104.5617. Test every unshielded triple with
+        // sep(a,c)\{b}; membership of b gates orientation, not these tests.
         let cond: Vec<VariableId> = sep_ac.into_iter().filter(|&z| z != b).collect();
 
         // a ⊥? b | sep(a,c)\{b}
@@ -625,15 +628,12 @@ mod tests {
         let adjacencies = pairs("adjacencies");
         let non_adjacencies = pairs("non_adjacencies");
         let data = tabular_n(variables.len(), 50);
-        let vars: Vec<VariableId> = (0..variables.len())
-            .map(|i| VariableId::from_raw(u32::try_from(i).unwrap()))
-            .collect();
-        let rfci = Rfci::new()
-            .with_fdr(false)
-            .with_ci(Arc::new(OracleCi::new(adjacencies.clone())));
+        let vars: Vec<VariableId> =
+            (0..variables.len()).map(|i| VariableId::from_raw(u32::try_from(i).unwrap())).collect();
+        let rfci =
+            Rfci::new().with_fdr(false).with_ci(Arc::new(OracleCi::new(adjacencies.clone())));
         let mut ws = DiscoveryWorkspace::default();
-        let result =
-            rfci.run(&data, &vars, &mut ws, &ExecutionContext::for_tests(seed)).unwrap();
+        let result = rfci.run(&data, &vars, &mut ws, &ExecutionContext::for_tests(seed)).unwrap();
         assert_eq!(result.algorithm.id.as_ref(), "rfci");
         // No Possible-D-Sep iteration label.
         assert!(result.iterations.iter().all(|i| !i.label.contains("possible_d_sep")));
