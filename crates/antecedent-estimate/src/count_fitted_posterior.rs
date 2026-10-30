@@ -41,6 +41,11 @@ pub const FUNCTIONAL_ID: &str = "conditional_probability";
 pub const MAX_ASSIGNMENTS: usize = 1 << 20;
 /// Largest number of posterior draws.
 pub const MAX_DRAWS: usize = 100_000;
+/// Maximum logical conditional-lookup work of a point or posterior request.
+/// Each assignment charges one lookup plus every parent-index operation per
+/// node, and every evidence comparison. The posterior budget includes its point
+/// evaluation. This is a resource bound, not a measured timing guarantee.
+pub const MAX_ENUMERATION_WORK: usize = 100_000_000;
 /// Posterior-draw counts the calibration measured, ascending. An execution is
 /// governed by the largest class its draw count reaches ([`draw_class`]); the
 /// first is the supported minimum.
@@ -48,6 +53,17 @@ pub const MEASURED_DRAW_CLASSES: [u32; 2] = [2000, 8000];
 
 fn unsupported(message: &'static str) -> EstimationError {
     EstimationError::Unsupported { message }
+}
+
+fn check_cancelled() -> Result<(), EstimationError> {
+    if antecedent_core::numerical_admission::is_cancelled() {
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("transport_budget_cancel"),
+            "count_fitted_posterior.cancelled",
+            "count-fitted posterior request was cancelled",
+        ));
+    }
+    Ok(())
 }
 
 /// How one node's conditional distribution is known.
@@ -143,7 +159,7 @@ impl CountFittedModel {
     /// `rows` is the number of observations the count tables were fitted from.
     ///
     /// # Errors
-    /// A parent that is not earlier, a table of the wrong shape, a declared row that is
+    /// A parent that is not earlier or is repeated, a table of the wrong shape, a declared row that is
     /// not a probability vector, no node, a cardinality below two, or an enumeration
     /// larger than [`MAX_ASSIGNMENTS`].
     pub fn new(nodes: Vec<CountNode>, rows: u64) -> Result<Self, EstimationError> {
@@ -162,9 +178,22 @@ impl CountFittedModel {
             if node.parents.iter().any(|&p| p >= index) {
                 return Err(unsupported("count-fitted model: parents must precede their child"));
             }
-            let configurations: usize =
-                node.parents.iter().map(|&p| nodes[p].cardinality).product();
-            let expected = configurations * node.cardinality;
+            let mut seen = vec![false; index];
+            for &parent in &node.parents {
+                if seen[parent] {
+                    return Err(unsupported("count-fitted model: duplicate parent"));
+                }
+                seen[parent] = true;
+            }
+            let expected = node
+                .parents
+                .iter()
+                .try_fold(node.cardinality, |size, &parent| {
+                    size.checked_mul(nodes[parent].cardinality)
+                })
+                .ok_or_else(|| {
+                    unsupported("count-fitted model: conditional table shape overflows")
+                })?;
             match &node.table {
                 NodeTable::Counts(counts) if counts.len() == expected => {}
                 NodeTable::Declared(probabilities) if probabilities.len() == expected => {
@@ -203,11 +232,20 @@ impl CountFittedModel {
 
     /// `P(target = level | evidence)` under per-node probability tables, by exact
     /// enumeration. `None` when the evidence has zero probability.
-    fn conditional(&self, tables: &[Vec<f64>], query: &PosteriorQuery) -> Option<f64> {
+    fn conditional(
+        &self,
+        tables: &[Vec<f64>],
+        query: &PosteriorQuery,
+    ) -> Result<Option<f64>, EstimationError> {
         let n = self.nodes.len();
         let mut assignment = vec![0_usize; n];
         let (mut joint, mut evidence_mass) = (0.0_f64, 0.0_f64);
+        let mut visited = 0usize;
         loop {
+            if visited % 4096 == 0 {
+                check_cancelled()?;
+            }
+            visited += 1;
             if query.evidence.iter().all(|&(node, level)| assignment[node] == level) {
                 let mut p = 1.0;
                 for (index, node) in self.nodes.iter().enumerate() {
@@ -226,7 +264,7 @@ impl CountFittedModel {
             let mut position = n;
             loop {
                 if position == 0 {
-                    return (evidence_mass > 0.0).then(|| joint / evidence_mass);
+                    return Ok((evidence_mass > 0.0).then(|| joint / evidence_mass));
                 }
                 position -= 1;
                 assignment[position] += 1;
@@ -249,12 +287,39 @@ impl CountFittedModel {
         Ok(())
     }
 
+    fn check_work(
+        &self,
+        query: &PosteriorQuery,
+        evaluations: usize,
+    ) -> Result<(), EstimationError> {
+        check_cancelled()?;
+        let assignments =
+            self.nodes.iter().try_fold(1usize, |n, node| n.checked_mul(node.cardinality));
+        let per_assignment = self.nodes.iter().try_fold(query.evidence.len(), |work, node| {
+            work.checked_add(node.parents.len())?.checked_add(1)
+        });
+        let work = assignments
+            .zip(per_assignment)
+            .and_then(|(n, per)| n.checked_mul(per))
+            .and_then(|per| per.checked_mul(evaluations));
+        if work.is_none_or(|work| work > MAX_ENUMERATION_WORK) {
+            return Err(crate::util::refuse(
+                antecedent_core::reason_code!("transport_budget_cancel"),
+                "count_fitted_posterior.work_limit",
+                "count-fitted posterior request exceeds the logical enumeration-work limit",
+            ));
+        }
+        Ok(())
+    }
+
     /// The point value under the posterior-mean tables (counts plus `prior_alpha`).
     ///
     /// # Errors
-    /// An out-of-range query or evidence of zero probability.
+    /// An out-of-range query, evidence of zero probability, cancellation, or work
+    /// exceeding [`MAX_ENUMERATION_WORK`].
     pub fn point(&self, query: &PosteriorQuery, prior_alpha: f64) -> Result<f64, EstimationError> {
         self.validate_query(query)?;
+        self.check_work(query, 1)?;
         let tables: Vec<Vec<f64>> = self
             .nodes
             .iter()
@@ -269,7 +334,7 @@ impl CountFittedModel {
                     .collect(),
             })
             .collect();
-        self.conditional(&tables, query)
+        self.conditional(&tables, query)?
             .ok_or_else(|| unsupported("count-fitted posterior: the evidence has zero probability"))
     }
 
@@ -280,7 +345,8 @@ impl CountFittedModel {
     ///
     /// # Errors
     /// A level outside `(0, 1)`, a non-positive prior, a draw count outside
-    /// `[2, MAX_DRAWS]`, an out-of-range query, or evidence of zero probability.
+    /// `[2, MAX_DRAWS]`, an out-of-range query, evidence of zero probability,
+    /// cancellation, or work exceeding [`MAX_ENUMERATION_WORK`].
     #[allow(
         clippy::nonminimal_bool,
         reason = "a NaN level or width must fail the open-interval test"
@@ -300,6 +366,7 @@ impl CountFittedModel {
         {
             return Err(unsupported("count-fitted posterior: invalid level, prior or draw count"));
         }
+        self.check_work(query, draws as usize + 1)?;
         let point = self.point(query, prior_alpha)?;
         let mut rng = SplitMix(seed ^ 0x9e37_79b9_7f4a_7c15);
         let _admitted = crate::util::admit_bound_array::<f64>(draws as usize, 1)?;
@@ -313,6 +380,7 @@ impl CountFittedModel {
             })
             .collect();
         for _ in 0..draws {
+            check_cancelled()?;
             for (node, table) in self.nodes.iter().zip(tables.iter_mut()) {
                 if let NodeTable::Counts(counts) = &node.table {
                     for (row_counts, row) in
@@ -336,7 +404,7 @@ impl CountFittedModel {
                     }
                 }
             }
-            let value = self.conditional(&tables, query).ok_or_else(|| {
+            let value = self.conditional(&tables, query)?.ok_or_else(|| {
                 unsupported("count-fitted posterior: the evidence has zero probability")
             })?;
             values.push(value);
@@ -506,6 +574,68 @@ fn basis_with_structure(structure: &str, rows: u64, level: f64, draws: u32) -> C
 )]
 mod tests {
     use super::*;
+
+    #[test]
+    fn duplicate_parents_are_refused_before_table_shape_arithmetic() {
+        let result = CountFittedModel::new(
+            vec![
+                CountNode { cardinality: 2, parents: vec![], table: NodeTable::Counts(vec![1, 1]) },
+                CountNode {
+                    cardinality: 2,
+                    parents: vec![0; 64],
+                    table: NodeTable::Counts(vec![]),
+                },
+            ],
+            2,
+        );
+        assert!(result.unwrap_err().to_string().contains("duplicate parent"));
+    }
+
+    #[test]
+    fn posterior_enumeration_work_is_bounded_before_point_evaluation() {
+        let model = CountFittedModel::new(
+            (0..20)
+                .map(|_| CountNode {
+                    cardinality: 2,
+                    parents: vec![],
+                    table: NodeTable::Declared(vec![0.5, 0.5]),
+                })
+                .collect(),
+            2,
+        )
+        .unwrap();
+        let query = PosteriorQuery { target: 0, level: 1, evidence: vec![] };
+        let error = model.posterior_interval(&query, 0.95, 1.0, MAX_DRAWS as u32, 1).unwrap_err();
+        assert_eq!(error.reason_code(), Some("transport_budget_cancel"));
+        assert!(error.to_string().contains("work_limit"));
+
+        let nodes = (0..3)
+            .map(|i| CountNode {
+                cardinality: 2,
+                parents: (0..i).collect(),
+                table: NodeTable::Declared(vec![0.5; 2usize.pow((i + 1) as u32)]),
+            })
+            .collect();
+        let model = CountFittedModel::new(nodes, 2).unwrap();
+        // Eight assignments, charging 1+2+3 parent-index/lookup operations.
+        let allowed = MAX_ENUMERATION_WORK / 48;
+        assert!(model.check_work(&query, allowed).is_ok());
+        assert!(model.check_work(&query, allowed + 1).is_err());
+        assert!((model.point(&query, 1.0).unwrap() - 0.5).abs() < 1e-12);
+    }
+
+    #[test]
+    fn count_fitted_requests_preserve_workflow_cancellation() {
+        let (model, query) = beta_four_eight();
+        let context = antecedent_core::ExecutionContext::for_tests(1);
+        context.cancellation.cancel();
+        let error = antecedent_core::numerical_admission::with_context(&context, || {
+            model.posterior_interval(&query, 0.95, 1.0, 20, 1)
+        })
+        .unwrap_err();
+        assert_eq!(error.reason_code(), Some("transport_budget_cancel"));
+        assert!(error.to_string().contains("cancelled"));
+    }
 
     /// A single node counted `[7, 3]` (three in level 1) under the uniform prior: `P(Y = 1)` is exactly
     /// `Beta(4, 8)`, whose quantiles and density are closed forms.

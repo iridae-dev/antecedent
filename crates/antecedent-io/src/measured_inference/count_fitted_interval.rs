@@ -53,6 +53,17 @@ fn protocol(message: &str) -> IoError {
     refused("measured_interval.protocol_not_measured", message)
 }
 
+fn estimation_error(error: antecedent_estimate::EstimationError) -> IoError {
+    if error.reason_code() == Some(antecedent_core::reason_code!("transport_budget_cancel")) {
+        IoError::Refused {
+            code: antecedent_core::reason_code!("transport_budget_cancel"),
+            message: error.to_string(),
+        }
+    } else {
+        refused("measured_inference.invalid_report", &error.to_string())
+    }
+}
+
 /// One node of the retained model.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -140,8 +151,7 @@ impl CountFittedIntervalArtifactWire {
                 }
             }
         }
-        let model = CountFittedModel::new(nodes, self.rows)
-            .map_err(|e| refused("measured_inference.invalid_report", &e.to_string()))?;
+        let model = CountFittedModel::new(nodes, self.rows).map_err(estimation_error)?;
         let find = |name: &str, level: &str| -> Result<(usize, usize), IoError> {
             let node = self
                 .nodes
@@ -239,7 +249,7 @@ impl CountFittedIntervalArtifactWire {
                 self.draws,
                 self.seed,
             )
-            .map_err(|e| refused("measured_inference.invalid_report", &e.to_string()))?;
+            .map_err(estimation_error)?;
         let fraction = interval.mcse_width_fraction();
         if fraction.is_nan() || fraction > mcse_tolerance {
             return Err(refused(
@@ -376,6 +386,32 @@ mod tests {
     fn detail(error: &IoError) -> String {
         let IoError::Refused { message, .. } = error else { panic!("not a refusal: {error:?}") };
         message.clone()
+    }
+
+    #[test]
+    fn malformed_parent_lists_and_excessive_replay_work_are_refused() {
+        let mut malformed = wire(MEASURED_DRAWS);
+        malformed.nodes[1].parents = vec![0; usize::BITS as usize];
+        malformed.nodes[1].counts = None;
+        malformed.nodes[1].declared_bits = Some(vec![]);
+        let error = malformed.resolve().err().expect("duplicate parents refused");
+        assert!(error.to_string().contains("duplicate parent"));
+
+        let mut excessive = wire(MEASURED_DRAWS);
+        excessive.nodes = (0..20)
+            .map(|i| CountFittedNodeWire {
+                name: format!("n{i}"),
+                levels: levels(),
+                parents: vec![],
+                counts: Some(vec![50, 50]),
+                declared_bits: None,
+            })
+            .collect();
+        excessive.target = "n0".into();
+        excessive.evidence.clear();
+        let error = excessive.replay(1.0).unwrap_err();
+        assert!(matches!(error, IoError::Refused { code: "transport_budget_cancel", .. }));
+        assert!(error.to_string().contains("enumeration-work limit"));
     }
 
     #[test]
