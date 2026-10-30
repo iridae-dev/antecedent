@@ -5,7 +5,7 @@
 # self-ownership, closed or absent owners and a decision without a rationale.
 
 schema = 1
-count = 173
+count = 174
 
 [[limitation]]
 id = "phrase.declaration.0aa33e3f48"
@@ -1796,6 +1796,18 @@ rationale = ""
 rule = "temporal_continuous_cross_world_transport"
 
 [[limitation]]
+id = "evidence.support_graphless.2fb9bc11f8"
+kind = "evidence_limit"
+source = "parity/support_graphless.toml"
+locator = "2 rows"
+text = "The equal-tailed 95% quantiles are pointwise and repeated-sampling calibration is unmeasured, not a prerequisite for this execution license."
+item = ""
+owner = "Q08"
+decision = ""
+rationale = ""
+rule = "evidence_row_coverage_measurement"
+
+[[limitation]]
 id = "evidence.support_licensed.0339aeaa24"
 kind = "evidence_limit"
 source = "parity/support_licensed.toml"
@@ -1823,7 +1835,7 @@ rule = "evidence_row_coverage_measurement"
 id = "evidence.support_licensed.0e96e91ef0"
 kind = "evidence_limit"
 source = "parity/support_licensed.toml"
-locator = "40 rows"
+locator = "334 rows"
 text = "no coverage record measures this construction."
 item = ""
 owner = "Q08"
@@ -1847,7 +1859,7 @@ rule = "evidence_row_coverage_measurement"
 id = "evidence.support_licensed.2b09f0b3ed"
 kind = "evidence_limit"
 source = "parity/support_licensed.toml"
-locator = "768 rows"
+locator = "770 rows"
 text = "no coverage record measures the intervals and calibration is not claimed."
 item = ""
 owner = "Q08"

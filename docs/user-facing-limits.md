@@ -76,31 +76,30 @@ applicable, with the reason each one does not denote:
 - ResponseCurve cheap and full: a function-valued curve has no ATE-shaped
   refuter state.
 
-Some contrasts denote but are not licensed in either inference mode. They
-are refused with the reason rather than recorded as n/a. Pulse, sustained and
-temporal-conditional contrasts on one series under a TemporalAdmg are
-identified on the unrolled window of the template (the complete ID algorithm,
-IDC for the conditional contrast) and execute unlicensed on the lag-aligned
-window table: support status `refused`, diagnostic `estimate.temporal_admg.window`,
-block resampling with a block never shorter than the window, a series read as
-stationary over the template, and discrete data only. Cheap validation refits
-the plug-in on a random contiguous stretch of the windows and rotates the
-treatment columns together by at least one window (the contrast must then be
-indistinguishable from zero); full validation adds a 50% stretch and a
-split-half stationarity test. A graph posterior over TemporalAdmg atoms stays
-refused: a posterior is over contemporaneous adjacency and has no lagged
-template to unroll. A window that holds a hedge is refused with the variables
-and periods that carry it. Natural
-mediation on one series under a TemporalAdmg is identified on the same window by
-the path-specific identifier (the recanting-district criterion applies to the
-window ADMG) and executes unlicensed with the total, natural direct and natural
-indirect effects estimated on the same resampled windows
-(`estimate.mediation.joint`); a ConditionalEffect on a TemporalAdmg read from
-tabular rows is the conditional contrast of its contemporaneous projection, not
-the temporal conditional contrast. TemporalMediationEffect on a TemporalPag is
-still refused. MediationEffect on an Admg, a Cpdag or a Pag decomposes the same
-way over the structure (the class envelope of the path-specific executors) and
-executes unlicensed at validation none. A TransportQuery reads a selection diagram. A Dag is the diagram with no latent confounding and runs the same sID identification and trial-to-target estimator (unlicensed); cheap and full validation run the transport-native suite (calibration of the supplied selection and treatment probabilities against the rows they describe, effective sample size of the weights, and a whole-procedure bootstrap range under full). A Cpdag or Pag names several diagrams and stays refused. InterferenceQuery is identified by its known assignment mechanism and exposure mapping, not by an edge, so it is stated under an Admg, TemporalAdmg (contemporaneous projection), Cpdag or Pag as well as a Dag and executes unlicensed; its cheap and full validation check the realized assignment against the declared design, report the smallest exposure probability and, under full, test by re-randomization that the contrast is unbiased around zero under the sharp null. The static switchback and
+Pulse, sustained and temporal-conditional contrasts on one series under a TemporalAdmg are
+identified on the unrolled window of the template (the complete ID algorithm, IDC for the
+conditional contrast) and evaluated on the lag-aligned window table, with the diagnostic
+`estimate.temporal_admg.window`, block resampling with a block never shorter than the window, a
+series read as stationary over the template, and discrete data only. They are licensed when the
+template is supplied, accepted or drawn from a graph posterior of lagged atoms, on the exact
+enumerated truth of `conformance/estimate/temporal_window_truth`. Cheap validation refits the
+plug-in on a random contiguous stretch of the windows and rotates the treatment columns together
+by at least one window (the contrast must then be indistinguishable from zero); full validation
+adds a 50% stretch and a split-half stationarity test, which a series whose effect vanishes
+halfway fails. A graph posterior over contemporaneous TemporalAdmg atoms stays refused: it has no
+lagged template to unroll. A window that holds a hedge is refused with the variables and
+periods that carry it. Natural mediation on one series under a TemporalAdmg is identified on the
+same window by the path-specific identifier (the recanting-district criterion applies to the
+window ADMG) and is licensed with the total, natural direct and natural indirect effects
+estimated on the same resampled windows, supplied, accepted or over a graph posterior of lagged
+atoms. TemporalMediationEffect on a TemporalPag, supplied, accepted or over a graph posterior, is
+licensed at every validation: the enumerated effects lie in the published identified set and the
+mediation-native suite runs on every member. A ConditionalEffect on a TemporalAdmg read from tabular
+rows is the conditional contrast of its contemporaneous projection, not the temporal conditional
+contrast. Some contrasts denote but are not licensed in either inference mode. They are refused
+with the reason rather than recorded as n/a. MediationEffect on an Admg, a Cpdag or a Pag
+decomposes the same way over the structure (the class envelope of the path-specific executors)
+and executes unlicensed at validation none. A TransportQuery reads a selection diagram. A Dag is the diagram with no latent confounding and runs the same sID identification and trial-to-target estimator (unlicensed); cheap and full validation run the transport-native suite (calibration of the supplied selection and treatment probabilities against the rows they describe, effective sample size of the weights, and a whole-procedure bootstrap range under full). A Cpdag or Pag names several diagrams and stays refused. InterferenceQuery is identified by its known assignment mechanism and exposure mapping, not by an edge, so it is stated under an Admg, TemporalAdmg (contemporaneous projection), Cpdag or Pag as well as a Dag and executes unlicensed; its cheap and full validation check the realized assignment against the declared design, report the smallest exposure probability and, under full, test by re-randomization that the contrast is unbiased around zero under the sharp null. The static switchback and
 the static analogues of the dose-grid, sequential and experiment-bridge
 designs are temporal by construction and have no static cell.
 
