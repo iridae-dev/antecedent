@@ -120,6 +120,7 @@ impl std::error::Error for ArtifactRefusal {}
 #[derive(Default)]
 struct Writer {
     bytes: Vec<u8>,
+    canonical_reals: bool,
 }
 
 impl Writer {
@@ -136,6 +137,7 @@ impl Writer {
     }
 
     fn real(&mut self, value: f64) {
+        let value = if self.canonical_reals && value == 0.0 { 0.0 } else { value };
         self.bytes.extend_from_slice(&value.to_bits().to_le_bytes());
     }
 
@@ -303,27 +305,13 @@ fn write_dependence(w: &mut Writer, dependence: &PosteriorDependence) {
     }
 }
 
-/// Serialize a discretization: its source premises, its plan and the numbers it
-/// claims.
-///
-/// # Errors
-/// [`ArtifactRefusal`] with [`DETAIL_NOT_EXPORTABLE`] when a source mechanism is
-/// not additive-noise linear-Gaussian or the declared dependence is a form this
-/// version cannot carry.
-pub fn export_discretized_scm(
-    model: &DiscretizedLinearGaussian,
-) -> Result<Vec<u8>, ArtifactRefusal> {
-    let spec = model.source_model().spec();
-    let mut w = Writer::default();
-    w.text(TAG);
-    w.bytes.extend_from_slice(&DISCRETIZED_SCM_ARTIFACT_VERSION.to_le_bytes());
-
-    // Premises.
+// One canonical, prefix-framed encoding is used by both identity and artifact export.
+fn write_spec(w: &mut Writer, spec: &ComposedModelSpec) -> Result<(), ArtifactRefusal> {
     w.text(&spec.target.population);
     w.text(&spec.target.regime);
     w.count(spec.mechanisms.len());
     for d in &spec.mechanisms {
-        write_mechanism(&mut w, d)?;
+        write_mechanism(w, d)?;
     }
     w.count(spec.edges.len());
     for (parent, child) in &spec.edges {
@@ -351,8 +339,35 @@ pub fn export_discretized_scm(
             w.texts(&node.points_into);
         }
     }
-    write_dependence(&mut w, &spec.dependence);
+    write_dependence(w, &spec.dependence);
     w.tag(u8::from(spec.admit_declared_mechanisms));
+
+    Ok(())
+}
+
+pub(crate) fn identity_premises(spec: &ComposedModelSpec) -> Result<Vec<u8>, ArtifactRefusal> {
+    let mut w = Writer { canonical_reals: true, ..Writer::default() };
+    write_spec(&mut w, spec)?;
+    Ok(w.bytes)
+}
+
+/// Serialize a discretization: its source premises, its plan and the numbers it
+/// claims.
+///
+/// # Errors
+/// [`ArtifactRefusal`] with [`DETAIL_NOT_EXPORTABLE`] when a source mechanism is
+/// not additive-noise linear-Gaussian or the declared dependence is a form this
+/// version cannot carry.
+pub fn export_discretized_scm(
+    model: &DiscretizedLinearGaussian,
+) -> Result<Vec<u8>, ArtifactRefusal> {
+    let spec = model.source_model().spec();
+    let mut w = Writer::default();
+    w.text(TAG);
+    w.bytes.extend_from_slice(&DISCRETIZED_SCM_ARTIFACT_VERSION.to_le_bytes());
+
+    // Premises use the same canonical encoding as the bridge identity.
+    write_spec(&mut w, spec)?;
 
     // Plan.
     w.tag(match model.method() {

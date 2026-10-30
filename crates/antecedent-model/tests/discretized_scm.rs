@@ -27,7 +27,7 @@ use antecedent_model::compose::{
 use antecedent_model::discretized_scm::{
     BRIDGE_CALIBRATION, BRIDGE_INFERENCE, DETAIL_CANCELLED, DETAIL_COMPOSITION_INCOHERENT,
     DETAIL_DEGENERATE_MARGINAL, DETAIL_INTERVENTION_INVALID, DETAIL_LATENT_CONFOUNDING,
-    DETAIL_LEVELS_OUT_OF_RANGE, DETAIL_LEVELS_UNDECLARED, DETAIL_NON_GAUSSIAN,
+    DETAIL_LEVELS_OUT_OF_RANGE, DETAIL_LEVELS_UNDECLARED, DETAIL_NON_GAUSSIAN, DETAIL_NUMERICAL,
     DETAIL_PARADIGM_CLOSED, DETAIL_POINT_ONLY, DETAIL_STATE_SPACE_TOO_LARGE,
     DETAIL_SUPPORT_NOT_REAL, DETAIL_UNKNOWN_VARIABLE, DiscreteArm, DiscreteContrast,
     DiscretizationMethod, DiscretizationPlan, DiscretizedLinearGaussian, InferenceParadigm,
@@ -399,6 +399,30 @@ fn an_incoherent_composition_is_refused_with_its_findings() {
     // The source compiles on its own once repaired: the bridge adds no
     // acceptance the composition did not give.
     assert!(ComposedLinearGaussian::compile(&spec_of(chain())).is_ok());
+}
+
+#[test]
+fn nonfinite_contrast_weights_and_overflow_are_refused() {
+    let model = build(chain(), 4);
+    for weight in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        let request = DiscreteContrast {
+            outcome: "Y".into(),
+            arms: vec![DiscreteArm { weight, interventions: vec![("X".into(), 1)] }],
+        };
+        assert_eq!(
+            model.mean_contrast(&request, &ctx()).unwrap_err().detail,
+            DETAIL_INTERVENTION_INVALID
+        );
+    }
+    let request = DiscreteContrast {
+        outcome: "Y".into(),
+        arms: vec![
+            DiscreteArm { weight: f64::MAX, interventions: vec![("X".into(), 3)] },
+            DiscreteArm { weight: f64::MAX, interventions: vec![("X".into(), 3)] },
+        ],
+    };
+    assert_eq!(model.mean_contrast(&request, &ctx()).unwrap_err().detail, DETAIL_NUMERICAL);
+    assert!(model.mean_contrast(&contrast("Y", "X", 3, 0), &ctx()).unwrap().value.is_finite());
 }
 
 #[test]

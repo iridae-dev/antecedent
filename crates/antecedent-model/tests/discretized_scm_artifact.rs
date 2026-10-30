@@ -8,7 +8,8 @@
 use antecedent_core::ExecutionContext;
 use antecedent_model::compose::{
     ComposedModelSpec, Domain, MechanismContext, MechanismDescriptor, MechanismForm,
-    MechanismOrigin, MechanismProvenance, ParentBinding, PosteriorDependence,
+    MechanismOrigin, MechanismProvenance, MechanismUncertainty, ParameterTerm, ParentBinding,
+    PosteriorDependence, UncertaintyMeaning,
 };
 use antecedent_model::discretized_scm::{
     DiscretizationMethod, DiscretizationPlan, DiscretizedLinearGaussian,
@@ -130,6 +131,71 @@ fn malformed_bytes_and_other_versions_are_refused_typed() {
     assert_eq!(refusal.detail, DETAIL_VERSION_UNSUPPORTED);
 
     assert_eq!(consume_discretized_scm(&[], None, &ctx()).unwrap_err().detail, DETAIL_MALFORMED);
+}
+
+#[test]
+fn identity_normalizes_signed_zero_in_all_premise_reals() {
+    let plan = DiscretizationPlan::uniform(
+        DiscretizationMethod::EqualProbabilityQuantile,
+        &["X".into(), "Y".into()],
+        2,
+    );
+    let mut positive = spec();
+    positive.mechanisms[0].uncertainty = Some(MechanismUncertainty {
+        meaning: UncertaintyMeaning::SamplingDistribution,
+        parameters: vec![ParameterTerm::Intercept],
+        covariance: vec![0.0],
+    });
+    let mut negative = positive.clone();
+    if let MechanismForm::LinearGaussian { intercept, .. } = &mut negative.mechanisms[0].form {
+        *intercept = -0.0;
+    }
+    negative.mechanisms[0].uncertainty.as_mut().unwrap().covariance[0] = -0.0;
+    let a = DiscretizedLinearGaussian::from_spec(&positive, &plan, &ctx()).unwrap();
+    let b = DiscretizedLinearGaussian::from_spec(&negative, &plan, &ctx()).unwrap();
+    assert_eq!(a.identity(), b.identity());
+    let bytes = export_discretized_scm(&b).unwrap();
+    assert_eq!(
+        consume_discretized_scm(&bytes, Some(a.identity()), &ctx()).unwrap().identity(),
+        a.identity()
+    );
+}
+
+#[test]
+fn identity_covers_dependence_and_parameter_uncertainty_premises() {
+    let plan = DiscretizationPlan::uniform(
+        DiscretizationMethod::EqualProbabilityQuantile,
+        &["X".into(), "Y".into()],
+        2,
+    );
+    let mut original_spec = spec();
+    original_spec.mechanisms[0].uncertainty = Some(MechanismUncertainty {
+        meaning: UncertaintyMeaning::SamplingDistribution,
+        parameters: vec![ParameterTerm::Intercept],
+        covariance: vec![0.0123456789],
+    });
+    let original = DiscretizedLinearGaussian::from_spec(&original_spec, &plan, &ctx()).unwrap();
+    let mut changed = original_spec.clone();
+    changed.mechanisms[0].uncertainty.as_mut().unwrap().covariance[0] = 0.023456789;
+    let different = DiscretizedLinearGaussian::from_spec(&changed, &plan, &ctx()).unwrap();
+    assert_ne!(original.identity(), different.identity());
+    changed = original_spec.clone();
+    changed.dependence =
+        PosteriorDependence::IndependentByDesign { justification: "independent evidence".into() };
+    let independent = DiscretizedLinearGaussian::from_spec(&changed, &plan, &ctx()).unwrap();
+    assert_ne!(original.identity(), independent.identity());
+    changed = original_spec.clone();
+    changed.mechanisms.reverse();
+    assert_eq!(
+        original.identity(),
+        DiscretizedLinearGaussian::from_spec(&changed, &plan, &ctx()).unwrap().identity()
+    );
+    let bytes = export_discretized_scm(&original).unwrap();
+    let edited = replace(&bytes, 0.0123456789, 0.023456789);
+    assert_eq!(
+        consume_discretized_scm(&edited, Some(original.identity()), &ctx()).unwrap_err().detail,
+        DETAIL_IDENTITY_MISMATCH
+    );
 }
 
 #[test]

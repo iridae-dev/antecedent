@@ -126,7 +126,7 @@ pub const DETAIL_NUMERICAL: &str = "discretized_scm.numerical";
 /// A route's inferential paradigm is closed.
 pub const DETAIL_PARADIGM_CLOSED: &str = "paradigm_parity.paradigm_closed";
 
-const TAG_IDENTITY: &str = "antecedent.model.discretized_scm";
+const TAG_IDENTITY: &str = "antecedent.model.discretized_scm.complete_premises.v2";
 
 /// A typed refusal of the bridge or of a paradigm request.
 #[derive(Clone, Debug, PartialEq)]
@@ -683,7 +683,7 @@ impl DiscretizedLinearGaussian {
         let mut nodes = grid_nodes(model, &level_counts, &index)?;
         let tables = fill_tables(&mut nodes, ctx)?;
 
-        let identity = identity_of(spec, plan.method, &nodes);
+        let identity = identity_of(spec, plan.method, &nodes)?;
         let identity_hex = antecedent_core::identity::to_hex(&identity);
 
         let mechanisms = finite_mechanisms(spec, &nodes, &tables, &index, &identity_hex);
@@ -823,6 +823,13 @@ impl DiscretizedLinearGaussian {
         ctx: &ExecutionContext,
     ) -> Result<DiscretizedContrast, BridgeRefusal> {
         poll(ctx)?;
+        if contrast.arms.iter().any(|arm| !arm.weight.is_finite()) {
+            return Err(invalid(
+                DETAIL_INTERVENTION_INVALID,
+                contrast.outcome.clone(),
+                "contrast arm weights must be finite",
+            ));
+        }
         let Some(outcome) = self.position(&contrast.outcome) else {
             return Err(invalid(
                 DETAIL_INTERVENTION_INVALID,
@@ -879,10 +886,22 @@ impl DiscretizedLinearGaussian {
                 mean_error_bound: bound,
             });
         }
+        let absolute_error = (value - closed_form).abs();
+        if !value.is_finite()
+            || !closed_form.is_finite()
+            || !error_bound.is_finite()
+            || !absolute_error.is_finite()
+        {
+            return Err(invalid(
+                DETAIL_NUMERICAL,
+                contrast.outcome.clone(),
+                "contrast result overflowed; rescale the requested arm weights",
+            ));
+        }
         Ok(DiscretizedContrast {
             value,
             closed_form,
-            absolute_error: (value - closed_form).abs(),
+            absolute_error,
             error_bound,
             arms,
             method: self.method.as_str(),
@@ -959,27 +978,25 @@ fn identity_of(
     spec: &ComposedModelSpec,
     method: DiscretizationMethod,
     nodes: &[BridgeNode],
-) -> [u8; 32] {
+) -> Result<[u8; 32], BridgeRefusal> {
+    let premises = crate::discretized_scm_artifact::identity_premises(spec).map_err(|error| {
+        invalid(
+            DETAIL_COMPOSITION_INCOHERENT,
+            error.subject,
+            "use an exportable linear Gaussian composition",
+        )
+    })?;
     let mut w = CanonicalWriter::new(TAG_IDENTITY);
     w.word(u64::from(DISCRETIZED_SCM_VERSION));
     w.word(match method {
         DiscretizationMethod::EqualProbabilityQuantile => 1,
     });
-    w.text(&spec.target.population).text(&spec.target.regime);
+    w.bytes(&premises);
     w.word(nodes.len() as u64);
-    for (node, d) in nodes.iter().zip(&spec.mechanisms) {
+    for node in nodes {
         w.text(&node.variable).word(node.values.len() as u64);
-        w.real(node.intercept).real(node.sigma).word(node.parents.len() as u64);
-        for (k, &p) in node.parents.iter().enumerate() {
-            w.text(&nodes[p].variable).real(node.coefficients[k]);
-        }
-        w.text(&d.output_units).text(&d.output_transform);
-        w.text(&d.context.population).text(&d.context.regime);
-        w.text(&d.provenance.artifact_id).text(&d.provenance.evidence_id);
-        w.word(d.provenance.origin as u64);
     }
-    w.word(u64::from(spec.admit_declared_mechanisms));
-    w.finish()
+    Ok(w.finish())
 }
 
 // ---------------------------------------------------------------------------
