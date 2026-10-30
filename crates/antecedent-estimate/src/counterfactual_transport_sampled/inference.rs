@@ -60,26 +60,44 @@ pub(crate) fn delta_standard_error(
     work: &mut SampledWork<'_>,
 ) -> Result<DeltaOutcome, EstimationError> {
     // A perturbed table is no longer the count shares, so its law is model-based.
-    let flavors = vec![LawFlavor::Model; tables.len()];
+    let mut flavors = Vec::with_capacity(tables.len());
+    while flavors.len() < tables.len() {
+        work.charge(0)?;
+        flavors.resize(flavors.len().saturating_add(512).min(tables.len()), LawFlavor::Model);
+    }
     let mut variance = 0.0;
     let mut evaluations = 0u64;
     // Reuse the table stack across every perturbation; only the current
     // physical dataset group needs to be changed and restored.
     for table in tables {
-        work.charge(table_work(table))?;
+        let units = table_work(table, work)?;
+        work.charge(units)?;
     }
-    let mut trial = probabilities.to_vec();
+    let mut trial = Vec::with_capacity(probabilities.len());
+    for values in probabilities {
+        let mut copied = Vec::with_capacity(values.len());
+        for chunk in values.chunks(512) {
+            work.charge(0)?;
+            copied.extend_from_slice(chunk);
+        }
+        trial.push(copied);
+    }
     for group in &groups.groups {
         let representative = group[0];
         let table = &tables[representative];
         let p = &probabilities[representative];
-        let total = table.total() as f64;
-        work.charge(table_work(table).saturating_mul(table.axes().len().saturating_add(1)))?;
-        let (stratum_of, strata) = table.strata();
+        let (total, _, _) = table.checked_report_counts(work)?;
+        let total = total as f64;
+        let units = table_work(table, work)?.saturating_mul(table.axes().len().saturating_add(1));
+        work.charge(units)?;
+        let (stratum_of, strata) = table.strata(work)?;
         let mut weight = vec![0.0f64; strata];
         let mut first = vec![0.0f64; strata];
         let mut second = vec![0.0f64; strata];
         for (cell, &pc) in p.iter().enumerate() {
+            if cell % 512 == 0 {
+                work.charge(0)?;
+            }
             weight[stratum_of[cell]] += pc;
             if pc.is_nan() || pc <= 0.0 {
                 continue;
@@ -88,14 +106,31 @@ pub(crate) fn delta_standard_error(
             let mut value = [0.0f64; 2];
             for (slot, sign) in [1.0f64, -1.0].iter().enumerate() {
                 work.charge(p.len().saturating_mul(group.len().saturating_add(4)))?;
-                let mut perturbed = p.clone();
+                let mut perturbed = Vec::with_capacity(p.len());
+                for chunk in p.chunks(512) {
+                    work.charge(0)?;
+                    perturbed.extend_from_slice(chunk);
+                }
                 perturbed[cell] += sign * h;
-                let norm: f64 = perturbed.iter().sum();
-                for q in &mut perturbed {
-                    *q /= norm;
+                let mut norm = 0.0;
+                for chunk in perturbed.chunks(512) {
+                    work.charge(0)?;
+                    for q in chunk {
+                        norm += q;
+                    }
+                }
+                for chunk in perturbed.chunks_mut(512) {
+                    work.charge(0)?;
+                    for q in chunk {
+                        *q /= norm;
+                    }
                 }
                 for &member in group {
-                    trial[member].clone_from(&perturbed);
+                    trial[member].clear();
+                    for chunk in perturbed.chunks(512) {
+                        work.charge(0)?;
+                        trial[member].extend_from_slice(chunk);
+                    }
                 }
                 evaluations += 1;
                 match evaluate_detailed(derivation, tables, &trial, &flavors, limits, ctx, work) {
@@ -111,7 +146,11 @@ pub(crate) fn delta_standard_error(
                 }
             }
             for &member in group {
-                trial[member].clone_from(&probabilities[member]);
+                trial[member].clear();
+                for chunk in probabilities[member].chunks(512) {
+                    work.charge(0)?;
+                    trial[member].extend_from_slice(chunk);
+                }
             }
             let g = (value[0] - value[1]) / (2.0 * h);
             first[stratum_of[cell]] += pc * g;
@@ -119,6 +158,9 @@ pub(crate) fn delta_standard_error(
         }
         let mut dataset = 0.0;
         for s in 0..strata {
+            if s % 512 == 0 {
+                work.charge(0)?;
+            }
             if weight[s] > 0.0 {
                 dataset += second[s] - first[s] * first[s] / weight[s];
             }

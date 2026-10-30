@@ -205,17 +205,17 @@ fn point_fits_but_gradient_exhausts_shared_budget() {
     let limits = SampledTransportLimits::default();
     let mut work = SampledWork { remaining: limits.evaluation.operations, ctx: &ctx };
     for table in &tables {
-        work.charge(
-            table_work(table).saturating_mul(
-                tables.len().saturating_add(derivation.cited.len()).saturating_add(2),
-            ),
-        )
-        .unwrap();
+        let units = table_work(table, &mut work)
+            .unwrap()
+            .saturating_mul(tables.len().saturating_add(derivation.cited.len()).saturating_add(2));
+        work.charge(units).unwrap();
     }
     tables.sort_by_cached_key(|a| (a.key(), a.content_identity()));
     let probabilities: Vec<Vec<f64>> = tables
         .iter()
-        .map(|table| table_probabilities(table, UnseenCellRule::Refuse, &limits).unwrap().0)
+        .map(|table| {
+            table_probabilities(table, UnseenCellRule::Refuse, &limits, &mut work).unwrap().0
+        })
         .collect();
     let flavors = vec![LawFlavor::Empirical; tables.len()];
     let (point, _) =
@@ -339,11 +339,119 @@ fn cancelled_exact_law_is_mapped_to_transport_cancellation() {
     let mut rng = Rng(404);
     let tables = sample_laws(&data, 20_000, &mut rng);
     let limits = SampledTransportLimits::default();
-    let probabilities = table_probabilities(&tables[0], UnseenCellRule::Refuse, &limits).unwrap().0;
     let ctx = ExecutionContext::for_tests(7);
+    let mut work = super::SampledWork { remaining: limits.evaluation.operations, ctx: &ctx };
+    let probabilities =
+        table_probabilities(&tables[0], UnseenCellRule::Refuse, &limits, &mut work).unwrap().0;
     ctx.cancellation.cancel();
     let error = antecedent_core::numerical_admission::with_context(&ctx, || {
-        law_of(&tables[0], &probabilities, LawFlavor::Empirical).unwrap_err()
+        law_of(&tables[0], &probabilities, LawFlavor::Empirical, &mut work).unwrap_err()
     });
     assert_eq!(error.reason_code(), Some("transport_budget_cancel"));
+}
+
+#[test]
+fn checked_setup_matches_unchecked_table_identity_and_sort_order() {
+    use super::{SampledWork, checked_sort_tables};
+    let case = chain_case();
+    let derivation = derive(&case, &case.targets[0]);
+    let mut rng = Rng(404);
+    let tables = cited_only(&derivation, &sample_laws(&laws_of(&case), 20_000, &mut rng));
+    let ctx = ExecutionContext::for_tests(7);
+    let mut work = SampledWork { remaining: usize::MAX, ctx: &ctx };
+    let table = &tables[0];
+    let cloned = table.checked_clone(&mut work).unwrap();
+    assert_eq!(&cloned, table);
+    let mut input = Vec::new();
+    for population in ["zz", "a", "aa", "z"] {
+        let mut key = table.checked_key(&mut work).unwrap();
+        key.population = Arc::from(population);
+        input.push((key, table.checked_content_identity(&mut work).unwrap(), cloned.clone()));
+    }
+    let mut expected = input.clone();
+    expected.sort_by(|a, b| (&a.0, &a.1).cmp(&(&b.0, &b.1)));
+    assert_eq!(checked_sort_tables(input, &mut work).unwrap(), expected);
+    ctx.cancellation.cancel();
+    assert_eq!(
+        tables[0].checked_clone(&mut work).unwrap_err().reason_code(),
+        Some("transport_budget_cancel")
+    );
+}
+
+#[test]
+fn envelope_members_charge_preparation_and_keep_separate_allowances() {
+    use super::SampledWork;
+    use super::counts::table_probabilities;
+    use super::envelope::evaluate_envelope;
+
+    let case = chain_case();
+    let derivation = derive(&case, &case.targets[0]);
+    let mut rng = Rng(404);
+    let tables = cited_only(&derivation, &sample_laws(&laws_of(&case), 20_000, &mut rng));
+    let ctx = ExecutionContext::for_tests(7);
+    let defaults = SampledTransportLimits::default();
+    let mut setup = SampledWork { remaining: defaults.evaluation.operations, ctx: &ctx };
+    let probabilities: Vec<Vec<f64>> = tables
+        .iter()
+        .map(|table| {
+            table_probabilities(table, UnseenCellRule::Refuse, &defaults, &mut setup).unwrap().0
+        })
+        .collect();
+    let preparation: usize = probabilities.iter().map(|p| p.len() * 2).sum();
+    assert!(preparation > 0);
+    let tight = SampledTransportLimits {
+        evaluation: antecedent_expr::ExactEvaluationLimits {
+            operations: preparation - 1,
+            ..defaults.evaluation
+        },
+        ..defaults.clone()
+    };
+    // Preparation is charged to the member even when the caller's shared
+    // point/gradient allowance has already been consumed.
+    let mut shared = SampledWork { remaining: 0, ctx: &ctx };
+    let error =
+        evaluate_envelope(&derivation, &tables, &probabilities, 0.01, &tight, &ctx, &mut shared)
+            .unwrap_err();
+    assert_eq!(error.reason_code(), Some("transport_budget_cancel"));
+    let mut shared = SampledWork { remaining: 0, ctx: &ctx };
+    let envelope =
+        evaluate_envelope(&derivation, &tables, &probabilities, 0.01, &defaults, &ctx, &mut shared)
+            .unwrap();
+    assert!(envelope.defined_members > 0);
+    assert_eq!(shared.remaining, 0);
+    ctx.cancellation.cancel();
+    let mut shared = SampledWork { remaining: defaults.evaluation.operations, ctx: &ctx };
+    let error =
+        evaluate_envelope(&derivation, &tables, &probabilities, 0.01, &defaults, &ctx, &mut shared)
+            .unwrap_err();
+    assert_eq!(error.reason_code(), Some("transport_budget_cancel"));
+}
+
+#[test]
+fn checked_report_key_copy_meters_and_preserves_identity() {
+    use super::SampledWork;
+    use super::counts::SampledTableKey;
+    use antecedent_core::{RegimeId, VariableId};
+    let key = SampledTableKey {
+        population: Arc::from("α population"),
+        regime: RegimeId::from_raw(3),
+        interventions: (0..1025).map(|n| (VariableId::from_raw(n), u64::from(n))).collect(),
+    };
+    let ctx = ExecutionContext::for_tests(7);
+    let mut enough = SampledWork { remaining: 1025, ctx: &ctx };
+    assert_eq!(key.checked_clone(&mut enough).unwrap(), key);
+    let mut insufficient = SampledWork { remaining: 1024, ctx: &ctx };
+    assert_eq!(
+        key.checked_clone(&mut insufficient).unwrap_err().reason_code(),
+        Some("transport_budget_cancel")
+    );
+    ctx.cancellation.cancel();
+    let mut cancelled = SampledWork { remaining: 1025, ctx: &ctx };
+    assert_eq!(
+        key.checked_clone(&mut cancelled).unwrap_err().reason_code(),
+        Some("transport_budget_cancel")
+    );
+    let name = "α".repeat(200);
+    assert!(super::name_preview(&name).len() <= 256);
+    assert!(name.starts_with(super::name_preview(&name)));
 }

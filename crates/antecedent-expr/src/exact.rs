@@ -281,21 +281,47 @@ impl ExactDiscreteLaw {
         antecedent_core::execution_attempt::run_operation(
             antecedent_core::execution_attempt::Operation::ProviderBinding,
             || {
+                let check = || {
+                    if antecedent_core::numerical_admission::is_cancelled() {
+                        Err(ExactLawError {
+                            kind: "cancelled",
+                            population: Arc::from(""),
+                            regime: None,
+                            variables: Arc::from([]),
+                            conditioning: Arc::from([]),
+                            interventions: Arc::from([]),
+                        })
+                    } else {
+                        Ok(())
+                    }
+                };
+                check()?;
+                let population = population.into();
+                check()?;
+                let interventions = interventions.into();
+                check()?;
+                let axes = axes.into();
+                check()?;
+                let probabilities = probabilities.into();
+                check()?;
+                let snapshot_identity = snapshot_identity.into();
+                check()?;
                 let mut law = Self {
-                    population: population.into(),
+                    population,
                     regime,
-                    interventions: interventions.into(),
-                    axes: axes.into(),
-                    probabilities: probabilities.into(),
+                    interventions,
+                    axes,
+                    probabilities,
                     strides: Arc::from([]),
                     axis_index: Arc::new(BTreeMap::new()),
                     level_index: Arc::from([]),
-                    snapshot_identity: snapshot_identity.into(),
+                    snapshot_identity,
                     tolerance,
                     origin: LawOrigin::SuppliedExact,
                     empirical_counts: None,
                     marginals: Arc::default(),
                 };
+                law.check_cancelled()?;
                 if law.population.is_empty()
                     || law.snapshot_identity.is_empty()
                     || !tolerance.valid()
@@ -304,6 +330,7 @@ impl ExactDiscreteLaw {
                 }
                 let mut intervened = HashSet::new();
                 for assignment in law.interventions.iter() {
+                    law.check_cancelled()?;
                     if !finite(&assignment.value) || !intervened.insert(assignment.variable) {
                         return Err(law.error("invalid_law_intervention"));
                     }
@@ -890,7 +917,6 @@ impl ExactTransportData {
         laws: impl Into<Arc<[ExactDiscreteLaw]>>,
         max_support_rows: usize,
     ) -> Result<Self, ExactLawError> {
-        let laws = laws.into();
         let error = |kind| ExactLawError {
             kind,
             population: Arc::from(""),
@@ -899,6 +925,13 @@ impl ExactTransportData {
             conditioning: Arc::from([]),
             interventions: Arc::from([]),
         };
+        if antecedent_core::numerical_admission::is_cancelled() {
+            return Err(error("cancelled"));
+        }
+        let laws = laws.into();
+        if antecedent_core::numerical_admission::is_cancelled() {
+            return Err(error("cancelled"));
+        }
         if max_support_rows == 0 {
             return Err(error("support_budget"));
         }
@@ -907,13 +940,32 @@ impl ExactTransportData {
         let mut domain_keys = HashMap::<VariableId, HashSet<Value>>::new();
         for (i, law) in laws.iter().enumerate() {
             law.check_cancelled()?;
-            if index
-                .insert(
-                    world_binding(Arc::clone(&law.population), law.regime, &law.interventions),
-                    i,
-                )
-                .is_some()
-            {
+            // The law constructor already rejects duplicate intervention variables.
+            // Build the canonical key in variable order without an uninterruptible sort.
+            let mut ordered = BTreeMap::new();
+            for assignment in law.interventions.iter() {
+                law.check_cancelled()?;
+                ordered.insert(
+                    assignment.variable,
+                    InterventionAssignment {
+                        variable: assignment.variable,
+                        value: value_key(&assignment.value),
+                    },
+                );
+            }
+            let mut key = Vec::with_capacity(ordered.len());
+            for assignment in ordered.into_values() {
+                law.check_cancelled()?;
+                key.push(assignment);
+            }
+            law.check_cancelled()?;
+            let binding = WorldBinding {
+                population: Arc::clone(&law.population),
+                regime: law.regime,
+                interventions: Arc::from(key),
+            };
+            law.check_cancelled()?;
+            if index.insert(binding, i).is_some() {
                 return Err(law.error("duplicate_law_binding"));
             }
             for axis in law.axes.iter() {

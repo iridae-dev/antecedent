@@ -222,6 +222,7 @@ fn find(parent: &mut [usize], mut i: usize) -> usize {
 /// for shared units whose observations are not identical tables (the covariance
 /// is not recoverable from counts); `invalid_argument` for a pair that names a
 /// table the request does not hold.
+#[cfg(test)]
 pub(crate) fn resolve_overlap(
     tables: &[SampledRegimeCounts],
     declaration: &OverlapDeclaration,
@@ -299,6 +300,136 @@ pub(crate) fn resolve_overlap(
     let mut groups: Vec<Vec<usize>> = Vec::new();
     let mut root_group: Vec<Option<usize>> = vec![None; n];
     for i in 0..n {
+        let r = find(&mut parent, i);
+        let known = root_group[r];
+        if let Some(g) = known {
+            groups[g].push(i);
+        } else {
+            root_group[r] = Some(groups.len());
+            groups.push(vec![i]);
+        }
+    }
+    Ok(DatasetGroups { groups })
+}
+
+pub(crate) fn resolve_overlap_checked(
+    tables: &[SampledRegimeCounts],
+    declaration: &OverlapDeclaration,
+    work: &mut SampledWork<'_>,
+) -> Result<DatasetGroups, EstimationError> {
+    let keys: Vec<SampledTableKey> =
+        tables.iter().map(|table| table.checked_key(work)).collect::<Result<_, _>>()?;
+    for pair in declaration.pairs() {
+        let mut has_a = false;
+        let mut has_b = false;
+        for key in &keys {
+            has_a |= super::checked_key_cmp(key, &pair.a, work)? == std::cmp::Ordering::Equal;
+            has_b |= super::checked_key_cmp(key, &pair.b, work)? == std::cmp::Ordering::Equal;
+        }
+        if !has_a || !has_b {
+            return Err(refused(
+                antecedent_core::reason_code!("invalid_argument"),
+                DETAIL_OVERLAP_INVALID,
+                "an overlap declaration names a table the request does not supply",
+            ));
+        }
+    }
+    let n = tables.len();
+    let mut parent = Vec::with_capacity(n);
+    for i in 0..n {
+        if i % 512 == 0 {
+            work.charge(0)?;
+        }
+        parent.push(i);
+    }
+    for i in 0..n {
+        for j in (i + 1)..n {
+            let mut relation = declaration.default;
+            for pair in &declaration.pairs {
+                if super::checked_key_cmp(&pair.a, &keys[i], work)? == std::cmp::Ordering::Equal
+                    && super::checked_key_cmp(&pair.b, &keys[j], work)? == std::cmp::Ordering::Equal
+                {
+                    relation = pair.relation;
+                    break;
+                }
+            }
+            let a = tables[i].snapshot_identity().as_bytes();
+            let b = tables[j].snapshot_identity().as_bytes();
+            let mut same_snapshot = a.len() == b.len();
+            if same_snapshot {
+                for (left, right) in a.chunks(512).zip(b.chunks(512)) {
+                    work.charge(0)?;
+                    if left != right {
+                        same_snapshot = false;
+                        break;
+                    }
+                }
+            }
+            work.charge(0)?;
+            let identical = tables[i].same_observations_checked(&tables[j], work)?;
+            match relation {
+                DatasetOverlap::Unknown => {
+                    return Err(refused(
+                        antecedent_core::reason_code!("sampling_dependence_unknown"),
+                        DETAIL_OVERLAP_UNKNOWN,
+                        format!(
+                            "the overlap of the units behind population {} regime {} and \
+                             population {} regime {} is not declared; independence is never \
+                             assumed. Declare the pair independent (disjoint units) or shared \
+                             units, or derive the declaration from an evidence ledger",
+                            super::name_preview(tables[i].population()),
+                            tables[i].regime().raw(),
+                            super::name_preview(tables[j].population()),
+                            tables[j].regime().raw()
+                        ),
+                    ));
+                }
+                DatasetOverlap::Independent => {
+                    if same_snapshot {
+                        return Err(refused(
+                            antecedent_core::reason_code!("evidence_double_counted"),
+                            DETAIL_OVERLAP_DOUBLE,
+                            format!(
+                                "population {} regime {} and population {} regime {} are \
+                                 declared independent but name the same physical snapshot; \
+                                 their units cannot be disjoint. Declare them shared units where \
+                                 the summaries are identical, or supply disjoint snapshots",
+                                super::name_preview(tables[i].population()),
+                                tables[i].regime().raw(),
+                                super::name_preview(tables[j].population()),
+                                tables[j].regime().raw()
+                            ),
+                        ));
+                    }
+                }
+                DatasetOverlap::SharedUnits => {
+                    if !same_snapshot || !identical {
+                        return Err(refused(
+                            antecedent_core::reason_code!("route_not_supported"),
+                            DETAIL_OVERLAP_UNLINKED,
+                            "two tables are declared to share units but do not name the same \
+                             physical snapshot and identical count table; the covariance of \
+                             overlapping but different tables is not recoverable from counts",
+                        ));
+                    }
+                    let (ri, rj) = (find(&mut parent, i), find(&mut parent, j));
+                    if ri != rj {
+                        parent[rj.max(ri)] = rj.min(ri);
+                    }
+                }
+            }
+        }
+    }
+    let mut groups: Vec<Vec<usize>> = Vec::new();
+    let mut root_group: Vec<Option<usize>> = Vec::with_capacity(n);
+    while root_group.len() < n {
+        work.charge(0)?;
+        root_group.resize(root_group.len().saturating_add(512).min(n), None);
+    }
+    for i in 0..n {
+        if i % 512 == 0 {
+            work.charge(0)?;
+        }
         let r = find(&mut parent, i);
         let known = root_group[r];
         if let Some(g) = known {

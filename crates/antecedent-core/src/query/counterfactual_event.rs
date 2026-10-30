@@ -192,40 +192,49 @@ impl CounterfactualEventQuery {
     /// conjunctions. This is the digest input, not a display format.
     #[must_use]
     pub fn canonical_text(&self) -> String {
-        use std::fmt::Write as _;
-        let mut out = String::from("counterfactual_event_query_v1;coupling=");
-        out.push_str(self.coupling.tag());
+        let mut out = String::new();
+        self.write_canonical(&mut out).expect("writing to a string cannot fail");
+        out
+    }
+
+    /// Write the same canonical text to a caller-supplied fallible sink.
+    ///
+    /// # Errors
+    /// Propagates an error from the sink.
+    pub fn write_canonical(&self, out: &mut impl std::fmt::Write) -> std::fmt::Result {
+        out.write_str("counterfactual_event_query_v1;coupling=")?;
+        out.write_str(self.coupling.tag())?;
         for (index, world) in self.worlds.iter().enumerate() {
-            let _ = write!(out, ";world{index}{{do=[");
+            write!(out, ";world{index}{{do=[")?;
             for (variable, value) in world.interventions() {
-                let _ = write!(out, "{}:{:016x},", variable.raw(), value.to_bits());
+                write!(out, "{}:{:016x},", variable.raw(), value.to_bits())?;
             }
-            out.push_str("];reads=[");
+            out.write_str("];reads=[")?;
             for route in world.routes() {
-                let _ = write!(
+                write!(
                     out,
                     "{}>{}@{},",
                     route.parent.raw(),
                     route.child.raw(),
                     route.source.index()
-                );
+                )?;
             }
-            out.push_str("]}");
+            out.write_str("]}")?;
         }
         for (label, atoms) in [("event", &self.event), ("given", &self.given)] {
-            let _ = write!(out, ";{label}=[");
+            write!(out, ";{label}=[")?;
             for atom in atoms {
-                let _ = write!(
+                write!(
                     out,
                     "w{}.{}:{:016x},",
                     atom.world.index(),
                     atom.variable.raw(),
                     atom.level_bits
-                );
+                )?;
             }
-            out.push(']');
+            out.write_char(']')?;
         }
-        out
+        Ok(())
     }
 }
 
@@ -267,6 +276,21 @@ mod tests {
         assert_eq!(ett.coupling(), ExogenousCoupling::SharedLatentExogenous);
         assert!(ett.canonical_text().contains("coupling=shared_latent_exogenous"));
         assert_ne!(ett.canonical_text(), one.canonical_text());
+    }
+
+    #[test]
+    fn canonical_sink_preserves_text_and_propagates_write_failure() {
+        let query = CounterfactualEventQuery::effect_on_treated(v(0), 1.0, 0.0, v(2), 1.0).unwrap();
+        let mut text = String::new();
+        query.write_canonical(&mut text).unwrap();
+        assert_eq!(text, query.canonical_text());
+        struct Refuse;
+        impl std::fmt::Write for Refuse {
+            fn write_str(&mut self, _: &str) -> std::fmt::Result {
+                Err(std::fmt::Error)
+            }
+        }
+        assert!(query.write_canonical(&mut Refuse).is_err());
     }
 
     #[test]

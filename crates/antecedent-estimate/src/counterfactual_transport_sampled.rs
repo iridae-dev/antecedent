@@ -94,7 +94,7 @@ pub use overlap::{DatasetOverlap, OverlapDeclaration, OverlapPair};
 
 use counts::{LawFlavor, law_of, table_probabilities};
 use inference::{DeltaOutcome, delta_standard_error};
-use overlap::{DatasetGroups, resolve_overlap};
+use overlap::{DatasetGroups, resolve_overlap_checked};
 
 /// Reference table count of a request; not enforced.
 pub const SAMPLED_TRANSPORT_MAX_TABLES: usize = 64;
@@ -335,10 +335,23 @@ impl SampledWork<'_> {
     }
 }
 
+// Refusal messages need not copy an unbounded caller-supplied label.
+fn name_preview(name: &str) -> &str {
+    let mut end = name.len().min(256);
+    while !name.is_char_boundary(end) {
+        end -= 1;
+    }
+    &name[..end]
+}
+
 // Conservative precharge for external provider constructors and catalog/view
 // validation. Constructors do not expose per-row metering, so their scans are
 // charged before entering them. Saturation always refuses through `charge`.
-fn table_work(table: &SampledRegimeCounts) -> usize {
+fn table_work(
+    table: &SampledRegimeCounts,
+    work: &mut SampledWork<'_>,
+) -> Result<usize, EstimationError> {
+    work.charge(0)?;
     let mut units = table
         .counts()
         .len()
@@ -349,31 +362,41 @@ fn table_work(table: &SampledRegimeCounts) -> usize {
         .saturating_add(table.structural_zeros().len().saturating_mul(4))
         .saturating_add(32);
     for axis in table.axes() {
+        work.charge(0)?;
         units = units.saturating_add(axis.levels.len().saturating_mul(64)).saturating_add(8);
     }
-    units
+    Ok(units)
 }
 
 fn provider_work(
     derivation: &CounterfactualTransportDerivation,
     table: &SampledRegimeCounts,
-) -> usize {
+    work: &mut SampledWork<'_>,
+) -> Result<usize, EstimationError> {
+    work.charge(0)?;
     let catalog = &derivation.catalog;
-    let coordinates =
-        catalog.environments.iter().fold(0usize, |n, e| n.saturating_add(e.variables.len()));
-    let regimes = catalog.regimes.iter().fold(0usize, |n, r| {
-        n.saturating_add(r.measured.len())
+    let mut coordinates = 0usize;
+    for e in catalog.environments.iter() {
+        work.charge(0)?;
+        coordinates = coordinates.saturating_add(e.variables.len());
+    }
+    let mut regimes = 0usize;
+    for r in catalog.regimes.iter() {
+        work.charge(0)?;
+        regimes = regimes
+            .saturating_add(r.measured.len())
             .saturating_add(r.interventions.len())
             .saturating_add(r.intervention_values.len())
-            .saturating_add(1)
-    });
+            .saturating_add(1);
+    }
     let dimensions = regimes
         .saturating_add(coordinates)
         .saturating_add(catalog.bindings.len())
         .saturating_add(derivation.items.len())
         .saturating_add(1);
-    let mut units = table_work(table).saturating_mul(dimensions);
+    let mut units = table_work(table, work)?.saturating_mul(dimensions);
     for axis in table.axes() {
+        work.charge(0)?;
         let levels = axis.levels.len();
         // Domain validation may compare every declared level with every axis value.
         units = units.saturating_add(
@@ -383,7 +406,101 @@ fn provider_work(
             derivation.items.len().saturating_mul(levels.saturating_mul(levels).saturating_add(1)),
         );
     }
-    units
+    Ok(units)
+}
+
+// Fallible stable merge sort: std sorting cannot abort while a large key is compared.
+fn checked_key_cmp(
+    a: &SampledTableKey,
+    b: &SampledTableKey,
+    work: &mut SampledWork<'_>,
+) -> Result<std::cmp::Ordering, EstimationError> {
+    use std::cmp::Ordering;
+    let left = a.population.as_bytes();
+    let right = b.population.as_bytes();
+    let common = left.len().min(right.len());
+    for offset in (0..common).step_by(512) {
+        work.charge(0)?;
+        let end = (offset + 512).min(common);
+        let order = left[offset..end].cmp(&right[offset..end]);
+        if order != Ordering::Equal {
+            return Ok(order);
+        }
+    }
+    let order = left.len().cmp(&right.len()).then_with(|| a.regime.cmp(&b.regime));
+    if order != Ordering::Equal {
+        return Ok(order);
+    }
+    let common = a.interventions.len().min(b.interventions.len());
+    for offset in (0..common).step_by(512) {
+        work.charge(0)?;
+        let end = (offset + 512).min(common);
+        let order = a.interventions[offset..end].cmp(&b.interventions[offset..end]);
+        if order != Ordering::Equal {
+            return Ok(order);
+        }
+    }
+    work.charge(0)?;
+    Ok(a.interventions.len().cmp(&b.interventions.len()))
+}
+
+fn checked_sort_tables(
+    mut entries: Vec<(SampledTableKey, String, SampledRegimeCounts)>,
+    work: &mut SampledWork<'_>,
+) -> Result<Vec<(SampledTableKey, String, SampledRegimeCounts)>, EstimationError> {
+    let n = entries.len();
+    let mut order = Vec::with_capacity(n);
+    for i in 0..n {
+        if i % 512 == 0 {
+            work.charge(0)?;
+        }
+        order.push(i);
+    }
+    let mut next = Vec::with_capacity(n);
+    let mut width = 1usize;
+    while width < n {
+        next.clear();
+        for start in (0..n).step_by(width.saturating_mul(2)) {
+            let mid = start.saturating_add(width).min(n);
+            let end = mid.saturating_add(width).min(n);
+            let (mut left, mut right) = (start, mid);
+            while left < mid && right < end {
+                let a = &entries[order[left]];
+                let b = &entries[order[right]];
+                let cmp = checked_key_cmp(&a.0, &b.0, work)?.then_with(|| a.1.cmp(&b.1));
+                if cmp != std::cmp::Ordering::Greater {
+                    next.push(order[left]);
+                    left += 1;
+                } else {
+                    next.push(order[right]);
+                    right += 1;
+                }
+            }
+            for &i in &order[left..mid] {
+                work.charge(0)?;
+                next.push(i);
+            }
+            for &i in &order[right..end] {
+                work.charge(0)?;
+                next.push(i);
+            }
+        }
+        std::mem::swap(&mut order, &mut next);
+        width = width.saturating_mul(2);
+    }
+    let mut slots = Vec::with_capacity(n);
+    for (index, entry) in entries.drain(..).enumerate() {
+        if index % 512 == 0 {
+            work.charge(0)?;
+        }
+        slots.push(Some(entry));
+    }
+    let mut sorted = Vec::with_capacity(n);
+    for index in order {
+        work.charge(0)?;
+        sorted.push(slots[index].take().expect("unique merge-sort index"));
+    }
+    Ok(sorted)
 }
 
 /// Evaluate the stored derivation on laws built from counts and return the
@@ -400,8 +517,9 @@ pub(crate) fn evaluate_detailed(
     antecedent_core::numerical_admission::with_context(ctx, || {
         let mut laws = Vec::with_capacity(tables.len());
         for ((table, p), flavor) in tables.iter().zip(probabilities).zip(flavors) {
-            work.charge(provider_work(derivation, table))?;
-            laws.push(law_of(table, p, *flavor)?);
+            let units = provider_work(derivation, table, work)?;
+            work.charge(units)?;
+            laws.push(law_of(table, p, *flavor, work)?);
         }
         let data = ExactTransportData::try_new(laws, SAMPLED_TRANSPORT_MAX_TABLE_CELLS)
             .map_err(|e| counts::map_law_error(e, "the estimated laws are not a provider set"))?;
@@ -411,20 +529,6 @@ pub(crate) fn evaluate_detailed(
         work.charge(usize::try_from(repairs.operations).unwrap_or(usize::MAX))?;
         Ok((point, repairs))
     })
-}
-
-/// The probability of the stored derivation on the given estimated tables.
-pub(crate) fn evaluate_probability(
-    derivation: &CounterfactualTransportDerivation,
-    tables: &[SampledRegimeCounts],
-    probabilities: &[Vec<f64>],
-    flavors: &[LawFlavor],
-    limits: &SampledTransportLimits,
-    ctx: &ExecutionContext,
-) -> Result<f64, EstimationError> {
-    let mut work = SampledWork { remaining: limits.evaluation.operations, ctx };
-    evaluate_detailed(derivation, tables, probabilities, flavors, limits, ctx, &mut work)
-        .map(|(point, _)| point.probability)
 }
 
 fn validate_request(request: &SampledTransportRequest) -> Result<(), EstimationError> {
@@ -511,9 +615,10 @@ pub fn estimate_sampled_counterfactual_transport(
     // Precharge each table before cloning or hashing it; cached keys avoid
     // re-hashing all counts during comparison sort.
     for table in &request.tables {
-        work.charge(table_work(table).saturating_mul(
+        let units = table_work(table, &mut work)?.saturating_mul(
             request.tables.len().saturating_add(derivation.cited.len()).saturating_add(2),
-        ))?;
+        );
+        work.charge(units)?;
     }
     // Every declared pair is scanned by overlap resolution for each table
     // pair, and is later encoded in the evidence identity.
@@ -529,12 +634,19 @@ pub fn estimate_sampled_counterfactual_transport(
     for table in &request.tables {
         let key = table.checked_key(&mut work)?;
         let identity = table.checked_content_identity(&mut work)?;
-        work.charge(table_work(table))?;
-        keyed.push((key, identity, table.clone()));
+        let units = table_work(table, &mut work)?;
+        work.charge(units)?;
+        keyed.push((key, identity, table.checked_clone(&mut work)?));
     }
-    keyed.sort_by(|a, b| (&a.0, &a.1).cmp(&(&b.0, &b.1)));
-    work.charge(1)?;
-    if keyed.windows(2).any(|w| w[0].0 == w[1].0) {
+    let keyed = checked_sort_tables(keyed, &mut work)?;
+    let mut duplicate = false;
+    for pair in keyed.windows(2) {
+        if checked_key_cmp(&pair[0].0, &pair[1].0, &mut work)? == std::cmp::Ordering::Equal {
+            duplicate = true;
+            break;
+        }
+    }
+    if duplicate {
         return Err(invalid_counts(
             "two count tables name one population, regime and intervention world",
         ));
@@ -543,15 +655,39 @@ pub fn estimate_sampled_counterfactual_transport(
     let mut identities = Vec::with_capacity(keyed.len());
     let mut tables = Vec::with_capacity(keyed.len());
     for (key, identity, table) in keyed {
+        work.charge(0)?;
         keys.push(key);
         identities.push(identity);
         tables.push(table);
     }
+    fn same_population(
+        a: &str,
+        b: &str,
+        work: &mut SampledWork<'_>,
+    ) -> Result<bool, EstimationError> {
+        work.charge(0)?;
+        if a.len() != b.len() {
+            return Ok(false);
+        }
+        for (left, right) in a.as_bytes().chunks(512).zip(b.as_bytes().chunks(512)) {
+            work.charge(0)?;
+            if left != right {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
     for table in &tables {
-        let cited = derivation
-            .cited
-            .iter()
-            .any(|c| c.regime == table.regime() && c.population.as_ref() == table.population());
+        let mut cited = false;
+        for c in &derivation.cited {
+            work.charge(0)?;
+            if c.regime == table.regime()
+                && same_population(c.population.as_ref(), table.population(), &mut work)?
+            {
+                cited = true;
+                break;
+            }
+        }
         if !cited {
             return Err(refused(
                 antecedent_core::reason_code!("invalid_argument"),
@@ -559,40 +695,60 @@ pub fn estimate_sampled_counterfactual_transport(
                 format!(
                     "population {} regime {} is not cited by the stored derivation; evidence the \
                      derivation does not read is refused rather than ignored",
-                    table.population(),
+                    name_preview(table.population()),
                     table.regime().raw()
                 ),
             ));
         }
     }
     for cited in &derivation.cited {
-        let supplied = tables
-            .iter()
-            .any(|t| t.regime() == cited.regime && t.population() == cited.population.as_ref());
+        let mut supplied = false;
+        for table in &tables {
+            work.charge(0)?;
+            if table.regime() == cited.regime
+                && same_population(table.population(), cited.population.as_ref(), &mut work)?
+            {
+                supplied = true;
+                break;
+            }
+        }
         if !supplied {
             return Err(refused(
                 antecedent_core::reason_code!("transport_missing_provider"),
                 DETAIL_MISSING_TABLE,
                 format!(
                     "the derivation cites population {} regime {} and no count table was supplied",
-                    cited.population,
+                    name_preview(&cited.population),
                     cited.regime.raw()
                 ),
             ));
         }
     }
-    let groups: DatasetGroups = resolve_overlap(&tables, &request.overlap)?;
+    let groups: DatasetGroups = resolve_overlap_checked(&tables, &request.overlap, &mut work)?;
     let mut probabilities: Vec<Vec<f64>> = Vec::with_capacity(tables.len());
     let mut smoothed: Vec<bool> = Vec::with_capacity(tables.len());
     for table in &tables {
-        let (p, was_smoothed) = table_probabilities(table, request.unseen_rule, &request.limits)?;
+        let (p, was_smoothed) =
+            table_probabilities(table, request.unseen_rule, &request.limits, &mut work)?;
         probabilities.push(p);
         smoothed.push(was_smoothed);
     }
-    let flavors: Vec<LawFlavor> =
-        smoothed.iter().map(|s| if *s { LawFlavor::Model } else { LawFlavor::Empirical }).collect();
-    let any_smoothed = smoothed.iter().any(|s| *s);
-    let any_unseen = tables.iter().any(|t| !t.unseen_cells().is_empty());
+    let mut flavors = Vec::with_capacity(smoothed.len());
+    let mut any_smoothed = false;
+    for chunk in smoothed.chunks(512) {
+        work.charge(0)?;
+        for &s in chunk {
+            any_smoothed |= s;
+            flavors.push(if s { LawFlavor::Model } else { LawFlavor::Empirical });
+        }
+    }
+    let mut any_unseen = false;
+    for table in &tables {
+        if !table.checked_unseen_cells(&mut work)?.is_empty() {
+            any_unseen = true;
+            break;
+        }
+    }
     let envelope_mass = match request.unseen_rule {
         UnseenCellRule::UnseenMassEnvelope { unseen_mass } if any_unseen => Some(unseen_mass),
         _ => None,
@@ -645,6 +801,7 @@ pub fn estimate_sampled_counterfactual_transport(
             mass,
             &request.limits,
             ctx,
+            &mut work,
         )?);
     }
 
@@ -676,9 +833,14 @@ pub fn estimate_sampled_counterfactual_transport(
         }
     };
 
-    let mut dataset_of = vec![0usize; tables.len()];
+    let mut dataset_of = Vec::with_capacity(tables.len());
+    while dataset_of.len() < tables.len() {
+        work.charge(0)?;
+        dataset_of.resize(dataset_of.len().saturating_add(512).min(tables.len()), 0);
+    }
     for (g, members) in groups.groups.iter().enumerate() {
         for &m in members {
+            work.charge(0)?;
             dataset_of[m] = g;
         }
     }
@@ -686,7 +848,7 @@ pub fn estimate_sampled_counterfactual_transport(
     for (i, t) in tables.iter().enumerate() {
         let (total, observed_cells, unseen_cells) = t.checked_report_counts(&mut work)?;
         table_reports.push(SampledTableReport {
-            key: keys[i].clone(),
+            key: keys[i].checked_clone(&mut work)?,
             content_identity: identities[i].clone(),
             total,
             cells: t.cell_count(),
@@ -698,11 +860,15 @@ pub fn estimate_sampled_counterfactual_transport(
             dataset: dataset_of[i],
         });
     }
-    let dataset_keys: Vec<Vec<SampledTableKey>> = groups
-        .groups
-        .iter()
-        .map(|members| members.iter().map(|m| keys[*m].clone()).collect())
-        .collect();
+    let mut dataset_keys = Vec::with_capacity(groups.groups.len());
+    for members in &groups.groups {
+        work.charge(0)?;
+        let mut group = Vec::with_capacity(members.len());
+        for &m in members {
+            group.push(keys[m].checked_clone(&mut work)?);
+        }
+        dataset_keys.push(group);
+    }
     let point_label = if envelope.is_some() && point.is_none() {
         LABEL_ENVELOPE_ONLY
     } else if any_smoothed {
@@ -711,8 +877,7 @@ pub fn estimate_sampled_counterfactual_transport(
         LABEL_PLUG_IN
     };
     work.charge(1)?;
-    let derivation_text = derivation.canonical_text();
-    work.charge(derivation_text.len())?;
+    let derivation_text = derivation.try_canonical_text(|amount| work.charge(amount))?;
     let mut derivation_writer = CanonicalWriter::new(SAMPLED_TRANSPORT_DERIVATION_TAG);
     derivation_writer.try_bytes(derivation_text.as_bytes(), || work.charge(0))?;
     let derivation_identity = derivation_writer.finish_hex();

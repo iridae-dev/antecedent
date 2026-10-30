@@ -22,8 +22,8 @@ use antecedent_identify::CounterfactualTransportDerivation;
 
 use super::counts::{LawFlavor, SampledRegimeCounts};
 use super::{
-    DETAIL_ENVELOPE_BUDGET, DETAIL_ENVELOPE_EMPTY, SampledTransportLimits, evaluate_probability,
-    refused,
+    DETAIL_ENVELOPE_BUDGET, DETAIL_ENVELOPE_EMPTY, SampledTransportLimits, SampledWork,
+    evaluate_detailed, refused,
 };
 use crate::error::EstimationError;
 
@@ -65,10 +65,15 @@ pub(crate) fn evaluate_envelope(
     unseen_mass: f64,
     limits: &SampledTransportLimits,
     ctx: &ExecutionContext,
+    work: &mut SampledWork<'_>,
 ) -> Result<StructuralEnvelope, EstimationError> {
-    let unseen: Vec<Vec<usize>> = tables.iter().map(SampledRegimeCounts::unseen_cells).collect();
+    let unseen: Vec<Vec<usize>> =
+        tables.iter().map(|table| table.checked_unseen_cells(work)).collect::<Result<_, _>>()?;
     let mut members: u64 = 1;
+    let mut tables_with_unseen_cells = 0;
     for cells in &unseen {
+        work.charge(0)?;
+        tables_with_unseen_cells += usize::from(!cells.is_empty());
         members = members.saturating_mul(1 + cells.len() as u64);
     }
     if members > u64::from(limits.max_envelope_evaluations) {
@@ -81,27 +86,43 @@ pub(crate) fn evaluate_envelope(
             ),
         ));
     }
-    let flavors = vec![LawFlavor::Model; tables.len()];
-    let mut choice = vec![0usize; tables.len()];
+    let mut flavors = Vec::with_capacity(tables.len());
+    let mut choice = Vec::with_capacity(tables.len());
+    while choice.len() < tables.len() {
+        work.charge(0)?;
+        let end = choice.len().saturating_add(512).min(tables.len());
+        choice.resize(end, 0usize);
+        flavors.resize(end, LawFlavor::Model);
+    }
     let mut lower = f64::INFINITY;
     let mut upper = f64::NEG_INFINITY;
     let mut defined = 0u64;
     let mut undefined = 0u64;
     loop {
-        let trial: Vec<Vec<f64>> = (0..tables.len())
-            .map(|t| {
-                let mut p = probabilities[t].clone();
-                if choice[t] > 0 {
-                    let cell = unseen[t][choice[t] - 1];
-                    for q in &mut p {
+        let mut member_work = SampledWork { remaining: limits.evaluation.operations, ctx };
+        let mut trial = Vec::with_capacity(tables.len());
+        for t in 0..tables.len() {
+            member_work.charge(probabilities[t].len().saturating_mul(2))?;
+            let mut p = Vec::with_capacity(probabilities[t].len());
+            for chunk in probabilities[t].chunks(512) {
+                member_work.charge(0)?;
+                p.extend_from_slice(chunk);
+            }
+            if choice[t] > 0 {
+                let cell = unseen[t][choice[t] - 1];
+                for chunk in p.chunks_mut(512) {
+                    member_work.charge(0)?;
+                    for q in chunk {
                         *q *= 1.0 - unseen_mass;
                     }
-                    p[cell] += unseen_mass;
                 }
-                p
-            })
-            .collect();
-        match evaluate_probability(derivation, tables, &trial, &flavors, limits, ctx) {
+                p[cell] += unseen_mass;
+            }
+            trial.push(p);
+        }
+        match evaluate_detailed(derivation, tables, &trial, &flavors, limits, ctx, &mut member_work)
+            .map(|(point, _)| point.probability)
+        {
             Ok(value) => {
                 defined += 1;
                 lower = lower.min(value);
@@ -133,10 +154,11 @@ pub(crate) fn evaluate_envelope(
                     members,
                     defined_members: defined,
                     undefined_members: undefined,
-                    tables_with_unseen_cells: unseen.iter().filter(|c| !c.is_empty()).count(),
+                    tables_with_unseen_cells,
                     label: STRUCTURAL_ENVELOPE_LABEL,
                 });
             }
+            member_work.charge(0)?;
             t -= 1;
             choice[t] += 1;
             if choice[t] <= unseen[t].len() {

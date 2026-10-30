@@ -496,6 +496,26 @@ impl CounterfactualTransportProblem {
         out
     }
 
+    fn write_canonical(&self, out: &mut impl std::fmt::Write) -> std::fmt::Result {
+        out.write_str("counterfactual_transport_problem_v1;variables=[")?;
+        for (id, levels) in self.variables.iter().zip(&self.levels) {
+            write!(out, "{}:", id.raw())?;
+            for bits in levels {
+                write!(out, "{bits:016x},")?;
+            }
+            out.write_char(';')?;
+        }
+        out.write_str("];directed=[")?;
+        for (a, b) in &self.directed {
+            write!(out, "{}>{},", self.variables[*a].raw(), self.variables[*b].raw())?;
+        }
+        out.write_str("];bidirected=[")?;
+        for (a, b) in &self.bidirected {
+            write!(out, "{}<>{},", self.variables[*a].raw(), self.variables[*b].raw())?;
+        }
+        out.write_char(']')
+    }
+
     fn full_mask(&self) -> u32 {
         (1u32 << self.variables.len()) - 1
     }
@@ -510,6 +530,120 @@ impl CounterfactualTransportProblem {
             .map(|i| self.variables[i])
             .collect()
     }
+}
+
+// A fallible UTF-8 sink: callback charges every emitted byte before appending.
+struct CheckedCanonical<'a, F, E> {
+    text: String,
+    check: &'a mut F,
+    error: Option<E>,
+}
+impl<F, E> std::fmt::Write for CheckedCanonical<'_, F, E>
+where
+    F: FnMut(usize) -> Result<(), E>,
+{
+    fn write_str(&mut self, text: &str) -> std::fmt::Result {
+        let mut start = 0;
+        while start < text.len() {
+            let mut end = start.saturating_add(4096).min(text.len());
+            while !text.is_char_boundary(end) {
+                end -= 1;
+            }
+            if let Err(error) = (self.check)(end - start) {
+                self.error = Some(error);
+                return Err(std::fmt::Error);
+            }
+            self.text.push_str(&text[start..end]);
+            start = end;
+        }
+        Ok(())
+    }
+}
+
+// Stable merge sort whose comparisons and copies are caller-metered. No standard sort
+// comparator can propagate cancellation, and source ordering is stable for equal populations.
+fn checked_sort<T: Copy, E, F, C>(values: &[T], check: &mut F, mut cmp: C) -> Result<Vec<T>, E>
+where
+    F: FnMut(usize) -> Result<(), E>,
+    C: FnMut(&T, &T, &mut F) -> Result<std::cmp::Ordering, E>,
+{
+    check(values.len().saturating_mul(2))?;
+    let mut order = Vec::with_capacity(values.len());
+    for chunk in values.chunks(512) {
+        check(chunk.len())?;
+        order.extend_from_slice(chunk);
+    }
+    let n = order.len();
+    let mut next = Vec::with_capacity(n);
+    let mut width = 1usize;
+    while width < n {
+        next.clear();
+        for start in (0..n).step_by(width.saturating_mul(2)) {
+            let mid = start.saturating_add(width).min(n);
+            let end = mid.saturating_add(width).min(n);
+            let (mut a, mut b) = (start, mid);
+            while a < mid && b < end {
+                if cmp(&order[a], &order[b], check)? != std::cmp::Ordering::Greater {
+                    next.push(order[a]);
+                    a += 1;
+                } else {
+                    next.push(order[b]);
+                    b += 1;
+                }
+            }
+            for chunk in order[a..mid].chunks(512) {
+                check(chunk.len())?;
+                next.extend_from_slice(chunk);
+            }
+            for chunk in order[b..end].chunks(512) {
+                check(chunk.len())?;
+                next.extend_from_slice(chunk);
+            }
+        }
+        std::mem::swap(&mut order, &mut next);
+        width = width.saturating_mul(2);
+    }
+    check(0)?;
+    Ok(order)
+}
+
+fn checked_ids<E, F>(ids: &[VariableId], check: &mut F) -> Result<Vec<VariableId>, E>
+where
+    F: FnMut(usize) -> Result<(), E>,
+{
+    let sorted = checked_sort(ids, check, |a, b, check| {
+        check(1)?;
+        Ok(a.cmp(b))
+    })?;
+    check(sorted.len())?;
+    let mut unique = Vec::with_capacity(sorted.len());
+    for chunk in sorted.chunks(512) {
+        check(chunk.len())?;
+        for &id in chunk {
+            if unique.last() != Some(&id) {
+                unique.push(id);
+            }
+        }
+    }
+    Ok(unique)
+}
+
+fn checked_text_cmp<E, F>(a: &str, b: &str, check: &mut F) -> Result<std::cmp::Ordering, E>
+where
+    F: FnMut(usize) -> Result<(), E>,
+{
+    let (a, b) = (a.as_bytes(), b.as_bytes());
+    let common = a.len().min(b.len());
+    for start in (0..common).step_by(512) {
+        let end = start.saturating_add(512).min(common);
+        check(end - start)?;
+        let ordering = a[start..end].cmp(&b[start..end]);
+        if ordering != std::cmp::Ordering::Equal {
+            return Ok(ordering);
+        }
+    }
+    check(1)?;
+    Ok(a.len().cmp(&b.len()))
 }
 
 // ---------------------------------------------------------------------------
@@ -862,6 +996,82 @@ impl CounterfactualTransportDerivation {
         }
         let _ = write!(out, ";search={:?}", self.search);
         out
+    }
+
+    /// Render the same canonical text while charging preparation and emitted bytes.
+    ///
+    /// # Errors
+    /// Propagates a budget or cancellation error from `check`.
+    pub fn try_canonical_text<E>(
+        &self,
+        mut check: impl FnMut(usize) -> Result<(), E>,
+    ) -> Result<String, E> {
+        check(self.query.sources.len().saturating_mul(2))?;
+        let mut source_ids = Vec::with_capacity(self.query.sources.len());
+        for i in 0..self.query.sources.len() {
+            if i % 512 == 0 {
+                check(1)?;
+            }
+            source_ids.push(i);
+        }
+        let source_ids = checked_sort(&source_ids, &mut check, |a, b, check| {
+            checked_text_cmp(
+                &self.query.sources[*a].population,
+                &self.query.sources[*b].population,
+                check,
+            )
+        })?;
+        let mut sets = Vec::with_capacity(source_ids.len());
+        for &i in &source_ids {
+            let source = &self.query.sources[i];
+            let selected = checked_ids(&source.selection_targets, &mut check)?;
+            let controlled = checked_ids(&source.controllable, &mut check)?;
+            sets.push((selected, controlled));
+        }
+        let mut out = CheckedCanonical { text: String::new(), check: &mut check, error: None };
+        let result = (|| -> std::fmt::Result {
+            use std::fmt::Write as _;
+            write!(out, "{};", self.contract)?;
+            self.problem.write_canonical(&mut out)?;
+            write!(out, ";counterfactual_transport_query_v1;target={};", self.query.target)?;
+            self.query.event.write_canonical(&mut out)?;
+            for (&i, (selected, controlled)) in source_ids.iter().zip(&sets) {
+                write!(out, ";source={}:select=[", self.query.sources[i].population)?;
+                for id in selected {
+                    write!(out, "{},", id.raw())?;
+                }
+                out.write_str("];control=[")?;
+                for id in controlled {
+                    write!(out, "{},", id.raw())?;
+                }
+                out.write_char(']')?;
+            }
+            out.write_str(";populations=[")?;
+            for population in &self.populations {
+                write!(out, "{population},")?;
+            }
+            out.write_str("];items=[")?;
+            for (index, item) in self.items.iter().enumerate() {
+                write!(
+                    out,
+                    "{index}:p{}:{:#x}:{:?};",
+                    item.population, item.variables, item.source
+                )?;
+            }
+            write!(out, "];numerator={:?};denominator={:?}", self.numerator, self.denominator)?;
+            write!(out, ";guard={:?};moved={:?}", self.positivity_guard, self.moved)?;
+            write!(out, ";checked={}", self.conditioning_mass_checked)?;
+            for rule in &self.rules {
+                write!(out, ";rule={rule}")?;
+            }
+            write!(out, ";search={:?}", self.search)?;
+            Ok(())
+        })();
+        if result.is_err() {
+            return Err(out.error.expect("only the callback can fail the sink"));
+        }
+        (out.check)(0)?;
+        Ok(out.text)
     }
 
     /// Replay the decision on the derivation's own inputs under its stored
@@ -2458,6 +2668,47 @@ mod tests {
         assert_eq!(derivation.cited.len(), 1);
         assert_eq!(derivation.cited[0].regime, RegimeId::from_raw(0));
         derivation.replay_checked(&ExecutionContext::for_tests(1)).unwrap();
+    }
+
+    #[test]
+    fn checked_derivation_text_preserves_bytes_and_stops_on_budget() {
+        let problem =
+            CounterfactualTransportProblem::new(&binary(&[0, 1]), &[(v(0), v(1))], &[]).unwrap();
+        let query = interventional_query(0, 1.0, 1, vec![]);
+        let cat = catalog(vec![regime(0, "target", &[], &[0, 1])]);
+        let decision = decide(&problem, &query, &cat);
+        let mut derivation = decision.derivation().unwrap().clone();
+        derivation.query.sources = vec![
+            CounterfactualTransportSource {
+                population: Arc::from("zé"),
+                selection_targets: Arc::from([v(1), v(0), v(1)]),
+                controllable: Arc::from([v(1), v(0)]),
+            },
+            CounterfactualTransportSource {
+                population: Arc::from("a"),
+                selection_targets: Arc::from([v(1)]),
+                controllable: Arc::from([v(0)]),
+            },
+        ]
+        .into();
+        let mut spent = 0usize;
+        let text = derivation
+            .try_canonical_text(|amount| {
+                spent += amount;
+                Ok::<_, ()>(())
+            })
+            .unwrap();
+        assert_eq!(text, derivation.canonical_text());
+        assert!(spent >= text.len());
+        let mut remaining = 4usize;
+        assert_eq!(
+            derivation.try_canonical_text(|amount| {
+                remaining = remaining.checked_sub(amount).ok_or("budget")?;
+                Ok(())
+            }),
+            Err("budget")
+        );
+        assert_eq!(derivation.try_canonical_text(|_| Err::<(), _>("cancelled")), Err("cancelled"));
     }
 
     #[test]
