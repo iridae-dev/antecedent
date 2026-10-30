@@ -475,16 +475,18 @@ fn fit_cells(
         spec.adjustment.iter().map(|&v| VariableId::from_raw(v)).collect();
     recorder.record(Counter::ScoreComputation, 1);
     let (fitted, fits) = count_cell_model_fits(|| {
-        estimator.fit_scores(
-            &data,
-            &antecedent_estimate::CellScoreSpec {
-                treatments: &treatments,
-                outcome: VariableId::from_raw(spec.outcome),
-                adjustment: &adjustment,
-                functional: &OutcomeFunctional::Mean,
-                continuous: None,
-            },
-        )
+        antecedent_core::numerical_admission::with_context(ctx, || {
+            estimator.fit_scores(
+                &data,
+                &antecedent_estimate::CellScoreSpec {
+                    treatments: &treatments,
+                    outcome: VariableId::from_raw(spec.outcome),
+                    adjustment: &adjustment,
+                    functional: &OutcomeFunctional::Mean,
+                    continuous: None,
+                },
+            )
+        })
     });
     recorder.record(Counter::FoldFit, fits);
     fitted.map_err(estimation)

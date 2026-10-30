@@ -329,15 +329,21 @@ impl CheckedCellAipwResponseOperation {
             functional: &self.query.outcome_functional,
             continuous: None,
         };
-        // A table that carries observation weights is fitted for the weighted population.
-        if data.storage().weights().is_some() {
-            return self
-                .estimator
-                .fit_scores_sampling_weighted(data, &spec, antecedent_estimate::SharedCellInputs::default())
-                .map(|(table, _)| table)
-                .map_err(CausalError::from);
-        }
-        self.estimator.fit_scores(data, &spec).map_err(CausalError::from)
+        antecedent_core::numerical_admission::with_context(ctx, || {
+            // A table that carries observation weights is fitted for the weighted population.
+            if data.storage().weights().is_some() {
+                return self
+                    .estimator
+                    .fit_scores_sampling_weighted(
+                        data,
+                        &spec,
+                        antecedent_estimate::SharedCellInputs::default(),
+                    )
+                    .map(|(table, _)| table)
+                    .map_err(CausalError::from);
+            }
+            self.estimator.fit_scores(data, &spec).map_err(CausalError::from)
+        })
     }
 }
 
@@ -663,6 +669,29 @@ mod tests {
             .unwrap_err();
         assert!(err.to_string().contains("Set levels 0 or 1"));
     }
+    #[test]
+    fn checked_cell_score_execution_uses_caller_admission() {
+        let (graph, query, data, identification) = fixture();
+        let estimand = identification.estimands.first().unwrap().clone();
+        let cache = cached(&identification, &estimand);
+        let operation =
+            CheckedCellAipwResponseOperation::checked(CheckedCellAipwResponseOperationPremises {
+                ctx: &ExecutionContext::for_tests(86),
+                structure: &CellAipwStructure::Dag(graph),
+                query: &query,
+                cache: &cache,
+                identifier: IdentifierId::ResponseBackdoor,
+                estimator: EstimatorId::CellAipw,
+                fold_seed: 817,
+                validation: RefuteSuite::None,
+                origin: DagResponseOrigin::Accepted,
+                plan: None,
+            })
+            .unwrap();
+        let low = ExecutionContext::for_tests(86).with_memory_limit(Some(1));
+        assert!(operation.execute(&data, &low).is_err());
+    }
+
     #[test]
     fn unsealed_cell_response_proof_replay_honors_the_actual_compile_context() {
         let (graph, query, _data, identification) = fixture();

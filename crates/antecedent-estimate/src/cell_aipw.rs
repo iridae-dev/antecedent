@@ -233,7 +233,8 @@ impl CellSaturatedAipw {
                 POINT_CDE_UNLICENSED,
             ));
         }
-        let mut prepared = prepare_cells(data, treatments, outcome, adjustment, continuous, declared)?;
+        let mut prepared =
+            prepare_cells(data, treatments, outcome, adjustment, continuous, declared)?;
         if let Some(ids) = fold_ids {
             if ids.len() != prepared.n {
                 return Err(EstimationError::data_msg(
@@ -669,7 +670,9 @@ fn crossfit_cell_scores(
                         (true, true) => {
                             "cell.aipw.crossfit.multinomial_logit.ols.v1;batch.shared_design;sampling_weights"
                         }
-                        (false, true) => "cell.aipw.crossfit.multinomial_logit.ols.v1;sampling_weights",
+                        (false, true) => {
+                            "cell.aipw.crossfit.multinomial_logit.ols.v1;sampling_weights"
+                        }
                     },
                 ),
                 propensity_clip: clip,
@@ -679,6 +682,25 @@ fn crossfit_cell_scores(
             })
         },
     )
+}
+
+fn multinomial_workspace_cells(n: usize, nv: usize, p: usize, k: usize) -> Option<usize> {
+    let d = k.checked_sub(1)?.checked_mul(p)?;
+    n.checked_mul(2)?
+        .checked_add(nv)?
+        .checked_mul(k)?
+        .checked_add(d.checked_mul(d)?.checked_mul(2)?)?
+        .checked_add(d.checked_mul(8)?)
+}
+
+fn multinomial_poll() -> Result<(), EstimationError> {
+    if antecedent_core::numerical_admission::is_cancelled() {
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("cancelled_no_claim"),
+            "cell AIPW multinomial fit was cancelled",
+        ));
+    }
+    Ok(())
 }
 
 // Reference-cell multinomial likelihood with Newton steps and backtracking.
@@ -709,29 +731,46 @@ fn multinomial_propensity(
     antecedent_core::execution_attempt::run_operation(
         antecedent_core::execution_attempt::Operation::GlmFit,
         || {
+            let workspace_cells = multinomial_workspace_cells(n, nv, p, k).ok_or(
+                EstimationError::Admission(antecedent_core::execution::AdmissionError::Overflow),
+            )?;
+            multinomial_poll()?;
+            let _parent_lease = crate::util::admit_bound_array::<f64>(workspace_cells, 1)?;
             let d = (k - 1) * p;
             let mut beta = vec![0.0; d];
-            let probabilities = |x: &[f64], rows: usize, b: &[f64]| {
-                let mut out = vec![0.0; rows * k];
-                for r in 0..rows {
-                    let mut max_eta: f64 = 0.0;
-                    for c in 0..k - 1 {
-                        let eta = (0..p).map(|j| x[j * rows + r] * b[c * p + j]).sum::<f64>();
-                        out[c * rows + r] = eta;
-                        max_eta = max_eta.max(eta);
+            let probabilities =
+                |x: &[f64], rows: usize, b: &[f64]| -> Result<Vec<f64>, EstimationError> {
+                    let mut out = vec![0.0; rows * k];
+                    let mut work = 0usize;
+                    for r in 0..rows {
+                        if r % 64 == 0 {
+                            multinomial_poll()?;
+                        }
+                        let mut max_eta: f64 = 0.0;
+                        for c in 0..k - 1 {
+                            let mut eta = 0.0;
+                            for j in 0..p {
+                                if work & 1023 == 0 {
+                                    multinomial_poll()?;
+                                }
+                                work = work.wrapping_add(1);
+                                eta += x[j * rows + r] * b[c * p + j];
+                            }
+                            out[c * rows + r] = eta;
+                            max_eta = max_eta.max(eta);
+                        }
+                        let mut mass = (-max_eta).exp();
+                        out[(k - 1) * rows + r] = mass;
+                        for c in 0..k - 1 {
+                            out[c * rows + r] = (out[c * rows + r] - max_eta).exp();
+                            mass += out[c * rows + r];
+                        }
+                        for c in 0..k {
+                            out[c * rows + r] /= mass;
+                        }
                     }
-                    let mut mass = (-max_eta).exp();
-                    out[(k - 1) * rows + r] = mass;
-                    for c in 0..k - 1 {
-                        out[c * rows + r] = (out[c * rows + r] - max_eta).exp();
-                        mass += out[c * rows + r];
-                    }
-                    for c in 0..k {
-                        out[c * rows + r] /= mass;
-                    }
-                }
-                out
-            };
+                    Ok(out)
+                };
             // Weighted likelihood: `row_weight(r)` is the sampling weight of training row `r`
             // (one when unweighted), and the objective is the weighted mean.
             let row_weight = |r: usize| row_weights.map_or(1.0, |w| w[r]);
@@ -744,11 +783,16 @@ fn multinomial_propensity(
                     .sum::<f64>()
                     / weight_total
             };
-            let score = |prob: &[f64]| {
+            let score = |prob: &[f64]| -> Result<Vec<f64>, EstimationError> {
                 let mut gradient = vec![0.0; d];
+                let mut work = 0usize;
                 for r in 0..n {
                     for c in 0..k - 1 {
                         for j in 0..p {
+                            if work & 1023 == 0 {
+                                multinomial_poll()?;
+                            }
+                            work = work.wrapping_add(1);
                             gradient[c * p + j] += row_weight(r)
                                 * train[j * n + r]
                                 * (prob[c * n + r] - f64::from(cells[r] == c))
@@ -756,19 +800,28 @@ fn multinomial_propensity(
                         }
                     }
                 }
-                gradient
+                Ok(gradient)
             };
             let mut ws = antecedent_stats::LeastSquaresWorkspace::default();
             for iteration in 0..100 {
-                let prob = probabilities(train, n, &beta);
-                let gradient = score(&prob);
+                multinomial_poll()?;
+                let prob = probabilities(train, n, &beta)?;
+                let gradient = score(&prob)?;
                 let mut hessian = vec![0.0; d * d];
+                let mut work = 0usize;
                 for r in 0..n {
+                    if r % 64 == 0 {
+                        multinomial_poll()?;
+                    }
                     for c in 0..k - 1 {
                         for j in 0..p {
                             let a = c * p + j;
                             for e in 0..k - 1 {
                                 for l in 0..p {
+                                    if work & 1023 == 0 {
+                                        multinomial_poll()?;
+                                    }
+                                    work = work.wrapping_add(1);
                                     let b = e * p + l;
                                     hessian[b * d + a] += row_weight(r)
                                         * train[j * n + r]
@@ -782,7 +835,7 @@ fn multinomial_propensity(
                     }
                 }
                 if gradient.iter().all(|v| v.abs() < 1e-8) {
-                    return Ok(probabilities(valid, nv, &beta));
+                    return probabilities(valid, nv, &beta);
                 }
                 for j in 0..d {
                     hessian[j * d + j] += 1e-10;
@@ -797,7 +850,7 @@ fn multinomial_propensity(
                 for _ in 0..30 {
                     let trial: Vec<_> =
                         beta.iter().zip(&step).map(|(b, s)| b - scale * s).collect();
-                    let trial_prob = probabilities(train, n, &trial);
+                    let trial_prob = probabilities(train, n, &trial)?;
                     if loss(&trial_prob) < old {
                         beta = trial;
                         accepted = true;
@@ -807,8 +860,8 @@ fn multinomial_propensity(
                     // final Newton decrease (O(score²)). Certify that trial using
                     // the SAME unpenalized score tolerance as the iteration entry;
                     // never accept mere loss equality or a small parameter step.
-                    if score(&trial_prob).iter().all(|v| v.abs() < 1e-8) {
-                        return Ok(probabilities(valid, nv, &trial));
+                    if score(&trial_prob)?.iter().all(|v| v.abs() < 1e-8) {
+                        return probabilities(valid, nv, &trial);
                     }
                     scale *= 0.5;
                 }
@@ -1034,6 +1087,30 @@ mod tests {
     };
     use antecedent_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, ValidityBitmap};
     use antecedent_kernels::standard_normal;
+
+    #[test]
+    fn multinomial_scratch_preflight_and_inherited_cancellation() {
+        use antecedent_core::execution::AdmissionPool;
+        assert!(multinomial_workspace_cells(usize::MAX, 1, 1, 2).is_none());
+        let call = || {
+            multinomial_propensity(
+                DesignRows { values: &[1.0, 1.0], rows: 2 },
+                &[0, 1],
+                None,
+                DesignRows { values: &[1.0], rows: 1 },
+                1,
+                2,
+                FaerBackend,
+            )
+        };
+        let low = ExecutionContext::for_tests(4).with_admission(AdmissionPool::fixed(1, 1));
+        assert!(antecedent_core::numerical_admission::with_context(&low, call).is_err());
+        let cancelled = ExecutionContext::for_tests(4);
+        cancelled.cancellation.cancel();
+        let error =
+            antecedent_core::numerical_admission::with_context(&cancelled, call).unwrap_err();
+        assert_eq!(error.reason_code(), Some("cancelled_no_claim"));
+    }
 
     #[test]
     fn multinomial_propensity_matches_exact_two_stratum_frequencies() {

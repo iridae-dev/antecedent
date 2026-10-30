@@ -1154,6 +1154,54 @@ pub fn fit_factorized_joint_cells(
     )
 }
 
+// Parent-owned dense arrays and conditional cache only. Ridge/learner fitting
+// workspaces retain their own separate admission leases.
+fn factorized_parent_bytes(
+    n: usize,
+    p: usize,
+    cells: usize,
+    orders: usize,
+    folds: usize,
+    k: usize,
+) -> Option<u64> {
+    use std::mem::size_of;
+    let mut bytes = 0usize;
+    let mut add = |count: usize, width: usize| -> Option<()> {
+        bytes = bytes.checked_add(count.checked_mul(width)?)?;
+        Some(())
+    };
+    let dense_cells = n.checked_mul(cells)?;
+    // Outcome predictions, current and first-order propensities, evaluated
+    // scores for each ordering, and copied scores/propensities in the result.
+    add(dense_cells.checked_mul(orders.checked_add(5)?)?, size_of::<f64>())?;
+    // Every distinct prefix of each ordering has up to 2^j settings, each
+    // contributing one validation vector across all folds.
+    let prefixes = orders.checked_mul(cells.checked_sub(1)?)?;
+    add(n.checked_mul(prefixes)?, size_of::<f64>())?;
+    // Fold-valid designs plus one caller-owned training design.
+    add(n.checked_mul(p)?.checked_mul(2)?, size_of::<f64>())?;
+    // Fold train/valid index lists, fold IDs, and a current gathered row list.
+    add(n.checked_mul(folds.checked_add(1)?)?, size_of::<usize>())?;
+    add(n, size_of::<u32>().checked_add(size_of::<f64>())?)?;
+    add(folds.checked_mul(2)?, size_of::<Vec<usize>>())?;
+    let entries = prefixes.checked_mul(folds)?;
+    // Hash table allocation has spare buckets; account key/value and a control
+    // byte per bucket, including a second bucket for each possible entry.
+    add(
+        entries.checked_mul(2)?,
+        size_of::<(ConditionalKey, Result<Vec<f64>, String>)>().checked_add(1)?,
+    )?;
+    add(cells.checked_mul(orders.checked_add(2)?)?, size_of::<Result<Vec<f64>, String>>())?;
+    add(cells.checked_mul(orders)?, size_of::<Result<(CellEstimate, Vec<f64>), CellRefusal>>())?;
+    add(cells, size_of::<JointCellReport>().checked_add(size_of::<CellOrderingSpread>())?)?;
+    add(cells.checked_mul(orders)?, size_of::<Option<f64>>())?;
+    add(cells.checked_mul(k)?, size_of::<u8>())?;
+    add(cells, size_of::<usize>().checked_add(size_of::<ScoreColumn>())?)?;
+    add(folds, size_of::<FoldSplit<'_>>())?;
+    add(orders.checked_mul(k)?.checked_mul(2)?, size_of::<usize>())?;
+    u64::try_from(bytes).ok()
+}
+
 /// The table and variable roles of a factorized joint-cell fit.
 struct JointCellRows<'a> {
     data: &'a TabularData,
@@ -1187,6 +1235,19 @@ fn fit_with_nuisance(
             "more than three components need at least as many complete-case rows as joint cells",
         ));
     }
+    let bytes = factorized_parent_bytes(
+        n,
+        problem.ncols,
+        n_cells as usize,
+        orderings.len(),
+        config.folds,
+        k,
+    )
+    .ok_or(EstimationError::Admission(antecedent_core::execution::AdmissionError::Overflow))?;
+    let _parent_lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => cancelled(),
+        other => EstimationError::Admission(other),
+    })?;
     let plan = CrossfitPlan::derive(
         n,
         config.folds,
@@ -1395,6 +1456,29 @@ fn ordering_sensitivity(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn factorized_parent_admission_refuses_before_cell_fits() {
+        use antecedent_core::execution::{AdmissionError, AdmissionPool};
+        assert!(factorized_parent_bytes(usize::MAX, 10, 1024, 6, 5, 10).is_none());
+        let input = fixture(80, 17);
+        let ctx = ExecutionContext::for_tests(17).with_admission(AdmissionPool::fixed(1, 1));
+        let config = FactorizedJointConfig::new(RidgeTuning::default());
+        let order: Vec<usize> = (0..input.treatments.len()).collect();
+        let result = fit_factorized_joint_cells(
+            &input.data,
+            &input.treatments,
+            input.outcome,
+            &input.adjustment,
+            &[order],
+            &config,
+            &ctx,
+        );
+        assert!(matches!(
+            result,
+            Err(EstimationError::Admission(AdmissionError::ExceedsRemainder { .. }))
+        ));
+    }
 
     #[test]
     fn attempt_observer_records_actual_cached_conditional_failure_without_refitting() {
