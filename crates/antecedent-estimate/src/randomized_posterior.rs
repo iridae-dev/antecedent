@@ -295,8 +295,12 @@ fn check_contrasts(contrasts: &[Vec<f64>], arms: usize) -> Result<Vec<Vec<i64>>,
         .iter()
         .map(|weights| {
             let doubled: Vec<f64> = weights.iter().map(|w| 2.0 * w).collect();
-            let integral = doubled.iter().all(|d| d.is_finite() && (d - d.round()).abs() <= 1e-9);
-            if weights.len() != arms || !integral || weights.iter().sum::<f64>().abs() > 1e-9 {
+            let upper = 9_223_372_036_854_775_808.0_f64;
+            let integral = doubled.iter().all(|d| {
+                d.is_finite() && *d >= -upper && *d < upper && (d - d.round()).abs() <= 1e-9
+            });
+            let total = weights.iter().sum::<f64>();
+            if weights.len() != arms || !integral || !total.is_finite() || total.abs() > 1e-9 {
                 return Err(bad(
                     "a contrast needs one weight per arm, each a multiple of one half, summing to zero",
                 ));
@@ -304,6 +308,16 @@ fn check_contrasts(contrasts: &[Vec<f64>], arms: usize) -> Result<Vec<Vec<i64>>,
             Ok(doubled.iter().map(|d| d.round() as i64).collect())
         })
         .collect()
+}
+
+#[cfg(test)]
+mod lattice_weight_range_tests {
+    use super::*;
+    #[test]
+    fn contrast_coefficients_must_fit_i64_before_conversion() {
+        assert!(check_contrasts(&[vec![-1e30, 1e30]], 2).is_err());
+        assert_eq!(check_contrasts(&[vec![-1.0, 1.0]], 2).unwrap(), vec![vec![-2, 2]]);
+    }
 }
 
 fn arm_laws(

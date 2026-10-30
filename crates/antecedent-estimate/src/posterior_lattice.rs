@@ -42,6 +42,8 @@ pub(crate) struct LatticeTerm {
 pub(crate) struct LatticeLaw {
     offset: i64,
     pmf: Vec<f64>,
+    /// Retained until the returned mass vector is dropped.
+    _admission: Option<antecedent_core::execution::AdmissionLease>,
     /// Contrast value of one unit of the integer, `h / 2`.
     unit: f64,
     /// Whether the marginals were discretized (mass spread within a cell) or exact.
@@ -77,9 +79,22 @@ pub(crate) fn discretize(
     if !(lo.is_finite() && hi.is_finite() && h.is_finite() && h > 0.0 && hi >= lo) {
         return Err(numerical());
     }
-    let first = (lo / h).floor() as i64;
-    let last = ((hi / h).ceil() as i64).max(first + 1);
-    let cells = usize::try_from(last - first).unwrap_or(usize::MAX);
+    let first_f = (lo / h).floor();
+    let last_f = (hi / h).ceil();
+    let max_exclusive = 9_223_372_036_854_775_808.0_f64;
+    if !(first_f.is_finite()
+        && last_f.is_finite()
+        && first_f >= -max_exclusive
+        && first_f < max_exclusive
+        && last_f >= -max_exclusive
+        && last_f < max_exclusive)
+    {
+        return Err(numerical());
+    }
+    let first = first_f as i64;
+    let last = (last_f as i64).max(first.checked_add(1).ok_or_else(numerical)?);
+    let cells =
+        usize::try_from(last.checked_sub(first).ok_or_else(numerical)?).map_err(|_| numerical())?;
     if cells > MAX_TERM_CELLS {
         return Err(limit(
             "posterior_lattice.too_concentrated",
@@ -120,32 +135,78 @@ pub(crate) fn convolve_terms(
 ) -> Result<LatticeLaw, EstimationError> {
     let spacing = terms.iter().fold(0_u64, |g, (c, _)| gcd(g, c.unsigned_abs())).max(1);
     let mut offset = 0_i64;
+    let mut pmf_lease =
+        antecedent_core::numerical_admission::acquire(std::mem::size_of::<f64>() as u64)
+            .transpose()
+            .map_err(|error| {
+                refuse(
+                    reason_code!("transport_budget_cancel"),
+                    "posterior_lattice.admission",
+                    &error.to_string(),
+                )
+            })?;
     let mut pmf = vec![1.0];
     let mut work = 0_u64;
+    let overflow = || {
+        limit(
+            "posterior_lattice.work_limit",
+            "the contrast lattice exceeds its representable work or size bound",
+        )
+    };
     for (coefficient, term) in terms {
-        let span = i64::try_from(term.pmf.len() - 1).unwrap_or(i64::MAX);
-        let low = (coefficient * span).min(0);
-        let width = usize::try_from(coefficient.unsigned_abs())
-            .unwrap_or(usize::MAX)
-            .saturating_mul(term.pmf.len() - 1);
-        work = work.saturating_add((pmf.len() as u64).saturating_mul(term.pmf.len() as u64));
+        let span = term.pmf.len().checked_sub(1).ok_or_else(overflow)?;
+        let signed_span = i64::try_from(span).map_err(|_| overflow())?;
+        let displacement = coefficient.checked_mul(signed_span).ok_or_else(overflow)?;
+        let low = displacement.min(0);
+        let width = coefficient
+            .unsigned_abs()
+            .checked_mul(u64::try_from(span).map_err(|_| overflow())?)
+            .ok_or_else(overflow)?;
+        let next_len = u64::try_from(pmf.len())
+            .map_err(|_| overflow())?
+            .checked_add(width)
+            .ok_or_else(overflow)?;
+        let step_work = u64::try_from(pmf.len())
+            .map_err(|_| overflow())?
+            .checked_mul(u64::try_from(term.pmf.len()).map_err(|_| overflow())?)
+            .and_then(|ops| ops.checked_add(next_len))
+            .ok_or_else(overflow)?;
+        work = work.checked_add(step_work).ok_or_else(overflow)?;
         if work > MAX_CONVOLUTION_WORK {
-            return Err(limit(
-                "posterior_lattice.work_limit",
-                "the contrast convolution exceeds its work bound; reduce the number of units or arms",
-            ));
+            return Err(overflow());
         }
-        let mut next = vec![0.0; pmf.len() + width];
+        let next_offset = coefficient
+            .checked_mul(term.start)
+            .and_then(|start| offset.checked_add(start))
+            .and_then(|start| start.checked_add(low))
+            .ok_or_else(overflow)?;
+        let last = i64::try_from(next_len - 1).map_err(|_| overflow())?;
+        next_offset.checked_add(last).ok_or_else(overflow)?;
+        let size = usize::try_from(next_len).map_err(|_| overflow())?;
+        let bytes = next_len.checked_mul(std::mem::size_of::<f64>() as u64).ok_or_else(overflow)?;
+        let next_lease =
+            antecedent_core::numerical_admission::acquire(bytes).transpose().map_err(|error| {
+                refuse(
+                    reason_code!("transport_budget_cancel"),
+                    "posterior_lattice.admission",
+                    &error.to_string(),
+                )
+            })?;
+        let mut next = vec![0.0; size];
         for (i, mass) in term.pmf.iter().enumerate() {
-            let shift = usize::try_from(coefficient * i as i64 - low).unwrap_or(0);
+            let position = i64::try_from(i).map_err(|_| overflow())?;
+            let scaled = coefficient.checked_mul(position).ok_or_else(overflow)?;
+            let shift =
+                usize::try_from(i128::from(scaled) - i128::from(low)).map_err(|_| overflow())?;
             for (j, acc) in pmf.iter().enumerate() {
                 next[j + shift] += acc * mass;
             }
         }
-        offset += coefficient * term.start + low;
+        offset = next_offset;
         pmf = next;
+        pmf_lease = next_lease;
     }
-    Ok(LatticeLaw { offset, pmf, unit, continuous, spacing: spacing as f64 })
+    Ok(LatticeLaw { offset, pmf, _admission: pmf_lease, unit, continuous, spacing: spacing as f64 })
 }
 
 impl LatticeLaw {
@@ -238,6 +299,36 @@ impl LatticeLaw {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn oversized_and_unrepresentable_lattices_refuse_before_allocation() {
+        let term = || LatticeTerm { start: 0, pmf: vec![0.5, 0.5] };
+        assert!(convolve_terms(&[(2_000_000_000, term())], 0.5, false).is_err());
+        assert!(
+            convolve_terms(
+                &[(i64::MAX, LatticeTerm { start: 0, pmf: vec![0.2, 0.3, 0.5] })],
+                0.5,
+                false
+            )
+            .is_err()
+        );
+        assert!(
+            convolve_terms(&[(2, LatticeTerm { start: i64::MAX, pmf: vec![1.0] })], 0.5, false)
+                .is_err()
+        );
+        assert!(discretize(&|_| Some(0.5), 1e300, 1e300, 1.0).is_err());
+    }
+
+    #[test]
+    fn convolution_observes_inherited_memory_admission() {
+        let ctx = antecedent_core::ExecutionContext::for_tests(1).with_memory_limit(Some(8));
+        let result = antecedent_core::numerical_admission::with_context(&ctx, || {
+            convolve_terms(&[(2, LatticeTerm { start: 0, pmf: vec![0.5, 0.5] })], 0.5, false)
+        });
+        assert!(
+            matches!(result, Err(error) if error.reason_code() == Some("transport_budget_cancel"))
+        );
+    }
 
     #[test]
     fn difference_of_two_exact_discrete_laws_is_the_cross_correlation() {
