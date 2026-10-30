@@ -415,14 +415,14 @@ fn r10_does_not_orient_with_circle_arrow_parent() {
 
 #[test]
 fn discriminating_r4_orients_collider_when_c_not_in_sep_ab() {
-    // Zhang path ⟨a, d, c, b⟩: a → d ← c, d → b, c o→ b; c ∉ Sep(a,b) ⇒ d *→ c ←* b.
+    // Zhang path ⟨a, d, c, b⟩: a → d ←o c, d → b, c o→ b; c ∉ Sep(a,b) ⇒ d *→ c ←* b.
     let mut g = TemporalPag::empty();
     let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
     let d = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
     let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
     let b = g.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
     g.insert_directed(a, d).unwrap();
-    g.insert_directed(c, d).unwrap();
+    g.insert_circle_arrow(c, d).unwrap();
     g.insert_directed(d, b).unwrap();
     g.insert_circle_arrow(c, b).unwrap();
 
@@ -580,7 +580,7 @@ fn static_discriminating_r4_orients_collider_when_c_not_in_sep_ab() {
     let c = DenseNodeId::from_raw(2);
     let b = DenseNodeId::from_raw(3);
     g.insert_directed(a, d).unwrap();
-    g.insert_directed(c, d).unwrap();
+    g.insert_circle_arrow(c, d).unwrap();
     g.insert_directed(d, b).unwrap();
     g.insert_circle_arrow(c, b).unwrap();
 
@@ -688,7 +688,9 @@ fn discriminating_paths_are_budgeted_per_edge_not_globally() {
     for k in 0..copies {
         let (a, d, c, b) = (id(4 * k), id(4 * k + 1), id(4 * k + 2), id(4 * k + 3));
         g.insert_directed(a, d).unwrap();
-        g.insert_directed(c, d).unwrap();
+        // The free endpoint at c is what R4 may orient; a tail there
+        // would contradict the collider rather than test its search budget.
+        g.insert_circle_arrow(c, d).unwrap();
         g.insert_directed(d, b).unwrap();
         g.insert_circle_arrow(c, b).unwrap();
         state.set_sepset(a, b, std::sync::Arc::from([])); // c ∉ Sep(a,b)
@@ -698,6 +700,7 @@ fn discriminating_paths_are_budgeted_per_edge_not_globally() {
         FciOrientationRule::apply(&LpcmciDiscriminatingPathRule, &mut g, &mut state, &mut queue)
             .unwrap();
     assert_eq!(delta.edges_changed, copies);
+    assert_eq!(delta.conflicts, 0);
     assert!(state.discriminating_skipped.is_empty());
     for k in 0..copies {
         let (c, b) = (id(4 * k + 2), id(4 * k + 3));
@@ -732,6 +735,34 @@ fn exhausted_edge_budget_is_skipped_not_fatal() {
     assert!(matches!(at_c, Endpoint::Circle));
 }
 
+#[test]
+fn discriminating_r4_records_a_conflicting_tail_instead_of_overwriting_it() {
+    let mut g = Pag::with_variables(4);
+    let id = DenseNodeId::from_raw;
+    let (a, d, c, b) = (id(0), id(1), id(2), id(3));
+    g.insert_directed(a, d).unwrap();
+    // This tail may come from required background c -> d. The R4
+    // certificate contradicts it and must not silently reverse that premise.
+    g.insert_directed(c, d).unwrap();
+    g.insert_directed(d, b).unwrap();
+    g.insert_circle_arrow(c, b).unwrap();
+    let mut state = OrientationState::default();
+    state.set_sepset(a, b, std::sync::Arc::from([]));
+    let mut queue = OrientationQueue::new();
+    let delta =
+        FciOrientationRule::apply(&LpcmciDiscriminatingPathRule, &mut g, &mut state, &mut queue)
+            .unwrap();
+    assert_eq!(delta.conflicts, 1);
+    assert_eq!(state.conflicts, 1);
+    let (at_c, at_d) = marks_between(&g, c, d).unwrap();
+    assert!(matches!(at_c, Endpoint::Conflict));
+    assert!(matches!(at_d, Endpoint::Conflict));
+    // The non-conflicting collider leg still receives both arrowheads.
+    let (at_c, at_b) = marks_between(&g, c, b).unwrap();
+    assert!(matches!(at_c, Endpoint::Arrow));
+    assert!(matches!(at_b, Endpoint::Arrow));
+}
+
 /// Zhang R4 collider branch orients `d_k ↔ c ↔ b`: the arrowhead at `b` on `c *-* b` too, not
 /// only the one at `c`. Here the edge starts `c o-o b`, so the head at `b` is new information.
 #[test]
@@ -740,7 +771,7 @@ fn discriminating_collider_branch_orients_both_ends_of_cb() {
     let id = DenseNodeId::from_raw;
     let (a, d, c, b) = (id(0), id(1), id(2), id(3));
     g.insert_directed(a, d).unwrap();
-    g.insert_directed(c, d).unwrap();
+    g.insert_circle_arrow(c, d).unwrap();
     g.insert_directed(d, b).unwrap();
     g.insert_circle_circle(c, b).unwrap();
     let mut state = OrientationState::default();
