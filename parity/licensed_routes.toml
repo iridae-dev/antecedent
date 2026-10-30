@@ -9515,434 +9515,434 @@ lowering = "TemporalResponseClass"
 [[route]]
 coordinate = "PointDerivative:TemporalAdmg:explicit:Frequentist:none"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "PointDerivative:TemporalAdmg:explicit:Frequentist:cheap"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "PointDerivative:TemporalAdmg:explicit:Frequentist:full"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "PointDerivative:TemporalAdmg:explicit:Bayesian:none"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "PointDerivative:TemporalAdmg:explicit:Bayesian:cheap"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "PointDerivative:TemporalAdmg:explicit:Bayesian:full"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "PointDerivative:TemporalAdmg:accepted:Frequentist:none"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "PointDerivative:TemporalAdmg:accepted:Frequentist:cheap"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "PointDerivative:TemporalAdmg:accepted:Frequentist:full"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "PointDerivative:TemporalAdmg:accepted:Bayesian:none"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "PointDerivative:TemporalAdmg:accepted:Bayesian:cheap"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "PointDerivative:TemporalAdmg:accepted:Bayesian:full"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "Elasticity:TemporalAdmg:explicit:Frequentist:none"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "Elasticity:TemporalAdmg:explicit:Frequentist:cheap"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "Elasticity:TemporalAdmg:explicit:Frequentist:full"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "Elasticity:TemporalAdmg:explicit:Bayesian:none"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "Elasticity:TemporalAdmg:explicit:Bayesian:cheap"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "Elasticity:TemporalAdmg:explicit:Bayesian:full"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "Elasticity:TemporalAdmg:accepted:Frequentist:none"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "Elasticity:TemporalAdmg:accepted:Frequentist:cheap"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "Elasticity:TemporalAdmg:accepted:Frequentist:full"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "Elasticity:TemporalAdmg:accepted:Bayesian:none"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "Elasticity:TemporalAdmg:accepted:Bayesian:cheap"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "Elasticity:TemporalAdmg:accepted:Bayesian:full"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "SemiElasticity:TemporalAdmg:explicit:Frequentist:none"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "SemiElasticity:TemporalAdmg:explicit:Frequentist:cheap"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "SemiElasticity:TemporalAdmg:explicit:Frequentist:full"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "SemiElasticity:TemporalAdmg:explicit:Bayesian:none"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "SemiElasticity:TemporalAdmg:explicit:Bayesian:cheap"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "SemiElasticity:TemporalAdmg:explicit:Bayesian:full"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "SemiElasticity:TemporalAdmg:accepted:Frequentist:none"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "SemiElasticity:TemporalAdmg:accepted:Frequentist:cheap"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "SemiElasticity:TemporalAdmg:accepted:Frequentist:full"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "SemiElasticity:TemporalAdmg:accepted:Bayesian:none"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "SemiElasticity:TemporalAdmg:accepted:Bayesian:cheap"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "SemiElasticity:TemporalAdmg:accepted:Bayesian:full"
 identifier = "generalized.adjustment"
-estimator = "response.kennedy_dr"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "AverageDerivative:TemporalAdmg:explicit:Frequentist:none"
 identifier = "generalized.adjustment"
-estimator = "response.riesz_ade"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "AverageDerivative:TemporalAdmg:explicit:Frequentist:cheap"
 identifier = "generalized.adjustment"
-estimator = "response.riesz_ade"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "AverageDerivative:TemporalAdmg:explicit:Frequentist:full"
 identifier = "generalized.adjustment"
-estimator = "response.riesz_ade"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "AverageDerivative:TemporalAdmg:explicit:Bayesian:none"
 identifier = "generalized.adjustment"
-estimator = "response.riesz_ade"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "AverageDerivative:TemporalAdmg:explicit:Bayesian:cheap"
 identifier = "generalized.adjustment"
-estimator = "response.riesz_ade"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "AverageDerivative:TemporalAdmg:explicit:Bayesian:full"
 identifier = "generalized.adjustment"
-estimator = "response.riesz_ade"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "AverageDerivative:TemporalAdmg:accepted:Frequentist:none"
 identifier = "generalized.adjustment"
-estimator = "response.riesz_ade"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "AverageDerivative:TemporalAdmg:accepted:Frequentist:cheap"
 identifier = "generalized.adjustment"
-estimator = "response.riesz_ade"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "AverageDerivative:TemporalAdmg:accepted:Frequentist:full"
 identifier = "generalized.adjustment"
-estimator = "response.riesz_ade"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "AverageDerivative:TemporalAdmg:accepted:Bayesian:none"
 identifier = "generalized.adjustment"
-estimator = "response.riesz_ade"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "AverageDerivative:TemporalAdmg:accepted:Bayesian:cheap"
 identifier = "generalized.adjustment"
-estimator = "response.riesz_ade"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "AverageDerivative:TemporalAdmg:accepted:Bayesian:full"
 identifier = "generalized.adjustment"
-estimator = "response.riesz_ade"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "DirectionalDerivative:TemporalAdmg:explicit:Frequentist:none"
 identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "DirectionalDerivative:TemporalAdmg:explicit:Frequentist:cheap"
 identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "DirectionalDerivative:TemporalAdmg:explicit:Frequentist:full"
 identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "DirectionalDerivative:TemporalAdmg:explicit:Bayesian:none"
 identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "DirectionalDerivative:TemporalAdmg:explicit:Bayesian:cheap"
 identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "DirectionalDerivative:TemporalAdmg:explicit:Bayesian:full"
 identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "DirectionalDerivative:TemporalAdmg:accepted:Frequentist:none"
 identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "DirectionalDerivative:TemporalAdmg:accepted:Frequentist:cheap"
 identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "DirectionalDerivative:TemporalAdmg:accepted:Frequentist:full"
 identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "DirectionalDerivative:TemporalAdmg:accepted:Bayesian:none"
 identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "DirectionalDerivative:TemporalAdmg:accepted:Bayesian:cheap"
 identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "DirectionalDerivative:TemporalAdmg:accepted:Bayesian:full"
 identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "ResponseJacobian:TemporalAdmg:explicit:Frequentist:none"
 identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "ResponseJacobian:TemporalAdmg:explicit:Frequentist:cheap"
 identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "ResponseJacobian:TemporalAdmg:explicit:Frequentist:full"
 identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "ResponseJacobian:TemporalAdmg:explicit:Bayesian:none"
 identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "ResponseJacobian:TemporalAdmg:explicit:Bayesian:cheap"
 identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "ResponseJacobian:TemporalAdmg:explicit:Bayesian:full"
 identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "ResponseJacobian:TemporalAdmg:accepted:Frequentist:none"
 identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "ResponseJacobian:TemporalAdmg:accepted:Frequentist:cheap"
 identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "ResponseJacobian:TemporalAdmg:accepted:Frequentist:full"
 identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "MixedAdmgResponse"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "ResponseJacobian:TemporalAdmg:accepted:Bayesian:none"
 identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "ResponseJacobian:TemporalAdmg:accepted:Bayesian:cheap"
 identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "ResponseJacobian:TemporalAdmg:accepted:Bayesian:full"
 identifier = "generalized.adjustment"
-estimator = "response.gam_derivative"
-lowering = "MixedAdmgResponse"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseAdmg"
 
 [[route]]
 coordinate = "PointDerivative:Cpdag:explicit:Frequentist:none"

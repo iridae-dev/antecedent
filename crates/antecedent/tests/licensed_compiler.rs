@@ -1009,7 +1009,6 @@ struct CellSetup {
     data: CellData,
 }
 
-
 /// The path-specific, interventional-distribution and mediation cells over a graph posterior read
 /// the identified atoms of the mixture fixture: each class has atoms the identifier decides, on
 /// the count table the fixture enumerates, so the mixture is the posterior-weighted mean of
@@ -1039,9 +1038,14 @@ fn mixture_setup(cell: antecedent::SupportCell) -> Option<Result<CellSetup, Stri
     let fixture_class = if class == "temporal_admg" { "admg" } else { class };
     let entry = &pin["posteriors"][family][fixture_class];
     let table = &pin["tables"][entry["table"].as_str().unwrap()];
-    let names: Vec<String> =
-        table["columns"].as_array().unwrap().iter().map(|c| c.as_str().unwrap().to_owned()).collect();
-    let index_of = |name: &str| u32::try_from(names.iter().position(|n| n == name).unwrap()).unwrap();
+    let names: Vec<String> = table["columns"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| c.as_str().unwrap().to_owned())
+        .collect();
+    let index_of =
+        |name: &str| u32::try_from(names.iter().position(|n| n == name).unwrap()).unwrap();
     let scale: u64 = if entry["table"] == "linear_mediation" || cell.validation.as_str() == "none" {
         1
     } else {
@@ -1078,11 +1082,9 @@ fn mixture_setup(cell: antecedent::SupportCell) -> Option<Result<CellSetup, Stri
         .map(|atom| {
             let graph = &atom["graph"];
             match class {
-                "dag" | "pag" => edges(&graph["directed"])
-                    .iter()
-                    .fold(0_u64, |m, &(a, b)| {
-                        antecedent_discovery::set_edge(m, n, a as usize, b as usize, true)
-                    }),
+                "dag" | "pag" => edges(&graph["directed"]).iter().fold(0_u64, |m, &(a, b)| {
+                    antecedent_discovery::set_edge(m, n, a as usize, b as usize, true)
+                }),
                 "admg" | "temporal_admg" => {
                     let mut g = Admg::with_variables(n as u32);
                     for (a, b) in edges(&graph["directed"]) {
@@ -1146,7 +1148,12 @@ fn mixture_setup(cell: antecedent::SupportCell) -> Option<Result<CellSetup, Stri
                 v(q["outcome"].as_str().unwrap()),
             )
             .with_path_nodes(
-                q["path_nodes"].as_array().unwrap().iter().map(|n| v(n.as_str().unwrap())).collect::<Vec<_>>(),
+                q["path_nodes"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|n| v(n.as_str().unwrap()))
+                    .collect::<Vec<_>>(),
             )
             .with_max_len(4),
         ),
@@ -1157,7 +1164,12 @@ fn mixture_setup(cell: antecedent::SupportCell) -> Option<Result<CellSetup, Stri
         _ => CausalQuery::Mediation(MediationQuery::binary(
             v(q["treatment"].as_str().unwrap()),
             v(q["outcome"].as_str().unwrap()),
-            q["mediators"].as_array().unwrap().iter().map(|n| v(n.as_str().unwrap())).collect::<Vec<_>>(),
+            q["mediators"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|n| v(n.as_str().unwrap()))
+                .collect::<Vec<_>>(),
             MediationContrast::NaturalDirect,
         )),
     };
@@ -1234,7 +1246,9 @@ fn cross_world_setup(cell: antecedent::SupportCell) -> Option<Result<CellSetup, 
         ))
     };
     let nested_query = |t: u32, m: u32, y: u32| {
-        CausalQuery::NestedCounterfactual(NestedCounterfactualQuery::new(vid(t), vid(m), vid(y)).unwrap())
+        CausalQuery::NestedCounterfactual(
+            NestedCounterfactualQuery::new(vid(t), vid(m), vid(y)).unwrap(),
+        )
     };
     let static_pag = |n: u32, directed: &[(u32, u32)]| {
         let mut g = Pag::with_variables(n);
@@ -1256,8 +1270,12 @@ fn cross_world_setup(cell: antecedent::SupportCell) -> Option<Result<CellSetup, 
             .zip(t.iter().zip(&z))
             .map(|(i, (t, z))| 1.0 + 2.0 * t + z + 0.4 * (f64::from(i) * 2.3).sin())
             .collect();
-        TabularData::from_f64_columns([("z", z.as_slice()), ("t", t.as_slice()), ("y", y.as_slice())])
-            .unwrap()
+        TabularData::from_f64_columns([
+            ("z", z.as_slice()),
+            ("t", t.as_slice()),
+            ("y", y.as_slice()),
+        ])
+        .unwrap()
     };
     let (data, query) = match (cell.query.as_str(), class, cell.structure.as_str()) {
         ("Counterfactual", "Cpdag", "graph_posterior") => (line_data(), counterfactual_query(0, 1)),
@@ -1276,7 +1294,9 @@ fn cross_world_setup(cell: antecedent::SupportCell) -> Option<Result<CellSetup, 
         ("NestedCounterfactualEffect", "Cpdag", "graph_posterior") => {
             (table("front_door"), nested_query(0, 1, 2))
         }
-        ("NestedCounterfactualEffect", "Cpdag", _) => (table("two_mediators"), nested_query(0, 1, 3)),
+        ("NestedCounterfactualEffect", "Cpdag", _) => {
+            (table("two_mediators"), nested_query(0, 1, 3))
+        }
         _ => (table("front_door"), nested_query(0, 1, 2)),
     };
     let builder = Study::tabular(data.clone())
@@ -1311,8 +1331,11 @@ fn cross_world_setup(cell: antecedent::SupportCell) -> Option<Result<CellSetup, 
                 3,
                 vec![0.5, 0.3, 0.2],
                 vec![
-                    antecedent_discovery::adjacency_mask_from_admg(&admg(&[(0, 1), (1, 2)], &[(0, 2)]))
-                        .unwrap(),
+                    antecedent_discovery::adjacency_mask_from_admg(&admg(
+                        &[(0, 1), (1, 2)],
+                        &[(0, 2)],
+                    ))
+                    .unwrap(),
                     antecedent_discovery::adjacency_mask_from_admg(&admg(&a, &[])).unwrap(),
                     edge_mask(3, &[(0, 1), (1, 2), (2, 0)]),
                 ],
@@ -1320,7 +1343,11 @@ fn cross_world_setup(cell: antecedent::SupportCell) -> Option<Result<CellSetup, 
             "Cpdag" if is_counterfactual => {
                 let mut line = Cpdag::with_variables(2);
                 line.insert_undirected(nid(0), nid(1)).unwrap();
-                (2, vec![1.0], vec![antecedent_discovery::adjacency_mask_from_cpdag(&line).unwrap()])
+                (
+                    2,
+                    vec![1.0],
+                    vec![antecedent_discovery::adjacency_mask_from_cpdag(&line).unwrap()],
+                )
             }
             "Dag" if is_counterfactual => (
                 3,
@@ -1361,8 +1388,10 @@ fn cross_world_setup(cell: antecedent::SupportCell) -> Option<Result<CellSetup, 
                     3,
                     vec![0.5, 0.3, 0.2],
                     vec![
-                        antecedent_discovery::adjacency_mask_from_cpdag(&Cpdag::from_dag(&da)).unwrap(),
-                        antecedent_discovery::adjacency_mask_from_cpdag(&Cpdag::from_dag(&db)).unwrap(),
+                        antecedent_discovery::adjacency_mask_from_cpdag(&Cpdag::from_dag(&da))
+                            .unwrap(),
+                        antecedent_discovery::adjacency_mask_from_cpdag(&Cpdag::from_dag(&db))
+                            .unwrap(),
                         edge_mask(3, &[(0, 1), (1, 2), (2, 0)]),
                     ],
                 )
@@ -1400,11 +1429,14 @@ fn cross_world_setup(cell: antecedent::SupportCell) -> Option<Result<CellSetup, 
         builder.graph_posterior(gp)
     } else {
         match (class, cell.query.as_str()) {
-            ("Admg", "Counterfactual") => bind_graph(builder, admg(&[(0, 1), (1, 2)], &[(0, 2)]), accepted),
+            ("Admg", "Counterfactual") => {
+                bind_graph(builder, admg(&[(0, 1), (1, 2)], &[(0, 2)]), accepted)
+            }
             ("Admg", _) => bind_graph(builder, admg(&a, &[]), accepted),
             ("TemporalAdmg", "Counterfactual") => bind_graph(
                 builder,
-                TemporalAdmg::from_static_contemporaneous(&admg(&[(0, 1), (1, 2)], &[(0, 2)])).unwrap(),
+                TemporalAdmg::from_static_contemporaneous(&admg(&[(0, 1), (1, 2)], &[(0, 2)]))
+                    .unwrap(),
                 accepted,
             ),
             ("TemporalAdmg", _) => bind_graph(
@@ -1412,11 +1444,9 @@ fn cross_world_setup(cell: antecedent::SupportCell) -> Option<Result<CellSetup, 
                 TemporalAdmg::from_static_contemporaneous(&admg(&a, &[])).unwrap(),
                 accepted,
             ),
-            ("Pag", "Counterfactual") => bind_graph(
-                builder,
-                static_pag(4, &[(0, 1), (0, 2), (2, 3), (1, 3)]),
-                accepted,
-            ),
+            ("Pag", "Counterfactual") => {
+                bind_graph(builder, static_pag(4, &[(0, 1), (0, 2), (2, 3), (1, 3)]), accepted)
+            }
             ("Pag", _) => bind_graph(
                 builder,
                 static_pag(5, &[(0, 2), (1, 3), (2, 3), (2, 4), (3, 4)]),
@@ -1429,13 +1459,17 @@ fn cross_world_setup(cell: antecedent::SupportCell) -> Option<Result<CellSetup, 
                 }
                 bind_graph(builder, g, accepted)
             }
-            _ => bind_graph(builder, {
-                let mut d = Dag::with_variables(3);
-                for (x, z) in a {
-                    d.insert_directed(nid(x), nid(z)).unwrap();
-                }
-                d
-            }, accepted),
+            _ => bind_graph(
+                builder,
+                {
+                    let mut d = Dag::with_variables(3);
+                    for (x, z) in a {
+                        d.insert_directed(nid(x), nid(z)).unwrap();
+                    }
+                    d
+                },
+                accepted,
+            ),
         }
     };
     Some(Ok(CellSetup { expected, builder, data: CellData::Tabular(data) }))
@@ -1462,7 +1496,10 @@ fn temporal_window_setup(cell: antecedent::SupportCell) -> Option<Result<CellSet
     let contrast = class == "TemporalAdmg"
         && matches!(
             name,
-            "PulseEffect" | "SustainedEffect" | "TemporalConditionalPulse" | "TemporalConditionalSustained"
+            "PulseEffect"
+                | "SustainedEffect"
+                | "TemporalConditionalPulse"
+                | "TemporalConditionalSustained"
         );
     let mediation =
         name == "TemporalMediationEffect" && matches!(class, "TemporalAdmg" | "TemporalPag");
@@ -1498,7 +1535,9 @@ fn temporal_window_setup(cell: antecedent::SupportCell) -> Option<Result<CellSet
         })
     };
     let contemporaneous = |edges: &[(usize, usize)], n: usize| {
-        edges.iter().fold(AdjacencyMask::EMPTY, |mask, &(from, to)| set_edge(mask, n, from, to, true))
+        edges
+            .iter()
+            .fold(AdjacencyMask::EMPTY, |mask, &(from, to)| set_edge(mask, n, from, to, true))
     };
     let posterior = |weights: Vec<f64>,
                      atoms: Vec<TemporalAdmgAtom>,
@@ -1593,12 +1632,7 @@ fn temporal_window_setup(cell: antecedent::SupportCell) -> Option<Result<CellSet
                     lagged_directed: LagMask::EMPTY,
                     lagged_bidirected: LagMask::EMPTY,
                 };
-                posterior(
-                    vec![0.7, 0.3],
-                    vec![visible, invisible],
-                    5,
-                    GraphPosteriorAtomKind::Pag,
-                )
+                posterior(vec![0.7, 0.3], vec![visible, invisible], 5, GraphPosteriorAtomKind::Pag)
             } else {
                 let edges = [(1, 3), (2, 3), (3, 4), (1, 4)];
                 let generating = TemporalAdmgAtom {
@@ -1669,6 +1703,41 @@ fn temporal_window_setup(cell: antecedent::SupportCell) -> Option<Result<CellSet
     reason = "one arm per support-matrix cell maps the cell to its builder setup"
 )]
 fn cell_setup(cell: antecedent::SupportCell) -> Result<CellSetup, String> {
+    if cell.graph_class.as_str() == "TemporalAdmg"
+        && matches!(cell.structure.as_str(), "explicit" | "accepted")
+    {
+        let case = match cell.query.as_str() {
+            "PointDerivative" => Some("point"),
+            "Elasticity" => Some("elasticity"),
+            "SemiElasticity" => Some("semi_treatment"),
+            "AverageDerivative" => Some("average"),
+            "DirectionalDerivative" => Some("directional"),
+            "ResponseJacobian" => Some("jacobian"),
+            _ => None,
+        };
+        if let Some(case) = case {
+            let pin = temporal_admg_compiler_fixture::fixture();
+            let at = temporal_admg_compiler_fixture::number(&pin, "at");
+            let functional = temporal_admg_compiler_fixture::cases(&pin, at)
+                .into_iter()
+                .find(|(name, _, _)| *name == case)
+                .expect("known temporal derivative fixture")
+                .1;
+            let data = temporal_admg_compiler_fixture::series();
+            let builder = temporal_admg_compiler_fixture::study(
+                &data,
+                &functional,
+                cell.structure.as_str() == "accepted",
+                inference_of(cell.inference.as_str()),
+                refute_of(cell.validation.as_str()),
+            );
+            return Ok(CellSetup {
+                expected: cell_coordinate(cell),
+                builder,
+                data: CellData::Series(data),
+            });
+        }
+    }
     if let Some(setup) = mixture_setup(cell) {
         return setup;
     }
@@ -1783,7 +1852,9 @@ fn cell_setup(cell: antecedent::SupportCell) -> Result<CellSetup, String> {
             || (cell.query.as_str() == "ConditionalEffect"
                 && matches!(cell.graph_class.as_str(), "Admg" | "TemporalAdmg"))
         {
-            if cell.query.as_str() == "ResponseCurve" && cell.structure.as_str() == "graph_posterior" {
+            if cell.query.as_str() == "ResponseCurve"
+                && cell.structure.as_str() == "graph_posterior"
+            {
                 // A treatment independent of the outcome in every cell leaves a permuted
                 // treatment's refit identical to the data: the placebo has no spread.
                 dependent_joint_table(&["t", "y", "z"][..n.min(3) as usize])
@@ -3354,4 +3425,212 @@ fn rebind_estimate(
     let result = branch.estimate_retained(ctx)?;
     *prepared = branch;
     Ok(result)
+}
+
+#[allow(dead_code)]
+mod temporal_admg_compiler_fixture {
+    //! Known-truth evidence for derivatives on a supplied or accepted temporal ADMG at one horizon,
+    //! at validation none, cheap and full.
+    //!
+    //! The series is the confounded lag-one law of
+    //! `conformance/response/temporal_admg_derivative_states/expected.json`: the observed confounder
+    //! `z(t-1)` separates the treatment `x(t-1)` from the latent cause of `w(t-1)` and `y(t)`, so the
+    //! structural slope is the coefficient of `x(t-1)` in the regression of `y(t)` on
+    //! `(1, x(t-1), z(t-1), w(t-1))`, which the fixture's reference solves in exact rational
+    //! arithmetic. Every derivative coordinate is built under both structure routes, both inference
+    //! modes and the three validation suites; each run executes from the prepared study with the
+    //! builder dropped. The published value is compared with the fixture (not the confounded slope),
+    //! the refuter states (support, the unit-step difference of the identified levels, the
+    //! Pulse-witness suite, Bayesian predictive checks and prior sensitivity) are checked against it,
+    //! and the planted violation the fixture declares (an evaluation point beyond the observed
+    //! treatment range) must be detected.
+    //!
+    //! SPDX-License-Identifier: MIT OR Apache-2.0
+
+    #![allow(
+        clippy::cast_precision_loss,
+        clippy::too_many_lines,
+        reason = "test scaffolding builds small fixtures and one scenario is kept in one body"
+    )]
+
+    use antecedent::support::CellStatus;
+    use antecedent::{
+        AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study, StudyResult,
+    };
+    use antecedent_core::{
+        CausalQuery, DerivativeScale, DerivativeWeighting, ExecutionContext, Lag,
+        ResponseFunctional as F, ResponseIdentification, ResponseQuery, ResponseValue,
+        TemporalPolicy, TemporalResponseSpec, VariableId,
+    };
+    use antecedent_data::TimeSeriesData;
+    use antecedent_graph::TemporalAdmg;
+    use serde_json::Value;
+    use std::sync::Arc;
+
+    const N: usize = 600;
+    const X: u32 = 0;
+    const Y: u32 = 1;
+    const Z: u32 = 2;
+    const W: u32 = 3;
+
+    pub(super) fn fixture() -> Value {
+        serde_json::from_str(include_str!(
+            "../../../conformance/response/temporal_admg_derivative_states/expected.json"
+        ))
+        .expect("temporal_admg_derivative_states fixture parses")
+    }
+
+    pub(super) fn number(document: &Value, key: &str) -> f64 {
+        document[key].as_f64().unwrap_or_else(|| panic!("fixture lacks number `{key}`"))
+    }
+
+    fn v(i: u32) -> VariableId {
+        VariableId::from_raw(i)
+    }
+
+    /// `w = sin(1.7 t + .3) + .8 l`, `z = cos(.41 t) + .5 w`, `x = 2 + .6 z + sin(.71 t) + .2 cos(.13
+    /// t)`, `y(t) = 5 + 2 x(t-1) + 3 z(t-1) + .7 l(t-1) + .5 e` with the latent `l = cos(.77 t + 2)`
+    /// and `e` the sum of twelve uniforms of one 64-bit LCG stream minus six, one draw per `t >= 1`.
+    /// Returns the columns `x, y, z, w` as a series.
+    pub(super) fn series() -> TimeSeriesData {
+        let mut state = 20_240_607_u64;
+        let mut gauss = || {
+            let mut sum = 0.0;
+            for _ in 0..12 {
+                state = state
+                    .wrapping_mul(6_364_136_223_846_793_005)
+                    .wrapping_add(1_442_695_040_888_963_407);
+                sum += (state >> 11) as f64 / 9_007_199_254_740_992.0;
+            }
+            sum - 6.0
+        };
+        let mut x = vec![0.0; N];
+        let mut y = vec![0.0; N];
+        let mut z = vec![0.0; N];
+        let mut w = vec![0.0; N];
+        let mut latent = vec![0.0; N];
+        for t in 0..N {
+            let clock = t as f64;
+            latent[t] = (clock * 0.77 + 2.0).cos();
+            w[t] = (clock * 1.7 + 0.3).sin() + 0.8 * latent[t];
+            z[t] = (clock * 0.41).cos() + 0.5 * w[t];
+            x[t] = 2.0 + 0.6 * z[t] + (clock * 0.71).sin() + 0.2 * (clock * 0.13).cos();
+        }
+        for t in 1..N {
+            y[t] = 5.0 + 2.0 * x[t - 1] + 3.0 * z[t - 1] + 0.7 * latent[t - 1] + 0.5 * gauss();
+        }
+        TimeSeriesData::from_f64_columns(
+            [("x", x.as_slice()), ("y", y.as_slice()), ("z", z.as_slice()), ("w", w.as_slice())],
+            1,
+        )
+        .unwrap()
+    }
+
+    /// `z(t-1) -> x(t-1)`, `z(t-1) -> y(t)`, `x(t-1) -> y(t)`, `w(t-1) -> z(t-1)` and a latent common
+    /// cause of `w(t-1)` and `y(t)`.
+    fn template() -> TemporalAdmg {
+        let mut graph = TemporalAdmg::empty();
+        let x1 = graph.add_lagged(v(X), Lag::from_raw(1)).unwrap();
+        let z1 = graph.add_lagged(v(Z), Lag::from_raw(1)).unwrap();
+        let w1 = graph.add_lagged(v(W), Lag::from_raw(1)).unwrap();
+        let y0 = graph.add_lagged(v(Y), Lag::CONTEMPORANEOUS).unwrap();
+        graph.insert_directed(z1, x1).unwrap();
+        graph.insert_directed(z1, y0).unwrap();
+        graph.insert_directed(x1, y0).unwrap();
+        graph.insert_directed(w1, z1).unwrap();
+        graph.insert_bidirected(w1, y0).unwrap();
+        graph
+    }
+
+    fn point(scale: DerivativeScale, at: f64) -> F {
+        F::PointDerivative { outcome: v(Y), treatment: v(X), at, order: 1, scale }
+    }
+
+    pub(super) fn study(
+        data: &TimeSeriesData,
+        functional: &F,
+        accepted: bool,
+        inference: InferenceMode,
+        suite: RefuteSuite,
+    ) -> antecedent::StudyBuilder {
+        let query = ResponseQuery::new(functional.clone()).with_temporal(
+            TemporalResponseSpec::new(vec![1_u32], TemporalPolicy::pulse(-1), None).unwrap(),
+        );
+        let builder = Study::series(data.clone()).query(CausalQuery::Response(query));
+        let builder = if accepted {
+            builder.graph(AcceptedGraph::from(template()))
+        } else {
+            builder.graph(template())
+        };
+        builder.inference(inference).refute(suite).bootstrap_replicates(12)
+    }
+
+    fn published(result: &StudyResult, label: &str) -> Vec<f64> {
+        let ResponseIdentification::PointIdentified(value) = &result.response().unwrap().estimate
+        else {
+            panic!("{label}: the response is not point identified");
+        };
+        match value {
+            ResponseValue::Scalar(x) => vec![*x],
+            ResponseValue::Jacobian { values, .. } | ResponseValue::Vector(values) => {
+                values.to_vec()
+            }
+            other => panic!("{label}: unexpected payload {other:?}"),
+        }
+    }
+
+    fn report<'a>(
+        result: &'a StudyResult,
+        name: &str,
+    ) -> Option<&'a antecedent_validate::RefutationReport> {
+        result.refutations.iter().find(|report| report.refuter.as_ref() == name)
+    }
+
+    /// Every functional with the reference values the fixture implies.
+    pub(super) fn cases(pin: &Value, at: f64) -> Vec<(&'static str, F, Vec<f64>)> {
+        let slope = number(pin, "slope_y");
+        vec![
+            ("point", point(DerivativeScale::Identity, at), vec![slope]),
+            ("elasticity", point(DerivativeScale::LogLog, at), vec![number(pin, "elasticity")]),
+            (
+                "semi_treatment",
+                point(DerivativeScale::LogTreatment, at),
+                vec![number(pin, "semi_treatment")],
+            ),
+            (
+                "semi_outcome",
+                point(DerivativeScale::LogOutcome, at),
+                vec![number(pin, "semi_outcome")],
+            ),
+            (
+                "average",
+                F::AverageDerivative {
+                    outcome: v(Y),
+                    treatment: v(X),
+                    weighting: DerivativeWeighting::Observed,
+                },
+                vec![slope],
+            ),
+            (
+                "jacobian",
+                F::Jacobian {
+                    outcomes: Arc::from([v(Y)]),
+                    treatments: Arc::from([v(X)]),
+                    at: Arc::from([at]),
+                    scale: DerivativeScale::Identity,
+                },
+                vec![slope],
+            ),
+            (
+                "directional",
+                F::DirectionalDerivative {
+                    outcomes: Arc::from([v(Y)]),
+                    treatments: Arc::from([v(X)]),
+                    at: Arc::from([at]),
+                    direction: Arc::from([1.0]),
+                },
+                vec![slope],
+            ),
+        ]
+    }
 }

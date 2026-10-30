@@ -720,6 +720,17 @@ fn temporal_cross_world_cells_execute_from_the_retained_plan_without_the_builder
                             let result = prepared
                                 .estimate_retained(&ctx)
                                 .unwrap_or_else(|e| panic!("{label}: {e}"));
+                            if class == Class::Dag
+                                && structure != Structure::Posterior
+                                && bayesian
+                                && key == "counterfactual"
+                            {
+                                assert_eq!(
+                                    result.logical_plan.estimator.as_deref(),
+                                    Some("bayesian.temporal.gcomp"),
+                                    "{label}"
+                                );
+                            }
                             assert_eq!(
                                 result.support_status(),
                                 Some(CellStatus::Licensed),

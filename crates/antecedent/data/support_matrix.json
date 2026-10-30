@@ -17845,9 +17845,8 @@
       "structure": "explicit",
       "inference": "Frequentist",
       "validation": "none",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.kennedy_dr",
         "temporal.response.gcomp"
       ]
     },
@@ -17857,9 +17856,8 @@
       "structure": "explicit",
       "inference": "Frequentist",
       "validation": "cheap",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.kennedy_dr",
         "temporal.response.gcomp"
       ]
     },
@@ -17869,9 +17867,8 @@
       "structure": "explicit",
       "inference": "Frequentist",
       "validation": "full",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.kennedy_dr",
         "temporal.response.gcomp"
       ]
     },
@@ -17881,9 +17878,8 @@
       "structure": "explicit",
       "inference": "Bayesian",
       "validation": "none",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.kennedy_dr",
         "response.temporal.bayesian"
       ]
     },
@@ -17893,9 +17889,8 @@
       "structure": "explicit",
       "inference": "Bayesian",
       "validation": "cheap",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.kennedy_dr",
         "response.temporal.bayesian"
       ]
     },
@@ -17905,9 +17900,8 @@
       "structure": "explicit",
       "inference": "Bayesian",
       "validation": "full",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.kennedy_dr",
         "response.temporal.bayesian"
       ]
     },
@@ -17917,9 +17911,8 @@
       "structure": "accepted",
       "inference": "Frequentist",
       "validation": "none",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.kennedy_dr",
         "temporal.response.gcomp"
       ]
     },
@@ -17929,9 +17922,8 @@
       "structure": "accepted",
       "inference": "Frequentist",
       "validation": "cheap",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.kennedy_dr",
         "temporal.response.gcomp"
       ]
     },
@@ -17941,9 +17933,8 @@
       "structure": "accepted",
       "inference": "Frequentist",
       "validation": "full",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.kennedy_dr",
         "temporal.response.gcomp"
       ]
     },
@@ -17953,9 +17944,8 @@
       "structure": "accepted",
       "inference": "Bayesian",
       "validation": "none",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.kennedy_dr",
         "response.temporal.bayesian"
       ]
     },
@@ -17965,9 +17955,8 @@
       "structure": "accepted",
       "inference": "Bayesian",
       "validation": "cheap",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.kennedy_dr",
         "response.temporal.bayesian"
       ]
     },
@@ -17977,9 +17966,8 @@
       "structure": "accepted",
       "inference": "Bayesian",
       "validation": "full",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.kennedy_dr",
         "response.temporal.bayesian"
       ]
     },
@@ -17989,9 +17977,8 @@
       "structure": "explicit",
       "inference": "Frequentist",
       "validation": "none",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.kennedy_dr",
         "temporal.response.gcomp"
       ]
     },
@@ -18001,9 +17988,8 @@
       "structure": "explicit",
       "inference": "Frequentist",
       "validation": "cheap",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.kennedy_dr",
         "temporal.response.gcomp"
       ]
     },
@@ -18013,9 +17999,8 @@
       "structure": "explicit",
       "inference": "Frequentist",
       "validation": "full",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.kennedy_dr",
         "temporal.response.gcomp"
       ]
     },
@@ -18025,9 +18010,8 @@
       "structure": "explicit",
       "inference": "Bayesian",
       "validation": "none",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.kennedy_dr",
         "response.temporal.bayesian"
       ]
     },
@@ -18037,9 +18021,8 @@
       "structure": "explicit",
       "inference": "Bayesian",
       "validation": "cheap",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.kennedy_dr",
         "response.temporal.bayesian"
       ]
     },
@@ -18049,9 +18032,8 @@
       "structure": "explicit",
       "inference": "Bayesian",
       "validation": "full",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.kennedy_dr",
         "response.temporal.bayesian"
       ]
     },
@@ -18061,9 +18043,8 @@
       "structure": "accepted",
       "inference": "Frequentist",
       "validation": "none",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.kennedy_dr",
         "temporal.response.gcomp"
       ]
     },
@@ -18073,9 +18054,8 @@
       "structure": "accepted",
       "inference": "Frequentist",
       "validation": "cheap",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.kennedy_dr",
         "temporal.response.gcomp"
       ]
     },
@@ -18085,9 +18065,8 @@
       "structure": "accepted",
       "inference": "Frequentist",
       "validation": "full",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.kennedy_dr",
         "temporal.response.gcomp"
       ]
     },
@@ -18097,9 +18076,8 @@
       "structure": "accepted",
       "inference": "Bayesian",
       "validation": "none",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.kennedy_dr",
         "response.temporal.bayesian"
       ]
     },
@@ -18109,9 +18087,8 @@
       "structure": "accepted",
       "inference": "Bayesian",
       "validation": "cheap",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.kennedy_dr",
         "response.temporal.bayesian"
       ]
     },
@@ -18121,9 +18098,8 @@
       "structure": "accepted",
       "inference": "Bayesian",
       "validation": "full",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.kennedy_dr",
         "response.temporal.bayesian"
       ]
     },
@@ -18133,9 +18109,8 @@
       "structure": "explicit",
       "inference": "Frequentist",
       "validation": "none",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.kennedy_dr",
         "temporal.response.gcomp"
       ]
     },
@@ -18145,9 +18120,8 @@
       "structure": "explicit",
       "inference": "Frequentist",
       "validation": "cheap",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.kennedy_dr",
         "temporal.response.gcomp"
       ]
     },
@@ -18157,9 +18131,8 @@
       "structure": "explicit",
       "inference": "Frequentist",
       "validation": "full",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.kennedy_dr",
         "temporal.response.gcomp"
       ]
     },
@@ -18169,9 +18142,8 @@
       "structure": "explicit",
       "inference": "Bayesian",
       "validation": "none",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.kennedy_dr",
         "response.temporal.bayesian"
       ]
     },
@@ -18181,9 +18153,8 @@
       "structure": "explicit",
       "inference": "Bayesian",
       "validation": "cheap",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.kennedy_dr",
         "response.temporal.bayesian"
       ]
     },
@@ -18193,9 +18164,8 @@
       "structure": "explicit",
       "inference": "Bayesian",
       "validation": "full",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.kennedy_dr",
         "response.temporal.bayesian"
       ]
     },
@@ -18205,9 +18175,8 @@
       "structure": "accepted",
       "inference": "Frequentist",
       "validation": "none",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.kennedy_dr",
         "temporal.response.gcomp"
       ]
     },
@@ -18217,9 +18186,8 @@
       "structure": "accepted",
       "inference": "Frequentist",
       "validation": "cheap",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.kennedy_dr",
         "temporal.response.gcomp"
       ]
     },
@@ -18229,9 +18197,8 @@
       "structure": "accepted",
       "inference": "Frequentist",
       "validation": "full",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.kennedy_dr",
         "temporal.response.gcomp"
       ]
     },
@@ -18241,9 +18208,8 @@
       "structure": "accepted",
       "inference": "Bayesian",
       "validation": "none",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.kennedy_dr",
         "response.temporal.bayesian"
       ]
     },
@@ -18253,9 +18219,8 @@
       "structure": "accepted",
       "inference": "Bayesian",
       "validation": "cheap",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.kennedy_dr",
         "response.temporal.bayesian"
       ]
     },
@@ -18265,9 +18230,8 @@
       "structure": "accepted",
       "inference": "Bayesian",
       "validation": "full",
-      "route_estimator": "response.kennedy_dr",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.kennedy_dr",
         "response.temporal.bayesian"
       ]
     },
@@ -18277,9 +18241,8 @@
       "structure": "explicit",
       "inference": "Frequentist",
       "validation": "none",
-      "route_estimator": "response.riesz_ade",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.riesz_ade",
         "temporal.response.gcomp"
       ]
     },
@@ -18289,9 +18252,8 @@
       "structure": "explicit",
       "inference": "Frequentist",
       "validation": "cheap",
-      "route_estimator": "response.riesz_ade",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.riesz_ade",
         "temporal.response.gcomp"
       ]
     },
@@ -18301,9 +18263,8 @@
       "structure": "explicit",
       "inference": "Frequentist",
       "validation": "full",
-      "route_estimator": "response.riesz_ade",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.riesz_ade",
         "temporal.response.gcomp"
       ]
     },
@@ -18313,9 +18274,8 @@
       "structure": "explicit",
       "inference": "Bayesian",
       "validation": "none",
-      "route_estimator": "response.riesz_ade",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.riesz_ade",
         "response.temporal.bayesian"
       ]
     },
@@ -18325,9 +18285,8 @@
       "structure": "explicit",
       "inference": "Bayesian",
       "validation": "cheap",
-      "route_estimator": "response.riesz_ade",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.riesz_ade",
         "response.temporal.bayesian"
       ]
     },
@@ -18337,9 +18296,8 @@
       "structure": "explicit",
       "inference": "Bayesian",
       "validation": "full",
-      "route_estimator": "response.riesz_ade",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.riesz_ade",
         "response.temporal.bayesian"
       ]
     },
@@ -18349,9 +18307,8 @@
       "structure": "accepted",
       "inference": "Frequentist",
       "validation": "none",
-      "route_estimator": "response.riesz_ade",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.riesz_ade",
         "temporal.response.gcomp"
       ]
     },
@@ -18361,9 +18318,8 @@
       "structure": "accepted",
       "inference": "Frequentist",
       "validation": "cheap",
-      "route_estimator": "response.riesz_ade",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.riesz_ade",
         "temporal.response.gcomp"
       ]
     },
@@ -18373,9 +18329,8 @@
       "structure": "accepted",
       "inference": "Frequentist",
       "validation": "full",
-      "route_estimator": "response.riesz_ade",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.riesz_ade",
         "temporal.response.gcomp"
       ]
     },
@@ -18385,9 +18340,8 @@
       "structure": "accepted",
       "inference": "Bayesian",
       "validation": "none",
-      "route_estimator": "response.riesz_ade",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.riesz_ade",
         "response.temporal.bayesian"
       ]
     },
@@ -18397,9 +18351,8 @@
       "structure": "accepted",
       "inference": "Bayesian",
       "validation": "cheap",
-      "route_estimator": "response.riesz_ade",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.riesz_ade",
         "response.temporal.bayesian"
       ]
     },
@@ -18409,9 +18362,8 @@
       "structure": "accepted",
       "inference": "Bayesian",
       "validation": "full",
-      "route_estimator": "response.riesz_ade",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.riesz_ade",
         "response.temporal.bayesian"
       ]
     },
@@ -18421,9 +18373,8 @@
       "structure": "explicit",
       "inference": "Frequentist",
       "validation": "none",
-      "route_estimator": "response.gam_derivative",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.gam_derivative",
         "temporal.response.gcomp"
       ]
     },
@@ -18433,9 +18384,8 @@
       "structure": "explicit",
       "inference": "Frequentist",
       "validation": "cheap",
-      "route_estimator": "response.gam_derivative",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.gam_derivative",
         "temporal.response.gcomp"
       ]
     },
@@ -18445,9 +18395,8 @@
       "structure": "explicit",
       "inference": "Frequentist",
       "validation": "full",
-      "route_estimator": "response.gam_derivative",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.gam_derivative",
         "temporal.response.gcomp"
       ]
     },
@@ -18457,9 +18406,8 @@
       "structure": "explicit",
       "inference": "Bayesian",
       "validation": "none",
-      "route_estimator": "response.gam_derivative",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.gam_derivative",
         "response.temporal.bayesian"
       ]
     },
@@ -18469,9 +18417,8 @@
       "structure": "explicit",
       "inference": "Bayesian",
       "validation": "cheap",
-      "route_estimator": "response.gam_derivative",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.gam_derivative",
         "response.temporal.bayesian"
       ]
     },
@@ -18481,9 +18428,8 @@
       "structure": "explicit",
       "inference": "Bayesian",
       "validation": "full",
-      "route_estimator": "response.gam_derivative",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.gam_derivative",
         "response.temporal.bayesian"
       ]
     },
@@ -18493,9 +18439,8 @@
       "structure": "accepted",
       "inference": "Frequentist",
       "validation": "none",
-      "route_estimator": "response.gam_derivative",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.gam_derivative",
         "temporal.response.gcomp"
       ]
     },
@@ -18505,9 +18450,8 @@
       "structure": "accepted",
       "inference": "Frequentist",
       "validation": "cheap",
-      "route_estimator": "response.gam_derivative",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.gam_derivative",
         "temporal.response.gcomp"
       ]
     },
@@ -18517,9 +18461,8 @@
       "structure": "accepted",
       "inference": "Frequentist",
       "validation": "full",
-      "route_estimator": "response.gam_derivative",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.gam_derivative",
         "temporal.response.gcomp"
       ]
     },
@@ -18529,9 +18472,8 @@
       "structure": "accepted",
       "inference": "Bayesian",
       "validation": "none",
-      "route_estimator": "response.gam_derivative",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.gam_derivative",
         "response.temporal.bayesian"
       ]
     },
@@ -18541,9 +18483,8 @@
       "structure": "accepted",
       "inference": "Bayesian",
       "validation": "cheap",
-      "route_estimator": "response.gam_derivative",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.gam_derivative",
         "response.temporal.bayesian"
       ]
     },
@@ -18553,9 +18494,8 @@
       "structure": "accepted",
       "inference": "Bayesian",
       "validation": "full",
-      "route_estimator": "response.gam_derivative",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.gam_derivative",
         "response.temporal.bayesian"
       ]
     },
@@ -18565,9 +18505,8 @@
       "structure": "explicit",
       "inference": "Frequentist",
       "validation": "none",
-      "route_estimator": "response.gam_derivative",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.gam_derivative",
         "temporal.response.gcomp"
       ]
     },
@@ -18577,9 +18516,8 @@
       "structure": "explicit",
       "inference": "Frequentist",
       "validation": "cheap",
-      "route_estimator": "response.gam_derivative",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.gam_derivative",
         "temporal.response.gcomp"
       ]
     },
@@ -18589,9 +18527,8 @@
       "structure": "explicit",
       "inference": "Frequentist",
       "validation": "full",
-      "route_estimator": "response.gam_derivative",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.gam_derivative",
         "temporal.response.gcomp"
       ]
     },
@@ -18601,9 +18538,8 @@
       "structure": "explicit",
       "inference": "Bayesian",
       "validation": "none",
-      "route_estimator": "response.gam_derivative",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.gam_derivative",
         "response.temporal.bayesian"
       ]
     },
@@ -18613,9 +18549,8 @@
       "structure": "explicit",
       "inference": "Bayesian",
       "validation": "cheap",
-      "route_estimator": "response.gam_derivative",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.gam_derivative",
         "response.temporal.bayesian"
       ]
     },
@@ -18625,9 +18560,8 @@
       "structure": "explicit",
       "inference": "Bayesian",
       "validation": "full",
-      "route_estimator": "response.gam_derivative",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.gam_derivative",
         "response.temporal.bayesian"
       ]
     },
@@ -18637,9 +18571,8 @@
       "structure": "accepted",
       "inference": "Frequentist",
       "validation": "none",
-      "route_estimator": "response.gam_derivative",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.gam_derivative",
         "temporal.response.gcomp"
       ]
     },
@@ -18649,9 +18582,8 @@
       "structure": "accepted",
       "inference": "Frequentist",
       "validation": "cheap",
-      "route_estimator": "response.gam_derivative",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.gam_derivative",
         "temporal.response.gcomp"
       ]
     },
@@ -18661,9 +18593,8 @@
       "structure": "accepted",
       "inference": "Frequentist",
       "validation": "full",
-      "route_estimator": "response.gam_derivative",
+      "route_estimator": "temporal.response.gcomp",
       "estimators": [
-        "response.gam_derivative",
         "temporal.response.gcomp"
       ]
     },
@@ -18673,9 +18604,8 @@
       "structure": "accepted",
       "inference": "Bayesian",
       "validation": "none",
-      "route_estimator": "response.gam_derivative",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.gam_derivative",
         "response.temporal.bayesian"
       ]
     },
@@ -18685,9 +18615,8 @@
       "structure": "accepted",
       "inference": "Bayesian",
       "validation": "cheap",
-      "route_estimator": "response.gam_derivative",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.gam_derivative",
         "response.temporal.bayesian"
       ]
     },
@@ -18697,9 +18626,8 @@
       "structure": "accepted",
       "inference": "Bayesian",
       "validation": "full",
-      "route_estimator": "response.gam_derivative",
+      "route_estimator": "response.temporal.bayesian",
       "estimators": [
-        "response.gam_derivative",
         "response.temporal.bayesian"
       ]
     },
@@ -25971,8 +25899,7 @@
       "validation": "cheap",
       "route_estimator": "bayesian.temporal.gcomp",
       "estimators": [
-        "bayesian.temporal.gcomp",
-        "temporal.linear.adjustment"
+        "bayesian.temporal.gcomp"
       ]
     },
     {
@@ -25983,8 +25910,7 @@
       "validation": "full",
       "route_estimator": "bayesian.temporal.gcomp",
       "estimators": [
-        "bayesian.temporal.gcomp",
-        "temporal.linear.adjustment"
+        "bayesian.temporal.gcomp"
       ]
     },
     {
@@ -26149,8 +26075,7 @@
       "validation": "cheap",
       "route_estimator": "bayesian.temporal.gcomp",
       "estimators": [
-        "bayesian.temporal.gcomp",
-        "temporal.linear.adjustment"
+        "bayesian.temporal.gcomp"
       ]
     },
     {
@@ -26161,8 +26086,7 @@
       "validation": "full",
       "route_estimator": "bayesian.temporal.gcomp",
       "estimators": [
-        "bayesian.temporal.gcomp",
-        "temporal.linear.adjustment"
+        "bayesian.temporal.gcomp"
       ]
     },
     {

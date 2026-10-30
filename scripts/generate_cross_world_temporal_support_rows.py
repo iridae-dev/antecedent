@@ -85,6 +85,9 @@ def cells() -> list[tuple[str, str, str, str, str]]:
 def rows() -> list[str]:
     out = []
     for query, graph, structure, inference, validation in cells():
+        estimator = ("bayesian.temporal.gcomp" if query == "Counterfactual" and graph == "TemporalDag"
+                     and structure in ("explicit", "accepted") and inference == "Bayesian"
+                     else ESTIMATOR)
         structure_text = {
             "explicit": "supplied",
             "accepted": "accepted",
@@ -105,14 +108,14 @@ def rows() -> list[str]:
                     f'structure = "{structure}"',
                     f'inference = "{inference}"',
                     f'validation = "{validation}"',
-                    f'estimators = ["{ESTIMATOR}"]',
+                    f'estimators = ["{estimator}"]',
                     "staged = true",
                     'evidence_kind = "internal_known_truth"',
                     f'known_truth_fixture = "{FIXTURE}"',
                     f'evidence_test = "{TEST}"',
                     f'evidence_assertion = "{EVIDENCE}"',
                     "checked_execution = [",
-                    f'  {{ estimator = "{ESTIMATOR}", test = "{TEST}", assertion = "{CHECKED}" }},',
+                    f'  {{ estimator = "{estimator}", test = "{TEST}", assertion = "{CHECKED}" }},',
                     "]",
                     f"limitations = {quote(text)}",
                     'calibration_reason = "estimator_grid_not_measured"',
@@ -125,10 +128,13 @@ def rows() -> list[str]:
 def route_entries() -> str:
     out = []
     for query, graph, structure, inference, validation in cells():
+        estimator = ("bayesian.temporal.gcomp" if query == "Counterfactual" and graph == "TemporalDag"
+                     and structure in ("explicit", "accepted") and inference == "Bayesian"
+                     else ESTIMATOR)
         identifier, lowering = route(graph, structure)
         out.append(
             f'\n[[route]]\ncoordinate = "{query}:{graph}:{structure}:{inference}:{validation}"\n'
-            f'identifier = "{identifier}"\nestimator = "{ESTIMATOR}"\nlowering = "{lowering}"\n'
+            f'identifier = "{identifier}"\nestimator = "{estimator}"\nlowering = "{lowering}"\n'
         )
     return "".join(out)
 

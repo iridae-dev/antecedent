@@ -42485,14 +42485,14 @@ graph_class = "TemporalDag"
 structure = "explicit"
 inference = "Bayesian"
 validation = "cheap"
-estimators = ["temporal.linear.adjustment"]
+estimators = ["bayesian.temporal.gcomp"]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_cross_world"
 evidence_test = "crates/antecedent/tests/cross_world_temporal_truth.rs"
 evidence_assertion = "temporal_cross_world_cells_match_the_linear_mechanism_under_every_suite"
 checked_execution = [
-  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/cross_world_temporal_truth.rs", assertion = "temporal_cross_world_cells_execute_from_the_retained_plan_without_the_builder" },
+  { estimator = "bayesian.temporal.gcomp", test = "crates/antecedent/tests/cross_world_temporal_truth.rs", assertion = "temporal_cross_world_cells_execute_from_the_retained_plan_without_the_builder" },
 ]
 limitations = "Linear unfolded point of a temporal cross-world effect on a TemporalDag supplied with one lag: the nested direct effect, the path-specific effect through the mediator, the total effect of a counterfactual and the interventional-mean contrast, read from the temporal linear adjustment slopes under the back-door set of the declared graph. Known truth: the closed forms of the one-lag linear mechanism M = 0.5 X(t-1) + e_m, Y = 1.5 X(t-1) + 4 M + e_y (conformance/estimate/temporal_cross_world): a nested direct effect of 1.5, a mediated path effect of 2 and a total effect and interventional-mean contrast of 3.5, on seeded Gaussian disturbances. Validation runs the functional refuter state on the series: the circular-shift placebo treatment and placebo outcome, circular-window subset stability and circular-block bootstrap stability, whose verdicts hold the planted-violation and clean-twin tests; the pre-trend, anticipation and lagged negative-control refuters reject the clean mechanism at no more than their size across seeded series and flag a planted anticipation (the outcome and mediator read the treatment of the same period) on every seed. The sampling weights of a resampled series are read by the slope fits. The verdicts are diagnostics, not a calibration claim. A mapped coefficient prior and a nonempty back-door set refuse. Interval: a shared circular-block bootstrap of series times when replicates are requested (Frequentist) or the slope posterior draws (Bayesian); no coverage record measures them."
 calibration_reason = "estimator_grid_not_measured"
@@ -42503,14 +42503,14 @@ graph_class = "TemporalDag"
 structure = "explicit"
 inference = "Bayesian"
 validation = "full"
-estimators = ["temporal.linear.adjustment"]
+estimators = ["bayesian.temporal.gcomp"]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_cross_world"
 evidence_test = "crates/antecedent/tests/cross_world_temporal_truth.rs"
 evidence_assertion = "temporal_cross_world_cells_match_the_linear_mechanism_under_every_suite"
 checked_execution = [
-  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/cross_world_temporal_truth.rs", assertion = "temporal_cross_world_cells_execute_from_the_retained_plan_without_the_builder" },
+  { estimator = "bayesian.temporal.gcomp", test = "crates/antecedent/tests/cross_world_temporal_truth.rs", assertion = "temporal_cross_world_cells_execute_from_the_retained_plan_without_the_builder" },
 ]
 limitations = "Linear unfolded point of a temporal cross-world effect on a TemporalDag supplied with one lag: the nested direct effect, the path-specific effect through the mediator, the total effect of a counterfactual and the interventional-mean contrast, read from the temporal linear adjustment slopes under the back-door set of the declared graph. Known truth: the closed forms of the one-lag linear mechanism M = 0.5 X(t-1) + e_m, Y = 1.5 X(t-1) + 4 M + e_y (conformance/estimate/temporal_cross_world): a nested direct effect of 1.5, a mediated path effect of 2 and a total effect and interventional-mean contrast of 3.5, on seeded Gaussian disturbances. Validation runs the functional refuter state on the series: the circular-shift placebo treatment and placebo outcome, circular-window subset stability and circular-block bootstrap stability, whose verdicts hold the planted-violation and clean-twin tests; the pre-trend, anticipation and lagged negative-control refuters reject the clean mechanism at no more than their size across seeded series and flag a planted anticipation (the outcome and mediator read the treatment of the same period) on every seed. The sampling weights of a resampled series are read by the slope fits. The verdicts are diagnostics, not a calibration claim. A mapped coefficient prior and a nonempty back-door set refuse. Interval: a shared circular-block bootstrap of series times when replicates are requested (Frequentist) or the slope posterior draws (Bayesian); no coverage record measures them."
 calibration_reason = "estimator_grid_not_measured"
@@ -42773,14 +42773,14 @@ graph_class = "TemporalDag"
 structure = "accepted"
 inference = "Bayesian"
 validation = "cheap"
-estimators = ["temporal.linear.adjustment"]
+estimators = ["bayesian.temporal.gcomp"]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_cross_world"
 evidence_test = "crates/antecedent/tests/cross_world_temporal_truth.rs"
 evidence_assertion = "temporal_cross_world_cells_match_the_linear_mechanism_under_every_suite"
 checked_execution = [
-  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/cross_world_temporal_truth.rs", assertion = "temporal_cross_world_cells_execute_from_the_retained_plan_without_the_builder" },
+  { estimator = "bayesian.temporal.gcomp", test = "crates/antecedent/tests/cross_world_temporal_truth.rs", assertion = "temporal_cross_world_cells_execute_from_the_retained_plan_without_the_builder" },
 ]
 limitations = "Linear unfolded point of a temporal cross-world effect on a TemporalDag accepted with one lag: the nested direct effect, the path-specific effect through the mediator, the total effect of a counterfactual and the interventional-mean contrast, read from the temporal linear adjustment slopes under the back-door set of the declared graph. Known truth: the closed forms of the one-lag linear mechanism M = 0.5 X(t-1) + e_m, Y = 1.5 X(t-1) + 4 M + e_y (conformance/estimate/temporal_cross_world): a nested direct effect of 1.5, a mediated path effect of 2 and a total effect and interventional-mean contrast of 3.5, on seeded Gaussian disturbances. Validation runs the functional refuter state on the series: the circular-shift placebo treatment and placebo outcome, circular-window subset stability and circular-block bootstrap stability, whose verdicts hold the planted-violation and clean-twin tests; the pre-trend, anticipation and lagged negative-control refuters reject the clean mechanism at no more than their size across seeded series and flag a planted anticipation (the outcome and mediator read the treatment of the same period) on every seed. The sampling weights of a resampled series are read by the slope fits. The verdicts are diagnostics, not a calibration claim. A mapped coefficient prior and a nonempty back-door set refuse. Interval: a shared circular-block bootstrap of series times when replicates are requested (Frequentist) or the slope posterior draws (Bayesian); no coverage record measures them."
 calibration_reason = "estimator_grid_not_measured"
@@ -42791,14 +42791,14 @@ graph_class = "TemporalDag"
 structure = "accepted"
 inference = "Bayesian"
 validation = "full"
-estimators = ["temporal.linear.adjustment"]
+estimators = ["bayesian.temporal.gcomp"]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_cross_world"
 evidence_test = "crates/antecedent/tests/cross_world_temporal_truth.rs"
 evidence_assertion = "temporal_cross_world_cells_match_the_linear_mechanism_under_every_suite"
 checked_execution = [
-  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/cross_world_temporal_truth.rs", assertion = "temporal_cross_world_cells_execute_from_the_retained_plan_without_the_builder" },
+  { estimator = "bayesian.temporal.gcomp", test = "crates/antecedent/tests/cross_world_temporal_truth.rs", assertion = "temporal_cross_world_cells_execute_from_the_retained_plan_without_the_builder" },
 ]
 limitations = "Linear unfolded point of a temporal cross-world effect on a TemporalDag accepted with one lag: the nested direct effect, the path-specific effect through the mediator, the total effect of a counterfactual and the interventional-mean contrast, read from the temporal linear adjustment slopes under the back-door set of the declared graph. Known truth: the closed forms of the one-lag linear mechanism M = 0.5 X(t-1) + e_m, Y = 1.5 X(t-1) + 4 M + e_y (conformance/estimate/temporal_cross_world): a nested direct effect of 1.5, a mediated path effect of 2 and a total effect and interventional-mean contrast of 3.5, on seeded Gaussian disturbances. Validation runs the functional refuter state on the series: the circular-shift placebo treatment and placebo outcome, circular-window subset stability and circular-block bootstrap stability, whose verdicts hold the planted-violation and clean-twin tests; the pre-trend, anticipation and lagged negative-control refuters reject the clean mechanism at no more than their size across seeded series and flag a planted anticipation (the outcome and mediator read the treatment of the same period) on every seed. The sampling weights of a resampled series are read by the slope fits. The verdicts are diagnostics, not a calibration claim. A mapped coefficient prior and a nonempty back-door set refuse. Interval: a shared circular-block bootstrap of series times when replicates are requested (Frequentist) or the slope posterior draws (Bayesian); no coverage record measures them."
 calibration_reason = "estimator_grid_not_measured"
