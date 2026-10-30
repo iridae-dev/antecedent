@@ -170,6 +170,7 @@ pub fn exposure_probabilities(
     }
     let n = incoming.len();
     validate_design(design, n)?;
+    validate_exposure_inputs(n, incoming, mapping)?;
     let support_dim = match design {
         AssignmentDesign::ClusterRandomization { clusters, .. } => {
             let mut ids = clusters.to_vec();
@@ -182,30 +183,17 @@ pub fn exposure_probabilities(
     if support_dim <= 20 {
         let mut sums = vec![0.0; n];
         let mut mass = 0.0;
-        // Capture (rather than swallow) the first real error from `exposures`: an invalid
-        // exposure mapping or network is a caller bug that should surface its own message, not
-        // get masked behind a misleading "empty support" error below.
-        let mut first_error: Option<StatsError> = None;
+        let mut levels = Vec::with_capacity(n);
         enumerate_assignments(design, n, |assignment, p| {
-            match exposures(assignment, incoming, mapping) {
-                Ok(levels) => {
-                    for (i, actual) in levels.iter().enumerate() {
-                        if same_exposure(*actual, level) {
-                            sums[i] += p;
-                        }
-                    }
-                    mass += p;
-                }
-                Err(err) => {
-                    if first_error.is_none() {
-                        first_error = Some(err);
-                    }
+            exposures_into(assignment, incoming, mapping, &mut levels)?;
+            for (i, actual) in levels.iter().enumerate() {
+                if same_exposure(*actual, level) {
+                    sums[i] += p;
                 }
             }
+            mass += p;
+            Ok(())
         })?;
-        if let Some(err) = first_error {
-            return Err(err);
-        }
         if mass <= 0.0 {
             return Err(StatsError::Backend("assignment design has empty support".into()));
         }
@@ -220,13 +208,13 @@ pub fn exposure_probabilities(
     if monte_carlo_draws == 0 {
         return Err(StatsError::Backend("Monte Carlo exposure draws must be positive".into()));
     }
-    validate_exposure_inputs(n, incoming, mapping)?;
     let mut rng = CausalRng::from_seed(seed);
     let mut counts = vec![0_u32; n];
     let mut sampler = AssignmentSampler::new(design, n)?;
     let mut assignment = vec![false; n];
     let mut levels = Vec::with_capacity(n);
     for _ in 0..monte_carlo_draws {
+        check_exposure_cancelled()?;
         sampler.sample_into(design, &mut assignment, &mut rng)?;
         exposures_into(&assignment, incoming, mapping, &mut levels)?;
         for (i, actual) in levels.iter().enumerate() {
@@ -362,29 +350,40 @@ fn validate_design(design: &AssignmentDesign, n: usize) -> Result<(), StatsError
     }
 }
 
+fn check_exposure_cancelled() -> Result<(), StatsError> {
+    if antecedent_core::numerical_admission::is_cancelled() {
+        return Err(StatsError::Cancelled);
+    }
+    Ok(())
+}
+
 fn enumerate_assignments(
     design: &AssignmentDesign,
     n: usize,
-    mut visit: impl FnMut(&[bool], f64),
+    mut visit: impl FnMut(&[bool], f64) -> Result<(), StatsError>,
 ) -> Result<(), StatsError> {
+    let mut assignment = vec![false; n];
     match design {
         AssignmentDesign::Bernoulli { probabilities } => {
             for mask in 0..(1_u64 << n) {
-                let mut assignment = vec![false; n];
+                check_exposure_cancelled()?;
                 let mut p = 1.0;
                 for i in 0..n {
                     assignment[i] = mask & (1_u64 << i) != 0;
                     let pi = probabilities[if probabilities.len() == 1 { 0 } else { i }];
                     p *= if assignment[i] { pi } else { 1.0 - pi };
                 }
-                visit(&assignment, p);
+                visit(&assignment, p)?;
             }
         }
         AssignmentDesign::CompleteRandomization { treated } => {
             for mask in 0..(1_u64 << n) {
+                check_exposure_cancelled()?;
                 if mask.count_ones() as usize == *treated {
-                    let assignment = (0..n).map(|i| mask & (1_u64 << i) != 0).collect::<Vec<_>>();
-                    visit(&assignment, 1.0);
+                    for (i, treated) in assignment.iter_mut().enumerate() {
+                        *treated = mask & (1_u64 << i) != 0;
+                    }
+                    visit(&assignment, 1.0)?;
                 }
             }
         }
@@ -392,20 +391,23 @@ fn enumerate_assignments(
             let mut ids = clusters.to_vec();
             ids.sort_unstable();
             ids.dedup();
+            let positions = clusters
+                .iter()
+                .map(|id| {
+                    ids.binary_search(id).map_err(|_| {
+                        StatsError::Backend(
+                            "cluster id missing from the sorted cluster table".into(),
+                        )
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
             for mask in 0..(1_u64 << ids.len()) {
+                check_exposure_cancelled()?;
                 if mask.count_ones() as usize == *treated_clusters {
-                    let assignment = clusters
-                        .iter()
-                        .map(|id| {
-                            let j = ids.binary_search(id).map_err(|_| {
-                                StatsError::Backend(
-                                    "cluster id missing from the sorted cluster table".into(),
-                                )
-                            })?;
-                            Ok(mask & (1_u64 << j) != 0)
-                        })
-                        .collect::<Result<Vec<_>, StatsError>>()?;
-                    visit(&assignment, 1.0);
+                    for (treated, &position) in assignment.iter_mut().zip(&positions) {
+                        *treated = mask & (1_u64 << position) != 0;
+                    }
+                    visit(&assignment, 1.0)?;
                 }
             }
         }
@@ -535,6 +537,27 @@ mod tests {
     use super::*;
 
     #[test]
+    fn inherited_cancellation_stops_exact_and_monte_carlo_enumeration() {
+        for n in [4, 21] {
+            let incoming = vec![vec![]; n];
+            let design = AssignmentDesign::Bernoulli { probabilities: Arc::from([0.5]) };
+            let mut ctx = antecedent_core::ExecutionContext::for_tests(1);
+            ctx.cancellation = antecedent_core::CancellationToken::cancel_after_checks(3);
+            let result = antecedent_core::numerical_admission::with_context(&ctx, || {
+                exposure_probabilities(
+                    &design,
+                    &incoming,
+                    &ExposureMapping::OwnTreatment,
+                    ExposureLevel { own: 1.0, neighbors: 0.0 },
+                    100,
+                    1,
+                )
+            });
+            assert!(matches!(result, Err(StatsError::Cancelled)));
+        }
+    }
+
+    #[test]
     fn empty_network_collapses_to_own_treatment() {
         let incoming = vec![vec![], vec![]];
         let z = [false, true];
@@ -546,6 +569,31 @@ mod tests {
                 ExposureLevel { own: 1.0, neighbors: 0.0 }
             ]
         );
+    }
+
+    #[test]
+    fn exact_complete_and_cluster_assignments_reuse_scratch_without_changing_marginals() {
+        let incoming = vec![vec![]; 4];
+        let designs = [
+            AssignmentDesign::CompleteRandomization { treated: 2 },
+            AssignmentDesign::ClusterRandomization {
+                clusters: Arc::from([9, 9, 3, 3]),
+                treated_clusters: 1,
+            },
+        ];
+        for design in &designs {
+            let result = exposure_probabilities(
+                design,
+                &incoming,
+                &ExposureMapping::OwnTreatment,
+                ExposureLevel { own: 1.0, neighbors: 0.0 },
+                1,
+                0,
+            )
+            .unwrap();
+            assert_eq!(result.method, ExposureProbabilityMethod::Exact);
+            assert_eq!(result.probabilities, vec![0.5; 4]);
+        }
     }
 
     #[test]
