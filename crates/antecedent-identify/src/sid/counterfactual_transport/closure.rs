@@ -210,8 +210,8 @@ pub(super) fn regime_measured_is_factor(problem: &Problem, intervened: u32, meas
 /// continues, deriving only what the supplied closure did not. `charge` is called with
 /// `(depth, estimated live bytes, None)` once per processed item, which is one operation of
 /// the search, and with `(depth, bytes, Some(leaves))` for the ancestrally closed subsets of an
-/// item visited so far, which are metered against the budget but are not operations of its
-/// receipt. It may stop the search.
+/// item visited so far; each callback charges one operation in the shared search receipt.
+/// It may stop the search.
 pub(super) fn close(
     problem: &Problem,
     selected: &[u32],

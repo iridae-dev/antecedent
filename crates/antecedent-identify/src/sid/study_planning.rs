@@ -704,7 +704,10 @@ fn subset_size_limit(n: usize, operations: usize) -> usize {
 
 /// Every non-empty subset of at most `max_size` candidates, as
 /// sorted index lists, in ranking order.
-fn subsets(candidates: &[StudyPlanCandidate], max_size: usize) -> Vec<(Vec<usize>, u64, u64)> {
+fn subsets(
+    candidates: &[StudyPlanCandidate],
+    max_size: usize,
+) -> Result<Vec<(Vec<usize>, u64, u64)>, StudyPlanRefusal> {
     let n = candidates.len();
     let mut out = Vec::new();
     for size in 1..=max_size.min(n) {
@@ -719,11 +722,21 @@ fn subsets(candidates: &[StudyPlanCandidate], max_size: usize) -> Vec<(Vec<usize
     let mut keyed = out
         .into_iter()
         .map(|members| {
-            let cost = members.iter().map(|&i| candidates[i].cost_units).sum::<u64>();
-            let samples = members.iter().map(|&i| candidates[i].sample_budget).sum::<u64>();
-            (members, cost, samples)
+            let cost = members
+                .iter()
+                .try_fold(0u64, |total, &i| total.checked_add(candidates[i].cost_units))
+                .ok_or_else(|| {
+                    StudyPlanRefusal::invalid_candidate("subset total cost exceeds u64")
+                })?;
+            let samples = members
+                .iter()
+                .try_fold(0u64, |total, &i| total.checked_add(candidates[i].sample_budget))
+                .ok_or_else(|| {
+                    StudyPlanRefusal::invalid_candidate("subset total sample budget exceeds u64")
+                })?;
+            Ok((members, cost, samples))
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, StudyPlanRefusal>>()?;
     keyed.sort_by(|a, b| {
         a.1.cmp(&b.1).then(a.2.cmp(&b.2)).then(a.0.len().cmp(&b.0.len())).then_with(|| {
             let ids =
@@ -731,7 +744,7 @@ fn subsets(candidates: &[StudyPlanCandidate], max_size: usize) -> Vec<(Vec<usize
             ids(&a.0).cmp(&ids(&b.0))
         })
     });
-    keyed
+    Ok(keyed)
 }
 
 fn infeasible(candidates: &[StudyPlanCandidate], members: &[usize]) -> Option<&'static str> {
@@ -839,7 +852,7 @@ fn plan_with_caps(
     let route = route.canonical();
     let candidates = validate_candidates(&route, catalog, candidates)?;
     let max_size = subset_size_limit(candidates.len(), limits.search.operations);
-    let order = subsets(&candidates, max_size);
+    let order = subsets(&candidates, max_size)?;
     let ids_of = |members: &[usize]| {
         members.iter().map(|&i| Arc::clone(&candidates[i].id)).collect::<Vec<_>>()
     };
@@ -1609,9 +1622,23 @@ mod tests {
     }
 
     #[test]
+    fn subset_totals_overflow_is_refused_before_ranking() {
+        let cost = STUDY_PLAN_MAX_COST_UNITS;
+        let costs: Vec<_> = (0..5).map(|i| candidate(&format!("c{i}"), cost, 0)).collect();
+        let error = subsets(&costs, 5).unwrap_err();
+        assert_eq!(error.detail, INVALID_CANDIDATE);
+        assert!(error.message.contains("total cost"));
+        let samples: Vec<_> = (0..5).map(|i| candidate(&format!("s{i}"), 1, cost)).collect();
+        let error = subsets(&samples, 5).unwrap_err();
+        assert_eq!(error.detail, INVALID_CANDIDATE);
+        assert!(error.message.contains("sample budget"));
+    }
+
+    #[test]
     fn subsets_are_ranked_by_cost_then_samples_then_size_then_ids() {
         let candidates = vec![candidate("a", 2, 0), candidate("b", 1, 5), candidate("c", 1, 0)];
         let order = subsets(&candidates, usize::MAX)
+            .unwrap()
             .into_iter()
             .map(|(m, cost, samples)| {
                 (m.iter().map(|&i| candidates[i].id.to_string()).collect::<Vec<_>>(), cost, samples)
@@ -1644,8 +1671,8 @@ mod tests {
     #[test]
     fn a_universe_of_sixteen_has_six_hundred_ninety_six_subsets_of_at_most_three() {
         let candidates = (0..16).map(|i| candidate(&format!("c{i:02}"), 1, 0)).collect::<Vec<_>>();
-        assert_eq!(subsets(&candidates, 3).len(), 16 + 120 + 560);
-        assert_eq!(subsets(&candidates, usize::MAX).len(), (1 << 16) - 1);
+        assert_eq!(subsets(&candidates, 3).unwrap().len(), 16 + 120 + 560);
+        assert_eq!(subsets(&candidates, usize::MAX).unwrap().len(), (1 << 16) - 1);
     }
 
     #[test]

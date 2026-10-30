@@ -1379,26 +1379,15 @@ impl Search<'_> {
         })
     }
 
-    /// Charge one operation, or, with `enumerated` leaves of an enumeration, check that they fit
-    /// the budget without recording them.
-    ///
-    /// The leaves of the subset enumerations are work the budget must bound, but they are not
-    /// operations of the decision's receipt: the receipt (`operations_consumed`) is part of the
-    /// canonical text a stored derivation is replayed against, so it counts the charged
-    /// operations of the search only, and an enumeration that fits the remaining operations
-    /// leaves it as it was.
+    /// Charge each item or enumerated leaf once; callback counts describe local enumeration
+    /// position only, while the shared budget and receipt accumulate across all enumerations.
     fn work(
         &mut self,
         depth: usize,
         bytes: u64,
-        enumerated: Option<u64>,
+        _enumerated: Option<u64>,
     ) -> Result<(), SearchStop> {
-        match enumerated {
-            None => self.charge(depth, bytes),
-            Some(leaves) => self.budget.admits(depth, bytes, leaves).inspect_err(|stop| {
-                self.stop.get_or_insert(*stop);
-            }),
-        }
+        self.charge(depth, bytes)
     }
 
     /// Quote the summation over `cardinalities` from the declared exact-enumeration charge and
@@ -2307,6 +2296,33 @@ mod tests {
             stages: Vec::new(),
             failures: Vec::new(),
         }
+    }
+
+    #[test]
+    fn closure_leaf_work_is_cumulative_and_receipts_are_deterministic() {
+        let ctx = ExecutionContext::for_tests(1);
+        let problem = CounterfactualTransportProblem::new(&binary(&[0, 1, 2]), &[], &[]).unwrap();
+        let seeds = [Seed { population: 0, intervened: 0, measured: 0b111, regime: None }];
+        let mut bounded = search_under(SearchLimits { operations: 6, depth: 10 }, u64::MAX, &ctx);
+        let result = close(&problem, &[0], &seeds, &[], &mut |depth, bytes, leaves| {
+            bounded.work(depth, bytes, leaves)
+        });
+        assert!(matches!(result, Err(SearchStop::Operations)));
+        assert_eq!(bounded.budget.operations(), 6);
+        assert_eq!(
+            bounded.budget.receipt(SearchStop::Operations, vec![], vec![]).operations_consumed,
+            Some(6)
+        );
+        let run = || {
+            let mut search =
+                search_under(SearchLimits { operations: 1000, depth: 10 }, u64::MAX, &ctx);
+            let closure = close(&problem, &[0], &seeds, &[], &mut |depth, bytes, leaves| {
+                search.work(depth, bytes, leaves)
+            })
+            .unwrap();
+            (closure.items, search.budget.operations())
+        };
+        assert_eq!(run(), run());
     }
 
     /// A summation is quoted before anything exists: work against the operations the caller's
