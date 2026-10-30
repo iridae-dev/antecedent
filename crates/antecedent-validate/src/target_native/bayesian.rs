@@ -12,7 +12,11 @@
 //!   with target value `θ_s`, the discrepancy is `D(T, θ_s) = (T − θ_s)ᵀ V⁻¹ (T − θ_s)`, `V`
 //!   the covariance of `T_rep − θ` across draws; the posterior-predictive p-value is the
 //!   share of draws with `D(T_rep,s, θ_s) ≥ D(T_obs, θ_s)` (Gelman, Meng and Stern 1996). A
-//!   small value says the model does not reproduce the target it reports.
+//!   small value says the model does not reproduce the target it reports. The reported
+//!   fraction is a finite-draw Monte Carlo estimate, not a calibrated frequentist p-value;
+//!   zero means no sampled draw exceeded the observed discrepancy, not a zero tail probability.
+//!   The threshold verdict is a diagnostic convention whose operating characteristics are
+//!   unmeasured. No permutation-test plus-one correction is applied.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -106,11 +110,16 @@ pub struct PosteriorPredictiveTarget<'a> {
     pub draws: &'a [f64],
     /// For each draw, the target recomputed on data replicated from that draw (`s × k`).
     pub replicated: &'a [f64],
-    /// Fail when the posterior-predictive p-value is below this.
+    /// Diagnostic threshold for the sampled posterior-predictive tail fraction.
+    /// This is not a calibrated frequentist significance level.
     pub alpha: f64,
 }
 
 /// Posterior-predictive check of the target quantity.
+///
+/// The pass/fail threshold is a diagnostic convention; neither the verdict nor its
+/// finite-draw tail estimate is calibrated here. A zero fraction means no exceedances
+/// were observed in these draws.
 ///
 /// # Errors
 ///
@@ -144,12 +153,22 @@ pub fn posterior_predictive_target_check(
     }
     let (_, cov) = mean_and_covariance(&residuals, k);
     let mut exceed = 0_usize;
-    let mut observed_sum = 0.0;
+    let mut observed_mean = 0.0;
     for (theta, rep) in input.draws.chunks_exact(k).zip(residuals.chunks_exact(k)) {
         let obs: Vec<f64> = input.observed.iter().zip(theta).map(|(t, th)| t - th).collect();
         let d_obs = mahalanobis_squared(&obs, &mut cov.clone(), k)?;
         let d_rep = mahalanobis_squared(rep, &mut cov.clone(), k)?;
-        observed_sum += d_obs;
+        if !d_obs.is_finite() || !d_rep.is_finite() {
+            return Err(ValidationError::estimation_msg(
+                "posterior-predictive target discrepancy is not finite",
+            ));
+        }
+        observed_mean += d_obs / s as f64;
+        if !observed_mean.is_finite() {
+            return Err(ValidationError::estimation_msg(
+                "posterior-predictive target mean discrepancy is not finite",
+            ));
+        }
         if d_rep >= d_obs {
             exceed += 1;
         }
@@ -160,6 +179,11 @@ pub fn posterior_predictive_target_check(
     for row in input.draws.chunks_exact(k) {
         for (m, v) in posterior_mean.iter_mut().zip(row) {
             *m += v / s as f64;
+            if !m.is_finite() {
+                return Err(ValidationError::estimation_msg(
+                    "posterior-predictive target draw mean is not finite",
+                ));
+            }
         }
     }
     Ok(TargetRefutationReport {
@@ -169,7 +193,7 @@ pub fn posterior_predictive_target_check(
         refuted: input.observed.to_vec().into(),
         statistic: JointStatistic {
             kind: JointStatisticKind::PredictiveTail,
-            value: observed_sum / s as f64,
+            value: observed_mean,
             df: k,
             p_value: Some(p),
         },
@@ -252,6 +276,42 @@ mod tests {
         })
         .unwrap();
         assert!(!report.passed);
+    }
+
+    #[test]
+    fn nonfinite_discrepancy_from_finite_inputs_is_refused() {
+        let t = target(1);
+        let draws = [0.0; 4];
+        let replicated = [-1.0, -0.5, 0.5, 1.0];
+        let result = posterior_predictive_target_check(&PosteriorPredictiveTarget {
+            target: &t,
+            observed: &[1e200],
+            draws: &draws,
+            replicated: &replicated,
+            alpha: 0.05,
+        });
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn predictive_tail_is_the_empirical_fraction_with_inclusive_ties() {
+        let t = target(1);
+        let draws = [0.0; 4];
+        let replicated = [-1.0, -0.5, 0.5, 1.0];
+        let mut input = PosteriorPredictiveTarget {
+            target: &t,
+            observed: &[1.0],
+            draws: &draws,
+            replicated: &replicated,
+            alpha: 0.5,
+        };
+        let at_threshold = posterior_predictive_target_check(&input).unwrap();
+        assert_eq!(at_threshold.statistic.p_value, Some(0.5));
+        assert!(at_threshold.passed);
+        input.alpha = 0.51;
+        let above_threshold = posterior_predictive_target_check(&input).unwrap();
+        assert_eq!(above_threshold.statistic.p_value, Some(0.5));
+        assert!(!above_threshold.passed);
     }
 
     #[test]

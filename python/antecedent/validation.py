@@ -1465,8 +1465,12 @@ def posterior_predictive_target(
     family: str = "world_valued",
     temporal: bool = False,
 ) -> TargetCheck:
-    """Posterior-predictive p-value of the target quantity: the observed target against
-    targets recomputed on data replicated from each posterior draw."""
+    """Compare the observed target with targets recomputed from posterior replicates.
+
+    The tail fraction is estimated from the supplied draws; zero means no exceedances
+    were observed. The alpha threshold is a diagnostic convention, not a calibrated
+    frequentist significance test, and the finite-draw uncertainty is not reported.
+    """
     wire = json.loads(
         _target_posterior_predictive(
             [str(label) for label in labels],

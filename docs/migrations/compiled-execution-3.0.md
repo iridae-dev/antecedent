@@ -144,3 +144,14 @@ and return no value for nonfinite times. Mixed-scale Krawczyk and OU solves appl
 existing pivot criterion to an equilibrated dimensionless matrix, refusing scaling
 that overflows or erases nonzero entries. Exhausted fitting steps no longer establish
 convergence. Confounded IPW results disclose how many raw weights hit the existing cap.
+
+## Sensitivity grids and predictive diagnostics
+
+Sensitivity refuters reject empty partial-R² grids, values outside finite `[0, 1)`,
+and pass thresholds outside finite `[0, 1]`. Valid strengths above 0.999 are used
+as declared. Grid counts must fit the report's existing u32 count.
+
+Target posterior-predictive checks report the inclusive empirical exceedance
+fraction. The alpha verdict is an uncalibrated diagnostic convention; zero means
+no exceedances were observed. Finite inputs that overflow a discrepancy now
+refuse rather than returning an infinite statistic.

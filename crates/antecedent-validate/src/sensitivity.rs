@@ -221,9 +221,35 @@ pub(crate) fn grid_report(
         .build()
 }
 
-/// Grid values as the sensitivity loops probe them (`r` clamped to `[0, 0.999]`).
+/// Reject a grid that cannot represent the partial-R² perturbation or its report count.
+fn valid_partial_r2_count(count: usize) -> bool {
+    count > 0 && u32::try_from(count).is_ok()
+}
+
+fn validate_partial_r2_grid(grid: &[f64]) -> Result<(), ValidationError> {
+    if !valid_partial_r2_count(grid.len())
+        || grid.iter().any(|&r| !r.is_finite() || !(0.0..1.0).contains(&r))
+    {
+        return Err(ValidationError::NotApplicable {
+            message: "partial_r2_grid must be non-empty, fit the report count, and contain only finite values in [0, 1)",
+        });
+    }
+    Ok(())
+}
+
+fn validate_partial_r2_options(grid: &[f64], threshold: f64) -> Result<(), ValidationError> {
+    validate_partial_r2_grid(grid)?;
+    if !threshold.is_finite() || !(0.0..=1.0).contains(&threshold) {
+        return Err(ValidationError::NotApplicable {
+            message: "partial R² pass threshold must be finite and in [0, 1]",
+        });
+    }
+    Ok(())
+}
+
+/// Grid values are used exactly as declared, after validation.
 fn probed_partial_r2(grid: &[f64]) -> impl Iterator<Item = f64> + '_ {
-    grid.iter().map(|r| r.clamp(0.0, 0.999))
+    grid.iter().copied()
 }
 
 fn run_grid(
@@ -268,7 +294,6 @@ struct GridSetup {
     sd_y: f64,
     dir: f64,
     sorted_grid: Vec<f64>,
-    original_sign: f64,
     original_ate: f64,
 }
 
@@ -280,6 +305,7 @@ impl GridSetup {
         noise_stream: u64,
         nonparametric: bool,
     ) -> Result<Self, ValidationError> {
+        validate_partial_r2_grid(grid)?;
         let n = problem.data.row_count();
         let t0 = float64_full(problem.data, problem.treatment())?;
         let y0 = float64_full(problem.data, problem.outcome())?;
@@ -323,22 +349,11 @@ impl GridSetup {
         let mut sorted_grid = grid.to_vec();
         sorted_grid.sort_by(f64::total_cmp);
 
-        let original_sign = problem.original.ate.signum();
         // Worst-case orientation: load the confounder on Y against the observed effect so the
         // induced omitted-variable bias works to explain the effect away; a same-sign loading
         // could never flip a positive estimate and would spuriously kill a negative one.
         let dir = if problem.original.ate >= 0.0 { -1.0 } else { 1.0 };
-        Ok(Self {
-            t0,
-            y0,
-            u,
-            sd_t,
-            sd_y,
-            dir,
-            sorted_grid,
-            original_sign,
-            original_ate: problem.original.ate,
-        })
+        Ok(Self { t0, y0, u, sd_t, sd_y, dir, sorted_grid, original_ate: problem.original.ate })
     }
 }
 
@@ -397,7 +412,6 @@ fn run_grid_data_pass(
 ) -> Result<(f64, f64, bool), ValidationError> {
     let mut last_ate = setup.original_ate;
     for &r in &setup.sorted_grid {
-        let r = r.clamp(0.0, 0.999);
         last_ate = data_pass_ate(problem, workspace, ctx, estimator, setup, r)?;
         let explained_away = estimate_explained_away(last_ate, setup.original_ate);
         if explained_away {
@@ -415,7 +429,6 @@ fn data_pass_ate(
     setup: &GridSetup,
     r: f64,
 ) -> Result<f64, ValidationError> {
-    let r = r.clamp(0.0, 0.999);
     let scale = (r / (1.0 - r)).sqrt();
     let t: Vec<f64> =
         setup.t0.iter().zip(&setup.u).map(|(&t, &u)| t + scale * setup.sd_t * u).collect();
@@ -447,7 +460,6 @@ fn try_run_grid_gram(
     };
     let mut last_ate = setup.original_ate;
     for &r in &setup.sorted_grid {
-        let r = r.clamp(0.0, 0.999);
         let scale = (r / (1.0 - r)).sqrt();
         let a = scale * setup.sd_t;
         let b = setup.dir * scale * setup.sd_y;
@@ -598,7 +610,6 @@ pub(crate) fn grid_ates_gram(
     };
     let mut ates = Vec::with_capacity(setup.sorted_grid.len());
     for &r in &setup.sorted_grid {
-        let r = r.clamp(0.0, 0.999);
         let scale = (r / (1.0 - r)).sqrt();
         let a = scale * setup.sd_t;
         let b = setup.dir * scale * setup.sd_y;
@@ -623,7 +634,7 @@ fn fill_bounded(out: &mut [f64], ctx: &ExecutionContext, stream_id: u64) {
 /// Linear confounding sensitivity: simulated Gaussian confounder with configurable partial R².
 #[derive(Clone, Debug)]
 pub struct LinearSensitivity {
-    /// Ascending grid of partial-R² values to test (shared for treatment and outcome).
+    /// Grid of finite partial-R² values in `[0, 1)` to test (shared for treatment and outcome).
     pub partial_r2_grid: Vec<f64>,
     /// Pass only if a probed partial R² at or above this threshold left the effect standing
     /// (for a threshold on the grid: the robustness value *strictly exceeds* it). Equality
@@ -654,7 +665,7 @@ impl LinearSensitivity {
     ///
     /// # Errors
     ///
-    /// Data or estimation failures, or an empty `partial_r2_grid`.
+    /// Data or estimation failures, an invalid grid or pass threshold, or an oversized grid count.
     #[allow(
         clippy::cast_possible_truncation,
         reason = "the refutation reports its grid size as u32, and a partial-R-squared grid is far below 2^32 points"
@@ -665,14 +676,10 @@ impl LinearSensitivity {
         workspace: &mut EstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<RefutationReport, ValidationError> {
+        validate_partial_r2_options(&self.partial_r2_grid, self.pass_threshold)?;
         if problem.temporal.is_some() {
             return with_temporal_diagnostic_rows(problem, |aligned| {
                 self.refute(aligned, workspace, ctx)
-            });
-        }
-        if self.partial_r2_grid.is_empty() {
-            return Err(ValidationError::NotApplicable {
-                message: "linear sensitivity requires a non-empty partial_r2_grid",
             });
         }
         let (robustness_value, refuted_ate, _explained_away) = run_grid(
@@ -709,7 +716,7 @@ impl LinearSensitivity {
 /// bounded shape matters for the non-OLS refits (ridge, lasso, Huber) and the temporal path.
 #[derive(Clone, Debug)]
 pub struct PartialLinearSensitivity {
-    /// Ascending grid of partial-R² values to test (shared for treatment and outcome).
+    /// Grid of finite partial-R² values in `[0, 1)` to test (shared for treatment and outcome).
     pub partial_r2_grid: Vec<f64>,
     /// Pass only if a probed partial R² at or above this threshold left the effect standing
     /// (for a threshold on the grid: the robustness value *strictly exceeds* it). Equality
@@ -740,7 +747,7 @@ impl PartialLinearSensitivity {
     ///
     /// # Errors
     ///
-    /// Data or estimation failures, or an empty `partial_r2_grid`.
+    /// Data or estimation failures, an invalid grid or pass threshold, or an oversized grid count.
     #[allow(
         clippy::cast_possible_truncation,
         reason = "the refutation reports its grid size as u32, and a partial-R-squared grid is far below 2^32 points"
@@ -751,14 +758,10 @@ impl PartialLinearSensitivity {
         workspace: &mut EstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<RefutationReport, ValidationError> {
+        validate_partial_r2_options(&self.partial_r2_grid, self.pass_threshold)?;
         if problem.temporal.is_some() {
             return with_temporal_diagnostic_rows(problem, |aligned| {
                 self.refute(aligned, workspace, ctx)
-            });
-        }
-        if self.partial_r2_grid.is_empty() {
-            return Err(ValidationError::NotApplicable {
-                message: "partial-linear sensitivity requires a non-empty partial_r2_grid",
             });
         }
         let (robustness_value, refuted_ate, _explained_away) = run_grid(
@@ -1168,7 +1171,7 @@ const MAX_NONPARAMETRIC_ROWS: usize = 20_000;
 /// Nonparametric sensitivity: kernel-residualize T and Y on Z, then partial-R² grid on residuals.
 #[derive(Clone, Debug)]
 pub struct NonparametricSensitivity {
-    /// Ascending grid of partial-R² values to test on residualized series.
+    /// Grid of finite partial-R² values in `[0, 1)` to test on residualized series.
     pub partial_r2_grid: Vec<f64>,
     /// Pass only if a probed partial R² at or above this threshold left the effect standing
     /// (for a threshold on the grid: the robustness value *strictly exceeds* it). Equality
@@ -1196,7 +1199,7 @@ impl NonparametricSensitivity {
     ///
     /// # Errors
     ///
-    /// Data failures or empty `partial_r2_grid`.
+    /// Data failures, an invalid grid or pass threshold, or an oversized grid count.
     #[allow(
         clippy::only_used_in_recursion,
         reason = "part of the shared refuter signature; the temporal branch re-enters with the aligned problem"
@@ -1207,14 +1210,10 @@ impl NonparametricSensitivity {
         workspace: &mut EstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<RefutationReport, ValidationError> {
+        validate_partial_r2_options(&self.partial_r2_grid, self.pass_threshold)?;
         if problem.temporal.is_some() {
             return with_temporal_diagnostic_rows(problem, |aligned| {
                 self.refute(aligned, workspace, ctx)
-            });
-        }
-        if self.partial_r2_grid.is_empty() {
-            return Err(ValidationError::NotApplicable {
-                message: "nonparametric sensitivity requires a non-empty partial_r2_grid",
             });
         }
         let (residuals, routed) = kernel_residuals(
@@ -1303,7 +1302,6 @@ fn residual_grid_report(
     let mut last_ate = residual_ate;
     let mut explained_away_at = None;
     for &r in &sorted_grid {
-        let r = r.clamp(0.0, 0.999);
         let scale = (r / (1.0 - r)).sqrt();
         // `t' = t + a u`, `y' = y + b u`. The OLS slope is a function of the
         // five raw second moments, so the grid does not rebuild the series.
@@ -1377,7 +1375,7 @@ const MAX_NEIGHBORHOOD_WORK: u64 = 4_000_000_000;
 /// shrinks it.
 #[derive(Clone, Debug)]
 pub struct NeighborhoodSensitivity {
-    /// Ascending grid of partial-R² values to test on residualized series.
+    /// Grid of finite partial-R² values in `[0, 1)` to test on residualized series.
     pub partial_r2_grid: Vec<f64>,
     /// Pass only if a probed partial R² at or above this threshold left the effect standing
     /// (for a threshold on the grid: the robustness value *strictly exceeds* it). Equality
@@ -1386,7 +1384,7 @@ pub struct NeighborhoodSensitivity {
     /// Optional bandwidth override, in standard deviations of each (standardized) covariate;
     /// `None` uses Silverman's (1986) multivariate normal-reference rule.
     pub bandwidth: Option<f64>,
-    /// Nearest other covariate points each kernel sum runs over (1 to 4096).
+    /// Positive number of nearest other covariate points each kernel sum runs over.
     pub neighbors: usize,
 }
 
@@ -1412,7 +1410,7 @@ impl NeighborhoodSensitivity {
     ///
     /// # Errors
     ///
-    /// Data failures, an empty `partial_r2_grid`, zero `neighbors`, cancellation,
+    /// Data failures, an invalid grid or pass threshold, an oversized grid count, zero `neighbors`, cancellation,
     /// or a footprint above the context's hard memory limit.
     #[allow(
         clippy::only_used_in_recursion,
@@ -1424,14 +1422,10 @@ impl NeighborhoodSensitivity {
         workspace: &mut EstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<RefutationReport, ValidationError> {
+        validate_partial_r2_options(&self.partial_r2_grid, self.pass_threshold)?;
         if problem.temporal.is_some() {
             return with_temporal_diagnostic_rows(problem, |aligned| {
                 self.refute(aligned, workspace, ctx)
-            });
-        }
-        if self.partial_r2_grid.is_empty() {
-            return Err(ValidationError::NotApplicable {
-                message: "neighborhood sensitivity requires a non-empty partial_r2_grid",
             });
         }
         if self.neighbors == 0 {
@@ -1953,8 +1947,9 @@ mod robustness_value {
     use antecedent_identify::IdentifiedEstimand;
 
     use super::{
-        LinearSensitivity, NonparametricSensitivity, PartialLinearSensitivity,
-        grid_robustness_value, robustness_passes,
+        LinearSensitivity, NeighborhoodSensitivity, NonparametricSensitivity,
+        PartialLinearSensitivity, grid_robustness_value, probed_partial_r2, robustness_passes,
+        valid_partial_r2_count, validate_partial_r2_options,
     };
     use crate::common::RefutationProblem;
 
@@ -2066,6 +2061,75 @@ mod robustness_value {
         assert!(robustness_passes([0.01, 0.02, 0.1], f64::INFINITY, 0.1));
         // The first grid point already tips: nothing is cleared.
         assert!(!robustness_passes([0.05, 0.1], 0.05, 0.0));
+    }
+
+    #[test]
+    fn all_partial_r2_refuters_reject_invalid_grids_and_thresholds() {
+        let (data, estimand) = strong_effect_toy();
+        let (mut ws, ctx, query, original) = problem_with_ate(&data, &estimand);
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        );
+        for grid in [vec![], vec![f64::NAN], vec![f64::INFINITY], vec![-0.01], vec![1.0], vec![1.1]]
+        {
+            let mut linear = LinearSensitivity::new();
+            linear.partial_r2_grid = grid.clone();
+            let mut partial = PartialLinearSensitivity::new();
+            partial.partial_r2_grid = grid.clone();
+            let mut nonparametric = NonparametricSensitivity::new();
+            nonparametric.partial_r2_grid = grid.clone();
+            let mut neighborhood = NeighborhoodSensitivity::new();
+            neighborhood.partial_r2_grid = grid;
+            assert!(linear.refute(&problem, &mut ws, &ctx).is_err());
+            assert!(partial.refute(&problem, &mut ws, &ctx).is_err());
+            assert!(nonparametric.refute(&problem, &mut ws, &ctx).is_err());
+            assert!(neighborhood.refute(&problem, &mut ws, &ctx).is_err());
+        }
+        for threshold in [f64::NAN, f64::INFINITY, -0.1, 1.01] {
+            let mut linear = LinearSensitivity::new();
+            linear.pass_threshold = threshold;
+            let mut partial = PartialLinearSensitivity::new();
+            partial.pass_threshold = threshold;
+            let mut nonparametric = NonparametricSensitivity::new();
+            nonparametric.pass_threshold = threshold;
+            let mut neighborhood = NeighborhoodSensitivity::new();
+            neighborhood.pass_threshold = threshold;
+            assert!(linear.refute(&problem, &mut ws, &ctx).is_err());
+            assert!(partial.refute(&problem, &mut ws, &ctx).is_err());
+            assert!(nonparametric.refute(&problem, &mut ws, &ctx).is_err());
+            assert!(neighborhood.refute(&problem, &mut ws, &ctx).is_err());
+        }
+    }
+
+    #[test]
+    fn valid_near_one_partial_r2_is_not_clamped() {
+        let high = 0.9999;
+        assert!(!valid_partial_r2_count(0));
+        assert!(valid_partial_r2_count(1));
+        if let Some(over_limit) = (u32::MAX as usize).checked_add(1) {
+            assert!(!valid_partial_r2_count(over_limit));
+        }
+        assert!(validate_partial_r2_options(&[0.0, high], 1.0).is_ok());
+        assert_eq!(probed_partial_r2(&[0.0, high]).collect::<Vec<_>>(), vec![0.0, high]);
+        let (data, estimand) = strong_effect_toy();
+        let (mut ws, ctx, query, original) = problem_with_ate(&data, &estimand);
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        );
+        let mut linear = LinearSensitivity::new();
+        linear.partial_r2_grid = vec![high];
+        let report = linear.refute(&problem, &mut ws, &ctx).unwrap();
+        assert_eq!(report.comparison, high);
     }
 
     #[test]
