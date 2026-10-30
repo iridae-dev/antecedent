@@ -46,30 +46,30 @@ scope = "The perturbation and tabulation numerics of the six wrappers in crates/
 assumptions = ["Each replicate's discovery result is what the reviewed engine returns on the perturbed series; the per-replicate link sets and graph classifications are frozen from the library and only their tabulation is independent.", "The labelled-regime search is defined as PCMCI+ on the lagged-frame windows lying wholly inside each regime, each on a fresh workspace, skipping a regime with fewer rows than the minimum or too few windows; the test derives it from that definition rather than calling the regime search.", "A wrapper that holds its own value for a quantity the discovery configuration also carries runs at the wrapper's declared value."]
 historical_exposure = "Historical author exposure cannot be independently established from retained artifacts. This review read the six stability wrappers and the engine workspace code named in its scope and compared results with definitions evaluated by an executing reference written for this review; no upstream implementation or test source was consulted or copied. The cited publications (stationary bootstrap, surrogate data) were not retrieved in this review: the fixed-block resampling deliberately departs from the first and the correspondence recorded is to the wrappers' own stated definitions, not to a page-level reading of either paper."
 redistribution = "The reference script, frozen record and Rust test are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library (fractions, decimal, json). Its inputs section is produced by the library (the ignored dump test in the Rust file rewrites it) and its expected section is rewritten from the definitions alone."
-limitations = "One seeded design per wrapper over two or three variables and at most 240 rows: three gapped layouts (blocks of 7, 45 and 10), an eight-replicate PCMCI block bootstrap, an eight-replicate PCMCI+ orientation run on a strong collider and on a weak two-variable coupling (the latter with fractional undirected frequency), a five-replicate labelled-regime run in which one regime is skipped in one replicate, ten-replicate column-permute and phase-randomised false-positive checks at alpha 0.3 (one passing, one failing), a twelve-run synthetic-null band, six environment-holdout splits including empty discovery sets, and alpha, lag-window and CI-test grids. Frequencies and rates agree with the exact counts to 1e-14; the verdicts have a margin of at least 1e-9 from their boundaries. The discovery decisions on each perturbed series are not independently recomputed (the engines are reviewed elsewhere), so a defect that changes what an engine returns on a gapped series would pass here unless the labelled-regime window definition catches it; that no lag window mixes two blocks rests on the separator width of twice the maximum lag being the frame depth of the engines, which is read, not tested against a series built to straddle a junction. The Jaccard index of two empty link sets (undefined) is covered only by the module's own unit test, not by a wrapper run, since the design never produced two empty sets. The orientation conflict rate is zero in both designs, so the conflict branch is not exercised. The coverage of retention frequencies as a measure of structural reliability, the calibration of the false-positive bands for other designs, and panel or masked-data behaviour beyond the existing refusal tests are not measured. The cited papers were not retrieved."
+limitations = "One seeded design per wrapper over two or three variables and at most 240 rows: three gapped layouts (blocks of 7, 45 and 10), an eight-replicate PCMCI block bootstrap, an eight-replicate PCMCI+ orientation run on a strong collider and on a weak two-variable coupling (the latter with fractional undirected frequency), a five-replicate labelled-regime run in which one regime is skipped in one replicate, ten-replicate column-permute and phase-randomised false-positive checks at alpha 0.3 (one passing, one failing), a twelve-run synthetic-null band, six environment-holdout splits including empty discovery sets, and alpha, lag-window and CI-test grids. Frequencies and rates agree with the exact counts to 1e-14; the verdicts have a margin of at least 1e-9 from their boundaries. The discovery decisions on each perturbed series are not independently recomputed (the engines are reviewed elsewhere), so a defect that changes what an engine returns on a gapped series would pass here unless the labelled-regime window definition catches it; that no lag window mixes two blocks rests on the separator width of twice the maximum lag being the frame depth of the engines, which is read, not tested against a series built to straddle a junction. The Jaccard index of two empty link sets (undefined) is covered only by the module's own unit test, not by a wrapper run, since the design never produced two empty sets. The orientation conflict rate is zero in both designs, so the conflict branch is not exercised. The coverage of retention frequencies as a measure of structural reliability, the calibration of the false-positive bands for other designs, and panel or masked-data behaviour beyond the existing refusal tests are not measured. Since the original frozen comparison, the bound engines gained CI-resolution checks and changes to FDR families, collider orientation and LPCMCI evidence. Those engine changes can affect replicate results. The current central rerun of the stability tests, including the frozen tabulation reference, passes, but the tabulation reference does not independently validate the engines' decisions. The full-series moving-block refusal is checked by a module unit test, not by the frozen independent reference; no new reference campaign was run for this change. The cited papers were not retrieved."
 sources = ["crates/antecedent-validate/src/discovery_stability_reference_tests.rs", "crates/antecedent-validate/tests/oracle_data/discovery_stability_reference.py"]
-findings_resolved = ["A workspace reused from one replicate to the next replayed a validity mask cached for the previous replicate's lagged frame (same shape, different missing rows) in PCMCI+, J-PCMCI+ and LPCMCI frames; a replicate then lost links silently (a regime found none where a fresh workspace finds two), biasing every stability frequency built on PCMCI+-family replicates. The mask cache is now cleared where each frame is installed; failing-first test discovery_stability_reused_workspace_does_not_replay_validity_masks.", "SyntheticNullCalibration declared an alpha, reported it as the level used for discovery, and judged the empirical rate against it, while discovery ran at the level of the supplied PCMCI configuration. It now runs discovery at the declared alpha; failing-first test discovery_stability_synthetic_null_runs_discovery_at_the_declared_alpha.", "EnvironmentHoldout accepted a split whose estimation (holdout) environments included a discovery environment, so the holdout was not held out. It now refuses an overlapping split; failing-first test discovery_stability_environment_holdout_refuses_overlapping_environments.", "No further defect found: layouts, link frequencies and order, the standard error, family sizes, verdicts and the holdout agreement match the exact reference in every design."]
+findings_resolved = ["A workspace reused from one replicate to the next replayed a validity mask cached for the previous replicate's lagged frame (same shape, different missing rows) in PCMCI+, J-PCMCI+ and LPCMCI frames; a replicate then lost links silently (a regime found none where a fresh workspace finds two), biasing every stability frequency built on PCMCI+-family replicates. The mask cache is now cleared where each frame is installed; failing-first test discovery_stability_reused_workspace_does_not_replay_validity_masks.", "SyntheticNullCalibration declared an alpha, reported it as the level used for discovery, and judged the empirical rate against it, while discovery ran at the level of the supplied PCMCI configuration. It now runs discovery at the declared alpha; failing-first test discovery_stability_synthetic_null_runs_discovery_at_the_declared_alpha.", "EnvironmentHoldout accepted a split whose estimation (holdout) environments included a discovery environment, so the holdout was not held out. It now refuses an overlapping split; failing-first test discovery_stability_environment_holdout_refuses_overlapping_environments.", "A full-series moving block has only one possible start and therefore reproduces the input on every replicate. Block-bootstrap, orientation and regime stability now refuse block_size equal to the series length; the module unit test checks all three refusals.", "In the original reference designs, layouts, link frequencies and order, the standard error, family sizes, verdicts and the holdout agreement match the exact reference."]
 record_sha256 = "c9ec3e3bf09ac4d0caf94aa86e4bc70d53c02fea00baa8ba0da0ed418139bb8e"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/stability/mod.rs"
-sha256 = "2da38b39df0f65da5bc5536f87e8efd63efa02d55a9e8e1b55d54b14e0773c70"
+sha256 = "17ea142dd9c4c51d1b25878deb8289b7b369ee7f882a6444761b02e55ce1a826"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/stability/pcmci_grid.rs"
-sha256 = "c993e7dcf6f549afb4d09f9640fd362d470d9bb2dcf41b4ccbdd105e7a4397e2"
+sha256 = "4e5938960e3f658ed2a0c3e36428768ccc9f20059057caf7b7793690efc1336d"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/stability/orientation.rs"
-sha256 = "171a452730beab2cdaa89cafca5057e869b55e1fd459fb704c4282e5fe7e63fe"
+sha256 = "2bc3c7c34ce422d5ab68e20964c894f8c8f5d3aec86910577d4f326bb1c4cabb"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/stability/regime.rs"
-sha256 = "6b19b29003a6760d7135cb4129c10e5e8bf9fc9fe3e0e8a362dfd6a27a762cca"
+sha256 = "4e4cf44b1c8f5e8a63fc97c881d93039a5346c6d6a8f473d55f2072e010e0b47"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -89,22 +89,22 @@ sha256 = "83e7409e999b7f4f19dbc972a6ce967b54e826d52781553b8a82119dfc1c73db"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/engine.rs"
-sha256 = "1231a45b3d03edbe717488330a29833c40c74462361185543ac6b8b6df3c7509"
+sha256 = "c8333939a1125144e8d9b55048fdb4fd0b58542dc725c315901ffa50fa9d8eb8"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/pcmci_plus.rs"
-sha256 = "135692b53ec6a113531bd4965e699f2e186e574aaf1c98b9acd7d6dd7d96a24c"
+sha256 = "ba801b2f6d69611b2d88827e37bb755bb29be57d35457fd4751b3a698758cede"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/jpcmci_plus.rs"
-sha256 = "309b5c571ec51c90813ee87c38c1e90662e5de26814471c4238fee6aebb7ff28"
+sha256 = "5ae780d7e364c350494c6576807c9a75ff2c2f1daece99447033f7f59f0e9640"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/lpcmci_phases.rs"
-sha256 = "f9152db9a03c440872b1b43283cc9c7724c04fe541037fa872c0e29ff950c9bf"
+sha256 = "b72744ec8dfd8d663d9abba6cd7807af6b60bf0635ab44a2e0635634ff98116a"
 
 [[method_review.artifacts]]
 role = "assertion"

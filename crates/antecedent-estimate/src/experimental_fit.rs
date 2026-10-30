@@ -324,8 +324,8 @@ pub enum ExperimentalFitError {
         /// Rows of the regime.
         rows: usize,
     },
-    /// Contiguous-block resampling needs a block length in `1..=rows` of every regime.
-    #[error("contiguous-block resampling needs a block length between 1 and {rows}")]
+    /// Contiguous-block bootstrap needs a positive block shorter than every regime.
+    #[error("contiguous-block bootstrap needs a positive block length shorter than {rows}")]
     BlockLength {
         /// Rows of the shortest regime.
         rows: usize,
@@ -2115,7 +2115,8 @@ pub struct BootstrapSpec<'a> {
     /// Required for [`ResamplingRule::WholeCluster`]; optional for
     /// [`ResamplingRule::RowSubjectIid`], where its absence makes each row a subject.
     pub sampling_units: Option<&'a [&'a [u64]]>,
-    /// Block length of [`ResamplingRule::ContiguousBlock`].
+    /// Block length of [`ResamplingRule::ContiguousBlock`], positive and shorter than
+    /// every regime so that each regime can vary across bootstrap draws.
     pub block_length: Option<usize>,
     /// Replicates per scheduled batch. Scheduling only: it never changes a draw.
     pub batch: usize,
@@ -2155,7 +2156,7 @@ impl ResamplingPlan {
             ResamplingRule::ContiguousBlock => {
                 block_length = spec
                     .block_length
-                    .filter(|length| (1..=shortest).contains(length))
+                    .filter(|length| *length > 0 && *length < shortest)
                     .ok_or(ExperimentalFitError::BlockLength { rows: shortest })?;
             }
             ResamplingRule::RowIid => return Err(ExperimentalFitError::RowLevelDraw(rule)),

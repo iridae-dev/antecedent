@@ -218,6 +218,31 @@ mod tests {
     }
 
     #[test]
+    fn stability_rejects_a_full_series_moving_block() {
+        let data = series_of_row_indices(20);
+        let variables = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        let ctx = ExecutionContext::for_tests(7);
+        let mut workspace = antecedent_discovery::DiscoveryWorkspace::default();
+        // A single contiguous block of all rows has only one possible start: every
+        // replicate is the original series, so its link frequencies are not stability.
+        let pcmci = BlockBootstrapStability { block_size: 20, ..Default::default() };
+        let orientation = OrientationStability { block_size: 20, ..Default::default() };
+        let mut regime = RegimeStability::new(
+            antecedent_discovery::Rpcmci::new(),
+            antecedent_discovery::two_regime_half_split(20),
+        );
+        regime.block_size = 20;
+        for result in [
+            pcmci.run(&data, &variables, &mut workspace, &ctx).map(|_| ()),
+            orientation.run(&data, &variables, &mut workspace, &ctx).map(|_| ()),
+            regime.run(&data, &variables, &mut workspace, &ctx).map(|_| ()),
+        ] {
+            assert!(matches!(result, Err(ValidationError::NotApplicable { message })
+                if message.contains("smaller than series length")));
+        }
+    }
+
+    #[test]
     #[allow(
         clippy::float_cmp,
         reason = "a resampled column copies source-row indices, which are small integers exactly representable in f64"

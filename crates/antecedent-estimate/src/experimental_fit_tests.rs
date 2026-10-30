@@ -727,6 +727,42 @@ fn a_row_level_bootstrap_is_refused_under_a_trajectory_design() {
 }
 
 #[test]
+fn contiguous_bootstrap_refuses_a_whole_regime_block() {
+    let data = Dataset::simulate(&cyclic_truth(), SINGLE, 100, 3);
+    let ctx = ExecutionContext::for_tests(0);
+    let mut spec = bootstrap_spec(
+        DeclaredSamplingDesign::DependentTimeSeries,
+        ResamplingRule::ContiguousBlock,
+        8,
+        1,
+    );
+    for length in [0, 100, 101] {
+        spec.block_length = Some(length);
+        assert_eq!(
+            data.bootstrap(&spec, &ctx),
+            Err(ExperimentalFitError::BlockLength { rows: 100 })
+        );
+    }
+    spec.block_length = Some(99);
+    assert!(data.bootstrap(&spec, &ctx).is_ok());
+
+    // Even if a longer regime can vary, a whole block freezes the shorter one.
+    let short = [0.0; 3];
+    let long = [0.0; 6];
+    let short_column = [UnitColumn { unit: node_at(0), values: &short }];
+    let long_column = [UnitColumn { unit: node_at(0), values: &long }];
+    let samples = [
+        RegimeSample { columns: &short_column, source: SourceIdentity::from_raw(1) },
+        RegimeSample { columns: &long_column, source: SourceIdentity::from_raw(2) },
+    ];
+    spec.block_length = Some(3);
+    assert!(matches!(
+        ResamplingPlan::new(ResamplingRule::ContiguousBlock, &samples, &spec),
+        Err(ExperimentalFitError::BlockLength { rows: 3 })
+    ));
+}
+
+#[test]
 fn whole_procedure_bootstrap_spread_matches_the_sandwich() {
     let truth = cyclic_truth();
     let data = Dataset::simulate(&truth, SINGLE, 1_500, 59);

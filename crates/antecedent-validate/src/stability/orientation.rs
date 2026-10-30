@@ -88,9 +88,9 @@ impl OrientationStability {
                 message: "orientation stability requires positive replicates and block_size",
             });
         }
-        if self.block_size > data.row_count() {
+        if self.block_size >= data.row_count() {
             return Err(ValidationError::NotApplicable {
-                message: "block_size exceeds series length",
+                message: "block-bootstrap stability requires block_size smaller than series length",
             });
         }
         let mut directed_counts: BTreeMap<LaggedLink, u32> = BTreeMap::new();
