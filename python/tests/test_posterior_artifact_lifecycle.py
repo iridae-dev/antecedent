@@ -192,3 +192,124 @@ def test_retained_bayesian_result_exports_and_loads_without_refitting(monkeypatc
     assert not loaded.acceptance.resumable
     assert loaded.study is None
     assert bytes(loaded.export()) == bytes(exported)
+
+
+@pytest.mark.parametrize(
+    "change, message",
+    [
+        ({"mean": []}, "summaries must match"),
+        ({"sd": []}, "summaries must match"),
+        ({"q025": []}, "summaries must match"),
+        ({"q975": []}, "summaries must match"),
+        ({"quantity_names": []}, "summaries must match"),
+        ({"mean": [float("nan")]}, "summaries must be finite"),
+        ({"sd": [float("inf")]}, "summaries must be finite"),
+        ({"q025": [float("nan")]}, "summaries must be finite"),
+        ({"q975": [float("inf")]}, "summaries must be finite"),
+        ({"sd": [-0.1]}, "non-negative SD"),
+        ({"q025": [3.0], "q975": [1.0]}, "ordered quantiles"),
+        ({"n_draws": 0}, "draw count must be positive"),
+        ({"n_draws": 2**32}, "n_draws exceeds u32"),
+        ({"unidentified_mass": float("nan")}, "unidentified mass"),
+        ({"unidentified_mass": 0.8, "subsampled_out_mass": 0.3}, "subsampled-out mass"),
+        ({"backend_id": "  "}, "backend id"),
+        ({"identification": "invented"}, "identification status"),
+    ],
+)
+def test_moments_constructor_refuses_invalid_summaries(change, message):
+    kwargs = dict(n_draws=3, mean=[2.0], sd=[1.0], q025=[1.0], q975=[3.0],
+                  backend_id="conjugate", identification="NonparametricallyIdentified",
+                  quantity_names=["ate"])
+    kwargs.update(change)
+    with pytest.raises(CausalValueError, match=message):
+        _native.PosteriorArtifact.from_moments(**kwargs)
+
+
+def test_moments_constructor_accepts_deterministic_and_skewed_summaries():
+    # Zero SD is a legitimate point mass; a nonzero-SD mean need not lie
+    # inside its central quantile interval for a skewed distribution.
+    artifact = _native.PosteriorArtifact.from_moments(
+        n_draws=3, mean=[2.0, 2.0], sd=[0.0, 10.0],
+        q025=[2.0, 0.0], q975=[2.0, 1.0], backend_id="conjugate",
+        identification="NonparametricallyIdentified", quantity_names=["ate", "skewed"],
+    )
+    assert np.isnan(artifact.hessian_condition)
+    decoded = _native.decode_posterior_artifact(_native.encode_posterior_artifact(artifact))
+    assert decoded.mean == [2.0, 2.0]
+    assert decoded.sd == [0.0, 10.0]
+    assert decoded.q025 == [2.0, 0.0]
+    assert decoded.q975 == [2.0, 1.0]
+    assert decoded.quantity_names == ["ate", "skewed"]
+    assert len(decoded.draws) == 0
+
+
+def test_moments_accept_zero_sd_with_distinct_tiny_quantiles():
+    # A variance calculation can underflow to zero while values remain distinct.
+    artifact = _native.PosteriorArtifact.from_moments(
+        n_draws=2, mean=[0.0], sd=[0.0], q025=[-1e-200], q975=[1e-200],
+        backend_id="conjugate", identification="NonparametricallyIdentified",
+        quantity_names=["ate"],
+    )
+    decoded = _native.decode_posterior_artifact(_native.encode_posterior_artifact(artifact))
+    assert decoded.sd == [0.0]
+    assert decoded.q025 == [-1e-200]
+    assert decoded.q975 == [1e-200]
+
+
+@pytest.mark.parametrize(
+    "change, message",
+    [
+        ({"draws": [1.0, 2.0]}, "draws length"),
+        ({"n_draws": 2}, "draws length"),
+        ({"draws": [1.0, float("nan"), 3.0]}, "draws must be finite"),
+        ({"draws": [1.0, 2.0, float("inf")]}, "draws must be finite"),
+        ({"mean": [3.0]}, "disagree with the embedded draws"),
+        ({"sd": [-1.0]}, "non-negative SD"),
+        ({"q975": []}, "summaries must match"),
+        ({"n_draws": 0}, "draw count must be positive"),
+        ({"n_draws": 2**32}, "n_draws exceeds u32"),
+    ],
+)
+def test_draw_constructor_refuses_invalid_metadata_and_draws(change, message):
+    kwargs = dict(n_draws=3, mean=[2.0], sd=[1.0], q025=[1.05], q975=[2.95],
+                  draws=[1.0, 2.0, 3.0], backend_id="conjugate",
+                  identification="NonparametricallyIdentified", quantity_names=["ate"])
+    kwargs.update(change)
+    with pytest.raises(CausalValueError, match=message):
+        _native.PosteriorArtifact(**kwargs)
+
+
+def test_draw_constructor_accepts_valid_draws_and_explicit_empty_summary():
+    kwargs = dict(n_draws=3, mean=[2.0], sd=[1.0], q025=[1.05], q975=[2.95],
+                  backend_id="conjugate", identification="NonparametricallyIdentified",
+                  quantity_names=["ate"])
+    full = _native.PosteriorArtifact(**kwargs, draws=[1.0, 2.0, 3.0])
+    roundtrip = _native.decode_posterior_artifact(_native.encode_posterior_artifact(full))
+    np.testing.assert_array_equal(roundtrip.draws, [1.0, 2.0, 3.0])
+    assert np.isnan(roundtrip.hessian_condition)
+    summary = _native.PosteriorArtifact(**kwargs, draws=[])
+    decoded = _native.decode_posterior_artifact(_native.encode_posterior_artifact(summary))
+    assert len(decoded.draws) == 0
+    assert decoded.mean == [2.0]
+
+
+@pytest.mark.parametrize("name", ["coef_", "coef_x", "coef_-1", "coef_01", "coef_+1", "coef_4294967296"])
+def test_posterior_encoding_refuses_invalid_reserved_coefficient_indices(name):
+    artifact = _native.PosteriorArtifact.from_moments(
+        n_draws=3, mean=[2.0], sd=[1.0], q025=[1.0], q975=[3.0],
+        backend_id="conjugate", identification="NonparametricallyIdentified",
+        quantity_names=[name],
+    )
+    with pytest.raises(CausalValueError, match="invalid indexed coefficient quantity"):
+        _native.encode_posterior_artifact(artifact)
+
+
+def test_posterior_encoding_preserves_indexed_coefficient_and_named_effect():
+    artifact = _native.PosteriorArtifact.from_moments(
+        n_draws=3, mean=[2.0, 3.0], sd=[1.0, 0.5], q025=[1.0, 2.0], q975=[3.0, 4.0],
+        backend_id="conjugate", identification="NonparametricallyIdentified",
+        quantity_names=["coef_7", "my_named_effect"],
+    )
+    decoded = _native.decode_posterior_artifact(_native.encode_posterior_artifact(artifact))
+    assert decoded.quantity_names == ["coef_7", "my_named_effect"]
+    assert decoded.mean == [2.0, 3.0]

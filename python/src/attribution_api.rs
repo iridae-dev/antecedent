@@ -1041,26 +1041,27 @@ fn decode_posterior_artifact(bytes: Vec<u8>) -> PyResult<PosteriorArtifact> {
 #[pyfunction]
 fn encode_posterior_artifact(artifact: &PosteriorArtifact) -> PyResult<Vec<u8>> {
     catch_ffi(|| {
-        let quantities: Vec<PosteriorQuantityWire> =
-            artifact.quantity_schema.clone().unwrap_or_else(|| {
-                artifact
-                    .quantity_names
-                    .iter()
-                    .map(|name| {
-                        if name == "residual_variance" {
-                            PosteriorQuantityWire::ResidualVariance
-                        } else if name.starts_with("coef_") {
-                            let index = name
-                                .strip_prefix("coef_")
-                                .and_then(|s| s.parse::<u32>().ok())
-                                .unwrap_or(0);
-                            PosteriorQuantityWire::Coefficient { index, name: None }
-                        } else {
-                            PosteriorQuantityWire::Effect { name: name.clone() }
-                        }
-                    })
-                    .collect()
-            });
+        let quantities: Vec<PosteriorQuantityWire> = if let Some(schema) = &artifact.quantity_schema {
+            schema.clone()
+        } else {
+            artifact.quantity_names.iter().map(|name| {
+                if name == "residual_variance" {
+                    Ok(PosteriorQuantityWire::ResidualVariance)
+                } else if let Some(suffix) = name.strip_prefix("coef_") {
+                    let index = suffix.parse::<u32>().map_err(|_| crate::value_err(format!(
+                        "invalid indexed coefficient quantity `{name}`; expected coef_<u32>"
+                    )))?;
+                    if suffix != index.to_string() {
+                        return Err(crate::value_err(format!(
+                            "invalid indexed coefficient quantity `{name}`; expected canonical coef_<u32>"
+                        )));
+                    }
+                    Ok(PosteriorQuantityWire::Coefficient { index, name: None })
+                } else {
+                    Ok(PosteriorQuantityWire::Effect { name: name.clone() })
+                }
+            }).collect::<PyResult<Vec<_>>>()?
+        };
         // Artifacts built via `PosteriorArtifact.from_moments` (no draws) round-trip as
         // summary-only: an empty draws payload signals `draws_encoding = "none"` rather
         // than a (nonsensical) zero-length full-draws section.

@@ -109,7 +109,11 @@ fn is_zero_mass(mass: &f64) -> bool {
     *mass == 0.0
 }
 
-pub(crate) fn validate_posterior_meta(
+/// Validate a posterior's summary metadata and, when supplied, its stored draws.
+///
+/// # Errors
+/// Returns an error when the metadata or draws violate the posterior wire contract.
+pub fn validate_posterior_meta(
     meta: &CausalPosteriorWire,
     draws: Option<&[f64]>,
 ) -> Result<(), IoError> {

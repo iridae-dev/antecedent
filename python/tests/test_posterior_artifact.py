@@ -116,7 +116,7 @@ def test_posterior_artifact_draws_are_a_float64_array_matching_the_buffer_view()
         [0.7375],
         [0.25, 0.5, 0.75],
         "test",
-        "identified",
+        "NonparametricallyIdentified",
         ["ate"],
     )
     draws = art.draws

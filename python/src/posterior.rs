@@ -89,24 +89,27 @@ impl PosteriorArtifact {
         hessian_condition: f64,
         treatment_contrast: Option<f64>,
         subsampled_out_mass: f64,
-    ) -> Self {
-        Self {
-            n_draws,
-            mean,
-            sd,
-            q025,
-            q975,
-            draws,
-            backend_id,
-            identification,
-            unidentified_mass,
-            subsampled_out_mass,
-            converged,
-            hessian_condition,
-            quantity_names,
-            treatment_contrast,
-            quantity_schema: None,
-        }
+    ) -> PyResult<Self> {
+        let count = u32::try_from(n_draws).map_err(|_| crate::value_err("n_draws exceeds u32"))?;
+        // Empty draws use the existing summary-only encoding, including when
+        // supplied to the direct constructor.
+        let draws_encoding = if draws.is_empty() { "none" } else { "f64_le_colmajor" };
+        let meta = CausalPosteriorWire {
+            quantities: quantity_names.iter().map(|name| PosteriorQuantityWire::Effect { name: name.clone() }).collect(),
+            n_draws: count,
+            mean, sd, q025, q975, identification, unidentified_mass, subsampled_out_mass,
+            backend_id, converged, hessian_condition, draws_encoding: draws_encoding.into(),
+            treatment_contrast, preparation: None,
+        };
+        antecedent_io_core::posterior::validate_posterior_meta(&meta, Some(&draws))
+            .map_err(|error| crate::value_err(error.to_string()))?;
+        Ok(Self {
+            n_draws, mean: meta.mean, sd: meta.sd, q025: meta.q025, q975: meta.q975,
+            draws, backend_id: meta.backend_id, identification: meta.identification,
+            unidentified_mass: meta.unidentified_mass, subsampled_out_mass: meta.subsampled_out_mass,
+            converged: meta.converged, hessian_condition: meta.hessian_condition,
+            quantity_names, treatment_contrast: meta.treatment_contrast, quantity_schema: None,
+        })
     }
 
     /// Build a summary-only artifact (mean / SD / quantiles, no draws).
@@ -117,6 +120,9 @@ impl PosteriorArtifact {
     /// were computed from; no samples are stored. `encode_posterior_artifact` emits
     /// `draws_encoding = "none"` for artifacts built this way, and
     /// `decode_posterior_artifact` round-trips them back with an empty `draws`.
+    /// Invalid summary shapes or values are refused at construction using the
+    /// same checks as posterior encoding. Zero SD and the default NaN Hessian
+    /// condition remain valid.
     /// Supply `treatment_contrast` (source active minus control) for an ATE
     /// summary that will be mapped onto a target regression slope.
     #[staticmethod]
@@ -150,24 +156,24 @@ impl PosteriorArtifact {
         hessian_condition: f64,
         treatment_contrast: Option<f64>,
         subsampled_out_mass: f64,
-    ) -> Self {
-        Self {
-            n_draws,
-            mean,
-            sd,
-            q025,
-            q975,
-            draws: Vec::new(),
-            backend_id,
-            identification,
-            unidentified_mass,
-            subsampled_out_mass,
-            converged,
-            hessian_condition,
-            quantity_names,
-            treatment_contrast,
-            quantity_schema: None,
-        }
+    ) -> PyResult<Self> {
+        let count = u32::try_from(n_draws).map_err(|_| crate::value_err("n_draws exceeds u32"))?;
+        let meta = CausalPosteriorWire {
+            quantities: quantity_names.iter().map(|name| PosteriorQuantityWire::Effect { name: name.clone() }).collect(),
+            n_draws: count,
+            mean, sd, q025, q975, identification, unidentified_mass, subsampled_out_mass,
+            backend_id, converged, hessian_condition, draws_encoding: "none".into(),
+            treatment_contrast, preparation: None,
+        };
+        antecedent_io_core::posterior::validate_posterior_meta(&meta, None)
+            .map_err(|error| crate::value_err(error.to_string()))?;
+        Ok(Self {
+            n_draws, mean: meta.mean, sd: meta.sd, q025: meta.q025, q975: meta.q975,
+            draws: Vec::new(), backend_id: meta.backend_id, identification: meta.identification,
+            unidentified_mass: meta.unidentified_mass, subsampled_out_mass: meta.subsampled_out_mass,
+            converged: meta.converged, hessian_condition: meta.hessian_condition,
+            quantity_names, treatment_contrast: meta.treatment_contrast, quantity_schema: None,
+        })
     }
 
     /// Number of posterior draws (``n_draws``, independent of whether `draws` is populated).
