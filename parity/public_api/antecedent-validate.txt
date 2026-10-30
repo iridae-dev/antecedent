@@ -160,6 +160,13 @@ impl core::clone::Clone for antecedent_validate::ZTransportMechanismSensitivityR
 impl core::clone::Clone for antecedent_validate::ZTransportSensitivityError
 impl core::clone::Clone for antecedent_validate::bayesian_checks::ResidualDiscrepancy
 impl core::clone::Clone for antecedent_validate::bayesian_checks::ResidualStatistic
+impl core::clone::Clone for antecedent_validate::data_diagnostics::DataDiagnosticCheck
+impl core::clone::Clone for antecedent_validate::data_diagnostics::DataDiagnosticColumn
+impl core::clone::Clone for antecedent_validate::data_diagnostics::DataDiagnosticContext
+impl core::clone::Clone for antecedent_validate::data_diagnostics::DataDiagnosticFinding
+impl core::clone::Clone for antecedent_validate::data_diagnostics::DataDiagnosticSpec
+impl core::clone::Clone for antecedent_validate::data_diagnostics::DataDiagnostics
+impl core::clone::Clone for antecedent_validate::data_diagnostics::DataDiagnosticsReport
 impl core::clone::Clone for antecedent_validate::mnar_sensitivity::ArmLoading
 impl core::clone::Clone for antecedent_validate::mnar_sensitivity::MnarAssumptionRange
 impl core::clone::Clone for antecedent_validate::mnar_sensitivity::MnarAssumptionRecord
@@ -261,6 +268,7 @@ impl core::cmp::Eq for antecedent_validate::ValidationError
 impl core::cmp::Eq for antecedent_validate::ValidatorId
 impl core::cmp::Eq for antecedent_validate::ZTransportSensitivityError
 impl core::cmp::Eq for antecedent_validate::bayesian_checks::ResidualStatistic
+impl core::cmp::Eq for antecedent_validate::data_diagnostics::DataDiagnosticSpec
 impl core::cmp::Eq for antecedent_validate::mnar_sensitivity::MnarAssumptionRecord
 impl core::cmp::Eq for antecedent_validate::mnar_sensitivity::MnarConclusionKind
 impl core::cmp::Eq for antecedent_validate::mnar_sensitivity::MnarEstimator
@@ -376,6 +384,13 @@ impl core::cmp::PartialEq for antecedent_validate::ZTransportMechanismSensitivit
 impl core::cmp::PartialEq for antecedent_validate::ZTransportSensitivityError
 impl core::cmp::PartialEq for antecedent_validate::bayesian_checks::ResidualDiscrepancy
 impl core::cmp::PartialEq for antecedent_validate::bayesian_checks::ResidualStatistic
+impl core::cmp::PartialEq for antecedent_validate::data_diagnostics::DataDiagnosticCheck
+impl core::cmp::PartialEq for antecedent_validate::data_diagnostics::DataDiagnosticColumn
+impl core::cmp::PartialEq for antecedent_validate::data_diagnostics::DataDiagnosticContext
+impl core::cmp::PartialEq for antecedent_validate::data_diagnostics::DataDiagnosticFinding
+impl core::cmp::PartialEq for antecedent_validate::data_diagnostics::DataDiagnosticSpec
+impl core::cmp::PartialEq for antecedent_validate::data_diagnostics::DataDiagnostics
+impl core::cmp::PartialEq for antecedent_validate::data_diagnostics::DataDiagnosticsReport
 impl core::cmp::PartialEq for antecedent_validate::mnar_sensitivity::ArmLoading
 impl core::cmp::PartialEq for antecedent_validate::mnar_sensitivity::MnarAssumptionRange
 impl core::cmp::PartialEq for antecedent_validate::mnar_sensitivity::MnarAssumptionRecord
@@ -450,6 +465,7 @@ impl core::cmp::PartialOrd for antecedent_validate::predictive_assessment::Obser
 impl core::cmp::PartialOrd for antecedent_validate::predictive_assessment::ScoreKind
 impl core::convert::From<antecedent_data::error::DataError> for antecedent_validate::StalenessError
 impl core::convert::From<antecedent_data::error::DataError> for antecedent_validate::ValidationError
+impl core::convert::From<antecedent_data::error::DataError> for antecedent_validate::data_diagnostics::DataDiagnosticsError
 impl core::convert::From<antecedent_discovery::error::DiscoveryError> for antecedent_validate::ValidationError
 impl core::convert::From<antecedent_estimate::error::EstimationError> for antecedent_validate::ValidationError
 impl core::convert::From<antecedent_prob::error::ProbError> for antecedent_validate::ValidationError
@@ -484,6 +500,8 @@ impl core::default::Default for antecedent_validate::StalenessPlan
 impl core::default::Default for antecedent_validate::StalenessPolicy
 impl core::default::Default for antecedent_validate::UnobservedCommonCause
 impl core::default::Default for antecedent_validate::ValidationSuite
+impl core::default::Default for antecedent_validate::data_diagnostics::DataDiagnosticContext
+impl core::default::Default for antecedent_validate::data_diagnostics::DataDiagnostics
 impl core::default::Default for antecedent_validate::predictive_assessment::EnsembleCrpsForm
 impl core::default::Default for antecedent_validate::predictive_assessment::OverlapPolicy
 impl core::default::Default for antecedent_validate::target_native::TargetRefutationConfig
@@ -495,6 +513,7 @@ impl core::error::Error for antecedent_validate::StalenessError
 impl core::error::Error for antecedent_validate::TargetCertificationError
 impl core::error::Error for antecedent_validate::ValidationError
 impl core::error::Error for antecedent_validate::ZTransportSensitivityError
+impl core::error::Error for antecedent_validate::data_diagnostics::DataDiagnosticsError
 impl core::error::Error for antecedent_validate::mnar_sensitivity::MnarSensitivityError
 impl core::error::Error for antecedent_validate::predictive_assessment::PredictiveAssessmentError
 impl core::fmt::Debug for antecedent_validate::AlphaThresholdSensitivity
@@ -629,6 +648,14 @@ impl core::fmt::Debug for antecedent_validate::ZTransportSensitivityError
 impl core::fmt::Debug for antecedent_validate::bayesian_checks::ResidualDiscrepancy
 impl core::fmt::Debug for antecedent_validate::bayesian_checks::ResidualStatistic
 impl core::fmt::Debug for antecedent_validate::common::AlignedRefit
+impl core::fmt::Debug for antecedent_validate::data_diagnostics::DataDiagnosticCheck
+impl core::fmt::Debug for antecedent_validate::data_diagnostics::DataDiagnosticColumn
+impl core::fmt::Debug for antecedent_validate::data_diagnostics::DataDiagnosticContext
+impl core::fmt::Debug for antecedent_validate::data_diagnostics::DataDiagnosticFinding
+impl core::fmt::Debug for antecedent_validate::data_diagnostics::DataDiagnosticSpec
+impl core::fmt::Debug for antecedent_validate::data_diagnostics::DataDiagnostics
+impl core::fmt::Debug for antecedent_validate::data_diagnostics::DataDiagnosticsError
+impl core::fmt::Debug for antecedent_validate::data_diagnostics::DataDiagnosticsReport
 impl core::fmt::Debug for antecedent_validate::mnar_sensitivity::ArmLoading
 impl core::fmt::Debug for antecedent_validate::mnar_sensitivity::MnarAssumptionRange
 impl core::fmt::Debug for antecedent_validate::mnar_sensitivity::MnarAssumptionRecord
@@ -705,6 +732,7 @@ impl core::fmt::Display for antecedent_validate::TargetCertificationError
 impl core::fmt::Display for antecedent_validate::ValidationError
 impl core::fmt::Display for antecedent_validate::ValidatorId
 impl core::fmt::Display for antecedent_validate::ZTransportSensitivityError
+impl core::fmt::Display for antecedent_validate::data_diagnostics::DataDiagnosticsError
 impl core::fmt::Display for antecedent_validate::mnar_sensitivity::MnarSensitivityError
 impl core::fmt::Display for antecedent_validate::predictive_assessment::PredictiveAssessmentError
 impl core::fmt::Display for antecedent_validate::target_native::TargetRefitError
@@ -789,6 +817,7 @@ impl core::marker::Copy for antecedent_validate::UndirectedLinkStability
 impl core::marker::Copy for antecedent_validate::ValidatorId
 impl core::marker::Copy for antecedent_validate::bayesian_checks::ResidualDiscrepancy
 impl core::marker::Copy for antecedent_validate::bayesian_checks::ResidualStatistic
+impl core::marker::Copy for antecedent_validate::data_diagnostics::DataDiagnosticSpec
 impl core::marker::Copy for antecedent_validate::mnar_sensitivity::ArmLoading
 impl core::marker::Copy for antecedent_validate::mnar_sensitivity::MnarAssumptionRange
 impl core::marker::Copy for antecedent_validate::mnar_sensitivity::MnarAssumptionRecord
@@ -943,6 +972,14 @@ impl core::marker::Freeze for antecedent_validate::ZTransportSensitivityError [a
 impl core::marker::Freeze for antecedent_validate::bayesian_checks::ResidualDiscrepancy [auto]
 impl core::marker::Freeze for antecedent_validate::bayesian_checks::ResidualStatistic [auto]
 impl core::marker::Freeze for antecedent_validate::common::AlignedRefit [auto]
+impl core::marker::Freeze for antecedent_validate::data_diagnostics::DataDiagnosticCheck [auto]
+impl core::marker::Freeze for antecedent_validate::data_diagnostics::DataDiagnosticColumn [auto]
+impl core::marker::Freeze for antecedent_validate::data_diagnostics::DataDiagnosticContext [auto]
+impl core::marker::Freeze for antecedent_validate::data_diagnostics::DataDiagnosticFinding [auto]
+impl core::marker::Freeze for antecedent_validate::data_diagnostics::DataDiagnosticSpec [auto]
+impl core::marker::Freeze for antecedent_validate::data_diagnostics::DataDiagnostics [auto]
+impl core::marker::Freeze for antecedent_validate::data_diagnostics::DataDiagnosticsError [auto]
+impl core::marker::Freeze for antecedent_validate::data_diagnostics::DataDiagnosticsReport [auto]
 impl core::marker::Freeze for antecedent_validate::mnar_sensitivity::ArmLoading [auto]
 impl core::marker::Freeze for antecedent_validate::mnar_sensitivity::MnarAssumptionRange [auto]
 impl core::marker::Freeze for antecedent_validate::mnar_sensitivity::MnarAssumptionRecord [auto]
@@ -1140,6 +1177,14 @@ impl core::marker::Send for antecedent_validate::ZTransportMechanismSensitivityR
 impl core::marker::Send for antecedent_validate::ZTransportSensitivityError [auto]
 impl core::marker::Send for antecedent_validate::bayesian_checks::ResidualDiscrepancy [auto]
 impl core::marker::Send for antecedent_validate::bayesian_checks::ResidualStatistic [auto]
+impl core::marker::Send for antecedent_validate::data_diagnostics::DataDiagnosticCheck [auto]
+impl core::marker::Send for antecedent_validate::data_diagnostics::DataDiagnosticColumn [auto]
+impl core::marker::Send for antecedent_validate::data_diagnostics::DataDiagnosticContext [auto]
+impl core::marker::Send for antecedent_validate::data_diagnostics::DataDiagnosticFinding [auto]
+impl core::marker::Send for antecedent_validate::data_diagnostics::DataDiagnosticSpec [auto]
+impl core::marker::Send for antecedent_validate::data_diagnostics::DataDiagnostics [auto]
+impl core::marker::Send for antecedent_validate::data_diagnostics::DataDiagnosticsError [auto]
+impl core::marker::Send for antecedent_validate::data_diagnostics::DataDiagnosticsReport [auto]
 impl core::marker::Send for antecedent_validate::mnar_sensitivity::ArmLoading [auto]
 impl core::marker::Send for antecedent_validate::mnar_sensitivity::MnarAssumptionRange [auto]
 impl core::marker::Send for antecedent_validate::mnar_sensitivity::MnarAssumptionRecord [auto]
@@ -1292,6 +1337,13 @@ impl core::marker::StructuralPartialEq for antecedent_validate::ZTransportMechan
 impl core::marker::StructuralPartialEq for antecedent_validate::ZTransportSensitivityError
 impl core::marker::StructuralPartialEq for antecedent_validate::bayesian_checks::ResidualDiscrepancy
 impl core::marker::StructuralPartialEq for antecedent_validate::bayesian_checks::ResidualStatistic
+impl core::marker::StructuralPartialEq for antecedent_validate::data_diagnostics::DataDiagnosticCheck
+impl core::marker::StructuralPartialEq for antecedent_validate::data_diagnostics::DataDiagnosticColumn
+impl core::marker::StructuralPartialEq for antecedent_validate::data_diagnostics::DataDiagnosticContext
+impl core::marker::StructuralPartialEq for antecedent_validate::data_diagnostics::DataDiagnosticFinding
+impl core::marker::StructuralPartialEq for antecedent_validate::data_diagnostics::DataDiagnosticSpec
+impl core::marker::StructuralPartialEq for antecedent_validate::data_diagnostics::DataDiagnostics
+impl core::marker::StructuralPartialEq for antecedent_validate::data_diagnostics::DataDiagnosticsReport
 impl core::marker::StructuralPartialEq for antecedent_validate::mnar_sensitivity::ArmLoading
 impl core::marker::StructuralPartialEq for antecedent_validate::mnar_sensitivity::MnarAssumptionRange
 impl core::marker::StructuralPartialEq for antecedent_validate::mnar_sensitivity::MnarAssumptionRecord
@@ -1488,6 +1540,14 @@ impl core::marker::Sync for antecedent_validate::ZTransportMechanismSensitivityR
 impl core::marker::Sync for antecedent_validate::ZTransportSensitivityError [auto]
 impl core::marker::Sync for antecedent_validate::bayesian_checks::ResidualDiscrepancy [auto]
 impl core::marker::Sync for antecedent_validate::bayesian_checks::ResidualStatistic [auto]
+impl core::marker::Sync for antecedent_validate::data_diagnostics::DataDiagnosticCheck [auto]
+impl core::marker::Sync for antecedent_validate::data_diagnostics::DataDiagnosticColumn [auto]
+impl core::marker::Sync for antecedent_validate::data_diagnostics::DataDiagnosticContext [auto]
+impl core::marker::Sync for antecedent_validate::data_diagnostics::DataDiagnosticFinding [auto]
+impl core::marker::Sync for antecedent_validate::data_diagnostics::DataDiagnosticSpec [auto]
+impl core::marker::Sync for antecedent_validate::data_diagnostics::DataDiagnostics [auto]
+impl core::marker::Sync for antecedent_validate::data_diagnostics::DataDiagnosticsError [auto]
+impl core::marker::Sync for antecedent_validate::data_diagnostics::DataDiagnosticsReport [auto]
 impl core::marker::Sync for antecedent_validate::mnar_sensitivity::ArmLoading [auto]
 impl core::marker::Sync for antecedent_validate::mnar_sensitivity::MnarAssumptionRange [auto]
 impl core::marker::Sync for antecedent_validate::mnar_sensitivity::MnarAssumptionRecord [auto]
@@ -1686,6 +1746,14 @@ impl core::marker::Unpin for antecedent_validate::ZTransportSensitivityError [au
 impl core::marker::Unpin for antecedent_validate::bayesian_checks::ResidualDiscrepancy [auto]
 impl core::marker::Unpin for antecedent_validate::bayesian_checks::ResidualStatistic [auto]
 impl core::marker::Unpin for antecedent_validate::common::AlignedRefit [auto]
+impl core::marker::Unpin for antecedent_validate::data_diagnostics::DataDiagnosticCheck [auto]
+impl core::marker::Unpin for antecedent_validate::data_diagnostics::DataDiagnosticColumn [auto]
+impl core::marker::Unpin for antecedent_validate::data_diagnostics::DataDiagnosticContext [auto]
+impl core::marker::Unpin for antecedent_validate::data_diagnostics::DataDiagnosticFinding [auto]
+impl core::marker::Unpin for antecedent_validate::data_diagnostics::DataDiagnosticSpec [auto]
+impl core::marker::Unpin for antecedent_validate::data_diagnostics::DataDiagnostics [auto]
+impl core::marker::Unpin for antecedent_validate::data_diagnostics::DataDiagnosticsError [auto]
+impl core::marker::Unpin for antecedent_validate::data_diagnostics::DataDiagnosticsReport [auto]
 impl core::marker::Unpin for antecedent_validate::mnar_sensitivity::ArmLoading [auto]
 impl core::marker::Unpin for antecedent_validate::mnar_sensitivity::MnarAssumptionRange [auto]
 impl core::marker::Unpin for antecedent_validate::mnar_sensitivity::MnarAssumptionRecord [auto]
@@ -1873,6 +1941,14 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::ZTransport
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::ZTransportSensitivityError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::bayesian_checks::ResidualDiscrepancy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::bayesian_checks::ResidualStatistic [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::data_diagnostics::DataDiagnosticCheck [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::data_diagnostics::DataDiagnosticColumn [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::data_diagnostics::DataDiagnosticContext [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::data_diagnostics::DataDiagnosticFinding [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::data_diagnostics::DataDiagnosticSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::data_diagnostics::DataDiagnostics [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::data_diagnostics::DataDiagnosticsError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::data_diagnostics::DataDiagnosticsReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::mnar_sensitivity::ArmLoading [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::mnar_sensitivity::MnarAssumptionRange [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::mnar_sensitivity::MnarAssumptionRecord [auto]
@@ -2060,6 +2136,14 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::ZTransportMec
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::ZTransportSensitivityError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::bayesian_checks::ResidualDiscrepancy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::bayesian_checks::ResidualStatistic [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::data_diagnostics::DataDiagnosticCheck [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::data_diagnostics::DataDiagnosticColumn [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::data_diagnostics::DataDiagnosticContext [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::data_diagnostics::DataDiagnosticFinding [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::data_diagnostics::DataDiagnosticSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::data_diagnostics::DataDiagnostics [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::data_diagnostics::DataDiagnosticsError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::data_diagnostics::DataDiagnosticsReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::mnar_sensitivity::ArmLoading [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::mnar_sensitivity::MnarAssumptionRange [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::mnar_sensitivity::MnarAssumptionRecord [auto]
@@ -2127,6 +2211,13 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::target_native
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::target_native::TargetRefutationConfig [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::target_native::TargetRefutationRun [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::target_native::TargetRefuterRefusal [auto]
+impl serde_core::ser::Serialize for antecedent_validate::data_diagnostics::DataDiagnosticCheck
+impl serde_core::ser::Serialize for antecedent_validate::data_diagnostics::DataDiagnosticColumn
+impl serde_core::ser::Serialize for antecedent_validate::data_diagnostics::DataDiagnosticContext
+impl serde_core::ser::Serialize for antecedent_validate::data_diagnostics::DataDiagnosticFinding
+impl serde_core::ser::Serialize for antecedent_validate::data_diagnostics::DataDiagnosticSpec
+impl serde_core::ser::Serialize for antecedent_validate::data_diagnostics::DataDiagnostics
+impl serde_core::ser::Serialize for antecedent_validate::data_diagnostics::DataDiagnosticsReport
 impl<'a> !core::marker::Send for antecedent_validate::PreparedRefutation<'a> [auto]
 impl<'a> !core::marker::Send for antecedent_validate::RefutationProblem<'a> [auto]
 impl<'a> !core::marker::Sync for antecedent_validate::PreparedRefutation<'a> [auto]
@@ -2268,6 +2359,12 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_validate::mnar_sens
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_assessment::IntervalFacts<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_validate::target_native::PosteriorPredictiveTarget<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_validate::target_native::PriorSensitivityTarget<'a> [auto]
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_validate::data_diagnostics::DataDiagnosticCheck
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_validate::data_diagnostics::DataDiagnosticColumn
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_validate::data_diagnostics::DataDiagnosticContext where antecedent_validate::data_diagnostics::DataDiagnosticContext: core::default::Default
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_validate::data_diagnostics::DataDiagnosticFinding
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_validate::data_diagnostics::DataDiagnostics where antecedent_validate::data_diagnostics::DataDiagnostics: core::default::Default
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_validate::data_diagnostics::DataDiagnosticsReport
 pub const <antecedent_validate::TargetQuadrant>::STATIC_BAYESIAN: Self
 pub const <antecedent_validate::TargetQuadrant>::STATIC_FREQUENTIST: Self
 pub const <antecedent_validate::TargetQuadrant>::TEMPORAL_BAYESIAN: Self
@@ -2279,6 +2376,8 @@ pub const <antecedent_validate::mnar_sensitivity::MnarModel>::ALL: [Self; 2]
 pub const <antecedent_validate::predictive_assessment::ScoreKind>::ALL: [Self; 4]
 pub const antecedent_validate::DEFAULT_EVALUE_THRESHOLD: f64
 pub const antecedent_validate::MIN_MSM_REPLICATES: usize
+pub const antecedent_validate::data_diagnostics::DATA_DIAGNOSTICS_VERSION: u32
+pub const antecedent_validate::data_diagnostics::DATA_DIAGNOSTIC_CHECKS: &[antecedent_validate::data_diagnostics::DataDiagnosticSpec]
 pub const antecedent_validate::functional_mediation::COMPONENT_NAMES: [&str; 3]
 pub const antecedent_validate::joint_mechanism_sensitivity::ASSUMPTION_RANGE_CLAIM: &str
 pub const antecedent_validate::joint_mechanism_sensitivity::JOINT_SENSITIVITY_MAX_BOOTSTRAP: u32
@@ -2406,6 +2505,7 @@ pub enum antecedent_validate::ValidationOutcome
 pub enum antecedent_validate::ValidatorId
 pub enum antecedent_validate::ZTransportSensitivityError
 pub enum antecedent_validate::bayesian_checks::ResidualStatistic
+pub enum antecedent_validate::data_diagnostics::DataDiagnosticsError
 pub enum antecedent_validate::mnar_sensitivity::MnarConclusionKind
 pub enum antecedent_validate::mnar_sensitivity::MnarEstimator
 pub enum antecedent_validate::mnar_sensitivity::MnarModel
@@ -2940,6 +3040,67 @@ pub field antecedent_validate::common::AlignedRefit::block_length: usize
 pub field antecedent_validate::common::AlignedRefit::estimate: alloc::boxed::Box<dyn core::ops::function::FnMut(&[usize]) -> core::option::Option<f64>>
 pub field antecedent_validate::common::AlignedRefit::rows: usize
 pub field antecedent_validate::common::AlignedRefit::stand_in: core::option::Option<alloc::sync::Arc<str>>
+pub field antecedent_validate::data_diagnostics::DataDiagnosticCheck::code: alloc::string::String
+pub field antecedent_validate::data_diagnostics::DataDiagnosticCheck::column: core::option::Option<alloc::string::String>
+pub field antecedent_validate::data_diagnostics::DataDiagnosticCheck::reason: core::option::Option<alloc::string::String>
+pub field antecedent_validate::data_diagnostics::DataDiagnosticCheck::rows: usize
+pub field antecedent_validate::data_diagnostics::DataDiagnosticCheck::sampled: bool
+pub field antecedent_validate::data_diagnostics::DataDiagnosticCheck::status: alloc::string::String
+pub field antecedent_validate::data_diagnostics::DataDiagnosticColumn::column: alloc::string::String
+pub field antecedent_validate::data_diagnostics::DataDiagnosticColumn::excess_kurtosis: core::option::Option<f64>
+pub field antecedent_validate::data_diagnostics::DataDiagnosticColumn::modal_share: core::option::Option<f64>
+pub field antecedent_validate::data_diagnostics::DataDiagnosticColumn::non_finite: usize
+pub field antecedent_validate::data_diagnostics::DataDiagnosticColumn::role: alloc::string::String
+pub field antecedent_validate::data_diagnostics::DataDiagnosticColumn::sample_distinct: usize
+pub field antecedent_validate::data_diagnostics::DataDiagnosticColumn::sample_observed: usize
+pub field antecedent_validate::data_diagnostics::DataDiagnosticColumn::skewness: core::option::Option<f64>
+pub field antecedent_validate::data_diagnostics::DataDiagnosticColumn::value_type: alloc::string::String
+pub field antecedent_validate::data_diagnostics::DataDiagnosticContext::contrasts: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<f64>>
+pub field antecedent_validate::data_diagnostics::DataDiagnosticContext::plan_identity: alloc::string::String
+pub field antecedent_validate::data_diagnostics::DataDiagnosticContext::roles: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub field antecedent_validate::data_diagnostics::DataDiagnosticFinding::code: alloc::string::String
+pub field antecedent_validate::data_diagnostics::DataDiagnosticFinding::columns: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_validate::data_diagnostics::DataDiagnosticFinding::criterion: alloc::string::String
+pub field antecedent_validate::data_diagnostics::DataDiagnosticFinding::interpretation: alloc::string::String
+pub field antecedent_validate::data_diagnostics::DataDiagnosticFinding::next_action: alloc::string::String
+pub field antecedent_validate::data_diagnostics::DataDiagnosticFinding::observation: alloc::collections::btree::map::BTreeMap<alloc::string::String, f64>
+pub field antecedent_validate::data_diagnostics::DataDiagnosticFinding::roles: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_validate::data_diagnostics::DataDiagnosticFinding::sampled: bool
+pub field antecedent_validate::data_diagnostics::DataDiagnosticFinding::severity: alloc::string::String
+pub field antecedent_validate::data_diagnostics::DataDiagnosticSpec::applicability: &'static str
+pub field antecedent_validate::data_diagnostics::DataDiagnosticSpec::code: &'static str
+pub field antecedent_validate::data_diagnostics::DataDiagnosticSpec::family: &'static str
+pub field antecedent_validate::data_diagnostics::DataDiagnostics::distribution: bool
+pub field antecedent_validate::data_diagnostics::DataDiagnostics::duplicate_rows: bool
+pub field antecedent_validate::data_diagnostics::DataDiagnostics::excess_kurtosis: f64
+pub field antecedent_validate::data_diagnostics::DataDiagnostics::max_relationship_columns: usize
+pub field antecedent_validate::data_diagnostics::DataDiagnostics::max_sample_rows: core::option::Option<usize>
+pub field antecedent_validate::data_diagnostics::DataDiagnostics::min_arm_share: f64
+pub field antecedent_validate::data_diagnostics::DataDiagnostics::min_observations: usize
+pub field antecedent_validate::data_diagnostics::DataDiagnostics::missing_share: f64
+pub field antecedent_validate::data_diagnostics::DataDiagnostics::missingness: bool
+pub field antecedent_validate::data_diagnostics::DataDiagnostics::near_constant_share: f64
+pub field antecedent_validate::data_diagnostics::DataDiagnostics::relationships: bool
+pub field antecedent_validate::data_diagnostics::DataDiagnostics::repeated_share: f64
+pub field antecedent_validate::data_diagnostics::DataDiagnostics::resolution_max_distinct: usize
+pub field antecedent_validate::data_diagnostics::DataDiagnostics::resolution_max_fraction: f64
+pub field antecedent_validate::data_diagnostics::DataDiagnostics::resolution_min_observations: usize
+pub field antecedent_validate::data_diagnostics::DataDiagnostics::skewness: f64
+pub field antecedent_validate::data_diagnostics::DataDiagnostics::treatment_support: bool
+pub field antecedent_validate::data_diagnostics::DataDiagnosticsReport::checks: alloc::vec::Vec<antecedent_validate::data_diagnostics::DataDiagnosticCheck>
+pub field antecedent_validate::data_diagnostics::DataDiagnosticsReport::columns: alloc::vec::Vec<antecedent_validate::data_diagnostics::DataDiagnosticColumn>
+pub field antecedent_validate::data_diagnostics::DataDiagnosticsReport::context: antecedent_validate::data_diagnostics::DataDiagnosticContext
+pub field antecedent_validate::data_diagnostics::DataDiagnosticsReport::duplicate_rows: core::option::Option<usize>
+pub field antecedent_validate::data_diagnostics::DataDiagnosticsReport::findings: alloc::vec::Vec<antecedent_validate::data_diagnostics::DataDiagnosticFinding>
+pub field antecedent_validate::data_diagnostics::DataDiagnosticsReport::identity: alloc::string::String
+pub field antecedent_validate::data_diagnostics::DataDiagnosticsReport::missing_patterns: alloc::vec::Vec<(alloc::vec::Vec<alloc::string::String>, usize)>
+pub field antecedent_validate::data_diagnostics::DataDiagnosticsReport::policy: antecedent_validate::data_diagnostics::DataDiagnostics
+pub field antecedent_validate::data_diagnostics::DataDiagnosticsReport::rows_complete: core::option::Option<usize>
+pub field antecedent_validate::data_diagnostics::DataDiagnosticsReport::rows_total: usize
+pub field antecedent_validate::data_diagnostics::DataDiagnosticsReport::sample_rows: usize
+pub field antecedent_validate::data_diagnostics::DataDiagnosticsReport::snapshot_identity: core::option::Option<alloc::string::String>
+pub field antecedent_validate::data_diagnostics::DataDiagnosticsReport::treatment_arms: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<(f64, usize)>>
+pub field antecedent_validate::data_diagnostics::DataDiagnosticsReport::version: u32
 pub field antecedent_validate::functional_mediation::MediationComponent::estimand: &'a antecedent_expr::estimand::IdentifiedEstimand
 pub field antecedent_validate::functional_mediation::MediationComponent::identification: &'a antecedent_identify::result::IdentificationResult
 pub field antecedent_validate::functional_mediation::MediationComponent::published: f64
@@ -3413,6 +3574,11 @@ pub fn <antecedent_validate::ValidationSuite>::fn with_configured(self, validato
 pub fn <antecedent_validate::ValidationSuite>::fn with_custom(self, validator: alloc::sync::Arc<dyn antecedent_validate::CustomEffectValidator>) -> Self
 pub fn <antecedent_validate::ValidatorId>::fn as_str(self) -> &'static str
 pub fn <antecedent_validate::bayesian_checks::ResidualStatistic>::const fn name(self) -> &'static str
+pub fn <antecedent_validate::data_diagnostics::DataDiagnostics>::fn validate(&self) -> core::result::Result<(), antecedent_validate::data_diagnostics::DataDiagnosticsError>
+pub fn <antecedent_validate::data_diagnostics::DataDiagnosticsReport>::fn check(&mut self, code: &str, column: core::option::Option<alloc::string::String>, status: &str, reason: core::option::Option<&str>, rows: usize, sampled: bool)
+pub fn <antecedent_validate::data_diagnostics::DataDiagnosticsReport>::fn finding(&mut self, code: &str, severity: &str, columns: alloc::vec::Vec<alloc::string::String>, observation: alloc::collections::btree::map::BTreeMap<alloc::string::String, f64>, criterion: alloc::string::String, interpretation: &str, next_action: &str, sampled: bool)
+pub fn <antecedent_validate::data_diagnostics::DataDiagnosticsReport>::fn seal(&mut self)
+pub fn <antecedent_validate::data_diagnostics::DataDiagnosticsReport>::fn unavailable(policy: antecedent_validate::data_diagnostics::DataDiagnostics, context: antecedent_validate::data_diagnostics::DataDiagnosticContext, reason: &str) -> Self
 pub fn <antecedent_validate::mnar_sensitivity::ArmLoading>::const fn common() -> Self
 pub fn <antecedent_validate::mnar_sensitivity::ArmLoading>::const fn control_only() -> Self
 pub fn <antecedent_validate::mnar_sensitivity::ArmLoading>::const fn opposite() -> Self
@@ -3496,6 +3662,8 @@ pub fn antecedent_validate::component_sensitivity::msm_parameter_fit_refitting_w
 pub fn antecedent_validate::compose_with_conflict_policy(sources: &[antecedent_prob::external_prior::ExternalPriorSource], baseline: &antecedent_prob::prior::PriorSet, policy: &antecedent_validate::ConflictPolicy, problem: &antecedent_estimate::bayesian::gcomp::PreparedBayesianProblem, ctx: &antecedent_core::execution::context::ExecutionContext, ppc: &antecedent_validate::PriorPredictiveCheck) -> core::result::Result<(antecedent_prob::external_prior::ComposedPrior, antecedent_prob::diagnostics::ConflictSummary), antecedent_validate::ValidationError>
 pub fn antecedent_validate::conflict::with_conflict_summary(posterior: antecedent_estimate::bayesian::CausalPosterior, summary: antecedent_prob::diagnostics::ConflictSummary) -> antecedent_estimate::bayesian::CausalPosterior
 pub fn antecedent_validate::cross_world_noise_range(target: antecedent_validate::RefutationTarget, effect: f64, residual_correlation: f64) -> core::result::Result<antecedent_validate::AssumptionRange, antecedent_validate::ValidationError>
+pub fn antecedent_validate::data_diagnostics::bind_context(data: &antecedent_data::dataset::TabularData, report: &mut antecedent_validate::data_diagnostics::DataDiagnosticsReport, context: &antecedent_validate::data_diagnostics::DataDiagnosticContext, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent_validate::data_diagnostics::DataDiagnosticsError>
+pub fn antecedent_validate::data_diagnostics::diagnose_data(data: &antecedent_data::dataset::TabularData, policy: &antecedent_validate::data_diagnostics::DataDiagnostics, context: &antecedent_validate::data_diagnostics::DataDiagnosticContext, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_validate::data_diagnostics::DataDiagnosticsReport, antecedent_validate::data_diagnostics::DataDiagnosticsError>
 pub fn antecedent_validate::evalue_bounds(interval: antecedent_validate::EffectInterval, scale: antecedent_validate::EffectScale) -> core::result::Result<antecedent_validate::EValueBounds, antecedent_validate::ValidationError>
 pub fn antecedent_validate::evalue_of_risk_ratio(rr: f64) -> f64
 pub fn antecedent_validate::evalue_posterior_range(target: antecedent_validate::RefutationTarget, draws: &[alloc::vec::Vec<f64>], scale: antecedent_validate::EffectScale, level: f64) -> core::result::Result<(antecedent_validate::PosteriorEValue, antecedent_validate::AssumptionRange), antecedent_validate::ValidationError>
@@ -3716,6 +3884,13 @@ pub struct antecedent_validate::ValidationSuite has private fields
 pub struct antecedent_validate::ZTransportMechanismSensitivityResult
 pub struct antecedent_validate::bayesian_checks::ResidualDiscrepancy
 pub struct antecedent_validate::common::AlignedRefit
+pub struct antecedent_validate::data_diagnostics::DataDiagnosticCheck
+pub struct antecedent_validate::data_diagnostics::DataDiagnosticColumn
+pub struct antecedent_validate::data_diagnostics::DataDiagnosticContext
+pub struct antecedent_validate::data_diagnostics::DataDiagnosticFinding
+pub struct antecedent_validate::data_diagnostics::DataDiagnosticSpec
+pub struct antecedent_validate::data_diagnostics::DataDiagnostics
+pub struct antecedent_validate::data_diagnostics::DataDiagnosticsReport
 pub struct antecedent_validate::functional_mediation::MediationComponent<'a>
 pub struct antecedent_validate::functional_mediation::MediationSuite<'a>
 pub struct antecedent_validate::functional_mediation::SensitivityInput<'a>
@@ -4161,6 +4336,10 @@ pub variant antecedent_validate::bayesian_checks::ResidualStatistic::Curvature
 pub variant antecedent_validate::bayesian_checks::ResidualStatistic::ExcessKurtosis
 pub variant antecedent_validate::bayesian_checks::ResidualStatistic::Skewness
 pub variant antecedent_validate::bayesian_checks::ResidualStatistic::VarianceTrend
+pub variant antecedent_validate::data_diagnostics::DataDiagnosticsError::Cancelled
+pub variant antecedent_validate::data_diagnostics::DataDiagnosticsError::Data(antecedent_data::error::DataError)
+pub variant antecedent_validate::data_diagnostics::DataDiagnosticsError::Policy(alloc::string::String)
+pub variant antecedent_validate::data_diagnostics::DataDiagnosticsError::Resource(alloc::string::String)
 pub variant antecedent_validate::mnar_sensitivity::MnarConclusionKind::Decision
 pub variant antecedent_validate::mnar_sensitivity::MnarConclusionKind::ExcludesNull
 pub variant antecedent_validate::mnar_sensitivity::MnarConclusionKind::Sign

@@ -154,3 +154,6 @@ mod tests;
 mod dbn_posterior_reference_tests;
 #[cfg(test)]
 mod discovery_stability_reference_tests;
+
+/// Fit-free, context-aware data quality diagnostics.
+pub mod data_diagnostics;

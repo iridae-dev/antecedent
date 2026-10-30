@@ -1,0 +1,4 @@
+{
+  "columns": {"x": [-2.0, -1.0, 0.0, 1.0, 2.0]},
+  "expected": {"rows_total": 5, "rows_complete": 5, "sample_distinct": 5, "modal_share": 0.2, "skewness": 0.0, "excess_kurtosis": -1.3, "duplicate_rows": 0}
+}

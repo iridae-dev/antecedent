@@ -37,6 +37,8 @@ antecedent-prob = { workspace = true }
 antecedent-stats = { workspace = true }
 antecedent-kernels = { workspace = true }
 thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 [dev-dependencies]
 antecedent-core = { workspace = true, features = ["test-support"] }
