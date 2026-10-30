@@ -933,7 +933,8 @@ impl PosteriorPredictiveCheck {
         seed: u64,
     ) -> Result<PredictiveCheckReport, ValidationError> {
         let mut report = self.check(problem, posterior)?;
-        report.serial = Some(serial_discrepancy(problem, posterior, self.n_sims, seed)?);
+        report.serial =
+            Some(serial_discrepancy(problem, posterior, self.family, self.n_sims, seed)?);
         Ok(report)
     }
 }
@@ -1134,6 +1135,7 @@ fn lag1_autocorrelation(r: &[f64]) -> f64 {
 fn serial_discrepancy(
     problem: &PreparedBayesianProblem,
     posterior: &CausalPosterior,
+    family: GlmFamily,
     n_sims: u32,
     seed: u64,
 ) -> Result<SerialDiscrepancy, ValidationError> {
@@ -1151,6 +1153,7 @@ fn serial_discrepancy(
     let mut beta = vec![0.0; p];
     let mut resid = vec![0.0; n];
     let mut replicate = vec![0.0; n];
+    let mut means = vec![0.0; n];
     let (mut observed_sum, mut predictive_sum) = (0.0, 0.0);
     let (mut below, mut above) = (0usize, 0usize);
     for k in 0..n_draws {
@@ -1158,12 +1161,21 @@ fn serial_discrepancy(
         for (c, slot) in beta.iter_mut().enumerate() {
             *slot = posterior.draws.get(d, c).map_err(ValidationError::from)?;
         }
-        crate::common::column_major_dot(&problem.design.matrix, n, &beta, &mut resid);
-        for (out, &y) in resid.iter_mut().zip(problem.design.outcome.iter()) {
-            *out = y - *out;
+        fitted_means(problem, &beta, family, &mut means);
+        for ((out, &y), &mean) in resid.iter_mut().zip(problem.design.outcome.iter()).zip(&means) {
+            *out = y - mean;
         }
-        for value in &mut replicate {
-            *value = standard_normal(&mut rng);
+        if family == GlmFamily::GaussianIdentity {
+            // The lag correlation is invariant to the common Gaussian scale.
+            for value in &mut replicate {
+                *value = standard_normal(&mut rng);
+            }
+        } else {
+            replicate.copy_from_slice(&means);
+            add_observation_noise(family, 0.0, &mut replicate, &mut rng);
+            for (value, &mean) in replicate.iter_mut().zip(&means) {
+                *value -= mean;
+            }
         }
         let t_obs = lag1_autocorrelation(&resid);
         let t_rep = lag1_autocorrelation(&replicate);

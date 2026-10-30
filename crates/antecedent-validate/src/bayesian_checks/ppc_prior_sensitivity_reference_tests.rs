@@ -314,6 +314,59 @@ fn ppc_prior_sensitivity_posterior_predictive_equals_the_exact_reference() {
 }
 
 #[test]
+fn temporal_predictive_residuals_use_each_likelihoods_observation_mean() {
+    let correlation = |residuals: &[f64]| {
+        residuals.windows(2).map(|pair| pair[0] * pair[1]).sum::<f64>()
+            / residuals.iter().map(|value| value * value).sum::<f64>()
+    };
+    for case in reference()["post"].as_array().unwrap() {
+        if case["family"] == "gaussian" {
+            continue;
+        }
+        let prep = problem(case);
+        let posterior = fit(&post_estimator(case), &prep);
+        let check = post_check(case);
+        let count = posterior.draws.n_draws.min(check.n_sims as usize);
+        let n = prep.design.nrows;
+        let mut expected = 0.0;
+        let mut replicate_expected = 0.0;
+        let mut rng = CausalRng::from_seed(93 ^ SERIAL_PPC);
+        for k in 0..count {
+            let d = k * posterior.draws.n_draws / count;
+            let means: Vec<f64> = (0..n)
+                .map(|row| {
+                    let eta: f64 = (0..prep.design.ncols)
+                        .map(|column| {
+                            prep.design.matrix[column * n + row]
+                                * posterior.draws.get(d, column).unwrap()
+                        })
+                        .sum();
+                    check.family.mean_from_eta(eta)
+                })
+                .collect();
+            let residuals: Vec<f64> =
+                prep.design.outcome.iter().zip(&means).map(|(y, mean)| y - mean).collect();
+            expected += correlation(&residuals);
+            if matches!(check.family, GlmFamily::BinomialLogit | GlmFamily::BinomialProbit) {
+                let replicated: Vec<f64> =
+                    means.iter().map(|mean| f64::from(rng.next_f64() < *mean) - mean).collect();
+                replicate_expected += correlation(&replicated);
+            }
+        }
+        let actual = check.check_temporal(&prep, &posterior, 93).unwrap().serial.unwrap();
+        close(actual.observed, expected / count as f64, 1e-12, "linked serial residuals");
+        if matches!(check.family, GlmFamily::BinomialLogit | GlmFamily::BinomialProbit) {
+            close(
+                actual.predictive_mean,
+                replicate_expected / count as f64,
+                1e-12,
+                "Bernoulli serial replicate residuals",
+            );
+        }
+    }
+}
+
+#[test]
 fn ppc_prior_sensitivity_posterior_predictive_reads_every_option() {
     let fixture = reference();
     let case = &fixture["post"][0];
