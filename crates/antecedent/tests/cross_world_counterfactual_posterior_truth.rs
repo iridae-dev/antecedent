@@ -329,7 +329,7 @@ fn counterfactual_graph_posterior_is_the_weighted_mean_of_the_atoms_closed_forms
                             .refutations
                             .iter()
                             .filter(|r| !r.passed)
-                            .map(|r| r.refuter.to_string())
+                            .map(|r| format!("{} {:?}", r.refuter, r.failure_condition))
                             .collect::<Vec<_>>()
                     );
                 }

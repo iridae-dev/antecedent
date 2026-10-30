@@ -358,3 +358,56 @@ fn graph_posterior_derivative_planted_off_support_point_is_detected() {
         }
     }
 }
+
+/// `a -> v`, `b -> y`, `b -> v` and no path from `a` to `y`.
+const NO_PATH_EDGES: [(usize, usize); 3] = [(0, 3), (1, 2), (1, 3)];
+
+#[test]
+fn a_posterior_atom_without_a_directed_path_contributes_the_structural_zero() {
+    let functional = point(DerivativeScale::Identity, 2.0);
+    let ctx = ExecutionContext::for_tests(826);
+    // One atom with no path: the mixture is exactly the structural zero.
+    let lone = study(posterior(&[&NO_PATH_EDGES], &[1.0]), &functional, false, RefuteSuite::None)
+        .build()
+        .unwrap()
+        .run(&ctx)
+        .unwrap();
+    assert_eq!(published(&lone, "lone"), vec![0.0]);
+    // Beside an atom that carries the slope, the mixture is the hand-weighted mean of that
+    // atom's explicit value and zero.
+    let mut graph = antecedent_graph::Dag::with_variables(4);
+    for (from, to) in PLAIN_EDGES {
+        graph
+            .insert_directed(
+                antecedent_graph::DenseNodeId::from_raw(u32::try_from(from).unwrap()),
+                antecedent_graph::DenseNodeId::from_raw(u32::try_from(to).unwrap()),
+            )
+            .unwrap();
+    }
+    let explicit = Study::tabular(table())
+        .graph(graph)
+        .query(CausalQuery::Response(ResponseQuery::new(functional.clone())))
+        .response_options(ContinuousResponseOptions {
+            bandwidth: Some(0.35),
+            ..ContinuousResponseOptions::default()
+        })
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ctx)
+        .unwrap();
+    let carried = published(&explicit, "explicit")[0];
+    let mixed = study(
+        posterior(&[&PLAIN_EDGES, &NO_PATH_EDGES], &[0.6, 0.4]),
+        &functional,
+        false,
+        RefuteSuite::None,
+    )
+    .build()
+    .unwrap()
+    .run(&ctx)
+    .unwrap();
+    let got = published(&mixed, "mixed")[0];
+    assert!((got - 0.6 * carried).abs() < 1e-9, "{got} vs {}", 0.6 * carried);
+}

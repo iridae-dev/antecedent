@@ -229,6 +229,8 @@ impl CheckedDerivativeResponseOperation {
                     .into(),
             });
         }
+        let mut response = response;
+        super::structural_zero::apply(&mut response, &self.graph, &self.query);
         Ok(response)
     }
 }

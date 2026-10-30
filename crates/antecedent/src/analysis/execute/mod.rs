@@ -294,6 +294,7 @@ mod checked_randomized;
 mod class_derivative_refutation;
 mod class_response_refutation;
 mod derivative_refutation;
+mod structural_zero;
 mod front_door_derivative_refutation;
 mod gcm_bootstrap;
 mod posterior_witness_state;

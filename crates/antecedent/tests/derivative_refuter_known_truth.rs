@@ -323,3 +323,96 @@ fn derivative_refuter_planted_violations_are_detected() {
     let check = report(&planted, "posterior_predictive").expect("posterior predictive check");
     assert!(!check.passed, "non-Gaussian residuals not detected");
 }
+
+/// `a -> v`, `b -> y`, `b -> v` and no path from `a` to `y`: whatever association the data hold
+/// between `a` and `y` (slope 2 in the fixture's law), the do-effect of `a` on `y` is exactly 0.
+fn graph_without_a_path_to_the_outcome() -> Dag {
+    let mut graph = Dag::with_variables(4);
+    for (source, target) in [(0, 3), (1, 2), (1, 3)] {
+        graph
+            .insert_directed(DenseNodeId::from_raw(source), DenseNodeId::from_raw(target))
+            .unwrap();
+    }
+    graph
+}
+
+#[test]
+fn a_derivative_without_a_directed_path_is_the_exact_structural_zero() {
+    let data = table(false);
+    let linear = [
+        ("point", point(DerivativeScale::Identity, 2.0)),
+        ("elasticity", point(DerivativeScale::LogLog, 2.0)),
+        ("average", average()),
+    ];
+    for (key, functional) in &linear {
+        for bayesian in [false, true] {
+            for (route, prepared_route) in [("fresh", false), ("prepared", true)] {
+                let label = format!("{key} bayesian={bayesian} {route}");
+                let mut builder = Study::tabular(data.clone())
+                    .graph(graph_without_a_path_to_the_outcome())
+                    .query(CausalQuery::Response(ResponseQuery::new(functional.clone())))
+                    .response_options(ContinuousResponseOptions {
+                        bandwidth: Some(0.35),
+                        ..Default::default()
+                    })
+                    .refute(RefuteSuite::None)
+                    .bootstrap_replicates(0);
+                if bayesian {
+                    builder = builder.inference(InferenceMode::Bayesian(
+                        BayesianConfig::conjugate().n_draws(24),
+                    ));
+                }
+                let context = ExecutionContext::for_tests(830);
+                let study = builder.build().unwrap();
+                let result = if prepared_route {
+                    study.prepare(&context).unwrap().estimate(&data, &context).unwrap()
+                } else {
+                    study.run(&context).unwrap()
+                };
+                assert_eq!(values(&result, &label), vec![0.0], "{label}");
+                let response = result.response().unwrap();
+                assert!(
+                    matches!(
+                        response.uncertainty,
+                        antecedent_core::ResponseUncertainty::Scalar {
+                            standard_error,
+                            lower,
+                            upper,
+                            ..
+                        } if standard_error == 0.0 && lower == 0.0 && upper == 0.0
+                    ),
+                    "{label}: {:?}",
+                    response.uncertainty
+                );
+                assert!(
+                    response
+                        .support
+                        .warnings
+                        .iter()
+                        .any(|w| w.code.as_ref() == "response.dag.no_directed_path"),
+                    "{label}: the typed note"
+                );
+            }
+        }
+    }
+    // A Jacobian zeroes the unreachable cell only: `a -> y` has no path, `a -> v` does.
+    let jacobian = F::Jacobian {
+        outcomes: ids(&[2, 3]),
+        treatments: ids(&[0]),
+        at: std::sync::Arc::from([2.0]),
+        scale: DerivativeScale::Identity,
+    };
+    let result = Study::tabular(data.clone())
+        .graph(graph_without_a_path_to_the_outcome())
+        .query(CausalQuery::Response(ResponseQuery::new(jacobian)))
+        .response_options(ContinuousResponseOptions { bandwidth: Some(0.35), ..Default::default() })
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(831))
+        .unwrap();
+    let cells = values(&result, "jacobian");
+    assert_eq!(cells[0], 0.0, "dy/da has no path");
+    assert!(cells[1].is_finite() && cells[1] != 0.0, "dv/da keeps its estimate: {}", cells[1]);
+}

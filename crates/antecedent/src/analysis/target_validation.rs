@@ -1442,7 +1442,25 @@ impl PreparedRefit<'_> {
             return adjustment;
         }
         let mut parents: Vec<VariableId> = Vec::new();
-        if let Some(dag) = self.study().graph.as_dag() {
+        if let Some(posterior) = &self.study().graph_posterior {
+            // A posterior carries no single structure (its placeholder graph has no edges): the
+            // reference model takes the outcome's parents over every DAG atom, so it does not
+            // fold an atom's confounder into the treatment slope.
+            if posterior.atom_kind() == antecedent_discovery::GraphPosteriorAtomKind::Dag {
+                for atom in posterior.atoms().iter() {
+                    let Ok(dag) =
+                        antecedent_discovery::adjacency_mask::dag_from_adjacency_mask(atom.clone(), posterior.n_vars())
+                    else {
+                        continue;
+                    };
+                    if let Some(outcome) = static_node(&dag, self.outcome) {
+                        parents.extend(dag.parents(outcome).iter().map(|parent| {
+                            VariableId::from_raw(u32::try_from(parent.as_usize()).unwrap_or(u32::MAX))
+                        }));
+                    }
+                }
+            }
+        } else if let Some(dag) = self.study().graph.as_dag() {
             if let Some(outcome) = static_node(dag, self.outcome) {
                 parents.extend(dag.parents(outcome).iter().filter_map(|parent| {
                     match dag.nodes().get(parent.as_usize())? {

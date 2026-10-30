@@ -43,7 +43,9 @@ STATIC_TEXT = (
     "under full a whole-procedure row bootstrap of the derivative under independent subjects whose "
     "95% range must contain the published value (failed replicates are kept). {bayesian}Known "
     "truth: the linear law of the fixture, whose derivative is its coefficient; the law is linear, "
-    "so the fixture cannot detect curvature errors{own}. ATE-shaped contrast refuters do not "
+    "so the fixture cannot detect curvature errors{own}. A coordinate with no directed path from "
+    "the treatment to the outcome is the exact structural zero with a degenerate band and the "
+    "typed note response.dag.no_directed_path. ATE-shaped contrast refuters do not "
     "apply. The verdicts are checks of this route, not a calibration claim; no coverage record "
     "measures the intervals and calibration is not claimed."
 )
@@ -201,8 +203,9 @@ GRAPH_POSTERIOR_TEXT = (
     "graph-dependent. The fixture's atoms (one without and one with a back-door confounder) have "
     "the same structural derivative, so the mixture is checked against the exact derivative of the "
     "linear law whatever the weights, and the masses against the atoms' weights. {states}An atom "
-    "whose graph has no directed path from the treatment to the outcome is answered with the "
-    "route's data-based slope, not a structural zero, and is not covered by this row's evidence. "
+    "whose graph has no directed path from the treatment to the outcome contributes the exact "
+    "structural zero (degenerate band, typed note response.dag.no_directed_path), checked "
+    "against an exact zero. "
     "The uncertainty of a mixture of several atoms is withheld with the stated reason when no "
     "replicates are requested. The verdicts are checks of this route, not a calibration claim; no "
     "coverage record measures the intervals and calibration is not claimed."
@@ -289,6 +292,82 @@ CLASS_GP_TEXT = (
     "claim; no coverage record measures the intervals and calibration is not claimed."
 )
 
+CF_POSTERIOR = {
+    "fixture": "conformance/estimate/cross_world_counterfactual_posterior",
+    "test": "crates/antecedent/tests/cross_world_counterfactual_posterior_truth.rs",
+    "assertion": "counterfactual_graph_posterior_is_the_weighted_mean_of_the_atoms_closed_forms_under_every_suite",
+    "checked_assertion": "counterfactual_graph_posterior_executes_from_the_retained_plan_without_the_builder",
+}
+CF_TEXT = (
+    "A counterfactual (effect on the treated) over a graph posterior of {atoms} atoms at validation "
+    "{validation}, executed through {estimator}. Every atom is answered by the executor the "
+    "counterfactual has on a supplied structure of the atom's kind and the atoms mix by posterior "
+    "probability: the value is the posterior-weighted mean over the atoms that identify and "
+    "evaluate it; an atom the identifier refuses is unidentified posterior mass, stated in the "
+    "result, which resolves its status to graph-dependent. {fixture_text}{states}The verdicts are "
+    "checks of this route, not a calibration claim; no coverage record measures the intervals and "
+    "calibration is not claimed."
+)
+CF_STATES = {
+    "none": "",
+    "cheap": (
+        "Cheap runs the functional refuter state of the whole procedure on the mixed value. "
+    ),
+    "full": (
+        "Full refits the whole graph-posterior procedure under the functional refuters. "
+    ),
+}
+CF_KINDS = [
+    # (graph class, atoms text, estimator, validations, fixture text)
+    (
+        "Admg",
+        "Admg",
+        "functional.effect",
+        ["none", "cheap", "full"],
+        "The fixture's atoms are the front-door ADMG (exact front-door functional of the cell "
+        "counts) and the ADMG with no latent cause (the observed contrast) beside a cyclic sample; "
+        "the mixture is checked against the hand-weighted exact values and the masses against the "
+        "atoms' weights. ",
+    ),
+    (
+        "TemporalAdmg",
+        "TemporalAdmg (read as its contemporaneous ADMG projection)",
+        "functional.effect",
+        ["none", "cheap", "full"],
+        "The fixture's atoms are the front-door ADMG (exact front-door functional of the cell "
+        "counts) and the ADMG with no latent cause (the observed contrast) beside a cyclic sample; "
+        "the mixture is checked against the hand-weighted exact values and the masses against the "
+        "atoms' weights. ",
+    ),
+    (
+        "Cpdag",
+        "Cpdag",
+        "gcm.fit",
+        ["none", "cheap", "full"],
+        "The fixture's single atom is a CPDAG over a noiseless line whose two completions "
+        "disagree; the value is the mean of the completions' exact slopes and no posterior mass "
+        "is lost. ",
+    ),
+    (
+        "Dag",
+        "Dag",
+        "gcm.fit",
+        ["none", "cheap", "full"],
+        "The fixture's atoms are two DAGs over a Gaussian law beside a cyclic sample; the "
+        "mixture is checked against the exact effect (outcome coefficient times the contrast) "
+        "and the masses against the atoms' weights. ",
+    ),
+    (
+        "Pag",
+        "Pag",
+        "functional.effect",
+        ["none"],
+        "The fixture's atoms are a PAG with every edge visible beside one whose treatment edge is "
+        "invisible; the visible atom carries the exact adjustment value and the other is "
+        "unidentified mass. ",
+    ),
+]
+
 SELECTOR = {
     "structure": ["explicit", "accepted"],
     "inference": ["Frequentist", "Bayesian"],
@@ -316,6 +395,21 @@ TEMPORAL_ESTIMATOR = {
 }
 
 FAMILIES: list[dict] = []
+for graph_class, atoms, estimator, validations, fixture_text in CF_KINDS:
+    FAMILIES.append(
+        {
+            **CF_POSTERIOR,
+            "query": "Counterfactual",
+            "graph_class": [graph_class],
+            "structure": ["graph_posterior"],
+            "validation": validations,
+            "estimator": {"Frequentist": estimator, "Bayesian": estimator},
+            "what": "counterfactual",
+            "text": CF_TEXT,
+            "atoms": atoms,
+            "fixture_text": fixture_text,
+        }
+    )
 for query, what, estimator, multivariate in STATIC_FAMILIES:
     FAMILIES.append(
         {
@@ -458,6 +552,14 @@ def render_row(family: dict, cell: tuple[str, str, str, str, str]) -> str:
         limitations = family["text"].format(
             what=family["what"], estimator=estimator, validation=validation, states=states
         )
+    elif family["text"] is CF_TEXT:
+        limitations = family["text"].format(
+            atoms=family["atoms"],
+            validation=validation,
+            estimator=estimator,
+            fixture_text=family["fixture_text"],
+            states=CF_STATES[validation],
+        )
     elif family["text"] is CLASS_GP_TEXT:
         states = CLASS_STATES[validation].format(
             difference=CLASS_NO_DIFFERENCE if family["multivariate"] else CLASS_DIFFERENCE,
@@ -518,7 +620,7 @@ def render_row(family: dict, cell: tuple[str, str, str, str, str]) -> str:
         f"evidence_assertion = {quote(assertion)}",
         "checked_execution = [",
         f"  {{ estimator = {quote(estimator)}, test = {quote(test)}, "
-        f"assertion = {quote(assertion)} }},",
+        f"assertion = {quote(family.get('checked_assertion', assertion))} }},",
         "]",
         f"limitations = {quote(limitations)}",
         'calibration_reason = "estimator_grid_not_measured"',

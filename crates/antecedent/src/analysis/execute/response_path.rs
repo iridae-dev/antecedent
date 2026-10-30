@@ -1313,6 +1313,13 @@ impl super::Study {
             )
         }
         .map_err(CausalError::from)?;
+        let mut response = response;
+        if self.graph_posterior.is_none() && super::derivative_refutation::is_derivative(&query.functional)
+        {
+            if let Some(dag) = self.graph.as_dag() {
+                super::structural_zero::apply(&mut response, dag, query);
+            }
+        }
         Ok((response, response_scores))
     }
 
