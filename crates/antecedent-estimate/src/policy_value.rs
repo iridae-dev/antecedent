@@ -786,7 +786,9 @@ pub fn evaluate_binary_ipw_policy(
     }
     let cost = |i: usize, values: &[f64]| values[if values.len() == 1 { 0 } else { i }];
     let assigned_cost = |policy: &[bool], values: &[f64]| -> f64 {
-        policy.iter().enumerate().map(|(i, treat)| f64::from(*treat) * cost(i, values)).sum()
+        antecedent_kernels::numeric::CompensatedSum::of(
+            policy.iter().enumerate().map(|(i, treat)| f64::from(*treat) * cost(i, values)),
+        )
     };
     let policy_actions = actions.iter().filter(|&&treat| treat).count();
     if actions.iter().enumerate().any(|(i, treat)| *treat && !available_rows[i]) {
@@ -803,11 +805,19 @@ pub fn evaluate_binary_ipw_policy(
         return Err("reference policy exceeds the declared treatment capacity");
     }
     let total_cost = assigned_cost(actions, costs);
-    if budget.is_some_and(|limit| total_cost > limit) {
+    if !total_cost.is_finite()
+        || budget.is_some_and(|limit| {
+            !antecedent_core::policy_assignment_cost_within_budget(total_cost, limit)
+        })
+    {
         return Err("policy exceeds the declared treatment budget");
     }
     let reference_total_cost = assigned_cost(&reference_rows, &reference_cost_rows);
-    if reference_budget.is_some_and(|limit| reference_total_cost > limit) {
+    if !reference_total_cost.is_finite()
+        || reference_budget.is_some_and(|limit| {
+            !antecedent_core::policy_assignment_cost_within_budget(reference_total_cost, limit)
+        })
+    {
         return Err("reference policy exceeds the declared treatment budget");
     }
     let policy_value = binary_ipw_value(outcome, assignment, actions, propensity)?;
@@ -954,19 +964,24 @@ pub fn evaluate_multi_action_ipw_policy(
                            policy_costs: &[f64],
                            policy_budget: Option<f64>|
      -> Result<(f64, usize), &'static str> {
-        let mut total_cost = 0.0;
+        let mut total_cost = antecedent_kernels::numeric::CompensatedSum::default();
         let mut counts = vec![0_usize; action_count];
         for (i, &action) in policy.iter().enumerate() {
             if !available_rows[i][action] {
                 return Err("policy selects an unavailable action");
             }
             counts[action] += 1;
-            total_cost += policy_costs[action];
+            total_cost.add(policy_costs[action]);
         }
         if counts.iter().zip(limits).any(|(count, limit)| count > limit) {
             return Err("policy exceeds an action capacity");
         }
-        if policy_budget.is_some_and(|limit| total_cost > limit) {
+        let total_cost = total_cost.total();
+        if !total_cost.is_finite()
+            || policy_budget.is_some_and(|limit| {
+                !antecedent_core::policy_assignment_cost_within_budget(total_cost, limit)
+            })
+        {
             return Err("policy exceeds the declared budget");
         }
         Ok((total_cost, counts.iter().skip(1).sum()))
@@ -1327,6 +1342,72 @@ mod tests {
                 },
                 &[1.0; 2],
                 &[2.0; 2]
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn ipw_policy_budget_uses_query_tolerance_for_policy_and_reference() {
+        let outcomes = [1.0; 3];
+        let actions = [true; 3];
+        let binary = BinaryIpwDesign {
+            assignment: &actions,
+            actions: &actions,
+            propensity: &[0.5],
+            reference: Some(&actions),
+            costs: &[0.1],
+            reference_costs: None,
+            available: None,
+        };
+        let limits = BinaryPolicyLimits {
+            budget: Some(0.3),
+            reference_budget: Some(0.3),
+            ..Default::default()
+        };
+        assert!(evaluate_binary_ipw_policy(&outcomes, &binary, &limits).is_ok());
+        let low = BinaryPolicyLimits { budget: Some(0.2999), ..limits };
+        assert!(evaluate_binary_ipw_policy(&outcomes, &binary, &low).is_err());
+        let low_reference = BinaryPolicyLimits { reference_budget: Some(0.2999), ..limits };
+        assert!(evaluate_binary_ipw_policy(&outcomes, &binary, &low_reference).is_err());
+        let overflow = BinaryIpwDesign { costs: &[f64::MAX], ..binary };
+        assert!(
+            evaluate_binary_ipw_policy(&outcomes, &overflow, &BinaryPolicyLimits::default())
+                .is_err()
+        );
+
+        let selected = [1usize; 3];
+        let probabilities = [0.5; 6];
+        let multi = MultiActionIpwDesign {
+            assigned: &selected,
+            actions: &selected,
+            probabilities: &probabilities,
+            probability_rows: 3,
+            action_count: 2,
+            reference: Some(&selected),
+            costs: Some(&[0.0, 0.1]),
+            reference_costs: None,
+            available: None,
+        };
+        let limits = MultiActionLimits {
+            budget: Some(0.3),
+            reference_budget: Some(0.3),
+            ..Default::default()
+        };
+        assert!(evaluate_multi_action_ipw_policy(&outcomes, &multi, &limits).is_ok());
+        assert!(
+            evaluate_multi_action_ipw_policy(
+                &outcomes,
+                &multi,
+                &MultiActionLimits { budget: Some(0.2999), ..limits }
+            )
+            .is_err()
+        );
+        assert!(
+            evaluate_multi_action_ipw_policy(
+                &outcomes,
+                &multi,
+                &MultiActionLimits { reference_budget: Some(0.2999), ..limits }
             )
             .is_err()
         );

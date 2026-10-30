@@ -496,7 +496,7 @@ fn build_scores_pass(
                     problem,
                     &fold_ids,
                     folds,
-                    glm_options,
+                    &propensity_glm_options(glm_options, problem.overlap),
                     sampling,
                 )
             },
@@ -1003,6 +1003,41 @@ mod tests {
         assert_eq!(options, 10, "GLM options");
         let (back, _) = fold_fits_added(&cache, || build(&base, &glm));
         assert_eq!(back, 0, "the original key is still retained");
+    }
+
+    #[test]
+    fn cache_does_not_reuse_saturation_admission_across_overlap_policies() {
+        use crate::crossfit_cache::CrossfitNuisanceCache;
+        let (data, estimand) = confounded(400, 71);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = AipwAte::new();
+        let mut declared = est.prepare(&data, &estimand, &query).unwrap();
+        let n = declared.nrows;
+        let mut design = declared.design_matrix.to_vec();
+        let row = declared.treatment.iter().position(|t| *t == 1.0).unwrap();
+        design[n + row] = 1000.0;
+        declared.design_matrix = Arc::from(design);
+        declared.overlap =
+            crate::OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: None };
+        let mut undeclared = declared.clone();
+        undeclared.overlap = crate::OverlapPolicy::Default;
+        let build = |p: &PreparedPropensityProblem| {
+            crossfit_binary_scores(p, &query, 5, &est.glm_options, est.backend)
+        };
+        let fresh_declared = table_bits(&build(&declared).unwrap());
+        let fresh_error = build(&undeclared).unwrap_err();
+        assert_eq!(fresh_error.reason_code(), Some("positivity_violated"));
+        let cache = CrossfitNuisanceCache::new();
+        assert_eq!(table_bits(&cache.scope(|| build(&declared)).0.unwrap()), fresh_declared);
+        let error = cache.scope(|| build(&undeclared)).0.unwrap_err();
+        assert_eq!(error.reason_code(), fresh_error.reason_code());
+        let reverse = CrossfitNuisanceCache::new();
+        assert_eq!(
+            reverse.scope(|| build(&undeclared)).0.unwrap_err().reason_code(),
+            fresh_error.reason_code()
+        );
+        assert_eq!(table_bits(&reverse.scope(|| build(&declared)).0.unwrap()), fresh_declared);
     }
 
     #[test]
