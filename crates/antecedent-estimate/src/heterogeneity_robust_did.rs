@@ -859,8 +859,11 @@ fn summarize(
             (weighted(&entries), BTreeMap::new())
         }
         DidAggregation::Dynamic => {
-            let profile: BTreeMap<i64, f64> =
-                by_event.iter().map(|(event, entries)| (*event, weighted(entries))).collect();
+            let profile: BTreeMap<i64, f64> = by_event
+                .iter()
+                .filter(|(event, _)| **event >= 0)
+                .map(|(event, entries)| (*event, weighted(entries)))
+                .collect();
             let post: Vec<f64> =
                 profile.iter().filter(|(event, _)| **event >= 0).map(|(_, value)| *value).collect();
             (mean(&post), profile)

@@ -535,6 +535,29 @@ fn anticipation_moves_the_base_period_and_recovers_an_anticipated_effect() {
     assert!(fit.dropped_cohorts.contains(&2));
     // Late-cohort cells are 0 and 3 relative to period 2.
     assert!((fit.overall.estimate - 1.5).abs() < 0.4, "{}", fit.overall.estimate);
+
+    declared.aggregation = DidAggregation::Dynamic;
+    let dynamic = estimate_rollout_did(&sim.panel(), &declared, None, &ctx).unwrap();
+    assert!(
+        dynamic.aggregated.iter().all(|effect| effect.event_time.is_some_and(|event| event >= 0))
+    );
+    assert!(dynamic.group_time.iter().any(|effect| effect.event_time == Some(-1)));
+    assert!(dynamic.leads.iter().all(|effect| effect.event_time.is_some_and(|event| event < -1)));
+    assert!((dynamic.overall.estimate - 1.5).abs() < 0.4);
+    let resampled = estimate_rollout_did(
+        &sim.panel(),
+        &declared,
+        Some(RolloutResampling { weighting: UnitWeighting::Multiplier, replicates: 25 }),
+        &ctx,
+    )
+    .unwrap();
+    assert_eq!(
+        resampled.aggregated.iter().map(|e| e.event_time).collect::<Vec<_>>(),
+        dynamic.aggregated.iter().map(|e| e.event_time).collect::<Vec<_>>()
+    );
+    assert_eq!(resampled.group_time.len(), dynamic.group_time.len());
+    assert!(resampled.aggregated.iter().all(|e| e.standard_error.is_some()));
+    assert!(resampled.resampling.unwrap().replicates_ok >= 20);
 }
 
 #[test]
