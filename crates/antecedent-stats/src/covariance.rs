@@ -40,9 +40,11 @@ pub enum SandwichKind<'a> {
         /// One group-id slice per clustering dimension (each length `nrows`).
         dimensions: &'a [&'a [u32]],
     },
-    /// Newey–West (1987) HAC with Bartlett kernel and given max lag.
+    /// Newey–West (1987) HAC with a Bartlett kernel. The effective maximum
+    /// lag is `min(lag, nrows - 1)` and the weights use that effective bandwidth,
+    /// `1 - ell / (effective_lag + 1)`, matching [`crate::effective_nw_lag`].
     NeweyWest {
-        /// Maximum lag (inclusive).
+        /// Requested maximum lag (inclusive), capped to the available row span.
         lag: usize,
     },
     /// Panel cluster + within-unit temporal HAC (Arellano 1987-style).

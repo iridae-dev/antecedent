@@ -852,9 +852,9 @@ impl GamFit {
 
     /// Derivative `f_j'(x)` of one uncentered smooth.
     ///
-    /// The evaluation map clamps `x` outside the open knot interior to a
-    /// constant, so the derivative of that map is exactly zero there — the same
-    /// contract as a collapsed finite difference of [`Self::predict_row`].
+    /// The evaluation map clamps `x` outside the knot domain to a constant,
+    /// so the derivative is zero there. At either endpoint, return the
+    /// one-sided derivative from inside the domain.
     ///
     /// # Errors
     ///
@@ -870,7 +870,7 @@ impl GamFit {
         }
         let left = knots[CUBIC_DEGREE];
         let right = knots[knots.len() - CUBIC_ORDER];
-        if x < left || x >= right {
+        if x < left || x > right {
             return Ok(0.0);
         }
         let coef_off: usize = self.smooths[..smooth_index].iter().map(|s| s.n_basis).sum();
@@ -891,8 +891,8 @@ impl GamFit {
     ///
     /// A plug-in derivative is this linear functional of the fitted
     /// coefficients, so a coefficient sandwich gives its variance. The same
-    /// clamping as [`Self::smooth_derivative`] applies: outside the open knot
-    /// interior every entry is zero.
+    /// clamping as [`Self::smooth_derivative`] applies: outside the knot
+    /// domain every entry is zero; endpoints use the interior one-sided derivative.
     ///
     /// # Errors
     ///
@@ -913,7 +913,7 @@ impl GamFit {
         let mut out = vec![0.0; smooth.n_basis];
         let left = knots[CUBIC_DEGREE];
         let right = knots[knots.len() - CUBIC_ORDER];
-        if x < left || x >= right {
+        if x < left || x > right {
             return Ok(out);
         }
         let (span, ders) = cubic_bspline_deriv_nonzeros(x, knots);
@@ -1060,15 +1060,16 @@ fn cubic_bspline_nonzeros(x: f64, knots: &[f64]) -> (usize, [f64; CUBIC_ORDER]) 
 
 /// First derivatives of the span-local cubic bases.
 ///
-/// Outside the open knot interior the clamped evaluation is constant, so this
-/// returns zeros. Interior derivatives use the standard degree-drop recurrence
+/// Outside the knot domain the clamped evaluation is constant, so this
+/// returns zeros. Endpoint derivatives are one-sided from inside the domain.
+/// Derivatives use the standard degree-drop recurrence
 /// on the same span as [`cubic_bspline_nonzeros`]; coincident end knots contribute
 /// a zero term rather than a division by zero.
 fn cubic_bspline_deriv_nonzeros(x: f64, knots: &[f64]) -> (usize, [f64; CUBIC_ORDER]) {
     let left = knots[CUBIC_DEGREE];
     let right = knots[knots.len() - CUBIC_ORDER];
     let (span, _) = cubic_bspline_nonzeros(x, knots);
-    if x < left || x >= right {
+    if x < left || x > right {
         return (span, [0.0; CUBIC_ORDER]);
     }
     let quadratic = quadratic_nonzeros(x, knots, span);
@@ -1900,8 +1901,19 @@ mod tests {
         let left = knots[CUBIC_DEGREE];
         let right = knots[knots.len() - CUBIC_ORDER];
         assert_eq!(fit.smooth_derivative(0, left - 1.0).unwrap(), 0.0);
-        assert_eq!(fit.smooth_derivative(0, right).unwrap(), 0.0);
         assert_eq!(fit.smooth_derivative(0, right + 2.0).unwrap(), 0.0);
+        let h = (right - left) * 1e-6;
+        for (endpoint, interior) in [(left, left + h), (right, right - h)] {
+            let difference = (fit.smooth_partial(0, endpoint).unwrap()
+                - fit.smooth_partial(0, interior).unwrap())
+                / (endpoint - interior);
+            let derivative = fit.smooth_derivative(0, endpoint).unwrap();
+            assert!((derivative - difference).abs() < 1e-4);
+            let basis = fit.smooth_basis_derivative(0, endpoint).unwrap();
+            let basis_derivative: f64 =
+                basis.iter().zip(&fit.coefficients).map(|(a, b)| a * b).sum();
+            assert!((basis_derivative - derivative).abs() < 1e-12);
+        }
     }
 
     #[test]
@@ -2151,9 +2163,8 @@ mod tests {
     /// Marsden's identity: the coefficients `c_i = (t_{i+1}+t_{i+2}+t_{i+3})/3` (the Greville
     /// abscissae) reproduce `x`, and `e2(t_{i+1..i+3})` reproduces `x²`.
     fn marsden_coefficients(knots: &[f64], n_basis: usize) -> (Vec<f64>, Vec<f64>) {
-        let linear = (0..n_basis)
-            .map(|i| (knots[i + 1] + knots[i + 2] + knots[i + 3]) / 3.0)
-            .collect();
+        let linear =
+            (0..n_basis).map(|i| (knots[i + 1] + knots[i + 2] + knots[i + 3]) / 3.0).collect();
         let quadratic = (0..n_basis)
             .map(|i| {
                 let (a, b, c) = (knots[i + 1], knots[i + 2], knots[i + 3]);
