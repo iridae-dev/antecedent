@@ -811,10 +811,8 @@ pub fn effect_estimate_from_owned_wire(w: EffectEstimateWire) -> Result<EffectEs
     estimate.joint.interaction_structurally_zero = w.interaction_structurally_zero.unwrap_or(false);
     estimate.heterogeneity.unit_effects_homogeneous = w.unit_effects_homogeneous.unwrap_or(false);
     if let Some(model) = w.fitted_effect {
-        if model.version == 1 && model.predictor.version == 1 {
-            model.validate().map_err(|e| IoError::Convert(e.to_string()))?;
-            estimate.heterogeneity.fitted_effect = Some(std::sync::Arc::new(model));
-        }
+        model.validate().map_err(|e| IoError::Convert(e.to_string()))?;
+        estimate.heterogeneity.fitted_effect = Some(std::sync::Arc::new(model));
     }
     estimate.heterogeneity.cate = w.cate.map(Into::into);
     estimate.heterogeneity.cate_se = w.cate_se.map(Into::into);
@@ -1626,6 +1624,40 @@ mod tests {
                 delivery: Some("finite".into()),
             }),
         };
+        // A present fitted model must survive conversion or be refused, including
+        // unknown versions at either layer; never silently erase it.
+        let mut fitted = wire.clone();
+        fitted.fitted_effect = Some(antecedent_estimate::FittedEffect {
+            version: 1,
+            features: vec![0],
+            intercept: true,
+            predictor: antecedent_learn::PortablePredictor {
+                version: 1,
+                columns: 2,
+                provenance: antecedent_learn::learner::LearnerProvenance {
+                    spec: "linear".into(),
+                    implementation: "test".into(),
+                    version: "1".into(),
+                },
+                model: antecedent_learn::PredictionMap::Linear {
+                    coefficients: vec![1.0, 2.0],
+                    logistic: false,
+                },
+            },
+            support: None,
+        });
+        let converted = effect_estimate_from_wire(&fitted).unwrap();
+        assert_eq!(effect_estimate_to_wire(&converted).fitted_effect, fitted.fitted_effect);
+        for predictor_version in [false, true] {
+            let mut changed = fitted.clone();
+            let model = changed.fitted_effect.as_mut().unwrap();
+            if predictor_version {
+                model.predictor.version = 2;
+            } else {
+                model.version = 2;
+            }
+            assert!(effect_estimate_from_owned_wire(changed).is_err());
+        }
         let domain = effect_estimate_from_wire(&wire).unwrap();
         assert_eq!(effect_estimate_to_wire(&domain), wire);
         let summary = domain.provenance.preparation.as_ref().unwrap();

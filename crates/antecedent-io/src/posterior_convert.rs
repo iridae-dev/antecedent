@@ -57,10 +57,6 @@ pub fn encode_causal_posterior_bytes_with_payload(
 /// # Errors
 ///
 /// IO failures.
-#[allow(
-    clippy::cast_possible_truncation,
-    reason = "the wire format carries coefficient indices and draw counts as u32, and a posterior is bounded far below 2^32 of either"
-)]
 pub fn encode_causal_posterior_with_payload(
     posterior: &CausalPosterior,
     artifact_id: &str,
@@ -71,29 +67,31 @@ pub fn encode_causal_posterior_with_payload(
         .schema
         .quantities
         .iter()
-        .map(|q| match q {
-            PosteriorQuantityKind::Coefficient { index, name } => {
-                PosteriorQuantityWire::Coefficient {
-                    index: *index as u32,
-                    name: name.as_ref().map(std::string::ToString::to_string),
+        .map(|q| {
+            Ok(match q {
+                PosteriorQuantityKind::Coefficient { index, name } => {
+                    PosteriorQuantityWire::Coefficient {
+                        index: u32::try_from(*index).map_err(|_| IoError::TooLarge)?,
+                        name: name.as_ref().map(std::string::ToString::to_string),
+                    }
                 }
-            }
-            PosteriorQuantityKind::ResidualVariance => PosteriorQuantityWire::ResidualVariance,
-            PosteriorQuantityKind::Effect { name } => {
-                PosteriorQuantityWire::Effect { name: name.to_string() }
-            }
-            PosteriorQuantityKind::Scalar { name } => {
-                PosteriorQuantityWire::Scalar { name: name.to_string() }
-            }
+                PosteriorQuantityKind::ResidualVariance => PosteriorQuantityWire::ResidualVariance,
+                PosteriorQuantityKind::Effect { name } => {
+                    PosteriorQuantityWire::Effect { name: name.to_string() }
+                }
+                PosteriorQuantityKind::Scalar { name } => {
+                    PosteriorQuantityWire::Scalar { name: name.to_string() }
+                }
+            })
         })
-        .collect();
+        .collect::<Result<_, IoError>>()?;
     let (draws_encoding, draws): (&str, &[f64]) = match payload {
         PosteriorPayload::FullDraws => ("f64_le_colmajor", posterior.draws.values.as_ref()),
         PosteriorPayload::Summary => ("none", &[]),
     };
     let meta = CausalPosteriorWire {
         quantities,
-        n_draws: posterior.draws.n_draws as u32,
+        n_draws: u32::try_from(posterior.draws.n_draws).map_err(|_| IoError::TooLarge)?,
         mean: posterior.summaries.mean.to_vec(),
         sd: posterior.summaries.sd.to_vec(),
         q025: posterior.summaries.q025.to_vec(),
@@ -126,6 +124,67 @@ pub fn encode_causal_posterior_with_payload(
 mod tests {
     use super::*;
     use crate::posterior::{CausalPosteriorWire, PosteriorQuantityWire};
+
+    #[test]
+    fn posterior_export_refuses_narrowing_without_allocating_giant_draws() {
+        use antecedent_core::{AssumptionSet, IdentificationStatus};
+        use antecedent_prob::{InferenceDiagnostics, PosteriorDraws, PosteriorSchema};
+        use std::sync::Arc;
+        let schema = PosteriorSchema {
+            quantities: Arc::from([PosteriorQuantityKind::Coefficient { index: 0, name: None }]),
+        };
+        let draws = PosteriorDraws::from_column_major(schema, 2, vec![1.0, 1.0]).unwrap();
+        let summaries = draws.summarize();
+        let mut posterior = CausalPosterior {
+            draws,
+            summaries,
+            identification: IdentificationStatus::NonparametricallyIdentified,
+            prior_sensitivity: None,
+            conflict_summary: None,
+            diagnostics: InferenceDiagnostics::laplace("test", true, 1, 0.0, 1.0, false, vec![]),
+            assumptions: AssumptionSet::new(),
+            unidentified_mass: 0.0,
+            subsampled_out_mass: 0.0,
+            unevaluable_mass: 0.0,
+            early_stopped: false,
+            treatment_contrast: None,
+            preparation: None,
+        };
+        let bytes = encode_causal_posterior_bytes_with_payload(
+            &posterior,
+            "normal",
+            PosteriorPayload::Summary,
+        )
+        .unwrap();
+        let (normal, _) = decode_causal_posterior_bytes(&bytes).unwrap();
+        assert_eq!(normal.n_draws, 2);
+        assert!(matches!(
+            normal.quantities[0],
+            PosteriorQuantityWire::Coefficient { index: 0, .. }
+        ));
+        if let Ok(large) = usize::try_from(u64::from(u32::MAX) + 1) {
+            posterior.draws.n_draws = large + 1;
+            assert!(matches!(
+                encode_causal_posterior_bytes_with_payload(
+                    &posterior,
+                    "large-count",
+                    PosteriorPayload::Summary
+                ),
+                Err(IoError::TooLarge)
+            ));
+            posterior.draws.n_draws = 2;
+            posterior.draws.schema.quantities =
+                Arc::from([PosteriorQuantityKind::Coefficient { index: large, name: None }]);
+            assert!(matches!(
+                encode_causal_posterior_bytes_with_payload(
+                    &posterior,
+                    "large-index",
+                    PosteriorPayload::Summary
+                ),
+                Err(IoError::TooLarge)
+            ));
+        }
+    }
 
     #[test]
     fn summary_payload_encoding_omits_draw_bytes() {
