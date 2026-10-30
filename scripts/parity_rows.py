@@ -32,8 +32,6 @@ from pathlib import Path
 # The gates run from the repository root (or from an overlay of it in a self-test).
 ROOT = Path.cwd()
 
-_RUST_TEST = re.compile(r"#\[\s*(?:tokio::)?test\b")
-_PY_TEST = re.compile(r"^(?:async\s+)?def\s+test\w*\s*\(", re.M)
 RETIRED = ("intentional_deviation",)
 
 # These schemas use `reason` for explanatory prose. Their explicitly typed
@@ -100,10 +98,32 @@ def _evidence_problem(cid: str, rel: str) -> str | None:
     if p.stat().st_size == 0:
         return f"{cid} evidence file is empty: {rel}"
     text = p.read_text(errors="ignore", encoding="utf-8")
-    if p.suffix == ".rs" and "/tests/" in p.as_posix() and not _RUST_TEST.search(text):
-        return f"{cid} evidence {rel} is a test file with no #[test] function"
-    if p.suffix == ".py" and "/tests/" in p.as_posix() and not _PY_TEST.search(text):
-        return f"{cid} evidence {rel} is a test module with no test function"
+    if "/tests/" in p.as_posix() and p.suffix in {".rs", ".py"}:
+        # Inspect actual test declarations and assertions, not textual tokens in
+        # comments, docstrings, ignored tests or unrelated helper functions.
+        from promotion_source import assertion_problems
+        from test_evidence import (python_test_declarations, rust_items,
+                                   rust_test_declaration_problems, static_python_test)
+
+        if p.suffix == ".rs":
+            _, items = rust_items(p.resolve())
+            names = {item.name for item in items if item.kind == "fn"}
+            live = any(not rust_test_declaration_problems(p.resolve(), name)
+                       and not assertion_problems(p.resolve(), name) for name in names)
+        else:
+            try:
+                declarations = python_test_declarations(p.resolve())
+                live = any(
+                    not item["static_skip_or_xfail"]
+                    and (item["assertion_nodes"] > 0 if "." in item["selector"] else
+                         not static_python_test(p.resolve(), item["selector"])
+                         and not assertion_problems(p.resolve(), item["selector"]))
+                    for item in declarations
+                )
+            except (SyntaxError, ValueError):
+                live = False
+        if not live:
+            return f"{cid} evidence {rel} has no live asserting test function"
     return None
 
 
