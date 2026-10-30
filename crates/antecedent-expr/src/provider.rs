@@ -606,6 +606,9 @@ impl EmpiricalTableProvider {
         assignment: &Assignment,
         probability: f64,
     ) -> Result<(), EvalError> {
+        if !probability.is_finite() || !(0.0..=1.0).contains(&probability) {
+            return Err(EvalError::InvalidParameter("probability must be finite and in [0, 1]"));
+        }
         let key = factor_key(spec, assignment)?;
         self.tables.insert(key, probability);
         Ok(())
@@ -1225,6 +1228,42 @@ mod tests {
         let rows = p.support(&[], &EvalContext::default()).unwrap();
         assert_eq!(rows.len(), 1);
         assert!(rows[0].is_empty());
+    }
+
+    #[test]
+    fn invalid_insertions_do_not_replace_existing_probability() {
+        let mut provider = EmpiricalTableProvider::new();
+        let y = v(0);
+        provider.set_domain(y, [f(0.0), f(1.0)]);
+        let variables = [y];
+        let spec = FactorSpec::new(&variables, &[], &[], DomainRef::Observational);
+        let zero = Assignment::from_pairs([(y, f(0.0))]);
+        let one = Assignment::from_pairs([(y, f(1.0))]);
+        provider.insert_probability(&spec, &zero, 0.75).unwrap();
+        provider.insert_probability(&spec, &one, 0.25).unwrap();
+        for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, -0.1, 1.1] {
+            assert!(matches!(
+                provider.insert_probability(&spec, &one, invalid),
+                Err(EvalError::InvalidParameter(_))
+            ));
+        }
+        let mut arena = crate::CausalExprArena::new();
+        let ys = arena.intern_var_set([y]);
+        let empty = arena.empty_var_set();
+        let intervention = arena.empty_intervention_set();
+        let law = arena.intern_distribution(ys, empty, intervention, DomainRef::Observational);
+        let mean = arena.intern(crate::ExprNode::Expectation {
+            function: crate::OutcomeExprId::identity(y),
+            distribution: law,
+        });
+        let value = arena
+            .compile(mean)
+            .unwrap()
+            .evaluate(&arena, &provider, &EvalContext::default())
+            .unwrap();
+        assert!((value - 0.25).abs() < 1e-12);
+        provider.insert_probability(&spec, &one, 0.0).unwrap();
+        provider.insert_probability(&spec, &one, 1.0).unwrap();
     }
 
     #[test]
