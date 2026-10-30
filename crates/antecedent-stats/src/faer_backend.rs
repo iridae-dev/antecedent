@@ -173,6 +173,11 @@ impl DenseLinearAlgebra for FaerBackend {
                 if row_scale.len() != nrows {
                     return Err(StatsError::Shape { message: "row scale length != nrows" });
                 }
+                if row_scale.iter().any(|scale| !scale.is_finite()) {
+                    return Err(StatsError::Unsupported {
+                        message: "least squares requires finite row scales",
+                    });
+                }
                 if nrows < ncols {
                     return Err(StatsError::RankDeficient { rank: nrows, ncols });
                 }
@@ -183,7 +188,13 @@ impl DenseLinearAlgebra for FaerBackend {
                     for (value, row_scale) in
                         x_colmajor[column * nrows..(column + 1) * nrows].iter().zip(row_scale)
                     {
-                        largest = largest.max((value * row_scale).abs());
+                        let scaled = value * row_scale;
+                        if !scaled.is_finite() {
+                            return Err(StatsError::Unsupported {
+                                message: "least squares requires a finite scaled design",
+                            });
+                        }
+                        largest = largest.max(scaled.abs());
                     }
                     *scale = if largest == 0.0 { 1.0 } else { largest };
                 }
@@ -459,12 +470,7 @@ fn solve_full_rank_in(
     scope: FaerScope,
     scratch: &mut FactorScratch,
 ) -> Result<(Vec<f64>, usize, Option<f64>), StatsError> {
-    if y.len() != nrows {
-        return Err(StatsError::Shape { message: "y length != nrows" });
-    }
-    if x.len() < nrows.saturating_mul(ncols) {
-        return Err(StatsError::Shape { message: "X buffer too short" });
-    }
+    checked_design_cells(x, nrows, ncols, y)?;
     if nrows < ncols {
         return Err(StatsError::RankDeficient { rank: nrows, ncols });
     }
@@ -494,6 +500,11 @@ fn checked_design_cells(
     };
     if x.len() < cells {
         return Err(StatsError::Shape { message: "X buffer too short" });
+    }
+    if x[..cells].iter().chain(y).any(|value| !value.is_finite()) {
+        return Err(StatsError::Unsupported {
+            message: "least squares requires finite design and outcome values",
+        });
     }
     Ok(cells)
 }
@@ -739,15 +750,7 @@ pub(crate) fn min_norm_on_column_major(
     scratch: &mut FactorScratch,
     grow_count: u32,
 ) -> Result<LeastSquaresFit, StatsError> {
-    if y.len() != nrows {
-        return Err(StatsError::Shape { message: "y length != nrows" });
-    }
-    let Some(cells) = nrows.checked_mul(ncols) else {
-        return Err(StatsError::Shape { message: "X buffer too short" });
-    };
-    if design.len() < cells {
-        return Err(StatsError::Shape { message: "X buffer too short" });
-    }
+    let cells = checked_design_cells(design, nrows, ncols, y)?;
     let view = MatRef::from_column_major_slice(&design[..cells], nrows, ncols);
     record_traffic(|traffic| traffic.in_place_views = traffic.in_place_views.saturating_add(1));
     // A tall or square design is reduced by an unpivoted QR first, exactly as `faer`'s own
@@ -1042,6 +1045,72 @@ fn thin_svd_in_scope(
 )]
 mod tests {
     use super::*;
+
+    #[test]
+    fn least_squares_refuses_nonfinite_design_and_outcome_on_every_solve_path() {
+        let design = [1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 2.0, 3.0];
+        let outcome = [1.0, 3.0, 5.0, 7.0];
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            for in_design in [false, true] {
+                let mut x = design;
+                let mut y = outcome;
+                if in_design {
+                    x[6] = value;
+                } else {
+                    y[2] = value;
+                }
+                let mut workspace = LeastSquaresWorkspace::default();
+                assert!(matches!(
+                    FaerBackend.least_squares(&x, 4, 2, &y, &mut workspace),
+                    Err(StatsError::Unsupported { .. })
+                ));
+                assert!(matches!(
+                    FaerBackend.least_squares_coefficients(&x, 4, 2, &y),
+                    Err(StatsError::Unsupported { .. })
+                ));
+                assert!(matches!(
+                    FaerBackend.min_norm_least_squares(&x, 4, 2, &y),
+                    Err(StatsError::Unsupported { .. })
+                ));
+                assert!(matches!(
+                    FaerBackend.least_squares_or_min_norm(&x, 4, 2, &y, &mut workspace),
+                    Err(StatsError::Unsupported { .. })
+                ));
+                assert!(matches!(
+                    FaerBackend.row_scaled_least_squares(&x, 4, 2, &[1.0; 4], &y, &mut workspace),
+                    Err(StatsError::Unsupported { .. })
+                ));
+            }
+        }
+        // An unused tail is not part of the declared design.
+        let mut with_tail = design.to_vec();
+        with_tail.push(f64::NAN);
+        assert!(FaerBackend.least_squares_coefficients(&with_tail, 4, 2, &outcome).is_ok());
+        for scale in [[1.0, f64::NAN, 1.0, 1.0], [f64::INFINITY; 4]] {
+            assert!(matches!(
+                FaerBackend.row_scaled_least_squares(
+                    &design,
+                    4,
+                    2,
+                    &scale,
+                    &outcome,
+                    &mut LeastSquaresWorkspace::default(),
+                ),
+                Err(StatsError::Unsupported { .. })
+            ));
+        }
+        assert!(matches!(
+            FaerBackend.row_scaled_least_squares(
+                &[1e308; 4],
+                4,
+                1,
+                &[2.0; 4],
+                &outcome,
+                &mut LeastSquaresWorkspace::default(),
+            ),
+            Err(StatsError::Unsupported { .. })
+        ));
+    }
 
     #[test]
     fn coefficients_only_matches_full_qr_including_rank_refusal() {

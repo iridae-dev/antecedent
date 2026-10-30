@@ -130,11 +130,11 @@ impl Welford {
 
     /// Sample variance `m2 / (mass − 1)` under *frequency-weight* semantics (each weight is a
     /// repeat count), which is Bessel's correction for unit weights; `None` for fewer than 2
-    /// observations. For reliability (precision) weights use
+    /// observations or total frequency mass at most one. For reliability (precision) weights use
     /// [`Self::reliability_sample_variance`].
     #[must_use]
     pub fn sample_variance(&self) -> Option<f64> {
-        (self.count >= 2).then(|| (self.m2 / (self.mass - 1.0)).max(0.0))
+        (self.count >= 2 && self.mass > 1.0).then(|| (self.m2 / (self.mass - 1.0)).max(0.0))
     }
 
     /// Sum of squared weights.
@@ -243,6 +243,18 @@ pub fn try_update_scatter(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fractional_frequency_mass_does_not_publish_a_zero_or_infinite_variance() {
+        for weight in [0.1, 0.5] {
+            let mut accumulator = Welford::new();
+            accumulator.push_weighted(weight, 1.0);
+            accumulator.push_weighted(weight, 3.0);
+            assert!(accumulator.sample_variance().is_none());
+            assert!(accumulator.stderr_of_mean().is_infinite());
+            assert!((accumulator.reliability_sample_variance().unwrap() - 2.0).abs() < 1e-12);
+        }
+    }
 
     #[test]
     fn variance_survives_a_huge_offset() {

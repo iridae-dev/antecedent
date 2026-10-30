@@ -109,6 +109,10 @@ pub fn gauss_jordan_solve_with_pivot(
     if n == 0 || a.len() < nn || rhs.len() < nrhs.saturating_mul(n) {
         return None;
     }
+    let rhs_cells = n.saturating_mul(nrhs);
+    if a[..nn].iter().chain(&rhs[..rhs_cells]).any(|value| !value.is_finite()) {
+        return None;
+    }
     let mut diag_scale = 0.0_f64;
     let mut entry_scale = 0.0_f64;
     for i in 0..n {
@@ -165,6 +169,9 @@ pub fn gauss_jordan_solve_with_pivot(
             }
         }
     }
+    if a[..nn].iter().chain(&rhs[..rhs_cells]).any(|value| !value.is_finite()) {
+        return None;
+    }
     Some(smallest / scale)
 }
 
@@ -209,6 +216,27 @@ pub fn invert_square(a_in: &[f64], n: usize) -> Option<Vec<f64>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn solve_refuses_nonfinite_entries_and_unrepresentable_solutions() {
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            for slot in 0..4 {
+                let mut matrix = [1.0, 0.0, 0.0, 1.0];
+                matrix[slot] = value;
+                assert!(
+                    gauss_jordan_solve_with_pivot(&mut matrix, &mut [1.0, 2.0], 2, 1).is_none()
+                );
+            }
+            assert!(
+                gauss_jordan_solve_with_pivot(&mut [1.0, 0.0, 0.0, 1.0], &mut [value, 1.0], 2, 1)
+                    .is_none()
+            );
+        }
+        assert!(gauss_jordan_solve_with_pivot(&mut [1e-300], &mut [1e300], 1, 1).is_none());
+        let mut rhs = [3.0, 4.0];
+        assert!(gauss_jordan_solve_with_pivot(&mut [1.0, 0.0, 0.0, 1.0], &mut rhs, 2, 1).is_some());
+        assert_eq!(rhs, [3.0, 4.0]);
+    }
 
     #[test]
     fn power_of_two_scales_match_the_conjugate_formula() {
