@@ -8,10 +8,13 @@ They report facts; the checker decides which fact is a violation.
 """
 
 import ast
+import hashlib
 import re
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
+from _repo import REPO_ROOT
 from _py_closure import closure_nodes
 from _source_cache import source_cache
 from test_evidence import (
@@ -150,17 +153,382 @@ def _compact_rust_tokens(code: str) -> str:
     return "".join(pieces)
 
 
+def _core_refusal_helpers() -> dict[str, str]:
+    """Prove the exact code/detail forwarding of core's two artifact helpers."""
+    path = REPO_ROOT / "crates/antecedent-core/src/refusal.rs"
+    code, skel = nontest_pair(path)
+    _, items = rust_items(path.resolve())
+    expected = {
+        "changed_identity": (
+            'fnchanged_identity(detail:&str,field:implfmt::Display)->RefusalParts',
+            '(crate::reason_code!("route_not_supported"),detail.to_owned(),format!("{field} changed"))',
+            "route_not_supported",
+        ),
+        "replay_mismatch": (
+            'fnreplay_mismatch(detail:&str,explanation:String)->RefusalParts',
+            '(crate::reason_code!("invalid_argument"),detail.to_owned(),explanation)',
+            "invalid_argument",
+        ),
+    }
+    found = {}
+    for name, (header, body, reason) in expected.items():
+        defs = [item for item in items if item.kind == "fn" and item.name == name]
+        if len(defs) != 1:
+            continue
+        item = defs[0]
+        if (re.search(r"\bpub\s*$", skel[:item.start])
+                and _compact_rust_tokens(code[item.start:item.body[0]]) == header
+                and _compact_rust_tokens(code[item.body[0]:item.body[1]]) == "{" + body + "}"):
+            found[name] = reason
+    return found
+
+
+def _imported_core_refusal_helpers(skel: str) -> set[str]:
+    imported: set[str] = set()
+    for match in re.finditer(r"\buse\s+antecedent_core::refusal::([^;]+);", skel):
+        names = match[1].strip().removeprefix("{").removesuffix("}")
+        imported.update(name.strip() for name in names.split(",")
+                        if name.strip() in {"changed_identity", "replay_mismatch"})
+    # Shadowing or a local definition invalidates an unqualified-call proof.
+    return {name for name in imported if not re.search(
+        rf"\b(?:fn|let|const|static|struct|enum|type)\s+{name}\b", skel)}
+
+
+def _multiple_imputation_error_helpers() -> dict[str, str]:
+    """Prove this sibling type's exact code and detail forwarding."""
+    path = REPO_ROOT / "crates/antecedent-estimate/src/multiple_imputation/mod.rs"
+    code, skel = nontest_pair(path)
+    block = re.search(r"\bimpl\s+MultipleImputationError\s*\{", skel)
+    if block is None:
+        return {}
+    opening = block.end() - 1
+    closing = _match_bracket(skel, opening)
+    _, items = rust_items(path.resolve())
+    expected = {
+        "new": ("fnnew(code:&'staticstr,detail:&'staticstr,message:implInto<String>,next:Option<NextAttempt>,)->Self",
+                "{letmessage=message.into();letmessage=matchnext{Some(attempt)=>attempt.append_to(&message),None=>message,};Self{code,detail,message,next}}"),
+        "invalid": ("fninvalid(detail:&'staticstr,message:implInto<String>)->Self",
+                    '{Self::new(antecedent_core::reason_code!("invalid_argument"),detail,message,None)}'),
+        "not_applicable": ("fnnot_applicable(detail:&'staticstr,message:implInto<String>,next:NextAttempt,)->Self",
+                           '{Self::new(antecedent_core::reason_code!("missing_policy_not_applicable"),detail,message,Some(next),)}'),
+    }
+    valid = set()
+    for name, (header, body) in expected.items():
+        matches = [item for item in items if item.kind == "fn" and item.name == name
+                   and opening < item.start < closing]
+        if len(matches) == 1:
+            item = matches[0]
+            if (_compact_rust_tokens(code[item.start:item.body[0]]) == header
+                    and _compact_rust_tokens(code[item.body[0]:item.body[1]]) == body):
+                valid.add(name)
+    if "new" not in valid:
+        return {}
+    return {name: reason for name, reason in (("invalid", "invalid_argument"),
+            ("not_applicable", "missing_policy_not_applicable")) if name in valid}
+
+
+def _horizon_refusal_is_proven(path: Path, code: str, skel: str) -> bool:
+    """Prove the exact horizon helper and transitive ExternalRefusal setters."""
+    expected_path = REPO_ROOT / "crates/antecedent/src/analysis/horizon_composition.rs"
+    if path.resolve() != expected_path.resolve():
+        return False
+    if not re.search(r"\buse\s+antecedent_contract::\{[^}]*\bExternalRefusal\b[^}]*\}\s*;", skel):
+        return False
+    library = REPO_ROOT / "crates/antecedent-contract/src/lib.rs"
+    _, lib_skel = nontest_pair(library)
+    if not re.search(r"\bpub\s+use\s+external_refusal::\{[^}]*\bExternalRefusal\b[^}]*\}\s*;", lib_skel):
+        return False
+    dependencies = [
+        (path, code, {
+            "refuse": ("fnrefuse(code:&'staticstr,detail:&str,offending:implInto<String>,remedy:&'staticstr,)->ExternalRefusal",
+                       "{ExternalRefusal::new(code,JOINT_LAW_STAGE,detail).with_offending(offending).with_remedy(remedy)}"),
+        }),
+    ]
+    external = REPO_ROOT / "crates/antecedent-contract/src/external_refusal.rs"
+    external_code, external_skel = nontest_pair(external)
+    impl_match = re.search(r"\bimpl\s+ExternalRefusal\s*\{", external_skel)
+    if impl_match is None:
+        return False
+    lo = impl_match.end() - 1
+    hi = _match_bracket(external_skel, lo)
+    _, external_items = rust_items(external.resolve())
+    expected = {
+        "new": ("fnnew(code:&'staticstr,stage:&'staticstr,detail:implInto<String>)->Self",
+                "{Self{code,stage,detail:detail.into(),offending:None,expected:None,supplied:None,capability:None,remedy:None,}}"),
+        "with_offending": ("fnwith_offending(mutself,value:implInto<String>)->Self",
+                           "{self.offending=Some(value.into());self}"),
+        "with_remedy": ("fnwith_remedy(mutself,value:&'staticstr)->Self",
+                        "{self.remedy=Some(value);self}"),
+    }
+    for name, (header, body) in expected.items():
+        found = [item for item in external_items if item.kind == "fn" and item.name == name and lo < item.start < hi]
+        if (len(found) != 1 or _compact_rust_tokens(external_code[found[0].start:found[0].body[0]]) != header
+                or _compact_rust_tokens(external_code[found[0].body[0]:found[0].body[1]]) != body):
+            return False
+    _, items = rust_items(path.resolve())
+    found = [item for item in items if item.kind == "fn" and item.name == "refuse"]
+    header, body = dependencies[0][2]["refuse"]
+    return (len(found) == 1 and _compact_rust_tokens(code[found[0].start:found[0].body[0]]) == header
+            and _compact_rust_tokens(code[found[0].body[0]:found[0].body[1]]) == body)
+
+
+def _source_item_hash(path: Path, kind: str, name: str) -> str | None:
+    """Fingerprint one non-test function, const or inherent impl after token normalization."""
+    code, skel = nontest_pair(path)
+    if kind == "impl":
+        found = list(re.finditer(rf"\bimpl\s+{re.escape(name)}\s*\{{", skel))
+        if len(found) != 1:
+            return None
+        start = found[0].start()
+        end = _match_bracket(skel, found[0].end() - 1) + 1
+    else:
+        _, items = rust_items(path.resolve())
+        found = [item for item in items if item.kind == kind and item.name == name]
+        if len(found) != 1:
+            return None
+        start, end = found[0].start, found[0].body[1]
+    return hashlib.sha256(_compact_rust_tokens(code[start:end]).encode()).hexdigest()
+
+
+def _adaptive_premise_proven(path: Path) -> bool:
+    """Prove Error::PremiseFailed survives the facade with cell_not_licensed."""
+    base = REPO_ROOT / "crates/antecedent-stats/src/adaptive_inference"
+    producers = {
+        (base / "repeated_measures_posterior.rs").resolve(): ("premise_failure", "ee58cf70efbfd761a85d19d29808869bc0a9b7fae688d46821fff0c3c2811479"),
+        (base / "procedure_uncertainty.rs").resolve(): ("premise", "ebde83de6f9c7b4948a7585661eef4cf33efa8faeae63a6006fcc5bd59cb099c"),
+        (REPO_ROOT / "crates/antecedent/src/analysis/adaptive_procedure_report.rs").resolve(): ("refusal_of", "cc7d439d6ef611d653d461b664ca078fc0da34963fc271daef2da48f6d302142"),
+    }
+    producer = producers.get(path.resolve())
+    if producer is None:
+        return False
+    _, producer_skel = nontest_pair(path)
+    if (path.name != "adaptive_procedure_report.rs"
+            and (not re.search(r"\buse\s+super::AdaptiveInferenceError\s+as\s+Error\s*;", producer_skel)
+                 or re.search(r"\b(?:type|struct|enum|trait)\s+Error\b", producer_skel))):
+        return False
+    dependencies = [
+        (path, "fn", producer[0], producer[1]),
+        (base / "procedure_uncertainty.rs", "fn", "premise_reason_code", "42797da7b36544a2f2eacdf8a1356f85bd860f1286091cdd7d2d3fcb7fce3b61"),
+        (REPO_ROOT / "crates/antecedent/src/analysis/adaptive_procedure_report.rs", "fn", "refusal_of", "cc7d439d6ef611d653d461b664ca078fc0da34963fc271daef2da48f6d302142"),
+        (REPO_ROOT / "crates/antecedent/src/analysis/adaptive_procedure_report.rs", "fn", "premise_remedy", "1abc9c49543a905f0e7e393e417fb1c67d66f2d01f601f8ff2bfcb6fc3083f94"),
+        (REPO_ROOT / "crates/antecedent/src/analysis/adaptive_procedure_report.rs", "const", "ASSUMPTION_DETAILS", "96cc07be8e8d97a6edbf81e75420dc2c649792377f90019d2db0f434bf5bcb01"),
+    ]
+    if path.name == "repeated_measures_posterior.rs":
+        dependencies.append((REPO_ROOT / "crates/antecedent/src/analysis/repeated_measures_posterior_report.rs", "fn", "compute", "633c763abdd67b1601e015594186bf784df2c0299958934d0377c571d485a0ba"))
+    return all(_source_item_hash(source, kind, name) == expected for source, kind, name, expected in dependencies)
+
+
+def _adaptive_rule_emitter(path: Path, skel: str) -> str | None:
+    """Prove exact rule-mismatch constructors without guessing a default code."""
+    rel = path.resolve().relative_to(REPO_ROOT.resolve()) if path.resolve().is_relative_to(REPO_ROOT.resolve()) else None
+    rel = str(rel) if rel else ""
+    stats = "crates/antecedent-stats/src/adaptive_inference/"
+    gap_sources = {stats + "procedure_contract.rs", stats + "procedure_repeated_measures.rs", stats + "participant_procedure.rs"}
+    if rel in gap_sources:
+        gap = REPO_ROOT / (stats + "procedure_contract.rs")
+        if _source_item_hash(gap, "impl", "ContractGap") != "fb66b233f6acc63eecf90e70a4dc8669d1fa207a100d4fcf98774742525b1a44":
+            return None
+        if rel != stats + "procedure_contract.rs" and not re.search(r"\buse\s+super::procedure_contract::\{[^}]*\bContractGap\b[^}]*\}\s*;", skel):
+            return None
+        if rel != stats + "procedure_contract.rs" and re.search(r"\b(?:struct|enum|type|trait)\s+ContractGap\b", skel):
+            return None
+        return "gap"
+    contracts = {
+        "crates/antecedent-contract/src/adaptive_design/declaration.rs": [
+            ("declare", "f50c26f68b03b7967607d6033ef386da2d464a0fe50b102d414407b74e99945a"),
+            ("invalid", "80208575687d2300970c5b134d0b83ae1a77c62ded70bbf4b359ab95589d4c81")],
+        "crates/antecedent-io-core/src/adaptive_monitoring_contract_artifact.rs": [
+            ("procedure_refusal", "b26ed0b0349dc851bc05f504a7e1356b0247f9cf6e8c7f1dbd9ebef67fe16a2c")],
+        "crates/antecedent/src/analysis/adaptive_procedure_declaration.rs": [
+            ("refusal", "3c7d90b4dd9904c4ead13696460f020c932b5ad18ede2250668e436085e142ca"),
+            ("invalid", "bb030285d2ea89a4953ce8cc76b2ca7815ba48d0e0aa6fa4a90312a8114e3316")],
+    }
+    funcs = contracts.get(rel)
+    if funcs is None:
+        return None
+    # `declare` uses this concrete external refusal constructor and setter.
+    if rel.startswith("crates/antecedent-contract/"):
+        external = REPO_ROOT / "crates/antecedent-contract/src/external_refusal.rs"
+        if _source_item_hash(external, "impl", "ExternalRefusal") != "f34fc42e5d96be3c45bcbba2133c59856e967f51e90e4b5b2cef9d7c1355c6d5":
+            return None
+    if not all(_source_item_hash(path, "fn", name) == digest for name, digest in funcs):
+        return None
+    return "procedure_refusal" if rel.startswith("crates/antecedent-io-core/") else "invalid"
+
+
+def _recalc_no_state_proven(path: Path, skel: str) -> bool:
+    """Prove the concrete Python bridge forwards the NoLiveState code and detail."""
+    base = REPO_ROOT / "python/src"
+    approved = {(base / name).resolve() for name in (
+        "recalc_api.rs", "recalc_adjusted_api.rs", "recalc_cell_api.rs", "recalc_design_api.rs",
+        "recalc_dr_api.rs", "recalc_family_api.rs", "recalc_static_api.rs")}
+    if path.resolve() not in approved:
+        return False
+    if path.name != "recalc_api.rs":
+        if not re.search(r"\buse\s+crate::recalc_api::(?:refusal_json|\{[^}]*\brefusal_json\b[^}]*\})\s*;", skel):
+            return False
+        if re.search(r"\bfn\s+refusal_json\b", skel):
+            return False
+    dependencies = [
+        (base / "recalc_api.rs", "fn", "refusal_body", "12a8db04302b9c4c4ff0ee079e8984d85bf688bca0c17d788bd00c9aafe7dbff"),
+        (base / "recalc_api.rs", "fn", "refusal_json", "488f335dc50a5edb1ee1ce692668c60b9a42fd52db1d5395ed88eb24005da178"),
+        (base / "bridge.rs", "impl", "RefusalJson", "cb37996f75876d30ef8f1ae67abe7f31b5e42d158cce990044576c75f6be08e9"),
+    ]
+    return all(_source_item_hash(source, kind, name) == digest for source, kind, name, digest in dependencies)
+
+
+def _decision_builder_proven(path: Path) -> bool:
+    """Prove decision-reliability's fixed builder and completed refusal arms."""
+    expected = REPO_ROOT / "crates/antecedent-design/src/decision_reliability.rs"
+    if path.resolve() != expected.resolve():
+        return False
+    dependencies = [
+        (expected, "fn", "builder", "eccc9fbabd0196489c8cb02b7164dbf40290bef9244cb623eae4c40b59182657"),
+        (expected, "fn", "to_refusal", "91f41ccd81fbb6c68f6bdfd71614d1c1f72bd14aca5bab4ca7787007ced7c409"),
+        (REPO_ROOT / "crates/antecedent-design/src/signal.rs", "impl", "RefusalBuilder", "948280df6891ab404eefc1886763c6f4e99950209e04485b6214b936c55fcfbc"),
+        (REPO_ROOT / "crates/antecedent-contract/src/external_refusal.rs", "impl", "ExternalRefusal", "f34fc42e5d96be3c45bcbba2133c59856e967f51e90e4b5b2cef9d7c1355c6d5"),
+    ]
+    return all(_source_item_hash(source, kind, name) == digest for source, kind, name, digest in dependencies)
+
+
 def rust_literals(path: Path, *, in_crate: bool = True) -> list[Lit]:
     """Every string literal in non-test Rust source, with the const it initialises."""
-    code, _ = nontest_pair(path, in_crate=in_crate)
+    code, skel = nontest_pair(path, in_crate=in_crate)
     if not code:
         return []
     _, items = rust_items(path.resolve())
     consts = [it for it in items if it.kind == "const"]
     out: list[Lit] = []
-    for at, value in _scan_literals(code):
+    provider_literals: set[int] = set()
+    imported = _imported_core_refusal_helpers(skel)
+    core_helpers = _core_refusal_helpers() if imported else {}
+    horizon_proven = _horizon_refusal_is_proven(path, code, skel) if path.name == "horizon_composition.rs" else False
+    premise_proven = _adaptive_premise_proven(path) if path.name in {"procedure_uncertainty.rs", "repeated_measures_posterior.rs", "adaptive_procedure_report.rs"} else False
+    adaptive_rule = _adaptive_rule_emitter(path, skel) if "adaptive_inference.rule_mismatch" in code else None
+    recalc_no_state = _recalc_no_state_proven(path, skel) if "recalc.no_live_state" in code else False
+    decision_builder = _decision_builder_proven(path) if path.name == "decision_reliability.rs" else False
+    mi_dir = REPO_ROOT / "crates/antecedent-estimate/src/multiple_imputation"
+    mi_helpers = {}
+    if (path.resolve() in {(mi_dir / "impute.rs").resolve(), (mi_dir / "pool.rs").resolve()}
+            and re.search(r"\buse\s+super::(?:MultipleImputationError|\{[^}]*\bMultipleImputationError\b[^}]*\})\s*;", skel)
+            and not re.search(r"\b(?:struct|enum|type|trait)\s+MultipleImputationError\b", skel)
+            and not re.search(r"\buse\s+(?!super::)[^;]*\bMultipleImputationError\b", skel)):
+        mi_helpers = _multiple_imputation_error_helpers()
+    for block in re.finditer(r"\bDistributionProvenance\s*\{", skel):
+        opening = block.end() - 1
+        closing = _match_bracket(skel, opening)
+        for match in re.finditer(r'provider_id\s*:\s*"[^"\n]*"\.to_owned\(\)\s*,', code[opening + 1:closing]):
+            start = opening + 1 + match.start()
+            prefix = skel[opening + 1:start]
+            if (re.match(r"provider_id\s*:", skel[start:])
+                    and prefix.count("{") == prefix.count("}")
+                    and prefix.count("(") == prefix.count(")")):
+                provider_literals.add(code.index('"', start, opening + 1 + match.end()))
+    remedy_ranges: list[tuple[int, int]] = []
+    # This exact report lookup is descriptive only while the full premise
+    # forwarding proof, including its body fingerprint, remains valid.
+    adaptive_report = REPO_ROOT / "crates/antecedent/src/analysis/adaptive_procedure_report.rs"
+    if premise_proven and path.resolve() == adaptive_report.resolve():
+        remedy_ranges.extend(item.body for item in items
+                             if item.kind == "fn" and item.name == "premise_remedy")
+    for item in items:
+        if (item.kind == "fn" and item.name == "remedy_for"
+                and re.fullmatch(r"fn\s+remedy_for\s*\(\s*detail\s*:\s*&str\s*\)\s*->\s*&'static\s+str\s*", code[item.start:item.body[0]])):
+            remedy_ranges.append(item.body)
+    for match in re.finditer(r"\blet\s+remedy\s*=\s*match\s+detail\.as_str\(\)\s*\{", skel):
+        opening = match.end() - 1
+        remedy_ranges.append((opening, _match_bracket(skel, opening)))
+    scanned = _scan_literals(code)
+    # The generated artifact enum's identity label and display text are not
+    # independent reason-code emitters. Exclude only metadata for a detail whose
+    # actual direct core-helper call has already been proven in this same file.
+    proven_details: set[str] = set()
+    for at, value in scanned:
+        for helper in imported:
+            if (helper in core_helpers and re.search(
+                    rf"(?<![\w.:]){helper}\s*\(\s*$", skel[:at])):
+                proven_details.add(value)
+    enum_metadata: set[int] = set()
+    for macro in re.finditer(r"\bcrate::sectioned_artifact_enum!\s*\{", skel):
+        opening = macro.end() - 1
+        closing = _match_bracket(skel, opening)
+        displays = []
+        for display in re.finditer(r"\bdisplay\s*\(\s*f\s*\)\s*\{", skel[opening + 1:closing]):
+            begin = opening + 1 + display.end() - 1
+            displays.append((begin, _match_bracket(skel, begin)))
+        for at, value in scanned:
+            if not opening < at < closing:
+                continue
+            detail = value.split(":", 1)[0]
+            if detail not in proven_details:
+                continue
+            before = skel[opening + 1:at]
+            if value == detail and re.search(r"\bidentity\s*:\s*$", before):
+                enum_metadata.add(at)
+            elif (any(lo < at < hi for lo, hi in displays)
+                  and re.search(r"\bwrite!\s*\(\s*f\s*,\s*$", before)):
+                enum_metadata.add(at)
+    for at, value in scanned:
+        # A match-pattern in a recognized remedy-only lookup is descriptive.
+        # Other match patterns can map a detail to a code and remain scanned.
+        token = _LIT.match(code, at)
+        match_pattern = bool(token and token.group("str") is not None
+                             and _inside(remedy_ranges, at)
+                             and re.match(r"\s*=>", skel[token.end():]))
+        if at in provider_literals or at in enum_metadata or match_pattern:
+            continue
+        # A sentence appended to report limits is explanatory text, not a
+        # dynamically constructed refusal detail. Restrict this to the literal
+        # argument of limits.push(format!(...)); error constructors stay scanned.
+        if (path.name == "report.rs"
+                and value == "{} directions are left unresolved by the recovery."
+                and re.search(r"\blimits\s*\.\s*push\s*\(\s*format!\s*\(\s*$", skel[:at])):
+            continue
         const = next((c.name for c in consts if c.body[0] <= at < c.body[1]), None)
-        out.append(Lit(code.count("\n", 0, at) + 1, value, const))
+        reason = None
+        premise_details = {"adaptive_inference.selection_not_ignorable", "adaptive_inference.arm_not_observed",
+                           "adaptive_inference.structure_incomplete", "adaptive_inference.rule_mismatch"}
+        if (premise_proven and value in premise_details
+                and (re.search(r"(?<![\w.:])(?:premise_failure|premise)\s*\(\s*$", skel[:at])
+                     or (path.name == "adaptive_procedure_report.rs" and re.search(
+                         r"\brefusal_of\s*\(\s*&AdaptiveInferenceError::PremiseFailed\s*\{\s*detail\s*:\s*$", skel[:at])))):
+            reason = "cell_not_licensed"
+        if decision_builder and value in {"decision_reliability.search_record_required",
+                                          "decision_reliability.validation_not_independent",
+                                          "decision_reliability.dependence_unknown"}:
+            built = re.search(r'(?<![\w.:])builder\s*\(\s*antecedent_core::reason_code!\(\s*"([a-z][a-z0-9_]*)"\s*\)\s*,\s*$', code[:at])
+            if built and re.match(r"builder\s*\(", skel[built.start():]):
+                reason = built[1]
+        if value == "recalc.no_live_state" and recalc_no_state:
+            direct_no_state = re.search(
+                r'(?<![\w.:])refusal_json\s*\(\s*antecedent_core::reason_code!\(\s*"score_table_unavailable"\s*\)\s*,\s*&stage\.label\(\)\s*,\s*$', code[:at])
+            if direct_no_state and re.match(r"refusal_json\s*\(", skel[direct_no_state.start():]):
+                reason = "score_table_unavailable"
+        if value == "adaptive_inference.rule_mismatch" and adaptive_rule:
+            prefix = (r"(?<![\w:])ContractGap::Invalid\s*\(\s*$" if adaptive_rule == "gap"
+                      else rf"(?<![\w.:]){adaptive_rule}\s*\(\s*$")
+            if re.search(prefix, skel[:at]):
+                reason = "invalid_argument"
+        # Recognize the literal reason-code/detail pair at a direct local
+        # refuse call. The skeleton check prevents matching inside a string or
+        # comment; unsupported constructor shapes remain unproven.
+        direct = re.search(
+            r'(?<![\w.:])refuse\s*\(\s*(?:antecedent_core::)?reason_code!\(\s*"([a-z][a-z0-9_]*)"\s*\)\s*,\s*$',
+            code[:at],
+        )
+        if horizon_proven and direct and re.match(r"refuse\s*\(", skel[direct.start():]):
+            reason = direct[1]
+        for helper, proven_code in mi_helpers.items():
+            if re.search(rf"(?<![\w:])MultipleImputationError::{helper}\s*\(\s*$", skel[:at]):
+                reason = proven_code
+                break
+        for helper in imported:
+            if helper in core_helpers and re.search(
+                rf"(?<![\w.:]){helper}\s*\(\s*$", skel[:at]
+            ):
+                reason = core_helpers[helper]
+                break
+        out.append(Lit(code.count("\n", 0, at) + 1, value, const, reason))
     return out
 
 
@@ -289,6 +657,48 @@ def finite_refusal_helpers(path: Path, *, in_crate: bool = True) -> tuple[list[L
                 <= code.count("\n", 0, item.body[1]) + 1
                 and sum(other.line == lit.line and other.value == lit.value for other in literals)
                 == 1
+            )
+    # This private leaf formatter takes a literal reason-code macro and a
+    # literal scope at every call. No aliases, escapes, recursion, qualified
+    # calls or unrecognized arguments are admitted by the closed-call proof.
+    for item in items:
+        if item.kind != "fn" or item.name != "transfer_refusal":
+            continue
+        header = _compact_rust_tokens(code[item.start:item.body[0]])
+        body = _compact_rust_tokens(code[item.body[0]:item.body[1]])
+        if (header != "fntransfer_refusal(code:&'staticstr,scope:&str,message:&str)->CausalError"
+                or body != '{antecedent_io::IoError::Refused{code,message:format!("mapped_posterior_transfer.{scope}: {message}"),}.into()}'):
+            continue
+        prefix = skel[:item.start]
+        if prefix.count("{") != prefix.count("}") or re.search(
+            r"\b(?:pub|async|unsafe|extern)(?:\([^)]*\))?\s*$", prefix
+        ):
+            continue
+        uses = []
+        valid = True
+        for use in re.finditer(r"\btransfer_refusal\b", skel):
+            if item.start <= use.start() < item.body[0]:
+                continue
+            argument = re.match(
+                r'\s*\(\s*antecedent_core::reason_code!\(\s*"([a-z][a-z0-9_]*)"\s*\)\s*,\s*"([a-z][a-z0-9_]*)"\s*,',
+                code[use.end():],
+            )
+            if (not argument or item.body[0] <= use.start() < item.body[1]
+                    or (use.start() and skel[use.start() - 1] in ".:")
+                    or any(lo <= use.start() < hi for lo, hi in macro_ranges)):
+                valid = False
+                break
+            uses.append(Lit(code.count("\n", 0, use.start()) + 1,
+                            "mapped_posterior_transfer." + argument[2], None, argument[1]))
+        dynamic = "mapped_posterior_transfer.{scope}: {message}"
+        if valid and uses:
+            output.extend(uses)
+            proven_lines.update(
+                lit.line for lit in literals
+                if lit.value == dynamic
+                and code.count("\n", 0, item.body[0]) + 1 <= lit.line
+                <= code.count("\n", 0, item.body[1]) + 1
+                and sum(other.line == lit.line and other.value == lit.value for other in literals) == 1
             )
     output.extend(sectioned_artifact_refusals(path, in_crate=in_crate))
     return output, proven_lines
@@ -460,6 +870,161 @@ def sectioned_artifact_refusals(path: Path, *, in_crate: bool = True) -> list[Li
     return emitted
 
 
+_RECOVERY_EXTERNAL_SYMBOLS = frozenset({
+    "CertifiedInterventionEvaluation", "CertifiedInterventionEvaluation.outcome",
+    "CertifiedInterventionEvaluation.draws", "CertifiedInterventionEvaluation.total_mass",
+    "CertifiedInterventionEvaluation.withheld_mass", "CertifiedInterventionEvaluation.outcome_mixture",
+    "RecoveryEvidenceDecision", "RecoveryEvidenceDecision.evaluation",
+    "RecoveryEvidenceDecision.above_threshold", "RecoveryEvidenceDecision.at_or_below_threshold",
+    "RecoveryEvidenceDecision.withheld_mass", "RecoveryEvidenceDecision.choice",
+    "RecoveryEvidenceDecision.mass_account", "consume_retained_recovery_plan",
+    "consume_recovery_evidence", "asymptotic_normal_draws",
+})
+
+
+def external_surface_ownership(root: Path, record: dict, checked: list[tuple[str, "Symbol"]]):
+    """Validate the finite cyclic/recovery ownership handoff; never grant a license."""
+    entries = record.get("surface_external_owners", [])
+    if not isinstance(entries, list):
+        return set(), ["surface_external_owners must be a list"]
+    if not entries:
+        return set(), []
+    expected = ("recovery.binary_observation", "parity/cyclic/acceptance.toml",
+                "integrated_families", "crates/antecedent-estimate/src/recovery.rs")
+    if len(entries) != 1 or not isinstance(entries[0], dict):
+        return set(), ["external ownership requires one reviewed declaration"]
+    entry = entries[0]
+    if set(entry) != {"registry", "owner", "source", "symbols"}:
+        return set(), ["external ownership needs exactly registry, owner, source and symbols"]
+    if (record.get("id"), entry["registry"], entry["owner"], entry["source"]) != expected:
+        return set(), ["external ownership is not the reviewed cyclic recovery handoff"]
+    symbols = entry["symbols"]
+    if (not isinstance(symbols, list) or not all(isinstance(s, str) and s for s in symbols)
+            or len(symbols) != len(set(symbols)) or set(symbols) != _RECOVERY_EXTERNAL_SYMBOLS):
+        return set(), ["external ownership must name exactly the reviewed, unique recovery symbols"]
+    if entry["source"] not in (record.get("surface_rust") or []):
+        return set(), ["external ownership source is not a declared Rust surface"]
+    registry = (root / expected[1]).resolve()
+    source = (root / expected[3]).resolve()
+    if not registry.is_relative_to(root.resolve()) or not source.is_relative_to(root.resolve()):
+        return set(), ["external ownership paths escape the repository"]
+    try:
+        document = tomllib.loads(registry.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, tomllib.TOMLDecodeError):
+        return set(), ["external ownership registry cannot be read"]
+    capabilities = document.get("capability", [])
+    if not isinstance(capabilities, list):
+        return set(), ["external ownership registry has no capability inventory"]
+    matches = [c for c in capabilities if isinstance(c, dict) and c.get("id") == expected[2]]
+    if len(matches) != 1:
+        return set(), ["external ownership requires a unique existing capability"]
+    owner = matches[0]
+    rust = owner.get("rust")
+    workflow = owner.get("workflow")
+    tests, fixtures = owner.get("tests"), owner.get("fixtures")
+    if (not isinstance(rust, list) or expected[3] not in rust
+            or not isinstance(workflow, str) or "prepare_experimental_recovery" not in workflow
+            or not isinstance(tests, list) or not tests
+            or "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs" not in tests
+            or not isinstance(fixtures, list) or not fixtures
+            or "parity/cyclic/recovered-asymptotic-normal" not in fixtures):
+        return set(), ["external owner lacks the recovery source, workflow, tests or fixtures"]
+    for name in [*tests, *fixtures]:
+        if not isinstance(name, str) or not name or Path(name).is_absolute():
+            return set(), ["external owner has an invalid evidence path"]
+        path = (root / name).resolve()
+        if not path.is_relative_to(root.resolve()) or not path.exists():
+            return set(), ["external owner has missing or escaping evidence"]
+    available: dict[str, int] = {}
+    for src, symbol in checked:
+        if src == expected[3]:
+            qualified = f"{symbol.owner}.{symbol.name}" if symbol.owner else symbol.name
+            available[qualified] = available.get(qualified, 0) + 1
+    if any(available.get(name) != 1 for name in symbols):
+        return set(), ["external ownership has a missing, stale or ambiguous public symbol"]
+    return {(expected[3], name) for name in symbols}, []
+
+
+def duplicate_refusal_pairs(refusals: list[dict]) -> set[tuple[str, str]]:
+    seen: set[tuple[str, str]] = set()
+    duplicates: set[tuple[str, str]] = set()
+    for refusal in refusals:
+        pair = (refusal.get("code", ""), refusal.get("detail", ""))
+        if pair in seen:
+            duplicates.add(pair)
+        seen.add(pair)
+    return duplicates
+
+
+def refusal_code_pair_problems(declared: set[str], registered: set[str],
+                               proven: set[str]) -> tuple[set[str], set[str]]:
+    """Return unproven declared codes and proven but globally unregistered codes."""
+    require_proof = bool(proven) or len(registered) > 1
+    return (declared - proven if require_proof else set(), proven - registered)
+
+
+# The only reviewed early uncertainty exception is this observation-query redraw path.
+# The facade, dispatcher, producer, bindings and the two refusal tests were reviewed together.
+# Hashing their complete bytes makes any source or test change fail closed until re-reviewed.
+_OBSERVATION_DRAWS_PROOF_FILES = {
+    "crates/antecedent-model/src/observation_uncertainty.rs": "7534a57c201ddceab0be37413f5163b24b0b10ac80ca6e3110206edf399d6978",
+    "crates/antecedent-io-core/src/observation_query_artifact.rs": "b445b4df8fd45b26d16586437d145cd8d0f1911c8b1cf318f29d835ca89b6b23",
+    "crates/antecedent/src/analysis/observation_query.rs": "f59b27fc750bf311f5efdb00308b3234f68bd9e3b577635b6c302768c5530876",
+    "crates/antecedent/tests/observation_query_facade.rs": "24b99901b7b173382d8cd04d1d2927a3e8a0bc8022f065ea9baea892b5bbcccb",
+    "python/src/observation_query_api.rs": "9cf17f0838de4a85c47752e8c28a232c8486d199a5ece69e054ec647757a385b",
+    "python/antecedent/observation_query.py": "15890e8334c390b54c2eb62741fbafbecae85f7d5e0ae6fd2f152afe14a1ae8b",
+    "python/tests/test_observation_query.py": "3818155a33b151eef2e19162cbad82c2dd76e4a4f087684f382933acd0d2baa3",
+}
+_OBSERVATION_DRAWS_RUST = (
+    "antecedent.observation_query.ObservationClaim.parameter_interval",
+    "crates/antecedent/tests/observation_query_facade.rs",
+    "dirichlet_table_redraw_agrees_with_the_count_fitted_posterior_and_labels_its_spread",
+)
+_OBSERVATION_DRAWS_PYTHON = (
+    "antecedent._native.observation_query_parameter_interval",
+    "python/tests/test_observation_query.py",
+    "test_an_interval_of_redrawn_parameters_needs_a_measured_coverage_record",
+)
+_OBSERVATION_DRAWS_ROUTES = {
+    "antecedent_model.observation_uncertainty.redraw_conditional": _OBSERVATION_DRAWS_RUST,
+    "antecedent.observation_query.PreparedMechanismComposition.observe_with_parameter_uncertainty": _OBSERVATION_DRAWS_RUST,
+    "antecedent.python.observation_query.parameter_uncertainty": _OBSERVATION_DRAWS_PYTHON,
+    "antecedent._native.observation_query_observe_with_uncertainty": _OBSERVATION_DRAWS_PYTHON,
+}
+
+
+def uncalibrated_draws_allowed(record_id: str, route: dict, routes: list[dict], valid_refusal,
+                               *, root: Path = REPO_ROOT) -> bool:
+    """Accept only the reviewed draw producers and their exercised interval refusals."""
+    if (record_id != "observation_query.finite_law_conditioning"
+            or route.get("stage") != "uncertainty"
+            or route.get("status") != "licensed"
+            or route.get("claim") != "point_only"
+            or route.get("uncertainty_output") != "uncalibrated_parameter_draws"):
+        return False
+    proof = _OBSERVATION_DRAWS_ROUTES.get(route.get("name"))
+    if proof is None or route.get("interval_route") != proof[0]:
+        return False
+    matches = [r for r in routes if isinstance(r, dict) and r.get("name") == proof[0]]
+    if len(matches) != 1:
+        return False
+    interval = matches[0]
+    if (interval.get("stage") != "uncertainty" or interval.get("status") != "closed"
+            or interval.get("reason_code") != "cell_not_licensed"
+            or interval.get("refusal_test") != proof[1]
+            or interval.get("refusal_assertion") != proof[2]):
+        return False
+    root = root.resolve()
+    try:
+        for relative, expected in _OBSERVATION_DRAWS_PROOF_FILES.items():
+            path = (root / relative).resolve()
+            if not path.is_relative_to(root) or hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+                return False
+    except OSError:
+        return False
+    return bool(valid_refusal(interval))
+
+
 def shared_namespace_problems(
     record: dict, records: list[dict], emissions: dict, root: Path
 ) -> list[str]:
@@ -516,14 +1081,17 @@ def shared_namespace_problems(
             continue
         if declaration not in owners[0].get("shared_refusal_namespaces", []):
             problems.append(f"{ns}: owner must declare identical sources and self ownership")
-        owned = {r.get("detail"): r.get("code") for r in owners[0].get("refusals", [])}
+        owned = {(r.get("code"), r.get("detail")) for r in owners[0].get("refusals", [])}
         if (
             any(
-                owned.get(r.get("detail")) != r.get("code")
+                (r.get("code"), r.get("detail")) not in owned
                 for r in record.get("refusals", [])
                 if r.get("detail", "").startswith(ns + ".")
             )
-            or not set(emissions.get(ns, {})) <= owned.keys()
+            or not set(emissions.get(ns, {})) <= {detail for _, detail in owned}
+            or any((lit.reason_code, detail) not in owned
+                   for detail, uses in emissions.get(ns, {}).items()
+                   for _, _, lit in uses if getattr(lit, "reason_code", None) is not None)
         ):
             problems.append(f"{ns}: every emitted refusal pair must be declared by owner")
     if len(namespaces - seen) > 1:
@@ -1115,6 +1683,46 @@ def python_literals(path: Path) -> list[Lit]:
                 and isinstance(first.value.value, str)
             ):
                 docstrings.add(id(first.value))
+    # A literal proof description on this exact decorator is metadata, not
+    # an emitted refusal. Do not exclude expressions, other keywords, regular
+    # function calls, or equal strings elsewhere in the file.
+    artifact_proofs: set[int] = set()
+    for scope in ast.walk(tree):
+        if isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            for decorator in scope.decorator_list:
+                if not isinstance(decorator, ast.Call):
+                    continue
+                func = decorator.func
+                if not (isinstance(func, ast.Name) and func.id == "artifact_consumer"):
+                    continue
+                for keyword in decorator.keywords:
+                    if (keyword.arg == "proof" and isinstance(keyword.value, ast.Constant)
+                            and isinstance(keyword.value.value, str)):
+                        artifact_proofs.add(id(keyword.value))
+    # These two reviewed Python functions only classify an already-produced
+    # refusal by its detail. Their exact bodies must still match before their
+    # comparison literals can be treated as non-emitting metadata.
+    classification_specs = {
+        (REPO_ROOT / "python/antecedent/recalc.py").resolve():
+            ("_refusal_type", "19fd58bfde934b9d9d29a2f24622ad5e798249d3079dc4f7a701c52d1dc0cdb2"),
+        (REPO_ROOT / "python/antecedent/recalc_cell.py").resolve():
+            ("_cell_refusal_type", "29ba42a5038a58e4b3e05cb02900118801833d1f2422bf1e89edefd02aa6d85c"),
+    }
+    classification_literals: set[int] = set()
+    specification = classification_specs.get(path.resolve())
+    if specification:
+        name, expected = specification
+        functions = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == name]
+        if len(functions) == 1 and hashlib.sha256(
+            ast.dump(functions[0], include_attributes=False).encode()
+        ).hexdigest() == expected:
+            for node in ast.walk(functions[0]):
+                if (isinstance(node, ast.Compare) and isinstance(node.left, ast.Name)
+                        and node.left.id == "detail" and len(node.ops) == 1
+                        and isinstance(node.ops[0], ast.Eq) and len(node.comparators) == 1
+                        and isinstance(node.comparators[0], ast.Constant)
+                        and node.comparators[0].value == "recalc.no_live_state"):
+                    classification_literals.add(id(node.comparators[0]))
     consts: dict[int, str] = {}
     for node in ast.walk(tree):
         targets = (
@@ -1135,6 +1743,8 @@ def python_literals(path: Path) -> list[Lit]:
         if (
             isinstance(node, (ast.Constant, ast.JoinedStr, ast.BinOp))
             and id(node) not in docstrings
+            and id(node) not in artifact_proofs
+            and id(node) not in classification_literals
         ):
             value = _py_str(node)
             if value is not None and (node.lineno, value) not in seen:
@@ -1236,6 +1846,36 @@ def _sectioned_enum_symbols(
     return output
 
 
+def _counterfactual_index_newtypes(path: Path, code: str, skel: str):
+    """Expand only the reviewed literal index-newtype template and invocations."""
+    expected = REPO_ROOT / "crates/antecedent-identify/src/sid/counterfactual_transport.rs"
+    if path.resolve() != expected.resolve():
+        return None
+    definitions = list(re.finditer(r"\bmacro_rules!\s+index_newtype\s*\{", skel))
+    if len(definitions) != 1:
+        return None
+    definition = definitions[0]
+    end = _match_bracket(skel, definition.end() - 1) + 1
+    digest = hashlib.sha256(_compact_rust_tokens(code[definition.start():end]).encode()).hexdigest()
+    if digest != "041d54ffb202ca1a66a9eb4bb72a6ef82a085dc183f0f6f2a93baa957c4fc6b4":
+        return None
+    calls = list(re.finditer(r"\bindex_newtype!\s*\{", skel))
+    # Unknown delimiters, non-literal invocations or duplicate types invalidate
+    # the whole proof; never silently hide an unrecognized macro definition.
+    if len(re.findall(r"\bindex_newtype\s*!", skel)) != len(calls):
+        return None
+    names = []
+    for call in calls:
+        close = _match_bracket(skel, call.end() - 1)
+        found = re.fullmatch(r"\s*([A-Za-z_][A-Za-z0-9_]*)\s*", skel[call.end():close])
+        if found is None or found[1] in names:
+            return None
+        names.append(found[1])
+    if not names:
+        return None
+    return (definition.start(), end), names
+
+
 def rust_pub_items(path: Path, *, in_crate: bool = True) -> list[Symbol]:
     """Public non-test `pub fn/struct/enum/trait/type` items and re-exports:
     top-level, in public modules, and methods of inherent `impl` blocks of public
@@ -1248,6 +1888,8 @@ def rust_pub_items(path: Path, *, in_crate: bool = True) -> list[Symbol]:
         return []
     _, items = rust_items(path.resolve())
     fn_bodies = [it.body for it in items if it.kind == "fn"]
+    index_macro = _counterfactual_index_newtypes(path, code, skel)
+    proven_macros = [index_macro[0]] if index_macro else []
     private_mods = [
         it.body
         for it in items
@@ -1267,7 +1909,7 @@ def rust_pub_items(path: Path, *, in_crate: bool = True) -> list[Symbol]:
     seen: set[tuple[str, str | None]] = set()
     for m in _PUB.finditer(skel):
         pos = m.start()
-        if _inside(fn_bodies, pos) or _inside(private_mods, pos):
+        if _inside(fn_bodies, pos) or _inside(private_mods, pos) or _inside(proven_macros, pos):
             continue
         keyword_at = m.start(1)
         enclosing = [i for i in impls if i[0] < pos < i[1]]
@@ -1299,6 +1941,11 @@ def rust_pub_items(path: Path, *, in_crate: bool = True) -> list[Symbol]:
                 owner,
             )
         )
+    if index_macro:
+        for name in index_macro[1]:
+            out.append(Symbol(name, "type", False, "top"))
+            out.append(Symbol("new", "function", False, "method", name))
+            out.append(Symbol("get", "function", False, "method", name))
     out.extend(_sectioned_enum_symbols(path, code, skel, fn_bodies, private_mods))
     # `pub use a::b::{X, y as z};` re-exports public API under the names it binds
     # (a glob `*` binds names this scan cannot see and is skipped).

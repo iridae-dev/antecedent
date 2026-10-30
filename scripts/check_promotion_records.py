@@ -97,6 +97,10 @@ from promotion_source import (
     rust_pub_items,
     shared_namespace_problems,
     typed_input_exception_problems,
+    uncalibrated_draws_allowed,
+    duplicate_refusal_pairs,
+    refusal_code_pair_problems,
+    external_surface_ownership,
 )
 from test_evidence import (
     resolve_python_test,
@@ -135,7 +139,7 @@ RULES = {
     "refusal_code": "a refusal code is a registered runtime_refusal code",
     "refusal_when": "a refusal states its condition",
     "refusal_detail_shape": "a refusal detail is <namespace>.<snake_case>",
-    "refusal_detail_duplicate": "refusal details are unique in a record",
+    "refusal_detail_duplicate": "identical refusal code/detail pairs are unique in a record",
     "refusal_namespace": "a record's refusal details share one namespace",
     "refusal_detail_missing": "a declared detail is a literal in non-test source",
     "refusal_detail_undeclared": "a namespaced literal in non-test source is declared",
@@ -167,7 +171,7 @@ RULES = {
     "closed_refusal_reason_named": "a route's refusal test names its reason_code",
     "closed_refusal_required": "a closed route of implemented work cites a refusal test",
     "licensed_permanent": "a licensed route is not permanent_in_release",
-    "licensed_uncertainty": "an uncertainty route is not licensed before promotion",
+    "licensed_uncertainty": "an early uncertainty route is closed unless it is an explicitly uncalibrated point-only parameter-draw law with a verified closed interval route",
     "licensed_claim": "an early licensed route claims point_only or none",
     "licensed_unevidenced": "an early licensed route needs executed fixture evidence",
     "licensed_status": "a route is licensed only in_progress or promoted",
@@ -533,7 +537,9 @@ def scan_details(namespaces: set[str]):
             for d in dyn.finditer(lit.value):
                 if not (
                     lit.line in finite_lines
-                    and lit.value == f"{d.group(1)}.{{detail}}: {{message}}"
+                    and lit.value in {f"{d.group(1)}.{{detail}}: {{message}}",
+                                      f"{d.group(1)}.{{detail}}",
+                                      f"{d.group(1)}.{{scope}}: {{message}}"}
                 ):
                     dynamic[d.group(1)].append(f"{rel(path)}:{lit.line}")
     return found, dynamic
@@ -579,12 +585,14 @@ code_details, dynamic_details = scan_details(namespaces_in_use)
 # declared when ANY implemented record declares it, while each record still emits
 # every detail it declares itself (refusal_detail_missing).
 namespace_declared: dict[str, set[str]] = {}
+namespace_declared_pairs: dict[str, dict[str, set[str]]] = {}
 for _rec in records:
     if _rec.get("status") in IMPLEMENTED:
         for _refusal in [*(_rec.get("refusals") or []), *(_rec.get("input_exceptions") or [])]:
             _detail = _refusal.get("detail", "")
             if "." in _detail:
                 namespace_declared.setdefault(_detail.split(".")[0], set()).add(_detail)
+                namespace_declared_pairs.setdefault(_detail.split(".")[0], {}).setdefault(_detail, set()).add(_refusal.get("code", ""))
 
 
 def check_evidence_body(who: str, path: str, assertion: str) -> bool:
@@ -603,6 +611,18 @@ def str_list(rid: str, key: str, value) -> list[str]:
         fail("surface_shape", f"{rid}: {key} must be a list of non-empty strings")
         return []
     return value
+
+
+def valid_interval_refusal(route: dict) -> bool:
+    """Use the same collection, assertion and reason checks as closed routes."""
+    path, assertion = route.get("refusal_test", ""), route.get("refusal_assertion", "")
+    if not isinstance(path, str) or not path or not isinstance(assertion, str) or not assertion:
+        return False
+    source = root / path
+    if not source.is_file() or resolve(path, assertion) or assertion_problems(source, assertion):
+        return False
+    body = closure_code(source, assertion)
+    return bool(re.search(r"(?<![A-Za-z0-9_])(?:cell_not_licensed|CellNotLicensed)(?![A-Za-z0-9_])", body))
 
 
 for rec in records:
@@ -702,7 +722,9 @@ for rec in records:
     # A registered top-level code plus a unique, namespaced detail code: callers
     # switch on the pair, so neither may be prose or collide inside a record.
     details: set[str] = set()
-    detail_code: dict[str, str] = {}
+    detail_code: dict[str, set[str]] = {}
+    duplicate_pairs = duplicate_refusal_pairs(rec.get("refusals") or [])
+    reported_duplicates: set[tuple[str, str]] = set()
     for refusal in rec.get("refusals") or []:
         code, detail = refusal.get("code"), refusal.get("detail", "")
         if code not in runtime_codes:
@@ -720,10 +742,12 @@ for rec in records:
                 "refusal_detail_shape",
                 f"{rid}: refusal detail {detail!r} must be <namespace>.<snake_case>",
             )
-        if detail in details:
-            fail("refusal_detail_duplicate", f"{rid}: duplicate refusal detail {detail}")
+        pair = (code, detail)
+        if pair in duplicate_pairs and pair not in reported_duplicates:
+            fail("refusal_detail_duplicate", f"{rid}: duplicate refusal detail {detail} with code {code}")
+            reported_duplicates.add(pair)
         details.add(detail)
-        detail_code.setdefault(detail, code)
+        detail_code.setdefault(detail, set()).add(code)
     namespaces = {d.split(".")[0] for d in details}
     for problem in shared_namespace_problems(rec, records, code_details, root):
         fail("refusal_namespace", f"{rid}: {problem}")
@@ -783,7 +807,6 @@ for rec in records:
                 f"a dynamic detail cannot be checked, use a literal",
             )
         for detail in sorted(details & set(in_code)):
-            code = detail_code[detail]
             uses = in_code[detail]
             files: dict[Path, bool] = {}
             live, dead = False, []
@@ -806,28 +829,33 @@ for rec in records:
                 )
                 continue
             proven_codes = {lit.reason_code for _, _, lit in uses if lit.reason_code is not None}
-            if proven_codes and proven_codes != {code}:
-                fail(
-                    "refusal_pair_code",
-                    f"{rid}: closed literal helper emits {sorted(proven_codes)} for {detail}, not {code}",
-                )
-            spellings = (str(code), camel(str(code)), *CODE_ALIASES.get(str(code), ()))
-            named = re.compile(
-                r"(?<![A-Za-z0-9_])(?:" + "|".join(map(re.escape, spellings)) + r")(?![A-Za-z0-9_])"
+            declared_codes = detail_code[detail]
+            registered_codes = namespace_declared_pairs.get(ns, {}).get(detail, set())
+            unproven, unregistered = refusal_code_pair_problems(
+                declared_codes, registered_codes, proven_codes
             )
-            # A verified closed helper proves the emitted pair at its definition;
-            # generated code need not repeat that reason token at the invocation.
-            # Unproven occurrences still require the ordinary source-name check.
-            all_codes_proven = all(lit.reason_code == code for _, _, lit in uses)
-            if not all_codes_proven and not any(
-                named.search(code_of(p, c)) for p, c in files.items()
-            ):
-                fail(
-                    "refusal_pair_code",
-                    f"{rid}: refusal ({code}, {detail}): no non-test file that emits {detail} "
-                    f"(or uses the const holding it) names {code} or {camel(str(code))}; "
-                    f"checked {', '.join(sorted(rel(p) for p in files))}",
+            for code in sorted(unregistered):
+                fail("refusal_pair_code", f"{rid}: proven emitted refusal ({code}, {detail}) is not registered by any implemented record")
+            for code in sorted(unproven):
+                fail("refusal_pair_code", f"{rid}: refusal ({code}, {detail}) has no proven emitted code/detail pair")
+            unknown_files = {p: c for p, c, lit in uses if lit.reason_code is None}
+            if len(registered_codes) > 1 and unknown_files:
+                fail("refusal_pair_code", f"{rid}: {detail}: unproven emission context for a multi-code detail")
+            for code in sorted(declared_codes - unproven):
+                if code in proven_codes and not unknown_files:
+                    continue
+                spellings = (str(code), camel(str(code)), *CODE_ALIASES.get(str(code), ()))
+                named = re.compile(
+                    r"(?<![A-Za-z0-9_])(?:" + "|".join(map(re.escape, spellings)) + r")(?![A-Za-z0-9_])"
                 )
+                check_files = unknown_files if code in proven_codes else files
+                if not any(named.search(code_of(p, c)) for p, c in check_files.items()):
+                    fail(
+                        "refusal_pair_code",
+                        f"{rid}: refusal ({code}, {detail}): no non-test file that emits {detail} "
+                        f"(or uses the const holding it) names {code} or {camel(str(code))}; "
+                        f"checked {', '.join(sorted(rel(p) for p in files))}",
+                    )
 
     # Fixtures first: a route's license depends on which roles cite executed evidence.
     capability = str(rec.get("capability", ""))
@@ -986,7 +1014,9 @@ for rec in records:
             elif promoted:
                 pass
             elif status == "in_progress":
-                if stage == "uncertainty":
+                if stage == "uncertainty" and not uncalibrated_draws_allowed(
+                    rid, route, rec.get("routes") or [], valid_interval_refusal, root=root
+                ):
                     fail(
                         "licensed_uncertainty",
                         f"{rid}: {name}: uncertainty route licensed before its record is promoted",
@@ -1258,8 +1288,14 @@ for rec in records:
     for src, sym in checked:
         if sym.name not in declared or (declared[sym.name][0] != "type" and sym.kind == "type"):
             declared[sym.name] = (sym.kind, src)
+    external_owned, external_problems = external_surface_ownership(root, rec, checked)
+    for problem in external_problems:
+        fail("surface_symbol", f"{rid}: {problem}")
     value_types = {v for v in values if declared.get(v, ("", ""))[0] == "type"}
     for src, sym in checked:
+        external_name = f"{sym.owner}.{sym.name}" if sym.owner else sym.name
+        if (src, external_name) in external_owned:
+            continue
         if (
             sym.name in components
             or sym.name in values

@@ -105,9 +105,9 @@ reason = "Retain every future-study ranking, regime identity, withdrawal and for
 
 [[case]]
 previous = "crates/antecedent-design/tests/decision_reliability.rs::every_published_route_is_licensed_inside_a_measured_coverage_record"
-replacement = "crates/antecedent-design/tests/decision_reliability.rs::every_published_route_is_licensed_inside_a_measured_coverage_record"
+replacement = "crates/antecedent-design/tests/decision_reliability.rs::measured_routes_respect_current_attestation_and_report_their_closures"
 disposition = "explicit_calibration_acceptance_selection"
-reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Default rust/all and rust-calibration-acceptance retain it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
+reason = "The renamed assertion verifies that each route opens exactly when its measured coverage record currently attests the governing code and otherwise reports its closure. Retain the existing calibration-acceptance selection; rust-software explicitly deselects it pending Q08/E14. Default rust/all and rust-calibration-acceptance retain it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
 
 [[case]]
 previous = "crates/antecedent-design/tests/decision_reliability_intervals.rs::a_derivation_is_published_inside_a_measured_record_and_refused_outside_it"
