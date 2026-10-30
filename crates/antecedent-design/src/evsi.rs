@@ -780,38 +780,56 @@ fn values_value<A>(
     }
     let table = DecisionTable::build(problem, states)?;
     let n_actions = problem.actions.len();
+    // Center both prior and externally supplied branch values at a common
+    // represented utility before summing. Coherence is an absolute error in
+    // these utility differences, not relative to an arbitrary utility origin.
+    let anchor = table.utility(table.admissible[0], 0);
     let prior_eu: Vec<f64> = (0..n_actions)
         .map(|a| {
-            (0..table.n_outcomes).map(|k| table.utility(a, k)).sum::<f64>()
-                / table.n_outcomes as f64
+            antecedent_kernels::numeric::CompensatedSum::of(
+                (0..table.n_outcomes).map(|k| table.utility(a, k) - anchor),
+            ) / table.n_outcomes as f64
         })
         .collect();
-    let branch_value = |branch: usize, action: usize| values.values[branch][columns[action]];
+    let branch_value =
+        |branch: usize, action: usize| values.values[branch][columns[action]] - anchor;
     for (action, &prior) in prior_eu.iter().enumerate() {
-        let averaged: f64 = values
-            .branch_probabilities
-            .iter()
-            .enumerate()
-            .map(|(y, p)| p * branch_value(y, action))
-            .sum();
-        if (averaged - prior).abs() > 1e-8 * (1.0 + prior.abs()) {
+        let averaged = antecedent_kernels::numeric::CompensatedSum::of(
+            values
+                .branch_probabilities
+                .iter()
+                .enumerate()
+                .map(|(y, p)| p * branch_value(y, action)),
+        );
+        if !prior.is_finite()
+            || !averaged.is_finite()
+            || (averaged - prior).abs() > crate::rank_rows::EVSI_BOUND_ABS
+        {
             return Err(EvsiError::DecisionValuesIncoherent(id.to_owned()));
         }
     }
-    let after: f64 = values
-        .branch_probabilities
-        .iter()
-        .enumerate()
-        .map(|(y, p)| {
+    let mut bayes_action = table.admissible[0];
+    let mut centered_best = prior_eu[bayes_action];
+    for &action in &table.admissible[1..] {
+        if prior_eu[action] > centered_best {
+            bayes_action = action;
+            centered_best = prior_eu[action];
+        }
+    }
+    let after = antecedent_kernels::numeric::CompensatedSum::of(
+        values.branch_probabilities.iter().enumerate().map(|(y, p)| {
             let best = table
                 .admissible
                 .iter()
                 .map(|&a| branch_value(y, a))
                 .fold(f64::NEG_INFINITY, f64::max);
             p * best
-        })
-        .sum();
-    let (bayes_action, prior_best) = table.bayes_action();
+        }),
+    );
+    if !after.is_finite() {
+        return Err(EvsiError::DecisionValuesIncoherent(id.to_owned()));
+    }
+    let prior_best = anchor + centered_best;
     let integration = IntegrationReport {
         method: IntegrationMethod::ExternallyComputed,
         replicates: 0,
@@ -823,7 +841,7 @@ fn values_value<A>(
     // The per-request value of perfect information, shared by every candidate.
     let evpi = evpi.ok_or(EvsiError::DecisionValuesNeedDraws)?;
     Ok(Valued {
-        evsi: after - prior_best,
+        evsi: after - centered_best,
         integration,
         evpi,
         prior_expected_utility: prior_best,

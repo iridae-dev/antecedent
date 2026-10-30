@@ -8,7 +8,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Absolute slack in the EVSI bound, added to `4·stderr`.
-const EVSI_BOUND_ABS: f64 = 1e-9;
+pub(crate) const EVSI_BOUND_ABS: f64 = 1e-9;
 /// Unpaired two-sided 5% normal critical value. This is not the ranker's
 /// look-adjusted paired threshold. EVSI candidates share replicate streams (common
 /// random numbers), but the comparison does not use the pairing: it treats the two

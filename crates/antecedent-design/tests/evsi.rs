@@ -963,3 +963,34 @@ fn monte_carlo_streams_are_keyed_by_replicate_and_shared_across_candidates() {
     let twins = run(&problem, &prior, &build(vec![make("t1", 4), make("t2", 4)])).unwrap();
     assert_eq!(find(&twins, "t1").evsi.to_bits(), find(&twins, "t2").evsi.to_bits());
 }
+
+#[test]
+fn external_values_use_origin_independent_coherence_and_centered_evsi() {
+    let prior = bet_prior();
+    let make_law = |shift: f64, bias: f64| {
+        ExternalLaw::DecisionValues(ExternalDecisionValues {
+            branch_probabilities: vec![0.25, 0.5, 0.25],
+            action_ids: vec!["abstain".into(), "bet".into()],
+            values: vec![
+                vec![shift, shift - 1.0 + bias],
+                vec![shift, shift + bias],
+                vec![shift, shift + 1.0 + bias],
+            ],
+        })
+    };
+    let evaluate = |shift, bias| {
+        let id = "external_centered";
+        let provider = external(&signal_request(id, 2), UPDATE.to_vec(), make_law(shift, bias));
+        run(
+            &bet_problem(4.0, shift),
+            &prior,
+            &request(&BET_ACTIONS, vec![candidate(id, 2, provider, 0.0, "utility")], None),
+        )
+    };
+    let baseline = evaluate(0.0, 0.0).unwrap();
+    let translated = evaluate(1e8, 0.0).unwrap();
+    assert!((baseline.candidates[0].evsi - 0.25).abs() < 1e-12);
+    assert_eq!(translated.candidates[0].evsi, baseline.candidates[0].evsi);
+    let error = evaluate(1e8, -0.5).unwrap_err();
+    assert_eq!(error, EvsiError::DecisionValuesIncoherent("external_centered".into()));
+}
