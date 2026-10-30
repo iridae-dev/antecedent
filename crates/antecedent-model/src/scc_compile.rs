@@ -52,7 +52,7 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
-use antecedent_graph::{CyclicDigraph, Dag, DenseNodeId};
+use antecedent_graph::{CyclicDigraph, DenseNodeId};
 use antecedent_kernels::gauss_jordan_solve;
 use thiserror::Error;
 
@@ -510,7 +510,7 @@ impl RoutedEquilibrium {
 /// Ask the DAG algorithm which schedule the free support uses.
 ///
 /// An acyclic support returns its topological order and does not build a
-/// condensation. A directed cycle is refused by [`Dag::insert_directed`]; the
+/// condensation. A directed cycle is refused by [`antecedent_graph::Dag::insert_directed`]; the
 /// error text is the existing next attempt, and the condensation is returned
 /// only as the later cyclic schedule.
 ///
@@ -527,53 +527,64 @@ pub fn route_linear_support(
         return Err(SccCompileError::ClampDimension { clamp: clamp.dimension(), model: n });
     }
     let free = free_indices(n, clamp.indices());
-    let width = u32::try_from(free.len())
+    u32::try_from(free.len())
         .map_err(|_| SccCompileError::Shape { message: "free block does not fit in a dense id" })?;
-    let mut graph = Dag::with_variables(width);
-    for (into_local, &into_node) in free.iter().enumerate() {
-        for (from_local, &from_node) in free.iter().enumerate() {
-            if into_local == from_local {
-                continue;
-            }
-            let coefficient = structural_coefficient(model, into_node, from_node)?;
-            #[allow(clippy::float_cmp, reason = "a structural zero is not a directed edge")]
-            if coefficient == 0.0 {
-                continue;
-            }
-            let from = DenseNodeId::try_from_usize(from_local).map_err(|_| {
-                SccCompileError::Shape { message: "free-node index does not fit a dense id" }
-            })?;
-            let into = DenseNodeId::try_from_usize(into_local).map_err(|_| {
-                SccCompileError::Shape { message: "free-node index does not fit a dense id" }
-            })?;
-            if let Err(error) = graph.insert_directed(from, into) {
-                return match error {
-                    antecedent_graph::error::GraphError::Cycle { .. } => {
-                        let blocks = support_blocks(model, &free)?;
-                        Ok(LinearSupportRoute::Cyclic { next_attempt: error.to_string(), blocks })
-                    }
-                    _ => Err(SccCompileError::Shape {
-                        message: "structural support edge was rejected",
-                    }),
-                };
+    let m = free.len();
+    let mut indegree = vec![0usize; m];
+    for (into, &into_node) in free.iter().enumerate() {
+        for (from, &from_node) in free.iter().enumerate() {
+            if into != from && structural_coefficient(model, into_node, from_node)? != 0.0 {
+                indegree[into] += 1;
             }
         }
     }
-    let Some(order) = graph.topological_order() else {
-        let blocks = support_blocks(model, &free)?;
-        return Ok(LinearSupportRoute::Cyclic { next_attempt: dag_license_refusal(), blocks });
-    };
-    let mut global = Vec::with_capacity(order.len());
-    for id in order {
-        let local = id.as_usize();
-        let Some(&node) = free.get(local) else {
-            return Err(SccCompileError::Shape {
-                message: "topological member is outside the free set",
-            });
-        };
-        global.push(node);
+    // Match the graph DAG's deterministic LIFO Kahn tie policy and its
+    // ascending target insertion order, while scanning each matrix row twice.
+    let mut queue: Vec<usize> = (0..m).filter(|&i| indegree[i] == 0).collect();
+    let mut order = Vec::with_capacity(m);
+    while let Some(from) = queue.pop() {
+        order.push(free[from]);
+        for into in 0..m {
+            if into != from && structural_coefficient(model, free[into], free[from])? != 0.0 {
+                indegree[into] -= 1;
+                if indegree[into] == 0 {
+                    queue.push(into);
+                }
+            }
+        }
     }
-    Ok(LinearSupportRoute::Acyclic { order: global })
+    if order.len() == m {
+        return Ok(LinearSupportRoute::Acyclic { order });
+    }
+    let blocks = support_blocks(model, &free)?;
+    // Pick a deterministic edge inside a nontrivial strongly connected block.
+    let mut component = vec![usize::MAX; m];
+    for (id, block) in blocks.iter().enumerate().filter(|(_, block)| block.len() > 1) {
+        for node in block {
+            let local = free.binary_search(node).map_err(|_| SccCompileError::Shape {
+                message: "condensation member is outside the free set",
+            })?;
+            component[local] = id;
+        }
+    }
+    for from in 0..m {
+        for into in 0..m {
+            if from != into
+                && indegree[from] != 0
+                && indegree[into] != 0
+                && structural_coefficient(model, free[into], free[from])? != 0.0
+                && component[from] != usize::MAX
+                && component[from] == component[into]
+            {
+                let error = antecedent_graph::error::GraphError::Cycle {
+                    from: from as u32,
+                    to: into as u32,
+                };
+                return Ok(LinearSupportRoute::Cyclic { next_attempt: error.to_string(), blocks });
+            }
+        }
+    }
+    Ok(LinearSupportRoute::Cyclic { next_attempt: dag_license_refusal(), blocks })
 }
 
 pub(crate) fn dag_license_refusal() -> String {
@@ -618,6 +629,26 @@ pub fn compile_routed_gaussian_equilibrium(
         });
     }
     reject_compile_inputs(model, disturbance, clamp, clamp_values)?;
+    // Refuse an impossible budget before allocating or scanning the support graph.
+    let n_u64 = u64::try_from(n)
+        .map_err(|_| SccCompileError::Shape { message: "model dimension does not fit in u64" })?;
+    let route_work =
+        n_u64.checked_mul(n_u64).and_then(|v| v.checked_mul(2)).ok_or_else(work_overflow)?;
+    let bytes = plan_bytes(n_u64)?;
+    if route_work > budget.max_work {
+        return Err(SccCompileError::Budget {
+            resource: "work",
+            requested: route_work,
+            limit: budget.max_work,
+        });
+    }
+    if bytes > budget.max_bytes {
+        return Err(SccCompileError::Budget {
+            resource: "bytes",
+            requested: bytes,
+            limit: budget.max_bytes,
+        });
+    }
     let route = route_linear_support(model, clamp)?;
     let equilibrium = match &route {
         LinearSupportRoute::Acyclic { order } => {
@@ -632,18 +663,15 @@ pub fn compile_routed_gaussian_equilibrium(
                 DAG_EQUILIBRIUM_ATTEMPT,
             )?
         }
-        LinearSupportRoute::Cyclic { .. } => {
-            let planned = schedule(model, clamp)?;
-            finish_compile(
-                component.id(),
-                model,
-                disturbance,
-                (clamp, clamp_values),
-                budget,
-                &planned.blocks,
-                SCC_COMPILE_ATTEMPT,
-            )?
-        }
+        LinearSupportRoute::Cyclic { blocks, .. } => finish_compile(
+            component.id(),
+            model,
+            disturbance,
+            (clamp, clamp_values),
+            budget,
+            blocks,
+            SCC_COMPILE_ATTEMPT,
+        )?,
     };
     Ok(RoutedEquilibrium { route, equilibrium })
 }
@@ -1539,7 +1567,7 @@ mod tests {
     use super::{
         CompileBudget, GaussianDisturbance, LinearSupportRoute, SccCompileError,
         compile_gaussian_equilibrium, compile_routed_gaussian_equilibrium,
-        gaussian_equilibrium_admission,
+        gaussian_equilibrium_admission, route_linear_support,
     };
     use crate::cyclic_component::{CyclicComponent, DAG_EQUILIBRIUM_ATTEMPT, SCC_COMPILE_ATTEMPT};
     use crate::linear_solution::{
@@ -1994,6 +2022,39 @@ mod tests {
             SccCompileError::Budget { resource: "bytes", requested, limit }
                 if requested == cost.bytes() && limit == cost.bytes() - 1
         ));
+    }
+
+    #[test]
+    fn support_route_keeps_dag_ties_and_refuses_tiny_budget_before_routing() {
+        let graph = map(
+            vec![0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.2, 0.0, 0.0, 0.0, 0.2, 0.0, 0.0],
+            vec![0.0; 4],
+        );
+        let clamp = HardClamp::none(4).unwrap();
+        assert_eq!(
+            route_linear_support(&graph, &clamp).unwrap(),
+            LinearSupportRoute::Acyclic { order: vec![1, 3, 2, 0] }
+        );
+        let noise = GaussianDisturbance::try_new(vec![0.0; 4], identity(4)).unwrap();
+        let err = compile_routed_gaussian_equilibrium(
+            &component_for(&graph),
+            &graph,
+            &noise,
+            &clamp,
+            &[],
+            CompileBudget { max_work: 1, max_bytes: u64::MAX },
+        )
+        .unwrap_err();
+        assert!(matches!(err, SccCompileError::Budget { resource: "work", .. }));
+        let cycle = map(vec![0.0, 0.2, 0.0, 0.2, 0.0, 0.2, 0.0, 0.2, 0.0], vec![0.0; 3]);
+        let clamp = HardClamp::none(3).unwrap();
+        let first = route_linear_support(&cycle, &clamp).unwrap();
+        assert_eq!(first, route_linear_support(&cycle, &clamp).unwrap());
+        let LinearSupportRoute::Cyclic { next_attempt, blocks } = first else {
+            panic!("cycle must be routed cyclic");
+        };
+        assert!(next_attempt.contains("edge 0->1"));
+        assert!(blocks.iter().any(|block| block.len() == 3));
     }
 
     #[test]

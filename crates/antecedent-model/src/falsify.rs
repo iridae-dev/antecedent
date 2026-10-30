@@ -385,20 +385,34 @@ fn next_permutation(perm: &mut [usize]) -> bool {
 }
 
 /// The relabellings to compare against and whether they are all of the non-identity ones.
-fn draw_permutations(n: usize, requested: usize, rng: &mut CausalRng) -> (RelabellingPlan, bool) {
-    if factorial_within(n, requested.min(MAX_ENUMERATED_RELABELLINGS)).is_some() {
+fn draw_permutations(
+    n: usize,
+    requested: usize,
+    rng: &mut CausalRng,
+    ctx: &ExecutionContext,
+) -> Result<(RelabellingPlan, bool), ModelError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(ModelError::Cancelled);
+    }
+    if let Some(factorial) = factorial_within(n, requested.min(MAX_ENUMERATED_RELABELLINGS)) {
         let mut perm: Vec<usize> = (0..n).collect();
-        let mut all = Vec::new();
+        let mut all = Vec::with_capacity(factorial.saturating_sub(1));
         while next_permutation(&mut perm) {
+            if all.len() % 1024 == 0 && ctx.cancellation.is_cancelled() {
+                return Err(ModelError::Cancelled);
+            }
             all.push(perm.clone());
         }
-        // A prefix of the lexicographic order is not a random subset; a stopped run keeps one.
-        shuffle(&mut all, rng);
-        return (RelabellingPlan::Listed(all), true);
+        // A prefix of the lexicographic order is not a random subset.
+        for i in (1..all.len()).rev() {
+            if i % 1024 == 0 && ctx.cancellation.is_cancelled() {
+                return Err(ModelError::Cancelled);
+            }
+            all.swap(i, below(rng, i + 1));
+        }
+        return Ok((RelabellingPlan::Listed(all), true));
     }
-    // Sampled relabellings are regenerated from the stream on demand, so memory does not
-    // grow with the request.
-    (RelabellingPlan::Sampled { n, count: requested, rng: rng.clone() }, false)
+    Ok((RelabellingPlan::Sampled { n, count: requested, rng: rng.clone() }, false))
 }
 
 /// The relabellings of a run: an explicit list, or a counted deterministic stream.
@@ -585,6 +599,9 @@ pub fn falsify_graph(
     ctx: &ExecutionContext,
 ) -> Result<GraphFalsificationReport, ModelError> {
     config.validate()?;
+    if ctx.cancellation.is_cancelled() {
+        return Err(ModelError::Cancelled);
+    }
     dag.validate()?;
     let n = dag.node_count();
     if n < 2 {
@@ -657,9 +674,50 @@ pub fn falsify_graph(
         .stream_for(StreamDomain::Resample, PERMUTATION_STREAM);
     let implications = local_markov_implications(dag);
     let signature = EquivalenceSignature::of(dag);
-    let (permutations, exhaustive) = draw_permutations(n, config.n_permutations, &mut rng);
-    let equivalent_permutations =
-        permutations.iter().filter(|p| signature.relabelled(p) == signature).count();
+    // Reserve both the retained counts (including the final Arc conversion) and
+    // any enumerated vector payload/headers before either allocation.
+    let enumerated = factorial_within(n, config.n_permutations.min(MAX_ENUMERATED_RELABELLINGS));
+    let count = enumerated.map_or(config.n_permutations, |v| v.saturating_sub(1));
+    let bytes = count
+        .checked_mul(std::mem::size_of::<u32>())
+        .and_then(|v| v.checked_mul(2))
+        .and_then(|v| {
+            if enumerated.is_some() {
+                count
+                    .checked_mul(
+                        n.checked_mul(std::mem::size_of::<usize>())?
+                            .checked_add(std::mem::size_of::<Vec<usize>>())?,
+                    )?
+                    .checked_add(v)
+            } else {
+                Some(v)
+            }
+        })
+        .and_then(|v| v.checked_add(n.checked_mul(std::mem::size_of::<usize>())?))
+        .and_then(|v| u64::try_from(v).ok())
+        .ok_or(ModelError::ResourceLimit {
+            message: "graph falsification permutations",
+            required_bytes: u64::MAX,
+            limit_bytes: ctx.admission().available().bytes(),
+        })?;
+    let _lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => ModelError::Cancelled,
+        _ => ModelError::ResourceLimit {
+            message: "graph falsification permutations",
+            required_bytes: bytes,
+            limit_bytes: ctx.admission().available().bytes(),
+        },
+    })?;
+    let (permutations, exhaustive) = draw_permutations(n, config.n_permutations, &mut rng, ctx)?;
+    let mut equivalent_permutations = 0usize;
+    for perm in permutations.iter() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(ModelError::Cancelled);
+        }
+        if signature.relabelled(&perm) == signature {
+            equivalent_permutations += 1;
+        }
+    }
     let equivalent_share = (1 + equivalent_permutations) as f64 / (1 + permutations.len()) as f64;
     let max_equivalent_share = config.max_equivalent_share.unwrap_or(config.significance);
 
@@ -755,6 +813,10 @@ pub fn falsify_graph(
     let mut counts = Vec::with_capacity(permutations.len());
     let mut stop = None;
     for perm in permutations.iter() {
+        if ctx.cancellation.is_cancelled() {
+            stop = Some(SearchStop::Cancelled);
+            break;
+        }
         let keys: Vec<CiKey> = implications.iter().map(|i| key_under(i, &perm)).collect();
         if let Some(reason) = session.ensure(&keys)? {
             stop = Some(reason);
@@ -780,7 +842,7 @@ pub fn falsify_graph(
             vec![format!("permutations: {}", permutations.len() - counts.len())],
         ));
     }
-    if counts.len() < config.min_permutations {
+    if stop == Some(SearchStop::Cancelled) || counts.len() < config.min_permutations {
         report.permutation_violations = Arc::from(counts);
         return Ok(report);
     }
@@ -927,13 +989,15 @@ mod tests {
     #[test]
     fn small_graphs_enumerate_every_non_identity_relabelling() {
         let mut rng = CausalRng::from_seed(3);
-        let (perms, exhaustive) = draw_permutations(4, 100, &mut rng);
+        let (perms, exhaustive) =
+            draw_permutations(4, 100, &mut rng, &ExecutionContext::for_tests(1)).unwrap();
         assert!(exhaustive);
         assert_eq!(perms.len(), 23);
         let distinct: HashSet<_> = perms.iter().collect();
         assert_eq!(distinct.len(), 23);
         assert!(!distinct.contains(&vec![0, 1, 2, 3]));
-        let (sampled, exhaustive) = draw_permutations(8, 50, &mut rng);
+        let (sampled, exhaustive) =
+            draw_permutations(8, 50, &mut rng, &ExecutionContext::for_tests(1)).unwrap();
         assert!(!exhaustive);
         assert_eq!(sampled.len(), 50);
         assert_eq!(sampled.iter().collect::<Vec<_>>(), sampled.iter().collect::<Vec<_>>());
@@ -1070,13 +1134,30 @@ mod tests {
     }
 
     #[test]
-    fn cancellation_is_incomplete() {
+    fn permutation_storage_is_admitted_before_enumeration_or_count_allocation() {
+        let data = linear_pairs(500, 5);
+        let limited = ExecutionContext::for_tests(1).with_memory_limit(Some(1024));
+        assert!(matches!(
+            falsify_graph(&graph(8, &TRUE_PAIRS), &data, &config(1_000_000), &limited),
+            Err(ModelError::ResourceLimit { .. })
+        ));
+        let unlimited_count =
+            GraphFalsificationConfig { n_permutations: usize::MAX, ..config(300) };
+        assert!(matches!(
+            falsify_graph(&graph(8, &TRUE_PAIRS), &data, &unlimited_count, &limited),
+            Err(ModelError::ResourceLimit { .. })
+        ));
+    }
+
+    #[test]
+    fn cancellation_before_equivalence_is_refused() {
         let data = linear_pairs(500, 5);
         let ctx = ExecutionContext::for_tests(1);
         ctx.cancellation.cancel();
-        let report = falsify_graph(&graph(8, &TRUE_PAIRS), &data, &config(300), &ctx).unwrap();
-        assert_eq!(report.outcome, GraphFalsificationOutcome::Incomplete);
-        assert_eq!(report.stop, Some(SearchStop::Cancelled));
+        assert!(matches!(
+            falsify_graph(&graph(8, &TRUE_PAIRS), &data, &config(300), &ctx),
+            Err(ModelError::Cancelled)
+        ));
     }
 
     #[test]
