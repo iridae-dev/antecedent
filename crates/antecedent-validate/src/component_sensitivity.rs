@@ -566,29 +566,41 @@ fn share_left(
             direction * adjusted - z * summary.adjusted_standard_error(r2dz, r2yz)
         }
     };
-    (value / summary.estimate.abs().max(f64::MIN_POSITIVE)).max(0.0)
+    let share = value / summary.estimate.abs().max(f64::MIN_POSITIVE);
+    if share.is_finite() { share.max(0.0) } else { f64::NAN }
 }
 
 /// Smallest equal partial R² in `(0, 1)` at which `share(r)` falls to `floor` or below, by
 /// bisection (`share` is non-increasing in `r`); `None` when it never does.
-fn smallest_equal_r2(share: impl Fn(f64) -> f64, floor: f64) -> Option<f64> {
-    if share(0.0) <= floor {
-        return Some(0.0);
+fn smallest_equal_r2(
+    share: impl Fn(f64) -> f64,
+    floor: f64,
+) -> Result<Option<f64>, ValidationError> {
+    let checked = |r| {
+        let value = share(r);
+        if value.is_finite() {
+            Ok(value)
+        } else {
+            Err(not_applicable("mediation omitted-variable-bias share is not finite"))
+        }
+    };
+    if checked(0.0)? <= floor {
+        return Ok(Some(0.0));
     }
     let upper = 1.0 - 1e-12;
-    if share(upper) > floor {
-        return None;
+    if checked(upper)? > floor {
+        return Ok(None);
     }
     let (mut inside, mut outside) = (0.0_f64, upper);
     for _ in 0..100 {
         let middle = 0.5 * (inside + outside);
-        if share(middle) > floor {
+        if checked(middle)? > floor {
             inside = middle;
         } else {
             outside = middle;
         }
     }
-    Some(outside)
+    Ok(Some(outside))
 }
 
 /// The partial-R² range of one path of a vector of mediation coordinates (outcomes or
@@ -648,30 +660,49 @@ pub fn mediation_path_ovb_range(
              (0, 1]",
         ));
     }
+    for paths in coordinates {
+        for summary in [&paths.treatment_mediator, &paths.mediator_outcome] {
+            summary.validate()?;
+            if !student_t_ppf(1.0 - alpha / 2.0, summary.dof - 1.0).is_finite() {
+                return Err(not_applicable(
+                    "mediation omitted-variable-bias critical value is not finite",
+                ));
+            }
+        }
+    }
     let product = |paths: &MediationPaths, r2dz: f64, r2yz: f64, limit: Option<f64>| {
         share_left(&paths.treatment_mediator, r2dz, r2yz, limit)
             * share_left(&paths.mediator_outcome, r2dz, r2yz, limit)
     };
-    let tested = crate::omitted_variable_bias::R2DZ_GRID
+    let tested: Vec<RangePoint> = crate::omitted_variable_bias::R2DZ_GRID
         .iter()
         .map(|&r2dz| {
-            let point = coordinates
-                .iter()
-                .map(|paths| product(paths, r2dz, r2yz_extreme, None))
-                .fold(f64::INFINITY, f64::min);
-            let limit = coordinates
-                .iter()
-                .map(|paths| product(paths, r2dz, r2yz_extreme, Some(alpha)))
-                .fold(f64::INFINITY, f64::min);
-            RangePoint { parameter: r2dz, target: point, test: Some(limit) }
+            let mut point = f64::INFINITY;
+            let mut limit = f64::INFINITY;
+            for paths in coordinates {
+                let next_point = product(paths, r2dz, r2yz_extreme, None);
+                let next_limit = product(paths, r2dz, r2yz_extreme, Some(alpha));
+                if !next_point.is_finite() || !next_limit.is_finite() {
+                    return Err(not_applicable(
+                        "mediation omitted-variable-bias range is not finite",
+                    ));
+                }
+                point = point.min(next_point);
+                limit = limit.min(next_limit);
+            }
+            Ok(RangePoint { parameter: r2dz, target: point, test: Some(limit) })
         })
-        .collect();
-    let weakest = |limit: Option<f64>| -> Option<f64> {
-        coordinates
-            .iter()
-            .map(|paths| smallest_equal_r2(|r| product(paths, r, r, limit), 1.0 - q.min(1.0)))
-            .collect::<Option<Vec<f64>>>()
-            .map(|values| values.into_iter().fold(f64::INFINITY, f64::min))
+        .collect::<Result<Vec<_>, ValidationError>>()?;
+    let weakest = |limit: Option<f64>| -> Result<Option<f64>, ValidationError> {
+        let mut result = f64::INFINITY;
+        for paths in coordinates {
+            let Some(value) = smallest_equal_r2(|r| product(paths, r, r, limit), 1.0 - q.min(1.0))?
+            else {
+                return Ok(None);
+            };
+            result = result.min(value);
+        }
+        Ok(Some(result))
     };
     Ok(AssumptionRange::new(
         target,
@@ -679,8 +710,8 @@ pub fn mediation_path_ovb_range(
         "partial_r2",
         0.0,
         tested,
-        weakest(None),
-        weakest(Some(alpha)),
+        weakest(None)?,
+        weakest(Some(alpha))?,
     ))
 }
 
@@ -1319,6 +1350,22 @@ mod tests {
         )
         .unwrap();
         assert!((darfur.break_even.unwrap() - 0.1388).abs() < 1e-3);
+    }
+
+    #[test]
+    fn indirect_ovb_refuses_invalid_public_summary() {
+        let valid = LinearAdjustmentSummary::new(1.0, 0.2, 10.0).unwrap();
+        let bad = LinearAdjustmentSummary { standard_error: f64::NAN, ..valid };
+        let paths = MediationPaths {
+            treatment_mediator: valid,
+            mediator_outcome: bad,
+            treatment_outcome: valid,
+        };
+        let one = target(TargetFamily::Mediation, TargetQuadrant::STATIC_FREQUENTIST, &["y"]);
+        assert!(
+            mediation_path_ovb_range(one, &[paths], MediationPath::Indirect, 1.0, 0.05, 1.0)
+                .is_err()
+        );
     }
 
     #[test]

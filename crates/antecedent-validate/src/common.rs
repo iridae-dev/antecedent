@@ -1130,18 +1130,37 @@ pub(crate) fn replicate_p_value(
             "non-finite replicate estimate: the refit did not produce a usable effect",
         ));
     }
-    let mean = antecedent_kernels::mean(samples);
-    let sd = sample_sd(samples);
-    let scale = mean.abs().max(hypothesized.abs()).max(1.0);
-    if !sd.is_finite() {
-        return Err(ValidationError::estimation_msg(
-            "non-finite replicate spread: the refit did not produce a usable effect",
-        ));
+    let anchor = samples[0];
+    if samples.iter().all(|value| *value == anchor) {
+        return Ok(if hypothesized == anchor { 1.0 } else { 0.0 });
     }
-    if sd <= 1e-12 * scale {
-        return Ok(if (hypothesized - mean).abs() <= 1e-9 * scale { 1.0 } else { 0.0 });
+    // Center before scaling so the spread is independent of a common location.
+    // If subtraction spans both finite extremes, halve both operands first.
+    let half = samples.iter().any(|&value| !(value - anchor).is_finite());
+    let centered = |value: f64| {
+        if half { value * 0.5 - anchor * 0.5 } else { value - anchor }
+    };
+    let scale = samples.iter().map(|&value| centered(value).abs()).fold(0.0_f64, f64::max);
+    let normalized = |value: f64| centered(value) / scale;
+    let mean = antecedent_kernels::numeric::CompensatedSum::of(
+        samples.iter().map(|&value| normalized(value)),
+    ) / samples.len() as f64;
+    let variance = antecedent_kernels::numeric::CompensatedSum::of(
+        samples.iter().map(|&value| (normalized(value) - mean).powi(2)),
+    ) / (samples.len() - 1) as f64;
+    let sd = variance.sqrt();
+    let delta = centered(hypothesized);
+    let hypothesis = if delta.is_finite() {
+        delta / scale
+    } else {
+        ((hypothesized * 0.5 - anchor * 0.5) / scale) * 2.0
+    };
+    let z = (hypothesis - mean) / sd;
+    // Finite inputs can be separated by more standard deviations than f64 can
+    // represent. Their two-sided normal tail is zero.
+    if z.is_infinite() {
+        return Ok(0.0);
     }
-    let z = (hypothesized - mean) / sd;
     if !z.is_finite() {
         return Err(ValidationError::estimation_msg(
             "non-finite replicate z-score: the refit did not produce a usable effect",
@@ -1779,6 +1798,30 @@ mod tests {
         // the two-sided normal tail is erfc(z / sqrt(2)) = erfc(1) = 0.157299207050285.
         let p = replicate_p_value(&[-1.0, 1.0], 2.0).unwrap();
         assert!((p - 0.157_299_207_050_285_13).abs() < 1e-12, "p={p}");
+    }
+
+    #[test]
+    fn replicate_p_value_is_invariant_to_positive_and_negative_unit_scaling() {
+        let expected = replicate_p_value(&[-1.0, 1.0], 2.0).unwrap();
+        for scale in [1e-14, -1e-14, 1e14, -1e14] {
+            let actual = replicate_p_value(&[-scale, scale], 2.0 * scale).unwrap();
+            assert!((actual - expected).abs() < 1e-12, "scale {scale}: {actual} vs {expected}");
+        }
+        assert_eq!(replicate_p_value(&[0.0, 0.0], 0.0).unwrap(), 1.0);
+        assert_eq!(replicate_p_value(&[0.0, 0.0], 1e-14).unwrap(), 0.0);
+    }
+
+    #[test]
+    fn replicate_p_value_handles_extreme_units_and_large_offsets() {
+        let reference = replicate_p_value(&[-1.0, 1.0], 2.0).unwrap();
+        for scale in [1e-200, -1e-200, 1e200, -1e200] {
+            let actual = replicate_p_value(&[-scale, scale], 2.0 * scale).unwrap();
+            assert!((actual - reference).abs() < 1e-12, "scale {scale}: {actual}");
+        }
+        let actual = replicate_p_value(&[1e12 - 1.0, 1e12 + 1.0], 1e12 + 2.0).unwrap();
+        assert!((actual - reference).abs() < 1e-12);
+        assert_eq!(replicate_p_value(&[-f64::MAX, f64::MAX], 0.0).unwrap(), 1.0);
+        assert_eq!(replicate_p_value(&[0.0, f64::from_bits(1)], f64::MAX).unwrap(), 0.0);
     }
 
     #[test]

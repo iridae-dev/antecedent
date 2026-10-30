@@ -39,6 +39,29 @@ fn default_delta_grid() -> Vec<f64> {
     vec![0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5, 1.0]
 }
 
+// Scale before centering: even finite values can have an overflowing raw
+// deviation from their mean, while their final sample SD is representable.
+fn stable_outcome_sd(values: &[f64]) -> f64 {
+    if values.len() < 2 || values.iter().any(|value| !value.is_finite()) {
+        return f64::NAN;
+    }
+    if values.iter().all(|&value| value == values[0]) {
+        return 0.0;
+    }
+    let scale = values.iter().fold(0.0_f64, |largest, value| largest.max(value.abs()));
+    if !(scale.is_finite() && scale > 0.0) {
+        return f64::NAN;
+    }
+    let n = values.len() as f64;
+    let mean =
+        antecedent_kernels::numeric::CompensatedSum::of(values.iter().map(|v| v / scale)) / n;
+    let squares = antecedent_kernels::numeric::CompensatedSum::of(values.iter().map(|v| {
+        let centered = v / scale - mean;
+        centered * centered
+    }));
+    scale * (squares / (n - 1.0)).sqrt()
+}
+
 /// Riesz-representer robustness diagnostics for binary ATE.
 #[derive(Clone, Debug)]
 pub struct RieszSensitivity {
@@ -141,12 +164,18 @@ impl RieszSensitivity {
                           published estimate, so the diagnostic fit's representer does not describe it",
             });
         }
-        let sd_y = crate::common::sample_sd(&y).max(1e-12);
-        let n = alpha.len() as f64;
-        let alpha_l2 = (alpha.iter().map(|a| a * a).sum::<f64>() / n.max(1.0)).sqrt();
-        if alpha_l2 < 1e-15 {
+        // Do not replace real outcome variation by an absolute unit-dependent floor.
+        let sd_y = stable_outcome_sd(&y);
+        if !(sd_y.is_finite() && sd_y > 0.0) {
             return Err(ValidationError::NotApplicable {
-                message: "Riesz representer has near-zero L2 norm",
+                message: "Riesz sensitivity requires positive finite outcome variation",
+            });
+        }
+        let n = alpha.len() as f64;
+        let alpha_l2 = alpha.iter().fold(0.0_f64, |norm, &value| norm.hypot(value)) / n.sqrt();
+        if !(alpha_l2.is_finite() && alpha_l2 > 0.0) {
+            return Err(ValidationError::NotApplicable {
+                message: "Riesz representer requires a positive finite L2 norm",
             });
         }
 
@@ -330,6 +359,70 @@ mod tests {
             ExprId::from_raw(0),
         );
         (TabularData::new(storage), estimand)
+    }
+
+    #[test]
+    fn riesz_tipping_is_invariant_to_outcome_units_and_refuses_zero_spread() {
+        use antecedent_data::TableView;
+        let mut sparse_outlier = vec![1e308; 101];
+        sparse_outlier[0] = -1e308;
+        let sd = super::stable_outcome_sd(&sparse_outlier);
+        assert!(sd.is_finite() && sd > 1e307);
+        let (data, estimand) = toy();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = EstimationWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let fitted = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        let y = data.float64_values(VariableId::from_raw(1)).unwrap();
+        let mut reference = None;
+        for scale in [1.0, 1e-200, 1e-14, 1e14, 1e200] {
+            let scaled = crate::common::with_replaced_float(
+                &data,
+                VariableId::from_raw(1),
+                Arc::from(y.iter().map(|v| v * scale).collect::<Vec<_>>()),
+            )
+            .unwrap();
+            let mut original = fitted.clone();
+            original.ate = 0.5 * scale;
+            let problem = RefutationProblem::new(
+                &scaled,
+                &estimand,
+                &query,
+                &original,
+                Some("linear.adjustment.ate"),
+                None,
+            );
+            let report = RieszSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap();
+            let result = (report.comparison, report.passed);
+            if let Some(expected) = reference {
+                assert_eq!(result, expected);
+            } else {
+                reference = Some(result);
+            }
+        }
+        let constant = crate::common::with_replaced_float(
+            &data,
+            VariableId::from_raw(1),
+            Arc::from(vec![0.0; y.len()]),
+        )
+        .unwrap();
+        let mut original = fitted;
+        original.ate = 0.0;
+        let problem = RefutationProblem::new(
+            &constant,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        );
+        assert!(matches!(
+            RieszSensitivity::new().refute(&problem, &mut ws, &ctx),
+            Err(ValidationError::NotApplicable { .. })
+        ));
     }
 
     #[test]

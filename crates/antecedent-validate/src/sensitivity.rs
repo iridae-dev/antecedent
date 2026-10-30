@@ -1308,6 +1308,11 @@ fn residual_grid_report(
         // `t' = t + a u`, `y' = y + b u`. The OLS slope is a function of the
         // five raw second moments, so the grid does not rebuild the series.
         last_ate = moments.slope(scale * sd_t, dir * scale * sd_y);
+        if !last_ate.is_finite() {
+            return Err(ValidationError::NotApplicable {
+                message: "nonparametric sensitivity has an undefined perturbed residual slope",
+            });
+        }
         #[allow(
             clippy::float_cmp,
             reason = "signum returns exactly +/-1 (or NaN), so comparing two signs for equality is exact"
@@ -1531,13 +1536,10 @@ fn kernel_residuals(
     Ok(((t_res, y_res, n), routed))
 }
 
-/// Raw moments of `(t, y, u)` so `slope(a, b)` is the OLS slope of
-/// `y + b u` on `t + a u` without another pass over the sample.
+/// Centered moments of the raw, unweighted kernel residuals `(t, y, u)`.
+/// This is separate from the root-weighted linear SensitivityGram path.
 struct PerturbMoments {
-    n: f64,
-    sum_t: f64,
-    sum_y: f64,
-    sum_u: f64,
+    n: usize,
     tt: f64,
     ty: f64,
     tu: f64,
@@ -1547,22 +1549,12 @@ struct PerturbMoments {
 
 impl PerturbMoments {
     fn new(t: &[f64], y: &[f64], u: &[f64]) -> Self {
-        let mut moments = Self {
-            n: t.len() as f64,
-            sum_t: 0.0,
-            sum_y: 0.0,
-            sum_u: 0.0,
-            tt: 0.0,
-            ty: 0.0,
-            tu: 0.0,
-            yu: 0.0,
-            uu: 0.0,
-        };
+        let mut moments = Self { n: t.len(), tt: 0.0, ty: 0.0, tu: 0.0, yu: 0.0, uu: 0.0 };
+        let mean_t = antecedent_kernels::mean(t);
+        let mean_y = antecedent_kernels::mean(y);
+        let mean_u = antecedent_kernels::mean(u);
         for i in 0..t.len() {
-            let (ti, yi, ui) = (t[i], y[i], u[i]);
-            moments.sum_t += ti;
-            moments.sum_y += yi;
-            moments.sum_u += ui;
+            let (ti, yi, ui) = (t[i] - mean_t, y[i] - mean_y, u[i] - mean_u);
             moments.tt += ti * ti;
             moments.ty += ti * yi;
             moments.tu += ti * ui;
@@ -1573,31 +1565,25 @@ impl PerturbMoments {
     }
 
     fn slope(&self, a: f64, b: f64) -> f64 {
-        if self.n < 2.0 {
+        if self.n < 2 {
             return f64::NAN;
         }
-        let sum_t = self.sum_t + a * self.sum_u;
-        let sum_y = self.sum_y + b * self.sum_u;
-        let mean_t = sum_t / self.n;
-        let mean_y = sum_y / self.n;
-        let den = self.tt + 2.0 * a * self.tu + a * a * self.uu - self.n * mean_t * mean_t;
-        if den < 1e-15 {
-            0.0
-        } else {
-            let num =
-                self.ty + b * self.tu + a * self.yu + a * b * self.uu - self.n * mean_t * mean_y;
-            num / den
+        let den = self.tt + 2.0 * a * self.tu + a * a * self.uu;
+        let num = self.ty + b * self.tu + a * self.yu + a * b * self.uu;
+        if !(den.is_finite() && den > 0.0 && num.is_finite()) {
+            return f64::NAN;
         }
+        let value = num / den;
+        if value.is_finite() { value } else { f64::NAN }
     }
 }
 
 fn residual_ols_ate(t: &[f64], y: &[f64]) -> f64 {
-    let n = t.len() as f64;
-    if n < 2.0 {
+    if t.len() < 2 {
         return f64::NAN;
     }
-    let mean_t = t.iter().sum::<f64>() / n;
-    let mean_y = y.iter().sum::<f64>() / n;
+    let mean_t = antecedent_kernels::mean(t);
+    let mean_y = antecedent_kernels::mean(y);
     let mut num = 0.0;
     let mut den = 0.0;
     for (&ti, &yi) in t.iter().zip(y) {
@@ -1605,13 +1591,53 @@ fn residual_ols_ate(t: &[f64], y: &[f64]) -> f64 {
         num += dt * (yi - mean_y);
         den += dt * dt;
     }
-    if den < 1e-15 { 0.0 } else { num / den }
+    if !(den.is_finite() && den > 0.0 && num.is_finite()) {
+        return f64::NAN;
+    }
+    let value = num / den;
+    if value.is_finite() { value } else { f64::NAN }
 }
 
 #[cfg(test)]
 mod gram_algebra {
     use super::assemble_perturbed_normal_eq;
     use antecedent_stats::{form_xtx, form_xty};
+
+    #[test]
+    fn raw_residual_slopes_are_scale_and_offset_stable() {
+        use super::{PerturbMoments, residual_ols_ate};
+        let tiny_t = [-1e-10, 0.0, 1e-10];
+        let tiny_y = [-2e-10, 0.0, 2e-10];
+        assert!((residual_ols_ate(&tiny_t, &tiny_y) - 2.0).abs() < 1e-14);
+        assert!(
+            (PerturbMoments::new(&tiny_t, &tiny_y, &[0.0, 0.0, 0.0]).slope(0.0, 0.0) - 2.0).abs()
+                < 1e-14
+        );
+        let t = [-1.0, 0.0, 1.0, 2.0];
+        let y = [3.0, 2.0, 5.0, 4.0];
+        let u = [0.5, -0.5, 1.0, -1.0];
+        for factor in [1e-10, -1e-10, 1.0, 1e10, -1e10] {
+            let ts: Vec<f64> = t.iter().map(|v| v * factor).collect();
+            let ys: Vec<f64> = y.iter().map(|v| v * factor).collect();
+            let (a, b) = (0.3 * factor, -0.7 * factor);
+            let tp: Vec<f64> = ts.iter().zip(u).map(|(v, u)| v + a * u).collect();
+            let yp: Vec<f64> = ys.iter().zip(u).map(|(v, u)| v + b * u).collect();
+            let from_moments = PerturbMoments::new(&ts, &ys, &u).slope(a, b);
+            let direct = residual_ols_ate(&tp, &yp);
+            assert!(
+                (from_moments - direct).abs() < 1e-12,
+                "scale {factor}: {from_moments} vs {direct}"
+            );
+        }
+        let t = [1e9 - 1.0, 1e9, 1e9 + 1.0, 1e9 + 2.0];
+        let y = [1e9 + 3.0, 1e9 + 2.0, 1e9 + 5.0, 1e9 + 4.0];
+        let moments = PerturbMoments::new(&t, &y, &u);
+        assert!((moments.slope(0.0, 0.0) - residual_ols_ate(&t, &y)).abs() < 1e-12);
+        assert!(residual_ols_ate(&[1.0, 1.0], &[0.0, 1.0]).is_nan());
+        assert!(
+            PerturbMoments::new(&[1.0, 1.0], &[0.0, 1.0], &[0.0, 0.0]).slope(0.0, 0.0).is_nan()
+        );
+    }
 
     #[test]
     fn perturb_moments_match_the_residual_ols_slope() {

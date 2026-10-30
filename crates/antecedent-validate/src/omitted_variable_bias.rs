@@ -70,9 +70,17 @@ impl LinearAdjustmentSummary {
         Ok(Self { estimate, standard_error, dof })
     }
 
-    /// `t = τ̂ / se`.
+    /// Validate public fields before a range or verdict consumes them.
+    pub(crate) fn validate(&self) -> Result<(), ValidationError> {
+        Self::new(self.estimate, self.standard_error, self.dof).map(|_| ())
+    }
+
+    /// `t = τ̂ / se`. Invalid public summary fields return NaN.
     #[must_use]
     pub fn t_statistic(&self) -> f64 {
+        if self.validate().is_err() {
+            return f64::NAN;
+        }
         self.estimate / self.standard_error
     }
 
@@ -89,8 +97,20 @@ impl LinearAdjustmentSummary {
     }
 
     /// Robustness value `RV_q` (with `alpha = None`) or `RV_{q,α}`.
+    /// `q` is finite and nonnegative; `alpha`, when supplied, lies in `(0, 1)`.
+    /// Invalid arguments or summary fields return NaN.
     #[must_use]
     pub fn robustness_value(&self, q: f64, alpha: Option<f64>) -> f64 {
+        if self.validate().is_err()
+            || !q.is_finite()
+            || q < 0.0
+            || alpha.is_some_and(|a| !(a.is_finite() && a > 0.0 && a < 1.0))
+        {
+            return f64::NAN;
+        }
+        if q == 0.0 {
+            return 0.0;
+        }
         let fq = q * self.partial_f().abs();
         let Some(alpha) = alpha else {
             return rv_from_f(fq);
@@ -101,16 +121,21 @@ impl LinearAdjustmentSummary {
         if fqa <= 0.0 {
             0.0
         } else if fq > 1.0 / fcrit {
-            (fq * fq - fcrit * fcrit) / (1.0 + fq * fq)
+            let inverse = 1.0 / fq;
+            (1.0 - (fcrit * inverse).powi(2)) / (1.0 + inverse * inverse)
         } else {
             rv_from_f(fqa)
         }
     }
 
     /// Largest absolute bias of a confounder with partial R²s `r2dz` (treatment) and `r2yz`
-    /// (outcome).
+    /// (outcome). `r2dz` lies in `[0, 1)` and `r2yz` in `[0, 1]`.
+    /// Invalid arguments or summary fields return NaN.
     #[must_use]
     pub fn bias_bound(&self, r2dz: f64, r2yz: f64) -> f64 {
+        if self.validate().is_err() || !(0.0..1.0).contains(&r2dz) || !(0.0..=1.0).contains(&r2yz) {
+            return f64::NAN;
+        }
         self.standard_error * self.dof.sqrt() * (r2yz * r2dz / (1.0 - r2dz)).sqrt()
     }
 
@@ -121,9 +146,13 @@ impl LinearAdjustmentSummary {
         if self.estimate >= 0.0 { self.estimate - bias } else { self.estimate + bias }
     }
 
-    /// Standard error after adjusting for the confounder.
+    /// Standard error after adjusting for the confounder, with `r2dz` in
+    /// `[0, 1)` and `r2yz` in `[0, 1]`. Invalid inputs return NaN.
     #[must_use]
     pub fn adjusted_standard_error(&self, r2dz: f64, r2yz: f64) -> f64 {
+        if self.validate().is_err() || !(0.0..1.0).contains(&r2dz) || !(0.0..=1.0).contains(&r2yz) {
+            return f64::NAN;
+        }
         self.standard_error
             * ((1.0 - r2yz) / (1.0 - r2dz)).sqrt()
             * (self.dof / (self.dof - 1.0)).sqrt()
@@ -131,22 +160,58 @@ impl LinearAdjustmentSummary {
 
     /// Share of residual treatment variance a confounder with outcome partial R² `r2yz`
     /// must explain to reduce the estimate by `100·q`%: `f_q² / (f_q² + R²_{Y~Z|D,X})`.
+    /// `r2yz` lies in `[0, 1]` and `q` is finite and nonnegative. Invalid
+    /// inputs and the indeterminate `q=0, r2yz=0` boundary return NaN.
     #[must_use]
     pub fn break_even_r2dz(&self, r2yz: f64, q: f64) -> f64 {
-        let fq2 = (q * self.partial_f()).powi(2);
-        fq2 / (fq2 + r2yz)
+        if self.validate().is_err() || !(0.0..=1.0).contains(&r2yz) || !q.is_finite() || q < 0.0 {
+            return f64::NAN;
+        }
+        let fq = if q == 0.0 { 0.0 } else { (q * self.partial_f()).abs() };
+        if fq > 0.0 && r2yz.is_finite() && r2yz >= 0.0 {
+            if r2yz == 0.0 {
+                return 1.0;
+            }
+            let ratio = fq / r2yz.sqrt();
+            if ratio <= 1.0 {
+                let square = ratio * ratio;
+                square / (1.0 + square)
+            } else {
+                let inverse = 1.0 / ratio;
+                1.0 / (1.0 + inverse * inverse)
+            }
+        } else {
+            let fq2 = fq * fq;
+            fq2 / (fq2 + r2yz)
+        }
     }
 }
 
 fn rv_from_f(f: f64) -> f64 {
-    let f2 = f * f;
-    0.5 * ((f2 * f2 + 4.0 * f2).sqrt() - f2)
+    let magnitude = f.abs();
+    if magnitude == 0.0 {
+        return 0.0;
+    }
+    // Rationalized forms avoid f⁴, preserve small f and stay bounded at large f.
+    if magnitude < 1.0 {
+        (2.0 * magnitude) / (magnitude.hypot(2.0) + magnitude)
+    } else {
+        2.0 / (1.0_f64.hypot(2.0 / magnitude) + 1.0)
+    }
 }
 
-/// `t² / (t² + dof)`.
+/// `t² / (t² + dof)`, for finite positive `dof`; invalid inputs return NaN.
+/// Infinite `t` is accepted as the limiting value one.
 #[must_use]
 pub fn partial_r2_from_t(t: f64, dof: f64) -> f64 {
-    t * t / (t * t + dof)
+    if !(dof.is_finite() && dof > 0.0) || t.is_nan() {
+        return f64::NAN;
+    }
+    if t == 0.0 {
+        return 0.0;
+    }
+    let ratio = dof.sqrt() / t.abs();
+    1.0 / (1.0 + ratio * ratio)
 }
 
 /// Partial R²s of a confounder `k_d` and `k_y` times as strong as an observed covariate.
@@ -174,28 +239,40 @@ pub fn benchmark_bound(
     kd: f64,
     ky: f64,
 ) -> Result<BenchmarkBound, ValidationError> {
-    if !((0.0..1.0).contains(&r2dxj) && (0.0..1.0).contains(&r2yxj) && kd > 0.0 && ky > 0.0) {
+    if !((0.0..1.0).contains(&r2dxj)
+        && (0.0..1.0).contains(&r2yxj)
+        && kd.is_finite()
+        && kd > 0.0
+        && ky.is_finite()
+        && ky > 0.0)
+    {
         return Err(ValidationError::NotApplicable {
             message: "benchmark partial R2 values must lie in [0, 1) and multipliers must be \
                       positive",
         });
     }
     let r2dz = kd * r2dxj / (1.0 - r2dxj);
-    if r2dz >= 1.0 {
+    if !r2dz.is_finite() || r2dz >= 1.0 {
         return Err(ValidationError::NotApplicable {
             message: "this treatment multiplier implies a confounder explaining all residual \
                       treatment variance; next attempt: a smaller k_D",
         });
     }
     let r2zxj = kd * r2dxj * r2dxj / ((1.0 - kd * r2dxj) * (1.0 - r2dxj));
-    if r2zxj >= 1.0 {
+    if !r2zxj.is_finite() || r2zxj >= 1.0 {
         return Err(ValidationError::NotApplicable {
             message: "this treatment multiplier is incompatible with the benchmark covariate; \
                       next attempt: a smaller k_D",
         });
     }
     let eta = (ky.sqrt() + r2zxj.sqrt()) / (1.0 - r2zxj).sqrt();
-    let r2yz = (eta * eta * r2yxj / (1.0 - r2yxj)).min(1.0);
+    let bound = eta * eta * r2yxj / (1.0 - r2yxj);
+    if !bound.is_finite() {
+        return Err(ValidationError::NotApplicable {
+            message: "benchmark outcome bound is not finite",
+        });
+    }
+    let r2yz = bound.min(1.0);
     Ok(BenchmarkBound { kd, ky, r2dz, r2yz })
 }
 
@@ -333,8 +410,14 @@ pub fn ovb_range(
                       partial R2 in (0, 1]",
         });
     }
+    summary.validate()?;
     let z = student_t_ppf(1.0 - alpha / 2.0, summary.dof - 1.0);
-    let tested = R2DZ_GRID
+    if !z.is_finite() {
+        return Err(ValidationError::NotApplicable {
+            message: "omitted-variable-bias critical value is not finite",
+        });
+    }
+    let tested: Vec<RangePoint> = R2DZ_GRID
         .iter()
         .map(|&r2dz| {
             // An outcome partial R² of one leaves no residual variance; the adjusted standard
@@ -345,14 +428,26 @@ pub fn ovb_range(
             RangePoint { parameter: r2dz, target: estimate, test: Some(limit) }
         })
         .collect();
+    let robustness = summary.robustness_value(q, None);
+    let significance = summary.robustness_value(q, Some(alpha));
+    if !robustness.is_finite()
+        || !significance.is_finite()
+        || tested
+            .iter()
+            .any(|point| !point.target.is_finite() || point.test.is_some_and(|x| !x.is_finite()))
+    {
+        return Err(ValidationError::NotApplicable {
+            message: "omitted-variable-bias range is not finite",
+        });
+    }
     Ok(AssumptionRange::new(
         target,
         SensitivityAssumption::UnmeasuredConfoundingPartialR2,
         "partial_r2",
         0.0,
         tested,
-        Some(summary.robustness_value(q, None)),
-        Some(summary.robustness_value(q, Some(alpha))),
+        Some(robustness),
+        Some(significance),
     ))
 }
 
@@ -364,6 +459,51 @@ mod tests {
     /// peace attitudes, estimate 0.0973 (se 0.0233) on 783 degrees of freedom.
     fn darfur() -> LinearAdjustmentSummary {
         LinearAdjustmentSummary::new(0.097_315_82, 0.023_256_54, 783.0).unwrap()
+    }
+
+    #[test]
+    fn partial_r2_and_robustness_remain_bounded_at_extreme_finite_scales() {
+        let moderate = LinearAdjustmentSummary::new(10.0_f64.sqrt(), 1.0, 10.0).unwrap();
+        // f=1 has the independent golden-ratio reference (sqrt(5)-1)/2.
+        let golden = (5.0_f64.sqrt() - 1.0) / 2.0;
+        assert!((moderate.robustness_value(1.0, None) - golden).abs() < 1e-14);
+        assert!((partial_r2_from_t(1.0, 3.0) - 0.25).abs() < 1e-15);
+        let huge = LinearAdjustmentSummary::new(1e200, 1.0, 10.0).unwrap();
+        assert_eq!(huge.robustness_value(1.0, None), 1.0);
+        assert_eq!(huge.robustness_value(1.0, Some(0.05)), 1.0);
+        assert_eq!(huge.partial_r2_treatment(), 1.0);
+        assert_eq!(huge.break_even_r2dz(0.5, 1.0), 1.0);
+        assert_eq!(partial_r2_from_t(f64::INFINITY, 10.0), 1.0);
+        assert_eq!(partial_r2_from_t(0.0, 10.0), 0.0);
+        assert_eq!(rv_from_f(0.0), 0.0);
+        assert_eq!(rv_from_f(1e-320), 1e-320);
+        assert_eq!(rv_from_f(f64::INFINITY), 1.0);
+    }
+
+    #[test]
+    fn invalid_ovb_fields_and_boundaries_never_become_finite_claims() {
+        let valid = LinearAdjustmentSummary::new(1.0, 0.2, 10.0).unwrap();
+        for (treatment, outcome) in
+            [(1.0, 0.0), (1.0, 1.0), (-0.1, 0.5), (0.2, 1.1), (f64::NAN, 0.5)]
+        {
+            assert!(valid.bias_bound(treatment, outcome).is_nan());
+            assert!(valid.adjusted_standard_error(treatment, outcome).is_nan());
+        }
+        assert!(valid.break_even_r2dz(0.0, 0.0).is_nan());
+        assert!(valid.robustness_value(-1.0, None).is_nan());
+        assert!(valid.robustness_value(1.0, Some(1.0)).is_nan());
+        assert!(partial_r2_from_t(1.0, -1.0).is_nan());
+        assert!(benchmark_bound(0.0, 0.2, f64::INFINITY, 1.0).is_err());
+        let bad = LinearAdjustmentSummary { standard_error: f64::NAN, ..valid };
+        assert!(bad.t_statistic().is_nan());
+        let target = RefutationTarget::new(
+            crate::target_native::TargetFamily::ConditionalEffect,
+            crate::target_native::TargetQuadrant::STATIC_FREQUENTIST,
+            ["one"],
+            [3; 32],
+        )
+        .unwrap();
+        assert!(ovb_range(target, &bad, 1.0, 0.05, 1.0).is_err());
     }
 
     #[test]

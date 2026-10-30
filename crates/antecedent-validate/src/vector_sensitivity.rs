@@ -281,28 +281,50 @@ pub fn ovb_vector_range(
              (0, 1]",
         ));
     }
-    let tested = R2DZ_GRID
+    for summary in summaries {
+        summary.validate()?;
+    }
+    let mut critical_values = Vec::with_capacity(summaries.len());
+    for summary in summaries {
+        let z = student_t_ppf(1.0 - alpha / 2.0, summary.dof - 1.0);
+        if !z.is_finite() {
+            return Err(not_applicable("omitted-variable-bias critical value is not finite"));
+        }
+        critical_values.push(z);
+    }
+    let tested: Vec<RangePoint> = R2DZ_GRID
         .iter()
         .map(|&r2dz| {
             let mut remaining = f64::INFINITY;
             let mut remaining_limit = f64::INFINITY;
-            for summary in summaries {
-                let z = student_t_ppf(1.0 - alpha / 2.0, summary.dof - 1.0);
+            for (summary, &z) in summaries.iter().zip(&critical_values) {
                 let estimate = summary.adjusted_estimate(r2dz, r2yz_extreme);
                 let se = summary.adjusted_standard_error(r2dz, r2yz_extreme);
                 let direction = if summary.estimate >= 0.0 { 1.0 } else { -1.0 };
                 let limit = estimate - direction * z * se;
                 let scale = summary.estimate.abs().max(f64::MIN_POSITIVE);
-                remaining = remaining.min(direction * estimate / scale);
-                remaining_limit = remaining_limit.min(direction * limit / scale);
+                let point = direction * estimate / scale;
+                let bound = direction * limit / scale;
+                if !point.is_finite() || !bound.is_finite() {
+                    return Err(not_applicable("omitted-variable-bias vector range is not finite"));
+                }
+                remaining = remaining.min(point);
+                remaining_limit = remaining_limit.min(bound);
             }
-            RangePoint { parameter: r2dz, target: remaining, test: Some(remaining_limit) }
+            Ok(RangePoint { parameter: r2dz, target: remaining, test: Some(remaining_limit) })
         })
-        .collect();
-    let break_even =
-        summaries.iter().map(|s| s.robustness_value(q, None)).fold(f64::INFINITY, f64::min);
-    let significance =
-        summaries.iter().map(|s| s.robustness_value(q, Some(alpha))).fold(f64::INFINITY, f64::min);
+        .collect::<Result<Vec<_>, ValidationError>>()?;
+    let mut break_even = f64::INFINITY;
+    let mut significance = f64::INFINITY;
+    for summary in summaries {
+        let rv = summary.robustness_value(q, None);
+        let rva = summary.robustness_value(q, Some(alpha));
+        if !rv.is_finite() || !rva.is_finite() {
+            return Err(not_applicable("omitted-variable-bias robustness is not finite"));
+        }
+        break_even = break_even.min(rv);
+        significance = significance.min(rva);
+    }
     Ok(AssumptionRange::new(
         target,
         SensitivityAssumption::UnmeasuredConfoundingPartialR2,
@@ -616,6 +638,18 @@ mod tests {
         assert!(
             evalue_posterior_range(one, &[vec![1.0, 2.0]], EffectScale::RiskRatio, 1.5).is_err()
         );
+    }
+
+    #[test]
+    fn vector_ovb_refuses_invalid_public_summary() {
+        let valid = LinearAdjustmentSummary::new(1.0, 0.2, 10.0).unwrap();
+        let bad = LinearAdjustmentSummary { standard_error: f64::NAN, ..valid };
+        let strata = target(
+            TargetFamily::ConditionalEffect,
+            TargetQuadrant::STATIC_FREQUENTIST,
+            &["a", "b"],
+        );
+        assert!(ovb_vector_range(strata, &[valid, bad], 1.0, 0.05, 1.0).is_err());
     }
 
     #[test]
