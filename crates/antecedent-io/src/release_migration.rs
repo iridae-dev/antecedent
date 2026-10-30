@@ -300,7 +300,7 @@ pub struct MethodAssignment {
     pub status: String,
     /// Axes that method occupies.
     pub axes: Vec<RouteAxis>,
-    /// The previous route was licensed and this method is not.
+    /// The previous route had a license and this method does not carry that license kind.
     pub narrowed: bool,
 }
 
@@ -350,16 +350,16 @@ pub enum RouteRecordError {
         /// Record id.
         id: String,
     },
-    /// A licensed route is carried only by methods that are not licensed.
+    /// No current method carries the previous route's license kind.
     #[error(
-        "licensed route {id} is carried only by unlicensed methods {}; run the measurement that \
-         licenses one of them, or accept the execution-only standing before migrating",
+        "licensed route {id} has no method carrying its original license kind among {}; \
+         establish the original license or record the changed contract before migrating",
         .methods.join(", ")
     )]
     LicenseNotCarried {
         /// Record id.
         id: String,
-        /// The current methods, none licensed.
+        /// The current methods, none carrying the original license kind.
         methods: Vec<String>,
     },
 }
@@ -387,14 +387,18 @@ pub fn migrate_route_record(
     if linked.is_empty() {
         return match status {
             ManifestRouteStatus::Closed => Ok(RouteRecordOutcome::RefusalKept),
-            ManifestRouteStatus::Licensed => {
+            ManifestRouteStatus::Licensed | ManifestRouteStatus::Graphless => {
                 Err(RouteRecordError::RouteWithoutCurrentMethod { id })
             }
             _ => Ok(RouteRecordOutcome::Retired),
         };
     }
-    let licensed = status == ManifestRouteStatus::Licensed;
-    if licensed && linked.iter().all(|m| m.status != "licensed") {
+    let license_kind = match status {
+        ManifestRouteStatus::Licensed => Some("licensed"),
+        ManifestRouteStatus::Graphless => Some("graphless"),
+        _ => None,
+    };
+    if license_kind.is_some_and(|kind| linked.iter().all(|m| m.status != kind)) {
         return Err(RouteRecordError::LicenseNotCarried {
             id,
             methods: linked.iter().map(|m| m.id.clone()).collect(),
@@ -407,7 +411,7 @@ pub fn migrate_route_record(
             estimator: m.estimator.clone(),
             status: m.status.clone(),
             axes: m.axes(),
-            narrowed: licensed && m.status != "licensed",
+            narrowed: license_kind.is_some_and(|kind| m.status != kind),
         })
         .collect();
     let unserved_axes: Vec<RouteAxis> =
@@ -948,6 +952,47 @@ mod tests {
             }
         );
         assert!(downgraded.to_string().contains("m.down"));
+    }
+
+    #[test]
+    fn graphless_and_geometric_licenses_preserve_only_their_own_kind() {
+        use super::{
+            ManifestRouteRecord, RouteRecordError, RouteRecordOutcome, migrate_route_record,
+        };
+        let record = |status| ManifestRouteRecord {
+            id: "r",
+            status,
+            design_time_model: "static",
+            inference: "frequentist",
+        };
+        let graphless = [method("g", "r", "static", "frequentist", "graphless")];
+        let licensed = [method("l", "r", "static", "frequentist", "licensed")];
+        assert!(matches!(migrate_route_record(&record("graphless"), &graphless),
+            Ok(RouteRecordOutcome::OneToOne { method, .. }) if !method.narrowed));
+        assert!(matches!(migrate_route_record(&record("licensed"), &licensed),
+            Ok(RouteRecordOutcome::OneToOne { method, .. }) if !method.narrowed));
+        assert!(matches!(
+            migrate_route_record(&record("graphless"), &licensed),
+            Err(RouteRecordError::LicenseNotCarried { .. })
+        ));
+        assert!(matches!(
+            migrate_route_record(&record("licensed"), &graphless),
+            Err(RouteRecordError::LicenseNotCarried { .. })
+        ));
+        assert!(matches!(
+            migrate_route_record(&record("graphless"), &[]),
+            Err(RouteRecordError::RouteWithoutCurrentMethod { .. })
+        ));
+        assert!(matches!(
+            migrate_route_record(&record("closed"), &[]),
+            Ok(RouteRecordOutcome::RefusalKept)
+        ));
+        let both = [
+            method("g", "r", "static", "frequentist", "graphless"),
+            method("l", "r", "static", "frequentist", "licensed"),
+        ];
+        assert!(matches!(migrate_route_record(&record("graphless"), &both),
+            Ok(RouteRecordOutcome::Split { methods, .. }) if !methods[0].narrowed && methods[1].narrowed));
     }
 
     #[test]
