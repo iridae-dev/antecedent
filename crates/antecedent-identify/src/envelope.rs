@@ -202,7 +202,7 @@ impl<G> IdentificationEnvelope<G> {
 
 /// Whether this case's search was truncated before it could decide.
 fn case_truncated<G>(case: &GraphIdentificationCase<G>) -> bool {
-    search_truncated(&case.result)
+    !carries_identified_mass(case.result.status) && search_truncated(&case.result)
 }
 
 /// Whether an identification search stopped at a budget (a completion or
@@ -315,6 +315,33 @@ mod tests {
             hedge: None,
             estimand_claims: Vec::new(),
         }
+    }
+
+    #[test]
+    fn bounded_search_on_identified_case_does_not_consume_unidentified_mass() {
+        let mut identified = dummy_result(IdentificationStatus::NonparametricallyIdentified);
+        identified.diagnostics.push(antecedent_core::Diagnostic::new(
+            crate::generalized::MAG_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
+            antecedent_core::DiagnosticKind::Execution,
+            antecedent_core::DiagnosticSeverity::Warning,
+            "a valid adjustment set was found but not minimized",
+        ));
+        assert!(search_truncated(&identified));
+        let env = IdentificationEnvelope::from_cases(vec![
+            GraphIdentificationCase {
+                graph: 0u32,
+                result: identified,
+                weight: ProbabilityMass(0.5),
+            },
+            GraphIdentificationCase {
+                graph: 1u32,
+                result: dummy_result(IdentificationStatus::NotIdentified),
+                weight: ProbabilityMass(0.5),
+            },
+        ]);
+        assert_eq!(env.truncated_completions, 0);
+        assert_eq!(env.truncated_weight(), 0.0);
+        assert_eq!(env.unidentified_weight.0, 0.5);
     }
 
     #[test]

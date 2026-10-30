@@ -334,10 +334,15 @@ impl GeneralizedAdjustmentIdentifier {
             if !is_identified(&result) {
                 result = identify_dag_via_id(dag, query)?;
             } else if let Some((t, y, level)) = intervention_response_set(query) {
-                if let Some(first) = result.estimands.first() {
-                    let z = Arc::clone(&first.adjustment_set);
-                    let functional = result.arena.backdoor_mean(t, y, &z, level);
-                    result.estimands[0].functional = functional;
+                for estimand in &mut result.estimands {
+                    if estimand.method.as_ref() == "backdoor.adjustment" {
+                        estimand.functional = result.arena.backdoor_mean(
+                            t,
+                            y,
+                            &estimand.adjustment_set,
+                            level.clone(),
+                        );
+                    }
                 }
             }
             result.query = CausalQuery::Response(query.clone());
@@ -368,6 +373,27 @@ mod tests {
 
     fn n(i: u32) -> DenseNodeId {
         DenseNodeId::from_raw(i)
+    }
+
+    #[test]
+    fn cpdag_response_rewrites_each_backdoor_adjustment_functional() {
+        let mut cpdag = Cpdag::with_variables(5);
+        for (a, b) in [(1, 0), (1, 2), (2, 4), (0, 4)] {
+            cpdag.insert_directed(n(a), n(b)).unwrap();
+        }
+        let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: VariableId::from_raw(4),
+            interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(1.0))]),
+        });
+        let envelope = identify_cpdag_response_general(&cpdag, &query).unwrap();
+        assert!(!envelope.cases.is_empty());
+        for case in &envelope.cases {
+            assert!(case.result.estimands.len() >= 2);
+            for estimand in &case.result.estimands {
+                let node = case.result.arena.node(estimand.functional);
+                assert!(matches!(node, antecedent_expr::ExprNode::Expectation { .. }), "{node:?}");
+            }
+        }
     }
 
     fn response() -> ResponseQuery {

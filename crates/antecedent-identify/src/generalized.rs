@@ -723,10 +723,16 @@ fn constrained_conditional_set(
                 for &d in z {
                     z_mask.insert(d);
                 }
-                if config.minimal_only && found_masks.iter().any(|old| old.is_subset_of(&z_mask)) {
-                    return false;
-                }
-                if config.maximal_only && found_masks.iter().any(|old| z_mask.is_subset_of(old)) {
+                let skipped = (config.minimal_only
+                    && found_masks.iter().any(|old| old.is_subset_of(&z_mask)))
+                    || (config.maximal_only
+                        && found_masks.iter().any(|old| z_mask.is_subset_of(old)));
+                if skipped {
+                    if examined >= config.max_examinations {
+                        budget_exhausted = true;
+                        return true;
+                    }
+                    examined += 1;
                     return false;
                 }
             }
@@ -1333,6 +1339,42 @@ mod tests {
     /// is spent on the ancestral set and the empty set, so the search for smaller sets stops
     /// before it reaches `{A}`; the ancestral set `{A, B}` was already tested valid, so the
     /// query is identified with it and the unfinished search is marked, not refuted.
+    #[test]
+    fn conditional_maximal_search_charges_pruned_subsets() {
+        let mut dag = antecedent_graph::Dag::with_variables(5);
+        for (a, b) in [(1, 0), (1, 2), (3, 2), (3, 4), (0, 4)] {
+            dag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let graph = crate::prepared::dag_to_admg(&dag).unwrap();
+        let cut = mutilate_outgoing(&graph, DenseNodeId::from_raw(0));
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(4))
+                .with_effect_modifiers([VariableId::from_raw(2)]);
+        let config = crate::backdoor::AdjustmentSearchConfig {
+            maximal_only: true,
+            minimal_only: false,
+            max_examinations: 2,
+            ..Default::default()
+        };
+        let result = constrained_conditional_set(
+            &graph,
+            &cut,
+            dag.nodes(),
+            &query,
+            &[DenseNodeId::from_raw(2)],
+            &config,
+        )
+        .unwrap();
+        match result {
+            ConditionalSearch::Found(sets, examined, bounded) => {
+                assert_eq!(sets.len(), 1);
+                assert_eq!(examined, 2);
+                assert!(bounded);
+            }
+            ConditionalSearch::Absent => panic!("ancestral set is valid"),
+        }
+    }
+
     #[test]
     fn conditional_search_budget_exit_keeps_the_certified_ancestral_set() {
         let mut dag = antecedent_graph::Dag::with_variables(5);
