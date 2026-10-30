@@ -130,6 +130,12 @@ impl EstimatorSpec {
                     | Self::DistanceMatching(_)
                     | Self::IvWald(_)
                     | Self::Iv2Sls(_)
+                    | Self::Default(
+                        EstimatorId::PropensityMatching
+                            | EstimatorId::DistanceMatching
+                            | EstimatorId::IvWald
+                            | EstimatorId::Iv2Sls
+                    )
             )
         {
             return Err(crate::unsupported_reason!(
@@ -499,5 +505,29 @@ mod tests {
             panic!("expected EstimatorSpec::LinearAdjustmentAte");
         };
         assert_eq!(cfg.inference.bootstrap_replicates, 500);
+    }
+
+    #[test]
+    fn matching_and_iv_default_ids_refuse_the_same_dependent_designs_as_configurations() {
+        use antecedent_core::DeclaredSamplingDesign as Design;
+
+        for (id, configured) in [
+            (EstimatorId::PropensityMatching, PropensityMatching::new().into()),
+            (EstimatorId::DistanceMatching, DistanceMatching::new().into()),
+            (EstimatorId::IvWald, WaldIv::new().into()),
+            (EstimatorId::Iv2Sls, TwoStageLeastSquares::new().into()),
+        ] {
+            let configured: EstimatorSpec = configured;
+            for design in [Design::ClusteredPanel, Design::DependentTimeSeries] {
+                for mut spec in [EstimatorSpec::Default(id), configured.clone()] {
+                    let error = spec.bind_sampling_design(design).unwrap_err();
+                    assert_eq!(error.reason_code(), Some("option_not_applicable"), "{id:?}");
+                    assert!(error.to_string().contains("this estimator reads no cluster"));
+                }
+            }
+            EstimatorSpec::Default(id)
+                .bind_sampling_design(Design::IndependentSubjectTrajectories)
+                .unwrap();
+        }
     }
 }

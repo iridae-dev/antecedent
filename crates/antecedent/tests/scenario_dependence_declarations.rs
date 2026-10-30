@@ -25,8 +25,8 @@ use std::sync::Arc;
 use antecedent::{CausalError, RefuteSuite, Study, StudyResult};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, CounterfactualQuery,
-    DeclaredSamplingDesign, DerivativeWeighting, ExecutionContext, Intervention, ResponseFunctional,
-    ResponseQuery, Value, VariableId,
+    DeclaredSamplingDesign, DerivativeWeighting, ExecutionContext, Intervention,
+    ResponseFunctional, ResponseQuery, Value, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_estimate::{AnalyticSeKind, LinearAdjustmentAte};
@@ -88,7 +88,8 @@ fn the_counterfactual_runs_under_independent_subjects_and_refuses_clustered_and_
         .unwrap()
         .mean_ite;
     assert!((effect - 11.0).abs() < 0.3, "{effect}");
-    for design in [DeclaredSamplingDesign::ClusteredPanel, DeclaredSamplingDesign::DependentTimeSeries]
+    for design in
+        [DeclaredSamplingDesign::ClusteredPanel, DeclaredSamplingDesign::DependentTimeSeries]
     {
         let error = run(counterfactual(), design)
             .err()
@@ -116,7 +117,10 @@ fn the_average_effect_refuses_a_row_bootstrap_under_each_declared_dependence_and
             .err()
             .unwrap_or_else(|| panic!("{name}: resampled rows as if independent"))
             .to_string();
-        assert!(text.contains(&format!("{name} does not allow row_iid resampling")), "{name}: {text}");
+        assert!(
+            text.contains(&format!("{name} does not allow row_iid resampling")),
+            "{name}: {text}"
+        );
         assert!(text.contains(&format!("{name} allows {allowed} resampling")), "{name}: {text}");
     }
 }
@@ -223,6 +227,40 @@ fn an_error_kind_that_does_not_read_the_declared_design_is_refused_for_a_configu
             .unwrap_or_else(|| panic!("{design:?}: an error kind that ignores the design"));
         assert_eq!(error.reason_code(), Some("option_not_applicable"), "{design:?}: {error}");
         assert!(error.to_string().contains("Next attempt"), "{design:?}: {error}");
+    }
+}
+
+#[test]
+fn matching_and_iv_ids_cannot_bypass_dependence_refusal_with_a_positive_bootstrap_count() {
+    use antecedent::EstimatorId;
+
+    for estimator in [
+        EstimatorId::PropensityMatching,
+        EstimatorId::DistanceMatching,
+        EstimatorId::IvWald,
+        EstimatorId::Iv2Sls,
+    ] {
+        for design in
+            [DeclaredSamplingDesign::ClusteredPanel, DeclaredSamplingDesign::DependentTimeSeries]
+        {
+            // Matching and IV suppress the facade bootstrap, so a positive
+            // requested count cannot supply dependence-aware uncertainty.
+            let error = Study::tabular(data())
+                .graph(dag())
+                .query(AverageEffectQuery::binary_ate(v(0), v(2)))
+                .estimator(estimator)
+                .sampling_design(design)
+                .bootstrap_replicates(20)
+                .refute(RefuteSuite::None)
+                .build()
+                .unwrap_err();
+            assert_eq!(
+                error.reason_code(),
+                Some("option_not_applicable"),
+                "{estimator:?}: {error}"
+            );
+            assert!(error.to_string().contains("this estimator reads no cluster"));
+        }
     }
 }
 
@@ -358,6 +396,9 @@ fn a_declared_panel_or_series_is_read_by_the_cluster_and_newey_west_errors_of_th
             base().with_se_kind(AnalyticSeKind::NeweyWest { lag }),
         );
         let want = sandwich(None, Some(lag));
-        assert!((series - want).abs() < 1e-9 * (1.0 + want), "newey-west {lag}: {series} vs {want}");
+        assert!(
+            (series - want).abs() < 1e-9 * (1.0 + want),
+            "newey-west {lag}: {series} vs {want}"
+        );
     }
 }
