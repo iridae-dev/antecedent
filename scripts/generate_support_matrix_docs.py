@@ -21,6 +21,7 @@ from itertools import product
 from pathlib import Path
 
 import calibration_key_aliases
+import coverage_validation_bindings
 import external_evidence
 from _repo import REPO_ROOT as ROOT
 from _repo import read_text
@@ -775,6 +776,10 @@ def _coverage_record(row: dict) -> dict:
             "grid": _coverage_grid(row.get("grid") or []),
         }
     )
+    # Validation metadata is optional for legacy rows; it must never be inferred.
+    for key in ("validation_schema", "validation"):
+        if key in row:
+            item[key] = row[key]
     # Only a boundary record that passed an independent confirmation carries these.
     if row.get("confirmation"):
         item["confirmation"] = _coverage_grid(row["confirmation"])
@@ -829,6 +834,7 @@ def coverage_snapshot() -> dict:
     )
     return {
         "records": [_coverage_record(row) for row in records],
+        "historical_validation_bindings": coverage_validation_bindings.load_bindings(ROOT),
         "functional_identity_aliases": [{key: row[key] for key in alias_keys} for row in aliases],
         "attesting_record_ids": attesting_record_ids(),
         "interval_method_reasons": _interval_method_reasons(records),
