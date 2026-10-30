@@ -491,10 +491,14 @@ impl TemporalMediationIdentifier {
             .iter()
             .map(|mediator| mediator.raw())
             .fold(query.treatment.raw().max(query.outcome.raw()), u32::max)
-            + 1;
+            .checked_add(1)
+            .ok_or_else(|| IdentificationError::out_of_range("temporal variable count overflow"))?;
         for node in template.nodes() {
             if let NodeRef::Lagged { variable, .. } = node {
-                variable_count = variable_count.max(variable.raw() + 1);
+                let count = variable.raw().checked_add(1).ok_or_else(|| {
+                    IdentificationError::out_of_range("temporal variable count overflow")
+                })?;
+                variable_count = variable_count.max(count);
             }
         }
         for edge in template.edges() {
@@ -580,6 +584,32 @@ mod tests {
         g.insert_directed(t1, m0).unwrap();
         g.insert_directed(m0, y0).unwrap();
         g
+    }
+
+    #[test]
+    fn maximum_variable_id_refuses_before_unfolding() {
+        let query = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(u32::MAX)],
+            MediationContrast::Mediated,
+        );
+        assert!(matches!(
+            TemporalMediationIdentifier::adjustment_nodes(&chain_template(), &query),
+            Err(IdentificationError::OutOfRange { .. })
+        ));
+        let mut graph = chain_template();
+        graph.add_lagged(VariableId::from_raw(u32::MAX), Lag::CONTEMPORANEOUS).unwrap();
+        let query = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(1)],
+            MediationContrast::Mediated,
+        );
+        assert!(matches!(
+            TemporalMediationIdentifier::adjustment_nodes(&graph, &query),
+            Err(IdentificationError::OutOfRange { .. })
+        ));
     }
 
     #[test]

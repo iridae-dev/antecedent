@@ -408,6 +408,20 @@ fn autoregressive_template() -> TemporalDag {
 }
 
 #[test]
+fn temporal_maximum_variable_id_is_refused_before_unfolding() {
+    let mut graph = TemporalDag::empty();
+    lagged(&mut graph, 0, 0);
+    lagged(&mut graph, 1, 0);
+    lagged(&mut graph, u32::MAX, 0);
+    let error = transport_across_temporal_class(
+        &temporal_request(TemporalClass::Dag(&graph), &[], 0),
+        &effect_query(1, 0),
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("temporal variable count overflows"));
+}
+
+#[test]
 fn a_lag_one_effect_with_autoregressive_history_is_identified_at_horizon_one() {
     let template = autoregressive_template();
     let targets = [v(2)];

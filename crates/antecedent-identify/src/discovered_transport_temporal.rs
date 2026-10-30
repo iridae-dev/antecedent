@@ -609,7 +609,12 @@ pub fn transport_across_temporal_class(
     }
     let max_lag = template_max_lag(nodes);
     let history = request.history.unwrap_or_else(|| max_lag.saturating_mul(2));
-    let variable_count = known.last().map_or(1, |v| v.raw() + 1);
+    let variable_count = match known.last() {
+        Some(variable) => variable.raw().checked_add(1).ok_or_else(|| {
+            invalid_query(&facts, "the temporal variable count overflows".to_owned())
+        })?,
+        None => 1,
+    };
     let horizon = request
         .horizon_steps
         .checked_add(1)
