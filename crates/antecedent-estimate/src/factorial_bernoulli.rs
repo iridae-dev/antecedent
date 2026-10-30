@@ -65,7 +65,9 @@ pub fn estimate_factorial_2x2(
         let q = qa * qb;
         support[cell] += 1;
         sums[cell] += outcome[i] / q;
-        variance_terms[cell] += (1.0 - q) * outcome[i].powi(2) / q;
+        // An observed cell occurs with probability q. Its inverse-probability
+        // contribution to the diagonal HT variance therefore divides by q².
+        variance_terms[cell] += (1.0 - q) * (outcome[i] / q).powi(2);
     }
     if support.contains(&0) {
         return Err("factorial positivity failure: every treatment cell needs observed support");
@@ -96,4 +98,60 @@ pub fn estimate_factorial_2x2(
         factor_b_variance_bound: variance_bound(factor_b_weights),
         interaction_variance_bound: variance_bound(interaction_weights),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn factorial_variance_bound_covers_exact_bernoulli_randomization_variance() {
+        // Four independent units, every potential outcome one, pa=pb=1/2.
+        // Enumerate all 4^4 equally likely allocations, including allocations
+        // missing cells (the unconditional randomization law still includes them).
+        let (mut first, mut second) = ([0.0; 3], [0.0; 3]);
+        for allocation in 0..256 {
+            let mut code = allocation;
+            let mut effects = [0.0; 3];
+            for _ in 0..4 {
+                let arm = code % 4;
+                code /= 4;
+                // HT cell score is 1/q=4, then divide the four-unit sum by 4.
+                effects[0] += [-0.5, -0.5, 0.5, 0.5][arm];
+                effects[1] += [-0.5, 0.5, -0.5, 0.5][arm];
+                effects[2] += [1.0, -1.0, -1.0, 1.0][arm];
+            }
+            for k in 0..3 {
+                first[k] += effects[k] / 256.0;
+                second[k] += effects[k] * effects[k] / 256.0;
+            }
+        }
+        let truth = [
+            second[0] - first[0] * first[0],
+            second[1] - first[1] * first[1],
+            second[2] - first[2] * first[2],
+        ];
+        assert_eq!(truth, [1.0, 1.0, 4.0]);
+        // The realized allocation has one unit in each cell, so the API admits it.
+        let estimate = estimate_factorial_2x2(
+            &[1.0; 4],
+            &[false, false, true, true],
+            &[false, true, false, true],
+            &[0.5; 4],
+            &[0.5; 4],
+        )
+        .unwrap();
+        let bounds = [
+            estimate.factor_a_variance_bound,
+            estimate.factor_b_variance_bound,
+            estimate.interaction_variance_bound,
+        ];
+        assert_eq!(bounds, [3.0, 3.0, 12.0]);
+        for (bound, variance) in bounds.iter().zip(truth) {
+            assert!(
+                *bound >= variance,
+                "variance bound {bound} is below exact variance {variance}"
+            );
+        }
+    }
 }
