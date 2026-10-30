@@ -1017,8 +1017,8 @@ pub fn nested_counterfactual_with_exo(
         }
         let start = node * n_units;
         let col = &outer_res.values[start..start + n_units];
-        // A non-finite column is not a constant. `NaN - NaN` is not greater than
-        // the tolerance, so a NaN column used to be frozen as if it were constant.
+        // Only a truly constant finite column can be represented by one hard
+        // intervention without changing any unit's frozen value.
         match column_is_finite_constant(col) {
             Some(first) => {
                 let var = engine.model.output_layout.variables[node];
@@ -1127,11 +1127,11 @@ fn nested_rows_independent(
     Ok(row_independent)
 }
 
-/// `Some(value)` when every entry is finite and within `1e-12` of the first.
-/// An empty column and any non-finite entry are not constants.
+/// `Some(value)` when every entry is finite and equal to the first.
+/// Signed zeroes compare equal; empty and non-finite columns are not constants.
 fn column_is_finite_constant(col: &[f64]) -> Option<f64> {
     let &first = col.first()?;
-    (first.is_finite() && col.iter().all(|&v| (v - first).abs() <= 1e-12)).then_some(first)
+    (first.is_finite() && col.iter().all(|&v| v == first)).then_some(first)
 }
 
 /// Evaluate one world's nodes into `values`, in parent-gather order.
@@ -1282,9 +1282,53 @@ mod tests {
     fn a_non_finite_column_is_not_a_constant() {
         assert_eq!(column_is_finite_constant(&[1.0, 1.0]), Some(1.0));
         assert_eq!(column_is_finite_constant(&[1.0, 1.0 + 2e-12]), None);
+        assert_eq!(column_is_finite_constant(&[0.0, 5e-13]), None);
+        assert_eq!(column_is_finite_constant(&[0.0, -0.0]), Some(0.0));
         assert_eq!(column_is_finite_constant(&[f64::NAN, f64::NAN]), None);
         assert_eq!(column_is_finite_constant(&[1.0, f64::NAN]), None);
         assert_eq!(column_is_finite_constant(&[]), None);
+    }
+
+    #[test]
+    fn nested_tiny_unit_variation_preserves_each_mediator_value() {
+        let x = [0.0, 0.0];
+        let m = [0.0, 5e-13];
+        let y = [0.0, 0.5];
+        let data = TabularData::from_f64_columns([
+            ("x", x.as_slice()),
+            ("m", m.as_slice()),
+            ("y", y.as_slice()),
+        ])
+        .unwrap();
+        let mut graph = Dag::with_variables(3);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        graph.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let model = antecedent_model::CompiledCausalModel::compile(graph).unwrap();
+        let linear = |coeffs: Vec<f64>| MechanismSlot::LinearGaussian {
+            intercept: 0.0,
+            coeffs: Arc::from(coeffs),
+            sigma: 1.0,
+        };
+        let store = CompiledMechanismStore {
+            slots: Arc::from(vec![linear(vec![]), linear(vec![1.0]), linear(vec![1e12])]),
+        };
+        let engine = CounterfactualEngine::new(model.with_mechanisms(store));
+        let mut workspace = MechanismWorkspace::default();
+        let got = nested_counterfactual(
+            &engine,
+            &data,
+            &NestedSpec {
+                outer: &[Intervention::set(VariableId::from_raw(0), Value::f64(0.0))],
+                inner: &[Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
+                frozen: &[VariableId::from_raw(1)],
+                outcome: VariableId::from_raw(2),
+            },
+            &mut workspace,
+            &ExecutionContext::for_tests(1),
+        )
+        .unwrap();
+        // The two frozen mediator values produce outcomes 0 and 0.5.
+        assert!((got - 0.25).abs() < 1e-14, "got {got}");
     }
 
     fn unit_normal(rng: &mut antecedent_core::CausalRng) -> f64 {
