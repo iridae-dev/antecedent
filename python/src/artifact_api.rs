@@ -466,6 +466,10 @@ fn encode_external_estimate_claim_py<'py>(
     Ok(PyBytes::new(py, &bytes))
 }
 
+fn checked_feature_names(names: &[String], features: &[u32]) -> Option<Vec<String>> {
+    features.iter().map(|id| names.get(*id as usize).cloned()).collect()
+}
+
 /// A verified parent claim and its immutable provider-independent predictor.
 #[pyclass(frozen, skip_from_py_object)]
 struct FittedEffectModel {
@@ -499,11 +503,10 @@ impl FittedEffectModel {
             .cloned()
             .ok_or_else(|| serialization_error("this result has no portable fitted effect"))?;
         model.validate().map_err(serialization_error)?;
-        let features = model
-            .features
-            .iter()
-            .map(|v| consumed.header.variable_names[*v as usize].clone())
-            .collect();
+        let features = checked_feature_names(&consumed.header.variable_names, &model.features)
+            .ok_or_else(|| {
+                serialization_error("fitted effect feature is outside the header name frame")
+            })?;
         Ok(Self {
             model,
             bytes: bytes.to_vec(),
@@ -521,12 +524,14 @@ impl FittedEffectModel {
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
         let ids: Vec<_> =
             self.model.features.iter().map(|v| antecedent_core::VariableId::from_raw(*v)).collect();
-        // Contiguous float64 columns are borrowed; any other column is widened once. Either way the
-        // values outlive the detached closure that borrows the slices.
-        let owned: Vec<std::borrow::Cow<'_, [f64]>> = columns
+        // Snapshot every column while attached: Python arrays may be mutated by another
+        // thread once prediction releases the interpreter.
+        let owned: Vec<Vec<f64>> = columns
             .iter()
             .enumerate()
-            .map(|(index, column)| column.values(&format!("prediction column {index}")))
+            .map(|(index, column)| {
+                column.values(&format!("prediction column {index}")).map(|v| v.into_owned())
+            })
             .collect::<PyResult<_>>()?;
         let slices: Vec<&[f64]> = owned.iter().map(|column| &column[..]).collect();
         let values = py.detach(|| {
@@ -556,4 +561,17 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(accept_analysis_result_contract, m)?)?;
     m.add_function(wrap_pyfunction!(encode_external_estimate_claim_py, m)?)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod fitted_feature_name_tests {
+    use super::checked_feature_names;
+
+    #[test]
+    fn fitted_feature_names_preserve_order_and_reject_unknown_ids() {
+        let names = vec!["x".to_owned(), "y".to_owned()];
+        assert_eq!(checked_feature_names(&names, &[1, 0]), Some(vec!["y".into(), "x".into()]));
+        assert_eq!(checked_feature_names(&names, &[2]), None);
+        assert_eq!(checked_feature_names(&names, &[u32::MAX]), None);
+    }
 }

@@ -59,6 +59,20 @@ print(json.dumps(model.predict({'z': [-1., 0., 1.]}).to_dict()))
     assert expected.to_dict()["uncertainty"]["status"] == "unavailable"
 
 
+def test_native_predictor_snapshots_contiguous_and_strided_columns():
+    model = FittedEffectModel.load(bytes(fitted_result().export()))
+    contiguous = np.array([-1.0, 0.0, 1.0], dtype=np.float64)
+    interleaved = np.array([-1.0, 99.0, 0.0, 99.0, 1.0, 99.0], dtype=np.float64)
+    strided = interleaved[::2]
+    assert not strided.flags.c_contiguous
+    expected = np.asarray(model._native.predict([contiguous], len(contiguous)))
+    actual = np.asarray(model._native.predict([strided], len(strided)))
+    np.testing.assert_array_equal(actual, expected)
+    contiguous[:] = 10.0
+    interleaved[:] = 20.0
+    np.testing.assert_array_equal(actual, expected)
+
+
 def test_predictor_new_rows_preserve_parent_but_new_outcomes_need_a_new_fit():
     model = FittedEffectModel.load(bytes(fitted_result().export()))
     changed_features = require_success(model.predict({"z": [0.5, -0.5]}))
