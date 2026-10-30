@@ -721,6 +721,7 @@ pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimat
 ///
 /// Invalid assumption labels or scopes.
 pub fn effect_estimate_from_owned_wire(w: EffectEstimateWire) -> Result<EffectEstimate, IoError> {
+    validate_effect_estimate_wire(&w)?;
     let overlap = match w.overlap_policy {
         EstimateOverlapPolicyWire::RequireDiagnostics => {
             OverlapPolicy::RequireDiagnostics { clip: w.overlap_clip, trim: w.overlap_trim }
@@ -834,6 +835,47 @@ pub fn effect_estimate_from_owned_wire(w: EffectEstimateWire) -> Result<EffectEs
     Ok(estimate)
 }
 
+// Infinite interval endpoints are meaningful for unbounded confidence sets.
+fn valid_interval((lo, hi, level): (f64, f64, f64)) -> bool {
+    !lo.is_nan() && !hi.is_nan() && lo <= hi && level.is_finite() && level > 0.0 && level < 1.0
+}
+
+fn validate_effect_estimate_wire(w: &EffectEstimateWire) -> Result<(), IoError> {
+    let nonnegative = |v: f64| v.is_finite() && v >= 0.0;
+    let probability = |v: f64| v.is_finite() && (0.0..=1.0).contains(&v);
+    let finite_values = |v: &Vec<f64>| v.iter().all(|x| x.is_finite());
+    let nonnegative_values = |v: &Vec<f64>| v.iter().all(|&x| nonnegative(x));
+    // Graph-posterior envelopes can withhold the scalar without a marker in this wire.
+    if !(w.ate.is_finite() || w.ate.is_nan())
+        // AnalyticSe documents NaN as the sentinel for withheld uncertainty.
+        || !(w.se_analytic.is_nan() || nonnegative(w.se_analytic))
+        || w.se_bootstrap.is_some_and(|v| !nonnegative(v))
+        || (w.se_bootstrap.is_some() && w.bootstrap_replicates_ok.is_some_and(|n| n < 2))
+        || w.overlap_clip.is_some_and(|v| !v.is_finite() || v <= 0.0 || v >= 0.5)
+        || w.overlap_trim.is_some_and(|v| !v.is_finite() || v <= 0.0 || v >= 0.5)
+        || w.evalue.is_some_and(|v| v.is_nan() || v < 1.0)
+        || w.evalue_threshold.is_some_and(f64::is_nan)
+        || w.adjusted_p_values.is_some_and(|(a, b)| !probability(a) || !probability(b))
+        || w.simultaneous_interval.is_some_and(|v| !valid_interval(v))
+        || w.family_contrast_interval.is_some_and(|v| !valid_interval(v))
+        || w.family_contrast.is_some_and(|(value, se)| !value.is_finite() || !nonnegative(se))
+        || w.scenario_intervals.as_ref().is_some_and(|v| v.iter().any(|&(lo, hi)| lo.is_nan() || hi.is_nan() || lo > hi))
+        || w.scenario_effects.as_ref().is_some_and(|v| !finite_values(v))
+        || w.cate.as_ref().is_some_and(|v| !finite_values(v))
+        || w.cate_se.as_ref().is_some_and(|v| !nonnegative_values(v))
+        || w.cate_leaf_dispersion.as_ref().is_some_and(|v| !nonnegative_values(v))
+        || w.cate.as_ref().zip(w.cate_se.as_ref()).is_some_and(|(a, b)| a.len() != b.len())
+        || w.cate.as_ref().zip(w.cate_leaf_dispersion.as_ref()).is_some_and(|(a, b)| a.len() != b.len())
+        || w.exceedance_cdf.as_ref().is_some_and(|v| !finite_values(v))
+        || w.outcome_oof_r2.is_some_and(|v| !v.is_finite() || v > 1.0)
+        || w.treatment_oof_logloss.is_some_and(|v| !nonnegative(v))
+        || w.crossfit_folds.is_some_and(|v| v < 2)
+    {
+        return Err(IoError::Convert("invalid effect estimate evidence".into()));
+    }
+    Ok(())
+}
+
 fn first_stage_from_wire(
     diagnostic: &FirstStageDiagnosticsWire,
 ) -> Result<FirstStageDiagnostics, IoError> {
@@ -843,6 +885,8 @@ fn first_stage_from_wire(
         || !(0.0..=1.0).contains(&diagnostic.partial_r2)
         || diagnostic.df1 == 0
         || diagnostic.df2 == 0
+        || diagnostic.anderson_rubin.is_some_and(|v| !valid_interval(v))
+        || (diagnostic.anderson_rubin.is_some() && diagnostic.uncertainty_withheld.is_some())
     {
         return Err(IoError::Convert("invalid first-stage diagnostic evidence".into()));
     }
@@ -866,16 +910,24 @@ fn score_inference_from_wire(
         || s.event_n_eff.len() != n
         || s.threshold_supported.len() != n
         || s.raw_means.iter().any(|v| !v.is_finite())
-        || s.lower.iter().zip(&s.upper).zip(&s.threshold_supported).any(
-            |((&lo, &hi), &supported)| {
+        || s.lower.iter().zip(&s.upper).zip(&s.threshold_supported).zip(&s.raw_means).any(
+            |(((&lo, &hi), &supported), &mean)| {
                 if supported {
-                    !lo.is_finite() || !hi.is_finite() || lo > hi
+                    lo.is_nan() || hi.is_nan() || lo > mean || mean > hi
                 } else {
-                    !((lo.is_nan() && hi.is_nan())
-                        || (lo.is_finite() && hi.is_finite() && lo <= hi))
+                    !((lo.is_nan() && hi.is_nan()) || (!lo.is_nan() && !hi.is_nan() && lo <= hi))
                 }
             },
         )
+        || s.critical_value.is_nan()
+        || s.critical_value < 0.0
+        || s.event_n_eff.iter().any(|v| !v.is_finite() || *v < 0.0)
+        || !s.n_eff.is_finite()
+        || s.n_eff < 0.0
+        || s.n_eff_by_arm.iter().any(|v| !v.is_finite() || *v < 0.0)
+        || s.propensity_range.is_some_and(|(lo, hi)| {
+            !lo.is_finite() || !hi.is_finite() || lo < 0.0 || hi > 1.0 || lo > hi
+        })
         || !s.level.is_finite()
         || s.level <= 0.0
         || s.level >= 1.0
@@ -1055,6 +1107,140 @@ mod tests {
     use super::*;
     use crate::trace::{AssumptionRecordWire, AssumptionTagWire};
     use antecedent_io_core::analysis_wire::*;
+
+    #[test]
+    fn effect_wire_rejects_malformed_evidence_and_preserves_unbounded_values() {
+        let effect =
+            EffectEstimate::new(1.0, 0.2, AssumptionSet::new(), OverlapPolicy::ExplicitOverride);
+        let valid = effect_estimate_to_wire(&effect);
+        let mutations: &[fn(&mut EffectEstimateWire)] = &[
+            |w| w.ate = f64::INFINITY,
+            |w| w.se_analytic = -1.0,
+            |w| w.se_analytic = f64::INFINITY,
+            |w| w.se_bootstrap = Some(f64::NAN),
+            |w| {
+                w.se_bootstrap = Some(0.1);
+                w.bootstrap_replicates_ok = Some(1);
+            },
+            |w| w.overlap_clip = Some(0.5),
+            |w| w.overlap_trim = Some(0.0),
+            |w| w.evalue = Some(f64::NAN),
+            |w| w.evalue_threshold = Some(f64::NAN),
+            |w| w.adjusted_p_values = Some((0.1, 1.1)),
+            |w| w.simultaneous_interval = Some((2.0, 1.0, 0.95)),
+            |w| w.family_contrast_interval = Some((0.0, 1.0, 1.0)),
+            |w| w.family_contrast = Some((1.0, -0.1)),
+            |w| w.scenario_intervals = Some(vec![(f64::NAN, 1.0)]),
+            |w| w.scenario_effects = Some(vec![f64::INFINITY]),
+            |w| w.cate = Some(vec![f64::NAN]),
+            |w| w.cate_se = Some(vec![-0.1]),
+            |w| w.cate_leaf_dispersion = Some(vec![f64::INFINITY]),
+            |w| {
+                w.cate = Some(vec![1.0]);
+                w.cate_se = Some(vec![0.1, 0.2]);
+            },
+            |w| w.exceedance_cdf = Some(vec![f64::NAN]),
+            |w| w.outcome_oof_r2 = Some(1.1),
+            |w| w.treatment_oof_logloss = Some(-0.1),
+            |w| w.crossfit_folds = Some(1),
+        ];
+        for (index, mutate) in mutations.iter().enumerate() {
+            let mut wire = valid.clone();
+            mutate(&mut wire);
+            assert!(effect_estimate_from_wire(&wire).is_err(), "mutation {index}");
+        }
+        let mut unbounded = valid;
+        unbounded.evalue = Some(f64::INFINITY);
+        unbounded.evalue_threshold = Some(0.0);
+        unbounded.simultaneous_interval = Some((f64::NEG_INFINITY, f64::INFINITY, 0.95));
+        unbounded.scenario_intervals = Some(vec![(f64::NEG_INFINITY, 1.0)]);
+        unbounded.exceedance_cdf = Some(vec![-0.1, 1.1]);
+        assert!(effect_estimate_from_wire(&unbounded).is_ok());
+
+        // IV and point-only estimators use NaN for withheld analytic uncertainty,
+        // including routes with no analytic-kind or first-stage marker.
+        let mut withheld = unbounded.clone();
+        withheld.se_analytic = f64::NAN;
+        assert!(withheld.analytic_kind.is_none());
+        let decoded = effect_estimate_from_wire(&withheld).unwrap();
+        assert!(effect_estimate_to_wire(&decoded).se_analytic.is_nan());
+        withheld.first_stage_diagnostics = Some(FirstStageDiagnosticsWire {
+            f_statistic: 2.0,
+            df1: 1,
+            df2: 10,
+            partial_r2: 0.2,
+            anderson_rubin: Some((f64::NEG_INFINITY, f64::INFINITY, 0.95)),
+            uncertainty_withheld: None,
+        });
+        let decoded = effect_estimate_from_wire(&withheld).unwrap();
+        assert!(effect_estimate_to_wire(&decoded).se_analytic.is_nan());
+
+        // Scenario envelopes and exceedance grids do not publish a scalar ATE.
+        let mut envelope = withheld.clone();
+        envelope.ate = f64::NAN;
+        envelope.scenario_effects = None;
+        envelope.exceedance_cdf = None;
+        assert!(
+            effect_estimate_to_wire(&effect_estimate_from_wire(&envelope).unwrap()).ate.is_nan()
+        );
+        envelope.exceedance_cdf = None;
+        envelope.scenario_effects = Some(vec![1.0, 2.0]);
+        assert!(
+            effect_estimate_to_wire(&effect_estimate_from_wire(&envelope).unwrap()).ate.is_nan()
+        );
+        envelope.scenario_effects = None;
+        envelope.exceedance_cdf = Some(vec![0.2, 0.4]);
+        assert!(
+            effect_estimate_to_wire(&effect_estimate_from_wire(&envelope).unwrap()).ate.is_nan()
+        );
+    }
+
+    #[test]
+    fn score_and_first_stage_wire_validate_support_and_sets() {
+        let score = ScoreInferenceWire {
+            raw_means: vec![0.2, 0.4],
+            lower: vec![f64::NEG_INFINITY, f64::NAN],
+            upper: vec![f64::INFINITY, f64::NAN],
+            level: 0.95,
+            critical_value: f64::INFINITY,
+            event_n_eff: vec![2.0, 0.0],
+            threshold_supported: vec![true, false],
+            n_eff: 2.0,
+            n_eff_by_arm: vec![1.0, 1.0],
+            propensity_range: Some((0.0, 1.0)),
+            overlap_ok: true,
+        };
+        assert!(score_inference_from_wire(score.clone()).is_ok());
+        let mutations: &[fn(&mut ScoreInferenceWire)] = &[
+            |s| s.critical_value = f64::NAN,
+            |s| s.event_n_eff[0] = -1.0,
+            |s| s.n_eff = f64::INFINITY,
+            |s| s.n_eff_by_arm[0] = -1.0,
+            |s| s.propensity_range = Some((0.8, 0.2)),
+            |s| s.lower[0] = 0.3,
+            |s| s.upper[1] = 1.0,
+        ];
+        for (index, mutate) in mutations.iter().enumerate() {
+            let mut invalid = score.clone();
+            mutate(&mut invalid);
+            assert!(score_inference_from_wire(invalid).is_err(), "mutation {index}");
+        }
+        let diagnostic = FirstStageDiagnosticsWire {
+            f_statistic: 1.0,
+            df1: 1,
+            df2: 2,
+            partial_r2: 0.2,
+            anderson_rubin: Some((f64::NEG_INFINITY, f64::INFINITY, 0.95)),
+            uncertainty_withheld: None,
+        };
+        assert!(first_stage_from_wire(&diagnostic).is_ok());
+        let mut invalid = diagnostic.clone();
+        invalid.anderson_rubin = Some((2.0, 1.0, 0.95));
+        assert!(first_stage_from_wire(&invalid).is_err());
+        invalid = diagnostic;
+        invalid.uncertainty_withheld = Some(UncertaintyWithheldWire::AndersonRubinSetIsUnion);
+        assert!(first_stage_from_wire(&invalid).is_err());
+    }
 
     #[test]
     fn learner_outputs_survive_wire_round_trip() {
