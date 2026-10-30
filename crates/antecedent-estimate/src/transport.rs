@@ -657,6 +657,7 @@ pub fn trial_to_target_ipw_hac_se(
 pub const fn transport_outcome_kind(error: &antecedent_expr::EvalError) -> TransportOutcomeKind {
     use antecedent_expr::EvalError;
     match error {
+        EvalError::ExactLaw(error) if error.is_cancelled() => TransportOutcomeKind::BudgetCancel,
         EvalError::ExactLaw(error) if error.is_missing_provider() => {
             TransportOutcomeKind::MissingProvider
         }
@@ -698,6 +699,7 @@ pub fn refuse_eval(error: &antecedent_expr::EvalError) -> EstimationError {
             antecedent_core::reason_code!("transport_unsupported_evaluator")
         }
         TransportOutcomeKind::InvalidInput => antecedent_core::reason_code!("invalid_argument"),
+        TransportOutcomeKind::BudgetCancel => antecedent_core::reason_code!("transport_budget_cancel"),
         _ => antecedent_core::reason_code!("transport_numerical_failure"),
     };
     EstimationError::refused(code, error.to_string())
@@ -973,6 +975,34 @@ fn require_treatment_request(
 ///
 /// # Errors
 /// The first provider/catalog disagreement found.
+fn check_provider_cancelled() -> Result<(), antecedent_expr::EvalError> {
+    if antecedent_core::numerical_admission::is_cancelled() {
+        return Err(antecedent_expr::EvalError::ExactLaw(Box::new(antecedent_expr::ExactLawError {
+            kind: "cancelled", population: std::sync::Arc::from(""), regime: None,
+            variables: std::sync::Arc::from([]), conditioning: std::sync::Arc::from([]),
+            interventions: std::sync::Arc::from([]),
+        })));
+    }
+    Ok(())
+}
+
+fn checked_text_equal(a: &str, b: &str) -> Result<bool, antecedent_expr::EvalError> {
+    check_provider_cancelled()?;
+    if a.len() != b.len() { return Ok(false); }
+    for (a, b) in a.as_bytes().chunks(512).zip(b.as_bytes().chunks(512)) {
+        check_provider_cancelled()?;
+        if a != b { return Ok(false); }
+    }
+    Ok(true)
+}
+
+fn checked_value_equal(a: &antecedent_core::Value, b: &antecedent_core::Value) -> Result<bool, antecedent_expr::EvalError> {
+    match (a, b) {
+        (antecedent_core::Value::Label(a), antecedent_core::Value::Label(b)) => checked_text_equal(a, b),
+        _ => { check_provider_cancelled()?; Ok(a == b) }
+    }
+}
+
 pub(crate) fn validate_exact_laws(
     catalog: &antecedent_core::EvidenceCatalog,
     data: &antecedent_expr::ExactTransportData,
@@ -980,69 +1010,103 @@ pub(crate) fn validate_exact_laws(
     use antecedent_core::{DistributionAvailability, VariableDomain};
     use antecedent_expr::EvalError;
     for law in data.laws() {
-        let regime = catalog
-            .regimes
-            .iter()
-            .find(|r| r.id == law.regime() && r.population.as_ref() == law.population())
-            .ok_or(EvalError::ProviderKind("exact provider names an unknown evidence regime"))?;
+        check_provider_cancelled()?;
+        let mut selected = None;
+        for candidate in catalog.regimes.iter() {
+            check_provider_cancelled()?;
+            if candidate.id == law.regime() && checked_text_equal(&candidate.population, law.population())? {
+                selected = Some(candidate); break;
+            }
+        }
+        let regime = selected.ok_or(EvalError::ProviderKind("exact provider names an unknown evidence regime"))?;
         if !regime.supplies_population_law()
             || !matches!(regime.distribution, DistributionAvailability::Joint)
             || !regime.conditioned_on.is_empty()
             || law.interventions().len() != regime.interventions.len()
-            || !law.interventions().iter().all(|a| regime.interventions.contains(&a.variable))
-            || law.axes().iter().any(|axis| !regime.measured.contains(&axis.variable))
-            || regime.intervention_values.iter().any(|required| {
-                !law.interventions()
-                    .iter()
-                    .any(|a| a.variable == required.variable && a.value == required.value)
-            })
-        {
-            return Err(EvalError::ProviderKind(
-                "exact provider disagrees with its evidence regime",
-            ));
+        { return Err(EvalError::ProviderKind("exact provider disagrees with its evidence regime")); }
+        for assignment in law.interventions() {
+            check_provider_cancelled()?;
+            let mut found = false;
+            for chunk in regime.interventions.chunks(512) {
+                check_provider_cancelled()?;
+                if chunk.contains(&assignment.variable) { found = true; break; }
+            }
+            if !found { return Err(EvalError::ProviderKind("exact provider disagrees with its evidence regime")); }
         }
-        for binding in catalog.bindings.iter().filter(|b| b.regime == regime.id) {
-            if binding.snapshot_identity.as_ref() != law.snapshot_identity() {
-                return Err(EvalError::ProviderKind(
-                    "exact provider snapshot does not match catalog binding",
-                ));
+        for axis in law.axes() {
+            check_provider_cancelled()?;
+            let mut found = false;
+            for chunk in regime.measured.chunks(512) {
+                check_provider_cancelled()?;
+                if chunk.contains(&axis.variable) { found = true; break; }
+            }
+            if !found { return Err(EvalError::ProviderKind("exact provider disagrees with its evidence regime")); }
+        }
+        for required in regime.intervention_values.iter() {
+            check_provider_cancelled()?;
+            let mut found = false;
+            for assignment in law.interventions() {
+                check_provider_cancelled()?;
+                if assignment.variable == required.variable && checked_value_equal(&assignment.value, &required.value)? { found = true; break; }
+            }
+            if !found { return Err(EvalError::ProviderKind("exact provider disagrees with its evidence regime")); }
+        }
+        for binding in catalog.bindings.iter() {
+            check_provider_cancelled()?;
+            if binding.regime == regime.id && !checked_text_equal(&binding.snapshot_identity, law.snapshot_identity())? {
+                return Err(EvalError::ProviderKind("exact provider snapshot does not match catalog binding"));
             }
         }
         for axis in law.axes() {
-            for coordinate in catalog
-                .environments
-                .iter()
-                .flat_map(|env| env.variables.iter())
-                .filter(|c| c.variable == axis.variable)
-            {
-                let valid = match coordinate.domain {
-                    VariableDomain::Unspecified => true,
-                    VariableDomain::Continuous => false,
-                    VariableDomain::Binary => {
-                        axis.values.len() == 2
-                            && [0.0, 1.0]
-                                .iter()
-                                .all(|level| axis.values.iter().any(|v| v.as_f64() == Some(*level)))
-                    }
-                    VariableDomain::Categorical { cardinality } => {
-                        usize::try_from(cardinality).ok() == Some(axis.values.len())
-                            && (0..cardinality).all(|level| {
-                                axis.values.iter().any(|v| v.as_f64() == Some(f64::from(level)))
-                            })
-                    }
-                    VariableDomain::Count => axis
-                        .values
-                        .iter()
-                        .all(|v| v.as_f64().is_some_and(|v| v >= 0.0 && v.fract() == 0.0)),
-                };
-                if !valid {
-                    return Err(EvalError::ProviderKind(
-                        "exact provider domain disagrees with evidence coordinates",
-                    ));
+            for env in catalog.environments.iter() {
+                check_provider_cancelled()?;
+                for coordinate in env.variables.iter() {
+                    check_provider_cancelled()?;
+                    if coordinate.variable != axis.variable { continue; }
+                    let valid = match coordinate.domain {
+                        VariableDomain::Unspecified => true,
+                        VariableDomain::Continuous => false,
+                        VariableDomain::Binary => {
+                            let mut seen = [false; 2];
+                            for chunk in axis.values.chunks(512) {
+                                check_provider_cancelled()?;
+                                for value in chunk {
+                                    seen[0] |= value.as_f64() == Some(0.0);
+                                    seen[1] |= value.as_f64() == Some(1.0);
+                                }
+                            }
+                            axis.values.len() == 2 && seen[0] && seen[1]
+                        }
+                        VariableDomain::Categorical { cardinality } => {
+                            let mut all = usize::try_from(cardinality).ok() == Some(axis.values.len());
+                            if all {
+                                for level in 0..cardinality {
+                                    check_provider_cancelled()?;
+                                    let mut found = false;
+                                    for chunk in axis.values.chunks(512) {
+                                        check_provider_cancelled()?;
+                                        if chunk.iter().any(|v| v.as_f64() == Some(f64::from(level))) { found = true; break; }
+                                    }
+                                    if !found { all = false; break; }
+                                }
+                            }
+                            all
+                        }
+                        VariableDomain::Count => {
+                            let mut all = true;
+                            for chunk in axis.values.chunks(512) {
+                                check_provider_cancelled()?;
+                                if !chunk.iter().all(|v| v.as_f64().is_some_and(|v| v >= 0.0 && v.fract() == 0.0)) { all = false; break; }
+                            }
+                            all
+                        }
+                    };
+                    if !valid { return Err(EvalError::ProviderKind("exact provider domain disagrees with evidence coordinates")); }
                 }
             }
         }
     }
+    check_provider_cancelled()?;
     Ok(())
 }
 
@@ -1162,6 +1226,11 @@ mod tests {
             super::refuse_eval(&missing),
             crate::EstimationError::Refused { code: "transport_missing_provider", .. }
         ));
+        let cancelled = error("cancelled");
+        assert_eq!(super::transport_outcome_kind(&cancelled), antecedent_core::TransportOutcomeKind::BudgetCancel);
+        assert!(!super::is_support_failure(&cancelled));
+        assert!(matches!(super::refuse_eval(&cancelled),
+            crate::EstimationError::Refused { code: "transport_budget_cancel", .. }));
         let null_cell = error("zero_conditioning_mass");
         assert!(super::is_support_failure(&null_cell));
         assert!(matches!(
@@ -1872,6 +1941,11 @@ mod tests {
     fn a_model_artifact_or_selected_sample_regime_never_validates_a_supplied_law() {
         let (functional, data) = checked_z_fixture(false);
         validate_exact_laws(functional.catalog(), &data).unwrap();
+        let ctx = antecedent_core::ExecutionContext::for_tests(7);
+        ctx.cancellation.cancel();
+        let cancelled = antecedent_core::numerical_admission::with_context(&ctx, || validate_exact_laws(functional.catalog(), &data)).unwrap_err();
+        assert_eq!(transport_outcome_kind(&cancelled), antecedent_core::TransportOutcomeKind::BudgetCancel);
+        assert!(matches!(refuse_eval(&cancelled), EstimationError::Refused { code: "transport_budget_cancel", .. }));
         let edits: [fn(&mut antecedent_core::EvidenceRegime); 2] = [
             |r| r.origin = antecedent_core::LawOrigin::ModelArtifact { artifact: Arc::from("m") },
             |r| {

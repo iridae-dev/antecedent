@@ -4,6 +4,7 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Write as _;
+use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
 
 use antecedent_core::{RegimeId, Value, VariableId};
@@ -152,6 +153,19 @@ impl ExactLawError {
                 return false;
             }
             index += 1;
+        }
+        true
+    }
+    /// Whether provider setup or lookup was cancelled.
+    #[must_use]
+    pub const fn is_cancelled(&self) -> bool {
+        let actual = self.kind.as_bytes();
+        let expected = b"cancelled";
+        if actual.len() != expected.len() { return false; }
+        let mut i = 0;
+        while i < expected.len() {
+            if actual[i] != expected[i] { return false; }
+            i += 1;
         }
         true
     }
@@ -612,22 +626,6 @@ impl ExactDiscreteLaw {
             interventions: self.interventions.clone(),
         }
     }
-    fn covers(&self, spec: &FactorSpec<'_>) -> bool {
-        self.population.as_ref() == spec.population
-            && spec.regime.is_none_or(|regime| regime == self.regime)
-            && self.interventions.len() == spec.intervention.len()
-            && spec.intervention.iter().all(|a| {
-                self.interventions
-                    .iter()
-                    .any(|b| a.variable == b.variable && same_value_key(&a.value, &b.value))
-            })
-            && (spec.domain == DomainRef::Observational) == self.interventions.is_empty()
-            && spec
-                .variables
-                .iter()
-                .chain(spec.conditioned_on)
-                .all(|v| self.axis_index.contains_key(v))
-    }
     fn positions(
         &self,
         vars: &[VariableId],
@@ -804,18 +802,83 @@ pub(crate) fn sum(values: impl Iterator<Item = f64>) -> f64 {
     CompensatedSum::of(values)
 }
 
-/// One population, regime, and normalized intervention world.
-///
-/// Equal worlds share one intervention slice. Lookup is one map.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+// Hash only fixed-size digests in the map; each bucket is checked for exact
+// equality, so a digest collision cannot identify or merge different worlds.
+#[derive(Clone, Debug)]
 struct WorldBinding {
     population: Arc<str>,
     regime: RegimeId,
-    interventions: Arc<[InterventionAssignment]>,
+    interventions: Vec<InterventionAssignment>,
 }
+type WorldIndex = HashMap<u64, Vec<(WorldBinding, usize)>>;
 
-type WorldIndex = HashMap<WorldBinding, usize>;
-
+fn cancelled_error() -> ExactLawError {
+    ExactLawError { kind: "cancelled", population: Arc::from(""), regime: None,
+        variables: Arc::from([]), conditioning: Arc::from([]), interventions: Arc::from([]) }
+}
+fn poll_world() -> Result<(), ExactLawError> {
+    if antecedent_core::numerical_admission::is_cancelled() { Err(cancelled_error()) } else { Ok(()) }
+}
+struct PollHasher {
+    inner: std::collections::hash_map::DefaultHasher,
+    cancelled: bool,
+}
+impl Hasher for PollHasher {
+    fn finish(&self) -> u64 { self.inner.finish() }
+    fn write(&mut self, bytes: &[u8]) {
+        for chunk in bytes.chunks(512) {
+            if poll_world().is_err() { self.cancelled = true; return; }
+            self.inner.write(chunk);
+        }
+    }
+}
+fn world_digest(population: &str, regime: RegimeId, assignments: &[InterventionAssignment]) -> Result<u64, ExactLawError> {
+    poll_world()?;
+    let mut h = PollHasher { inner: Default::default(), cancelled: false };
+    population.hash(&mut h);
+    regime.hash(&mut h);
+    for assignment in assignments { poll_world()?; assignment.hash(&mut h); }
+    if h.cancelled { return Err(cancelled_error()); }
+    poll_world()?;
+    Ok(h.finish())
+}
+fn checked_world_key(assignments: &[InterventionAssignment]) -> Result<Vec<InterventionAssignment>, ExactLawError> {
+    let mut ordered: BTreeMap<VariableId, Vec<InterventionAssignment>> = BTreeMap::new();
+    for a in assignments {
+        poll_world()?;
+        ordered.entry(a.variable).or_default().push(InterventionAssignment { variable: a.variable, value: value_key(&a.value) });
+    }
+    let mut key = Vec::with_capacity(assignments.len());
+    for values in ordered.into_values() {
+        for a in values { poll_world()?; key.push(a); }
+    }
+    poll_world()?;
+    Ok(key)
+}
+fn checked_world_eq(binding: &WorldBinding, population: &str, regime: RegimeId, key: &[InterventionAssignment]) -> Result<bool, ExactLawError> {
+    poll_world()?;
+    if binding.regime != regime || binding.population.len() != population.len() || binding.interventions.len() != key.len() { return Ok(false); }
+    for (a, b) in binding.population.as_bytes().chunks(512).zip(population.as_bytes().chunks(512)) {
+        poll_world()?;
+        if a != b { return Ok(false); }
+    }
+    for (a, b) in binding.interventions.iter().zip(key) {
+        poll_world()?;
+        if a.variable != b.variable { return Ok(false); }
+        match (&a.value, &b.value) {
+            (Value::Label(a), Value::Label(b)) => {
+                if a.len() != b.len() { return Ok(false); }
+                for (a, b) in a.as_bytes().chunks(512).zip(b.as_bytes().chunks(512)) {
+                    poll_world()?;
+                    if a != b { return Ok(false); }
+                }
+            }
+            (a, b) if !same_value_key(a, b) => return Ok(false),
+            _ => {}
+        }
+    }
+    Ok(true)
+}
 fn integral_level(value: f64) -> Option<i64> {
     if value.is_finite() && value.fract() == 0.0 && value.abs() <= 9_007_199_254_740_992.0 {
         #[allow(
@@ -857,27 +920,6 @@ pub(crate) fn value_key(value: &Value) -> Value {
         },
         other => other.clone(),
     }
-}
-
-fn world_binding(
-    population: impl Into<Arc<str>>,
-    regime: RegimeId,
-    interventions: &[InterventionAssignment],
-) -> WorldBinding {
-    WorldBinding {
-        population: population.into(),
-        regime,
-        interventions: Arc::from(world_key(interventions)),
-    }
-}
-
-fn world_key(assignments: &[InterventionAssignment]) -> Vec<InterventionAssignment> {
-    let mut key: Vec<_> = assignments
-        .iter()
-        .map(|a| InterventionAssignment { variable: a.variable, value: value_key(&a.value) })
-        .collect();
-    key.sort_by_key(|a| a.variable);
-    key
 }
 
 type JointQueryKey =
@@ -940,34 +982,15 @@ impl ExactTransportData {
         let mut domain_keys = HashMap::<VariableId, HashSet<Value>>::new();
         for (i, law) in laws.iter().enumerate() {
             law.check_cancelled()?;
-            // The law constructor already rejects duplicate intervention variables.
-            // Build the canonical key in variable order without an uninterruptible sort.
-            let mut ordered = BTreeMap::new();
-            for assignment in law.interventions.iter() {
-                law.check_cancelled()?;
-                ordered.insert(
-                    assignment.variable,
-                    InterventionAssignment {
-                        variable: assignment.variable,
-                        value: value_key(&assignment.value),
-                    },
-                );
+            let key = checked_world_key(&law.interventions)?;
+            let digest = world_digest(&law.population, law.regime, &key)?;
+            let bucket = index.entry(digest).or_default();
+            for (binding, _) in bucket.iter() {
+                if checked_world_eq(binding, &law.population, law.regime, &key)? {
+                    return Err(law.error("duplicate_law_binding"));
+                }
             }
-            let mut key = Vec::with_capacity(ordered.len());
-            for assignment in ordered.into_values() {
-                law.check_cancelled()?;
-                key.push(assignment);
-            }
-            law.check_cancelled()?;
-            let binding = WorldBinding {
-                population: Arc::clone(&law.population),
-                regime: law.regime,
-                interventions: Arc::from(key),
-            };
-            law.check_cancelled()?;
-            if index.insert(binding, i).is_some() {
-                return Err(law.error("duplicate_law_binding"));
-            }
+            bucket.push((WorldBinding { population: Arc::clone(&law.population), regime: law.regime, interventions: key }, i));
             for axis in law.axes.iter() {
                 law.check_cancelled()?;
                 if let Some(other) = domains.get(&axis.variable) {
@@ -1085,41 +1108,53 @@ impl ExactTransportData {
     ///
     /// # Errors
     /// Missing or incompatible population, regime, intervention world, or axes.
-    pub fn require_factor(
-        &self,
-        spec: &FactorSpec<'_>,
-    ) -> Result<&ExactDiscreteLaw, ExactLawError> {
-        let missing = |kind: &'static str| ExactLawError {
-            kind,
-            population: Arc::from(spec.population),
-            regime: spec.regime,
-            variables: Arc::from(spec.variables),
-            conditioning: Arc::from([]),
-            interventions: Arc::from(spec.intervention),
+    pub fn require_factor(&self, spec: &FactorSpec<'_>) -> Result<&ExactDiscreteLaw, ExactLawError> {
+        self.require_factor_index(spec).map(|index| &self.laws[index])
+    }
+
+    fn require_factor_index(&self, spec: &FactorSpec<'_>) -> Result<usize, ExactLawError> {
+        let wanted = checked_world_key(spec.intervention)?;
+        let mut selected: Option<usize> = None;
+        let mut consider = |binding: &WorldBinding, index: usize| -> Result<(), ExactLawError> {
+            if !checked_world_eq(binding, spec.population, spec.regime.unwrap_or(binding.regime), &wanted)? { return Ok(()); }
+            let law = &self.laws[index];
+            if (spec.domain == DomainRef::Observational) != law.interventions.is_empty() { return Ok(()); }
+            for variable in spec.variables.iter().chain(spec.conditioned_on) {
+                poll_world()?;
+                if !law.axis_index.contains_key(variable) { return Ok(()); }
+            }
+            if selected.is_none_or(|old| law.regime.raw() < self.laws[old].regime.raw()) { selected = Some(index); }
+            Ok(())
         };
-        let wanted = world_key(spec.intervention);
-        let index = match spec.regime {
-            Some(regime) => self
-                .index
-                .get(&world_binding(Arc::<str>::from(spec.population), regime, spec.intervention))
-                .copied(),
-            None => self.world_bound_regimes.as_ref().and_then(|cited| {
-                self.index
-                    .iter()
-                    .filter(|(binding, index)| {
-                        binding.population.as_ref() == spec.population
-                            && cited.contains(&binding.regime)
-                            && binding.interventions.as_ref() == wanted.as_slice()
-                            && self.laws[**index].covers(spec)
-                    })
-                    .min_by_key(|(binding, _)| binding.regime.raw())
-                    .map(|(_, index)| *index)
-            }),
-        };
-        index
-            .map(|index| &self.laws[index])
-            .filter(|law| law.covers(spec))
-            .ok_or_else(|| missing("missing_exact_provider"))
+        if let Some(regime) = spec.regime {
+            let digest = world_digest(spec.population, regime, &wanted)?;
+            if let Some(bucket) = self.index.get(&digest) {
+                for (binding, index) in bucket { consider(binding, *index)?; }
+            }
+        } else if let Some(cited) = &self.world_bound_regimes {
+            for bucket in self.index.values() {
+                for (binding, index) in bucket {
+                    poll_world()?;
+                    let mut allowed = false;
+                    for chunk in cited.chunks(512) { poll_world()?; if chunk.contains(&binding.regime) { allowed = true; break; } }
+                    if allowed { consider(binding, *index)?; }
+                }
+            }
+        }
+        poll_world()?;
+        match selected {
+            Some(index) => Ok(index),
+            None => {
+                let population = Arc::from(spec.population);
+                poll_world()?;
+                let variables = Arc::from(spec.variables);
+                poll_world()?;
+                let interventions = Arc::from(spec.intervention);
+                poll_world()?;
+                Err(ExactLawError { kind: "missing_exact_provider", population,
+                    regime: spec.regime, variables, conditioning: Arc::from([]), interventions })
+            },
+        }
     }
 
     /// Evaluate a marginal or conditional from the selected joint law.
@@ -1137,7 +1172,8 @@ impl ExactTransportData {
                 crate::execution_counts::note_static_work(
                     crate::execution_counts::StaticWork::ProviderCall,
                 );
-                let law = self.require_factor(spec)?;
+                let law_index = self.require_factor_index(spec)?;
+                let law = &self.laws[law_index];
                 let locate = |mut error: ExactLawError| {
                     error.variables = Arc::from(spec.variables);
                     error.conditioning = spec
@@ -1151,12 +1187,7 @@ impl ExactTransportData {
                     law.positions(spec.conditioned_on, assignment).map_err(locate)?;
                 let outputs = law.positions(spec.variables, assignment).map_err(locate)?;
                 let key = self.factor_cache.as_ref().map(|_| {
-                    let index = self.index[&world_binding(
-                        Arc::clone(&law.population),
-                        law.regime,
-                        spec.intervention,
-                    )];
-                    (self.law_identities[index], outputs.clone(), conditions.clone())
+                    (self.law_identities[law_index], outputs.clone(), conditions.clone())
                 });
                 if let (Some(cache), Some(key)) = (&self.factor_cache, &key) {
                     if let Some(value) = cache
@@ -1408,6 +1439,34 @@ mod tests {
             .is_err()
         );
     }
+    #[test]
+    fn world_digest_buckets_check_collisions_and_cancellation() {
+        use super::*;
+        let target = law("target", &[0.1, 0.2, 0.3, 0.4]).unwrap();
+        let other = law("other", &[0.1, 0.2, 0.3, 0.4]).unwrap();
+        assert_eq!(ExactTransportData::try_new([target.clone(), target.clone()], 16).unwrap_err().kind, "duplicate_law_binding");
+        let mut data = ExactTransportData::try_new([target, other], 16).unwrap();
+        let target_digest = world_digest("target", RegimeId::from_raw(0), &[]).unwrap();
+        let other_digest = world_digest("other", RegimeId::from_raw(0), &[]).unwrap();
+        let index = Arc::make_mut(&mut data.index);
+        let other = index.remove(&other_digest).unwrap().pop().unwrap();
+        index.get_mut(&target_digest).unwrap().insert(0, other);
+        let outcomes = [v(1)];
+        let spec = FactorSpec { population: "target", regime: Some(RegimeId::from_raw(0)),
+            ..FactorSpec::new(&outcomes, &[], &[], DomainRef::Observational) };
+        assert_eq!(data.require_factor(&spec).unwrap().population(), "target");
+        let left = [InterventionAssignment::concrete(v(2), Value::Float64(1.0)), InterventionAssignment::concrete(v(1), Value::Bool(true))];
+        let right = [InterventionAssignment::concrete(v(1), Value::Bool(true)), InterventionAssignment::concrete(v(2), Value::Int64(1))];
+        let left = checked_world_key(&left).unwrap();
+        let right = checked_world_key(&right).unwrap();
+        assert_eq!(left, right);
+        assert_eq!(world_digest("target", RegimeId::from_raw(0), &left).unwrap(), world_digest("target", RegimeId::from_raw(0), &right).unwrap());
+        let ctx = antecedent_core::ExecutionContext::for_tests(7);
+        ctx.cancellation.cancel();
+        let error = antecedent_core::numerical_admission::with_context(&ctx, || data.require_factor(&spec)).unwrap_err();
+        assert_eq!(error.kind, "cancelled");
+    }
+
     #[test]
     fn conditions_and_marginalizes_by_axis_coordinate() {
         let data = ExactTransportData::try_new([law("target", &[0.1, 0.2, 0.3, 0.4]).unwrap()], 16)
