@@ -12,12 +12,13 @@
 use std::sync::Arc;
 
 use antecedent::prelude::ExecutionContext;
-use antecedent::{PanelDidQuery, RandomizedEffectQuery, Study, SyntheticControlQuery};
+use antecedent::{PanelDidQuery, RandomizedEffectQuery, RefuteSuite, Study, SyntheticControlQuery};
+use antecedent_contract::TransformIntent;
 use antecedent_core::{
-    CausalQuery, ObservationAssumption, RandomizationDesign, SurvivalFunctional, SurvivalQuery,
-    VariableId,
+    AssociationQuery, CausalQuery, HistoryMatchQuery, IvBoundsQuery, ObservationAssumption,
+    RandomizationDesign, SurvivalFunctional, SurvivalQuery, VariableId,
 };
-use antecedent_data::TabularData;
+use antecedent_data::{TableView, TabularData, ValidityBitmap};
 
 fn ctx() -> ExecutionContext {
     ExecutionContext::for_tests(0x5EED)
@@ -110,9 +111,8 @@ fn cases() -> Vec<Case> {
     let sequences: Vec<Arc<str>> = (0..4)
         .flat_map(|sequence| (0..4).map(move |_| Arc::<str>::from(format!("s{sequence}"))))
         .collect();
-    let periods: Vec<Arc<str>> = (0..4)
-        .flat_map(|_| (0..4).map(|period| Arc::<str>::from(format!("p{period}"))))
-        .collect();
+    let periods: Vec<Arc<str>> =
+        (0..4).flat_map(|_| (0..4).map(|period| Arc::<str>::from(format!("p{period}")))).collect();
     cases.push(Case {
         name: "switchback",
         data: TabularData::from_f64_columns([("outcome", outcomes.as_slice())]).unwrap(),
@@ -180,6 +180,105 @@ fn declared_weights_are_refused_by_every_randomized_design_without_a_weighted_co
             let data = weighted(&case.data, weights);
             let study = Study::tabular(data.clone()).query(case.query.clone()).build().unwrap();
             assert_weights_refused(&refusal_of(study, &data), case.name);
+        }
+    }
+}
+
+#[test]
+fn graphless_routes_refuse_hidden_analysis_rows_on_fresh_and_retained_entries() {
+    for case in cases() {
+        let study =
+            |table: TabularData| Study::tabular(table).query(case.query.clone()).build().unwrap();
+        let prepared = study(case.data.clone()).prepare(&ctx()).unwrap();
+        let rows = case.data.row_count();
+        let all = case.data.with_analysis_mask(ValidityBitmap::all_valid(rows)).unwrap();
+        let positive = prepared.estimate(&all, &ctx()).unwrap();
+        assert!((positive.randomized_effect().unwrap().effect - case.effect).abs() < 1e-12);
+        study(all).prepare(&ctx()).unwrap();
+
+        let mask = ValidityBitmap::from_bools(&(0..rows).map(|i| i != 0).collect::<Vec<_>>());
+        let hidden = case.data.with_analysis_mask(mask).unwrap();
+        let mut refreshed = prepared.clone();
+        let preview = refreshed.preview_transform(TransformIntent::CompatibleDataReplace).unwrap();
+        for error in [
+            study(hidden.clone()).prepare(&ctx()).unwrap_err(),
+            prepared.estimate(&hidden, &ctx()).unwrap_err(),
+            prepared.rebind_data(hidden.clone(), &ctx()).unwrap_err(),
+            refreshed.apply_refresh(&preview, hidden, &ctx()).unwrap_err(),
+        ] {
+            assert_eq!(
+                error.reason_code(),
+                Some("option_not_applicable"),
+                "{}: {error}",
+                case.name
+            );
+            assert!(
+                error.to_string().contains("does not apply the table analysis mask"),
+                "{}: {error}",
+                case.name
+            );
+        }
+        // Failed refresh does not replace the original observations.
+        let original = refreshed.estimate(&case.data, &ctx()).unwrap();
+        assert!((original.randomized_effect().unwrap().effect - case.effect).abs() < 1e-12);
+    }
+}
+
+#[test]
+fn association_bounds_and_history_match_refuse_storage_weights_on_fresh_and_retained_entries() {
+    let y = [0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0];
+    let t = [0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0];
+    let z = [0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0];
+    let w = [1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0];
+    let data = TabularData::from_f64_columns([
+        ("y", y.as_slice()),
+        ("t", t.as_slice()),
+        ("z", z.as_slice()),
+        ("w", w.as_slice()),
+    ])
+    .unwrap();
+    let id = VariableId::from_raw;
+    for query in [
+        CausalQuery::Association(AssociationQuery::new(id(0), [id(1)])),
+        CausalQuery::IvBounds(IvBoundsQuery::new(id(0), id(1), id(2)).with_weight(id(3))),
+        CausalQuery::HistoryMatch(HistoryMatchQuery {
+            outcome: id(0),
+            treated: id(1),
+            history: Arc::from([id(2)]),
+            period: None,
+            weight: Some(id(3)),
+            caliper: None,
+        }),
+    ] {
+        let study = |table: TabularData| {
+            Study::tabular(table)
+                .query(query.clone())
+                .refute(RefuteSuite::None)
+                .bootstrap_replicates(0)
+                .build()
+                .unwrap()
+        };
+        let prepared = study(data.clone()).prepare(&ctx()).unwrap();
+        prepared.estimate(&data, &ctx()).unwrap();
+        for weights in [vec![1.0; y.len()], w.to_vec()] {
+            let weighted = data.with_weights(weights.into()).unwrap();
+            let mut refreshed = prepared.clone();
+            let preview =
+                refreshed.preview_transform(TransformIntent::CompatibleDataReplace).unwrap();
+            for error in [
+                study(weighted.clone()).prepare(&ctx()).unwrap_err(),
+                prepared.estimate(&weighted, &ctx()).unwrap_err(),
+                prepared.rebind_data(weighted.clone(), &ctx()).unwrap_err(),
+                refreshed.apply_refresh(&preview, weighted, &ctx()).unwrap_err(),
+            ] {
+                assert_weights_refused(&error.to_string(), "association/bounds/history");
+                if matches!(query, CausalQuery::IvBounds(_) | CausalQuery::HistoryMatch(_)) {
+                    assert!(
+                        error.to_string().contains("weight column explicitly named by its query")
+                    );
+                }
+            }
+            refreshed.estimate(&data, &ctx()).unwrap();
         }
     }
 }

@@ -25,11 +25,14 @@ use super::{
     RandomizedTrialOperation, RandomizedTrialQuery, RefuteSuite, Strategy, Study, StudyResult,
     TableView, TabularData, finish_identified_execute_with_context,
 };
+use antecedent_core::DeclaredSamplingDesign;
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
     TemporalAssignment, TemporalDesignFunctional, TemporalDesignQuery, TemporalDoseTarget,
     TemporalRegimeMethod,
 };
+use antecedent_data::{MissingDeclaration, MissingPolicy};
+use antecedent_estimate::sampling_weights::{SamplingWeightRecord, SamplingWeights};
 use antecedent_estimate::temporal_design::contrasts::{
     DesignScores, factorial_scores, interference_scores, multi_arm_scores, two_arm_scores,
 };
@@ -44,21 +47,18 @@ use antecedent_estimate::temporal_design::quantile::{QUANTILE_COORDINATES, fit_q
 use antecedent_estimate::temporal_design::regime::{
     REGIME_COORDINATES, RegimeMethod, RegimePanel, RegimeRows, StaticRegimes, fit_static_regimes,
 };
+use antecedent_estimate::temporal_design::serial::{
+    SERIAL_METHOD, serial_sampling_summary, serial_sup_t_band,
+};
 use antecedent_estimate::temporal_design::survival::{
     SURVIVAL_COORDINATES, Trajectories, TrajectoryRows, fit_regime_survival,
     fit_regime_survival_posterior,
-};
-use antecedent_estimate::temporal_design::serial::{
-    SERIAL_METHOD, serial_sampling_summary, serial_sup_t_band,
 };
 use antecedent_estimate::temporal_design::{
     ClusterScores, DEFAULT_BAND_REPLICATES, LaggedPairs, PanelRows, PosteriorSummary,
     SamplingSummary, bayesian_bootstrap, dense_labels, holm_adjusted, lagged_pairs,
     sampling_summary, sup_t_band,
 };
-use antecedent_core::DeclaredSamplingDesign;
-use antecedent_data::{MissingDeclaration, MissingPolicy};
-use antecedent_estimate::sampling_weights::{SamplingWeightRecord, SamplingWeights};
 
 use crate::analysis::missing_data::{self, MissingRoute};
 
@@ -104,6 +104,7 @@ impl Study {
         &self,
         table: &TabularData,
     ) -> Result<(), CausalError> {
+        self.refuse_unread_analysis_mask(table)?;
         let reads_table =
             matches!(&self.query, CausalQuery::TemporalDesign(query) if arm_mean_design(query));
         if !reads_table {

@@ -177,7 +177,7 @@ impl Study {
         table: &TabularData,
     ) -> Result<(), CausalError> {
         let reads_declared = matches!(self.query, CausalQuery::AverageEffect(_));
-        let static_effect = matches!(
+        let requires_weight_admission = matches!(
             self.query,
             CausalQuery::AverageEffect(_)
                 | CausalQuery::ConditionalEffect(_)
@@ -194,8 +194,20 @@ impl Study {
                 | CausalQuery::SyntheticControl(_)
                 | CausalQuery::Survival(_)
                 | CausalQuery::PolicyValue(_)
+                | CausalQuery::Attribute(_)
+                | CausalQuery::AnomalyAttribution(_)
+                | CausalQuery::ChangeAttribution(_)
+                | CausalQuery::MechanismChange(_)
+                | CausalQuery::UnitChange(_)
+                | CausalQuery::Simulate(_)
+                | CausalQuery::SequentialContrast(_)
+                | CausalQuery::IvBounds(_)
+                | CausalQuery::LongitudinalRegime(_)
+                | CausalQuery::Interference(_)
+                | CausalQuery::Association(_)
+                | CausalQuery::HistoryMatch(_)
         );
-        if !static_effect {
+        if !requires_weight_admission {
             return Ok(());
         }
         if matches!(self.query, CausalQuery::Transport(_)) {
@@ -218,7 +230,8 @@ impl Study {
         }
         // The joint-cell response fits and summarizes for the weighted population the table's
         // weights declare, so it is the one static route that reads them from the table.
-        let joint_cell = self.declared.estimator == Some(crate::strategy_table::EstimatorId::CellAipw)
+        let joint_cell = self.declared.estimator
+            == Some(crate::strategy_table::EstimatorId::CellAipw)
             && matches!(
                 &self.query,
                 CausalQuery::Response(response)
@@ -229,7 +242,15 @@ impl Study {
             );
         let conditional = self.conditional_reads_table_weights();
         if table.storage().weights().is_some() && !joint_cell && !conditional {
-            let message = if matches!(self.query, CausalQuery::ConditionalEffect(_)) {
+            let message = if matches!(
+                self.query,
+                CausalQuery::IvBounds(_) | CausalQuery::HistoryMatch(_)
+            ) {
+                "the table carries observation weights, which this route does not read. The \
+                 route reads only the weight column explicitly named by its query. Next \
+                 attempt: name the intended weight column in the query and remove the table \
+                 observation weights, or drop the weights"
+            } else if matches!(self.query, CausalQuery::ConditionalEffect(_)) {
                 "the table carries observation weights, which the conditional effect reads only \
                  through the frequentist weighted interaction regression on the Mean functional \
                  over an explicit DAG, an ADMG without bidirected edges or a CPDAG / PAG class, \
@@ -262,6 +283,37 @@ impl Study {
             ));
         }
         Ok(())
+    }
+
+    /// Refuse hidden rows on positional design routes that do not apply the analysis mask.
+    /// Compacting only the table would misalign the query's assignment, unit and period arrays.
+    pub(crate) fn refuse_unread_analysis_mask(
+        &self,
+        table: &TabularData,
+    ) -> Result<(), CausalError> {
+        let hidden_rows = table.storage().analysis_mask().is_some_and(|mask| !mask.is_all_valid());
+        if !hidden_rows
+            || !matches!(
+                self.query,
+                CausalQuery::Survival(_)
+                    | CausalQuery::HistoryMatch(_)
+                    | CausalQuery::LocalPolynomialRatio(_)
+                    | CausalQuery::SequentialContrast(_)
+                    | CausalQuery::TemporalDesign(_)
+                    | CausalQuery::RandomizedEffect(_)
+                    | CausalQuery::PanelDid(_)
+                    | CausalQuery::Interference(_)
+                    | CausalQuery::PolicyValue(_)
+            )
+        {
+            return Ok(());
+        }
+        Err(crate::unsupported_reason!(
+            "option_not_applicable",
+            "this route does not apply the table analysis mask, so hidden rows would enter the \
+             estimate. Next attempt: prepare on explicitly selected rows and rebind the \
+             positional design to those rows, or remove the mask"
+        ))
     }
 
     /// Whether the conditional effect this study runs reads the observation weights its table
