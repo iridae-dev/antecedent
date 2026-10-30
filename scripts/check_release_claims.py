@@ -204,15 +204,20 @@ def snapshot_ids(root: Path, skip: str | None = None) -> set[str]:
 
 
 def live_projection(root: Path) -> tuple[list[dict], set[str]]:
-    records = [project_record(rec) for rec in load(root, RECORDS).get("record", [])]
-    present = {rec.get("id") for rec in load(root, COVERAGE).get("record", []) if rec.get("id")}
+    records = [project_record(rec) for rec in load_required(root, RECORDS).get("record", [])]
+    # A record ID alone does not establish the native matcher's construction,
+    # scope, boundary and attestation requirements. This projection carries no
+    # authoritative eligibility basis, so withhold live calibrated claims until
+    # such a basis is available. Frozen snapshots retain their recorded policy.
+    load_required(root, COVERAGE)  # Still require the current registry to exist and parse.
+    present: set[str] = set()
     return records, present
 
 
 def zero_cell_queries(root: Path) -> list[str]:
-    axes = load(root, "parity/support_axes.toml").get("queries") or []
+    axes = load_required(root, "parity/support_axes.toml").get("queries") or []
     licensed = {
-        cell.get("query") for cell in load(root, "parity/support_licensed.toml").get("cell", [])
+        cell.get("query") for cell in load_required(root, "parity/support_licensed.toml").get("cell", [])
     }
     return [query for query in axes if query not in licensed]
 
@@ -336,6 +341,13 @@ NOMINAL = re.compile(r"(?<!no )(?<!not )(?<!never )(?<!any )\bnominal\b", re.I)
 def load(root: Path, rel: str) -> dict:
     p = root / rel
     return tomllib.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+
+
+def load_required(root: Path, rel: str) -> dict:
+    path = root / rel
+    if not path.is_file():
+        raise ValueError(f"required current-release registry is missing: {rel}")
+    return tomllib.loads(path.read_text(encoding="utf-8"))
 
 
 def effective_claim(rec: dict, present: set[str]) -> tuple[str, bool]:
@@ -760,6 +772,8 @@ def self_test() -> int:
         (root / "docs/release-notes").mkdir(parents=True)
         (root / RECORDS).write_text(_toml(recs), encoding="utf-8", newline="\n")
         (root / COVERAGE).write_text("", encoding="utf-8", newline="\n")
+        (root / "parity/support_axes.toml").write_text('queries = []\n', encoding="utf-8")
+        (root / "parity/support_licensed.toml").write_text('', encoding="utf-8")
         (root / "Cargo.toml").write_text(
             '[workspace.package]\nversion = "9.9.9"\n', encoding="utf-8", newline="\n"
         )
