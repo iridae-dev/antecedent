@@ -968,11 +968,10 @@ impl TemporalLinearAdjustment {
         workspace: &mut EstimationWorkspace,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
-        let modifiers = conditional_modifier_count(&problem.method).ok_or(
-            EstimationError::Unsupported {
+        let modifiers =
+            conditional_modifier_count(&problem.method).ok_or(EstimationError::Unsupported {
                 message: "a conditional fit needs a design built with declared effect modifiers",
-            },
-        )?;
+            })?;
         let kind = self.inner.inference.se_kind;
         let mut point = self.point_fitter_with(kind).fit_point(problem, workspace, assumptions)?;
         let variance = conditional_effect_variance(&problem.design, modifiers, kind)?;
@@ -1132,9 +1131,7 @@ fn conditional_effect_variance(
     // Treatment row of (X'X)^-1 applied to x_i, and the centred-modifier term of the mean.
     let a_i = |i: usize| -> f64 { (0..p).map(|c| inverse[p + c] * x[c * n + i]).sum::<f64>() };
     let mean_term = |i: usize| -> f64 {
-        (0..modifiers)
-            .map(|j| coefficients[2 + modifiers + j] * x[(2 + j) * n + i])
-            .sum::<f64>()
+        (0..modifiers).map(|j| coefficients[2 + modifiers + j] * x[(2 + j) * n + i]).sum::<f64>()
             / nf
     };
     let rss: f64 = residuals.iter().map(|e| e * e).sum();
@@ -1401,7 +1398,13 @@ fn slope_ridge_coefficients(
     if !(scale.is_finite() && scale > 0.0) {
         return Err(EstimationError::unsupported(invalid_scale));
     }
-    let sigma2 = crate::util::ols_sigma2(design, n, ncols, y, ols_coef).max(1e-12);
+    let sigma2 = crate::util::ols_sigma2(design, n, ncols, y, ols_coef);
+    if !sigma2.is_finite() {
+        return Err(EstimationError::stats_msg(
+            "temporal slope prior needs a finite residual variance and positive residual degrees of freedom",
+        ));
+    }
+    let sigma2 = sigma2.max(1e-12);
     let penalty = sigma2 / (scale * scale);
     let aug_n = n + (ncols - 1);
     let mut aug_x = vec![0.0; aug_n * ncols];
@@ -1843,7 +1846,13 @@ pub fn nested_direct_fit_moments(
         let coef = SequentialRegression::solve_design(&design, n, ncols, y, None, &mut ws)
             .map_err(crate::error::EstimationError::from)?
             .coefficients;
-        let sigma2 = crate::util::ols_sigma2(&design, n, ncols, y, &coef).max(1e-12);
+        let sigma2 = crate::util::ols_sigma2(&design, n, ncols, y, &coef);
+        if !sigma2.is_finite() {
+            return Err(EstimationError::stats_msg(
+                "temporal slope prior needs a finite residual variance and positive residual degrees of freedom",
+            ));
+        }
+        let sigma2 = sigma2.max(1e-12);
         let penalty = sigma2 / (scale * scale);
         gram[4] += penalty;
         gram[8] += penalty;
@@ -1918,6 +1927,25 @@ mod tests {
     use antecedent_model::history_operators::Horizon;
 
     use super::*;
+
+    #[test]
+    fn ridge_coefficients_refuse_saturated_residual_variance() {
+        let mut saturated = vec![0.0; 64];
+        for i in 0..8 {
+            saturated[i * 8 + i] = 1.0;
+        }
+        assert!(
+            slope_ridge_coefficients(&saturated, 8, 8, &[1.0; 8], &[1.0; 8], 1.0, "invalid")
+                .is_err()
+        );
+        let mut identified = vec![0.0; 72];
+        for i in 0..8 {
+            identified[i * 9 + i] = 1.0;
+        }
+        let mut y = [0.0; 9];
+        y[8] = 1.0;
+        assert!(slope_ridge_coefficients(&identified, 9, 8, &y, &[0.0; 8], 1.0, "invalid").is_ok());
+    }
 
     fn series() -> (TimeSeriesData, TemporalDag) {
         let n = 240usize;

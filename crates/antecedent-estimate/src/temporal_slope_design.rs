@@ -549,7 +549,13 @@ impl TemporalSlopeDesign {
             ));
         }
         let (n, p) = (self.rows, self.cols);
-        let sigma2 = crate::util::ols_sigma2(&self.matrix, n, p, &self.outcome, ols).max(1e-12);
+        let sigma2 = crate::util::ols_sigma2(&self.matrix, n, p, &self.outcome, ols);
+        if !sigma2.is_finite() {
+            return Err(EstimationError::stats_msg(
+                "temporal slope posterior needs a finite residual variance and positive residual degrees of freedom",
+            ));
+        }
+        let sigma2 = sigma2.max(1e-12);
         let penalty = sigma2 / (scale * scale);
         let mut gram = vec![0.0; p * p];
         let mut cross = vec![0.0; p];
@@ -1103,6 +1109,13 @@ mod tests {
             windows: GappedAlignedRows { first_time: 1, complete: vec![true; rows] },
             row_weights: None,
         }
+    }
+
+    #[test]
+    fn ridge_refuses_saturated_residual_variance() {
+        let saturated = design(2);
+        assert!(saturated.ridge_mean(&[1.0, 2.0], 1.0).is_err());
+        assert!(design(60).ridge_mean(&[1.0, 2.0], 1.0).is_ok());
     }
 
     #[test]

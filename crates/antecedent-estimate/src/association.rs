@@ -1417,8 +1417,10 @@ impl AssociationEstimator {
                 fill_circular_block_indexes(rows, length, &mut rng, &mut index)
                     .map_err(EstimationError::from)?;
             } else {
-                let mut rng =
-                    ctx.rng.stream_for(StreamDomain::Estimate, BOOTSTRAP_STREAM ^ replicate as u64);
+                let mut rng = ctx.rng.stream_for(
+                    StreamDomain::Resample,
+                    antecedent_core::derive_stream(BOOTSTRAP_STREAM, replicate as u64),
+                );
                 for slot in &mut index {
                     *slot = unbiased_index(&mut rng, rows);
                 }
@@ -1461,8 +1463,10 @@ impl AssociationEstimator {
             if ctx.cancellation.is_cancelled() {
                 return Err(cancelled());
             }
-            let mut rng =
-                ctx.rng.stream_for(StreamDomain::Estimate, POSTERIOR_STREAM ^ draw as u64);
+            let mut rng = ctx.rng.stream_for(
+                StreamDomain::Bayesian,
+                antecedent_core::derive_stream(POSTERIOR_STREAM, draw as u64),
+            );
             let multiplier = match block_length {
                 None => bayesian_bootstrap_weights(&mut rng, rows, false),
                 Some(length) => {
@@ -1931,6 +1935,21 @@ mod tests {
     }
 
     #[test]
+    fn resampling_posterior_and_fold_streams_are_distinct_and_repeatable() {
+        let factory = &ctx(21).rng;
+        let sample = |domain, key| factory.stream_for(domain, key).next_u64();
+        let fold = sample(StreamDomain::Estimate, FOLD_STREAM);
+        let boot =
+            |i| sample(StreamDomain::Resample, antecedent_core::derive_stream(BOOTSTRAP_STREAM, i));
+        let posterior =
+            |i| sample(StreamDomain::Bayesian, antecedent_core::derive_stream(POSTERIOR_STREAM, i));
+        assert_ne!(boot(2), fold);
+        assert_ne!(boot(3), posterior(0));
+        assert_eq!(boot(2), boot(2));
+        assert_eq!(posterior(0), posterior(0));
+    }
+
+    #[test]
     fn linear_coefficients_and_the_robust_error_match_the_closed_form() {
         let (data, x, y) = simple_regression_data();
         let query = AssociationQuery::new(v(1), [v(0)]);
@@ -1990,6 +2009,23 @@ mod tests {
             assert!((se - (variance / n).sqrt()).abs() < 1e-10, "{se}");
             assert_eq!(term.scale, "outcome_mean");
         }
+    }
+
+    #[test]
+    fn conditional_mean_single_positive_weight_has_no_analytic_standard_error() {
+        let data = table(&[
+            ("g", vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0]),
+            ("y", vec![1.0, 2.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]),
+        ]);
+        let query =
+            AssociationQuery::new(v(1), [v(0)]).with_functional(AssociationFunctional::Conditional);
+        let estimator = AssociationEstimator::new(Modality::CrossSection);
+        let mut prepared = estimator.prepare(data.storage(), &query).unwrap();
+        prepared.weight = vec![1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0];
+        prepared.unit_weights = false;
+        let (errors, _) = estimator.analytic(&prepared).unwrap();
+        assert!(errors[0].is_some_and(|se| se > 0.0));
+        assert_eq!(errors[1], None);
     }
 
     #[test]
