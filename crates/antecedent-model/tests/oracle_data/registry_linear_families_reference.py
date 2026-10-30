@@ -13,9 +13,10 @@ from the normal equations in mp arithmetic (no QR, no pseudo-rows):
                   s_j the population standard deviation of parent j (1 when it is not above 1e-12),
                   intercept unpenalised; coefficients returned as b_j / s_j.
   hierarchical    lambda = clamp(sigma0^2 / tau2, 1e-6, 1e6) with sigma0 the OLS residual scale,
-                  tau2 = max(mean(b_ols^2) - sigma0^2 / n, 1e-8); then min rss + lambda sum b_j^2
-                  on the raw parents.  With a UnitId column the outcome and every parent are
-                  demeaned by unit, lambda is re-estimated on the demeaned OLS, the slopes are the
+                  tau2 = max(mean(b_ols^2) - sigma0^2 * trace(G^-1)/p, 1e-8),
+                  G = X_centered' X_centered; then min rss + lambda sum b_j^2 on raw parents.
+                  With a UnitId column both outcome and parents are demeaned by unit; the
+                  within-fit sigma0 uses n - number_of_units - p degrees of freedom. The slopes are the
                   penalised within fit, the intercept is mean(y) - sum b_j mean(x_j), and sigma is
                   the residual scale on the raw rows over n - (1 + p) degrees of freedom.
   interactions    [1, z1, z2, z1 z2] with z the parent standardised by its population mean and
@@ -94,16 +95,28 @@ def raw_design(cols, n):
     return [[mp.mpf(1)] + [c[i] for c in cols] for i in range(n)]
 
 
-def ols_lambda(cols, y, lo, hi, n):
+def ols_lambda(cols, y, lo, hi, n, groups=None):
     D = raw_design(cols, n)
     w = [mp.mpf(1)] * n
     beta = wls_solve(D, y, w, [0] * len(D[0]))
-    sigma = sigma_of(data_rss(D, y, w, beta), n, len(D[0]), y)
-    coeffs = beta[1:]
-    mean_b2 = sum(b * b for b in coeffs) / max(len(coeffs), 1)
-    tau2 = max(mean_b2 - sigma * sigma / n, mp.mpf("1e-8"))
-    lam = min(max(sigma * sigma / tau2, mp.mpf(lo)), mp.mpf(hi))
-    return lam
+    rss = data_rss(D, y, w, beta)
+    if groups is None:
+        sigma2 = sigma_of(rss, n, len(D[0]), y) ** 2
+    else:
+        df = n - len(set(groups)) - len(cols)
+        assert df > 0
+        sigma2 = rss / df
+    p = len(cols)
+    if p == 0:
+        return mp.mpf(0)
+    means = [sum(col) / n for col in cols]
+    G = mp.matrix([[sum((cols[a][i] - means[a]) * (cols[b][i] - means[b])
+                           for i in range(n)) for b in range(p)] for a in range(p)])
+    inv = G ** -1
+    sampling_variance = sigma2 * sum(inv[j, j] for j in range(p)) / p
+    mean_b2 = sum(b * b for b in beta[1:]) / p
+    tau2 = max(mean_b2 - sampling_variance, mp.mpf("1e-8"))
+    return min(max(sigma2 / tau2, mp.mpf(lo)), mp.mpf(hi))
 
 
 def bvar(cols, y):
@@ -140,7 +153,7 @@ def hierarchical(cols, y, groups):
 
     yw = demean(y)
     cw = [demean(c) for c in cols]
-    lam = ols_lambda(cw, yw, "1e-6", "1e6", n)
+    lam = ols_lambda(cw, yw, "1e-6", "1e6", n, groups)
     Dw = raw_design(cw, n)
     beta = wls_solve(Dw, yw, w1, [0] + [lam] * p)
     coeffs = beta[1:]

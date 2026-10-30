@@ -3,7 +3,7 @@
 //! `oracle_data/registry_linear_families_reference.py` (frozen in the JSON beside it) solves, in
 //! 60-digit arithmetic and from the normal equations rather than a QR of augmented rows: the
 //! Minnesota-style conjugate ridge of `Bvar` on scale-standardised parents, the empirical-Bayes
-//! ridge of `HierarchicalLinear` (with its shrinkage strength, without and with a `UnitId` column
+//! ridge of `HierarchicalLinear` (using centered-design sampling variance for its raw-slope prior, without and with a `UnitId` column
 //! whose within-unit regression supplies the slopes), the interaction expansion of
 //! `LinearInteractions` and the cubic truncated-power spline of `LinearSpline` (its conditioning
 //! ridge on root-mean-square scaled columns), the last two both as a fresh fit and as a refit

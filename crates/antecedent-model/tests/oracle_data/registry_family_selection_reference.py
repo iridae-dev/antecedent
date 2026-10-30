@@ -17,7 +17,9 @@ refit is solved exactly (normal equations, 60 digits; Newton on the concave logi
 
   linear_gaussian  OLS;   hierarchical_linear  empirical-Bayes ridge;   bvar  ridge on the
   scale-standardised parents (phi = 0.2);   discrete  binary logit MLE;   hierarchical_glm
-  ridge logit with the empirical-Bayes strength recomputed on the training rows.
+  ridge logit with the raw-slope empirical-Bayes strength recomputed on the training rows:
+  linear OLS sampling variance uses the centered Gram inverse and the logit uses the
+  unpenalized pilot's inverse observed Fisher information.
 
 The conditional state space is scored prequentially: its parameters (a, q, r, x0, from 25 EM
 iterations of the joint-law E-step, on the full-data OLS residual) are fixed, and the Kalman
@@ -84,9 +86,16 @@ def fit_hl(cols, y_all, rows):
     D, y = design(cols, rows), [y_all[i] for i in rows]
     n, p = len(y), len(cols)
     b0, s0 = fit_lg(cols, y_all, rows)
-    mean_b2 = sum(b * b for b in b0[1:]) / max(p, 1)
-    tau2 = max(mean_b2 - s0 * s0 / n, mp.mpf("1e-8"))
-    lam = min(max(s0 * s0 / tau2, mp.mpf("1e-6")), mp.mpf("1e6"))
+    if p:
+        means = [sum(cols[j][i] for i in rows) / n for j in range(p)]
+        G = mp.matrix([[sum((cols[a][i] - means[a]) * (cols[b][i] - means[b]) for i in rows)
+                        for b in range(p)] for a in range(p)])
+        inverse = G ** -1
+        sampling = s0 * s0 * sum(inverse[j, j] for j in range(p)) / p
+        tau2 = max(sum(b * b for b in b0[1:]) / p - sampling, mp.mpf("1e-8"))
+        lam = min(max(s0 * s0 / tau2, mp.mpf("1e-6")), mp.mpf("1e6"))
+    else:
+        lam = mp.mpf(0)
     beta = wls_solve(D, y, [mp.mpf(1)] * n, [0] + [lam] * p)
     return beta, sigma_of(rss_of(D, y, beta), n, p + 1, y)
 
@@ -179,6 +188,8 @@ def newton_logit(X, y, penalty):
         if mp.norm(g, p=mp.inf) < TOL:
             break
         beta = beta + mp.lu_solve(H, g)
+    else:
+        raise ValueError("logistic oracle did not converge in 200 iterations")
     return list(beta)
 
 
@@ -189,12 +200,24 @@ def fit_discrete(cols, y_all, rows):
 
 def fit_hglm(cols, y_all, rows):
     n, p = len(rows), len(cols)
-    b0, s0 = fit_lg(cols, y_all, rows)
-    mean_b2 = sum(b * b for b in b0[1:]) / max(p, 1)
-    tau2 = max(mean_b2 - s0 * s0 / n, mp.mpf("1e-8"))
-    lam = min(max(s0 * s0 / tau2, mp.mpf("1e-4")), mp.mpf("1e3"))
     X = design(cols, rows)
-    return newton_logit(X, [y_all[i] for i in rows], [0] + [lam] * p)
+    y = [y_all[i] for i in rows]
+    if p:
+        pilot = newton_logit(X, y, [0] * (p + 1))
+        fisher = mp.zeros(p + 1, p + 1)
+        for row in X:
+            eta = sum(pilot[j] * row[j] for j in range(p + 1))
+            mu = 1 / (1 + mp.exp(-eta))
+            for i in range(p + 1):
+                for j in range(p + 1):
+                    fisher[i, j] += mu * (1 - mu) * row[i] * row[j]
+        inverse = fisher ** -1
+        tau2 = max(sum(b * b for b in pilot[1:]) / p
+                   - sum(inverse[j,j] for j in range(1,p+1)) / p, mp.mpf("1e-8"))
+        lam = min(max(1 / tau2, mp.mpf("1e-4")), mp.mpf("1e3"))
+    else:
+        lam = mp.mpf(1)
+    return newton_logit(X, y, [0] + [lam] * p)
 
 
 def logit_lp(beta, cols, y, i):

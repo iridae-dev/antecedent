@@ -5,7 +5,7 @@
 //! design: the baseline-category multinomial logit of the `Discrete` family (unweighted fit and
 //! the weighted refit, three, four and two categories, a parent measured in years beside a
 //! unit-scale parent), and the always-penalised binary logit of `HierarchicalGlm` with the
-//! empirical-Bayes ridge strength recomputed exactly (interior value and the upper clamp). The
+//! empirical-Bayes ridge strength from unpenalised logit and inverse Fisher information. The
 //! registry fits are taken from `assign_and_fit_with` with the family required, and the weighted
 //! refit from `refit_weighted`.
 //!

@@ -14,15 +14,14 @@ design to a gradient below 1e-40 in 50-digit arithmetic:
                 logits.  Weights are rescaled to mean one by the refit, which cannot move the
                 maximiser (a common factor on every weight), and the reference does not rescale.
   hierarchical  maximise  sum_i [ y_i eta_i - log(1 + e^eta_i) ] - lambda/2 * sum_{j>=1} beta_j^2
-                with the intercept unpenalised.  lambda is the empirical-Bayes value of the
-                record: an ordinary least-squares fit of the 0/1 outcome on [1 | parents] in
-                exact rational arithmetic, sigma = max(sqrt(rss / max(n - ncols, 1)),
-                1e-8 rms(y)), tau2 = max(mean(b_j^2) - sigma^2 / n, 1e-8),
-                lambda = clamp(sigma^2 / tau2, 1e-4, 1e3).
+                with the intercept unpenalised. An unpenalised logit pilot supplies b and
+                observed Fisher information F = X' diag(mu_i (1 - mu_i)) X. The raw-slope
+                prior variance is tau2 = max(mean(b_j^2) - mean((F^-1)_jj), 1e-8), and
+                lambda = clamp(1/tau2, 1e-4, 1e3), in the summed-likelihood convention.
 
 The fixed designs include a parent measured in years (offset 2020, spread 3) beside a unit-scale
 parent, weights spanning three orders of magnitude, a binary outcome (the two-category branch), a
-weak-signal outcome that drives lambda to its upper clamp and one that leaves it interior.
+balanced zero-signal outcome that drives lambda to its upper clamp and others that leave it interior.
 Repository-authored (MIT OR Apache-2.0).
 """
 import json
@@ -93,6 +92,8 @@ def ridge_logit_mle(X, y, lam):
         if mp.norm(g, p=mp.inf) < TOL:
             break
         beta = beta + mp.lu_solve(H, g)
+    else:
+        raise ValueError("logistic oracle did not converge in 200 iterations")
     return [beta[j] for j in range(p)]
 
 
@@ -110,23 +111,24 @@ def exact_solve(A, b):
 
 
 def eb_lambda(cols, y):
-    """Empirical-Bayes ridge strength of the hierarchical binary-logit fit, and the OLS pieces."""
+    """EB strength from an independent high-precision unpenalised logit and Fisher inverse."""
     n = len(y)
-    D = [[F(1)] + [F(c[i]) for c in cols] for i in range(n)]
-    k = len(D[0])
-    A = [[sum(D[i][a] * D[i][b] for i in range(n)) for b in range(k)] for a in range(k)]
-    rhs = [sum(D[i][a] * F(y[i]) for i in range(n)) for a in range(k)]
-    beta = exact_solve(A, rhs)
-    rss = sum((F(y[i]) - sum(beta[a] * D[i][a] for a in range(k))) ** 2 for i in range(n))
-    rms = mp.sqrt(sum(mpf(F(v)) ** 2 for v in y) / n)
-    floor = max(mp.mpf("1e-8") * rms, mp.mpf(2) ** -1022)
-    s2 = rss / max(n - k, 1)
-    sigma = max(mp.sqrt(mpf(s2)), floor)
-    coeffs = [mpf(b) for b in beta[1:]]
-    mean_b2 = sum(b * b for b in coeffs) / max(len(coeffs), 1)
-    tau2 = max(mean_b2 - sigma * sigma / n, mp.mpf("1e-8"))
-    lam = min(max(sigma * sigma / tau2, mp.mpf("1e-4")), mp.mpf("1e3"))
-    return lam, sigma, tau2
+    X = [[mp.mpf(1)] + [mpf(c[i]) for c in cols] for i in range(n)]
+    outcome = [mpf(F(v)) for v in y]
+    beta = ridge_logit_mle(X, outcome, mp.mpf(0))
+    k = len(beta)
+    fisher = mp.zeros(k, k)
+    for row in X:
+        eta = sum(beta[j] * row[j] for j in range(k))
+        mu = 1 / (1 + mp.exp(-eta))
+        for a in range(k):
+            for b in range(k):
+                fisher[a, b] += mu * (1 - mu) * row[a] * row[b]
+    inverse = fisher ** -1
+    p = k - 1
+    tau2 = max(sum(b*b for b in beta[1:]) / p - sum(inverse[j,j] for j in range(1,k)) / p,
+               mp.mpf("1e-8"))
+    return min(max(1 / tau2, mp.mpf("1e-4")), mp.mpf("1e3"))
 
 
 def fl(v):
@@ -159,7 +161,7 @@ def discrete_case(name, x_cols, y, K, weights):
 
 def hierarchical_case(name, x_cols, y):
     n = len(y)
-    lam, sigma, tau2 = eb_lambda(x_cols, y)
+    lam = eb_lambda(x_cols, y)
     X = [[mp.mpf(1)] + [mpf(c[i]) for c in x_cols] for i in range(n)]
     beta = ridge_logit_mle(X, [mpf(F(v)) for v in y], lam)
     return {
@@ -294,6 +296,11 @@ def main():
     cases.append(hierarchical_case("signal", [[float(v) for v in x1], [float(v) for v in x2]], yb))
     yw = [1.0 if rng.random() < 0.5 else 0.0 for _ in range(n)]
     cases.append(hierarchical_case("weak_signal", [[float(v) for v in x1], [float(v) for v in x2]], yw))
+    # Every predictor row occurs with both binary outcomes: the unpenalized
+    # logit has exactly zero slopes, so the EB variance floor forces the cap.
+    balanced_x = [[float(v) for v in col for _ in range(2)] for col in (x1, x2)]
+    balanced_y = [float(k) for _ in range(n) for k in (0, 1)]
+    cases.append(hierarchical_case("balanced_zero_signal", balanced_x, balanced_y))
     off = [float(F(2020) + v * 3) for v in x1]
     cases.append(hierarchical_case("years_parent", [off, [float(v) for v in x2]], yb))
     print(json.dumps(cases, indent=1))
