@@ -188,6 +188,13 @@ for a non-responder), with the observation model fitted within each assignment g
 variance is computed on pseudo-outcomes that carry the influence of the fitted response model (stacked M-estimation), so estimating the response probabilities is accounted for; across strata or clusters the shared coefficients are treated as independent between blocks.
 CUPED, ANCOVA and receipt-adjusted fits read further per-unit inputs and refuse.
 
+Under Bayesian inference, `inverse_probability` runs the arm-contrast posterior on the same
+pseudo-outcomes: each arm's Normal-Inverse-Gamma update reads every assigned unit's weighted
+outcome as a design weight, so the posterior mean is the Hajek responder mean and its spread is
+the influence-function spread. It needs `estimator="bayesian.randomized_superpopulation"` and a
+Gaussian arm model; the finite-population estimand and Beta-Bernoulli arms are refused. The
+observation model is estimated, not given a posterior, and the route is unlicensed.
+
 **Panel difference-in-differences, `balanced_panel`.** Units with a missing outcome in any
 period are dropped whole; single unit-periods are never deleted, so no unit is relabelled and
 the panel stays balanced. It is valid when a unit's chance of being complete is independent of

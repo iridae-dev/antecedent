@@ -678,3 +678,160 @@ mod dose_grid_route {
         assert!(matches!(consume(b"not cbor"), Err(PosteriorRowArtifactError::Undecodable(_))));
     }
 }
+// ---------------------------------------------------------------- missing outcomes, weighted
+
+/// 24 units alternating control (even rows) and treated (odd rows); the binary baseline `x`
+/// flips every second pair. Nine outcomes are missing.
+const IPW_OUTCOME: [f64; 24] = [
+    1.2, 2.1, 0.7, 2.9, 1.8, 3.4, 0.9, 2.4, 1.5, 3.1, 2.2, 2.7, 1.1, 3.6, 0.4, 2.0, 1.9, 3.0, 1.3,
+    3.8, 0.8, 2.5, 1.7, 3.3,
+];
+const IPW_MISSING: [usize; 9] = [1, 6, 9, 12, 15, 17, 20, 22, 23];
+
+fn ipw_trial(design: RandomizationDesign) -> (TabularData, RandomizedEffectQuery) {
+    let outcome: Vec<f64> =
+        (0..24).map(|i| if IPW_MISSING.contains(&i) { f64::NAN } else { IPW_OUTCOME[i] }).collect();
+    let baseline: Vec<f64> = (0..24).map(|i| f64::from(u8::from((i / 2) % 2 == 1))).collect();
+    let data = TabularData::from_f64_columns([
+        ("outcome", outcome.as_slice()),
+        ("x", baseline.as_slice()),
+    ])
+    .unwrap();
+    let query = RandomizedEffectQuery::with_design(
+        design,
+        VariableId::from_raw(0),
+        (0..24).map(|i| i % 2 == 1).collect::<Vec<_>>(),
+        vec![0.5; 24],
+        units(24, "u"),
+        units(24, "o"),
+        ("control", "treated"),
+    );
+    (data, query)
+}
+
+fn gaussian_arms() -> DesignPosteriorModel {
+    DesignPosteriorModel::ArmOutcome {
+        model: ArmOutcomeModel::Gaussian(
+            antecedent_estimate::randomized_posterior::ArmNormalPrior {
+                mean: 0.0,
+                pseudo_units: 1.0e-3,
+                variance_shape: 1.0,
+                variance_scale: 1.0,
+            },
+        ),
+    }
+}
+
+fn run_weighted(
+    data: &TabularData,
+    query: RandomizedEffectQuery,
+    inference: InferenceMode,
+    estimator: Option<EstimatorId>,
+    missing: Option<antecedent_data::MissingDeclaration>,
+) -> Result<StudyResult, CausalError> {
+    let ctx = ExecutionContext::for_tests(0xB1A6);
+    let mut builder = Study::tabular(data.clone()).query(query).inference(inference);
+    if let Some(estimator) = estimator {
+        builder = builder.estimator(estimator);
+    }
+    if let Some(missing) = missing {
+        builder = builder.missing(missing);
+    }
+    builder.build()?.prepare(&ctx)?.estimate(data, &ctx)
+}
+
+fn inverse_probability(covariates: &[u32]) -> Option<antecedent_data::MissingDeclaration> {
+    Some(
+        antecedent_data::MissingDeclaration::new(
+            antecedent_data::MissingPolicy::InverseProbabilityOfObservation,
+        )
+        .with_covariates(covariates.iter().map(|&c| VariableId::from_raw(c)).collect::<Vec<_>>()),
+    )
+}
+
+/// The weighted conjugate update is the Normal-Inverse-Gamma update on the inverse-probability
+/// pseudo-outcomes `ybar_s + R (y - ybar_s) / p_s` of each response stratum `s` (the influence
+/// function of the post-stratified responder mean, so the posterior spread carries the response
+/// uncertainty). Stratifying by arm alone, then by arm and the binary baseline (a saturated
+/// logistic observation model, whose fitted probabilities are the stratum response rates), the
+/// contrast of two independent Student-t arm laws has mean `mn_1 - mn_0` and variance
+/// `sum bn / (kn (an - 1))`. The numbers below come from an independent script
+/// that applies that closed form to the table above.
+#[test]
+fn weighted_conjugate_update_matches_the_closed_form_pseudo_outcome_posterior() {
+    let design = RandomizationDesign::Bernoulli;
+    let superpopulation = Some(EstimatorId::BayesianRandomizedSuperpopulation);
+    for (covariates, mean, sd) in [
+        (&[][..], 1.667_718_166_343_280_7, 0.326_027_745_643_939_3),
+        (&[1][..], 1.683_193_067_244_396_4, 0.321_509_057_609_117_6),
+    ] {
+        let (data, query) = ipw_trial(design.clone());
+        let result = run_weighted(
+            &data,
+            query,
+            bayes(Some(gaussian_arms())),
+            superpopulation,
+            inverse_probability(covariates),
+        )
+        .unwrap();
+        let (got_mean, got_sd, lower, upper) = column(&result, 0);
+        close(got_mean, mean, 5e-3, "weighted posterior mean");
+        close(got_sd, sd, 6e-3, "weighted posterior sd");
+        assert!(lower < got_mean && got_mean < upper);
+        let report = result.missing_data().as_ref().expect("a missing-data report");
+        assert_eq!(report.policy().name(), "inverse_probability");
+        assert_eq!(report.accounting.rows_total, 24);
+        assert_eq!(result.support_status(), None, "the weighted Bayesian route is unlicensed");
+    }
+}
+
+#[test]
+fn the_weighted_posterior_is_not_the_responder_only_posterior() {
+    // Responder means are 1.375 (control) and 3.042857 (treated): 1.667857. The covariate
+    // model reweights the strata, so its posterior mean differs from that contrast by 0.015.
+    let (data, query) = ipw_trial(RandomizationDesign::Bernoulli);
+    let result = run_weighted(
+        &data,
+        query,
+        bayes(Some(gaussian_arms())),
+        Some(EstimatorId::BayesianRandomizedSuperpopulation),
+        inverse_probability(&[1]),
+    )
+    .unwrap();
+    let (mean, _, _, _) = column(&result, 0);
+    assert!((mean - 1.667_857_142_857).abs() > 0.01, "{mean}");
+}
+
+#[test]
+fn weighted_bayesian_boundaries_are_typed_refusals() {
+    // No declared policy for a missing outcome: the policy is required, never defaulted.
+    let (data, query) = ipw_trial(RandomizationDesign::Bernoulli);
+    let error = run_weighted(&data, query, bayes(Some(gaussian_arms())), None, None)
+        .err()
+        .expect("refused");
+    assert_eq!(error.reason_code(), Some("missing_policy_required"), "{error}");
+
+    // The finite-population estimand needs the unobserved share of every arm, which the
+    // weighted pseudo-outcomes do not describe.
+    let (data, query) = ipw_trial(RandomizationDesign::Bernoulli);
+    let error =
+        run_weighted(&data, query, bayes(Some(gaussian_arms())), None, inverse_probability(&[]))
+            .err()
+            .expect("refused");
+    assert_eq!(error.reason_code(), Some("route_not_supported"), "{error}");
+    assert!(error.to_string().contains("superpopulation"), "{error}");
+
+    // Beta-Bernoulli arms cannot take a weighted outcome.
+    let (data, query) = ipw_trial(RandomizationDesign::Bernoulli);
+    let error = run_weighted(
+        &data,
+        query,
+        bayes(Some(uniform_arms())),
+        Some(EstimatorId::BayesianRandomizedSuperpopulation),
+        inverse_probability(&[]),
+    )
+    .err()
+    .expect("refused");
+    assert_eq!(error.reason_code(), Some("route_not_supported"), "{error}");
+    assert!(error.to_string().contains("Normal-Inverse-Gamma"), "{error}");
+}

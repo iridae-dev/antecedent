@@ -384,7 +384,6 @@ impl super::CheckedRandomizedOperation {
                 ),
             ));
         }
-        let outcomes = complete_outcomes(data, self.query.outcome)?;
         let estimator = self.selected_estimator();
         let estimand = if estimator == EstimatorId::BayesianRandomizedSuperpopulation {
             RandomizedEstimand::Superpopulation
@@ -392,6 +391,7 @@ impl super::CheckedRandomizedOperation {
             RandomizedEstimand::FinitePopulation
         };
         let rows = arm_rows(&self.query)?;
+        let (outcomes, observed) = self.arm_outcomes(data, &rows, model, estimand)?;
         let weights: Vec<Vec<f64>> = rows.contrasts.iter().map(|(_, w)| w.clone()).collect();
         let started = Instant::now();
         let posterior = posterior_arm_contrasts_with_draws(
@@ -406,8 +406,21 @@ impl super::CheckedRandomizedOperation {
             },
             config.n_draws,
         )?;
-        let fit = arm_design_posterior(&rows, &posterior, model, estimand, outcomes.len())?;
-        finish_design_posterior_as(
+        let mut fit = arm_design_posterior(&rows, &posterior, model, estimand, outcomes.len())?;
+        if observed.is_some() {
+            fit.diagnostics.push(Diagnostic::new(
+                "estimate.randomized.bayesian_arm_contrast.inverse_probability",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "missing outcomes are handled by inverse-probability-of-observation weights as a \
+                 design weight in the conjugate update: each arm's Normal-Inverse-Gamma update \
+                 reads the responder pseudo-outcomes of every assigned unit, whose arm mean is the \
+                 Hajek responder mean and whose spread carries the influence of the fitted \
+                 observation model; the observation model is estimated, not given a posterior of \
+                 its own",
+            ));
+        }
+        let mut result = finish_design_posterior_as(
             DesignFinish {
                 context: &self.result_context,
                 data,
@@ -420,7 +433,90 @@ impl super::CheckedRandomizedOperation {
             },
             fit,
             super::super::Strategy::new(IdentifierId::RandomizedDesign, estimator),
-        )
+        )?;
+        if let Some(observed) = observed {
+            result.extras.missing_data = Some(self.missing_report(data, &observed)?);
+        }
+        Ok(result)
+    }
+
+    /// The outcomes the arm posterior reads, and the response indicator when they are weighted.
+    ///
+    /// Complete outcomes are read as they are. Missing outcomes need the declared
+    /// inverse-probability-of-observation policy: each assigned unit then contributes its
+    /// responder pseudo-outcome (the design-based route's own), so every assigned unit stays in
+    /// its arm. The weights make the outcome a weighted real, so only Gaussian arms on the
+    /// superpopulation estimand can read them.
+    fn arm_outcomes(
+        &self,
+        data: &TabularData,
+        rows: &ArmRows,
+        model: ArmOutcomeModel,
+        estimand: RandomizedEstimand,
+    ) -> Result<(Vec<f64>, Option<Vec<bool>>), CausalError> {
+        let antecedent_data::ColumnView::Float64(column) =
+            data.column(self.query.outcome).map_err(CausalError::from)?
+        else {
+            return Err(CausalError::Unsupported {
+                message: "randomized outcome must be continuous",
+            });
+        };
+        let values = column.values.as_slice();
+        let observed: Vec<bool> = (0..values.len()).map(|i| column.validity.is_valid(i)).collect();
+        if observed.iter().all(|seen| *seen) {
+            return Ok((complete_outcomes(data, self.query.outcome)?, None));
+        }
+        let declaration = self.require_missing_policy(data)?;
+        if declaration.policy != antecedent_data::MissingPolicy::InverseProbabilityOfObservation {
+            return Err(unread_option(
+                ROUTE,
+                &format!("the `{}` missing-data policy", declaration.policy.name()),
+                "inverse_probability, or multiple_imputation, or the design-based responder \
+                 estimators under Frequentist inference",
+            ));
+        }
+        if estimand != RandomizedEstimand::Superpopulation {
+            return Err(unread_option(
+                ROUTE,
+                "weighted outcomes under the finite-population estimand, whose unobserved share \
+                 of each arm is a posterior predictive of observed values",
+                "estimator=bayesian.randomized_superpopulation with the inverse_probability policy",
+            ));
+        }
+        if !matches!(model, ArmOutcomeModel::Gaussian(_)) {
+            return Err(unread_option(
+                ROUTE,
+                "weighted outcomes under Beta-Bernoulli arms, which need counts of 0/1 outcomes",
+                "a Normal-Inverse-Gamma arm model with the inverse_probability policy",
+            ));
+        }
+        if let Some(cell) = antecedent_data::first_missing_cell(data, &declaration.covariates)
+            .map_err(CausalError::from)?
+        {
+            return Err(CausalError::Estimate(
+                antecedent_estimate::missing_policy::covariates_incomplete(
+                    &cell,
+                    "randomized intention-to-treat estimation",
+                ),
+            ));
+        }
+        if declaration.covariates.contains(&self.query.outcome) {
+            return Err(CausalError::Unsupported {
+                message: "the observation model cannot condition on the outcome itself",
+            });
+        }
+        let mut covariates = Vec::with_capacity(declaration.covariates.len() * values.len());
+        for &id in declaration.covariates.iter() {
+            covariates.extend_from_slice(&data.float64_cow(id).map_err(CausalError::from)?);
+        }
+        let pseudo = antecedent_estimate::randomized_missing::responder_pseudo_outcomes(
+            values,
+            &observed,
+            &rows.assignment,
+            &covariates,
+            declaration.covariates.len(),
+        )?;
+        Ok((pseudo, Some(observed)))
     }
 }
 
