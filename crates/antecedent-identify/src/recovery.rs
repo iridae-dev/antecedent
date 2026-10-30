@@ -1046,8 +1046,10 @@ pub fn decide_observation_recovery(
     let observed = observed_distribution(&query, catalog)?;
     charge(&mut search, at, 1, base)?;
     if let Some(&(x, r)) = violations.first() {
-        let witness = self_censoring_witness(&m, x, r)?;
-        return nonrecoverable(&m, witness, &mut search, at.with(Stage::Witness), base);
+        let witness_at = at.with(Stage::Witness);
+        let (witness, _lease) =
+            construct_self_censoring_witness(&m, x, r, &mut search, witness_at, base)?;
+        return nonrecoverable(&m, witness, &mut search, witness_at, base);
     }
     let formula = at.with(Stage::Formula);
     let (arena, record) = build_formula(&m, &query, &observed, graph, &mut search, formula, base)?;
@@ -1082,6 +1084,24 @@ pub fn decide_observation_recovery(
         observed,
         effect: effect_derivation,
     })))
+}
+
+/// Fund the witness's actual table construction before allocating any exponential table.
+fn construct_self_censoring_witness(
+    m: &MGraph<'_>,
+    x: VariableId,
+    r: VariableId,
+    search: &mut SharedSearch<'_>,
+    at: At,
+    base: u64,
+) -> Result<(RecoveryWitness, Option<antecedent_core::execution::AdmissionLease>), RecoveryError> {
+    let bytes = witness::self_censoring_witness_bytes(m)
+        .ok_or_else(|| budget_error(search, at, SearchStop::Memory))?;
+    let total =
+        base.checked_add(bytes).ok_or_else(|| budget_error(search, at, SearchStop::Memory))?;
+    let lease =
+        search.charge_leasing(2, total, bytes).map_err(|stop| budget_error(search, at, stop))?;
+    Ok((self_censoring_witness(m, x, r)?, lease))
 }
 
 /// A violation is a nonrecoverability claim only with a verified witness;
@@ -1683,6 +1703,41 @@ mod tests {
             decide_observation_recovery(&g, &q, &catalog, None, RecoveryLimits::default(), &ctx)
                 .unwrap_err();
         assert_eq!(decided.detail, RecoveryDetail::UnsupportedMechanism);
+    }
+
+    #[test]
+    fn self_censoring_witness_funds_exponential_tables_before_construction() {
+        let (mut graph, mut query, _) = k1();
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let mut observed = vec![v(3)];
+        for id in 4..34 {
+            let node = graph.add_node(NodeRef::Static(v(id))).unwrap();
+            graph.insert_directed(node, DenseNodeId::from_raw(1)).unwrap();
+            observed.push(v(id));
+        }
+        query.fully_observed = observed.into();
+        let canonical = query.canonical();
+        let m = resolve_roles(&graph, &canonical).unwrap();
+        let ctx = ExecutionContext::for_tests(1).with_memory_limit(Some(4096));
+        let mut search =
+            SharedSearch::new(SearchBudget::new(RECOVERY_DEFAULT_LIMITS.search, &ctx).unwrap());
+        let result = construct_self_censoring_witness(&m, v(0), v(1), &mut search, WITNESS_AT, 0);
+        assert!(matches!(result, Err(RecoveryError { detail: RecoveryDetail::Budget, .. })));
+        assert_eq!(ctx.admission().available().bytes(), 4096);
+
+        let (mut graph, query, _) = k1();
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let canonical = query.canonical();
+        let m = resolve_roles(&graph, &canonical).unwrap();
+        let ctx = ExecutionContext::for_tests(1);
+        let mut search =
+            SharedSearch::new(SearchBudget::new(RECOVERY_DEFAULT_LIMITS.search, &ctx).unwrap());
+        let (witness, _lease) =
+            construct_self_censoring_witness(&m, v(0), v(1), &mut search, WITNESS_AT, 0).unwrap();
+        assert!(matches!(
+            nonrecoverable(&m, witness, &mut search, WITNESS_AT, 0),
+            Ok(RecoveryDecision::NonRecoverable(_))
+        ));
     }
 
     #[test]

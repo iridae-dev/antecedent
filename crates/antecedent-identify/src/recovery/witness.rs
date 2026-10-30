@@ -13,6 +13,32 @@ use super::{
     identify_classical_transport_metered, ids, observed_distribution, refuse, resolve_roles, var,
 };
 
+/// Conservative peak bytes of the two witness tables and their parent/vector metadata.
+pub(super) fn self_censoring_witness_bytes(m: &MGraph<'_>) -> Option<u64> {
+    let mut bytes = 0usize;
+    let mut mechanisms = 0usize;
+    for (variable, role) in &m.roles {
+        if matches!(role, Role::Proxy(_)) {
+            continue;
+        }
+        mechanisms = mechanisms.checked_add(1)?;
+        let parents = m.graph.parents(m.dense[variable]).len();
+        let cells = crate::pow2::checked_pow2(parents)?;
+        bytes =
+            bytes.checked_add(cells.checked_mul(2)?.checked_mul(std::mem::size_of::<u32>())?)?;
+        // One temporary list of variable IDs and both retained parent-ID lists.
+        bytes = bytes
+            .checked_add(parents.checked_mul(
+                std::mem::size_of::<VariableId>() + 2 * std::mem::size_of::<u32>(),
+            )?)?;
+    }
+    // Both growable mechanism vectors can retain spare capacity.
+    bytes = bytes.checked_add(
+        mechanisms.max(4).checked_mul(4)?.checked_mul(std::mem::size_of::<WitnessMechanism>())?,
+    )?;
+    u64::try_from(bytes).ok()
+}
+
 /// The closed-form self-censoring witness for `x -> r`: every mechanism a fair
 /// coin except `x` and `r`, which differ between the two models while
 /// `P(r = 1, x)` is equal.

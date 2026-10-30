@@ -127,7 +127,9 @@ pub fn temporal_pag_mediation_window(
     {
         schema(variable)?;
     }
-    let history = longest_lag + treatment_offset.min(0).unsigned_abs();
+    let history = longest_lag
+        .checked_add(treatment_offset.min(0).unsigned_abs())
+        .ok_or_else(|| IdentificationError::out_of_range("temporal mediation history overflow"))?;
     let last = u32::try_from(outcome_offset.max(0)).map_err(|_| {
         IdentificationError::out_of_range("the outcome offset exceeds the window range")
     })?;
@@ -222,7 +224,11 @@ fn window_mag(
     window: &TemporalIndexer,
     shift: usize,
     seeds: &[usize],
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<Pag, IdentificationError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(IdentificationError::Cancelled);
+    }
     let admg = mag_as_admg(big)?;
     let ancestors = admg.strict_ancestor_sets();
     let n = window.dense_len();
@@ -246,6 +252,9 @@ fn window_mag(
     for (position, &i) in kept.iter().enumerate() {
         let (a_big, a_inner) = (DenseNodeId::from_index(i + shift), DenseNodeId::from_index(i));
         for &j in &kept[position + 1..] {
+            if ctx.cancellation.is_cancelled() {
+                return Err(IdentificationError::Cancelled);
+            }
             let (b_big, b_inner) = (DenseNodeId::from_index(j + shift), DenseNodeId::from_index(j));
             let direct = admg.children(a_big).contains(&b_big)
                 || admg.children(b_big).contains(&a_big)
@@ -339,9 +348,11 @@ impl GeneralizedAdjustmentIdentifier {
     ) -> Result<TemporalClassEnvelope, IdentificationError> {
         let inner = &window.indexer;
         let depth = longest_lag(pag);
-        let big =
-            TemporalIndexer::new(inner.variable_count(), inner.history() + depth, inner.horizon())
-                .map_err(|error| IdentificationError::construction(error))?;
+        let history = inner.history().checked_add(depth).ok_or_else(|| {
+            IdentificationError::out_of_range("temporal completion history overflow")
+        })?;
+        let big = TemporalIndexer::new(inner.variable_count(), history, inner.horizon())
+            .map_err(|error| IdentificationError::construction(error))?;
         let shift = depth as usize * inner.variable_count() as usize;
         let mut seeds = vec![window.query.treatment.as_usize(), window.query.outcome.as_usize()];
         seeds.extend(window.query.mediators.iter().map(|m| m.as_usize()));
@@ -363,7 +374,7 @@ impl GeneralizedAdjustmentIdentifier {
             completions += 1;
             let finite = completion.graph.unfold(big.clone())?;
             let results = if antecedent_graph::completion::is_mag_completion(&finite.pag) {
-                let marginal = window_mag(&finite.pag, inner, shift, &seeds)?;
+                let marginal = window_mag(&finite.pag, inner, shift, &seeds, &ctx)?;
                 self.window_candidate_results(
                     &marginal,
                     &query,
@@ -515,6 +526,40 @@ mod tests {
     }
 
     #[test]
+    fn marginal_window_pair_search_observes_context_cancellation() {
+        let graph = Pag::with_variables(3);
+        let inner = TemporalIndexer::new(3, 0, 1).unwrap();
+        let mut ctx = antecedent_core::ExecutionContext::for_tests(1);
+        ctx.cancellation = antecedent_core::CancellationToken::cancel_after_checks(2);
+        assert!(matches!(
+            window_mag(&graph, &inner, 0, &[0, 1, 2], &ctx),
+            Err(IdentificationError::Cancelled)
+        ));
+    }
+
+    #[test]
+    fn temporal_history_overflow_refuses_before_unfolding() {
+        let mut pag = chain();
+        lagged(&mut pag, 0, u32::MAX);
+        let earlier = pulse().with_policy(TemporalPolicy::pulse(-1));
+        assert!(matches!(
+            temporal_pag_mediation_window(&pag, &earlier, &mediation(MediationContrast::Total), 3),
+            Err(IdentificationError::OutOfRange { .. })
+        ));
+        let window = TemporalPagMediationWindow {
+            indexer: TemporalIndexer::new(3, 1, 1).unwrap(),
+            query: mediation(MediationContrast::Total),
+            treatment_offset: 0,
+            outcome_offset: 0,
+        };
+        assert!(matches!(
+            GeneralizedAdjustmentIdentifier::new()
+                .identify_temporal_pag_path_specific_envelope(&pag, &window),
+            Err(IdentificationError::OutOfRange { .. })
+        ));
+    }
+
+    #[test]
     fn the_window_states_the_contrast_on_indexer_coordinates() {
         let window = temporal_pag_mediation_window(
             &chain(),
@@ -563,7 +608,14 @@ mod tests {
         let unfolded = graph.unfold(big).unwrap();
         let a_id = inner.dense_id(TemporalNodeKey { variable: v(1), offset: 0 }).unwrap() as usize;
         let b_id = inner.dense_id(TemporalNodeKey { variable: v(2), offset: 0 }).unwrap() as usize;
-        let marginal = window_mag(&unfolded.pag, &inner, 3, &[a_id, b_id]).unwrap();
+        let marginal = window_mag(
+            &unfolded.pag,
+            &inner,
+            3,
+            &[a_id, b_id],
+            &antecedent_core::ExecutionContext::for_tests(1),
+        )
+        .unwrap();
         let edge = marginal
             .edge_between(DenseNodeId::from_index(a_id), DenseNodeId::from_index(b_id))
             .expect("the pre-window cause leaves a confounding edge");
@@ -581,7 +633,14 @@ mod tests {
         let inner = TemporalIndexer::new(1, 1, 1).unwrap();
         let big = TemporalIndexer::new(1, 2, 1).unwrap();
         let unfolded = graph.unfold(big).unwrap();
-        let marginal = window_mag(&unfolded.pag, &inner, 1, &[1]).unwrap();
+        let marginal = window_mag(
+            &unfolded.pag,
+            &inner,
+            1,
+            &[1],
+            &antecedent_core::ExecutionContext::for_tests(1),
+        )
+        .unwrap();
         let edge = marginal
             .edge_between(DenseNodeId::from_index(0), DenseNodeId::from_index(1))
             .expect("x(t-1) -> x(t) survives");
