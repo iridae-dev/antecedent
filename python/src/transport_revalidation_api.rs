@@ -59,7 +59,7 @@ pub(crate) struct TransportSceneHandle {
 }
 
 #[derive(Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum CalibrationIn {
     PointOnly,
     Required,
@@ -77,7 +77,7 @@ enum CalibrationIn {
 }
 
 #[derive(Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum ClaimIn {
     Transported {
         key: String,
@@ -484,4 +484,40 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(transported_response_standing, module)?)?;
     module.add_function(wrap_pyfunction!(transported_response_node, module)?)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod strict_scene_input_tests {
+    use super::{CalibrationIn, ClaimIn};
+
+    #[test]
+    fn calibration_and_claim_variants_reject_unknown_keys() {
+        for text in [
+            r#"{"kind":"point_only"}"#,
+            r#"{"kind":"required"}"#,
+            r#"{"kind":"held","record":"x","established_at_target":"y"}"#,
+            r#"{"kind":"inherited","from":"x","record":"y","established_at_target":"z"}"#,
+        ] {
+            assert!(serde_json::from_str::<CalibrationIn>(text).is_ok());
+        }
+        for text in [
+            r#"{"kind":"held","record":"x","established_at":"y"}"#,
+            r#"{"kind":"inherited","from":"x","record":"y","established_at":"z"}"#,
+        ] {
+            assert!(serde_json::from_str::<CalibrationIn>(text).is_err());
+        }
+        for text in [
+            r#"{"kind":"transported","key":"x","response":0,"calibration":{"kind":"point_only"},"trust":"verified"}"#,
+            r#"{"kind":"transported_claim","key":"x","response":0,"calibration":{"kind":"required"},"provider_trust":"verified"}"#,
+            r#"{"kind":"decision","key":"x","identity":"y","quantity":"z","rests_on":[]}"#,
+        ] {
+            assert!(serde_json::from_str::<ClaimIn>(text).is_ok());
+        }
+        for text in [
+            r#"{"kind":"transported","key":"x","response":0,"calibration":{"kind":"point_only"},"provider_trust":"verified"}"#,
+            r#"{"kind":"transported_claim","key":"x","response":0,"calibration":{"kind":"required"},"trust":"verified"}"#,
+        ] {
+            assert!(serde_json::from_str::<ClaimIn>(text).is_err());
+        }
+    }
 }
