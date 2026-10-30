@@ -201,29 +201,24 @@ impl ParentBasis {
     /// depend on the unit's other parents.
     #[must_use]
     pub fn has_cross_parent_product(&self) -> bool {
-        self.terms.iter().enumerate().any(|(index, term)| {
-            matches!(*term, BasisTerm::Product { .. }) && self.parents_of(index).len() > 1
-        })
-    }
-
-    /// The set of parents a column depends on (sorted, deduplicated).
-    fn parents_of(&self, index: usize) -> Vec<u32> {
-        let mut out = Vec::new();
-        let mut stack = vec![index];
-        while let Some(i) = stack.pop() {
-            match self.terms[i] {
-                BasisTerm::Power { parent, .. } | BasisTerm::Truncated { parent, .. } => {
-                    out.push(parent);
-                }
+        // Each previously visited term has a single parent unless we have
+        // already returned true. Product references are strictly earlier terms,
+        // so one topological pass avoids expanding a shared subexpression tree.
+        let mut parents = Vec::with_capacity(self.terms.len());
+        for term in self.terms.iter() {
+            let parent = match *term {
+                BasisTerm::Power { parent, .. } | BasisTerm::Truncated { parent, .. } => parent,
                 BasisTerm::Product { left, right } => {
-                    stack.push(left as usize);
-                    stack.push(right as usize);
+                    let left_parent = parents[left as usize];
+                    if left_parent != parents[right as usize] {
+                        return true;
+                    }
+                    left_parent
                 }
-            }
+            };
+            parents.push(parent);
         }
-        out.sort_unstable();
-        out.dedup();
-        out
+        false
     }
 
     /// Standardize one parent value with the stored constants.
@@ -481,6 +476,28 @@ mod tests {
         let basis = ParentBasis::interactions(1, Arc::from([0.0]), Arc::from([1.0])).unwrap();
         assert_eq!(basis.n_terms(), 1);
         assert!(!basis.has_cross_parent_product());
+    }
+
+    #[test]
+    fn shared_product_dag_is_scanned_once_per_term() {
+        let mut terms = vec![BasisTerm::Power { parent: 0, degree: 1 }];
+        for previous in 0..80u32 {
+            terms.push(BasisTerm::Product { left: previous, right: previous });
+        }
+        let make = |terms: Vec<BasisTerm>| {
+            ParentBasis::new(
+                2,
+                Arc::from([0.0, 0.0]),
+                Arc::from([1.0, 1.0]),
+                Arc::from([Arc::<[f64]>::from([]), Arc::<[f64]>::from([])]),
+                Arc::from(terms),
+            )
+            .unwrap()
+        };
+        assert!(!make(terms.clone()).has_cross_parent_product());
+        terms.push(BasisTerm::Power { parent: 1, degree: 1 });
+        terms.push(BasisTerm::Product { left: 80, right: 81 });
+        assert!(make(terms).has_cross_parent_product());
     }
 
     #[test]

@@ -54,23 +54,16 @@ pub fn certifies_sparse_affine_bijection(rows: &[Vec<(usize, f64)>], order: usiz
     let mut a_rows: Vec<Vec<(usize, Interval)>> = Vec::with_capacity(order);
     let mut numeric: Vec<Vec<(usize, f64)>> = Vec::with_capacity(order);
     for (i, row) in rows.iter().enumerate() {
+        // Represent the identity exactly once. Keeping every -W entry separate
+        // lets the interval residual enclose even duplicate sums that round in
+        // the numerical CSR matrix used to obtain the candidate inverse.
         let mut interval_row = Vec::with_capacity(row.len() + 1);
         let mut numeric_row = Vec::with_capacity(row.len() + 1);
-        let mut has_diagonal = false;
+        interval_row.push((i, one));
+        numeric_row.push((i, 1.0));
         for &(c, w) in row {
-            let negated = Interval { lower: -w, upper: -w };
-            if c == i {
-                has_diagonal = true;
-                interval_row.push((c, one.add_outward(negated)));
-                numeric_row.push((c, 1.0 - w));
-            } else {
-                interval_row.push((c, negated));
-                numeric_row.push((c, -w));
-            }
-        }
-        if !has_diagonal {
-            interval_row.push((i, one));
-            numeric_row.push((i, 1.0));
+            interval_row.push((c, Interval { lower: -w, upper: -w }));
+            numeric_row.push((c, -w));
         }
         a_rows.push(interval_row);
         numeric.push(numeric_row);
@@ -129,6 +122,15 @@ mod tests {
         assert!(!certifies_affine_bijection(&[f64::NAN], 1));
         assert!(certifies_affine_bijection(&[2.0], 1));
         assert!(!certifies_affine_bijection(&[1.0], 1));
+    }
+    #[test]
+    fn duplicate_diagonals_represent_one_identity_and_sum_all_weights() {
+        assert!(!certifies_sparse_affine_bijection(&[vec![(0, 0.5), (0, 0.5)]], 1));
+        assert!(certifies_sparse_affine_bijection(&[vec![(0, 0.25), (0, 0.25)]], 1));
+        assert!(certifies_sparse_affine_bijection(&[vec![(0, 1.0), (0, 1.0)]], 1));
+        assert!(
+            !certifies_sparse_affine_bijection(&[vec![(1, 0.5), (1, 0.5)], vec![(0, 1.0)]], 2,)
+        );
     }
     #[test]
     fn sparse_certificate_agrees_with_the_dense_one_and_scales_past_the_dense_order_limit() {
