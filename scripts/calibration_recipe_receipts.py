@@ -32,6 +32,14 @@ DGP_PATH = "crates/antecedent-estimate/tests/common/observational_effects.rs"
 COMMON_PATH = "crates/antecedent/tests/common/calibration.rs"
 
 
+def original_gate_passed(log: bytes, *, exactly_one: bool = False) -> bool:
+    """A successful test summary cannot mask a failed suite or failed test."""
+    passed = rb"1" if exactly_one else rb"[1-9][0-9]*"
+    return bool(re.search(rb"test result: ok\. " + passed + rb" passed; 0 failed;", log)) and not bool(
+        re.search(rb"^(?:test result: FAILED\.|test .* \.\.\. FAILED\s*$)", log, re.M)
+    )
+
+
 def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
@@ -276,9 +284,7 @@ def validate_recipe(
         source.encode()
     }:
         raise ValueError("recordless coverage log source stamp mismatch")
-    if b"calibration-record " in log or not re.search(
-        rb"test result: ok\. [1-9][0-9]* passed; 0 failed;", log
-    ):
+    if b"calibration-record " in log or not original_gate_passed(log):
         raise ValueError("recipe requires an original passed recordless gate")
     state_lines = read_asset(root, recipe["tally"]).decode("utf-8").splitlines()
     states = [json.loads(line) for line in state_lines]
@@ -445,7 +451,7 @@ def validate_asserted_knn(
     if (
         set(re.findall(rb"^calibration-measured-at ([0-9a-f]{40})$", log, re.M))
         != {source.encode()}
-        or not re.search(rb"test result: ok\. [1-9][0-9]* passed; 0 failed;", log)
+        or not original_gate_passed(log)
         or b"calibration-record " in log
     ):
         raise ValueError("KNN raw recordless receipt did not pass at its stated source")
@@ -615,7 +621,7 @@ def validate_replayed_assertion(
         raise ValueError("original assertion receipt is not the currently attested gate row")
     log = read_asset(root, recipe["witness_log"])
     if (
-        not re.search(rb"test result: ok\. 1 passed; 0 failed;", log)
+        not original_gate_passed(log, exactly_one=True)
         or ("test " + spec[0]["test"] + " ...").encode() not in log
     ):
         raise ValueError("count recovery did not execute its exact original scientific test")

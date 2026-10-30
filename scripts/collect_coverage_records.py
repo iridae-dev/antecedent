@@ -352,16 +352,11 @@ def record_lines(
             if not 0 <= point < GRID_POINTS:
                 raise SystemExit(f"{log.name}: record {rid} at grid point {point}")
             seen = out.setdefault(rid, {}).get(point)
-            if seen is not None and not recheck:
-                if seen["replicates"] == payload["replicates"]:
-                    raise SystemExit(
-                        f"duplicate record id {rid} at grid point {point} in {log.name}: "
-                        "two tallies emit the same id"
-                    )
-                # The same measurement re-run at more replicates: keep the
-                # more precise one (a precision recheck, however it was run).
-                if seen["replicates"] > payload["replicates"]:
-                    continue
+            if seen is not None:
+                raise SystemExit(
+                    f"duplicate record id {rid} at grid point {point} in {log.name}: "
+                    "two tallies emit the same id"
+                )
             out[rid][point] = payload
     return out
 
@@ -829,7 +824,10 @@ def toml_value(key: str, value) -> str:
         return "[\n" + "".join(f"  {toml_value(key, item)},\n" for item in value) + "]"
     if isinstance(value, list):
         return "[" + ", ".join(toml_value(key, item) for item in value) + "]"
-    return '"' + str(value).replace('"', '\\"') + '"'
+    text = str(value)
+    if any(0xD800 <= ord(char) <= 0xDFFF for char in text):
+        raise ValueError("TOML strings cannot contain Unicode surrogate code points")
+    return json.dumps(text, ensure_ascii=False).replace("\x7f", "\\u007f")
 
 
 def tag_facets(records: dict[str, dict]) -> None:
