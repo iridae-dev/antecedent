@@ -226,6 +226,35 @@ fn milstein_is_refused_when_a_diffusion_depends_on_another_state() {
 }
 
 #[test]
+fn forged_input_envelopes_refuse_outside_values_in_base_and_world() {
+    let mut base = epidemic();
+    base.inputs[0].values[0] = 5.0;
+    assert!(matches!(
+        base.compile(),
+        Err(SdeError::Unsupported { code: "sde.input_outside_certified_envelope", .. })
+    ));
+
+    let compiled = epidemic().compile().unwrap();
+    let mut world = lockdown();
+    world.inputs[0].values[0] = 10.0;
+    world.inputs[0].envelope = Some([-1.0, 1.0]);
+    assert!(matches!(
+        simulate_sde(
+            &compiled,
+            None,
+            &[950.0, 50.0, 0.0],
+            &epidemic_policy(),
+            &[world],
+            &[],
+            &ctx()
+        ),
+        Err(SdeError::Unsupported { code: "sde.input_outside_certified_envelope", .. })
+    ));
+    // Values exactly at the declared closed endpoints remain valid.
+    assert!(epidemic().compile().is_ok());
+}
+
+#[test]
 fn input_and_action_declarations_are_checked_against_the_certificate_and_the_grid() {
     let compiled = epidemic().compile().unwrap();
     let initial = [950.0, 50.0, 0.0];

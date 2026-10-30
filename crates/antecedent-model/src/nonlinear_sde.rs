@@ -157,6 +157,15 @@ impl SdeInput {
             if !lo.is_finite() || !hi.is_finite() || lo > hi {
                 return Err(bad("SDE input envelope"));
             }
+            if self.values.iter().any(|&value| value < lo || value > hi) {
+                return Err(unsupported(
+                    "sde.input_outside_certified_envelope",
+                    format!(
+                        "input '{}' has a schedule value outside its declared envelope [{lo}, {hi}]",
+                        self.name
+                    ),
+                ));
+            }
         }
         Ok(())
     }
@@ -341,18 +350,10 @@ struct Iv {
 const ZERO: Iv = Iv { lo: 0.0, hi: 0.0 };
 
 fn fmul(a: f64, b: f64) -> f64 {
-    if a == 0.0 || b == 0.0 {
-        0.0
-    } else {
-        a * b
-    }
+    if a == 0.0 || b == 0.0 { 0.0 } else { a * b }
 }
 fn sane(v: Iv) -> Iv {
-    if v.lo.is_nan() || v.hi.is_nan() {
-        Iv { lo: f64::NEG_INFINITY, hi: f64::INFINITY }
-    } else {
-        v
-    }
+    if v.lo.is_nan() || v.hi.is_nan() { Iv { lo: f64::NEG_INFINITY, hi: f64::INFINITY } } else { v }
 }
 fn iadd(a: Iv, b: Iv) -> Iv {
     sane(Iv { lo: a.lo + b.lo, hi: a.hi + b.hi })
@@ -369,18 +370,10 @@ fn imax_abs(a: Iv) -> f64 {
 }
 
 fn softplus(x: f64) -> f64 {
-    if x > 30.0 {
-        x
-    } else {
-        x.exp().ln_1p()
-    }
+    if x > 30.0 { x } else { x.exp().ln_1p() }
 }
 fn logistic(x: f64) -> f64 {
-    if x >= 0.0 {
-        1.0 / (1.0 + (-x).exp())
-    } else {
-        x.exp() / (1.0 + x.exp())
-    }
+    if x >= 0.0 { 1.0 / (1.0 + (-x).exp()) } else { x.exp() / (1.0 + x.exp()) }
 }
 
 /// Interval enclosure of an expression and of its gradient over a coordinate box.
@@ -1139,15 +1132,8 @@ fn run_path(
             let mut value = x[i] + f * dt + g * dw;
             if matches!(policy.scheme, SdeScheme::Milstein) {
                 let dh = ge.gradient()[i];
-                let correction = if sqrt {
-                    if h > 0.0 {
-                        0.25 * dh
-                    } else {
-                        0.0
-                    }
-                } else {
-                    0.5 * g * dh
-                };
+                let correction =
+                    if sqrt { if h > 0.0 { 0.25 * dh } else { 0.0 } } else { 0.5 * g * dh };
                 value += correction * (dw * dw - dt);
             }
             next[i] = value;
