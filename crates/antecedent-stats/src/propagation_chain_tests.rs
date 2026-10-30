@@ -7,6 +7,23 @@ fn token() -> CancellationToken {
     CancellationToken::new()
 }
 
+#[test]
+fn one_effective_draw_carries_no_monte_carlo_precision_for_a_decision() {
+    for weights in [[1.0, 0.0], [1.0 - 1e-14, 1e-14]] {
+        let summary = summarize(&[2.0, 4.0], Some(&weights)).unwrap();
+        assert!(summary.mean_standard_error.is_infinite());
+        let decision = decide(&summary, 0.0);
+        assert!(decision.band.is_infinite());
+        assert_eq!(decision.verdict, DecisionVerdict::Unresolved);
+    }
+    let mut summary = summarize(&[2.0; 10], None).unwrap();
+    assert_eq!(decide(&summary, 0.0).verdict, DecisionVerdict::Act);
+    // A caller-constructed summary cannot bypass the effective-size guard by
+    // supplying a zero Monte Carlo standard error.
+    summary.effective_size = 1.0;
+    assert_eq!(decide(&summary, 0.0).verdict, DecisionVerdict::Unresolved);
+}
+
 /// Mid-quantile grid of `N(mean, sd^2)`: `rows` equally likely draws.
 fn normal_grid(rows: usize, mean: f64, sd: f64) -> Vec<f64> {
     (0..rows).map(|i| mean + sd * normal_ppf((i as f64 + 0.5) / rows as f64)).collect()

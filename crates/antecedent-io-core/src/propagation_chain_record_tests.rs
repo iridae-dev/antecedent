@@ -145,6 +145,24 @@ fn the_consumer_replays_the_stored_bytes_to_identical_results() {
 }
 
 #[test]
+fn a_single_effective_draw_replays_as_an_unresolved_decision() {
+    let mut log_weights = vec![-1000.0; ROWS];
+    log_weights[0] = 0.0;
+    let record =
+        release().with_change(ChainChangeWire::reweight("effect", &log_weights), &ctx()).unwrap();
+    let result = stage(&record, "utility");
+    assert_eq!(value(result, "effective_size"), 1.0);
+    assert_eq!(value(result, "variance"), 0.0);
+    assert!(value(result, "mean_standard_error").is_infinite());
+    assert!(value(result, "decision_band").is_infinite());
+    let bytes = record.export().unwrap();
+    let decoded = PropagationChainRecordWire::decode(&bytes).unwrap();
+    let replayed = decoded.consume(Some(&record.identity), &ctx()).unwrap();
+    assert_eq!(replayed.results, record.results);
+    assert_eq!(stage(&decoded, "utility").count("verdict_code"), Some(2));
+}
+
+#[test]
 fn edits_are_refused_resealed_or_not() {
     let record = release();
     // An edited draw changes the identity.

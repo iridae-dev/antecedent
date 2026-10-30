@@ -1039,7 +1039,8 @@ pub struct ColumnSummary {
     pub variance: f64,
     /// Effective size `1 / sum p_i^2`.
     pub effective_size: f64,
-    /// Monte Carlo standard error of the mean, `sqrt(variance / effective_size)`.
+    /// Monte Carlo standard error of the mean, `sqrt(variance / effective_size)`;
+    /// infinite when the row weights leave no resolved variance information.
     pub mean_standard_error: f64,
 }
 
@@ -1072,7 +1073,8 @@ pub fn summarize(column: &[f64], weights: Option<&[f64]>) -> Result<ColumnSummar
         (0..n).map(|row| weight(row) * (column[row] - mean) * (column[row] - mean)).sum::<f64>()
             / denominator
     };
-    let mean_standard_error = (variance / effective_size).sqrt();
+    let mean_standard_error =
+        if denominator <= 1e-12 { f64::INFINITY } else { (variance / effective_size).sqrt() };
     Ok(ColumnSummary { n, mean, variance, effective_size, mean_standard_error })
 }
 
@@ -1095,7 +1097,11 @@ pub struct Decision {
 #[must_use]
 pub fn decide(summary: &ColumnSummary, reference_utility: f64) -> Decision {
     let z = normal_ppf(0.5 + 0.5 * DECISION_BAND_LEVEL);
-    let band = z * summary.mean_standard_error;
+    let band = if summary.effective_size <= 1.0 || !summary.mean_standard_error.is_finite() {
+        f64::INFINITY
+    } else {
+        z * summary.mean_standard_error
+    };
     let gap = summary.mean - reference_utility;
     let verdict = if gap > band {
         DecisionVerdict::Act
