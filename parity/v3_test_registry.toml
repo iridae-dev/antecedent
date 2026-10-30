@@ -6939,6 +6939,13 @@ path = "crates/antecedent/tests/temporal_class_derivative_known_truth.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "cross-world-counterfactual-posterior-truth"
+crate = "antecedent"
+cargo_target = "cross_world_counterfactual_posterior_truth"
+path = "crates/antecedent/tests/cross_world_counterfactual_posterior_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "derivative-refuter-known-truth"
 crate = "antecedent"
 cargo_target = "derivative_refuter_known_truth"
@@ -20161,4 +20168,11 @@ id = "cross-world-temporal-truth"
 crate = "antecedent"
 cargo_target = "cross_world_temporal_truth"
 path = "crates/antecedent/tests/cross_world_temporal_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "bayesian-static-mediation-conjugate-truth"
+crate = "antecedent"
+cargo_target = "bayesian_static_mediation_conjugate_truth"
+path = "crates/antecedent/tests/bayesian_static_mediation_conjugate_truth.rs"
 gates = ["inventory", "named"]
