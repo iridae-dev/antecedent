@@ -360,6 +360,8 @@ def check_derived_treatment(
     Returns the accepted plan; raises ``CausalUnsupportedError`` (with
     ``refusal_fields.implicated_columns``) for every refusal listed in the module docstring.
     """
+    if isinstance(adjustment, str):
+        raise CausalTypeError("adjustment must be a sequence of column names, not a string")
     names, columns = ingest_columns(data)
     policy = _policy(execution)
     raw = policy._call(
@@ -406,6 +408,11 @@ def factorized_joint_cells(
     passing ``penalties`` with a learner is an error. At most three binary components are
     supported.
     """
+    for name, value in (
+        ("adjustment", adjustment), ("ordering", ordering), ("contrasts", contrasts)
+    ):
+        if isinstance(value, str):
+            raise CausalTypeError(f"{name} must be a sequence of names, not a string")
     if not isinstance(nuisance, str):
         raise CausalValueError("nuisance must be a provider name string")
     if penalties is not None and nuisance != "ridge_logistic":

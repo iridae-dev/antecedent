@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import KW_ONLY, dataclass, field
+from numbers import Integral, Real
 from typing import Literal
 
 import numpy as np
@@ -41,13 +42,13 @@ class StratifiedRandomization:
         if not counts or any(not isinstance(key, str) or not key.strip() for key in counts):
             raise CausalValueError("treated_per_block must map non-empty block names to counts")
         if any(
-            isinstance(value, bool) or not isinstance(value, int) or value < 2
+            isinstance(value, (bool, np.bool_)) or not isinstance(value, Integral) or value < 2
             for value in counts.values()
         ):
             raise CausalValueError(
                 "each block needs at least two treated units for variance estimation"
             )
-        coerce_fields(self, treated_per_block=counts)
+        coerce_fields(self, treated_per_block={key: int(value) for key, value in counts.items()})
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,12 +74,15 @@ class FactorialRandomization:
         coerce_fields(self, second_factor_assignment=tuple(self.second_factor_assignment))
         coerce_fields(self, cell_counts=tuple(self.cell_counts))
         coerce_fields(self, second_factor_arms=tuple(self.second_factor_arms))
-        if any(type(value) is not bool for value in self.second_factor_assignment):
+        if any(not isinstance(value, (bool, np.bool_)) for value in self.second_factor_assignment):
             raise CausalValueError("second_factor_assignment entries must be bool")
         if len(self.cell_counts) != 4 or any(
-            type(count) is not int or count < 2 for count in self.cell_counts
+            isinstance(count, (bool, np.bool_)) or not isinstance(count, Integral) or count < 2
+            for count in self.cell_counts
         ):
             raise CausalValueError("factorial cell_counts must have four counts of at least two")
+        coerce_fields(self, second_factor_assignment=tuple(map(bool, self.second_factor_assignment)))
+        coerce_fields(self, cell_counts=tuple(map(int, self.cell_counts)))
         if (
             len(self.second_factor_arms) != 2
             or any(not isinstance(arm, str) or not arm.strip() for arm in self.second_factor_arms)
@@ -205,8 +209,9 @@ class SwitchbackDesign:
             raise CausalValueError(
                 "switchback assignment, sequence, period, and probability rows must align"
             )
-        if any(type(value) is not bool for value in self.realized_assignment):
+        if any(not isinstance(value, (bool, np.bool_)) for value in self.realized_assignment):
             raise CausalValueError("switchback realized_assignment entries must be bool")
+        coerce_fields(self, realized_assignment=tuple(map(bool, self.realized_assignment)))
         if any(
             not isinstance(value, str) or not value.strip()
             for value in (*self.sequence_ids, *self.period_ids)
@@ -361,7 +366,7 @@ class ExperimentDesign:
             coerce_fields(self, blocks=tuple(self.blocks))
         if isinstance(self.assignment, BernoulliAssignment):
             probability = self.assignment.probabilities
-            if not isinstance(probability, (int, float)):
+            if not isinstance(probability, Real):
                 probability = tuple(probability)
             coerce_fields(self, assignment=BernoulliAssignment(probability))
         elif isinstance(self.assignment, ClusterRandomization):
@@ -410,8 +415,9 @@ class ExperimentDesign:
             or self.treatment_arms[0] == self.treatment_arms[1]
         ):
             raise CausalValueError("treatment_arms must be two distinct non-empty labels")
-        if any(type(assigned) is not bool for assigned in self.realized_assignment):
+        if any(not isinstance(assigned, (bool, np.bool_)) for assigned in self.realized_assignment):
             raise CausalValueError("realized_assignment entries must be bool")
+        coerce_fields(self, realized_assignment=tuple(map(bool, self.realized_assignment)))
         if len(set(self.outcome_units)) != n:
             raise CausalValueError("outcome_units must identify one outcome row each")
         if (
@@ -423,7 +429,7 @@ class ExperimentDesign:
             )
         if isinstance(self.assignment, BernoulliAssignment):
             probabilities = self.assignment.probabilities
-            if not isinstance(probabilities, (int, float)) and len(probabilities) not in (1, n):
+            if not isinstance(probabilities, Real) and len(probabilities) not in (1, n):
                 raise CausalValueError(
                     "Bernoulli probabilities must be scalar or have one value per outcome row"
                 )
@@ -835,10 +841,10 @@ class ComplierEffect:
             raise CausalValueError("retained CACE/LATE requires Bernoulli randomization")
         receipt = tuple(self.received_treatment)
         if len(receipt) != len(self.design.realized_assignment) or any(
-            type(value) is not bool for value in receipt
+            not isinstance(value, (bool, np.bool_)) for value in receipt
         ):
             raise CausalValueError("treatment receipt must be row-aligned booleans")
-        coerce_fields(self, received_treatment=receipt)
+        coerce_fields(self, received_treatment=tuple(map(bool, receipt)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -973,7 +979,7 @@ def estimate_ancova_effect(
         raise CausalValueError("ANCOVA requires a Bernoulli ExperimentDesign")
     probabilities = design.assignment.probabilities
     probs = np.asarray(
-        probabilities if not isinstance(probabilities, (int, float)) else [probabilities],
+        probabilities if not isinstance(probabilities, Real) else [probabilities],
         dtype=np.float64,
     )
     if probs.size > 1 and not np.allclose(probs, probs[0], rtol=0.0, atol=1e-12):

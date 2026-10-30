@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from numbers import Integral
+from numbers import Integral, Real
 from typing import Any
 
 import numpy as np
@@ -125,11 +125,12 @@ class SurvivalOutcome:
             )
         if (
             isinstance(self.tau, bool)
-            or not isinstance(self.tau, (int, float))
+            or not isinstance(self.tau, Real)
             or not np.isfinite(self.tau)
             or self.tau <= 0
         ):
             raise CausalValueError("tau must be finite and positive")
+        coerce_fields(self, tau=float(self.tau))
         if not isinstance(self.randomized, bool):
             raise CausalValueError("randomized must be bool")
         if self.known_censoring is None:
@@ -286,11 +287,12 @@ class CompetingRisksOutcome:
             raise CausalValueError("target_cause must be a positive integer event code")
         if (
             isinstance(self.tau, bool)
-            or not isinstance(self.tau, (int, float))
+            or not isinstance(self.tau, Real)
             or not np.isfinite(self.tau)
             or self.tau <= 0
         ):
             raise CausalValueError("tau must be finite and positive")
+        coerce_fields(self, tau=float(self.tau))
         if not isinstance(self.randomized, bool):
             raise CausalValueError("randomized must be bool")
         if self.known_censoring is None:

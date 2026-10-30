@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from numbers import Real
 from typing import Any, Literal, cast
 
 import numpy as np
@@ -1302,18 +1303,18 @@ class _PrepareRoute:
         )
         propensity = (
             [float(query.propensity)]
-            if isinstance(query.propensity, (int, float))
+            if isinstance(query.propensity, Real)
             else list(resolved(query.propensity))
         )
         costs = (
             [float(query.policy.costs)]
-            if isinstance(query.policy.costs, (int, float))
+            if isinstance(query.policy.costs, Real)
             else list(query.policy.costs)
         )
         reference = query.reference or BinaryPolicy([False] * len(query.policy.actions))
         reference_costs = (
             [float(reference.costs)]
-            if isinstance(reference.costs, (int, float))
+            if isinstance(reference.costs, Real)
             else list(reference.costs)
         )
         uplift_bin_ids: list[int] = []
@@ -1506,7 +1507,7 @@ class _PrepareRoute:
         if isinstance(assignment, BernoulliAssignment):
             design_kind = "bernoulli"
             probabilities = assignment.probabilities
-            if isinstance(probabilities, (float, int)):
+            if isinstance(probabilities, Real):
                 probabilities = [float(probabilities)] * n
             else:
                 probabilities = list(probabilities)

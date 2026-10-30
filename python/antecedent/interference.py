@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import KW_ONLY, dataclass, field
+from numbers import Real
 from typing import Any, Literal
 
 import numpy as np
@@ -28,11 +29,13 @@ class BernoulliAssignment:
     def __post_init__(self) -> None:
         values = (
             [self.probabilities]
-            if isinstance(self.probabilities, (int, float))
+            if isinstance(self.probabilities, Real)
             else self.probabilities
         )
-        if not values or any(not 0.0 < value < 1.0 for value in values):
+        if len(values) == 0 or any(not 0.0 < value < 1.0 for value in values):
             raise CausalValueError("probabilities must be strictly between 0 and 1")
+        if isinstance(self.probabilities, Real):
+            object.__setattr__(self, "probabilities", float(self.probabilities))
 
 
 @dataclass(frozen=True, slots=True)
@@ -380,7 +383,7 @@ def _assignment_args(design: object) -> dict[str, Any]:
     if isinstance(design, BernoulliAssignment):
         probabilities = (
             [float(design.probabilities)]
-            if isinstance(design.probabilities, (int, float))
+            if isinstance(design.probabilities, Real)
             else list(design.probabilities)
         )
         return {

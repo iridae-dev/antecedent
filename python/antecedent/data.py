@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from numbers import Integral
 from typing import Any
 
 import numpy as np
@@ -147,6 +148,8 @@ def panel(
 ) -> PanelFrame:
     """Build a [`PanelFrame`] from a sequence of unit frames or ``{unit_id: frame}``."""
     if isinstance(units, Mapping):
+        if any(isinstance(k, (bool, np.bool_)) or not isinstance(k, Integral) for k in units):
+            raise CausalValueError("panel unit IDs must be integers")
         ids = [int(k) for k in units]
 
         frames = list(units.values())

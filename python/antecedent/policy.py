@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
 from math import isfinite
-from numbers import Integral
+from numbers import Integral, Real
 from typing import Any
 
 import numpy as np
@@ -61,7 +61,7 @@ class BinaryPolicy:
             raise CausalValueError("budget must be finite and non-negative")
         if self.max_treatment_rate is not None and (
             isinstance(self.max_treatment_rate, bool)
-            or not isinstance(self.max_treatment_rate, (int, float))
+            or not isinstance(self.max_treatment_rate, Real)
             or not isfinite(self.max_treatment_rate)
             or not 0.0 <= self.max_treatment_rate <= 1.0
         ):
@@ -431,7 +431,7 @@ class PolicyValue:
                 )
 
             def cost(candidate: BinaryPolicy) -> tuple[float, ...]:
-                if isinstance(candidate.costs, (int, float)):
+                if isinstance(candidate.costs, Real):
                     return (float(candidate.costs),) * n
                 return tuple(float(value) for value in candidate.costs)
 
@@ -843,10 +843,10 @@ def evaluate_policy(
     ):
         raise CausalValueError("available entries must be bool values")
     probability_values = (
-        [float(propensity)] if isinstance(propensity, (int, float)) else list(propensity)
+        [float(propensity)] if isinstance(propensity, Real) else list(propensity)
     )
     cost_values = (
-        [float(policy.costs)] if isinstance(policy.costs, (int, float)) else list(policy.costs)
+        [float(policy.costs)] if isinstance(policy.costs, Real) else list(policy.costs)
     )
     capacity = policy.capacity
     if policy.max_treatment_rate is not None:
@@ -871,7 +871,7 @@ def evaluate_policy(
             None
             if reference is None
             else [float(reference.costs)]
-            if isinstance(reference.costs, (int, float))
+            if isinstance(reference.costs, Real)
             else list(reference.costs)
         ),
         available=None if available is None else [bool(value) for value in available],
@@ -998,7 +998,7 @@ def evaluate_policy_doubly_robust(
     if not np.isfinite(mu0_values).all() or not np.isfinite(mu1_values).all():
         raise CausalValueError("mu0 and mu1 predictions must be finite")
     probability_values = np.asarray(
-        [float(propensity)] if isinstance(propensity, (int, float)) else list(propensity),
+        [float(propensity)] if isinstance(propensity, Real) else list(propensity),
         dtype=np.float64,
     )
     raw = _evaluate_binary_policy_doubly_robust(
@@ -1010,13 +1010,13 @@ def evaluate_policy_doubly_robust(
         mu1_values,
         reference=list(resolved(reference.actions)) if reference is not None else None,
         costs=(
-            [float(policy.costs)] if isinstance(policy.costs, (int, float)) else list(policy.costs)
+            [float(policy.costs)] if isinstance(policy.costs, Real) else list(policy.costs)
         ),
         reference_costs=(
             None
             if reference is None
             else [float(reference.costs)]
-            if isinstance(reference.costs, (int, float))
+            if isinstance(reference.costs, Real)
             else list(reference.costs)
         ),
     )
