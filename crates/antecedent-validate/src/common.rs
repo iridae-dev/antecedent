@@ -1109,7 +1109,10 @@ pub(crate) fn noise_replace_refute(
 /// This is not a test of whether the replicate *mean* is `hypothesized`. Adding `√R`
 /// would make any tiny systematic bias refute at large R, which is the wrong operating
 /// characteristic for a placebo / dummy-outcome refuter. Degenerate spread compares
-/// means directly.
+/// means directly. When both the observed spread and displacement from the null are
+/// within a small relative floating-point resolution envelope, the normal fit cannot
+/// distinguish them and returns the non-informative value 1. This is a numerical
+/// convention, not a calibrated test or a certified estimator error bound.
 ///
 /// # Errors
 ///
@@ -1141,6 +1144,24 @@ pub(crate) fn replicate_p_value(
         if half { value * 0.5 - anchor * 0.5 } else { value - anchor }
     };
     let scale = samples.iter().map(|&value| centered(value).abs()).fold(0.0_f64, f64::max);
+    // Independent floating-point refits of an algebraically identical effect may
+    // differ by tens of ulps. Fitting a normal law to only those rounding bits
+    // falsely turns the refit's numerical jitter into near-certain rejection.
+    // Compare relative to the actual values, with no absolute floor: a genuinely
+    // different effect near zero or under a change of units remains detectable.
+    // This fixed guard is a numerical-resolution convention, not a forward-error
+    // certificate for an arbitrary estimator.
+    let magnitude = samples.iter().map(|value| value.abs()).fold(hypothesized.abs(), f64::max);
+    let delta = centered(hypothesized);
+    const RELATIVE_ROUNDOFF: f64 = 64.0 * f64::EPSILON;
+    if !half
+        && magnitude > 0.0
+        && delta.is_finite()
+        && scale / magnitude <= RELATIVE_ROUNDOFF
+        && delta.abs() / magnitude <= RELATIVE_ROUNDOFF
+    {
+        return Ok(1.0);
+    }
     let normalized = |value: f64| centered(value) / scale;
     let mean = antecedent_kernels::numeric::CompensatedSum::of(
         samples.iter().map(|&value| normalized(value)),
@@ -1149,7 +1170,6 @@ pub(crate) fn replicate_p_value(
         samples.iter().map(|&value| (normalized(value) - mean).powi(2)),
     ) / (samples.len() - 1) as f64;
     let sd = variance.sqrt();
-    let delta = centered(hypothesized);
     let hypothesis = if delta.is_finite() {
         delta / scale
     } else {
@@ -1809,6 +1829,25 @@ mod tests {
         }
         assert_eq!(replicate_p_value(&[0.0, 0.0], 0.0).unwrap(), 1.0);
         assert_eq!(replicate_p_value(&[0.0, 0.0], 1e-14).unwrap(), 0.0);
+    }
+
+    #[test]
+    fn roundoff_degeneracy_is_relative_and_does_not_hide_real_tiny_effects() {
+        let base = 2.0_f64.to_bits();
+        let samples = [
+            f64::from_bits(base - 64),
+            f64::from_bits(base - 65),
+            f64::from_bits(base - 63),
+            f64::from_bits(base - 64),
+        ];
+        assert_eq!(replicate_p_value(&samples, 2.0).unwrap(), 1.0);
+        assert!(replicate_p_value(&samples, f64::from_bits(base - 1024)).unwrap() < 0.05);
+        for units in [1e-200, -1e-200, 1e100, -1e100] {
+            let converted = samples.map(|x| x * units);
+            assert_eq!(replicate_p_value(&converted, 2.0 * units).unwrap(), 1.0);
+            assert!(replicate_p_value(&[-units, units], 10.0 * units).unwrap() < 0.05);
+        }
+        assert_eq!(replicate_p_value(&[0.0, 0.0], 1e-200).unwrap(), 0.0);
     }
 
     #[test]
