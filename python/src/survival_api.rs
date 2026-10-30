@@ -83,6 +83,106 @@ impl From<&antecedent::SurvivalEstimate> for SurvivalSection {
     }
 }
 
+fn check_cancel(ctx: &antecedent_core::ExecutionContext) -> PyResult<()> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(crate::py_err(antecedent::CausalError::Cancelled { stage: "survival" }));
+    }
+    Ok(())
+}
+
+fn admit_grid_copy(
+    py: Python<'_>,
+    n: usize,
+    m: usize,
+) -> PyResult<(antecedent_core::ExecutionContext, antecedent_core::execution::AdmissionLease)> {
+    let cells = n
+        .checked_mul(m)
+        .ok_or_else(|| crate::CausalResourceError::new_err("censoring grid dimensions overflow"))?;
+    let bytes = cells
+        .checked_mul(std::mem::size_of::<f64>())
+        .and_then(|value| u64::try_from(value).ok())
+        .ok_or_else(|| crate::CausalResourceError::new_err("censoring grid byte size overflow"))?;
+    let ctx = crate::py_execution_context(0, 1);
+    let acquire_ctx = ctx.clone();
+    let lease = detach_catch(py, move || {
+        acquire_ctx.acquire_admission(0, bytes).map_err(|error| match error {
+            antecedent_core::execution::AdmissionError::Cancelled => {
+                crate::py_err(antecedent::CausalError::Cancelled { stage: "survival" })
+            }
+            error => crate::CausalResourceError::new_err(error.to_string()),
+        })
+    })?;
+    // The second detached run is a separate interrupt scope.
+    crate::interrupt::link(&ctx.cancellation);
+    Ok((ctx, lease))
+}
+
+// Input grids and durations have already been checked finite, so partial comparison
+// is total here and treats -0.0 and +0.0 as equal, like the original equality scan.
+fn grid_contains_by<F>(times: &[f64], value: f64, mut compare: F) -> bool
+where
+    F: FnMut(&f64, &f64) -> std::cmp::Ordering,
+{
+    times.binary_search_by(|time| compare(time, &value)).is_ok()
+}
+
+fn validate_ipcw_grid(
+    duration: &[f64],
+    times: &[f64],
+    survival: &[f64],
+    tau: f64,
+    minimum_probability: f64,
+    mut check: impl FnMut() -> PyResult<()>,
+) -> PyResult<f64> {
+    for &value in duration {
+        check()?;
+        if value <= tau
+            && !grid_contains_by(times, value, |a, b| {
+                a.partial_cmp(b).expect("finite grid and duration")
+            })
+        {
+            return Err(crate::value_err(
+                "times must include every observed duration at or before tau",
+            ));
+        }
+    }
+    let mut minimum_g = 1.0_f64;
+    for row in survival.chunks_exact(times.len()) {
+        // Check positivity before monotonicity for each row, as in the original
+        // ingress. Chunking bounds the interval between cancellation polls.
+        for chunk in row.chunks(4096) {
+            check()?;
+            if chunk
+                .iter()
+                .any(|value| !value.is_finite() || *value < minimum_probability || *value > 1.0)
+            {
+                return Err(crate::value_err(
+                    "censoring survival values violate the declared positivity floor or lie outside (0, 1]",
+                ));
+            }
+        }
+        if (row[0] - 1.0).abs() > 1e-10 {
+            return Err(crate::value_err(
+                "censoring survival rows must start at one and be non-increasing",
+            ));
+        }
+        for start in (1..row.len()).step_by(4096) {
+            check()?;
+            let end = (start + 4096).min(row.len());
+            if row[start - 1..end].windows(2).any(|pair| pair[1] > pair[0] + 1e-10) {
+                return Err(crate::value_err(
+                    "censoring survival rows must start at one and be non-increasing",
+                ));
+            }
+        }
+        for chunk in row.chunks(4096) {
+            check()?;
+            minimum_g = minimum_g.min(chunk.iter().copied().fold(1.0_f64, f64::min));
+        }
+    }
+    Ok(minimum_g)
+}
+
 /// IPCW weighted product-limit curves using caller supplied censoring survival.
 #[pyfunction]
 #[allow(
@@ -127,46 +227,33 @@ fn randomized_survival_ipcw(
             "times must be a strictly increasing grid from zero through tau and match censoring_survival columns",
         ));
     }
-    if (0..n).any(|i| duration[i] <= tau && !times.iter().any(|time| *time == duration[i])) {
-        return Err(crate::value_err(
-            "times must include every observed duration at or before tau",
-        ));
-    }
-    let mut minimum_g = 1.0_f64;
-    for i in 0..n {
-        let row = g.row(i);
-        if row
-            .iter()
-            .any(|value| !value.is_finite() || *value < minimum_probability || *value > 1.0)
-        {
-            return Err(crate::value_err(
-                "censoring survival values violate the declared positivity floor or lie outside (0, 1]",
-            ));
-        }
-        if (row[0] - 1.0).abs() > 1e-10
-            || row.windows(2).into_iter().any(|pair| pair[1] > pair[0] + 1e-10)
-        {
-            return Err(crate::value_err(
-                "censoring survival rows must start at one and be non-increasing",
-            ));
-        }
-        minimum_g = minimum_g.min(row.iter().copied().fold(1.0_f64, f64::min));
-    }
-    for arm in [false, true] {
-        if !(0..n).any(|i| treated[i] == arm) {
-            return Err(crate::value_err("IPCW survival requires units in both treatment arms"));
-        }
-        if !(0..n).any(|i| treated[i] == arm && duration[i] >= tau) {
-            return Err(crate::value_err(
-                "tau must not exceed the observed follow-up horizon in either arm",
-            ));
-        }
-    }
     let event_codes = event_observed.iter().map(|event| i64::from(*event)).collect::<Vec<_>>();
     let duration = duration.to_vec();
+    // Copy the Python-owned array before releasing the GIL; all grid validation
+    // and estimation below then run on owned data without holding the GIL.
+    let (ctx, input_lease) = admit_grid_copy(py, n, times.len())?;
     let survival = g.iter().copied().collect::<Vec<_>>();
     let (summary, kernel_minimum_g) = detach_catch(py, move || {
-        antecedent_estimate::survival::randomized_survival_ipcw_summary(
+        // Declared first so the lease outlives the copied buffer on every exit.
+        let _input_lease = input_lease;
+        let survival = survival;
+        let minimum_g =
+            validate_ipcw_grid(&duration, &times, &survival, tau, minimum_probability, || {
+                check_cancel(&ctx)
+            })?;
+        for arm in [false, true] {
+            if !(0..n).any(|i| treated[i] == arm) {
+                return Err(crate::value_err(
+                    "IPCW survival requires units in both treatment arms",
+                ));
+            }
+            if !(0..n).any(|i| treated[i] == arm && duration[i] >= tau) {
+                return Err(crate::value_err(
+                    "tau must not exceed the observed follow-up horizon in either arm",
+                ));
+            }
+        }
+        let result = antecedent_estimate::survival::randomized_survival_ipcw_summary(
             &antecedent_estimate::survival::SurvivalRows {
                 duration: &duration,
                 event_code: &event_codes,
@@ -181,9 +268,10 @@ fn randomized_survival_ipcw(
             tau,
             antecedent_estimate::survival::SurvivalEndpoint::Survival,
         )
-        .map_err(crate::value_err)
+        .map_err(crate::value_err)?;
+        debug_assert!((minimum_g - result.1).abs() <= 1e-10);
+        Ok(result)
     })?;
-    debug_assert!((minimum_g - kernel_minimum_g).abs() <= 1e-10);
     Ok((
         summary.times,
         summary.control,
@@ -255,39 +343,28 @@ fn randomized_cumulative_incidence_ipcw(
             "times must be a strictly increasing grid from zero through tau and match censoring_survival columns",
         ));
     }
-    if (0..n).any(|i| duration[i] <= tau && !times.iter().any(|t| *t == duration[i])) {
-        return Err(crate::value_err(
-            "times must include every observed duration at or before tau",
-        ));
-    }
-    let mut minimum_g = 1.0_f64;
-    for i in 0..n {
-        let row = g.row(i);
-        if row.iter().any(|v| !v.is_finite() || *v < minimum_probability || *v > 1.0) {
-            return Err(crate::value_err(
-                "censoring survival values violate the declared positivity floor or lie outside (0, 1]",
-            ));
-        }
-        if (row[0] - 1.0).abs() > 1e-10 || row.windows(2).into_iter().any(|w| w[1] > w[0] + 1e-10) {
-            return Err(crate::value_err(
-                "censoring survival rows must start at one and be non-increasing",
-            ));
-        }
-        minimum_g = minimum_g.min(row.iter().copied().fold(1.0_f64, f64::min));
-    }
-    for arm in [false, true] {
-        if !(0..n).any(|i| treated[i] == arm)
-            || !(0..n).any(|i| treated[i] == arm && duration[i] >= tau)
-        {
-            return Err(crate::value_err(
-                "IPCW cumulative incidence requires both arms observed through tau",
-            ));
-        }
-    }
     let duration = duration.to_vec();
+    // The owned copy lets validation and estimation run outside the GIL.
+    let (ctx, input_lease) = admit_grid_copy(py, n, times.len())?;
     let survival = g.iter().copied().collect::<Vec<_>>();
     let (summary, kernel_minimum_g) = detach_catch(py, move || {
-        antecedent_estimate::survival::randomized_survival_ipcw_summary(
+        // Declared first so the lease outlives the copied buffer on every exit.
+        let _input_lease = input_lease;
+        let survival = survival;
+        let minimum_g =
+            validate_ipcw_grid(&duration, &times, &survival, tau, minimum_probability, || {
+                check_cancel(&ctx)
+            })?;
+        for arm in [false, true] {
+            if !(0..n).any(|i| treated[i] == arm)
+                || !(0..n).any(|i| treated[i] == arm && duration[i] >= tau)
+            {
+                return Err(crate::value_err(
+                    "IPCW cumulative incidence requires both arms observed through tau",
+                ));
+            }
+        }
+        let result = antecedent_estimate::survival::randomized_survival_ipcw_summary(
             &antecedent_estimate::survival::SurvivalRows {
                 duration: &duration,
                 event_code: &event_cause,
@@ -302,9 +379,10 @@ fn randomized_cumulative_incidence_ipcw(
             tau,
             antecedent_estimate::survival::SurvivalEndpoint::CumulativeIncidence { target_cause },
         )
-        .map_err(crate::value_err)
+        .map_err(crate::value_err)?;
+        debug_assert!((minimum_g - result.1).abs() <= 1e-10);
+        Ok(result)
     })?;
-    debug_assert!((minimum_g - kernel_minimum_g).abs() <= 1e-10);
     Ok((
         summary.times,
         summary.control,
@@ -320,4 +398,48 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(randomized_survival_ipcw, module)?)?;
     module.add_function(wrap_pyfunction!(randomized_cumulative_incidence_ipcw, module)?)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{grid_contains_by, validate_ipcw_grid};
+    use pyo3::prelude::*;
+
+    #[test]
+    #[allow(clippy::float_cmp)]
+    fn binary_grid_membership_matches_exact_linear_equality() {
+        let grid = [-0.0, 0.1, 0.5, 1.0, 3.0];
+        for value in [0.0, -0.0, 0.1, 0.2, 0.5, 1.0, 3.0, 3.1] {
+            let found = grid_contains_by(&grid, value, |a, b| a.partial_cmp(b).unwrap());
+            assert_eq!(found, grid.iter().any(|time| *time == value));
+        }
+    }
+
+    #[test]
+    #[allow(clippy::float_cmp)]
+    fn grid_lookup_uses_logarithmic_comparisons() {
+        let grid: Vec<f64> = (0..65_536).map(f64::from).collect();
+        for value in [0.0, 32768.0, 65535.0, 65536.0, 32768.5] {
+            let mut comparisons = 0;
+            let found = grid_contains_by(&grid, value, |a, b| {
+                comparisons += 1;
+                a.partial_cmp(b).unwrap()
+            });
+            assert_eq!(found, grid.iter().any(|time| *time == value));
+            assert!(comparisons <= 18, "{comparisons} comparisons for {value}");
+        }
+    }
+
+    #[test]
+    fn validation_polls_cancellation_inside_a_long_row() {
+        let times: Vec<f64> = (0..20_000).map(f64::from).collect();
+        let values = vec![1.0; times.len()];
+        let mut polls = 0;
+        let result = validate_ipcw_grid(&[], &times, &values, 19_999.0, 0.1, || {
+            polls += 1;
+            if polls == 3 { Err(crate::CausalCancelledError::new_err("cancelled")) } else { Ok(()) }
+        });
+        assert!(result.is_err());
+        assert_eq!(polls, 3);
+    }
 }
