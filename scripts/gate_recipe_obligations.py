@@ -96,15 +96,6 @@ def emit_obligations(row: dict) -> dict:
     return {"routes": routes, "tests": tests}
 
 
-def witness(rule: dict, axes: dict[str, list[str]]) -> dict:
-    cell = {}
-    for rule_key_name, cell_key in RULE_AXES:
-        allowed = rule.get(rule_key_name)
-        pool = axes[cell_key]
-        cell[cell_key] = allowed[0] if allowed else pool[0]
-    return cell
-
-
 def _strings(values) -> list[str] | None:
     if not isinstance(values, list) or not values:
         return None
@@ -225,32 +216,32 @@ def cross_check(
                 )
 
     if axes:
-        for rule in closed_rules:
-            cell = witness(rule, axes)
-            status = standing(cell, closed_rules, na_rules, licensed_keys)
-            if status != "closed":
-                problems.append(
-                    f"{cell.get('query')}: a closed reason stays closed, standing {status}"
-                )
-            if status == "not_applicable":
-                problems.append(f"{cell.get('query')}: a closed cell was relabeled not_applicable")
-        for combo in _unlicensed_search(axes, closed_rules, na_rules, licensed_keys):
-            if standing(combo, closed_rules, na_rules, licensed_keys) != "unlicensed":
-                problems.append(f"{combo.get('query')}: an unlicensed route was relabeled")
-            break
+        # Derive the expected standing directly from the recorded predicates,
+        # independently of standing() and rule_matches(). Probe every coordinate,
+        # including overlaps, rather than selecting witnesses with the code under test.
+        from itertools import product
+
+        expected_closed = closed_snapshot if closed_snapshot is not None else closed_rules
+        expected_na = na_snapshot if na_snapshot is not None else na_rules
+
+        def applies(rule, cell):
+            return all(not rule.get(plural) or cell[axis] in rule[plural]
+                       for plural, axis in RULE_AXES)
+
+        for values in product(*(axes[key] for key in AXIS)):
+            cell = dict(zip(AXIS, values, strict=True))
+            if any(applies(rule, cell) for rule in expected_closed):
+                expected = "closed"
+            elif any(applies(rule, cell) for rule in expected_na):
+                expected = "not_applicable"
+            elif coordinate(cell) in licensed_keys:
+                expected = "licensed"
+            else:
+                expected = "unlicensed"
+            actual = standing(cell, closed_rules, na_rules, licensed_keys)
+            if actual != expected:
+                problems.append(f"{coordinate(cell)}: expected {expected}, standing {actual}")
     return problems
-
-
-def _unlicensed_search(axes, closed_rules, na_rules, licensed_keys):
-    from itertools import product
-
-    keys = list(AXIS)
-    pools = [axes[key] for key in keys]
-    for values in product(*pools):
-        cell = dict(zip(keys, values, strict=False))
-        if standing(cell, closed_rules, na_rules, licensed_keys) == "unlicensed":
-            yield cell
-            return
 
 
 def matrix_alignment_problems(root: Path, cite=None) -> list[str]:

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from _repo import REPO_ROOT, ensure_scripts_on_path
@@ -99,6 +100,31 @@ class RecipeObligationTest(unittest.TestCase):
             any("Counterfactual" in problem and "stays closed" in problem for problem in problems)
         )
         self.assertTrue(all("not_applicable" not in problem for problem in problems))
+
+    def test_exhaustive_independent_standing_probes(self) -> None:
+        na = [{"queries": ["PulseEffect"], "graph_classes": ["Dag"]}]
+        original = gate.standing
+        mutations = [
+            (route(query="Counterfactual", graph_class="Admg"), "not_applicable", "closed"),
+            (route(query="PulseEffect", graph_class="Dag"), "licensed", "not_applicable"),
+            # This is not the first unlicensed coordinate in AXES.
+            (route(query="PulseEffect", graph_class="Admg"), "licensed", "unlicensed"),
+        ]
+        for target, wrong, expected in mutations:
+            with self.subTest(target=target):
+                def defective(cell, closed, applicable, licensed):
+                    if cell == target:
+                        return wrong
+                    return original(cell, closed, applicable, licensed)
+                with patch.object(gate, "standing", side_effect=defective):
+                    problems = gate.cross_check([], [], CLOSED, na, axes=AXES)
+                self.assertTrue(any(gate.coordinate(target) in problem and
+                                    f"expected {expected}" in problem for problem in problems))
+
+    def test_rule_matcher_cannot_verify_itself(self) -> None:
+        with patch.object(gate, "rule_matches", return_value=False):
+            problems = gate.cross_check([], [], CLOSED, NOT_APPLICABLE, axes=AXES)
+        self.assertTrue(any("expected closed" in problem for problem in problems))
 
     def test_a_license_cannot_override_not_applicable(self) -> None:
         licensed = licensed_row()
