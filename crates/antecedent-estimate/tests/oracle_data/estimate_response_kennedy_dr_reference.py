@@ -12,11 +12,12 @@ used.  The pipeline follows the estimator's definition:
   rows; its fitted function F is unique, the treatment smooth is g_a(a) = f_a(a) - mean_train f_a;
 * treatment nuisance: the same fit of a on x; its residual scale is
   sigma = sqrt(RSS / max(n_train - edf, 1)) with edf the hat-matrix trace (intercept included);
-* conditional density pi_i = N(a_i; m(x_i), sigma^2), floored at 1e-8; marginal density
+* conditional density pi_i = N(a_i; m(x_i), sigma^2); marginal density
   m_i = mean over the training rows j of N(a_i; m(x_j), sigma^2);
 * marginalized outcome: offset = mean over all rows (fold fit) of F(a_j, x_j) - g_a(a_j), and
   M(a) = offset + g_a(a);
-* pseudo-outcome phi_i = M(a_i) + (y_i - F(a_i, x_i)) m_i / pi_i; covariate term c_i = F(a_i, x_i) - M(a_i).
+* pseudo-outcome phi_i = M(a_i) + (y_i - F(a_i, x_i)) sigma*m_i / max(sigma*pi_i, 1e-8);
+  covariate term c_i = F(a_i, x_i) - M(a_i).
 
 The curve at a grid point is the intercept of the Gaussian-kernel weighted local quadratic of phi on
 (1, a - at, (a - at)^2) with the given bandwidth.  Repository-authored (MIT OR Apache-2.0); needs
@@ -134,6 +135,18 @@ class Additive:
                 for b in range(len(P)):
                     A[off + a][off + b] += P[a][b]
         rhs = [sum(cols[a][r] * y[r] for r in range(n)) for a in range(p)]
+        # Exact LDL pivots certify strict positive definiteness of the reduced
+        # penalized normal matrix; a unique penalized split is distinct from
+        # identification by the data alone.
+        L = [[F(int(i == j)) for j in range(p)] for i in range(p)]
+        pivots = []
+        for i in range(p):
+            pivot = A[i][i] - sum(L[i][k] ** 2 * pivots[k] for k in range(i))
+            assert pivot > 0, "penalized normal matrix is not positive definite"
+            pivots.append(pivot)
+            for j in range(i + 1, p):
+                L[j][i] = (A[j][i] - sum(L[j][k] * L[i][k] * pivots[k] for k in range(i))) / pivot
+        self.min_pivot = min(pivots)
         self.beta = solve(A, rhs)
         self.p, self.n, self.nsm = p, n, len(xs)
         Ainv = inverse(A)
@@ -223,11 +236,11 @@ def pseudo_outcomes(a, x, y, folds, K, lam):
             mu = out.predict([a[i], x[i]])
             marg = offset + out.smooth(0, a[i])
             raw_pi = N(a[i], mf(mt[i]), sigma)
-            if raw_pi <= mpf("1e-8"):
+            if sigma * raw_pi <= mpf("1e-8"):
                 floor_rows += 1
-            pi_i = max(raw_pi, mpf("1e-8"))
+            scaled_pi = max(sigma * raw_pi, mpf("1e-8"))
             m_i = sum(N(a[i], mf(mt[j]), sigma) for j in train) / len(train)
-            phi[i] = mf(marg) + mf(y[i] - mu) * m_i / pi_i
+            phi[i] = mf(marg) + mf(y[i] - mu) * sigma * m_i / scaled_pi
             c_term[i] = mf(mu - marg)
     return phi, c_term, floor_rows
 
@@ -282,15 +295,14 @@ if __name__ == "__main__":
     cases.append(build("floor_binds", a, x, y, 2, 5, F(1), F(3, 4), [F(-1, 2), F(1, 2)]))
     a, x, y = make_data(48, F(0), F(0), F(1), a_noise=F(1, 8))
     cases.append(build("treatment_strongly_determined", a, x, y, 4, 5, F(1, 2), F(3, 4), [F(-1, 2), F(1, 2)]))
-    # The treatment is a smooth function of x to within 1/64: the additive split of the outcome fit
-    # between a and x is not determined by the data (its exact value is the minimizer of an
-    # ill-posed problem), so the estimator must refuse rather than publish a stopping-point answer.
+    # Near-collinearity makes the data-only split weak, but strict positive
+    # definiteness of each penalized normal matrix gives a unique minimizer.
     a, x, y = make_data(48, F(0), F(0), F(1), a_noise=F(1, 64))
-    cases.append({
-        "name": "treatment_nearly_determined", "expect_refusal": True, "folds": 4, "basis": 5,
-        "lambda": 0.5, "bandwidth": 0.75, "grid": [-0.5, 0.5],
-        "a": [str(float(v)) for v in a], "x": [str(float(v)) for v in x], "y": [str(float(v)) for v in y],
-    })
+    near = build("treatment_nearly_determined", a, x, y, 4, 5, F(1, 2), F(3, 4), [F(-1, 2), F(1, 2)])
+    near["outcome_min_ldl_pivots"] = [str(float(Additive(
+        [[a[i] for i in range(len(a)) if i % 4 != f], [x[i] for i in range(len(x)) if i % 4 != f]],
+        [y[i] for i in range(len(y)) if i % 4 != f], 5, F(1, 2)).min_pivot)) for f in range(4)]
+    cases.append(near)
     a, x, y = make_data(720, F(0), F(0), F(1))
     cases.append(build("large_mixture", a, x, y, 5, 6, F(1), F(1, 2), [F(-1, 2), F(0), F(1, 2)]))
     print(json.dumps({"cases": cases}, indent=1))

@@ -175,6 +175,10 @@ impl ContinuousResponseEstimator {
     /// Bayesian generalized-linear response levels, with posterior
     /// coefficient uncertainty propagated through every intervention coordinate.
     /// This estimator is parametric; it makes no doubly robust claim.
+    /// Derivative functionals instead use a Rubin Bayesian bootstrap that refits
+    /// their nuisances. They accept the default Laplace/Gaussian settings for
+    /// compatibility, but do not fit a Laplace posterior or use that likelihood;
+    /// nondefault backend and likelihood selections are refused.
     #[allow(
         clippy::too_many_lines,
         reason = "one estimator over every response functional: validate, read the sample, fit, then summarize each grid point from the same draws"
@@ -557,6 +561,14 @@ impl ContinuousResponseEstimator {
         estimator: &crate::BayesianGComputationAte,
         ctx: &antecedent_core::ExecutionContext,
     ) -> Result<CausalResponse, EstimationError> {
+        if estimator.backend != crate::BayesianBackendKind::Laplace
+            || estimator.likelihood != antecedent_prob::BayesLikelihood::GaussianIdentity
+        {
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("option_not_applicable"),
+                "Bayesian derivatives use a Rubin Bayesian bootstrap, not the selected backend or likelihood; only the default Laplace/Gaussian settings are accepted for compatibility",
+            ));
+        }
         if estimator.prior.is_some() {
             return Err(EstimationError::unsupported_coded(
                 antecedent_core::reason_code!("option_not_applicable"),

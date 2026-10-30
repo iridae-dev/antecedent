@@ -4,10 +4,10 @@
 //! estimator's definition on dyadic data: index-modulo folds, the penalized additive spline
 //! nuisances of the outcome and of the treatment on the training rows at their unique exact
 //! solution, the treatment scale with the effective-degrees-of-freedom divisor, the conditional and
-//! the training-mixture marginal densities, the floor on the conditional density, the
+//! the training-mixture marginal densities, the dimensionless floor on sigma times the conditional density, the
 //! marginalized outcome over every row, the pseudo-outcome, the covariate term, and the
-//! Gaussian-kernel local-quadratic level. The nuisances are the product's backfit to a relative 1e-6
-//! tolerance, so the comparison is held to that resolution rather than to rounding. The
+//! Gaussian-kernel local-quadratic level. The product uses a certified direct solve where available, otherwise a backfit; the
+//! comparison keeps its original tolerance rather than claiming rounding accuracy. The
 //! influence the product exports must equal the separately reviewed local-quadratic influence of
 //! its own pseudo-outcome plus the reference covariate term (c_i - mean c) / n.
 //!
@@ -76,17 +76,10 @@ fn the_pseudo_outcome_level_and_influence_match_the_exact_pipeline() {
             outcome: y_id,
             treatment: ContinuousDomain::new(a_id, GridSpec::Values(Arc::from(grid.clone()))),
         });
-        if case["expect_refusal"].as_bool().unwrap_or(false) {
-            let error = estimator
-                .estimate_identified(
-                    &data,
-                    &query,
-                    IdentificationStatus::NonparametricallyIdentified,
-                    AssumptionSet::new(),
-                )
-                .expect_err(&format!("{name}: an undetermined additive split was published"));
-            assert!(error.to_string().contains("did not converge"), "{name}: {error}");
-            continue;
+        if name == "treatment_nearly_determined" {
+            let pivots = floats(&case["outcome_min_ldl_pivots"]);
+            assert_eq!(pivots.len(), 4);
+            assert!(pivots.iter().all(|pivot| *pivot > 0.0));
         }
         let response = estimator
             .estimate_identified(

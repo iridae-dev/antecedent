@@ -63,9 +63,22 @@ pub(super) fn kennedy_density_ratio(
             "Gaussian treatment nuisance has degenerate residual variance",
         ));
     }
+    if !conditional.is_finite() || conditional < 0.0 || !marginal.is_finite() || marginal < 0.0 {
+        return Err(EstimationError::stats_msg("treatment nuisance density is invalid"));
+    }
     let standardized = sigma * conditional;
-    let floored = !standardized.is_finite() || standardized <= CONDITIONAL_DENSITY_FLOOR;
-    Ok((sigma * marginal / standardized.max(CONDITIONAL_DENSITY_FLOOR), floored))
+    let numerator = sigma * marginal;
+    if !standardized.is_finite() || !numerator.is_finite() {
+        return Err(EstimationError::stats_msg(
+            "standardized treatment nuisance density is invalid",
+        ));
+    }
+    let floored = standardized <= CONDITIONAL_DENSITY_FLOOR;
+    let ratio = numerator / standardized.max(CONDITIONAL_DENSITY_FLOOR);
+    if !ratio.is_finite() {
+        return Err(EstimationError::stats_msg("treatment nuisance density ratio is invalid"));
+    }
+    Ok((ratio, floored))
 }
 
 impl ContinuousResponseEstimator {

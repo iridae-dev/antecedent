@@ -1,8 +1,8 @@
 use antecedent_core::{
     Assumption, AssumptionSet, CausalResponse, ContinuousDomain, DerivativeScale,
-    DerivativeWeighting, ExecutionContext, GridSpec, IdentificationStatus, Intervention, ResponseFunctional,
-    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, StochasticPolicy,
-    SupportRegion, SupportReport, SupportStatus, Value, VariableId,
+    DerivativeWeighting, ExecutionContext, GridSpec, IdentificationStatus, Intervention,
+    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
+    StochasticPolicy, SupportRegion, SupportReport, SupportStatus, Value, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_stats::{
@@ -268,6 +268,47 @@ fn prepared_response_folds_hold_admission_until_last_fold_drops() {
 }
 
 #[test]
+fn bayesian_derivatives_refuse_nondefault_backend_and_likelihood() {
+    use antecedent_prob::BayesLikelihood;
+    let (data, a, y, x) = confounded_curve(30);
+    let estimator = ContinuousResponseEstimator::new([x]);
+    let query = ResponseQuery::new(ResponseFunctional::PointDerivative {
+        outcome: y,
+        treatment: a,
+        at: 0.2,
+        order: 1,
+        scale: DerivativeScale::Identity,
+    });
+    let mut configurations = Vec::new();
+    for backend in [crate::BayesianBackendKind::ConjugateGaussian, crate::BayesianBackendKind::Hmc]
+    {
+        let mut config = crate::BayesianGComputationAte::new();
+        config.backend = backend;
+        configurations.push(config);
+    }
+    for likelihood in [
+        BayesLikelihood::BernoulliLogit,
+        BayesLikelihood::BernoulliProbit,
+        BayesLikelihood::PoissonLog,
+    ] {
+        configurations.push(crate::BayesianGComputationAte::new().with_likelihood(likelihood));
+    }
+    for config in configurations {
+        let error = estimator
+            .estimate_bayesian(
+                &data,
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+                &config,
+                &ExecutionContext::for_tests(18),
+            )
+            .unwrap_err();
+        assert!(error.to_string().contains("Rubin Bayesian bootstrap"), "{error}");
+    }
+}
+
+#[test]
 fn bayesian_point_derivative_refits_nuisances_per_draw() {
     let (data, a, y, x) = confounded_curve(240);
     let mut estimator = ContinuousResponseEstimator::new([x]);
@@ -376,6 +417,12 @@ fn kennedy_density_floor_has_the_same_boundary_in_any_treatment_units() {
     for sigma in [0.0, -1.0, f64::NAN, f64::INFINITY] {
         assert!(kennedy_density_ratio(0.2, 0.3, sigma).is_err());
     }
+    for invalid in [-1.0, f64::NAN, f64::INFINITY] {
+        assert!(kennedy_density_ratio(invalid, 0.3, 1.0).is_err());
+        assert!(kennedy_density_ratio(0.2, invalid, 1.0).is_err());
+    }
+    assert!(kennedy_density_ratio(f64::MAX, 0.3, 2.0).is_err());
+    assert!(kennedy_density_ratio(0.0, f64::MAX, 2.0).is_err());
 }
 
 #[test]
