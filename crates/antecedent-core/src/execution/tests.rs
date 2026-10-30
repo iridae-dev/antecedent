@@ -353,11 +353,10 @@ fn map_indexed_fallback_keeps_inner_parallelism_within_admission() {
     let ctx = ExecutionContext::production(1, 4).with_admission(AdmissionPool::fixed(2, u64::MAX));
     let threads =
         ctx.map_indexed(1, |_, inner| Ok::<_, ()>(inner.parallelism.max_threads.get())).unwrap();
-    assert_eq!(threads, vec![2]);
+    assert_eq!(threads, vec![1]);
     ctx.cancellation.cancel();
-    let threads =
-        ctx.map_indexed(8, |_, inner| Ok::<_, ()>(inner.parallelism.max_threads.get())).unwrap();
-    assert_eq!(threads, vec![1; 8]);
+    let threads = ctx.map_indexed(8, |_, inner| Ok::<_, ()>(inner.parallelism.max_threads.get()));
+    assert!(matches!(threads, Err(MapExecutionError::Admission(AdmissionError::Cancelled))));
 }
 
 #[test]
@@ -370,12 +369,12 @@ fn map_indexed_stops_at_a_failure_and_reports_the_lowest_index() {
         evaluated.fetch_add(1, Ordering::Relaxed);
         if i == 0 { Err(i) } else { Ok(i) }
     });
-    assert_eq!(result, Err(0));
+    assert!(matches!(result, Err(MapExecutionError::Work(0))));
     assert!(evaluated.load(Ordering::Relaxed) <= n - 499, "the failing chunk must not run on");
     // Two failures in different chunks: the lowest index wins on every run.
     for _ in 0..20 {
         let result = ctx.map_indexed(n, |i, _| if i == 700 || i == 1500 { Err(i) } else { Ok(i) });
-        assert_eq!(result, Err(700));
+        assert!(matches!(result, Err(MapExecutionError::Work(700))));
     }
     // No failure: everything is evaluated, in order.
     let all = ctx.map_indexed(n, |i, _| Ok::<_, ()>(i * 2)).unwrap();
@@ -772,10 +771,13 @@ fn cancelled_map_indexed_leaves_no_lease() {
         "a spent pool refuses with the typed remainder error"
     );
     finish.wait();
-    assert_eq!(handle.join().unwrap().unwrap(), vec![0, 1]);
+    assert!(matches!(
+        handle.join().unwrap(),
+        Err(MapExecutionError::Admission(AdmissionError::Cancelled))
+    ));
     assert_eq!(shared.available(), AdmissionRemainder::new(2, 64));
-    let again = ctx.map_indexed(2, |index, _inner| Ok::<_, ()>(index)).unwrap();
-    assert_eq!(again, vec![0, 1]);
+    let again = ctx.map_indexed(2, |index, _inner| Ok::<_, ()>(index));
+    assert!(matches!(again, Err(MapExecutionError::Admission(AdmissionError::Cancelled))));
     assert_eq!(shared.available(), AdmissionRemainder::new(2, 64));
     assert_eq!(shared.blocked_waiters(), 0);
 }
@@ -791,7 +793,7 @@ fn failed_map_indexed_returns_the_lease() {
         }
         if index == 0 { Err(index) } else { Ok(index) }
     });
-    assert_eq!(result, Err(0));
+    assert!(matches!(result, Err(MapExecutionError::Work(0))));
     assert!(saw_hold.load(Ordering::SeqCst));
     assert_eq!(shared.available(), AdmissionRemainder::new(2, 32));
 }
@@ -802,7 +804,8 @@ fn nested_map_indexed_does_not_wait_on_the_outer_lease() {
     let ctx = parallel_context(&shared, 1);
     let output = ctx
         .map_indexed(2, |index, inner| {
-            let nested = inner.map_indexed(2, |inner_index, _inner| Ok::<_, ()>(inner_index))?;
+            let nested =
+                inner.map_indexed(2, |inner_index, _inner| Ok::<_, ()>(inner_index)).unwrap();
             Ok::<_, ()>((index, nested))
         })
         .unwrap();
@@ -971,4 +974,59 @@ fn producer_panic_unblocks_ordered_pipeline_even_with_live_workers() {
     assert!(!watchdog.join().unwrap(), "pipeline remained blocked until cancellation");
     assert!(result.is_err(), "producer panic must propagate");
     assert_eq!(ctx.admission().available().threads(), 2);
+}
+
+#[test]
+fn serial_numerical_admission_reuses_only_the_current_pool_worker() {
+    let pool = AdmissionPool::fixed(1, 16);
+    let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
+    let other_pool = AdmissionPool::fixed(1, 16);
+    let other = ExecutionContext::for_tests(2).with_admission(other_pool.clone());
+
+    // A direct serial call needs its own CPU and releases both resources.
+    let direct = ctx.acquire_serial_numerical_admission(4).unwrap();
+    assert_eq!(pool.available().threads(), 0);
+    assert_eq!(pool.available().bytes(), 12);
+    drop(direct);
+    assert_eq!(pool.available().threads(), 1);
+    assert_eq!(pool.available().bytes(), 16);
+
+    ctx.map_indexed(1, |_, inner| {
+        assert_eq!(pool.available().threads(), 0);
+        let lease = inner.acquire_serial_numerical_admission(12).unwrap();
+        assert_eq!(pool.available().bytes(), 4);
+        assert!(matches!(
+            inner.acquire_serial_numerical_admission(5),
+            Err(AdmissionError::ExceedsRemainder { .. })
+        ));
+        inner
+            .map_indexed(1, |_, nested| {
+                let nested_lease = nested.acquire_serial_numerical_admission(4).unwrap();
+                assert_eq!(pool.available().bytes(), 0);
+                drop(nested_lease);
+                Ok::<_, ()>(())
+            })
+            .unwrap();
+        drop(lease);
+
+        // An unrelated pool must charge a CPU, even with this worker active.
+        let other_lease = other.acquire_serial_numerical_admission(1).unwrap();
+        assert_eq!(other_pool.available().threads(), 0);
+        assert!(matches!(
+            other.acquire_serial_numerical_admission(1),
+            Err(AdmissionError::ExceedsRemainder { .. })
+        ));
+        drop(other_lease);
+        Ok::<_, ()>(())
+    })
+    .unwrap();
+    assert_eq!(pool.available().threads(), 1);
+    assert_eq!(pool.available().bytes(), 16);
+    assert_eq!(other_pool.available().threads(), 1);
+    assert_eq!(other_pool.available().bytes(), 16);
+
+    ctx.cancellation.cancel();
+    assert!(matches!(ctx.acquire_serial_numerical_admission(1), Err(AdmissionError::Cancelled)));
+    assert_eq!(pool.available().threads(), 1);
+    assert_eq!(pool.available().bytes(), 16);
 }

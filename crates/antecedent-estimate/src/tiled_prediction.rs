@@ -320,6 +320,9 @@ pub struct StreamSummary {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Error)]
 #[non_exhaustive]
 pub enum TileError {
+    /// Worker admission could not fund this tile.
+    #[error(transparent)]
+    Admission(antecedent_core::execution::AdmissionError),
     /// An axis length was zero.
     #[error("tiled prediction refuses an empty {axis}; next attempt: declare at least one {axis}")]
     Empty {
@@ -639,7 +642,10 @@ pub fn stream_tile_pipelined(
     let receipt = match piped {
         Ok(receipt) => receipt,
         Err(MapExecutionError::Work(error)) => return Err(error),
-        Err(MapExecutionError::Admission(_)) => return Err(TileError::Cancelled),
+        Err(MapExecutionError::Admission(
+            antecedent_core::execution::AdmissionError::Cancelled,
+        )) => return Err(TileError::Cancelled),
+        Err(MapExecutionError::Admission(error)) => return Err(TileError::Admission(error)),
     };
     let summary = StreamSummary {
         #[cfg(test)]

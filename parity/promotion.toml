@@ -4421,6 +4421,7 @@ compatibility = "Existing routes keep their exact scope. Point-only and licensed
 search = false
 bounds = { cancellation = true }
 refusals = [
+  { code = "execution_resource_limit", detail = "evsi.execution_resource_limit", when = "Shared execution resources cannot fund the candidate evaluation; no decision conclusion follows." },
   { code = "design_signal_invalid", detail = "evsi.design_error", when = "The underlying decision analysis of a candidate fails." },
   { code = "invalid_argument", detail = "evsi.invalid_request", when = "A request field is invalid (identities, units, actions, tolerances or catalog bound)." },
   { code = "design_signal_invalid", detail = "evsi.duplicate_candidate", when = "Two candidates share a semantic identity." },

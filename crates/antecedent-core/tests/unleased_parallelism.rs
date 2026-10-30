@@ -298,9 +298,8 @@ fn parallel_maps_run_no_more_workers_than_the_pool_and_scratch_stays_inside_its_
             Ok::<_, ()>(())
         });
     });
-    // Callers that find no free slot run on their own thread, so the pool's three workers
-    // plus at most one inline caller per study bound the concurrency.
-    assert!(together_peak.load(Ordering::SeqCst) <= 3 + 4, "{together_peak:?}");
+    // Waiting callers cannot run work outside the shared worker pool.
+    assert!(together_peak.load(Ordering::SeqCst) <= 3, "{together_peak:?}");
     assert_eq!(pool.available().threads(), 3);
 }
 

@@ -292,6 +292,7 @@ impl super::Study {
                 }
             }
         })
+        .map_err(Into::into)
     }
 
     /// Mix TemporalCpdag/Pag posterior atoms through the existing class envelope.

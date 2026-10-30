@@ -423,7 +423,7 @@ fn bootstrap_scratch_products_use_checked_arithmetic() {
 }
 
 #[test]
-fn a_concurrent_bootstrap_finds_the_pool_held_and_stays_on_its_caller() {
+fn a_concurrent_bootstrap_refuses_when_all_worker_slots_are_held() {
     let n = 5usize;
     let shared = AdmissionPool::fixed(2, 1 << 20);
     let ctx = ExecutionContext::production(3, 8).with_admission(shared.clone());
@@ -445,13 +445,22 @@ fn a_concurrent_bootstrap_finds_the_pool_held_and_stays_on_its_caller() {
         let result = bootstrap_se(8, &ctx, 2, n, |_| {
             second_threads.lock().unwrap().insert(std::thread::current().id());
             Ok(Some(1.0))
-        })
-        .unwrap();
-        assert_eq!(result.replicates_ok, 8);
+        });
+        // Release the holder before asserting so even a failed assertion cannot
+        // strand workers at their barrier during scoped-thread cleanup.
         done.wait();
         holder.join().unwrap();
+        assert!(matches!(
+            result,
+            Err(EstimationError::Admission(
+                antecedent_core::execution::AdmissionError::ExceedsRemainder {
+                    remaining_threads: 0,
+                    ..
+                }
+            ))
+        ));
     });
-    assert_eq!(second_threads.lock().unwrap().len(), 1);
+    assert!(second_threads.lock().unwrap().is_empty());
     assert_eq!(shared.available().threads(), 2);
     assert_eq!(shared.available().bytes(), 1 << 20);
 }

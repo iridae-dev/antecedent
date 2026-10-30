@@ -209,17 +209,15 @@ pub fn selected_outcome_pseudo_values(
 pub struct KaplanMeierIpcw {
     /// Zero for censored rows; `G(entry_i−) / G(time_i−)` for observed rows.
     pub weights: Vec<f64>,
-    /// The censoring survival's first drop to (or below) `survival_floor`, if any.
+    /// The censoring survival's first drop strictly below `survival_floor`, if any.
     ///
     /// `None` means the estimated censoring survival stays at or above the floor through
     /// every recorded time, so nothing in the data indicates the tail is unidentified.
-    /// `Some(tau)` means every unit still at risk at `tau` was censored there (an
-    /// administrative-censoring boundary, or the numerical equivalent of one): no row's
-    /// event can be observed at or beyond `tau`, so `Y ≥ tau` has probability that is not
-    /// identified from these data. The unweighted mean of the Horvitz–Thompson pseudo-
-    /// outcome `event · Y / G` then estimates the restricted mean `E[Y · 1{Y < tau}]`, not
-    /// `E[Y]`; the caller must label the result accordingly rather than pass it off as the
-    /// unrestricted mean.
+    /// `Some(tau)` marks the first recorded time where survival falls strictly below
+    /// the chosen floor. A positive floor can mark a numerical restriction before
+    /// survival reaches zero; equality with the floor is permitted. When survival
+    /// reaches zero at an administrative censoring boundary, the data do not identify
+    /// the unrestricted tail and callers must label any restricted result accordingly.
     pub tail_restriction: Option<f64>,
 }
 
@@ -308,9 +306,8 @@ pub fn censoring_tail_restriction(
     Ok(first_step_below_floor(&steps, survival_floor))
 }
 
-/// The first jump time at which the whole remaining risk set was censored (survival
-/// reaches, or is driven below, the floor): an administrative-censoring boundary past
-/// which no event can ever be observed. Checked over every jump, rather than only at rows
+/// The first jump time at which survival falls strictly below the selected floor.
+/// A positive floor may be crossed before the risk set is fully censored. Checked over every jump, rather than only at rows
 /// with `event=1`: a data set can have no event past this boundary at all, in which case
 /// a per-row floor check never fires even though the tail is exactly as unidentified.
 fn first_step_below_floor(steps: &[(f64, f64)], survival_floor: f64) -> Option<f64> {
@@ -651,6 +648,12 @@ mod tests {
         // G(L−)=G(T−)=1/2 and the weight is 1 — not the untruncated 1/G(T−)=2.
         assert!((with[1] - 1.0).abs() < 1e-12);
         assert!((with[2] - 2.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn tail_floor_equality_is_not_a_restriction() {
+        assert_eq!(first_step_below_floor(&[(1.0, 0.5), (2.0, 0.25)], 0.5), Some(2.0));
+        assert_eq!(first_step_below_floor(&[(1.0, 0.5)], 0.5), None);
     }
 
     #[test]

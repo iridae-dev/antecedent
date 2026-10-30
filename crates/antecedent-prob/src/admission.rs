@@ -6,7 +6,7 @@
 //! does not fit is refused before the buffer is allocated.
 
 use antecedent_core::ExecutionContext;
-use antecedent_core::execution::AdmissionLease;
+use antecedent_core::execution::{AdmissionError, AdmissionLease};
 
 use crate::error::ProbError;
 
@@ -28,14 +28,10 @@ pub(crate) fn admit_cells(
     let bytes = cells
         .checked_mul(size_of::<f64>())
         .and_then(|bytes| u64::try_from(bytes).ok())
-        .ok_or_else(|| refused("draw buffer size overflow"))?;
+        .ok_or(ProbError::Admission(AdmissionError::Overflow))?;
     let outcome = match ctx {
         Some(ctx) => Some(ctx.acquire_admission(0, bytes)),
         None => antecedent_core::numerical_admission::acquire(bytes),
     };
-    outcome.transpose().map_err(|error| refused(&error.to_string()))
-}
-
-fn refused(detail: &str) -> ProbError {
-    ProbError::Numerical { message: format!("prob.resource_refused: {detail}") }
+    outcome.transpose().map_err(ProbError::Admission)
 }

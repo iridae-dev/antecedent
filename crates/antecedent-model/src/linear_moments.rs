@@ -173,7 +173,7 @@ impl LinearRegimeMoments {
             return Err(invalid("affine moment model"));
         }
         let _lease = ctx
-            .acquire_admission(1, ((64 * n * n + 256 * n) * 8) as u64)
+            .acquire_serial_numerical_admission(((64 * n * n + 256 * n) * 8) as u64)
             .map_err(|e| EquilibriumError::Resource(e.to_string()))?;
         let mut likelihood = 0.0;
         let mut scores = vec![

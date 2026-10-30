@@ -208,6 +208,7 @@ impl super::Study {
                 inner,
             )
         })
+        .map_err(Into::into)
     }
 
     /// The shared circular-block bootstrap over the evaluated atoms' prepared

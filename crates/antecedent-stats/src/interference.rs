@@ -149,6 +149,86 @@ fn exposures_into(
     Ok(())
 }
 
+/// Default maximum logical operations for one exposure-probability procedure. This is the
+/// same total-work policy used by bounded procedure simulation; it does not alter draws.
+pub const EXPOSURE_PROBABILITY_MAX_WORK: u64 =
+    antecedent_core::ExecutionContext::DEFAULT_EXPOSURE_PROBABILITY_WORK_LIMIT;
+
+/// Admit the combined work of `levels` exposure-probability computations before any draw.
+/// Arithmetic overflow is a refusal; callers may quote against a tighter limit.
+pub fn admit_exposure_probability_work(
+    design: &AssignmentDesign,
+    incoming: &[Vec<(usize, f64)>],
+    draws: u32,
+    levels: u64,
+    limit: u64,
+) -> Result<(), StatsError> {
+    let edges =
+        incoming.iter().try_fold(0_u64, |sum, row| sum.checked_add(u64::try_from(row.len()).ok()?));
+    let edges = edges.ok_or(StatsError::WorkLimit {
+        message: "exposure probability computation",
+        required_work: u64::MAX,
+        limit_work: limit,
+    })?;
+    admit_exposure_probability_work_for_shape(design, incoming.len(), edges, draws, levels, limit)
+}
+
+/// Quote exposure work from a network shape without allocating adjacency buffers.
+pub fn admit_exposure_probability_work_for_shape(
+    design: &AssignmentDesign,
+    units: usize,
+    edges: u64,
+    draws: u32,
+    levels: u64,
+    limit: u64,
+) -> Result<(), StatsError> {
+    let n = u64::try_from(units).unwrap_or(u64::MAX);
+    let log_n = u64::from(64 - n.max(1).leading_zeros());
+    // Cluster quoting itself sorts an n-element copy. Refuse before that sort if
+    // even the quote's setup alone cannot fit the requested work ceiling.
+    let setup = if matches!(design, AssignmentDesign::ClusterRandomization { .. }) {
+        n.checked_mul(log_n).and_then(|v| v.checked_mul(3)).and_then(|v| v.checked_mul(levels))
+    } else {
+        Some(0)
+    };
+    if setup.is_none_or(|setup| setup > limit) {
+        return Err(StatsError::WorkLimit {
+            message: "exposure probability computation",
+            required_work: setup.unwrap_or(u64::MAX),
+            limit_work: limit,
+        });
+    }
+    let support = match design {
+        AssignmentDesign::ClusterRandomization { clusters, .. } => {
+            if clusters.len() != units {
+                return Err(StatsError::Backend("invalid cluster assignment design".into()));
+            }
+            let mut ids = clusters.to_vec();
+            ids.sort_unstable();
+            ids.dedup();
+            ids.len()
+        }
+        _ => units,
+    };
+    let iterations = if support <= 20 { 1_u64 << support } else { u64::from(draws) };
+    // Sorting selection keys can take O(n log n); include it even for designs that
+    // do not sort, so the quote stays an upper bound across assignment designs.
+    let work = n
+        .checked_mul(log_n + 4)
+        .and_then(|x| x.checked_add(edges.checked_mul(2)?))
+        .and_then(|per| per.max(1).checked_mul(iterations))
+        .and_then(|per| per.checked_mul(levels))
+        .and_then(|work| work.checked_add(setup?));
+    match work {
+        Some(required_work) if required_work <= limit => Ok(()),
+        required => Err(StatsError::WorkLimit {
+            message: "exposure probability computation",
+            required_work: required.unwrap_or(u64::MAX),
+            limit_work: limit,
+        }),
+    }
+}
+
 /// Compute exposure probabilities exactly when the support is small enough, otherwise by Monte
 /// Carlo. Exact enumeration is used for at most 20 Bernoulli units or 20 randomization units /
 /// clusters.
@@ -160,6 +240,13 @@ pub fn exposure_probabilities(
     monte_carlo_draws: u32,
     seed: u64,
 ) -> Result<ExposureProbabilities, StatsError> {
+    if !antecedent_core::numerical_admission::has_context() {
+        let ctx = antecedent_core::ExecutionContext::production_default(seed)
+            .with_memory_limit(Some(2 * 1024 * 1024 * 1024));
+        return antecedent_core::numerical_admission::with_context(&ctx, || {
+            exposure_probabilities(design, incoming, mapping, level, monte_carlo_draws, seed)
+        });
+    }
     if matches!(
         design,
         AssignmentDesign::TwoStageSaturation { .. } | AssignmentDesign::ObservedExposure { .. }
@@ -168,7 +255,47 @@ pub fn exposure_probabilities(
             "two-stage saturation uses the exact saturation estimator, not generic assignment enumeration".into(),
         ));
     }
+    check_exposure_cancelled()?;
     let n = incoming.len();
+    // Peak local buffers: assignment, levels, counts/probabilities, and sampler
+    // tables. The caller owns the network itself. Keep the lease through the run.
+    let bytes =
+        u64::try_from(n).ok().and_then(|n| n.checked_mul(96)).ok_or(StatsError::ResourceLimit {
+            message: "exposure probability workspace",
+            required_bytes: u64::MAX,
+            limit_bytes: 0,
+        })?;
+    let _lease = match antecedent_core::numerical_admission::acquire(bytes) {
+        Some(Ok(lease)) => Some(lease),
+        Some(Err(antecedent_core::execution::AdmissionError::Cancelled)) => {
+            return Err(StatsError::Cancelled);
+        }
+        Some(Err(antecedent_core::execution::AdmissionError::ExceedsRemainder {
+            remaining_bytes,
+            ..
+        })) => {
+            return Err(StatsError::ResourceLimit {
+                message: "exposure probability workspace",
+                required_bytes: bytes,
+                limit_bytes: remaining_bytes,
+            });
+        }
+        Some(Err(_)) => {
+            return Err(StatsError::ResourceLimit {
+                message: "exposure probability workspace",
+                required_bytes: bytes,
+                limit_bytes: 0,
+            });
+        }
+        None => None,
+    };
+    admit_exposure_probability_work(
+        design,
+        incoming,
+        monte_carlo_draws,
+        1,
+        antecedent_core::numerical_admission::exposure_probability_work_limit(),
+    )?;
     validate_design(design, n)?;
     validate_exposure_inputs(n, incoming, mapping)?;
     let support_dim = match design {
@@ -229,6 +356,22 @@ pub fn exposure_probabilities(
             .map(|count| f64::from(count) / f64::from(monte_carlo_draws))
             .collect(),
         method: ExposureProbabilityMethod::MonteCarlo { draws: monte_carlo_draws, seed },
+    })
+}
+
+/// Compute one probability level with the caller's memory, work and cancellation policy.
+/// The requested number of Monte Carlo draws is used in full or the operation is refused.
+pub fn exposure_probabilities_with_context(
+    design: &AssignmentDesign,
+    incoming: &[Vec<(usize, f64)>],
+    mapping: &ExposureMapping,
+    level: ExposureLevel,
+    monte_carlo_draws: u32,
+    seed: u64,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<ExposureProbabilities, StatsError> {
+    antecedent_core::numerical_admission::with_context(ctx, || {
+        exposure_probabilities(design, incoming, mapping, level, monte_carlo_draws, seed)
     })
 }
 
@@ -535,6 +678,53 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
+
+    #[test]
+    fn combined_work_quote_refuses_tight_budget_and_overflow() {
+        let incoming = vec![vec![]; 21];
+        let design = AssignmentDesign::Bernoulli { probabilities: Arc::from([0.5]) };
+        let one = 21 * (5 + 4) * 100;
+        assert!(admit_exposure_probability_work(&design, &incoming, 100, 2, one * 2).is_ok());
+        assert!(matches!(
+            admit_exposure_probability_work(&design, &incoming, 100, 2, one * 2 - 1),
+            Err(StatsError::WorkLimit { .. })
+        ));
+        assert!(matches!(
+            admit_exposure_probability_work(&design, &incoming, 100, u64::MAX, u64::MAX),
+            Err(StatsError::WorkLimit { required_work: u64::MAX, .. })
+        ));
+    }
+
+    #[test]
+    fn probability_workspace_is_admitted_before_monte_carlo() {
+        let incoming = vec![vec![]; 21];
+        let design = AssignmentDesign::Bernoulli { probabilities: Arc::from([0.5]) };
+        let ctx = antecedent_core::ExecutionContext::for_tests(1).with_memory_limit(Some(1));
+        let result = antecedent_core::numerical_admission::with_context(&ctx, || {
+            exposure_probabilities(
+                &design,
+                &incoming,
+                &ExposureMapping::OwnTreatment,
+                ExposureLevel { own: 1.0, neighbors: 0.0 },
+                100,
+                7,
+            )
+        });
+        assert!(matches!(result, Err(StatsError::ResourceLimit { .. })));
+        let ctx = antecedent_core::ExecutionContext::for_tests(1).with_memory_limit(Some(21 * 96));
+        let result = antecedent_core::numerical_admission::with_context(&ctx, || {
+            exposure_probabilities(
+                &design,
+                &incoming,
+                &ExposureMapping::OwnTreatment,
+                ExposureLevel { own: 1.0, neighbors: 0.0 },
+                100,
+                7,
+            )
+        })
+        .unwrap();
+        assert_eq!(result.method, ExposureProbabilityMethod::MonteCarlo { draws: 100, seed: 7 });
+    }
 
     #[test]
     fn inherited_cancellation_stops_exact_and_monte_carlo_enumeration() {

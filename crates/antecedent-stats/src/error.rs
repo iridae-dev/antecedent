@@ -20,6 +20,9 @@ pub enum GlmRefusalKind {
 #[derive(Clone, Debug, Eq, PartialEq, Error)]
 #[non_exhaustive]
 pub enum StatsError {
+    /// Worker admission stopped the operation.
+    #[error(transparent)]
+    Admission(antecedent_core::execution::AdmissionError),
     /// Shape mismatch.
     #[error("shape error: {message}")]
     Shape {
@@ -75,16 +78,16 @@ pub enum StatsError {
         /// The hard limit in force.
         limit_bytes: u64,
     },
-    /// A planned exact computation needs more work than the caller declared it may do. The
-    /// quote is computed before the computation starts; nothing was allocated or run.
+    /// A planned computation needs more work than the caller declared it may do. The
+    /// quote is computed before the computation starts; no numerical draws are run.
     #[error(
         "work limit: {message} needs {required_work} operations, limit {limit_work}; next \
-         attempt: raise the work limit or request an approximation mode explicitly"
+         attempt: raise the work limit or change the requested computation"
     )]
     WorkLimit {
         /// What was being planned.
         message: &'static str,
-        /// Operations the exact computation needs.
+        /// Logical operations the computation needs.
         required_work: u64,
         /// The caller's declared ceiling.
         limit_work: u64,
@@ -178,5 +181,23 @@ mod singular_route_tests {
         assert_eq!(error.to_string(), "backend error: Python CI callback failed: boom");
         assert_eq!(CallbackFailure::in_chain(&error), Some(&failure));
         assert!(CallbackFailure::in_chain(&StatsError::Cancelled).is_none());
+    }
+}
+
+impl<E> From<antecedent_core::execution::MapExecutionError<E>> for StatsError
+where
+    Self: From<E>,
+{
+    fn from(error: antecedent_core::execution::MapExecutionError<E>) -> Self {
+        match error {
+            antecedent_core::execution::MapExecutionError::Admission(error) => {
+                if matches!(error, antecedent_core::execution::AdmissionError::Cancelled) {
+                    Self::Cancelled
+                } else {
+                    Self::Admission(error)
+                }
+            }
+            antecedent_core::execution::MapExecutionError::Work(error) => Self::from(error),
+        }
     }
 }

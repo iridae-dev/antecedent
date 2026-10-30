@@ -48,8 +48,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::sync::Arc;
-
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity,
     IdentificationStatus, Intervention, ResponseQuery, Value,

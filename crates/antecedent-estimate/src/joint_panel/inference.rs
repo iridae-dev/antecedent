@@ -605,7 +605,8 @@ fn posterior_draws(
             }
         })?;
         let transformed: Vec<_> = samples.samples.chunks_exact(p).flat_map(transform).collect();
-        let summary = mcmc_summary_parallel(&transformed, sampler.chains, sampler.draws, p, ctx);
+        let summary = mcmc_summary_parallel(&transformed, sampler.chains, sampler.draws, p, ctx)
+            .map_err(PanelError::from)?;
         diagnostics.max_rhat = Some(summary.max_rhat);
         diagnostics.min_bulk_ess = Some(summary.min_bulk_ess);
         diagnostics.min_tail_ess = Some(summary.min_tail_ess);

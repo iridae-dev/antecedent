@@ -49,6 +49,9 @@ pub struct ExecutionContext {
     /// treatment interval. Private, set by [`Self::with_pulse_extrapolation_ranges`]; every
     /// constructor leaves it unset, which reads as [`Self::DEFAULT_PULSE_EXTRAPOLATION_RANGES`].
     pub(super) pulse_extrapolation_ranges: Option<f64>,
+    /// Explicit logical-operation ceiling for an exposure-probability procedure.
+    pub(super) exposure_probability_work_limit: Option<u64>,
+    pub(super) hmc_work_limit: Option<u64>,
 }
 
 impl ExecutionContext {
@@ -72,6 +75,43 @@ impl ExecutionContext {
         let mut scoped = self.clone();
         scoped.imputation_bootstrap = (replicates > 0).then_some(replicates);
         scoped
+    }
+
+    /// Default exposure-probability logical-operation ceiling, shared with bounded
+    /// procedure simulation. It bounds total work, not the requested draw count.
+    pub const DEFAULT_EXPOSURE_PROBABILITY_WORK_LIMIT: u64 = 4_000_000_000;
+
+    /// Set the total exposure-probability work ceiling for an execution.
+    /// A larger value explicitly authorizes more work without changing draws.
+    #[must_use]
+    pub fn with_exposure_probability_work_limit(&self, limit: u64) -> Self {
+        let mut scoped = self.clone();
+        scoped.exposure_probability_work_limit = Some(limit);
+        scoped
+    }
+
+    /// The caller's ceiling, or the default when unspecified.
+    #[must_use]
+    pub fn exposure_probability_work_limit(&self) -> u64 {
+        self.exposure_probability_work_limit
+            .unwrap_or(Self::DEFAULT_EXPOSURE_PROBABILITY_WORK_LIMIT)
+    }
+
+    /// Default HMC logical-operation ceiling.
+    pub const DEFAULT_HMC_WORK_LIMIT: u64 = 4_000_000_000;
+
+    /// Set the total HMC work ceiling without changing the sampling schedule.
+    #[must_use]
+    pub fn with_hmc_work_limit(&self, limit: u64) -> Self {
+        let mut scoped = self.clone();
+        scoped.hmc_work_limit = Some(limit);
+        scoped
+    }
+
+    /// HMC work ceiling for this execution.
+    #[must_use]
+    pub fn hmc_work_limit(&self) -> u64 {
+        self.hmc_work_limit.unwrap_or(Self::DEFAULT_HMC_WORK_LIMIT)
     }
 
     /// The pulse extrapolation bound a context carries unless one is set: the active level of a
@@ -139,6 +179,8 @@ impl ExecutionContext {
             lowered_scope: None,
             imputation_bootstrap: None,
             pulse_extrapolation_ranges: None,
+            exposure_probability_work_limit: None,
+            hmc_work_limit: None,
         }
     }
 
@@ -181,6 +223,8 @@ impl ExecutionContext {
             lowered_scope: None,
             imputation_bootstrap: None,
             pulse_extrapolation_ranges: None,
+            exposure_probability_work_limit: None,
+            hmc_work_limit: None,
         }
     }
 
@@ -260,6 +304,26 @@ impl ExecutionContext {
         bytes: u64,
     ) -> Result<AdmissionLease, AdmissionError> {
         self.acquire_request(AdmissionRequest::new(threads, bytes), None)
+    }
+
+    /// Admit a synchronous numerical kernel that runs entirely on the calling thread.
+    ///
+    /// Inside an admitted map worker from this pool, the kernel uses that worker's
+    /// CPU slot; otherwise it reserves one CPU slot. In either case, `bytes` are
+    /// separately admitted and cancellation is checked. The returned lease must be
+    /// held for the kernel's duration. It does not authorize spawning another thread;
+    /// code that starts workers must admit those workers explicitly.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same admission and cancellation errors as [`Self::acquire_admission`].
+    pub fn acquire_serial_numerical_admission(
+        &self,
+        bytes: u64,
+    ) -> Result<AdmissionLease, AdmissionError> {
+        let has_worker = crate::numerical_admission::worker()
+            .is_some_and(|worker| worker.belongs_to(&self.admission));
+        self.acquire_admission(u32::from(!has_worker), bytes)
     }
 
     /// Wait up to `bound` for a root lease. Cancellation ends the wait with no hold.

@@ -119,6 +119,7 @@ where
         || (Vec::new(), Vec::new()),
         |replicate, inner, scratch| f(replicate, inner, &mut scratch.0, &mut scratch.1),
     )
+    .map_err(Into::into)
 }
 
 /// The problem a penalized refit bootstrap resamples.

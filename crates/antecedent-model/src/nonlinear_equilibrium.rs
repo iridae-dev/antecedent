@@ -628,7 +628,7 @@ impl EquilibriumModel {
             return Err(SolverBudgetCode::Memory.refusal(bytes, policy.max_bytes));
         }
         let _lease = ctx
-            .acquire_admission(1, bytes)
+            .acquire_serial_numerical_admission(bytes)
             .map_err(|e| EquilibriumError::Resource(e.to_string()))?;
         let mut budget =
             Budget { ctx, started: Instant::now(), wall_ms: policy.max_wall_clock_ms, checks: 0 };
@@ -985,19 +985,6 @@ impl EquilibriumModel {
             .collect()
     }
 
-    pub(crate) fn residual_jacobian(&self, state: &[f64], free: &[usize]) -> Vec<f64> {
-        let mut jac = Vec::with_capacity(free.len() * free.len());
-        for &i in free {
-            let e = &self.equations[i];
-            let derivatives =
-                e.input_derivatives(state).unwrap_or_else(|_| vec![f64::NAN; state.len()]);
-            for &j in free {
-                jac.push((if i == j { 1.0 } else { 0.0 }) - derivatives[j]);
-            }
-        }
-        jac
-    }
-
     /// Recover additive structural noise from a fully observed factual state.
     /// This conditions on a specified model; it does not identify that model from data.
     pub fn abduce(&self, factual: &[f64]) -> Result<Vec<f64>, EquilibriumError> {
@@ -1045,8 +1032,7 @@ impl EquilibriumModel {
             .max()
             .unwrap_or(0);
         let _lease = ctx
-            .acquire_admission(
-                1,
+            .acquire_serial_numerical_admission(
                 u64::try_from(64 * n * n + 128 * n + tape_nodes * (2 * n + 8) * 8)
                     .map_err(|_| invalid("resource size"))?,
             )
@@ -1162,7 +1148,7 @@ impl EquilibriumModel {
         let bytes = u64::try_from(96 * n * n + 128 * n + tape_nodes * (3 * n + 10) * 8)
             .map_err(|_| invalid("score resources"))?;
         let _lease = ctx
-            .acquire_admission(1, bytes)
+            .acquire_serial_numerical_admission(bytes)
             .map_err(|e| EquilibriumError::Resource(e.to_string()))?;
         for row in rows {
             check_cancel(ctx)?;

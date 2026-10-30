@@ -53,6 +53,60 @@ const MIN_EXPOSURE_PROBABILITY: f64 = 0.01;
 /// Re-randomizations when the study requested no replicates.
 const DEFAULT_REDRAWS: u32 = 199;
 
+/// Admit one complete study operation: the initial probability pair (when
+/// used) plus every pair in its Full-suite re-randomization. Independent API
+/// calls receive independent ceilings even when they reuse the same context.
+pub(super) fn admit_interference_procedure(
+    query: &InterferenceQuery,
+    units: usize,
+    edges: usize,
+    initial_pair: bool,
+    has_estimate: bool,
+    suite: RefuteSuite,
+    replicates: u32,
+    ctx: &ExecutionContext,
+) -> Result<(), CausalError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_VALIDATE });
+    }
+    let supported = matches!(
+        query.assignment,
+        AssignmentDesign::Bernoulli { .. }
+            | AssignmentDesign::CompleteRandomization { .. }
+            | AssignmentDesign::ClusterRandomization { .. }
+    );
+    if !supported {
+        return Ok(());
+    }
+    let redraws = if has_estimate && suite == RefuteSuite::Full {
+        if replicates == 0 { DEFAULT_REDRAWS } else { replicates.max(2) }
+    } else {
+        0
+    };
+    let levels = 2 * (u64::from(redraws) + if initial_pair { 1 } else { 0 });
+    if levels == 0 {
+        return Ok(());
+    }
+    let bytes = u64::try_from(units).ok().and_then(|n| n.checked_mul(4)).ok_or_else(|| {
+        CausalError::Resource { message: "interference work quote size overflow".into() }
+    })?;
+    let _quote = ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            CausalError::Cancelled { stage: crate::analysis::stage::STAGE_VALIDATE }
+        }
+        other => CausalError::Resource { message: format!("interference work quote: {other}") },
+    })?;
+    antecedent_stats::interference::admit_exposure_probability_work_for_shape(
+        &query.assignment,
+        units,
+        u64::try_from(edges).unwrap_or(u64::MAX),
+        query.probability_draws,
+        levels,
+        ctx.exposure_probability_work_limit(),
+    )
+    .map_err(|error| super::checked_interference::interference_estimation_error(error.into()))
+}
+
 /// Borrowed inputs of one interference refutation.
 pub(super) struct InterferenceRefutationInput<'a> {
     pub(super) query: &'a InterferenceQuery,
@@ -437,6 +491,29 @@ fn randomization_unbiasedness(
     }
     // The request is honoured; a mean test needs two draws, so a smaller request is raised to it.
     let redraws = if input.replicates == 0 { DEFAULT_REDRAWS } else { input.replicates.max(2) };
+    // Each redraw recomputes both exposure levels. Admit the whole refutation,
+    // not merely one estimator invocation, before allocating or drawing.
+    // The quote deduplicates cluster IDs; account for that temporary buffer.
+    let quote_bytes =
+        u64::try_from(units).ok().and_then(|n| n.checked_mul(4)).ok_or_else(|| {
+            CausalError::Resource { message: "interference work quote size overflow".into() }
+        })?;
+    let quote_lease = ctx.acquire_admission(0, quote_bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            CausalError::Cancelled { stage: crate::analysis::stage::STAGE_VALIDATE }
+        }
+        other => CausalError::Resource { message: format!("interference work quote: {other}") },
+    })?;
+    antecedent_stats::interference::admit_exposure_probability_work_for_shape(
+        design,
+        units,
+        u64::try_from(input.network.edges().len()).unwrap_or(u64::MAX),
+        input.query.probability_draws,
+        2 * u64::from(redraws),
+        ctx.exposure_probability_work_limit(),
+    )
+    .map_err(|error| super::checked_interference::interference_estimation_error(error.into()))?;
+    drop(quote_lease);
     let _admitted = super::gcm_bootstrap::admit_replicates(ctx, redraws, 1, units)?;
     let mut contrasts = Vec::with_capacity(redraws as usize);
     let mut failed = 0_u32;
@@ -460,10 +537,19 @@ fn randomization_unbiasedness(
             continue;
         };
         let seed = rng.next_u64();
-        match estimate_interference(input.query, input.network, &assignment, seed) {
+        match antecedent_core::numerical_admission::with_context(ctx, || {
+            estimate_interference(input.query, input.network, &assignment, seed)
+        }) {
             Ok(estimate) if estimate.contrast.horvitz_thompson.is_finite() => {
                 contrasts.push(estimate.contrast.horvitz_thompson);
             }
+            Err(
+                error @ antecedent_estimate::EstimationError::Stats(
+                    antecedent_stats::StatsError::Cancelled
+                    | antecedent_stats::StatsError::ResourceLimit { .. }
+                    | antecedent_stats::StatsError::WorkLimit { .. },
+                ),
+            ) => return Err(super::checked_interference::interference_estimation_error(error)),
             _ => failed += 1,
         }
     }
@@ -557,6 +643,46 @@ mod tests {
                 to: ExposureLevel { own: 1.0, neighbors: 0.0 },
             },
         )
+    }
+
+    #[test]
+    fn whole_procedure_admits_initial_pair_plus_full_refutations() {
+        let mut q = query(AssignmentDesign::Bernoulli { probabilities: Arc::from([0.5]) });
+        q.probability_draws = 100;
+        let needed = match antecedent_stats::interference::admit_exposure_probability_work_for_shape(
+            &q.assignment,
+            21,
+            0,
+            q.probability_draws,
+            6,
+            0,
+        ) {
+            Err(antecedent_stats::StatsError::WorkLimit { required_work, .. }) => required_work,
+            other => panic!("expected a work quote, got {other:?}"),
+        };
+        let base = ExecutionContext::for_tests(3);
+        let high = base.with_exposure_probability_work_limit(needed);
+        assert!(
+            admit_interference_procedure(&q, 21, 0, true, true, RefuteSuite::Full, 2, &high)
+                .is_ok()
+        );
+        let low = base.with_exposure_probability_work_limit(needed - 1);
+        assert!(matches!(
+            admit_interference_procedure(&q, 21, 0, true, true, RefuteSuite::Full, 2, &low),
+            Err(CausalError::Resource { .. })
+        ));
+        // Redraws alone fit this ceiling: the initial pair must not be free.
+        assert!(
+            antecedent_stats::interference::admit_exposure_probability_work_for_shape(
+                &q.assignment,
+                21,
+                0,
+                q.probability_draws,
+                4,
+                needed - 1,
+            )
+            .is_ok()
+        );
     }
 
     #[test]

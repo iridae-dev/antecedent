@@ -483,6 +483,25 @@ pub enum PanelError {
     Cancelled,
 }
 
+impl From<antecedent_core::execution::AdmissionError> for PanelError {
+    fn from(error: antecedent_core::execution::AdmissionError) -> Self {
+        if matches!(error, antecedent_core::execution::AdmissionError::Cancelled) {
+            Self::Cancelled
+        } else {
+            Self::Resource(error.to_string())
+        }
+    }
+}
+
+impl From<antecedent_core::execution::MapExecutionError<PanelError>> for PanelError {
+    fn from(error: antecedent_core::execution::MapExecutionError<PanelError>) -> Self {
+        match error {
+            antecedent_core::execution::MapExecutionError::Admission(error) => Self::from(error),
+            antecedent_core::execution::MapExecutionError::Work(error) => error,
+        }
+    }
+}
+
 fn invalid(message: &str) -> PanelError {
     PanelError::Invalid(message.into())
 }
@@ -661,7 +680,11 @@ impl PanelData {
                 writer.word(values.len() as u64);
                 for value in values {
                     // An excluded period has one canonical identity whatever NaN payload carries it.
-                    writer.word(if value.is_nan() { 0x7ff8_0000_0000_0001 } else { value.to_bits() });
+                    writer.word(if value.is_nan() {
+                        0x7ff8_0000_0000_0001
+                    } else {
+                        value.to_bits()
+                    });
                 }
             }
             writer.word(group.season.len() as u64);

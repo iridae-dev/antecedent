@@ -352,6 +352,7 @@ fn residual_pairs(
         let rc = residuals(&base_model, &comparison, target, &mut comparison_rng)?;
         Ok::<_, AttributionError>((target, rb, rc))
     })
+    .map_err(Into::into)
 }
 
 /// Fewest block permutations a dependent-series test runs (the smallest attainable p-value is

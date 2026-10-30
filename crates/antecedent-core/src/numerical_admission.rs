@@ -93,6 +93,38 @@ pub fn acquire(bytes: u64) -> Option<Result<AdmissionLease, AdmissionError>> {
     result
 }
 
+/// Whether this thread carries a workflow context.
+#[doc(hidden)]
+#[must_use]
+pub fn has_context() -> bool {
+    ACTIVE.with(|active| active.borrow().context.is_some())
+}
+
+/// Exposure-probability work ceiling from the active workflow, or the default.
+#[doc(hidden)]
+#[must_use]
+pub fn exposure_probability_work_limit() -> u64 {
+    ACTIVE.with(|active| {
+        active.borrow().context.as_ref().map_or(
+            ExecutionContext::DEFAULT_EXPOSURE_PROBABILITY_WORK_LIMIT,
+            ExecutionContext::exposure_probability_work_limit,
+        )
+    })
+}
+
+/// HMC work ceiling from the active workflow, or the finite default.
+#[doc(hidden)]
+#[must_use]
+pub fn hmc_work_limit() -> u64 {
+    ACTIVE.with(|active| {
+        active
+            .borrow()
+            .context
+            .as_ref()
+            .map_or(ExecutionContext::DEFAULT_HMC_WORK_LIMIT, ExecutionContext::hmc_work_limit)
+    })
+}
+
 /// Check the active workflow's cancellation at an original numerical loop boundary.
 #[doc(hidden)]
 #[must_use]

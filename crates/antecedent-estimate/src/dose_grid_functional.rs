@@ -847,8 +847,8 @@ fn grid_rows(
         )
         .map_err(|error| match error {
             antecedent_core::execution::MapExecutionError::Work(error) => error,
-            antecedent_core::execution::MapExecutionError::Admission(_) => {
-                antecedent_stats::StatsError::Cancelled.into()
+            antecedent_core::execution::MapExecutionError::Admission(error) => {
+                EstimationError::Admission(error)
             }
         })?;
     Ok((levels, derivatives))
@@ -946,7 +946,12 @@ fn prepare_rows(
     };
     let clusters = match declared.dependence {
         RowDependence::Clustered(groups) => Some(
-            groups.iter().zip(&keep).filter(|(_, kept)| **kept).map(|(g, _)| *g).collect::<Vec<_>>(),
+            groups
+                .iter()
+                .zip(&keep)
+                .filter(|(_, kept)| **kept)
+                .map(|(g, _)| *g)
+                .collect::<Vec<_>>(),
         ),
         _ => None,
     };
@@ -1022,7 +1027,12 @@ pub fn estimate_dose_grid_functional_declared(
     }
     validate_claims(request)?;
     if declared.is_plain() {
-        return evaluate_prepared(request, &RowDeclaration::default(), DeclaredRows::default(), ctx);
+        return evaluate_prepared(
+            request,
+            &RowDeclaration::default(),
+            DeclaredRows::default(),
+            ctx,
+        );
     }
     let prepared = prepare_rows(request, declared)?;
     let record = declared_rows(&prepared, declared.dependence)?;
@@ -1079,16 +1089,8 @@ fn evaluate_prepared(
                     &error.to_string(),
                 )
             })?;
-            let row = contrast_row(
-                request,
-                declared,
-                quantile,
-                from,
-                to,
-                &labels,
-                &mut numerical,
-                ctx,
-            )?;
+            let row =
+                contrast_row(request, declared, quantile, from, to, &labels, &mut numerical, ctx)?;
             (Vec::new(), Vec::new(), Some(row))
         }
         DoseFunctional::Level | DoseFunctional::Derivative => {
@@ -1320,8 +1322,7 @@ pub fn estimate_dose_grid_bias_aware_declared(
             RowDependence::Serial { lag } => RowDependence::Serial { lag },
         },
     };
-    let mut base =
-        DoseGridRequest { dose: &prepared.dose, outcome: &prepared.outcome, ..*request };
+    let mut base = DoseGridRequest { dose: &prepared.dose, outcome: &prepared.outcome, ..*request };
     base.claims.simultaneous_band = false;
     if ctx.cancellation.is_cancelled() {
         return Err(antecedent_stats::StatsError::Cancelled.into());
@@ -1361,12 +1362,12 @@ pub fn estimate_dose_grid_bias_aware_declared(
             rows.sampling_weights,
         )
         .ok_or_else(|| {
-                    refuse(
-                        antecedent_core::reason_code!("cell_not_licensed"),
-                        "dose_grid.insufficient_local_weight",
-                        &format!("the local quadratic is singular at dose {at}"),
-                    )
-                })?;
+            refuse(
+                antecedent_core::reason_code!("cell_not_licensed"),
+                "dose_grid.insufficient_local_weight",
+                &format!("the local quadratic is singular at dose {at}"),
+            )
+        })?;
         let influence: Vec<f64> = weights.iter().zip(&residuals).map(|(l, e)| l * e).collect();
         let worst: f64 =
             weights.iter().zip(request.dose).map(|(l, d)| l.abs() * (d - at).abs().powi(3)).sum();

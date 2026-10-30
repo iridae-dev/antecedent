@@ -207,6 +207,7 @@ impl super::Study {
                 ),
             }
         })
+        .map_err(Into::into)
     }
 
     /// Class-envelope, aggregation-policy and withheld-uncertainty disclosures of the response.

@@ -607,6 +607,10 @@ mod physical_observation_tests {
             ctx.map_indexed(4, |_, _| {
                 record_physical(PhysicalEvent::Scan, 1);
                 Ok::<_, crate::execution::AdmissionError>(())
+            })
+            .map_err(|error| match error {
+                crate::execution::MapExecutionError::Admission(error)
+                | crate::execution::MapExecutionError::Work(error) => error,
             })?;
             Err(crate::execution::AdmissionError::Cancelled)
         });

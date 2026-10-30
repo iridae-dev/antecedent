@@ -64,10 +64,8 @@ pub(super) fn refuse_missing_trial_design(
     if let Some(row) = trial.iter().position(|value| !value.is_finite()) {
         return Err(missing("the trial indicator", row));
     }
-    if let Some(row) = treatment
-        .iter()
-        .zip(trial)
-        .position(|(value, member)| *member != 0.0 && !value.is_finite())
+    if let Some(row) =
+        treatment.iter().zip(trial).position(|(value, member)| *member != 0.0 && !value.is_finite())
     {
         return Err(missing("the treatment of a trial row", row));
     }
@@ -317,13 +315,25 @@ impl super::Study {
         let antecedent_core::InterferenceFunctional::ExposureContrast { outcome, .. } =
             query.functional;
         let bayesian_model = self.settings.inference.is_bayesian();
+        super::interference_refutation::admit_interference_procedure(
+            query,
+            spec.assignment.len(),
+            spec.network.edges().len(),
+            !bayesian_model,
+            !bayesian_model,
+            self.settings.refute,
+            self.settings.bootstrap_replicates,
+            ctx,
+        )?;
         let estimated = if bayesian_model {
             None
         } else {
             let seed = ctx.rng.stream_for(StreamDomain::Transport, 0x1F7E).next_u64();
             Some(
-                estimate_interference(query, &spec.network, &spec.assignment, seed)
-                    .map_err(CausalError::from)?,
+                antecedent_core::numerical_admission::with_context(ctx, || {
+                    estimate_interference(query, &spec.network, &spec.assignment, seed)
+                })
+                .map_err(super::checked_interference::interference_estimation_error)?,
             )
         };
         let (identification, estimand) =
@@ -607,7 +617,9 @@ pub(super) fn frequentist_transport_estimate(
     };
     let message = match dependence {
         TrialDependence::Independent => {
-            format!("binary trial-to-target{weighted} IPW; inner ResponseCurve names treatment/outcome only")
+            format!(
+                "binary trial-to-target{weighted} IPW; inner ResponseCurve names treatment/outcome only"
+            )
         }
         TrialDependence::Series(lag) => format!(
             "binary trial-to-target{weighted} IPW on the consecutive times of one series; the SE \

@@ -214,7 +214,86 @@ pub fn estimate_interference(
     assignment: &[bool],
     seed: u64,
 ) -> Result<InterferenceEstimate, EstimationError> {
+    if !antecedent_core::numerical_admission::has_context() {
+        let ctx = ExecutionContext::production_default(seed)
+            .with_memory_limit(Some(2 * 1024 * 1024 * 1024));
+        return estimate_interference_with_context(query, data, assignment, seed, &ctx);
+    }
+    if antecedent_core::numerical_admission::is_cancelled() {
+        return Err(antecedent_stats::StatsError::Cancelled.into());
+    }
+    // Reserve the complete peak before constructing adjacency, outcomes, observed
+    // exposures, cluster validation tables and the two probability buffers. The
+    // numerical kernel draws its scratch from this same parent lease.
+    let n = u64::try_from(assignment.len()).unwrap_or(u64::MAX);
+    let edges = u64::try_from(data.edges().len()).unwrap_or(u64::MAX);
+    let bytes = n
+        .checked_mul(320)
+        .and_then(|b| edges.checked_mul(16).and_then(|e| b.checked_add(e)))
+        .ok_or(antecedent_stats::StatsError::ResourceLimit {
+            message: "interference workspace",
+            required_bytes: u64::MAX,
+            limit_bytes: 0,
+        })?;
+    let lease = match antecedent_core::numerical_admission::acquire(bytes) {
+        Some(Ok(lease)) => std::sync::Arc::new(lease),
+        Some(Err(antecedent_core::execution::AdmissionError::Cancelled)) => {
+            return Err(antecedent_stats::StatsError::Cancelled.into());
+        }
+        Some(Err(antecedent_core::execution::AdmissionError::ExceedsRemainder {
+            remaining_bytes,
+            ..
+        })) => {
+            return Err(antecedent_stats::StatsError::ResourceLimit {
+                message: "interference workspace",
+                required_bytes: bytes,
+                limit_bytes: remaining_bytes,
+            }
+            .into());
+        }
+        Some(Err(_)) | None => {
+            return Err(antecedent_stats::StatsError::ResourceLimit {
+                message: "interference workspace",
+                required_bytes: bytes,
+                limit_bytes: 0,
+            }
+            .into());
+        }
+    };
+    antecedent_core::numerical_admission::with_reservation(lease, || {
+        estimate_interference_admitted(query, data, assignment, seed)
+    })
+}
+
+/// Run the direct estimator with the caller's memory, work and cancellation policy.
+/// The full requested Monte Carlo draw count is used or the operation is refused.
+pub fn estimate_interference_with_context(
+    query: &InterferenceQuery,
+    data: &NetworkData,
+    assignment: &[bool],
+    seed: u64,
+    ctx: &ExecutionContext,
+) -> Result<InterferenceEstimate, EstimationError> {
+    antecedent_core::numerical_admission::with_context(ctx, || {
+        estimate_interference(query, data, assignment, seed)
+    })
+}
+
+fn estimate_interference_admitted(
+    query: &InterferenceQuery,
+    data: &NetworkData,
+    assignment: &[bool],
+    seed: u64,
+) -> Result<InterferenceEstimate, EstimationError> {
     query.validate()?;
+    antecedent_stats::interference::admit_exposure_probability_work_for_shape(
+        &query.assignment,
+        assignment.len(),
+        u64::try_from(data.edges().len()).unwrap_or(u64::MAX),
+        query.probability_draws,
+        2,
+        antecedent_core::numerical_admission::exposure_probability_work_limit(),
+    )?;
     if assignment.len() != data.units().row_count() {
         return Err(EstimationError::data_msg("assignment/network row count mismatch"));
     }
@@ -839,6 +918,51 @@ mod tests {
         assert!(estimate_cluster_interference_total(&query, &network, &assignment).is_ok());
         assert!(
             estimate_cluster_interference_total_pointwise(&query, &network, &assignment).is_err()
+        );
+    }
+
+    #[test]
+    fn direct_interference_admits_both_probability_runs_and_preserves_draws() {
+        let outcomes = vec![1.0; 21];
+        let table = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
+        let data = NetworkData::try_new(table, []).unwrap();
+        let mut query = InterferenceQuery::new(
+            AssignmentDesign::Bernoulli { probabilities: Arc::from([0.5]) },
+            ExposureMapping::OwnTreatment,
+            InterferenceFunctional::ExposureContrast {
+                outcome: VariableId::from_raw(0),
+                from: own_treatment_level(false),
+                to: own_treatment_level(true),
+            },
+        );
+        query.probability_draws = 100;
+        let assignment = (0..21).map(|i| i % 2 == 0).collect::<Vec<_>>();
+        let base = ExecutionContext::for_tests(1);
+        let low_work = base.with_exposure_probability_work_limit(1);
+        assert!(matches!(
+            estimate_interference_with_context(&query, &data, &assignment, 7, &low_work),
+            Err(EstimationError::Stats(antecedent_stats::StatsError::WorkLimit { .. }))
+        ));
+        let low_memory = base.clone().with_memory_limit(Some(1));
+        assert!(matches!(
+            estimate_interference_with_context(&query, &data, &assignment, 7, &low_memory),
+            Err(EstimationError::Stats(antecedent_stats::StatsError::ResourceLimit { .. }))
+        ));
+        let cancelled = ExecutionContext::for_tests(1);
+        cancelled.cancellation.cancel();
+        assert!(matches!(
+            estimate_interference_with_context(&query, &data, &assignment, 7, &cancelled),
+            Err(EstimationError::Stats(antecedent_stats::StatsError::Cancelled))
+        ));
+        let success =
+            estimate_interference_with_context(&query, &data, &assignment, 7, &base).unwrap();
+        assert_eq!(
+            success.from_probability_method,
+            ExposureProbabilityMethod::MonteCarlo { draws: 100, seed: 7 }
+        );
+        assert_eq!(
+            success.to_probability_method,
+            ExposureProbabilityMethod::MonteCarlo { draws: 100, seed: 8 }
         );
     }
 

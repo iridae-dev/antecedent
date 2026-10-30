@@ -24,6 +24,8 @@ mod request;
 mod rng;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod worker_tests;
 
 pub use admission::{
     AdmissionError, AdmissionLease, AdmissionPool, AdmissionRemainder, AdmissionRequest,

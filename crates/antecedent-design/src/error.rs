@@ -8,6 +8,9 @@ use thiserror::Error;
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum DesignError {
+    /// Worker admission could not fund this design evaluation.
+    #[error("design resource refusal: {0}")]
+    Resource(String),
     /// Empty candidate list.
     #[error("no candidate designs to rank")]
     EmptyCandidates,
@@ -67,5 +70,23 @@ mod tests {
         assert_eq!(error.to_string(), "callback utility: utility failed: boom");
         assert_eq!(CallbackFailure::in_chain(&error), Some(&failure));
         assert!(CallbackFailure::in_chain(&DesignError::Cancelled).is_none());
+    }
+}
+
+impl<E> From<antecedent_core::execution::MapExecutionError<E>> for DesignError
+where
+    Self: From<E>,
+{
+    fn from(error: antecedent_core::execution::MapExecutionError<E>) -> Self {
+        match error {
+            antecedent_core::execution::MapExecutionError::Admission(error) => {
+                if matches!(error, antecedent_core::execution::AdmissionError::Cancelled) {
+                    Self::Cancelled
+                } else {
+                    Self::Resource(error.to_string())
+                }
+            }
+            antecedent_core::execution::MapExecutionError::Work(error) => Self::from(error),
+        }
     }
 }

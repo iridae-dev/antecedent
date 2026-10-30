@@ -107,8 +107,32 @@ impl InferenceBackend for HmcGlmBackend {
         workspace: &mut LaplaceWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<BayesFitResult, ProbError> {
-        prior.validate()?;
-        fit_hmc_impl(likelihood, design, prior, options, self.options, workspace, Some(ctx))
+        antecedent_core::numerical_admission::with_context(ctx, || {
+            admit_hmc_work(design, prior, options, self.options, Some(ctx))?;
+            {
+                let cells = prior
+                    .specs
+                    .iter()
+                    .try_fold(0_usize, |largest, spec| {
+                        if let crate::prior::PriorSpec::CoefficientCorrelation(corr) = spec {
+                            corr.dim()
+                                .checked_mul(corr.dim())
+                                .and_then(|n| n.checked_mul(2))
+                                .map(|n| n.max(largest))
+                        } else {
+                            Some(largest)
+                        }
+                    })
+                    .ok_or(ProbError::Admission(
+                        antecedent_core::execution::AdmissionError::Overflow,
+                    ))?;
+                let _prior_validation = crate::admission::admit_cells(Some(ctx), cells)?;
+                prior.validate()?;
+                check_hmc_cancelled()?;
+            }
+            fit_hmc_impl(likelihood, design, prior, options, self.options, workspace, Some(ctx))
+        })
+        .map_err(hmc_cancel_error)
     }
 }
 
@@ -319,7 +343,37 @@ pub fn fit_hmc_glm(
     hmc: HmcOptions,
     workspace: &mut LaplaceWorkspace,
 ) -> Result<BayesFitResult, ProbError> {
-    fit_hmc_impl(likelihood, design, prior, fit_opts, hmc, workspace, None)
+    if antecedent_core::numerical_admission::has_context() {
+        return fit_hmc_impl(likelihood, design, prior, fit_opts, hmc, workspace, None);
+    }
+    let ctx = ExecutionContext::production_default(fit_opts.seed)
+        .with_memory_limit(Some(2 * 1024 * 1024 * 1024));
+    fit_hmc_glm_with_context(likelihood, design, prior, fit_opts, hmc, workspace, &ctx)
+}
+
+/// Run serial HMC with an explicit memory, work and cancellation policy.
+/// The requested sampling schedule is executed in full or refused.
+pub fn fit_hmc_glm_with_context(
+    likelihood: BayesLikelihood,
+    design: BayesDesignRef<'_>,
+    prior: &PriorSet,
+    fit_opts: &BayesFitOptions,
+    hmc: HmcOptions,
+    workspace: &mut LaplaceWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<BayesFitResult, ProbError> {
+    antecedent_core::numerical_admission::with_context(ctx, || {
+        fit_hmc_impl(likelihood, design, prior, fit_opts, hmc, workspace, None)
+    })
+}
+
+fn hmc_cancel_error(error: ProbError) -> ProbError {
+    match error {
+        ProbError::Admission(antecedent_core::execution::AdmissionError::Cancelled) => {
+            ProbError::Cancelled { stage: "hmc.cancelled" }
+        }
+        other => other,
+    }
 }
 
 fn fit_hmc_impl(
@@ -331,6 +385,45 @@ fn fit_hmc_impl(
     workspace: &mut LaplaceWorkspace,
     ctx: Option<&ExecutionContext>,
 ) -> Result<BayesFitResult, ProbError> {
+    fit_hmc_impl_inner(likelihood, design, prior, fit_opts, hmc, workspace, ctx)
+        .map_err(hmc_cancel_error)
+}
+
+fn fit_hmc_impl_inner(
+    likelihood: BayesLikelihood,
+    design: BayesDesignRef<'_>,
+    prior: &PriorSet,
+    fit_opts: &BayesFitOptions,
+    hmc: HmcOptions,
+    workspace: &mut LaplaceWorkspace,
+    ctx: Option<&ExecutionContext>,
+) -> Result<BayesFitResult, ProbError> {
+    // Quote the complete sampler and absolute-scale preprocessing before the
+    // Gaussian resolver can allocate or run an OLS fit.
+    admit_hmc_work(design, prior, fit_opts, hmc, ctx)?;
+    let _prior_preprocessing = if likelihood == BayesLikelihood::GaussianIdentity
+        && hmc_has_absolute_scale(prior)
+    {
+        let p = design.ncols;
+        let metadata = prior
+            .restrictions
+            .iter()
+            .try_fold(0_usize, |n, r| n.checked_add(r.id.len()))
+            .and_then(|n| n.checked_mul(4))
+            .and_then(|n| prior.specs.len().checked_mul(16).and_then(|v| n.checked_add(v)))
+            .and_then(|n| prior.restrictions.len().checked_mul(4).and_then(|v| n.checked_add(v)))
+            .and_then(|n| n.checked_add(prior.categorical.len()))
+            .ok_or(ProbError::Admission(antecedent_core::execution::AdmissionError::Overflow))?;
+        let cells = p
+            .checked_mul(p)
+            .and_then(|sq| sq.checked_mul(6))
+            .and_then(|sq| p.checked_mul(8).and_then(|v| sq.checked_add(v)))
+            .and_then(|v| v.checked_add(metadata))
+            .ok_or(ProbError::Admission(antecedent_core::execution::AdmissionError::Overflow))?;
+        crate::admission::admit_cells(ctx, cells)?
+    } else {
+        None
+    };
     // GLM targets read V0 at σ² ≡ 1, so an absolute-scale prior is already in
     // their units; only a Gaussian target converts it with its residual variance.
     if likelihood == BayesLikelihood::GaussianIdentity {
@@ -339,6 +432,88 @@ fn fit_hmc_impl(
         });
     }
     fit_hmc_resolved(likelihood, design, prior, fit_opts, hmc, workspace, ctx)
+}
+
+fn hmc_has_absolute_scale(prior: &PriorSet) -> bool {
+    prior.restrictions.iter().any(|restriction| {
+        restriction
+            .id
+            .strip_prefix(crate::prior::ABSOLUTE_COEFFICIENT_SCALE_ID)
+            .is_some_and(|suffix| suffix.starts_with(':'))
+    })
+}
+
+/// Preflight every chain, diagnostic and prior setup before data-sized work.
+fn admit_hmc_work(
+    design: BayesDesignRef<'_>,
+    prior: &PriorSet,
+    opts: &BayesFitOptions,
+    hmc: HmcOptions,
+    ctx: Option<&ExecutionContext>,
+) -> Result<(), ProbError> {
+    if ctx.is_some_and(|ctx| ctx.cancellation.is_cancelled()) {
+        return Err(ProbError::Cancelled { stage: "hmc.cancelled" });
+    }
+    check_hmc_cancelled()?;
+    let total_transitions = hmc
+        .n_warmup
+        .checked_add(opts.n_draws)
+        .ok_or(ProbError::Shape { message: "HMC transition count overflow" })?;
+    let limit = ctx.map_or_else(
+        antecedent_core::numerical_admission::hmc_work_limit,
+        ExecutionContext::hmc_work_limit,
+    );
+    let work = (|| {
+        let rows = u64::try_from(design.nrows).ok()?;
+        let p = u64::try_from(design.ncols).ok()?;
+        let cols = p.checked_add(1)?;
+        let square = cols.checked_mul(cols)?;
+        let sweep = rows.checked_mul(cols)?.checked_add(square)?.checked_add(cols)?;
+        let steps = u64::from(hmc.leapfrog_steps).checked_add(1)?;
+        let transitions = u64::try_from(total_transitions).ok()?;
+        let chains = u64::try_from(hmc.n_chains).ok()?;
+        let sampling = sweep.checked_mul(steps)?.checked_mul(transitions)?.checked_mul(chains)?;
+        let draws = u64::try_from(opts.n_draws).ok()?;
+        let diagnostics =
+            draws.checked_mul(draws)?.checked_mul(chains)?.checked_mul(cols)?.checked_mul(3)?;
+        // Dense prior precision and absolute-scale OLS can each require a
+        // factorization; the latter also builds X'X over all observations.
+        let dense = prior.specs.iter().try_fold(0_u64, |total, spec| {
+            if let crate::prior::PriorSpec::CoefficientCorrelation(corr) = spec {
+                let d = u64::try_from(corr.dim()).ok()?;
+                total.checked_add(d.checked_mul(d)?.checked_mul(d)?.checked_mul(3)?)
+            } else {
+                Some(total)
+            }
+        })?;
+        let prior_metadata = prior
+            .restrictions
+            .iter()
+            .try_fold(0_u64, |sum, r| sum.checked_add(u64::try_from(r.id.len()).ok()?))?
+            .checked_add(u64::try_from(prior.specs.len()).ok()?)?;
+        let ols = if hmc_has_absolute_scale(prior) && prior.known_residual_variance().is_none() {
+            rows.checked_mul(square)?.checked_add(square.checked_mul(cols)?.checked_mul(2)?)?
+        } else {
+            0
+        };
+        sampling
+            .checked_add(diagnostics)?
+            .checked_add(dense)?
+            .checked_add(ols)?
+            .checked_add(prior_metadata)
+    })();
+    if work.is_none_or(|work| work > limit) {
+        return Err(ProbError::Refused {
+            code: antecedent_core::reason_code!("hmc_work_budget"),
+            message: format!(
+                "{}{}: requested work {} exceeds limit {limit}",
+                antecedent_core::reason_code::PREFIX,
+                antecedent_core::reason_code!("hmc_work_budget"),
+                work.unwrap_or(u64::MAX)
+            ),
+        });
+    }
+    Ok(())
 }
 
 #[allow(
@@ -378,12 +553,34 @@ fn fit_hmc_resolved(
     if fit_opts.n_draws == 0 {
         return Err(ProbError::Shape { message: "n_draws must be > 0" });
     }
+    // Published warmup and divergence counts are u32. Never saturate a caller's schedule.
+    if u32::try_from(hmc.n_warmup).is_err()
+        || hmc.n_chains.checked_mul(hmc.n_warmup).is_none_or(|n| u32::try_from(n).is_err())
+        || hmc.n_chains.checked_mul(fit_opts.n_draws).is_none_or(|n| u32::try_from(n).is_err())
+    {
+        return Err(ProbError::Shape { message: "HMC diagnostic count exceeds u32" });
+    }
 
     let total_transitions = hmc
         .n_warmup
         .checked_add(fit_opts.n_draws)
         .ok_or(ProbError::Shape { message: "HMC transition count overflow" })?;
 
+    if ctx.is_some_and(|ctx| ctx.cancellation.is_cancelled()) {
+        return Err(ProbError::Cancelled { stage: "hmc.cancelled" });
+    }
+    check_hmc_cancelled()?;
+
+    let _default_prior = if prior.gaussian_coefficients().is_none() {
+        Some(crate::admission::admit_cells(
+            ctx,
+            ncols.checked_mul(2).ok_or(ProbError::Admission(
+                antecedent_core::execution::AdmissionError::Overflow,
+            ))?,
+        )?)
+    } else {
+        None
+    };
     let coef_prior = match prior.gaussian_coefficients() {
         Some(p) => p.clone(),
         None => GaussianCoefficientPrior::isotropic(ncols, 10.0),
@@ -400,7 +597,31 @@ fn fit_hmc_resolved(
     };
     let include_sigma2 =
         gaussian_model.is_some_and(super::prior::GaussianVarianceModel::include_sigma2);
-    let dim = ncols + usize::from(include_sigma2);
+    let dim = ncols
+        .checked_add(usize::from(include_sigma2))
+        .ok_or(ProbError::Shape { message: "HMC state dimension overflow" })?;
+    // Account for per-chain sampler state, metric and target copies, alongside draws.
+    let state_cells = hmc
+        .n_chains
+        .checked_mul(
+            dim.checked_mul(16)
+                .and_then(|v| {
+                    ncols.checked_mul(ncols).and_then(|sq| v.checked_add(sq.checked_mul(2)?))
+                })
+                .ok_or(ProbError::Shape { message: "HMC state size overflow" })?,
+        )
+        .ok_or(ProbError::Shape { message: "HMC state size overflow" })?;
+    let diagnostic_cells = hmc
+        .n_chains
+        .checked_mul(fit_opts.n_draws)
+        .and_then(|n| n.checked_mul(20))
+        .ok_or(ProbError::Shape { message: "HMC diagnostic size overflow" })?;
+    let _state_admitted = crate::admission::admit_cells(
+        ctx,
+        state_cells
+            .checked_add(diagnostic_cells)
+            .ok_or(ProbError::Shape { message: "HMC state size overflow" })?,
+    )?;
     // Conjugate-scale V0^{-1} (dense under a coefficient correlation). GLM has no
     // residual σ², so its absolute prior precision is V0^{-1} at σ² ≡ 1.
     let prec = prior.coefficient_precision(&coef_prior)?;
@@ -442,6 +663,16 @@ fn fit_hmc_resolved(
             })
         })?
     } else {
+        // The direct API's caller owns the workspace after return. Admit its
+        // full usable working size for this call before it can grow.
+        let cols = dim.max(ncols);
+        let cells = cols
+            .checked_mul(cols)
+            .and_then(|v| v.checked_mul(2))
+            .and_then(|v| cols.checked_mul(6).and_then(|c| v.checked_add(c)))
+            .and_then(|v| nrows.checked_mul(2).and_then(|r| v.checked_add(r)))
+            .ok_or(ProbError::Admission(antecedent_core::execution::AdmissionError::Overflow))?;
+        let _workspace_admitted = crate::admission::admit_cells(ctx, cells)?;
         prepare(workspace);
         (0..hmc.n_chains).map(|chain| run(chain, workspace)).collect::<Result<_, _>>()?
     };
@@ -953,10 +1184,7 @@ struct Trajectory<'a> {
 )]
 fn check_hmc_cancelled() -> Result<(), ProbError> {
     if antecedent_core::numerical_admission::is_cancelled() {
-        return Err(ProbError::Refused {
-            code: antecedent_core::reason_code!("transport_budget_cancel"),
-            message: "hmc.cancelled: posterior sampling cancelled".into(),
-        });
+        return Err(ProbError::Cancelled { stage: "hmc.cancelled" });
     }
     Ok(())
 }
@@ -1290,6 +1518,160 @@ mod tests {
     }
 
     #[test]
+    fn absolute_scale_preprocessing_obeys_work_and_memory_before_ols() {
+        let n = 128;
+        let x = vec![1.0; n];
+        let y: Vec<f64> = (0..n).map(|i| (i % 7) as f64).collect();
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: n,
+            ncols: 1,
+            y: &y,
+            weights: None,
+            offsets: None,
+        };
+        let mut prior = PriorSet::weakly_informative(1);
+        prior.mark_absolute_coefficient_scale(&[0]);
+        let options = BayesFitOptions { n_draws: 2, seed: 1, max_iter: 50, grad_tol: 1e-8 };
+        let hmc =
+            HmcOptions { n_warmup: 1, n_chains: 2, leapfrog_steps: 1, ..HmcOptions::default() };
+        let mut workspace = LaplaceWorkspace::default();
+        let limited = ExecutionContext::for_tests(1).with_hmc_work_limit(1);
+        assert!(matches!(
+            fit_hmc_glm_with_context(
+                BayesLikelihood::GaussianIdentity,
+                design,
+                &prior,
+                &options,
+                hmc,
+                &mut workspace,
+                &limited
+            ),
+            Err(ProbError::Refused { code, .. }) if code == antecedent_core::reason_code!("hmc_work_budget")
+        ));
+        let constrained = ExecutionContext::for_tests(1).with_memory_limit(Some(1));
+        assert!(matches!(
+            fit_hmc_glm_with_context(
+                BayesLikelihood::GaussianIdentity,
+                design,
+                &prior,
+                &options,
+                hmc,
+                &mut workspace,
+                &constrained
+            ),
+            Err(ProbError::Admission(_))
+        ));
+    }
+
+    #[test]
+    fn direct_hmc_admits_workspace_growth_before_allocation() {
+        let n = 4096;
+        let x = vec![1.0; n];
+        let y = vec![0.0; n];
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: n,
+            ncols: 1,
+            y: &y,
+            weights: None,
+            offsets: None,
+        };
+        let options = BayesFitOptions { n_draws: 2, seed: 1, max_iter: 50, grad_tol: 1e-8 };
+        let hmc =
+            HmcOptions { n_warmup: 1, n_chains: 2, leapfrog_steps: 1, ..HmcOptions::default() };
+        let ctx = ExecutionContext::for_tests(1).with_memory_limit(Some(16 * 1024));
+        let mut workspace = LaplaceWorkspace::default();
+        assert!(matches!(
+            fit_hmc_glm_with_context(
+                BayesLikelihood::BernoulliLogit,
+                design,
+                &PriorSet::default(),
+                &options,
+                hmc,
+                &mut workspace,
+                &ctx
+            ),
+            Err(ProbError::Admission(_))
+        ));
+        assert!(workspace.eta.is_empty(), "workspace did not grow before admission");
+    }
+
+    #[test]
+    fn hmc_work_ceiling_refuses_without_truncating_schedule() {
+        let x = [1.0; 4];
+        let y = [0.0; 4];
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 4,
+            ncols: 1,
+            y: &y,
+            weights: None,
+            offsets: None,
+        };
+        let prior = PriorSet::default();
+        let options = BayesFitOptions { n_draws: 10, seed: 1, max_iter: 50, grad_tol: 1e-8 };
+        let hmc = HmcOptions { leapfrog_steps: u32::MAX, ..HmcOptions::default() };
+        let ctx = ExecutionContext::for_tests(1).with_hmc_work_limit(100);
+        let error = fit_hmc_glm_with_context(
+            BayesLikelihood::BernoulliLogit,
+            design,
+            &prior,
+            &options,
+            hmc,
+            &mut LaplaceWorkspace::default(),
+            &ctx,
+        )
+        .unwrap_err();
+        assert!(matches!(
+            error,
+            ProbError::Refused { code, .. } if code == antecedent_core::reason_code!("hmc_work_budget")
+        ));
+    }
+
+    #[test]
+    fn hmc_pre_cancel_and_admission_cancellation_keep_the_typed_stage() {
+        let x = [1.0, 1.0];
+        let y = [0.0, 1.0];
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 2,
+            ncols: 1,
+            y: &y,
+            weights: None,
+            offsets: None,
+        };
+        let prior = PriorSet::weakly_informative(1);
+        let options = BayesFitOptions { n_draws: 2, seed: 1, max_iter: 50, grad_tol: 1e-8 };
+        let ctx = ExecutionContext::for_tests(1);
+        ctx.cancellation.cancel();
+        assert!(matches!(
+            fit_hmc_impl(
+                BayesLikelihood::BernoulliLogit,
+                design,
+                &prior,
+                &options,
+                hmc_opts(1, 2),
+                &mut LaplaceWorkspace::default(),
+                Some(&ctx)
+            ),
+            Err(ProbError::Cancelled { stage: "hmc.cancelled" })
+        ));
+        assert!(matches!(
+            hmc_cancel_error(ProbError::Admission(
+                antecedent_core::execution::AdmissionError::Cancelled
+            )),
+            ProbError::Cancelled { stage: "hmc.cancelled" }
+        ));
+        assert!(matches!(
+            hmc_cancel_error(ProbError::Admission(
+                antecedent_core::execution::AdmissionError::Overflow
+            )),
+            ProbError::Admission(antecedent_core::execution::AdmissionError::Overflow)
+        ));
+    }
+
+    #[test]
     fn hmc_worker_inherits_cancellation_and_reports_operational_refusal() {
         let x = [1.0, 1.0];
         let y = [0.0, 1.0];
@@ -1315,9 +1697,7 @@ mod tests {
             Some(&ctx),
         )
         .unwrap_err();
-        assert!(
-            matches!(error, ProbError::Refused { code, .. } if code == antecedent_core::reason_code!("transport_budget_cancel"))
-        );
+        assert!(matches!(error, ProbError::Cancelled { stage: "hmc.cancelled" }));
     }
 
     #[test]
@@ -1354,8 +1734,9 @@ mod tests {
         };
         let prior = PriorSet::weakly_informative(1);
         let fit_opts = BayesFitOptions { n_draws: 2, seed: 1, max_iter: 50, grad_tol: 1e-8 };
-        // Exactly covers the retained draws, leaving no room for a worker workspace.
-        let ctx = ExecutionContext::for_tests(1).with_memory_limit(Some(96));
+        // Two chains reserve 928 bytes of sampler/diagnostic state and 96 bytes
+        // of draws. The full 1024-byte budget leaves no worker workspace.
+        let ctx = ExecutionContext::for_tests(1).with_memory_limit(Some(1024));
         let result = fit_hmc_impl(
             BayesLikelihood::BernoulliLogit,
             design,
@@ -1365,9 +1746,16 @@ mod tests {
             &mut LaplaceWorkspace::default(),
             Some(&ctx),
         );
-        assert!(
-            matches!(result, Err(ProbError::Numerical { message }) if message.contains("prob.resource_refused"))
-        );
+        assert!(matches!(
+            result,
+            Err(ProbError::Admission(
+                antecedent_core::execution::AdmissionError::ExceedsRemainder {
+                    requested_bytes: 96,
+                    remaining_bytes: 0,
+                    ..
+                }
+            ))
+        ));
     }
 
     #[test]

@@ -1005,3 +1005,17 @@ mod tests {
         );
     }
 }
+
+impl<E> From<antecedent_core::execution::MapExecutionError<E>> for EstimationError
+where
+    Self: From<E>,
+{
+    fn from(error: antecedent_core::execution::MapExecutionError<E>) -> Self {
+        match error {
+            antecedent_core::execution::MapExecutionError::Admission(error) => {
+                Self::Admission(error)
+            }
+            antecedent_core::execution::MapExecutionError::Work(error) => Self::from(error),
+        }
+    }
+}

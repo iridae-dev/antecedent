@@ -134,3 +134,21 @@ impl AttributionError {
         Self::InvalidInput { message }
     }
 }
+
+impl<E> From<antecedent_core::execution::MapExecutionError<E>> for AttributionError
+where
+    Self: From<E>,
+{
+    fn from(error: antecedent_core::execution::MapExecutionError<E>) -> Self {
+        match error {
+            antecedent_core::execution::MapExecutionError::Admission(error) => {
+                if matches!(error, antecedent_core::execution::AdmissionError::Cancelled) {
+                    Self::Cancelled
+                } else {
+                    Self::Budget { message: error.to_string() }
+                }
+            }
+            antecedent_core::execution::MapExecutionError::Work(error) => Self::from(error),
+        }
+    }
+}

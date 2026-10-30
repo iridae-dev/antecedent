@@ -53,7 +53,7 @@ pub use external_prior::{
     compose_external_priors_with_alphas, kish_ess,
 };
 pub use graph_samples::{GraphEnvelopeSubsample, GraphIdentFlag, WeightedGraphSamples};
-pub use hmc::{HmcGlmBackend, HmcOptions, fit_hmc_glm};
+pub use hmc::{HmcGlmBackend, HmcOptions, fit_hmc_glm, fit_hmc_glm_with_context};
 pub use laplace::{LaplaceGlmBackend, fit_laplace_glm, sample_gaussian_mvn};
 pub use mcmc_stats::{
     McmcSummary, ParameterMcmcDiagnostics, all_chains_moved, mcmc_summary, mcmc_summary_parallel,

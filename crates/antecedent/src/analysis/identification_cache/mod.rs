@@ -86,6 +86,7 @@ where
         }
         f(i, inner)
     })
+    .map_err(Into::into)
 }
 
 /// Walk the samples of a static graph posterior once, recording each sample's key, weight

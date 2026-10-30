@@ -1,6 +1,6 @@
 use super::*;
-use antecedent_core::RngFactory;
 use antecedent_core::execution::AdmissionPool;
+use antecedent_core::{NonZeroThreadCount, Parallelism, RngFactory};
 use antecedent_model::nonlinear_equilibrium::{Activation, Equation};
 
 const COORDINATES: [OuMechanismParameter; 3] = [
@@ -545,7 +545,7 @@ fn admission_and_cancellation_refuse_before_any_replicate() {
     assert_eq!(pool.available().bytes(), capacity);
     let stopped = ExecutionContext::for_tests(11);
     stopped.cancellation.cancel();
-    let cancelled = DynamicInferenceError::Resource("cancelled".into());
+    let cancelled = DynamicInferenceError::Cancelled;
     assert_eq!(bootstrap_dynamic_fit(target, request, &[], &stopped).unwrap_err(), cancelled);
     assert_eq!(
         dynamic_observed_information(target, INDEPENDENT, &[], &stopped).unwrap_err(),

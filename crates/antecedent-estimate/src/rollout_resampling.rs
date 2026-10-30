@@ -299,6 +299,7 @@ where
         let mut rng = replicate_stream(operation, index, seed);
         Ok(procedure(&mut rng).filter(|values| values.len() == width))
     })
+    .map_err(Into::into)
 }
 
 /// The components `range` of every replicate, for summarizing one block of a vector.

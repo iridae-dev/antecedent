@@ -259,7 +259,7 @@ pub enum CausalError {
     Identify(IdentificationError),
     /// Estimation failed.
     #[error(transparent)]
-    Estimate(#[from] EstimationError),
+    Estimate(EstimationError),
     /// Validation / refutation failed.
     #[error(transparent)]
     Validate(ValidationError),
@@ -286,7 +286,7 @@ pub enum CausalError {
     Graph(#[from] GraphError),
     /// Experiment / measurement design evaluation.
     #[error(transparent)]
-    Design(#[from] DesignError),
+    Design(DesignError),
     /// Incremental antecedent-state update.
     #[error(transparent)]
     State(#[from] StateError),
@@ -439,6 +439,8 @@ const STAGE_COUNTERFACTUAL: &str = "counterfactual";
 enum Classified<E> {
     /// Cooperative cancellation.
     Cancelled,
+    /// Cooperative cancellation retaining an operation-specific stage.
+    CancelledAt(&'static str),
     /// A memory, budget or other resource refusal.
     Resource(String),
     /// A finding of the stage itself.
@@ -461,6 +463,7 @@ trait StageError: Sized {
 fn lift_stage_error<E: StageError>(error: E) -> CausalError {
     match error.classify() {
         Classified::Cancelled => CausalError::Cancelled { stage: E::STAGE },
+        Classified::CancelledAt(stage) => CausalError::Cancelled { stage },
         Classified::Resource(message) => CausalError::Resource { message },
         Classified::Finding(finding) => finding.wrap(),
     }
@@ -471,7 +474,20 @@ impl StageError for ValidationError {
 
     fn classify(self) -> Classified<Self> {
         match self {
-            Self::Cancelled | Self::Discovery(DiscoveryError::Cancelled) => Classified::Cancelled,
+            Self::Cancelled
+            | Self::Discovery(DiscoveryError::Cancelled)
+            | Self::Stats(StatsError::Cancelled) => Classified::Cancelled,
+            Self::Prob(ProbError::Cancelled { stage })
+            | Self::Estimation(EstimationError::Prob(ProbError::Cancelled { stage }))
+            | Self::Estimation(EstimationError::Learner(LearnError::Probability(
+                ProbError::Cancelled { stage },
+            ))) => Classified::CancelledAt(stage),
+            Self::Stats(StatsError::Admission(error))
+            | Self::Estimation(EstimationError::Admission(error))
+            | Self::Prob(ProbError::Admission(error)) => match error {
+                antecedent_core::execution::AdmissionError::Cancelled => Classified::Cancelled,
+                other => Classified::Resource(other.to_string()),
+            },
             Self::Resource { message } | Self::Discovery(DiscoveryError::Resource(message)) => {
                 Classified::Resource(message)
             }
@@ -505,7 +521,14 @@ impl StageError for DiscoveryError {
 
     fn classify(self) -> Classified<Self> {
         match self {
-            Self::Cancelled => Classified::Cancelled,
+            Self::Cancelled | Self::Stats(StatsError::Cancelled) => Classified::Cancelled,
+            Self::Prob(ProbError::Cancelled { stage }) => Classified::CancelledAt(stage),
+            Self::Stats(StatsError::Admission(error)) | Self::Prob(ProbError::Admission(error)) => {
+                match error {
+                    antecedent_core::execution::AdmissionError::Cancelled => Classified::Cancelled,
+                    other => Classified::Resource(other.to_string()),
+                }
+            }
             Self::Resource(message) => Classified::Resource(message),
             other => Classified::Finding(other),
         }
@@ -552,7 +575,14 @@ impl StageError for AttributionError {
 
     fn classify(self) -> Classified<Self> {
         match self {
-            Self::Cancelled => Classified::Cancelled,
+            Self::Cancelled | Self::Stats(StatsError::Cancelled) => Classified::Cancelled,
+            Self::Prob(ProbError::Cancelled { stage }) => Classified::CancelledAt(stage),
+            Self::Stats(StatsError::Admission(error)) | Self::Prob(ProbError::Admission(error)) => {
+                match error {
+                    antecedent_core::execution::AdmissionError::Cancelled => Classified::Cancelled,
+                    other => Classified::Resource(other.to_string()),
+                }
+            }
             Self::Budget { .. } => Classified::Resource(self.to_string()),
             other => Classified::Finding(other),
         }
@@ -576,13 +606,26 @@ macro_rules! lift_from_stage_error {
 }
 
 lift_from_stage_error!(
-    ValidationError,
     IdentificationError,
     DiscoveryError,
     ModelError,
     CounterfactualError,
     AttributionError,
 );
+
+impl From<ValidationError> for CausalError {
+    fn from(error: ValidationError) -> Self {
+        match error {
+            ValidationError::Estimation(EstimationError::Refused { code, message })
+                if code == antecedent_core::reason_code!("cancelled_no_claim")
+                    && message.detail() == Some("dml.cancelled") =>
+            {
+                Self::Cancelled { stage: "dml.cancelled" }
+            }
+            other => lift_stage_error(other),
+        }
+    }
+}
 
 /// A typed cause refuses compilation. Not provided for [`SchemaError`],
 /// [`DataError`], [`GraphError`], [`ModelError`], [`CounterfactualError`],
@@ -595,9 +638,77 @@ impl From<QueryError> for CausalError {
     }
 }
 
+fn lift_admission(
+    error: antecedent_core::execution::AdmissionError,
+    stage: &'static str,
+) -> CausalError {
+    if matches!(error, antecedent_core::execution::AdmissionError::Cancelled) {
+        CausalError::Cancelled { stage }
+    } else {
+        CausalError::Resource { message: error.to_string() }
+    }
+}
+
 impl From<ProbError> for CausalError {
     fn from(error: ProbError) -> Self {
-        Self::rejected(error)
+        match error {
+            ProbError::Cancelled { stage } => Self::Cancelled { stage },
+            ProbError::Admission(error) => lift_admission(error, STAGE_MODEL),
+            error @ ProbError::Refused { code: "hmc_work_budget", .. } => {
+                Self::Resource { message: error.to_string() }
+            }
+            other => Self::rejected(other),
+        }
+    }
+}
+
+impl From<EstimationError> for CausalError {
+    fn from(error: EstimationError) -> Self {
+        match error {
+            EstimationError::Refused { code, message }
+                if code == antecedent_core::reason_code!("cancelled_no_claim")
+                    && message.detail() == Some("dml.cancelled") =>
+            {
+                Self::Cancelled { stage: "dml.cancelled" }
+            }
+            EstimationError::Prob(ProbError::Cancelled { stage })
+            | EstimationError::Learner(LearnError::Probability(ProbError::Cancelled { stage })) => {
+                Self::Cancelled { stage }
+            }
+            EstimationError::Admission(error)
+            | EstimationError::Stats(StatsError::Admission(error))
+            | EstimationError::Prob(ProbError::Admission(error))
+            | EstimationError::Wave(
+                antecedent_estimate::adaptive_resample_waves::WaveError::Admission(error),
+            )
+            | EstimationError::Tile(antecedent_estimate::TileError::Admission(error))
+            | EstimationError::Learner(LearnError::Admission(error))
+            | EstimationError::Learner(LearnError::Stats(StatsError::Admission(error)))
+            | EstimationError::Learner(LearnError::Probability(ProbError::Admission(error))) => {
+                lift_admission(error, STAGE_MODEL)
+            }
+            EstimationError::Stats(StatsError::Cancelled)
+            | EstimationError::Learner(LearnError::Cancelled)
+            | EstimationError::Learner(LearnError::Stats(StatsError::Cancelled))
+            | EstimationError::Tile(antecedent_estimate::TileError::Cancelled)
+            | EstimationError::Wave(
+                antecedent_estimate::adaptive_resample_waves::WaveError::Cancelled { .. },
+            ) => Self::Cancelled { stage: STAGE_MODEL },
+            error @ EstimationError::Prob(ProbError::Refused {
+                code: "hmc_work_budget", ..
+            }) => Self::Resource { message: error.to_string() },
+            other => Self::Estimate(other),
+        }
+    }
+}
+
+impl From<DesignError> for CausalError {
+    fn from(error: DesignError) -> Self {
+        match error {
+            DesignError::Cancelled => Self::Cancelled { stage: STAGE_MODEL },
+            DesignError::Resource(message) => Self::Resource { message },
+            other => Self::Design(other),
+        }
     }
 }
 
@@ -609,13 +720,27 @@ impl From<TemporalIndexError> for CausalError {
 
 impl From<LearnError> for CausalError {
     fn from(error: LearnError) -> Self {
-        Self::rejected(error)
+        match error {
+            LearnError::Cancelled => Self::Cancelled { stage: STAGE_MODEL },
+            LearnError::Probability(ProbError::Cancelled { stage }) => Self::Cancelled { stage },
+            LearnError::Admission(error)
+            | LearnError::Stats(StatsError::Admission(error))
+            | LearnError::Probability(ProbError::Admission(error)) => {
+                lift_admission(error, STAGE_MODEL)
+            }
+            LearnError::Stats(StatsError::Cancelled) => Self::Cancelled { stage: STAGE_MODEL },
+            other => Self::rejected(other),
+        }
     }
 }
 
 impl From<StatsError> for CausalError {
     fn from(error: StatsError) -> Self {
-        Self::rejected(error)
+        match error {
+            StatsError::Cancelled => Self::Cancelled { stage: STAGE_MODEL },
+            StatsError::Admission(error) => lift_admission(error, STAGE_MODEL),
+            other => Self::rejected(other),
+        }
     }
 }
 
@@ -1042,6 +1167,60 @@ mod tests {
     // never see it, and a `CausalValidateError`/`CausalDiscoveryError` would wrongly
     // read as a refutation/discovery finding.
 
+    #[test]
+    fn probability_cancellation_preserves_hmc_stage_across_wrappers() {
+        use antecedent_estimate::EstimationError;
+        use antecedent_learn::LearnError;
+        use antecedent_prob::ProbError;
+        let error = || ProbError::Cancelled { stage: "hmc.cancelled" };
+        assert!(matches!(
+            CausalError::from(error()),
+            CausalError::Cancelled { stage: "hmc.cancelled" }
+        ));
+        assert!(matches!(
+            CausalError::from(EstimationError::Prob(error())),
+            CausalError::Cancelled { stage: "hmc.cancelled" }
+        ));
+        assert!(matches!(
+            CausalError::from(LearnError::Probability(error())),
+            CausalError::Cancelled { stage: "hmc.cancelled" }
+        ));
+        assert!(matches!(
+            CausalError::from(ValidationError::Prob(error())),
+            CausalError::Cancelled { stage: "hmc.cancelled" }
+        ));
+        assert!(matches!(
+            CausalError::from(ValidationError::Estimation(EstimationError::Prob(error()))),
+            CausalError::Cancelled { stage: "hmc.cancelled" }
+        ));
+    }
+
+    #[test]
+    fn dml_detail_is_preserved_as_an_operational_cancelled_stage() {
+        use antecedent_estimate::EstimationError;
+        let error = || {
+            EstimationError::refused_detail(
+                antecedent_core::reason_code!("cancelled_no_claim"),
+                "dml.cancelled",
+                "no estimate",
+            )
+        };
+        assert!(matches!(
+            CausalError::from(error()),
+            CausalError::Cancelled { stage: "dml.cancelled" }
+        ));
+        assert!(matches!(
+            CausalError::from(ValidationError::Estimation(error())),
+            CausalError::Cancelled { stage: "dml.cancelled" }
+        ));
+        assert!(matches!(
+            CausalError::from(EstimationError::Admission(
+                antecedent_core::execution::AdmissionError::Cancelled
+            )),
+            CausalError::Cancelled { stage: super::STAGE_MODEL }
+        ));
+    }
+
     /// The facade reads an estimator refusal's remedy through unchanged, and
     /// every other error names none.
     #[test]
@@ -1212,3 +1391,21 @@ mod tests {
         ));
     }
 }
+
+impl<E> From<antecedent_core::execution::MapExecutionError<E>> for CausalError
+where
+    Self: From<E>,
+{
+    fn from(error: antecedent_core::execution::MapExecutionError<E>) -> Self {
+        match error {
+            antecedent_core::execution::MapExecutionError::Admission(error) => {
+                lift_admission(error, STAGE_MODEL)
+            }
+            antecedent_core::execution::MapExecutionError::Work(error) => Self::from(error),
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "error_worker_tests.rs"]
+mod worker_admission_classification_tests;

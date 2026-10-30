@@ -184,6 +184,9 @@ pub enum CpuAdmissionError {
     /// The fold lease is already gone.
     #[error("admission lease is already released")]
     Released,
+    /// The operating system could not start an admitted worker.
+    #[error("the operating system could not start an admitted worker")]
+    WorkerSpawn,
     /// A size did not fit in `u64`.
     #[error("admission arithmetic overflowed and was refused")]
     Overflow,
@@ -424,6 +427,7 @@ fn admission_error(
         }
         AdmissionError::Cancelled => CpuAdmissionError::Cancelled,
         AdmissionError::Released => CpuAdmissionError::Released,
+        AdmissionError::WorkerSpawn => CpuAdmissionError::WorkerSpawn,
     }
 }
 

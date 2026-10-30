@@ -308,20 +308,22 @@ impl<'p, P: CoalitionPayoff> Prefetched<'p, P> {
 
     /// Evaluate the distinct, not yet known `coalitions` in parallel into [`Self::known`].
     ///
-    /// Best effort: a payoff that cannot fork, a cancelled context, or a failing
-    /// coalition leaves the affected coalitions to the serial path, which then reports the
-    /// failure at the same point a serial run would.
+    /// A payoff that cannot fork or a failed speculative coalition falls back to the
+    /// serial path. Cancellation and scheduler refusals propagate immediately.
     fn prefetch(
         &mut self,
         coalitions: impl IntoIterator<Item = Coalition>,
         ctx: &ExecutionContext,
-    ) {
+    ) -> Result<(), AttributionError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(AttributionError::Cancelled);
+        }
         let threads = Self::threads(ctx);
-        if threads < 2 || ctx.cancellation.is_cancelled() {
-            return;
+        if threads < 2 {
+            return Ok(());
         }
         if matches!(self.state, Evaluator::Serial(_)) {
-            return;
+            return Ok(());
         }
         if self.known.len() > MAX_PREFETCHED {
             self.known.clear();
@@ -332,21 +334,21 @@ impl<'p, P: CoalitionPayoff> Prefetched<'p, P> {
             .filter(|c| !self.known.contains_key(c) && seen.insert(c.clone()))
             .collect();
         if todo.len() < MIN_PARALLEL_COALITIONS {
-            return;
+            return Ok(());
         }
         // The first value is computed on the payoff itself so that its memoized state
         // (fitted mechanisms, baseline law) is built once and then cloned into the forks.
         let mut head_known = false;
         if let Evaluator::Own(inner) = &mut self.state {
-            let Ok(head) = inner.value(&todo[0]) else { return };
+            let Ok(head) = inner.value(&todo[0]) else { return Ok(()) };
             self.known.insert(todo[0].clone(), head);
             head_known = true;
         }
         self.fork_workers(threads);
-        let Evaluator::Forked(workers) = &self.state else { return };
+        let Evaluator::Forked(workers) = &self.state else { return Ok(()) };
         let rest = if head_known { &todo[1..] } else { &todo[..] };
         if rest.is_empty() || workers.is_empty() {
-            return;
+            return Ok(());
         }
         let chunk_len = rest.len().div_ceil(workers.len().min(rest.len()));
         let evaluated = ctx.map_indexed(rest.chunks(chunk_len).count(), |t, _| {
@@ -362,8 +364,21 @@ impl<'p, P: CoalitionPayoff> Prefetched<'p, P> {
             }
             Ok::<_, Infallible>(out)
         });
-        let Ok(values) = evaluated;
+        let values = match evaluated {
+            Ok(values) => values,
+            Err(antecedent_core::execution::MapExecutionError::Admission(error)) => {
+                return Err(
+                    if matches!(error, antecedent_core::execution::AdmissionError::Cancelled) {
+                        AttributionError::Cancelled
+                    } else {
+                        AttributionError::Budget { message: error.to_string() }
+                    },
+                );
+            }
+            Err(antecedent_core::execution::MapExecutionError::Work(never)) => match never {},
+        };
         self.known.extend(values.into_iter().flatten());
+        Ok(())
     }
 }
 
@@ -473,7 +488,7 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
                         payoff.prefetch(
                             (mask..(mask + block).min(n_coalitions)).map(Coalition::from_bits),
                             ctx,
-                        );
+                        )?;
                     }
                     if ctx.cancellation.is_cancelled() {
                         return Err(AttributionError::Cancelled);
@@ -575,7 +590,7 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
                     orders.extend(0..n);
                     shuffle(&mut rng, &mut orders[start..]);
                 }
-                payoff.prefetch(permutation_masks(&orders, n), ctx);
+                payoff.prefetch(permutation_masks(&orders, n), ctx)?;
                 for order in orders.chunks_exact(n) {
                     if ctx.cancellation.is_cancelled() {
                         break 'samples;

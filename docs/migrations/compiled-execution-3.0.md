@@ -155,3 +155,35 @@ Target posterior-predictive checks report the inclusive empirical exceedance
 fraction. The alpha verdict is an uncalibrated diagnostic convention; zero means
 no exceedances were observed. Finite inputs that overflow a discrepancy now
 refuse rather than returning an infinite statistic.
+
+## Sampling work and worker admission
+
+Rust execution contexts accept explicit exposure-probability and HMC work limits.
+Exposure admission includes initial estimation and Full-suite redraws together.
+HMC admission includes all chains and diagnostics, correlated-prior validation,
+and absolute-scale OLS preprocessing. Context-free calls use finite defaults;
+requested draw counts and sampling order are preserved.
+
+HMC workspace growth is admitted for the call. Caller-owned capacity retained
+after return is outside that temporary lease. Dense Cholesky and solve kernels
+check cancellation at call boundaries. `moment_matched_normal_table_with_work_limit`
+allows an explicit joint-table ceiling; workflow contexts supply cancellation.
+These operational limits add no calibration claim.
+
+### Indexed maps return operational failures
+
+`ExecutionContext::map_indexed`, `map_indexed_with_scratch`, and
+`map_indexed_with_scratch_if_free` now return `MapExecutionError<E>`. Match
+`Work(error)` to handle the original task error and `Admission(error)` to handle
+cancellation, admission refusal, or a worker-start failure. Serial maps acquire a
+worker reservation too; nested maps reuse their enclosing worker reservation. The
+if-free form can reduce its worker count, but refuses when no worker is available.
+No work runs after a refused reservation.
+
+`antecedent_prob::mcmc_summary_parallel` now returns `Result<McmcSummary,
+AdmissionError>` so cancellation and worker-start failures are reported rather than
+silently replaced by serial computation. The non-parallel `mcmc_summary` is unchanged.
+
+Synchronous numerical helpers reuse an enclosing map worker’s CPU reservation from
+the same admission pool. Their scratch bytes remain separately admitted. Direct
+serial calls still reserve one CPU slot. This does not authorize additional threads.

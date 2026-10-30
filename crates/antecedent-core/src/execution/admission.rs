@@ -134,6 +134,9 @@ pub enum AdmissionError {
     /// The parent lease no longer holds a remainder.
     #[error("admission lease is already released")]
     Released,
+    /// The operating system refused to start an admitted worker.
+    #[error("the operating system could not start an admitted worker")]
+    WorkerSpawn,
 }
 
 /// `count * width`, or `None` when the product does not fit in `u64`.

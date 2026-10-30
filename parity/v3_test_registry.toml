@@ -20746,3 +20746,45 @@ crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_support_snapshot_roles.py"
 gates = ["inventory"]
+
+[[test]]
+id = "audit-facade-fit-lock"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/prepared/operations_lock_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-facade-worker-errors"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/error_worker_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-core-workers"
+crate = "antecedent-core"
+cargo_target = "lib"
+path = "crates/antecedent-core/src/execution/worker_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-design-workers"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/evsi_worker_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-estimate-fit-lock"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/response/joint_linear_lock_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-prob-mcmc-admission"
+crate = "antecedent-prob"
+cargo_target = "lib"
+path = "crates/antecedent-prob/src/mcmc_admission_tests.rs"
+gates = ["inventory", "named"]

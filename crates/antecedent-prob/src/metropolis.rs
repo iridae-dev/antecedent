@@ -31,12 +31,29 @@ pub struct MetropolisDraws {
 /// Explicit target/resource failure.
 #[derive(Clone, Debug, Error)]
 pub enum MetropolisError {
+    /// Sampling was cancelled before a complete result was available.
+    #[error("Metropolis sampling cancelled")]
+    Cancelled,
     /// Bad shape, limits, policy or density.
     #[error("invalid Metropolis target/policy: {0}")]
     Invalid(&'static str),
     /// Cancellation or memory admission.
     #[error("Metropolis resource refusal: {0}")]
     Resource(String),
+}
+
+impl From<antecedent_core::execution::MapExecutionError<MetropolisError>> for MetropolisError {
+    fn from(error: antecedent_core::execution::MapExecutionError<MetropolisError>) -> Self {
+        match error {
+            antecedent_core::execution::MapExecutionError::Work(error) => error,
+            antecedent_core::execution::MapExecutionError::Admission(
+                antecedent_core::execution::AdmissionError::Cancelled,
+            ) => Self::Cancelled,
+            antecedent_core::execution::MapExecutionError::Admission(error) => {
+                Self::Resource(error.to_string())
+            }
+        }
+    }
 }
 
 /// Sample an explicit normalized-or-unnormalized density. A failed convergence
@@ -91,8 +108,10 @@ where
         return Err(MetropolisError::Invalid("start spread"));
     }
     let bytes = validate_and_admit_bytes(center, options)?;
-    let _lease =
-        ctx.acquire_admission(0, bytes).map_err(|e| MetropolisError::Resource(e.to_string()))?;
+    let _lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
+        antecedent_core::execution::AdmissionError::Cancelled => MetropolisError::Cancelled,
+        other => MetropolisError::Resource(other.to_string()),
+    })?;
     if !log_density(center).is_finite() {
         return Err(MetropolisError::Invalid("initial density"));
     }
@@ -122,8 +141,10 @@ where
     F: Fn(&[f64]) -> f64,
 {
     let bytes = validate_and_admit_bytes(initial, options)?;
-    let _lease =
-        ctx.acquire_admission(0, bytes).map_err(|e| MetropolisError::Resource(e.to_string()))?;
+    let _lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
+        antecedent_core::execution::AdmissionError::Cancelled => MetropolisError::Cancelled,
+        other => MetropolisError::Resource(other.to_string()),
+    })?;
     if !log_density(initial).is_finite() {
         return Err(MetropolisError::Invalid("initial density"));
     }
@@ -206,7 +227,7 @@ where
     };
     for iteration in 0..options.warmup + options.draws {
         if ctx.cancellation.is_cancelled() {
-            return Err(MetropolisError::Resource("cancelled".into()));
+            return Err(MetropolisError::Cancelled);
         }
         let proposal: Vec<_> = current
             .iter()

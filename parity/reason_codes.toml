@@ -905,3 +905,23 @@ meaning = "The iterations summed over all blocks exceeded the policy bound (max_
 id = "solver_wall_clock_budget"
 applies_to = ["runtime_refusal"]
 meaning = "The wall-clock deadline of the solve policy elapsed (max_wall_clock_ms); the partial solve is discarded, not reported."
+
+[[code]]
+id = "hmc_work_budget"
+applies_to = ["runtime_refusal"]
+meaning = "The total requested HMC sampling and diagnostic work exceeds the caller's admitted work limit; the sampling schedule is not shortened."
+
+[[code]]
+id = "execution_cancelled"
+applies_to = ["runtime_refusal"]
+meaning = "The caller cancelled execution before a complete result was available; this is an operational outcome, not a scientific refusal."
+
+[[code]]
+id = "moment_matched_table_work_budget"
+applies_to = ["runtime_refusal"]
+meaning = "The requested joint normal table exceeds its admitted work or table-size limit; the requested row count and covariance are not changed."
+
+[[code]]
+id = "execution_resource_limit"
+applies_to = ["runtime_refusal"]
+meaning = "The execution could not obtain the shared worker or memory resources needed to run; no scientific conclusion follows from the refusal."

@@ -205,6 +205,7 @@ impl super::Study {
                 refute_atoms,
             })
         })
+        .map_err(Into::into)
     }
 
     /// Withheld-posterior, class-envelope, aggregation-policy and overlap disclosures.

@@ -1244,7 +1244,7 @@ impl ResolvedFeedbackSystem {
             return Err(SolverBudgetCode::Memory.refusal(bytes, policy.max_bytes));
         }
         let _lease = ctx
-            .acquire_admission(1, bytes)
+            .acquire_serial_numerical_admission(bytes)
             .map_err(|e| EquilibriumError::Resource(e.to_string()))?;
         let started = Instant::now();
         let mut checks = 0usize;
@@ -1579,8 +1579,7 @@ impl ResolvedFeedbackSystem {
     ) -> Result<LikelihoodTerms, EquilibriumError> {
         let n = self.system.order();
         let _lease = ctx
-            .acquire_admission(
-                1,
+            .acquire_serial_numerical_admission(
                 u64::try_from(64 * n * n + 256 * n).map_err(|_| invalid("resource size"))?,
             )
             .map_err(|e| EquilibriumError::Resource(e.to_string()))?;

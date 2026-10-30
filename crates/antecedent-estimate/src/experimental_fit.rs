@@ -262,6 +262,9 @@ impl fmt::Display for PriorFault {
 #[derive(Clone, Debug, PartialEq, Error)]
 #[non_exhaustive]
 pub enum ExperimentalFitError {
+    /// Worker admission or cancellation stopped execution.
+    #[error(transparent)]
+    Admission(antecedent_core::execution::AdmissionError),
     /// The regime contract was refused. Repair it; do not fit on it.
     #[error("regime contract refused: {0}")]
     Regime(RegimeRefusal),
@@ -2325,7 +2328,10 @@ pub fn bootstrap_experimental_recovery(
     });
     let outcomes: Vec<Result<ExperimentalRecoveryFit, ExperimentalFitError>> = match outcomes {
         Ok(batches) => batches.into_iter().flatten().collect(),
-        Err(never) => match never {},
+        Err(antecedent_core::execution::MapExecutionError::Admission(error)) => {
+            return Err(ExperimentalFitError::Admission(error));
+        }
+        Err(antecedent_core::execution::MapExecutionError::Work(never)) => match never {},
     };
     let weight = 1.0 / spec.replicates as f64;
     let mut inputs = Vec::with_capacity(outcomes.len());

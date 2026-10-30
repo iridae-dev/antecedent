@@ -9,6 +9,15 @@ use thiserror::Error;
 #[derive(Clone, Debug, Eq, PartialEq, Error)]
 #[non_exhaustive]
 pub enum ProbError {
+    /// Worker admission stopped the operation.
+    #[error(transparent)]
+    Admission(antecedent_core::execution::AdmissionError),
+    /// Cancellation of a named probability operation; no result was published.
+    #[error("{stage}: probability computation cancelled")]
+    Cancelled {
+        /// Stable operation detail, such as `hmc.cancelled`.
+        stage: &'static str,
+    },
     /// Shape / dimension mismatch.
     #[error("shape error: {message}")]
     Shape {
@@ -72,6 +81,20 @@ impl ProbError {
         match self {
             Self::Route { diagnostics, .. } => diagnostics,
             _ => &[],
+        }
+    }
+}
+
+impl<E> From<antecedent_core::execution::MapExecutionError<E>> for ProbError
+where
+    Self: From<E>,
+{
+    fn from(error: antecedent_core::execution::MapExecutionError<E>) -> Self {
+        match error {
+            antecedent_core::execution::MapExecutionError::Admission(error) => {
+                Self::Admission(error)
+            }
+            antecedent_core::execution::MapExecutionError::Work(error) => Self::from(error),
         }
     }
 }

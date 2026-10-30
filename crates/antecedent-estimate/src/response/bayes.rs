@@ -923,6 +923,7 @@ impl ContinuousResponseEstimator {
             }
             Ok(out)
         })
+        .map_err(Into::into)
     }
 
     /// Linear Gaussian design used by Bayesian response and derivative transfer.
@@ -1220,20 +1221,28 @@ mod tests {
             &ResponseGrid {
                 coefficients: &[1.0, 2.0, 0.0, 0.0, 3.0, 4.0],
                 failed_draws: &[false, true, false],
-                row_features: &[], row_count: 1, row_width: 0,
-                coordinates: &[0.0, 1.0], encoding_degree: 1,
-                family: GlmFamily::GaussianIdentity, average_rows: false,
+                row_features: &[],
+                row_count: 1,
+                row_width: 0,
+                coordinates: &[0.0, 1.0],
+                encoding_degree: 1,
+                family: GlmFamily::GaussianIdentity,
+                average_rows: false,
             },
             &antecedent_core::ExecutionContext::for_tests(0),
-        ).unwrap();
+        )
+        .unwrap();
         assert_eq!(columns.len(), 2);
         for (column, expected) in columns.iter().zip([[1.0, 3.0], [3.0, 7.0]]) {
             assert_eq!(column.len(), 3);
             assert_eq!(column[0], expected[0]);
             assert!(column[1].is_nan());
             assert_eq!(column[2], expected[1]);
-            assert!(crate::bayesian::summarize_linear_response_draws(column.clone(), 0.95).is_err());
-            let (mean, _, _, sd) = crate::bayesian::summarize_linear_response_draws(expected.to_vec(), 0.95).unwrap();
+            assert!(
+                crate::bayesian::summarize_linear_response_draws(column.clone(), 0.95).is_err()
+            );
+            let (mean, _, _, sd) =
+                crate::bayesian::summarize_linear_response_draws(expected.to_vec(), 0.95).unwrap();
             assert_eq!(mean, (expected[0] + expected[1]) / 2.0);
             assert!((sd - (expected[1] - expected[0]) / 2.0_f64.sqrt()).abs() < 1e-12);
         }

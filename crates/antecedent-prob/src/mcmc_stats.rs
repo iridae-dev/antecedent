@@ -67,6 +67,9 @@ pub fn mcmc_summary(
 /// parallelism. Each parameter's diagnostics depend only on its own column of draws and the
 /// reduction runs in parameter order, so the summary is bit-identical to [`mcmc_summary`]
 /// for every thread count.
+///
+/// # Errors
+/// Cancellation, admission refusal or failure to start an admitted worker.
 #[must_use]
 pub fn mcmc_summary_parallel(
     samples: &[f64],
@@ -74,17 +77,21 @@ pub fn mcmc_summary_parallel(
     n_draws: usize,
     n_params: usize,
     ctx: &antecedent_core::ExecutionContext,
-) -> McmcSummary {
+) -> Result<McmcSummary, antecedent_core::execution::AdmissionError> {
     let rhat_guard = n_chains < 2 || n_draws < 8 || n_params == 0;
     let ess_guard = n_chains == 0 || n_draws < 8 || n_params == 0;
     if rhat_guard && ess_guard {
-        return McmcSummary { max_rhat: f64::INFINITY, min_bulk_ess: 0.0, min_tail_ess: 0.0 };
+        return Ok(McmcSummary { max_rhat: f64::INFINITY, min_bulk_ess: 0.0, min_tail_ess: 0.0 });
     }
     let diags = ctx.map_indexed(n_params, |p, _| {
         Ok::<_, std::convert::Infallible>(diagnostics_one(samples, n_chains, n_draws, n_params, p))
     });
-    let Ok(diags) = diags;
-    summarize(&diags, rhat_guard, ess_guard)
+    let diags = match diags {
+        Ok(diags) => diags,
+        Err(antecedent_core::execution::MapExecutionError::Admission(error)) => return Err(error),
+        Err(antecedent_core::execution::MapExecutionError::Work(never)) => match never {},
+    };
+    Ok(summarize(&diags, rhat_guard, ess_guard))
 }
 
 fn summarize(diags: &[ParameterMcmcDiagnostics], rhat_guard: bool, ess_guard: bool) -> McmcSummary {
@@ -496,7 +503,7 @@ mod tests {
         let mut ctx = ExecutionContext::for_tests(1)
             .with_admission(antecedent_core::execution::AdmissionPool::fixed(4, u64::MAX));
         ctx.parallelism = Parallelism::bounded(NonZeroThreadCount::new(4).unwrap());
-        let parallel = mcmc_summary_parallel(&samples, chains, draws, params, &ctx);
+        let parallel = mcmc_summary_parallel(&samples, chains, draws, params, &ctx).unwrap();
         assert_eq!(serial.max_rhat.to_bits(), parallel.max_rhat.to_bits());
         assert_eq!(serial.min_bulk_ess.to_bits(), parallel.min_bulk_ess.to_bits());
         assert_eq!(serial.min_tail_ess.to_bits(), parallel.min_tail_ess.to_bits());
@@ -661,3 +668,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "mcmc_admission_tests.rs"]
+mod mcmc_admission_tests;

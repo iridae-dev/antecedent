@@ -56,6 +56,22 @@ impl std::fmt::Debug for CheckedInterferenceOperation {
     }
 }
 
+/// Preserve operational refusals when the estimator runs under a public workflow.
+pub(super) fn interference_estimation_error(
+    error: antecedent_estimate::EstimationError,
+) -> CausalError {
+    match error {
+        antecedent_estimate::EstimationError::Stats(antecedent_stats::StatsError::Cancelled) => {
+            CausalError::Cancelled { stage: crate::analysis::stage::STAGE_VALIDATE }
+        }
+        antecedent_estimate::EstimationError::Stats(
+            error @ (antecedent_stats::StatsError::ResourceLimit { .. }
+            | antecedent_stats::StatsError::WorkLimit { .. }),
+        ) => CausalError::Resource { message: error.to_string() },
+        other => CausalError::from(other),
+    }
+}
+
 impl CheckedInterferenceOperation {
     pub(crate) fn checked(
         study: &Study,
@@ -236,6 +252,22 @@ impl CheckedInterferenceOperation {
                 stage: super::super::stage::STAGE_ESTIMATE_POINT,
             });
         }
+        let design_estimate = self.procedure == InterferenceProcedure::DesignBasedYoung;
+        let initial_pair = design_estimate
+            && !matches!(
+                self.query.assignment,
+                antecedent_core::AssignmentDesign::ClusterRandomization { .. }
+            );
+        super::interference_refutation::admit_interference_procedure(
+            &self.query,
+            self.assignment.len(),
+            self.network_edges.len(),
+            initial_pair,
+            design_estimate,
+            self.refute,
+            self.replicates,
+            ctx,
+        )?;
         let network =
             antecedent_data::NetworkData::try_new(data.clone(), Arc::clone(&self.network_edges))?;
         let antecedent_core::InterferenceFunctional::ExposureContrast { outcome, .. } =
@@ -306,13 +338,15 @@ impl CheckedInterferenceOperation {
             self.cluster_inference(network)?
         } else {
             (
-                antecedent_estimate::estimate_interference(
-                    &self.query,
-                    network,
-                    &self.assignment,
-                    seed,
-                )
-                .map_err(CausalError::from)?,
+                antecedent_core::numerical_admission::with_context(ctx, || {
+                    antecedent_estimate::estimate_interference(
+                        &self.query,
+                        network,
+                        &self.assignment,
+                        seed,
+                    )
+                })
+                .map_err(interference_estimation_error)?,
                 None,
             )
         };

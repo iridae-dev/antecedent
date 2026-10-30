@@ -298,7 +298,7 @@ impl PolynomialSystem {
             .checked_mul(n * 64 + 128)
             .ok_or_else(|| invalid("isolation memory overflow"))?;
         let _lease = ctx
-            .acquire_admission(1, bytes as u64)
+            .acquire_serial_numerical_admission(bytes as u64)
             .map_err(|e| EquilibriumError::Resource(e.to_string()))?;
         let mut pending = vec![self.domain.clone()];
         let mut result = IsolatedSolutions {

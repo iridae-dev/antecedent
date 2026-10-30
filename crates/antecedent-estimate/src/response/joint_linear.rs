@@ -272,9 +272,7 @@ impl PreparedJointLinear {
     }
 
     fn shared_fit(&self, ctx: &ExecutionContext) -> Result<Arc<JointLinearFit>, JointLinearError> {
-        let mut slot = self.fit.lock().map_err(|_| {
-            JointLinearError::Invalid("joint response fit cache was poisoned".into())
-        })?;
+        let mut slot = lock_fit_cancellable(&self.fit, ctx)?;
         if let Some(fit) = slot.as_ref() {
             fit.retention.observe_current();
             record_physical(PhysicalEvent::CacheHit, 1);
@@ -342,6 +340,39 @@ impl PreparedJointLinear {
         operation.complete();
         *slot = Some(Arc::clone(&fit));
         Ok(fit)
+    }
+}
+
+// A failed or panicking fit never publishes a partial value. Recover the last complete
+// cache value after a panic, and let each waiter observe its own cancellation token.
+fn lock_fit_cancellable<'a, T>(
+    slot: &'a Mutex<T>,
+    ctx: &ExecutionContext,
+) -> Result<std::sync::MutexGuard<'a, T>, JointLinearError> {
+    lock_fit_cancellable_with_wait(slot, ctx, || {})
+}
+
+fn lock_fit_cancellable_with_wait<'a, T>(
+    slot: &'a std::sync::Mutex<T>,
+    ctx: &ExecutionContext,
+    mut on_wait: impl FnMut(),
+) -> Result<std::sync::MutexGuard<'a, T>, JointLinearError> {
+    loop {
+        cancelled(ctx)?;
+        match slot.try_lock() {
+            Ok(guard) => {
+                cancelled(ctx)?;
+                return Ok(guard);
+            }
+            Err(std::sync::TryLockError::Poisoned(error)) => {
+                cancelled(ctx)?;
+                return Ok(error.into_inner());
+            }
+            Err(std::sync::TryLockError::WouldBlock) => {
+                on_wait();
+                std::thread::park_timeout(std::time::Duration::from_millis(5));
+            }
+        }
     }
 }
 
@@ -542,19 +573,43 @@ mod failed_draw_tests {
     #[test]
     fn joint_summary_is_conditional_on_success_but_retains_shared_failed_slot() {
         let schema = PosteriorSchema::coefficients(2);
-        let clean = PosteriorDraws::from_column_major(schema.clone(), 3, vec![1.0, 2.0, 3.0, 2.0, 3.0, 4.0]).unwrap();
+        let clean = PosteriorDraws::from_column_major(
+            schema.clone(),
+            3,
+            vec![1.0, 2.0, 3.0, 2.0, 3.0, 4.0],
+        )
+        .unwrap();
         let summaries = clean.summarize();
-        let draws = PosteriorDraws::from_column_major(schema, 3, vec![1.0, f64::NAN, 3.0, 2.0, f64::NAN, 4.0]).unwrap();
+        let draws = PosteriorDraws::from_column_major(
+            schema,
+            3,
+            vec![1.0, f64::NAN, 3.0, 2.0, f64::NAN, 4.0],
+        )
+        .unwrap();
         let posterior = CausalPosterior {
-            draws, summaries, identification: IdentificationStatus::NonparametricallyIdentified,
-            prior_sensitivity: None, conflict_summary: None,
-            diagnostics: InferenceDiagnostics::analytic("test"), assumptions: AssumptionSet::new(),
-            unidentified_mass: 0.0, subsampled_out_mass: 0.0, unevaluable_mass: 0.0,
-            early_stopped: false, treatment_contrast: None, preparation: None,
+            draws,
+            summaries,
+            identification: IdentificationStatus::NonparametricallyIdentified,
+            prior_sensitivity: None,
+            conflict_summary: None,
+            diagnostics: InferenceDiagnostics::analytic("test"),
+            assumptions: AssumptionSet::new(),
+            unidentified_mass: 0.0,
+            subsampled_out_mass: 0.0,
+            unevaluable_mass: 0.0,
+            early_stopped: false,
+            treatment_contrast: None,
+            preparation: None,
         };
         let ctx = ExecutionContext::for_tests(0);
-        let result = project_posterior(&[vec![1.0, 0.0], vec![1.0, 1.0]], Some(&[-1.0, 1.0]),
-            &posterior, Arc::new(admit(&ctx, 1024).unwrap()), &ctx).unwrap();
+        let result = project_posterior(
+            &[vec![1.0, 0.0], vec![1.0, 1.0]],
+            Some(&[-1.0, 1.0]),
+            &posterior,
+            Arc::new(admit(&ctx, 1024).unwrap()),
+            &ctx,
+        )
+        .unwrap();
         assert_eq!(result.draw_count, 3);
         assert_eq!(result.failed_draws.as_ref(), &[false, true, false]);
         assert_eq!(result.means.as_ref(), &[2.0, 5.0]);
@@ -569,3 +624,7 @@ mod failed_draw_tests {
         assert!(contrast[1].is_nan());
     }
 }
+
+#[cfg(test)]
+#[path = "joint_linear_lock_tests.rs"]
+mod cancellable_fit_lock_tests;

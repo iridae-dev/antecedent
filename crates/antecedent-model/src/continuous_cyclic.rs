@@ -197,7 +197,7 @@ where
         .and_then(|v| v.checked_mul(16))
         .ok_or_else(|| invalid("ODE retention overflow"))?;
     let _lease = ctx
-        .acquire_admission(1, u64::try_from(bytes).map_err(|_| invalid("ODE bytes"))?)
+        .acquire_serial_numerical_admission(u64::try_from(bytes).map_err(|_| invalid("ODE bytes"))?)
         .map_err(|e| EquilibriumError::Resource(e.to_string()))?;
     let mut state = initial.to_vec();
     let mut clamped = vec![None; n];
@@ -419,7 +419,7 @@ impl OrnsteinUhlenbeck {
         let plan = crate::compile::compile_ou(self)?;
         let n = plan.blocks[0].variables().len();
         let _lease = ctx
-            .acquire_admission(1, lyapunov_bytes(n)?)
+            .acquire_serial_numerical_admission(lyapunov_bytes(n)?)
             .map_err(|e| EquilibriumError::Resource(e.to_string()))?;
         check_cancel(ctx)?;
         let mut identity = vec![0.0; n * n];
@@ -455,7 +455,7 @@ impl OrnsteinUhlenbeck {
             return Err(invalid("Lyapunov direction shape/symmetry"));
         }
         let _lease = ctx
-            .acquire_admission(1, lyapunov_bytes(n)?)
+            .acquire_serial_numerical_admission(lyapunov_bytes(n)?)
             .map_err(|e| EquilibriumError::Resource(e.to_string()))?;
         check_cancel(ctx)?;
         self.lyapunov(direction, n)

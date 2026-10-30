@@ -112,7 +112,8 @@ pub use identified_set::{
 };
 pub use interference::{
     ExposureProbabilities, ExposureProbabilityMethod, RandomizationContrast, RandomizationMean,
-    exposure_probabilities, exposures, randomization_contrast, randomization_mean,
+    exposure_probabilities, exposure_probabilities_with_context, exposures, randomization_contrast,
+    randomization_mean,
 };
 pub use joint_law::{
     CALIBRATION_STATUS, CORRELATION_RANGE_LABEL, CorrelationRangeEnvelope,
@@ -143,8 +144,8 @@ pub use propagation_chain::{
     ChainError, Coefficient, ColumnSummary, Combine, Decision, Enclosure, Evaluated, ExprTerm,
     MAX_EXPRESSION_TERMS, PoolOutcome, Preposterior, PreposteriorOutcome, StageOp, StageSpec,
     UnaryFn, decide, evaluate_columns, evaluate_enclosures, independent_product_table,
-    moment_matched_normal_table, preposterior, shared_row_correlation, summarize, validate_spec,
-    weights_from_log,
+    moment_matched_normal_table, moment_matched_normal_table_with_work_limit, preposterior,
+    shared_row_correlation, summarize, validate_spec, weights_from_log,
 };
 pub use propensity::{
     PropensityFit, PropensityWorkspace, fit_propensity, fit_propensity_diagnostic,
@@ -166,8 +167,7 @@ pub use response::{
     gaussian_local_quadratic_bias_corrected, gaussian_local_quadratic_bias_corrected_influence,
     gaussian_local_quadratic_influence, gaussian_local_quadratic_influence_prechecked,
     gaussian_local_quadratic_influence_weighted_with, gaussian_local_quadratic_influence_with,
-    gaussian_local_quadratic_weighted,
-    silverman_bandwidth, silverman_normal_reference_factor,
+    gaussian_local_quadratic_weighted, silverman_bandwidth, silverman_normal_reference_factor,
 };
 pub use special::{
     NORMAL_Q975, chi_square_sf, gamma_q, gauss_hermite_standard_normal, gauss_legendre, ln_gamma,

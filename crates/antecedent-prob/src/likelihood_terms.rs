@@ -123,12 +123,22 @@ pub(crate) fn validate_design(
         return Err(ProbError::Shape { message: "empty design" });
     }
     let x_len = nrows.saturating_mul(ncols);
-    for &v in &design.x_colmajor[..x_len] {
+    for (index, &v) in design.x_colmajor[..x_len].iter().enumerate() {
+        if index % 4096 == 0 && antecedent_core::numerical_admission::is_cancelled() {
+            return Err(ProbError::Admission(
+                antecedent_core::execution::AdmissionError::Cancelled,
+            ));
+        }
         if !v.is_finite() {
             return Err(ProbError::Shape { message: "X must be finite" });
         }
     }
-    for &yi in design.y {
+    for (index, &yi) in design.y.iter().enumerate() {
+        if index % 4096 == 0 && antecedent_core::numerical_admission::is_cancelled() {
+            return Err(ProbError::Admission(
+                antecedent_core::execution::AdmissionError::Cancelled,
+            ));
+        }
         match likelihood {
             BayesLikelihood::GaussianIdentity => {
                 if !yi.is_finite() {
@@ -159,7 +169,12 @@ pub(crate) fn validate_design(
             return Err(ProbError::Shape { message: "weights length != nrows" });
         }
         let mut mass = 0.0;
-        for &wr in w {
+        for (index, &wr) in w.iter().enumerate() {
+            if index % 4096 == 0 && antecedent_core::numerical_admission::is_cancelled() {
+                return Err(ProbError::Admission(
+                    antecedent_core::execution::AdmissionError::Cancelled,
+                ));
+            }
             if !(wr.is_finite() && wr >= 0.0) {
                 return Err(ProbError::Shape {
                     message: "weights must be finite and non-negative",
@@ -175,7 +190,12 @@ pub(crate) fn validate_design(
         if o.len() != nrows {
             return Err(ProbError::Shape { message: "offsets length != nrows" });
         }
-        for &oi in o {
+        for (index, &oi) in o.iter().enumerate() {
+            if index % 4096 == 0 && antecedent_core::numerical_admission::is_cancelled() {
+                return Err(ProbError::Admission(
+                    antecedent_core::execution::AdmissionError::Cancelled,
+                ));
+            }
             if !oi.is_finite() {
                 return Err(ProbError::Shape { message: "offsets must be finite" });
             }

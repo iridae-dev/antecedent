@@ -324,6 +324,20 @@ pub enum EvsiError {
     Unscored(String),
 }
 
+impl From<antecedent_core::execution::MapExecutionError<EvsiError>> for EvsiError {
+    fn from(error: antecedent_core::execution::MapExecutionError<EvsiError>) -> Self {
+        match error {
+            antecedent_core::execution::MapExecutionError::Work(error) => error,
+            antecedent_core::execution::MapExecutionError::Admission(
+                antecedent_core::execution::AdmissionError::Cancelled,
+            ) => Self::Cancelled,
+            antecedent_core::execution::MapExecutionError::Admission(error) => {
+                Self::Design(DesignError::Resource(error.to_string()))
+            }
+        }
+    }
+}
+
 impl From<DesignError> for EvsiError {
     fn from(error: DesignError) -> Self {
         match error {
@@ -370,6 +384,9 @@ impl EvsiError {
         let at = |code, detail: &str| RefusalBuilder::new(code, "evaluate", detail);
         match self {
             Self::Signal(error) => error.to_refusal(),
+            Self::Design(DesignError::Resource(message)) => {
+                at("execution_resource_limit", "evsi.execution_resource_limit").expected(message.clone()).build()
+            }
             Self::Design(error) => {
                 at(signal, "evsi.design_error").expected(error.to_string()).build()
             }
@@ -1844,3 +1861,7 @@ mod future_study_tests {
         ));
     }
 }
+
+#[cfg(test)]
+#[path = "evsi_worker_tests.rs"]
+mod worker_admission_tests;

@@ -32,9 +32,8 @@ use crate::ou_mechanisms::{
 };
 use antecedent_core::execution::AdmissionLease;
 use antecedent_core::{
-    CausalRng, ChainId, DeclaredSamplingDesign, ExecutionContext, FoldId, NonZeroThreadCount,
-    Parallelism, ReductionPolicy, ReplicateId, ResamplingRule, RngKey, SamplingDesignError,
-    SemanticOperation, VarianceRule,
+    CausalRng, ChainId, DeclaredSamplingDesign, ExecutionContext, FoldId, ReductionPolicy,
+    ReplicateId, ResamplingRule, RngKey, SamplingDesignError, SemanticOperation, VarianceRule,
 };
 use antecedent_kernels::standard_normal;
 use antecedent_model::continuous_cyclic::{
@@ -60,6 +59,9 @@ const NONPARAMETRIC_WORD: u64 = 2;
 /// Refusal of a dynamic-family inference request.
 #[derive(Clone, Debug, PartialEq, thiserror::Error)]
 pub enum DynamicInferenceError {
+    /// Cancellation stopped the requested inference.
+    #[error("dynamic inference cancelled")]
+    Cancelled,
     /// The declared sampling design does not allow the attempted rule.
     #[error(transparent)]
     Design(#[from] SamplingDesignError),
@@ -75,6 +77,22 @@ pub enum DynamicInferenceError {
     /// Cancellation or admission refusal.
     #[error("dynamic inference resource refusal: {0}")]
     Resource(String),
+}
+
+impl From<antecedent_core::execution::MapExecutionError<DynamicInferenceError>>
+    for DynamicInferenceError
+{
+    fn from(error: antecedent_core::execution::MapExecutionError<DynamicInferenceError>) -> Self {
+        match error {
+            antecedent_core::execution::MapExecutionError::Work(error) => error,
+            antecedent_core::execution::MapExecutionError::Admission(
+                antecedent_core::execution::AdmissionError::Cancelled,
+            ) => cancelled(),
+            antecedent_core::execution::MapExecutionError::Admission(error) => {
+                Self::Resource(error.to_string())
+            }
+        }
+    }
 }
 
 impl From<EquilibriumError> for DynamicInferenceError {
@@ -95,7 +113,7 @@ fn mismatch(message: &str) -> DynamicInferenceError {
 }
 
 fn cancelled() -> DynamicInferenceError {
-    DynamicInferenceError::Resource("cancelled".into())
+    DynamicInferenceError::Cancelled
 }
 
 fn model_invalid(message: &str) -> EquilibriumError {
@@ -1184,25 +1202,10 @@ fn admit(
     let bytes = bytes
         .and_then(|bytes| u64::try_from(bytes).ok())
         .ok_or_else(|| invalid("allocation size overflows the address space"))?;
-    ctx.acquire_admission(0, bytes).map_err(|e| DynamicInferenceError::Resource(e.to_string()))
-}
-
-/// Context for an indexed map of whole fits. Each fit's integrator or Lyapunov solve
-/// reserves its own thread slot, so the map takes at most half the pool's threads and
-/// both reservations always fit together.
-fn worker_context(ctx: &ExecutionContext, work: usize) -> ExecutionContext {
-    let half = (ctx.admission.thread_budget() / 2).max(1);
-    let workers = ctx
-        .parallelism
-        .max_threads
-        .get()
-        .min(half)
-        .min(u32::try_from(work).unwrap_or(u32::MAX))
-        .max(1);
-    let mut bounded = ctx.clone();
-    bounded.parallelism =
-        Parallelism::bounded(NonZeroThreadCount::new(workers).unwrap_or(NonZeroThreadCount::MIN));
-    bounded
+    ctx.acquire_admission(0, bytes).map_err(|e| match e {
+        antecedent_core::execution::AdmissionError::Cancelled => DynamicInferenceError::Cancelled,
+        other => DynamicInferenceError::Resource(other.to_string()),
+    })
 }
 
 fn check_quantities<F: Family>(
@@ -1606,8 +1609,11 @@ fn bootstrap<F: Family>(
     };
     let p = family.estimate().len();
     let q = quantities.len();
-    let map_ctx = worker_context(ctx, request.replicates);
-    let workers = usize::try_from(map_ctx.parallelism.max_threads.get()).unwrap_or(1);
+    let workers = usize::try_from(ctx.parallelism.max_threads.get())
+        .unwrap_or(usize::MAX)
+        .min(request.replicates)
+        .min(usize::try_from(ctx.admission.thread_budget()).unwrap_or(usize::MAX).max(1))
+        .max(1);
     // Replicate slots, one gathered or simulated data copy plus fit scratch per worker,
     // and the stratum index.
     let bytes = request
@@ -1632,7 +1638,7 @@ fn bootstrap<F: Family>(
     let strata = stratification.map(|design| family.strata(design));
     let operation = SemanticOperation::new(family.stream() | word);
     let seed = ctx.rng.master_seed();
-    let replicates = map_ctx.map_indexed(request.replicates, |index, inner| {
+    let replicates = ctx.map_indexed(request.replicates, |index, inner| {
         replicate(family, strata.as_deref(), quantities, operation, seed, index, inner)
     })?;
     Ok(sampling_law(
@@ -1785,6 +1791,7 @@ fn posterior<F: Family>(
                     DynamicInferenceError::Resource(message)
                 }
                 (None, MetropolisError::Invalid(reason)) => invalid(reason),
+                (None, MetropolisError::Cancelled) => DynamicInferenceError::Cancelled,
             });
         }
     };
@@ -1796,7 +1803,7 @@ fn posterior<F: Family>(
     let quantity_draws = if q == 0 {
         vec![Vec::new(); total]
     } else {
-        worker_context(ctx, total).map_indexed(total, |index, inner| {
+        ctx.map_indexed(total, |index, inner| {
             if inner.cancellation.is_cancelled() {
                 return Err(cancelled());
             }

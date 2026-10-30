@@ -164,3 +164,32 @@ fn impossible_tables_and_overlaps_are_refused() {
     assert!(matches!(shared_row_correlation(0, 10, 0), Err(ChainError::Shape(_))));
     assert!(matches!(shared_row_correlation(10, 0, 0), Err(ChainError::Shape(_))));
 }
+
+#[test]
+fn joint_table_admits_work_and_observes_cancellation() {
+    use antecedent_core::{ExecutionContext, numerical_admission};
+    let means = [0.0, 0.0];
+    let covariance = [1.0, 0.0, 0.0, 1.0];
+    assert!(matches!(
+        moment_matched_normal_table_with_work_limit(&means, &covariance, 100, 1, 1),
+        Err(ChainError::Budget(_))
+    ));
+    let ctx = ExecutionContext::for_tests(1);
+    ctx.cancellation.cancel();
+    let result = numerical_admission::with_context(&ctx, || {
+        moment_matched_normal_table_with_work_limit(&means, &covariance, 100, 1, 10_000)
+    });
+    assert!(matches!(result, Err(ChainError::Cancelled)));
+    assert_eq!(
+        moment_matched_normal_table(&means, &covariance, 100, 1).unwrap(),
+        moment_matched_normal_table_with_work_limit(&means, &covariance, 100, 1, 10_000).unwrap()
+    );
+}
+
+#[test]
+fn joint_table_quote_has_exact_boundary() {
+    use super::admit_moment_matched_table_work;
+    // k=2, rows=4: 2*k^3 + 3*k^2*rows + k^2 = 68.
+    assert!(admit_moment_matched_table_work(2, 4, 68).is_ok());
+    assert!(matches!(admit_moment_matched_table_work(2, 4, 67), Err(ChainError::Budget(_))));
+}

@@ -24,8 +24,8 @@ use antecedent_identify::{TransportFormula, TransportIdentification};
 
 use super::atom_mix::{AtomBoundRule, AtomEvalView, AtomMixInput, MixedAtomEvals, mix_atom_evals};
 use super::transport_interference_path::{
-    TrialColumns, bayesian_transport_estimate, frequentist_transport_estimate,
-    TrialDependence, known_probability_assumption, sampling_weights_assumption, transport_point,
+    TrialColumns, TrialDependence, bayesian_transport_estimate, frequentist_transport_estimate,
+    known_probability_assumption, sampling_weights_assumption, transport_point,
     transport_primary_pair, transport_sid_identification,
 };
 use super::transport_refutation::{TransportRefutationInput, refute_transport};
@@ -72,7 +72,10 @@ impl TransportRows {
             data.float64_values(trial_spec.selection_probability).map_err(CausalError::rejected)?;
         let propensity =
             data.float64_values(trial_spec.treatment_probability).map_err(CausalError::rejected)?;
-        super::transport_interference_path::refuse_missing_trial_design(&treatment_col, &trial_col)?;
+        super::transport_interference_path::refuse_missing_trial_design(
+            &treatment_col,
+            &trial_col,
+        )?;
         let treatment = treatment_col.iter().map(|v| *v != 0.0).collect();
         let trial = trial_col.iter().map(|v| *v != 0.0).collect();
         let weights = data.storage().weights().map(<[f64]>::to_vec);
@@ -627,6 +630,7 @@ fn estimate_transport_atoms(
         }
         transport_point(transport, columns).map(Some)
     })
+    .map_err(Into::into)
 }
 
 fn mix_transport_atoms(

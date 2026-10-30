@@ -46,7 +46,11 @@ fn classified_operation_error(
         {
             use antecedent_estimate::experimental_fit::ExperimentalFitError;
             return match failure {
-                ExperimentalFitError::BudgetExceeded { .. }
+                ExperimentalFitError::Admission(
+                    antecedent_core::execution::AdmissionError::Cancelled,
+                ) => crate::CausalCancelledError::new_err(failure.to_string()),
+                ExperimentalFitError::Admission(_)
+                | ExperimentalFitError::BudgetExceeded { .. }
                 | ExperimentalFitError::ResourceOverflow => {
                     crate::CausalResourceError::new_err(failure.to_string())
                 }

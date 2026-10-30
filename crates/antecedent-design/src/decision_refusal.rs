@@ -185,6 +185,12 @@ impl DesignError {
         let invalid = antecedent_core::reason_code!("invalid_argument");
         let at = |code, detail: &str| refusal(code, "design", detail);
         match self {
+            Self::Resource(message) => at(
+                antecedent_core::reason_code!("execution_resource_limit"),
+                "design_refusal.resource",
+            )
+            .supplied(message.clone())
+            .build(),
             Self::EmptyCandidates => at(invalid, "design_refusal.empty_candidates").build(),
             Self::EmptyPosterior => at(invalid, "design_refusal.empty_posterior").build(),
             Self::Shape(message) => {
@@ -420,6 +426,12 @@ mod tests {
         let unsatisfied = "decision_contract_unsatisfied";
         let cases = [
             (DesignError::EmptyCandidates, invalid, "design_refusal.empty_candidates", None),
+            (
+                DesignError::Resource("worker unavailable".into()),
+                "execution_resource_limit",
+                "design_refusal.resource",
+                Some("worker unavailable"),
+            ),
             (DesignError::EmptyPosterior, invalid, "design_refusal.empty_posterior", None),
             (DesignError::Shape("s".into()), invalid, "design_refusal.shape", Some("s")),
             (DesignError::Config("c".into()), invalid, "design_refusal.config", Some("c")),

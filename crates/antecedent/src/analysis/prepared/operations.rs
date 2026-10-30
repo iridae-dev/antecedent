@@ -1201,8 +1201,45 @@ impl CheckedAipwOperation {
     }
 }
 
-/// Checked linear adjustment target with its selected fit and uncertainty
-/// procedure. `default_id` preserves the progressive point/uncertainty stages.
+// A cache entry is published only after the fit completes. Poison recovery therefore
+// retains only the previous complete value; a queued caller can cancel independently.
+fn lock_frozen_fit<'a, T>(
+    slot: &'a std::sync::Mutex<T>,
+    ctx: &ExecutionContext,
+) -> Result<std::sync::MutexGuard<'a, T>, CausalError> {
+    lock_frozen_fit_with_wait(slot, ctx, || {})
+}
+
+fn lock_frozen_fit_with_wait<'a, T>(
+    slot: &'a std::sync::Mutex<T>,
+    ctx: &ExecutionContext,
+    mut on_wait: impl FnMut(),
+) -> Result<std::sync::MutexGuard<'a, T>, CausalError> {
+    loop {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: STAGE_ESTIMATE_POINT });
+        }
+        match slot.try_lock() {
+            Ok(guard) => {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(CausalError::Cancelled { stage: STAGE_ESTIMATE_POINT });
+                }
+                return Ok(guard);
+            }
+            Err(std::sync::TryLockError::Poisoned(error)) => {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(CausalError::Cancelled { stage: STAGE_ESTIMATE_POINT });
+                }
+                return Ok(error.into_inner());
+            }
+            Err(std::sync::TryLockError::WouldBlock) => {
+                on_wait();
+                std::thread::park_timeout(std::time::Duration::from_millis(5));
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct FrozenLinearFit {
     kernel: antecedent_core::KernelPolicy,
@@ -1210,6 +1247,8 @@ pub(crate) struct FrozenLinearFit {
     retention: Arc<antecedent_core::execution::AdmissionLease>,
 }
 
+/// Checked linear adjustment target with its selected fit and uncertainty
+/// procedure. `default_id` preserves the progressive point/uncertainty stages.
 #[derive(Clone)]
 pub(crate) struct CheckedLinearOperation {
     pub(crate) frozen_fit: Arc<std::sync::Mutex<Option<FrozenLinearFit>>>,
@@ -1563,9 +1602,7 @@ impl CheckedLinearOperation {
         } else {
             geometry.peak()?
         };
-        let cache = self.frozen_fit.lock().map_err(|_| CausalError::Compile {
-            message: "retained linear fit lock poisoned".into(),
-        })?;
+        let cache = lock_frozen_fit(&self.frozen_fit, ctx)?;
         if let Some(fit) = cache.as_ref().filter(|fit| fit.retention.belongs_to(&pool)) {
             fit.retention.observe_current();
             if fit.kernel == ctx.kernel_policy {
@@ -1603,9 +1640,7 @@ impl CheckedLinearOperation {
                 .map_err(|error| CausalError::Resource { message: error.to_string() })
         };
         let estimate = if self.fitter.inference.bootstrap_replicates == 0 {
-            let mut frozen = self.frozen_fit.lock().map_err(|_| CausalError::Compile {
-                message: "retained linear fit lock poisoned".into(),
-            })?;
+            let mut frozen = lock_frozen_fit(&self.frozen_fit, ctx)?;
             if let Some(FrozenLinearFit { estimate, retention, .. }) =
                 frozen.as_ref().filter(|fit| fit.kernel == ctx.kernel_policy)
             {
@@ -2092,3 +2127,7 @@ impl Inspect for CheckedUnknownTieredAverageOperation {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "operations_lock_tests.rs"]
+mod cancellable_fit_lock_tests;

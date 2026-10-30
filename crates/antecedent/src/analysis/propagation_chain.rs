@@ -715,6 +715,32 @@ pub fn family_table(
             None,
         ));
     }
+    antecedent_stats::propagation_chain::admit_moment_matched_table_work(
+        k,
+        rows,
+        antecedent_stats::propagation_chain::MAX_MOMENT_MATCHED_TABLE_WORK,
+    )
+    .map_err(|error| {
+        ChainRefusal::new(
+            match &error {
+                antecedent_stats::ChainError::Cancelled => "execution_cancelled",
+                antecedent_stats::ChainError::Budget(_) => "moment_matched_table_work_budget",
+                _ => antecedent_core::reason_code!("invalid_argument"),
+            },
+            match &error {
+                antecedent_stats::ChainError::Cancelled => {
+                    "propagation_chain.family_table_cancelled"
+                }
+                antecedent_stats::ChainError::Budget(_) => {
+                    "propagation_chain.family_table_work_limit"
+                }
+                _ => "propagation_chain.family_table_refused",
+            },
+            error.to_string(),
+            None,
+            antecedent_contract::propagation_chain::RAISE_BUDGET_OR_THIN_DRAWS,
+        )
+    })?;
     let mut seen = BTreeSet::new();
     for estimate in estimates {
         if !seen.insert(estimate.id.as_str()) || estimate.id.trim().is_empty() {
@@ -784,8 +810,20 @@ pub fn family_table(
     let table = antecedent_stats::moment_matched_normal_table(&means, &covariance, rows, seed)
         .map_err(|error| {
             ChainRefusal::new(
-                antecedent_core::reason_code!("invalid_argument"),
-                "propagation_chain.family_table_refused",
+                match &error {
+                    antecedent_stats::ChainError::Cancelled => "execution_cancelled",
+                    antecedent_stats::ChainError::Budget(_) => "moment_matched_table_work_budget",
+                    _ => antecedent_core::reason_code!("invalid_argument"),
+                },
+                match &error {
+                    antecedent_stats::ChainError::Cancelled => {
+                        "propagation_chain.family_table_cancelled"
+                    }
+                    antecedent_stats::ChainError::Budget(_) => {
+                        "propagation_chain.family_table_work_limit"
+                    }
+                    _ => "propagation_chain.family_table_refused",
+                },
                 error.to_string(),
                 None,
                 antecedent_contract::propagation_chain::RAISE_BUDGET_OR_THIN_DRAWS,

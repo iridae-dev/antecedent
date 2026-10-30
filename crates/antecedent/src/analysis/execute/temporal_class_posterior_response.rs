@@ -207,6 +207,7 @@ impl super::Study {
                 Err(_) => Ok((key, weight, Some(Err(())))),
             }
         })
+        .map_err(Into::into)
     }
 
     /// Mixes the evaluated atoms into the posterior response: the aggregation

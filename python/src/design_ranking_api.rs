@@ -87,6 +87,15 @@ fn invalid_declaration(error: &serde_json::Error) -> PyErr {
 
 /// A refusal becomes structured JSON; anything else is a serialization failure.
 fn payload_error(error: &DesignRankingError) -> Result<String, PyErr> {
+    match error {
+        DesignRankingError::Evsi(antecedent_design::evsi::EvsiError::Cancelled) => {
+            return Err(crate::CausalCancelledError::new_err(error.to_string()));
+        }
+        DesignRankingError::Evsi(antecedent_design::evsi::EvsiError::Design(
+            antecedent_design::DesignError::Resource(_),
+        )) => return Err(crate::CausalResourceError::new_err(error.to_string())),
+        _ => {}
+    }
     error.refusal().map(|r| external_refusal_json(&r)).ok_or_else(|| serialization(error))
 }
 
@@ -287,6 +296,15 @@ pub(crate) fn evsi_study(
 /// A refusal as structured JSON; a compile failure that is not a refusal (a Monte Carlo store the
 /// admission pool cannot hold) keeps its own error class.
 fn study_refusal(error: DesignRankingError) -> PyResult<String> {
+    match &error {
+        DesignRankingError::Evsi(antecedent_design::evsi::EvsiError::Cancelled) => {
+            return Err(crate::CausalCancelledError::new_err(error.to_string()));
+        }
+        DesignRankingError::Evsi(antecedent_design::evsi::EvsiError::Design(
+            antecedent_design::DesignError::Resource(_),
+        )) => return Err(crate::CausalResourceError::new_err(error.to_string())),
+        _ => {}
+    }
     if let Some(refusal) = error.refusal() {
         return Ok(external_refusal_json(&refusal));
     }

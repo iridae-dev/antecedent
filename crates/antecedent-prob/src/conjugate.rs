@@ -106,6 +106,13 @@ pub(crate) fn fit_with_absolute_scale_resolved(
 ///
 /// `β̂` is the weighted least-squares solution and `n` counts rows with a positive
 /// weight (the WLS residual quadratic form has expectation `σ² (n − p)`).
+fn check_preprocess_cancelled() -> Result<(), ProbError> {
+    if antecedent_core::numerical_admission::is_cancelled() {
+        return Err(ProbError::Admission(antecedent_core::execution::AdmissionError::Cancelled));
+    }
+    Ok(())
+}
+
 #[allow(
     clippy::neg_cmp_op_on_partial_ord,
     reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
@@ -113,7 +120,13 @@ pub(crate) fn fit_with_absolute_scale_resolved(
 fn ols_residual_variance(design: BayesDesignRef<'_>) -> Result<f64, ProbError> {
     let nrows = design.nrows;
     let ncols = design.ncols;
-    let n_pos = (0..nrows).filter(|&r| design.weights.map_or(1.0, |w| w[r]) > 0.0).count();
+    let mut n_pos = 0;
+    for r in 0..nrows {
+        if r % 4096 == 0 {
+            check_preprocess_cancelled()?;
+        }
+        n_pos += usize::from(design.weights.map_or(1.0, |w| w[r]) > 0.0);
+    }
     if n_pos <= ncols {
         return Err(ProbError::Inference {
             message: "absolute-scale prior plug-in needs the target residual variance, which \
@@ -123,28 +136,64 @@ fn ols_residual_variance(design: BayesDesignRef<'_>) -> Result<f64, ProbError> {
     let mut xtx = vec![0.0; ncols * ncols];
     let mut xty = vec![0.0; ncols];
     for r in 0..nrows {
+        if r % 64 == 0 {
+            check_preprocess_cancelled()?;
+        }
         let w = design.weights.map_or(1.0, |ww| ww[r]);
         if w == 0.0 {
             continue;
         }
         let yr = design.y[r] - design.offsets.map_or(0.0, |oo| oo[r]);
         for c1 in 0..ncols {
+            if c1 % 64 == 0 {
+                check_preprocess_cancelled()?;
+            }
             let x1 = design.x_colmajor[c1 * nrows + r];
             xty[c1] += w * x1 * yr;
             for c2 in c1..ncols {
+                if c2 % 4096 == 0 {
+                    check_preprocess_cancelled()?;
+                }
                 xtx[c1 * ncols + c2] += w * x1 * design.x_colmajor[c2 * nrows + r];
             }
         }
     }
     for c1 in 0..ncols {
+        if c1 % 64 == 0 {
+            check_preprocess_cancelled()?;
+        }
         for c2 in 0..c1 {
+            if c2 % 4096 == 0 {
+                check_preprocess_cancelled()?;
+            }
             xtx[c1 * ncols + c2] = xtx[c2 * ncols + c1];
         }
     }
+    check_preprocess_cancelled()?;
     let beta = solve_posterior_mean(&xtx, ncols, &xty)?.mean;
+    check_preprocess_cancelled()?;
     #[allow(clippy::cast_precision_loss, reason = "row counts are far below 2^52")]
     let df = (n_pos - ncols) as f64;
-    let sigma2 = residual_ss_from_design(design, &beta) / df;
+    let mut rss = 0.0;
+    for r in 0..nrows {
+        if r % 64 == 0 {
+            check_preprocess_cancelled()?;
+        }
+        let w = design.weights.map_or(1.0, |ww| ww[r]);
+        if w == 0.0 {
+            continue;
+        }
+        let mut pred = design.offsets.map_or(0.0, |oo| oo[r]);
+        for c in 0..ncols {
+            if c % 4096 == 0 {
+                check_preprocess_cancelled()?;
+            }
+            pred += design.x_colmajor[c * nrows + r] * beta[c];
+        }
+        let resid = design.y[r] - pred;
+        rss += w * resid * resid;
+    }
+    let sigma2 = rss.max(0.0) / df;
     if !(sigma2 > 0.0) || !sigma2.is_finite() {
         return Err(ProbError::Inference {
             message: "absolute-scale prior plug-in: the target OLS residual variance is zero \

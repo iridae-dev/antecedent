@@ -83,9 +83,7 @@ impl LearnerFactory for NeuralNetLearner {
             .map_err(|error| match error {
                 MapExecutionError::Work(error) => error,
                 MapExecutionError::Admission(AdmissionError::Cancelled) => LearnError::Cancelled,
-                MapExecutionError::Admission(error) => {
-                    LearnError::Backend(format!("neural_net admission: {error}"))
-                }
+                MapExecutionError::Admission(error) => LearnError::Admission(error),
             })?;
         Ok(result.remove(0))
     }
@@ -122,7 +120,7 @@ impl NeuralNetLearner {
             .expect("worker context is installed")
             .map_err(|error| match error {
                 AdmissionError::Cancelled => LearnError::Cancelled,
-                other => LearnError::Backend(format!("neural_net admission: {other}")),
+                other => LearnError::Admission(other),
             })?;
         let (design, nrows, ncols) = materialize_dense_colmajor(x)?;
         let gathered_y = gather_physical(y.values(), x, nrows)?;
@@ -231,14 +229,21 @@ mod tests {
             let limited = ExecutionContext::for_tests(1).with_memory_limit(Some(1));
             let learner =
                 NeuralNetLearner::new(NeuralSpec { device, ..spec }, PredictionTask::Regression);
-            assert!(matches!(learner.fit(x, y, None, &limited), Err(LearnError::Backend(_))));
+            assert!(matches!(
+                learner.fit(x, y, None, &limited),
+                Err(LearnError::Admission(
+                    antecedent_core::execution::AdmissionError::ExceedsRemainder { .. }
+                ))
+            ));
         }
         // Epoch bookkeeping is allocated before the first training iteration.
         let long_spec = NeuralSpec { epochs: u32::MAX, ..spec };
         let limited = ExecutionContext::for_tests(1).with_memory_limit(Some(1_000_000));
         assert!(matches!(
             NeuralNetLearner::new(long_spec, PredictionTask::Regression).fit(x, y, None, &limited),
-            Err(LearnError::Backend(_))
+            Err(LearnError::Admission(
+                antecedent_core::execution::AdmissionError::ExceedsRemainder { .. }
+            ))
         ));
         let pool = AdmissionPool::fixed(1, 1_000_000);
         let ctx = ExecutionContext::for_tests(1).with_admission(pool);

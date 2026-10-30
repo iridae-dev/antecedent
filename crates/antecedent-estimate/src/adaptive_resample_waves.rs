@@ -113,6 +113,9 @@ pub struct WaveStoppingRule {
 /// Refusals of the wave procedure.
 #[derive(Clone, Debug, Eq, PartialEq, Error)]
 pub enum WaveError {
+    /// Execution could not obtain its worker reservation.
+    #[error(transparent)]
+    Admission(antecedent_core::execution::AdmissionError),
     /// The declared rule is not usable.
     #[error("invalid adaptive wave rule: {0}")]
     InvalidRule(&'static str),
@@ -471,15 +474,57 @@ fn run_wave(
     estimate: &(impl Fn(u64, &mut CausalRng) -> Result<Option<f64>, EstimationError> + Sync),
 ) -> Result<Vec<Replicate>, Halt> {
     let len = usize::try_from(count).map_err(|_| Halt::Cancelled)?;
-    ctx.map_indexed(len, |local, inner| {
+    // Preserve a fully completed wave even if the token trips as its final
+    // replicate returns. An incomplete wave is discarded as before.
+    // The mutex slots and the collected output coexist during extraction.
+    let bytes = len
+        .checked_mul(
+            std::mem::size_of::<std::sync::Mutex<Option<Replicate>>>()
+                .checked_add(std::mem::size_of::<Replicate>())
+                .ok_or(Halt::Failed(EstimationError::Admission(
+                    antecedent_core::execution::AdmissionError::Overflow,
+                )))?,
+        )
+        .and_then(|bytes| u64::try_from(bytes).ok())
+        .ok_or(Halt::Failed(EstimationError::Admission(
+            antecedent_core::execution::AdmissionError::Overflow,
+        )))?;
+    let _completed_lease = antecedent_core::numerical_admission::acquire(bytes)
+        .unwrap_or_else(|| ctx.acquire_admission(0, bytes))
+        .map_err(|error| {
+            if matches!(error, antecedent_core::execution::AdmissionError::Cancelled) {
+                Halt::Cancelled
+            } else {
+                Halt::Failed(EstimationError::Admission(error))
+            }
+        })?;
+    let completed: Vec<_> = (0..len).map(|_| std::sync::Mutex::new(None)).collect();
+    let result = ctx.map_indexed(len, |local, inner| {
         if inner.cancellation.is_cancelled() {
             return Err(Halt::Cancelled);
         }
-        let local = u32::try_from(local).map_err(|_| Halt::Cancelled)?;
-        let id = u64::from(first_replicate) + u64::from(local);
+        let local_id = u32::try_from(local).map_err(|_| Halt::Cancelled)?;
+        let id = u64::from(first_replicate) + u64::from(local_id);
         let mut rng = wave_replicate_rng(inner, stream_base, id);
-        classify(estimate(id, &mut rng))
-    })
+        let value = classify(estimate(id, &mut rng))?;
+        *completed[local].lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(value);
+        Ok(())
+    });
+    match result {
+        Err(antecedent_core::execution::MapExecutionError::Work(error)) => Err(error),
+        Err(antecedent_core::execution::MapExecutionError::Admission(error))
+            if !matches!(error, antecedent_core::execution::AdmissionError::Cancelled) =>
+        {
+            Err(Halt::Failed(EstimationError::Admission(error)))
+        }
+        Ok(_) | Err(antecedent_core::execution::MapExecutionError::Admission(_)) => {
+            let values: Option<Vec<_>> = completed
+                .into_iter()
+                .map(|value| value.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner))
+                .collect();
+            values.ok_or(Halt::Cancelled)
+        }
+    }
 }
 
 fn cancelled(ledger: Ledger, rule: &WaveStoppingRule) -> Result<WaveRun, WaveError> {
@@ -513,6 +558,7 @@ pub fn run_adaptive_waves(
     drive_waves(rule, ctx, |first, count| run_wave(ctx, stream_base, first, count, &estimate))
         .map_err(|error| match error {
             DriveError::Wave(error) => error,
+            DriveError::Estimator(EstimationError::Admission(error)) => WaveError::Admission(error),
             DriveError::Estimator(_) => {
                 WaveError::InvalidRule("an estimator error escaped the failure accounting")
             }
@@ -580,6 +626,9 @@ fn drive_waves(
         };
         ledger.absorb(wave, next, outcomes);
         next += count;
+        if ctx.cancellation.is_cancelled() {
+            return cancelled(ledger, rule).map_err(DriveError::Wave);
+        }
         if let Some(progress) = &ctx.progress {
             progress.report(
                 f64::from(next) / f64::from(rule.max_replicates),
@@ -803,6 +852,19 @@ mod tests {
             Ok(Some(rng.next_f64()))
         });
         assert!(matches!(result, Err(WaveError::Cancelled { completed_waves: 2, attempted: 20 })));
+    }
+
+    #[test]
+    fn wave_worker_refusal_is_not_reported_as_cancellation_or_partial_success() {
+        let pool = antecedent_core::execution::AdmissionPool::fixed(0, 4096);
+        let ctx = ExecutionContext::for_tests(1).with_admission(pool);
+        let result = run_adaptive_waves(&rule(10, 100), &ctx, 0, |_, _| Ok(Some(1.0)));
+        assert!(matches!(
+            result,
+            Err(WaveError::Admission(
+                antecedent_core::execution::AdmissionError::ExceedsRemainder { .. }
+            ))
+        ));
     }
 
     #[test]

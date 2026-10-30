@@ -10,6 +10,9 @@ use crate::learner::{LearnerCapabilities, PredictionTask};
 #[derive(Clone, Debug, Eq, PartialEq, Error)]
 #[non_exhaustive]
 pub enum LearnError {
+    /// Worker or scratch admission stopped the learner.
+    #[error(transparent)]
+    Admission(antecedent_core::execution::AdmissionError),
     /// Shape mismatch between design, target, weights, or output.
     #[error("shape error: {message}")]
     Shape {

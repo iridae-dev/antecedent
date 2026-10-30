@@ -164,9 +164,7 @@ fn map_admission_error(
     match error {
         MapExecutionError::Work(error) => error,
         MapExecutionError::Admission(AdmissionError::Cancelled) => LearnError::Cancelled,
-        MapExecutionError::Admission(error) => {
-            LearnError::Backend(format!("cross-fit admission: {error}"))
-        }
+        MapExecutionError::Admission(error) => LearnError::Admission(error),
     }
 }
 

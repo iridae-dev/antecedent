@@ -374,3 +374,68 @@ fn rebind_estimate(
     *prepared = branch;
     Ok(result)
 }
+
+#[test]
+fn full_study_admits_initial_and_refutation_probability_work_as_one_procedure() {
+    use antecedent::CausalError;
+    use antecedent_stats::interference::ExposureProbabilityMethod;
+
+    let outcomes = vec![1.0; 21];
+    let data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
+    let mut query = InterferenceQuery::new(
+        AssignmentDesign::Bernoulli { probabilities: Arc::from([0.5]) },
+        ExposureMapping::NeighborCount,
+        InterferenceFunctional::ExposureContrast {
+            outcome: VariableId::from_raw(0),
+            from: ExposureLevel { own: 0.0, neighbors: 0.0 },
+            to: ExposureLevel { own: 1.0, neighbors: 0.0 },
+        },
+    );
+    query.probability_draws = 100;
+    let build_study = |assignment: Vec<bool>| {
+        let network = NetworkData::try_new(data.clone(), []).unwrap();
+        Study::tabular(data.clone())
+            .graph(Dag::with_variables(1))
+            .query(CausalQuery::Interference(query.clone()))
+            .interference(InterferenceSpec { network, assignment: Arc::from(assignment) })
+            .refute(RefuteSuite::Full)
+            .bootstrap_replicates(2)
+            .build()
+            .unwrap()
+    };
+    let base = ExecutionContext::for_tests(7);
+    // 21 units, ceil(log2(21+1))=5, no edges, 100 Monte Carlo draws,
+    // two levels for the initial estimate and for each of two redraws.
+    let aggregate = 21 * (5 + 4) * 100 * 6;
+    let low = base.with_exposure_probability_work_limit(aggregate - 1);
+    let exact = base.with_exposure_probability_work_limit(aggregate);
+    let assignment = (0..21).map(|i| i % 2 == 0).collect();
+    let study = build_study(assignment);
+    let prepared = study.prepare(&base).unwrap();
+    assert!(matches!(prepared.estimate(&data, &low), Err(CausalError::Resource { .. })));
+    let result = prepared.estimate(&data, &exact).unwrap();
+    let estimate = result.interference().unwrap();
+    assert!(matches!(
+        estimate.from_probability_method,
+        ExposureProbabilityMethod::MonteCarlo { draws: 100, .. }
+    ));
+    assert!(matches!(
+        estimate.to_probability_method,
+        ExposureProbabilityMethod::MonteCarlo { draws: 100, .. }
+    ));
+    let redraw = result
+        .refutations
+        .iter()
+        .find(|r| r.refuter.as_ref() == "interference.randomization_unbiasedness")
+        .unwrap();
+    assert_eq!(redraw.replicates, 2);
+
+    // With no treated unit the point estimator cannot evaluate the active
+    // exposure. A low ceiling must refuse first; the admitted run reaches
+    // that distinct point-estimation error.
+    let absent = build_study(vec![false; 21]);
+    let absent = absent.prepare(&base).unwrap();
+    assert!(matches!(absent.estimate(&data, &low), Err(CausalError::Resource { .. })));
+    let point_error = absent.estimate(&data, &exact).unwrap_err();
+    assert!(point_error.to_string().contains("requested exposure is absent"), "{point_error}");
+}

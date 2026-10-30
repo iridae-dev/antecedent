@@ -375,6 +375,10 @@ impl DesignRankingError {
                 capability: None,
                 remedy: None,
             }),
+            Self::Evsi(
+                EvsiError::Cancelled
+                | EvsiError::Design(antecedent_design::DesignError::Resource(_)),
+            ) => None,
             Self::Evsi(error) => Some(error.to_refusal()),
             Self::Artifact(error) => error.refusal(),
             Self::Ranking(error) => Some(error.to_refusal()),

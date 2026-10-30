@@ -17,9 +17,7 @@ use antecedent_learn::{
 };
 
 use crate::arm::TreatmentArm;
-use crate::crossfit_plan::{
-    CrossfitPlan, FoldIdErrors, FoldRows, FoldSource, derive_fold_ids,
-};
+use crate::crossfit_plan::{CrossfitPlan, FoldIdErrors, FoldRows, FoldSource, derive_fold_ids};
 use crate::error::EstimationError;
 
 #[allow(
@@ -28,12 +26,25 @@ use crate::error::EstimationError;
 )]
 pub(crate) fn learn_err(err: antecedent_learn::LearnError) -> EstimationError {
     match err {
-        antecedent_learn::LearnError::Cancelled => crate::util::refuse(
-            antecedent_core::reason_code!("cancelled_no_claim"),
-            "cross_fit.cancelled",
-            "a cross-fit fold was cancelled; no nuisance fit is reported and the stop is not a \
-             verdict on the data",
-        ),
+        antecedent_learn::LearnError::Cancelled
+        | antecedent_learn::LearnError::Stats(antecedent_stats::StatsError::Cancelled)
+        | antecedent_learn::LearnError::Admission(
+            antecedent_core::execution::AdmissionError::Cancelled,
+        )
+        | antecedent_learn::LearnError::Stats(antecedent_stats::StatsError::Admission(
+            antecedent_core::execution::AdmissionError::Cancelled,
+        ))
+        | antecedent_learn::LearnError::Probability(antecedent_prob::ProbError::Admission(
+            antecedent_core::execution::AdmissionError::Cancelled,
+        ))
+        | antecedent_learn::LearnError::Probability(antecedent_prob::ProbError::Cancelled {
+            ..
+        }) => nuisance_cancelled(),
+        antecedent_learn::LearnError::Admission(error)
+        | antecedent_learn::LearnError::Stats(antecedent_stats::StatsError::Admission(error))
+        | antecedent_learn::LearnError::Probability(antecedent_prob::ProbError::Admission(error)) => {
+            EstimationError::Admission(error)
+        }
         other => EstimationError::Learner(other),
     }
 }
@@ -225,7 +236,13 @@ pub(crate) fn cross_fit_aipw_nuisances(
         {
             learn_err(error)
         }
-        _ => nuisance_cancelled(),
+        antecedent_core::execution::MapExecutionError::Work(_) => nuisance_cancelled(),
+        antecedent_core::execution::MapExecutionError::Admission(
+            antecedent_core::execution::AdmissionError::Cancelled,
+        ) => nuisance_cancelled(),
+        antecedent_core::execution::MapExecutionError::Admission(error) => {
+            EstimationError::Admission(error)
+        }
     })?;
     let treat = CrossFittedPrediction {
         predictions: ehat.clone(),
@@ -506,6 +523,34 @@ pub(crate) fn cached_aipw_nuisances(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn nuisance_cancellation_preserves_detail_and_non_cancel_admission() {
+        use antecedent_core::execution::AdmissionError;
+        use antecedent_learn::LearnError;
+        for input in [
+            LearnError::Cancelled,
+            LearnError::Admission(AdmissionError::Cancelled),
+            LearnError::Stats(antecedent_stats::StatsError::Cancelled),
+            LearnError::Stats(antecedent_stats::StatsError::Admission(AdmissionError::Cancelled)),
+            LearnError::Probability(antecedent_prob::ProbError::Admission(
+                AdmissionError::Cancelled,
+            )),
+            LearnError::Probability(antecedent_prob::ProbError::Cancelled {
+                stage: "hmc.cancelled",
+            }),
+        ] {
+            let error = learn_err(input);
+            assert!(
+                matches!(error, EstimationError::Refused { code: "cancelled_no_claim", ref message }
+                if message.detail() == Some("dml.cancelled"))
+            );
+        }
+        assert!(matches!(
+            learn_err(LearnError::Admission(AdmissionError::Overflow)),
+            EstimationError::Admission(AdmissionError::Overflow)
+        ));
+    }
 
     #[test]
     fn guarded_propensity_refuses_boundary_values_unless_a_clip_makes_them_interior() {

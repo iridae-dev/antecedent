@@ -186,6 +186,7 @@ mod temporal_sequential_tuples;
 mod temporal_slope_design;
 pub mod temporal_transport;
 mod tiled_prediction;
+pub use tiled_prediction::TileError;
 pub mod trajectory_survival;
 pub mod transport;
 pub mod transport_design;
@@ -346,7 +347,7 @@ pub use interference::{
     BayesianInterferenceEstimate, ClusterTotalInterval, InterferenceEstimate,
     estimate_cluster_interference_bayesian_bootstrap, estimate_cluster_interference_total,
     estimate_cluster_interference_total_with_inference, estimate_interference,
-    estimate_interference_bayesian, own_treatment_level,
+    estimate_interference_bayesian, estimate_interference_with_context, own_treatment_level,
 };
 pub use interference_observational::{
     ObservationalExposureEstimate, ObservationalExposureSpec, estimate_observational_exposure,

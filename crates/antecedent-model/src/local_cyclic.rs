@@ -207,7 +207,7 @@ impl LocalCyclicModel {
         }
         let bytes = u64::try_from(64 * n * n + 256 * n).map_err(|_| invalid("local resources"))?;
         let _lease = ctx
-            .acquire_admission(1, bytes)
+            .acquire_serial_numerical_admission(bytes)
             .map_err(|e| EquilibriumError::Resource(e.to_string()))?;
         let mut values = initial.to_vec();
         for clamp in clamps {
