@@ -16,6 +16,10 @@ of check are kept in separate types so one is never read as the other.
 
 `prepared.preflight()` (Python) inspects the structure of the plan only; `diagnose` reads the data.
 
+For automatic bounded quality profiling and structured advisory findings, see
+[data quality diagnostics](data-diagnostics.md). The existing preflight calls below
+keep their signatures and execution-specific interpretation.
+
 ## Fit-free preflight
 
 `diagnose` reads the retained table and the certified adjustment set only. It reports:

@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.0.0 (unreleased)
+
+- Automatic, bounded, fit-free data diagnostics on prepared tabular and series studies, with configurable built-in suites, explicit opt-out, standalone Rust/Python calls, immutable identity-bound reports, coverage and human follow-up guidance. See [data diagnostics](docs/guides/data-diagnostics.md).
+
 ## 2.4.1
 
 Changes since 2.4.0. Released identities, artifact encodings and goldens are unchanged; new fields enter an identity or encoding only when a request sets them.

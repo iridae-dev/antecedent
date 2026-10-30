@@ -1,4 +1,7 @@
-"""Independent diagnostic measurements and fit-free lifecycle integration."""
+"""Independent diagnostic measurements and fit-free lifecycle integration.
+
+SPDX-License-Identifier: MIT OR Apache-2.0
+"""
 
 import dataclasses
 import json

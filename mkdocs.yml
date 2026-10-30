@@ -70,6 +70,7 @@ nav:
     - Reuse DML scores to retarget: guides/dml-scores.md
     - Answer and retarget a family of effects: guides/batch-retarget.md
     - Matched case-control odds ratio: guides/matched-case-control.md
+    - Data quality diagnostics: guides/data-diagnostics.md
     - Check a table before estimating: guides/preflight-diagnostics.md
     - Overlap and E-value diagnostics: guides/tier-diagnostics.md
     - Refute the reported quantity: guides/target-native-validation.md
