@@ -160,6 +160,9 @@ fn association_functional(
     folds: Option<u32>,
 ) -> PyResult<antecedent_core::AssociationFunctional> {
     use antecedent_core::{AssociationFunctional, AssociationMeasure};
+    if functional != "predictive" && folds.is_some() {
+        return Err(crate::value_err("folds applies only to predictive association"));
+    }
     Ok(match functional {
         "auto" => AssociationFunctional::Auto,
         "conditional" => AssociationFunctional::Conditional,
@@ -255,5 +258,18 @@ impl PyPreparedAnalysis {
                 req.finish_applied(builder, false)
             })
         }
+    }
+}
+
+#[cfg(test)]
+mod association_argument_tests {
+    use super::association_functional;
+
+    #[test]
+    fn folds_are_only_accepted_for_predictive_association() {
+        pyo3::Python::initialize();
+        assert!(association_functional("auto", None).is_ok());
+        assert!(association_functional("predictive", Some(3)).is_ok());
+        assert!(association_functional("conditional", Some(3)).is_err());
     }
 }

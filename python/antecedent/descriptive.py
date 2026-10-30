@@ -603,6 +603,8 @@ class Association:
                 "a correlation relates the outcome to exactly one predictor and holds nothing "
                 "fixed; use functional='coefficients' to adjust for conditioning columns"
             )
+        if self.functional != "predictive" and self.folds != 5:
+            raise CausalValueError("folds applies only to predictive association")
         if self.functional == "predictive" and not 2 <= self.folds <= 20:
             raise CausalValueError("a predictive model is scored over 2 to 20 folds")
         refused = self.refused_after

@@ -197,6 +197,12 @@ def prepared_panel(units):
     )
 
 
+def test_temporal_penalty_rejects_nondefault_posterior_options():
+    prepared_study = prepared_panel(panel_units())
+    with pytest.raises(Exception, match="do not apply"):
+        require_success(prepared_study.temporal_treatment_score([[0.0]], penalty=2.0, draws=500))
+
+
 def test_the_temporal_penalized_score_is_the_ridge_mode_and_the_posterior_is_a_laplace_mean() -> (
     None
 ):

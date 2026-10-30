@@ -376,6 +376,9 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
+        if adoptions.is_none() && placebo_replicates != 0 {
+            return Err(crate::value_err("placebo_replicates requires staggered adoptions"));
+        }
         if conformal && adoptions.is_some() {
             return Err(crate::value_err(
                 "conformal intervals cover one treated unit; staggered adoptions use \
@@ -708,6 +711,13 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
+        if censoring_probability_floor.is_none()
+            && (!censoring_times.is_empty() || !censoring_columns.is_empty())
+        {
+            return Err(crate::value_err(
+                "censoring times and columns require censoring_probability_floor",
+            ));
+        }
         let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
         req.refuse_design("randomized survival")?;
         let data = req.load_columns(py, columns)?;

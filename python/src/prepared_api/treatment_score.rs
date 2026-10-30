@@ -58,6 +58,11 @@ impl PyPreparedAnalysis {
         seed: u64,
         threads: Option<u32>,
     ) -> PyResult<crate::array_fit_api::PyArrayFit> {
+        if penalty.is_some() && (intercept_sd != 1.0 || slope_sd != 1.0 || draws != 4000) {
+            return Err(crate::value_err(
+                "posterior prior and draws options do not apply to penalized temporal score",
+            ));
+        }
         let inner = Arc::clone(&self.inner);
         let model = match penalty {
             Some(penalty) => TemporalScoreModel::Penalized { penalty },

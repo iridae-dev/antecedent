@@ -289,3 +289,10 @@ def test_augmented_synthetic_control_uses_retained_donor_model_and_refuses_inval
         sum(statistic >= abs(exact.estimate) for _, statistic in exact.randomization_statistics) / 4
     )
     assert _analyzed(rows, exact_query).synthetic_control == exact
+
+
+def test_native_synthetic_control_rejects_placebos_without_adoptions():
+    from antecedent import _native
+
+    with pytest.raises(Exception, match="placebo_replicates"):
+        _native.PreparedAnalysis.prepare_synthetic_control([], [], "y", [], [], "treated", 1, placebo_replicates=2)

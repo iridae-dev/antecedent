@@ -79,3 +79,17 @@ def test_event_preparation_and_branch_use_owned_snapshots_and_leave_prior_answer
     assert estimate(branch).answer.value == pytest.approx(4.0)
     assert estimate(study).answer.value == pytest.approx(2.0)
     assert before.answer.value == pytest.approx(2.0)
+
+
+@pytest.mark.parametrize("kind", ["panel", "multi_env"])
+def test_partitioned_frame_rejects_ignored_top_level_columns(kind):
+    data = _series()
+    frame = ant.data.event(data, np.arange(64, dtype=np.int64) * 100, align_interval_ns=100)
+    graph = ant.TemporalDag.from_lagged_edges(["x", "y"], [("x", 1, "y", 0)])
+    study = prepare(
+        frame, graph=graph, query=ant.PulseEffect("x", "y"),
+        inference=ant.Frequentist(bootstrap=0), refute=False,
+    )
+    payload = {"kind": kind}
+    with pytest.raises(ValueError, match="top-level columns must be empty"):
+        study._engine._native.estimate_frame(["x", "y"], [data["x"], data["y"]], payload)

@@ -198,3 +198,10 @@ def test_cumulative_incidence_refuses_unrandomized_or_invalid_cause_codes():
         antecedent.survival.CompetingRisksOutcome(
             "duration", "cause", "treated", target_cause=0, tau=3, randomized=True
         )
+
+
+def test_native_survival_rejects_censoring_data_without_floor():
+    from antecedent import _native
+
+    with pytest.raises(Exception, match="censoring.*floor"):
+        _native.PreparedAnalysis.prepare_survival([], [], "duration", "event", "treatment", 1.0, censoring_times=[0.5])

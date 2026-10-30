@@ -54,6 +54,11 @@ impl FrameInput {
             .get_item("kind")?
             .ok_or_else(|| crate::value_err("frame requires kind"))?
             .extract()?;
+        if matches!(kind.as_str(), "panel" | "multi_env") && !columns.is_empty() {
+            return Err(crate::value_err(format!(
+                "{kind} frame uses partition columns; top-level columns must be empty"
+            )));
+        }
         let partitions = |key: &str| -> PyResult<Vec<TabularData>> {
             let parts: Vec<Vec<Bound<'_, PyAny>>> = frame
                 .get_item(key)?

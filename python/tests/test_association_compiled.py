@@ -319,3 +319,9 @@ def test_an_exported_result_loads_with_the_same_associational_answer() -> None:
     assert loaded.answer == result.answer
     assert loaded.answer.kind == "associational"
     assert loaded.answer.structured is not None
+
+
+def test_nonpredictive_association_rejects_nondefault_folds():
+    with pytest.raises(ValueError, match="folds"):
+        Association("y", "x", functional="conditional", folds=3)
+    assert Association("y", "x", functional="conditional").folds == 5
