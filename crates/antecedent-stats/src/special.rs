@@ -534,8 +534,17 @@ fn gamma_q_cf(a: f64, x: f64) -> f64 {
     let mut c = 1.0 / TINY;
     let mut d = 1.0 / b;
     let mut h = d;
-    for i in 1..500 {
-        let an = -f64::from(i) * (f64::from(i) - a);
+    // As for the lower series, the transition region x ≈ a needs a
+    // shape-dependent budget; a fixed 499 terms can stop before convergence.
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the positive sqrt is capped at 1e9, as in the lower series"
+    )]
+    let max_iter = 500 + 10 * (a.max(1.0).sqrt().min(1.0e9) as usize);
+    for i in 1..max_iter {
+        let i = i as f64;
+        let an = -i * (i - a);
         b += 2.0;
         d = an * d + b;
         if d.abs() < TINY {
@@ -883,6 +892,18 @@ mod tests {
                 (got - expected).abs() < 1e-6,
                 "gamma_q at df={df}: got {got}, scipy says {expected}"
             );
+        }
+    }
+
+    #[test]
+    fn gamma_q_fraction_matches_the_gamma_recurrence_at_large_shape() {
+        // Q(a+1,x) = Q(a,x) + x^a exp(-x) / Gamma(a+1). At x=a+1,
+        // Q(a+1,x) uses the independently evaluated lower-series branch.
+        for a in [50_000.0, 500_000.0, 5_000_000.0] {
+            let x = a + 1.0;
+            let expected = gamma_q(a + 1.0, x) - gamma_density_factor(a, x) / a;
+            let got = gamma_q(a, x);
+            assert!((got - expected).abs() < 1e-10, "a={a}: {got} vs {expected}");
         }
     }
 

@@ -886,7 +886,11 @@ fn robust_local_polynomial<const N: usize>(
     let mut rhs = [0.0; N];
     let mut rows = Vec::with_capacity(x.len());
     let mut weight_sum = 0.0;
+    // The intercept absorbs a response translation. Remove its magnitude
+    // before forming normal equations and residuals, as the quadratic fit does.
+    let response_anchor = y[0];
     for (i, (&xi, &yi)) in x.iter().zip(y).enumerate() {
+        let yi = yi - response_anchor;
         let u = (xi - at) / bandwidth;
         let w = (-0.5 * u * u).exp() * observation_weights.map_or(1.0, |w| w[i]);
         let mut row = [1.0; N];
@@ -909,7 +913,7 @@ fn robust_local_polynomial<const N: usize>(
         )));
     }
     let inverse = inverse_small(gram).ok_or(StatsError::SingularLocalDesign { order: N - 1 })?;
-    let gamma: [f64; N] = std::array::from_fn(|j| (0..N).map(|k| inverse[j][k] * rhs[k]).sum());
+    let mut gamma: [f64; N] = std::array::from_fn(|j| (0..N).map(|k| inverse[j][k] * rhs[k]).sum());
     let mut influence_ss = [0.0; N];
     let mut influences = Vec::with_capacity(rows.len());
     for &(w, row, yi) in &rows {
@@ -922,6 +926,7 @@ fn robust_local_polynomial<const N: usize>(
         }
         influences.push(psi);
     }
+    gamma[0] += response_anchor;
     Ok((gamma, influence_ss.map(f64::sqrt), influences))
 }
 
@@ -1163,6 +1168,30 @@ mod tests {
         assert!((corrected.first_derivative - truth_first).abs() < 1e-9);
         assert!((corrected.second_derivative - (1.0 + 6.0 * at)).abs() < 1e-9);
         assert!((corrected.value - (1.0 + 2.0 * at + 0.5 * at * at + at.powi(3))).abs() < 1e-10);
+    }
+
+    #[test]
+    fn bias_corrected_coordinates_and_influences_ignore_a_large_response_offset() {
+        // Binary fractions remain exactly representable after the 2^40 shift,
+        // so any changed derivative/influence is fitting arithmetic, not input rounding.
+        let x: Vec<f64> = (-40..=40).map(|i| f64::from(i) / 16.0).collect();
+        let y: Vec<f64> = x
+            .iter()
+            .enumerate()
+            .map(|(i, x)| 1.0 + 2.0 * x + x * x + f64::from(i % 3 == 0) / 8.0)
+            .collect();
+        let offset = 2.0_f64.powi(40);
+        let shifted: Vec<f64> = y.iter().map(|y| y + offset).collect();
+        let fit = |values: &[f64]| {
+            gaussian_local_quadratic_bias_corrected_influence(&x, values, 0.25, 0.75, None).unwrap()
+        };
+        let (original, original_rows) = fit(&y);
+        let (translated, translated_rows) = fit(&shifted);
+        assert!((translated.value - offset - original.value).abs() < 0.0003);
+        assert!((translated.first_derivative - original.first_derivative).abs() < 1e-12);
+        assert!((translated.second_derivative - original.second_derivative).abs() < 1e-12);
+        assert_eq!(translated.coefficient_covariance, original.coefficient_covariance);
+        assert_eq!(translated_rows, original_rows);
     }
 
     #[test]
