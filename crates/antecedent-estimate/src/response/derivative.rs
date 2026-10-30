@@ -14,7 +14,7 @@ use crate::EstimationError;
 use crate::util::range;
 
 use super::{
-    AverageDerivativeScores, ContinuousResponseEstimator, CrossFitFold, PseudoOutcome,
+    ADE_NUISANCE_PENALTY, AverageDerivativeScores, ContinuousResponseEstimator, CrossFitFold, PseudoOutcome,
     bias_corrected_interval_note, delta_method_interval_note, delta_method_standard_error,
     ensure_crossfit_size, fieller_elasticity_interval, fieller_interval_note, local_design_refusal,
     multivariate_support, plugin::plugin_gradient_interval_withheld, plugin::predict_one,
@@ -350,8 +350,10 @@ impl ContinuousResponseEstimator {
         let mut adj_row = vec![0.0; sample.adjustment_cols];
         for fold in 0..self.options.folds {
             let train: Vec<usize> = (0..n).filter(|i| i % self.options.folds != fold).collect();
-            let outcome_fit = self.fit_outcome(sample, &train, &mut gam_ws)?;
-            let treatment_fit = self.fit_treatment(sample, &train, &mut gam_ws)?;
+            let outcome_fit =
+                self.fit_outcome_with(sample, &train, ADE_NUISANCE_PENALTY, &mut gam_ws)?;
+            let treatment_fit =
+                self.fit_treatment_with(sample, &train, ADE_NUISANCE_PENALTY, &mut gam_ws)?;
             let sigma = treatment_sigma(sample, &train, treatment_fit.as_ref())?;
             let treatment_mean_constant = sample.train_treatment_mean(&train);
             let treat_smooth = outcome_fit.smooth_for_raw_col(0).ok_or_else(|| {

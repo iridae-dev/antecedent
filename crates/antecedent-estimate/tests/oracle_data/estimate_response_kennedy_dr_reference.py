@@ -107,9 +107,14 @@ def penalty(K):
 
 
 class Additive:
-    """Penalized additive fit on columns `xs` (list of columns), uniform weights, fixed lambda."""
+    """Penalized additive fit on columns `xs` (list of columns), uniform weights, fixed lambda.
 
-    def __init__(self, xs, y, K, lam):
+    `penalty_fn(knots, K)` optionally replaces the coefficient second-difference penalty by another
+    K x K matrix that is zero on constants (a constant coefficient shift is then free to leave
+    out with the dropped first column of the later smooths).
+    """
+
+    def __init__(self, xs, y, K, lam, penalty_fn=None):
         lams = lam if isinstance(lam, list) else [lam] * len(xs)
         self.K, n = K, len(y)
         self.knots = [quantile_knots(c, K) for c in xs]
@@ -117,7 +122,7 @@ class Additive:
         cols, pen = [], []
         for j, B in enumerate(bases):
             keep = list(range(K)) if j == 0 else list(range(1, K))
-            P = penalty(K)
+            P = penalty(K) if penalty_fn is None else penalty_fn(self.knots[j], K)
             pen.append((len(cols), [[P[a][b] * lams[j] for b in keep] for a in keep]))
             for c in keep:
                 cols.append([B[r][c] for r in range(n)])

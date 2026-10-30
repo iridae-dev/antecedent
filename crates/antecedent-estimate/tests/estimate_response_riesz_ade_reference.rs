@@ -210,3 +210,60 @@ fn estimate_response_riesz_ade_refuses_other_weightings_and_excess_folds() {
         .expect_err("more folds than rows");
     assert!(error.to_string().contains("folds"), "{error}");
 }
+
+/// A noise-free linear law on a skewed treatment, no adjusters.
+///
+/// Sample-quantile knots of a skewed treatment are far from equally spaced, where a coefficient
+/// second-difference penalty is not zero on a straight line and shrank the fitted smooth's
+/// derivative by several percent; the knot-aware penalty leaves a line unpenalised, so the fitted
+/// smooth is exactly the line inside each fold's training range and its derivative is the slope.
+/// The one place the cross-fitted average is not the slope is the documented boundary rule: a
+/// held-out treatment at or beyond its fold's training maximum (or below its minimum) has
+/// derivative zero and its residual is the distance to the clamped line, which the Riesz term
+/// then carries. The expected value below is that closed form per fold (training mean and
+/// n - 1 variance for the Riesz weight, no fitted nuisance), not a number read off the product.
+#[test]
+fn estimate_response_riesz_ade_of_a_linear_law_on_a_skewed_treatment_equals_the_closed_form() {
+    const SLOPE: f64 = 2.0;
+    let n = 150_usize;
+    let folds = 5_usize;
+    let a: Vec<f64> = (0..n).map(|i| (i as f64 / (n - 1) as f64).powi(3) * 4.0).collect();
+    let y: Vec<f64> = a.iter().map(|v| 1.0 + SLOPE * v).collect();
+    let mut expected = 0.0;
+    for fold in 0..folds {
+        let train: Vec<f64> = (0..n).filter(|i| i % folds != fold).map(|i| a[i]).collect();
+        let (lo, hi) = train.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(l, h), &v| {
+            (l.min(v), h.max(v))
+        });
+        let mean = train.iter().sum::<f64>() / train.len() as f64;
+        let sigma2 = train.iter().map(|v| (v - mean).powi(2)).sum::<f64>()
+            / (train.len() as f64 - 1.0);
+        for i in (0..n).filter(|i| i % folds == fold) {
+            let derivative = if a[i] < lo || a[i] >= hi { 0.0 } else { SLOPE };
+            let residual = y[i] - (1.0 + SLOPE * a[i].clamp(lo, hi));
+            expected += derivative + (a[i] - mean) / sigma2 * residual;
+        }
+    }
+    expected /= n as f64;
+    let data = TabularData::from_f64_columns([("a", &a[..]), ("y", &y[..])]).unwrap();
+    let query = ResponseQuery::new(ResponseFunctional::AverageDerivative {
+        outcome: VariableId::from_raw(1),
+        treatment: VariableId::from_raw(0),
+        weighting: DerivativeWeighting::Observed,
+    });
+    let response = ContinuousResponseEstimator::new(Vec::new())
+        .estimate_identified(
+            &data,
+            &query,
+            IdentificationStatus::NonparametricallyIdentified,
+            AssumptionSet::new(),
+        )
+        .unwrap();
+    let ResponseIdentification::PointIdentified(ResponseValue::Scalar(estimate)) =
+        response.estimate
+    else {
+        panic!("expected a point-identified scalar");
+    };
+    assert!((estimate - expected).abs() < 1e-6, "{estimate} vs the closed form {expected}");
+    // The coefficient second difference gave 2.1347 here, 0.16 above this closed form.
+}

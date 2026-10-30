@@ -320,11 +320,14 @@ pub(super) fn multivariate_support(
                 id: Arc::from("response.joint_nearest_row_distance"),
                 values: Arc::from([nearest, reference]),
                 detail: Arc::from(
-                    "joint support criterion: distance from the evaluation point to its nearest \
-                     observed treatment row, then the 95th percentile of the rows' own \
-                     leave-one-out nearest-row distances, both in standard-deviation units of \
-                     each treatment; the point is Supported when the first does not exceed the \
-                     second and lies within the marginal ranges, otherwise Extrapolative",
+                    "declared diagnostic, criterion `nearest_row_leave_one_out_p95`: distance \
+                     from the evaluation point to its nearest observed treatment row (first \
+                     value), then the threshold, the 95th percentile of the rows' own \
+                     leave-one-out nearest-row distances (second value), both in \
+                     standard-deviation units of each treatment; the point is reported \
+                     Supported when the first does not exceed the second and lies within the \
+                     marginal ranges, otherwise Extrapolative. This is a screening criterion, \
+                     not a guarantee that the response is identified or well estimated there",
                 ),
                 scope: DiagnosticScope::Global,
             },
@@ -340,6 +343,21 @@ pub(super) fn multivariate_support(
                 DiagnosticSeverity::Warning,
                 "multivariate derivative uses an additive GAM plug-in; support is the marginal ranges and the nearest-row joint distance",
             )];
+            warnings.push(Diagnostic::new(
+                "response.joint_support_criterion",
+                DiagnosticKind::Support,
+                DiagnosticSeverity::Info,
+                if status == SupportStatus::Supported {
+                    format!(
+                        "within observed joint support by this criterion (nearest_row_leave_one_out_p95: nearest-row distance {nearest:.4} <= threshold {reference:.4}); a declared diagnostic, not a support guarantee"
+                    )
+                } else {
+                    format!(
+                        "not within observed joint support by this criterion (nearest_row_leave_one_out_p95: nearest-row distance {nearest:.4}, threshold {reference:.4}, marginal ranges {}); a declared diagnostic, not a support guarantee",
+                        if outside { "exceeded" } else { "respected" }
+                    )
+                },
+            ));
             if outside {
                 // The cubic B-spline basis is clamped at its boundary knots, so the
                 // fitted surface is constant outside the fitted range and its plug-in
@@ -393,6 +411,40 @@ mod point_status_tests {
         assert_eq!(corner.status, SupportStatus::Extrapolative, "{:?}", corner.diagnostics);
         let outside = multivariate_support(&[0.5, 9.0], &matrix, 2, 1);
         assert_eq!(outside.status, SupportStatus::OutsideEmpiricalSupport);
+    }
+
+    #[test]
+    fn joint_support_is_a_declared_diagnostic_that_names_its_criterion_distance_and_threshold() {
+        let stretch: Vec<f64> = (0..=10)
+            .map(|i| f64::from(i) / 10.0)
+            .chain((0..=10).map(|i| 2.5 + f64::from(i) / 10.0))
+            .collect();
+        let matrix: Vec<f64> = stretch.iter().chain(stretch.iter()).copied().collect();
+        let note = |report: &SupportReport| {
+            report
+                .warnings
+                .iter()
+                .find(|w| w.code.as_ref() == "response.joint_support_criterion")
+                .map(|w| w.message.to_string())
+                .expect("the criterion note")
+        };
+        let interior = multivariate_support(&[0.5, 0.5], &matrix, 2, 1);
+        assert!(note(&interior).contains("within observed joint support by this criterion"));
+        assert!(note(&interior).contains("not a support guarantee"));
+        let corner = multivariate_support(&[0.0, 3.5], &matrix, 2, 1);
+        assert!(note(&corner).starts_with("not within observed joint support by this criterion"));
+        for report in [&interior, &corner] {
+            let diagnostic = report
+                .diagnostics
+                .iter()
+                .find(|d| d.id.as_ref() == "response.joint_nearest_row_distance")
+                .unwrap();
+            assert!(diagnostic.detail.contains("nearest_row_leave_one_out_p95"));
+            let [distance, threshold] = diagnostic.values[..] else { panic!("two values") };
+            assert_eq!(distance <= threshold, report.status == SupportStatus::Supported);
+            assert!(note(report).contains(&format!("{distance:.4}")));
+            assert!(note(report).contains(&format!("{threshold:.4}")));
+        }
     }
 
     #[test]

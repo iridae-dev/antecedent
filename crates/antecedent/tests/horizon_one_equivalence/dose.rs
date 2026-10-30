@@ -354,16 +354,18 @@ fn scalar_response(result: &StudyResult) -> f64 {
 /// derivative estimates the same population derivative with a cross-fitted additive nuisance and
 /// a Riesz correction, so it does not reproduce the least-squares closed form. Its value is pinned
 /// to an independent evaluation of the documented estimator on these exact rows (index-modulo
-/// five folds, a six-function cubic B-spline outcome smooth at quantile knots with the
-/// second-difference coefficient penalty at lambda 1, the derivative of that smooth at each
-/// held-out dose, plus the Gaussian-score Riesz residual correction; numpy/scipy, agreeing with
-/// the product to 1e-13). It is 6.5% above the true slope 2.001 of this linear mean: the
-/// quantile knots are not equispaced, so the coefficient-space second-difference penalty is not
-/// zero on a straight line and the smooth's derivative carries the shrinkage (plug-in mean
-/// 2.1218; the same reference at lambda 0 gives 1.9804), and the Gaussian-score correction
-/// recovers only 0.0097 of it because the dose is not Gaussian. That bias is the documented
-/// fixed-nuisance behaviour of the route, not a mis-evaluation. The temporal route discloses
-/// the linear-mechanism premise it rests on.
+/// five folds, a six-function cubic B-spline outcome smooth at sample-quantile knots with the
+/// integrated squared second-derivative penalty at lambda 1, the derivative of that smooth at
+/// each held-out dose, plus the Gaussian-score Riesz residual correction with the training mean
+/// and the n - 1 variance; the exact rational pipeline of
+/// `estimate_response_riesz_ade_reference.py` run on these rows, agreeing with the product to
+/// well under 1e-6). The knot-aware penalty is zero on a straight line, so the smooth carries the
+/// slope 2.001 of this linear mean and the remaining 1.1% shortfall is the documented boundary
+/// rule of the cross-fit: a held-out dose at or beyond its fold's training maximum (or below its
+/// minimum) has derivative zero and only the Riesz residual term recovers part of it. The
+/// earlier coefficient second-difference penalty read 2.1315 here, 6.5% above the slope, because
+/// quantile knots are not equispaced. The temporal route discloses the linear-mechanism premise
+/// it rests on.
 #[test]
 fn horizon_one_average_derivative_is_the_least_squares_slope_where_the_static_route_is_semiparametric()
  {
@@ -392,10 +394,11 @@ fn horizon_one_average_derivative_is_the_least_squares_slope_where_the_static_ro
     let temporal_value = scalar_response(&temporal);
     let static_value = scalar_response(&static_result);
     assert!((temporal_value - slope).abs() < 1e-8, "{temporal_value} vs {slope}");
-    const STATIC_REFERENCE: f64 = 2.131_463_469_599_77;
+    const STATIC_REFERENCE: f64 = 1.978_809_921_286_839;
     assert!((static_value - STATIC_REFERENCE).abs() < 1e-6, "{static_value} vs {STATIC_REFERENCE}");
-    // The documented smoothing bias, bounded by the bias-free reference.
-    assert!(static_value - slope > 0.1 && static_value - slope < 0.15, "{static_value}");
+    // A linear mean is not shrunk by the penalty: only the boundary rows of the cross-fit fall
+    // short of the slope, by under 2%, and the estimate never overshoots it.
+    assert!(slope - static_value > 0.0 && slope - static_value < 0.04, "{static_value}");
     assert!(has_diagnostic(&temporal, "estimate.temporal.linear_derivative"));
     assert!(!has_diagnostic(&static_result, "estimate.temporal.linear_derivative"));
 }

@@ -43,7 +43,7 @@ record_sha256 = "179ca413786e5553ad95e0423c1a42267441e0dbab6e4733d488fcf865c52f9
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/gam.rs"
-sha256 = "494e1fd4d244352faccf7d096ad5aecc3dbfdcb04817cdd4f93b37fd3f9feddd"
+sha256 = "656ae1df73856127c245cd676e49ff6bc6de03c5aaba2ad65a90aefb79c41329"
 
 [[method_review.artifacts]]
 role = "assertion"

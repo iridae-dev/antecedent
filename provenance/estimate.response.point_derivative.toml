@@ -53,7 +53,7 @@ record_sha256 = "31d9aec93aa4d6c78b0af0118dc5306de4cf10e3e8bc829822665ed54b3a6b8
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/response/derivative.rs"
-sha256 = "dec50ef5c06105661f6465b54eea1a4f6be8a295f2ee3b4b8cf144730429c175"
+sha256 = "7df7411bb38b170a81cd1e97192f551c8415581ba567e3c02a2d93a05a631a24"
 
 [[method_review.artifacts]]
 role = "implementation"

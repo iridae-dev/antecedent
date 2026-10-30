@@ -1,8 +1,8 @@
 //! Generalized additive models — cubic B-splines + backfitting.
 //!
 //! Gaussian identity additive model `Y = β₀ + Σ fⱼ(Xⱼ) + ε`. Each smooth is
-//! fit with a second-difference roughness penalty `P = D₂'D₂` (discrete
-//! curvature), not coefficient ridge. Analytic standard errors are not
+//! fit with a roughness penalty (the second-difference `P = D₂'D₂` by default, or the knot-aware
+//! integrated squared second derivative, see [`RoughnessPenalty`]), not coefficient ridge. Analytic standard errors are not
 //! returned; use resampling / bootstrap for uncertainty.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -46,6 +46,20 @@ impl<'a> PredictorMatrix<'a> {
     }
 }
 
+/// Which quadratic roughness penalty a smooth carries.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum RoughnessPenalty {
+    /// Second differences of adjacent coefficients, `D₂'D₂`. It ignores the knot spacing, so a
+    /// straight line is penalised whenever the knots are not equally spaced.
+    #[default]
+    CoefficientSecondDifference,
+    /// The integrated squared second derivative `∫ s''(x)² dx` of the fitted smooth, scaled by
+    /// the cube of the mean interior knot spacing so λ keeps the size it has for equally spaced
+    /// knots and is unchanged by rescaling the predictor. It is exactly zero on every straight
+    /// line, whatever the knots, so a linear signal is not shrunk.
+    IntegratedSecondDerivative,
+}
+
 /// One smooth term specification for [`fit_gam`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct SmoothSpec {
@@ -62,19 +76,44 @@ pub struct SmoothSpec {
     pub knots: Option<Arc<[f64]>>,
     /// Optional variable id for design provenance.
     pub variable: Option<VariableId>,
+    /// The roughness penalty the smooth carries.
+    pub penalty: RoughnessPenalty,
 }
 
 impl SmoothSpec {
     /// Smooth on `raw_col` with `n_basis` bases and roughness penalty `lambda`.
     #[must_use]
     pub fn new(raw_col: usize, n_basis: usize, lambda: f64) -> Self {
-        Self { raw_col, n_basis, lambda, auto_lambda: false, knots: None, variable: None }
+        Self {
+            raw_col,
+            n_basis,
+            lambda,
+            auto_lambda: false,
+            knots: None,
+            variable: None,
+            penalty: RoughnessPenalty::default(),
+        }
     }
 
     /// Smooth whose λ is selected by GCV on a log-spaced grid.
     #[must_use]
     pub fn auto(raw_col: usize, n_basis: usize) -> Self {
-        Self { raw_col, n_basis, lambda: 0.0, auto_lambda: true, knots: None, variable: None }
+        Self {
+            raw_col,
+            n_basis,
+            lambda: 0.0,
+            auto_lambda: true,
+            knots: None,
+            variable: None,
+            penalty: RoughnessPenalty::default(),
+        }
+    }
+
+    /// Use `penalty` as the roughness penalty.
+    #[must_use]
+    pub fn with_penalty(mut self, penalty: RoughnessPenalty) -> Self {
+        self.penalty = penalty;
+        self
     }
 
     /// Attach a variable id for [`RecordedSmooth`] provenance.
@@ -509,7 +548,10 @@ pub fn fit_gam_weighted_design(
     let smoothers: Vec<PenalizedSmoother> = weighted_bases
         .iter()
         .zip(specs)
-        .map(|(basis, spec)| PenalizedSmoother::new(basis, nrows, spec.n_basis))
+        .map(|(basis, spec)| {
+            let penalty = roughness_penalty(spec.penalty, spec.knots.as_deref(), spec.n_basis)?;
+            PenalizedSmoother::with_penalty(basis, nrows, spec.n_basis, penalty)
+        })
         .collect::<Result<_, _>>()?;
     let mut factors: Vec<Option<PenalizedFactor>> = (0..specs.len()).map(|_| None).collect();
     let mut boundary_lambda = vec![false; specs.len()];
@@ -1136,6 +1178,81 @@ fn second_difference_penalty(n_basis: usize) -> Result<Vec<f64>, StatsError> {
     Ok(p)
 }
 
+/// The penalty matrix of one smooth (`K×K` row-major) for its knot vector.
+fn roughness_penalty(
+    kind: RoughnessPenalty,
+    knots: Option<&[f64]>,
+    n_basis: usize,
+) -> Result<Vec<f64>, StatsError> {
+    match kind {
+        RoughnessPenalty::CoefficientSecondDifference => second_difference_penalty(n_basis),
+        RoughnessPenalty::IntegratedSecondDerivative => {
+            let knots = knots.ok_or(StatsError::Shape {
+                message: "the integrated second-derivative penalty needs resolved knots",
+            })?;
+            integrated_second_derivative_penalty(knots, n_basis)
+        }
+    }
+}
+
+/// `h̄³ ∫ B_i''(x) B_j''(x) dx` for the cubic B-splines on `knots`, `K×K` row-major, with `h̄` the
+/// mean interior knot spacing.
+///
+/// The second derivative of `Σ cᵢBᵢ` is the linear spline `Σ dⱼNⱼ` on the knots `t₂ … t_{K+1}`
+/// with `dⱼ` the repeated divided differences of `c` (de Boor's derivative formula; a repeated
+/// knot contributes a zero coefficient). The integral is then `d'Gd` with `G` the exact Gram
+/// matrix of the linear B-splines, so the penalty is a straight-line null space for any knots.
+fn integrated_second_derivative_penalty(
+    knots: &[f64],
+    n_basis: usize,
+) -> Result<Vec<f64>, StatsError> {
+    let k = n_basis;
+    if k < CUBIC_ORDER || knots.len() != k + CUBIC_ORDER {
+        return Err(StatsError::Shape { message: "integrated penalty needs n_basis + 4 knots" });
+    }
+    let t = knots;
+    let ratio = |numerator: f64, gap: f64| if gap > 0.0 { numerator / gap } else { 0.0 };
+    let rows = k - 2;
+    // D maps the cubic coefficients to the coefficients of the second derivative.
+    let mut d = vec![0.0; rows * k];
+    for j in 0..rows {
+        let outer = ratio(2.0, t[j + 4] - t[j + 2]);
+        let upper = ratio(3.0, t[j + 5] - t[j + 2]);
+        let lower = ratio(3.0, t[j + 4] - t[j + 1]);
+        d[j * k + j] = outer * lower;
+        d[j * k + j + 1] = -outer * (upper + lower);
+        d[j * k + j + 2] = outer * upper;
+    }
+    // G: Gram matrix of the linear B-splines on t₂ … t_{K+1}.
+    let mut gram = vec![0.0; rows * rows];
+    for j in 0..rows {
+        gram[j * rows + j] = (t[j + 4] - t[j + 2]) / 3.0;
+        if j + 1 < rows {
+            let off = (t[j + 4] - t[j + 3]) / 6.0;
+            gram[j * rows + j + 1] = off;
+            gram[(j + 1) * rows + j] = off;
+        }
+    }
+    let spacing = (t[k] - t[CUBIC_DEGREE]) / (k - CUBIC_DEGREE) as f64;
+    let scale = spacing.powi(3);
+    // P = scale · D'GD.
+    let mut gd = vec![0.0; rows * k];
+    for r in 0..rows {
+        for c in 0..k {
+            gd[r * k + c] = (0..rows).map(|m| gram[r * rows + m] * d[m * k + c]).sum();
+        }
+    }
+    let mut p = vec![0.0; k * k];
+    for i in 0..k {
+        for j in i..k {
+            let value = scale * (0..rows).map(|r| d[r * k + i] * gd[r * k + j]).sum::<f64>();
+            p[i * k + j] = value;
+            p[j * k + i] = value;
+        }
+    }
+    Ok(p)
+}
+
 /// Sweeps after which auto-λ selection is frozen even if λ is still changing.
 const MAX_LAMBDA_RESELECT_SWEEPS: u32 = 20;
 
@@ -1171,15 +1288,20 @@ struct PencilSpectrum {
 }
 
 impl PenalizedSmoother {
+    #[cfg(test)]
     fn new(basis: &[f64], nrows: usize, n_basis: usize) -> Result<Self, StatsError> {
+        Self::with_penalty(basis, nrows, n_basis, second_difference_penalty(n_basis)?)
+    }
+
+    fn with_penalty(
+        basis: &[f64],
+        nrows: usize,
+        n_basis: usize,
+        penalty: Vec<f64>,
+    ) -> Result<Self, StatsError> {
         let mut xtx = vec![0.0; n_basis * n_basis];
         form_xtx(basis, nrows, n_basis, &mut xtx);
-        Ok(Self {
-            n_basis,
-            xtx,
-            penalty: second_difference_penalty(n_basis)?,
-            spectrum: std::cell::OnceCell::new(),
-        })
+        Ok(Self { n_basis, xtx, penalty, spectrum: std::cell::OnceCell::new() })
     }
 
     /// Cholesky factor of `B'B + λP`.
@@ -2024,6 +2146,101 @@ mod tests {
         }
         assert!(rss_r < rss_i, "roughness RSS={rss_r} should beat identity ridge RSS={rss_i}");
         assert!(curv_err_r < curv_err_i);
+    }
+
+    /// Marsden's identity: the coefficients `c_i = (t_{i+1}+t_{i+2}+t_{i+3})/3` (the Greville
+    /// abscissae) reproduce `x`, and `e2(t_{i+1..i+3})` reproduces `x²`.
+    fn marsden_coefficients(knots: &[f64], n_basis: usize) -> (Vec<f64>, Vec<f64>) {
+        let linear = (0..n_basis)
+            .map(|i| (knots[i + 1] + knots[i + 2] + knots[i + 3]) / 3.0)
+            .collect();
+        let quadratic = (0..n_basis)
+            .map(|i| {
+                let (a, b, c) = (knots[i + 1], knots[i + 2], knots[i + 3]);
+                (a * b + a * c + b * c) / 3.0
+            })
+            .collect();
+        (linear, quadratic)
+    }
+
+    fn quadratic_form(p: &[f64], c: &[f64]) -> f64 {
+        let k = c.len();
+        (0..k).map(|i| (0..k).map(|j| c[i] * p[i * k + j] * c[j]).sum::<f64>()).sum()
+    }
+
+    /// A straight line has no integrated curvature on knots that are not equally spaced, where
+    /// the coefficient second difference of the same line is not zero.
+    #[test]
+    fn integrated_penalty_is_zero_on_a_line_where_the_second_difference_is_not() {
+        let x: Vec<f64> = (0..60).map(|i| (f64::from(i) / 59.0).powi(2) * 3.0 - 1.0).collect();
+        let k = 6;
+        let (_, knots) = expand_bspline(&x, k, None).unwrap();
+        let (line, _) = marsden_coefficients(&knots, k);
+        let integrated = integrated_second_derivative_penalty(&knots, k).unwrap();
+        let difference = second_difference_penalty(k).unwrap();
+        let scale = line.iter().map(|v| v * v).sum::<f64>();
+        assert!(quadratic_form(&integrated, &line).abs() < 1e-12 * scale);
+        assert!(quadratic_form(&difference, &line) > 1e-4 * scale);
+        // The constant is in the null space too.
+        let ones = vec![1.0; k];
+        assert!(quadratic_form(&integrated, &ones).abs() < 1e-12 * scale);
+    }
+
+    /// `s = x²` has `s'' = 2`, so the roughness is `4 (right - left)` times the spacing cube.
+    #[test]
+    fn integrated_penalty_equals_the_closed_form_curvature_of_a_parabola() {
+        let x: Vec<f64> = (0..80).map(|i| (f64::from(i) / 79.0).powi(3) * 5.0 + 2.0).collect();
+        for k in [5, 6, 9] {
+            let (_, knots) = expand_bspline(&x, k, None).unwrap();
+            let (_, parabola) = marsden_coefficients(&knots, k);
+            let p = integrated_second_derivative_penalty(&knots, k).unwrap();
+            let (left, right) = (knots[CUBIC_DEGREE], knots[k]);
+            let spacing = (right - left) / (k - CUBIC_DEGREE) as f64;
+            let expected = 4.0 * (right - left) * spacing.powi(3);
+            let actual = quadratic_form(&p, &parabola);
+            assert!((actual - expected).abs() < 1e-10 * expected, "{k}: {actual} vs {expected}");
+        }
+    }
+
+    /// Rescaling the predictor leaves the penalty matrix unchanged.
+    #[test]
+    fn integrated_penalty_is_invariant_to_the_predictor_scale() {
+        let x: Vec<f64> = (0..50).map(|i| (f64::from(i) / 49.0).powi(2)).collect();
+        let k = 7;
+        let (_, knots) = expand_bspline(&x, k, None).unwrap();
+        let scaled: Vec<f64> = knots.iter().map(|t| 250.0 * t + 1000.0).collect();
+        let a = integrated_second_derivative_penalty(&knots, k).unwrap();
+        let b = integrated_second_derivative_penalty(&scaled, k).unwrap();
+        for (u, v) in a.iter().zip(&b) {
+            assert!((u - v).abs() < 1e-9 * (1.0 + u.abs()), "{u} vs {v}");
+        }
+    }
+
+    /// A penalised fit of an exactly linear signal on uneven quantile knots keeps its slope under
+    /// the integrated penalty and is shrunk under the coefficient second difference.
+    #[test]
+    fn a_penalised_fit_of_a_line_on_uneven_knots_keeps_its_slope_under_the_integrated_penalty() {
+        let n = 120;
+        let x: Vec<f64> = (0..n).map(|i| (f64::from(i) / f64::from(n - 1)).powi(3) * 4.0).collect();
+        let y: Vec<f64> = x.iter().map(|v| 1.0 + 2.0 * v).collect();
+        let slope = |penalty: RoughnessPenalty| {
+            let spec = [SmoothSpec::new(0, 6, 1.0).with_penalty(penalty)];
+            let fit = fit_gam(
+                &PredictorMatrix::new(&x, n as usize, 1),
+                &y,
+                &spec,
+                &GamOptions { max_iter: 500, tol: 1e-12 },
+                &FaerBackend,
+                &mut GamWorkspace::default(),
+            )
+            .unwrap();
+            let mid = 2.0;
+            fit.smooth_derivative(0, mid).unwrap()
+        };
+        let integrated = slope(RoughnessPenalty::IntegratedSecondDerivative);
+        let difference = slope(RoughnessPenalty::CoefficientSecondDifference);
+        assert!((integrated - 2.0).abs() < 1e-8, "{integrated}");
+        assert!((difference - 2.0).abs() > 1e-3, "{difference}");
     }
 
     #[test]

@@ -57,12 +57,12 @@ sha256 = "5fa78688d2f823851d49bff4d82cf3aa001508792536cd80802c0ede83370b26"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/response/nuisance.rs"
-sha256 = "c642ac42905f6c510772c5ae6f8e3acee479636180a35707e098506e6d2c8446"
+sha256 = "2558406d6cdc8e384d049bccff7ed08f40b4f0f742586b924b10439074c6a3fc"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/response/crossfit.rs"
-sha256 = "da2fdb943a3f263eaae29bcdd56e4875ede7e7e7510c9a7c9598cfaece0035f9"
+sha256 = "436a92f8382b9cdfb8a35ac0da1213e834c691bfff8f096685ce592699e45651"
 
 [[method_review.artifacts]]
 role = "assertion"
@@ -72,7 +72,7 @@ sha256 = "832db1d271c577446836158c950c30ac55d534a8719d5fece477947c4cfd098e"
 [[method_review.artifacts]]
 role = "reference"
 path = "crates/antecedent-estimate/tests/oracle_data/estimate_response_kennedy_dr_reference.py"
-sha256 = "5adc1c1a47466131459f3b8d8c7cd1a8c8f32855f546b9af41afeed6a2182a30"
+sha256 = "dab3c32e38e3fab672704c3bcc713125945b7209c79fdfdb6278988903c5f405"
 
 [[method_review.artifacts]]
 role = "fixture"

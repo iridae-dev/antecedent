@@ -644,7 +644,7 @@ impl ContinuousResponseEstimator {
         let (_, _, support) = self.average_derivative(data, *outcome, *treatment, weighting)?;
         // Folds, their training designs and knots are fixed across draws:
         // expanded once here, refit under each draw's weights.
-        let folds = self.cross_fit_folds(&sample)?;
+        let folds = self.cross_fit_folds_ade(&sample)?;
         // One RNG stream per draw: draws are independent, so they run across
         // the context's thread budget and return in draw order.
         let values = ctx.map_indexed::<_, EstimationError, _>(draws_n, |draw, ctx| {

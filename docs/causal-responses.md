@@ -49,7 +49,14 @@ A response result deliberately keeps four judgments separate:
    long-horizon window. Estimator-regime failures (heavy-tailed outcomes,
    floored conditional densities) are warnings and diagnostics on this
    object; they do not change `evidence_status`, which is the support-matrix
-   cell.
+   cell. For the multivariate derivatives (`DirectionalDerivative`,
+   `ResponseJacobian`) the joint label is a declared diagnostic, the
+   `nearest_row_leave_one_out_p95` criterion: `response.joint_nearest_row_distance`
+   gives the distance to the nearest observed treatment row and the threshold
+   (the 95th percentile of the rows' own leave-one-out distances), and a
+   `Supported` label reads "within observed joint support by this criterion".
+   It screens for gaps inside the marginal ranges; it is not a guarantee that
+   the response is identified or well estimated at that point.
 3. `uncertainty.kind` says what the interval means. Pointwise intervals cover
    one grid point at a time. The Frequentist Kennedy-DR estimator can instead request a fixed-grid
    simultaneous band with `response_options(...)`; Python uses

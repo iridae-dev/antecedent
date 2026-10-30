@@ -56,7 +56,7 @@ mod tests;
 mod transform;
 use band::{simultaneous_multiplier_band, simultaneous_posterior_band};
 use crossfit::{
-    CrossFitFold, NUISANCE_BACKFIT, ensure_crossfit_size, fit_additive, fit_additive_design,
+    ADE_NUISANCE_PENALTY, CrossFitFold, NUISANCE_BACKFIT, ensure_crossfit_size, fit_additive, fit_additive_design,
     require_converged_gam, treatment_sigma, treatment_sigma_train_weighted,
 };
 use policy::{

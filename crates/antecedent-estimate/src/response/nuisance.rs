@@ -1,14 +1,14 @@
 //! Cross-fitted nuisance and outcome-target fits.
 
 use antecedent_stats::{
-    AdditiveDesign, FaerBackend, GamWorkspace, GaussianMixtureDensity, PredictorMatrix, SmoothSpec,
-    fit_gam, fit_gam_weighted_design, gaussian_density,
+    AdditiveDesign, FaerBackend, GamWorkspace, GaussianMixtureDensity, PredictorMatrix,
+    RoughnessPenalty, SmoothSpec, fit_gam, fit_gam_weighted_design, gaussian_density,
 };
 
 use crate::EstimationError;
 
 use super::{
-    CONDITIONAL_DENSITY_FLOOR, ContinuousResponseEstimator, CrossFitFold, GAM_TARGET_NOT_CONVERGED,
+    ADE_NUISANCE_PENALTY, CONDITIONAL_DENSITY_FLOOR, ContinuousResponseEstimator, CrossFitFold, GAM_TARGET_NOT_CONVERGED,
     NUISANCE_BACKFIT, PLUGIN_TARGET_LAMBDA, PseudoOutcome, ensure_crossfit_size, fit_additive,
     fit_additive_design, plugin::predict_one, require_converged_gam, sample::CompleteSample,
     treatment_sigma, treatment_sigma_train_weighted,
@@ -33,6 +33,22 @@ impl ContinuousResponseEstimator {
         &self,
         sample: &CompleteSample,
     ) -> Result<Vec<CrossFitFold>, EstimationError> {
+        self.cross_fit_folds_with(sample, RoughnessPenalty::default())
+    }
+
+    /// [`Self::cross_fit_folds`] under the average-derivative nuisance penalty.
+    pub(super) fn cross_fit_folds_ade(
+        &self,
+        sample: &CompleteSample,
+    ) -> Result<Vec<CrossFitFold>, EstimationError> {
+        self.cross_fit_folds_with(sample, ADE_NUISANCE_PENALTY)
+    }
+
+    fn cross_fit_folds_with(
+        &self,
+        sample: &CompleteSample,
+        penalty: RoughnessPenalty,
+    ) -> Result<Vec<CrossFitFold>, EstimationError> {
         let n = sample.len();
         ensure_crossfit_size(n, self.options.folds, self.options.nuisance_basis)?;
         (0..self.options.folds)
@@ -43,7 +59,7 @@ impl ContinuousResponseEstimator {
                     &sample.raw_subset(&train),
                     train.len(),
                     sample.raw_cols,
-                    &self.nuisance_specs(sample.raw_cols),
+                    &self.nuisance_specs(sample.raw_cols, penalty),
                 )?;
                 let treatment_design = if sample.adjustment_cols == 0 {
                     None
@@ -52,7 +68,7 @@ impl ContinuousResponseEstimator {
                         &sample.adjustment_subset(&train),
                         train.len(),
                         sample.adjustment_cols,
-                        &self.nuisance_specs(sample.adjustment_cols),
+                        &self.nuisance_specs(sample.adjustment_cols, penalty),
                     )?)
                 };
                 Ok(CrossFitFold {
@@ -69,10 +85,11 @@ impl ContinuousResponseEstimator {
 
     /// Penalized nuisance smooths over `ncols` raw columns, knots at the sample
     /// quantiles of the rows they are expanded over.
-    fn nuisance_specs(&self, ncols: usize) -> Vec<SmoothSpec> {
+    fn nuisance_specs(&self, ncols: usize, penalty: RoughnessPenalty) -> Vec<SmoothSpec> {
         (0..ncols)
             .map(|col| {
                 SmoothSpec::new(col, self.options.nuisance_basis, self.options.nuisance_lambda)
+                    .with_penalty(penalty)
             })
             .collect()
     }
@@ -348,6 +365,16 @@ impl ContinuousResponseEstimator {
         rows: &[usize],
         workspace: &mut GamWorkspace,
     ) -> Result<antecedent_stats::GamFit, EstimationError> {
+        self.fit_outcome_with(sample, rows, RoughnessPenalty::default(), workspace)
+    }
+
+    pub(super) fn fit_outcome_with(
+        &self,
+        sample: &CompleteSample,
+        rows: &[usize],
+        penalty: RoughnessPenalty,
+        workspace: &mut GamWorkspace,
+    ) -> Result<antecedent_stats::GamFit, EstimationError> {
         let x = sample.raw_subset(rows);
         let y: Vec<f64> = rows.iter().map(|&i| sample.outcome[i]).collect();
         fit_additive(
@@ -357,14 +384,26 @@ impl ContinuousResponseEstimator {
             &y,
             self.options.nuisance_basis,
             self.options.nuisance_lambda,
+            penalty,
             workspace,
         )
     }
 
+    #[cfg(test)]
     pub(super) fn fit_treatment(
         &self,
         sample: &CompleteSample,
         rows: &[usize],
+        workspace: &mut GamWorkspace,
+    ) -> Result<Option<antecedent_stats::GamFit>, EstimationError> {
+        self.fit_treatment_with(sample, rows, RoughnessPenalty::default(), workspace)
+    }
+
+    pub(super) fn fit_treatment_with(
+        &self,
+        sample: &CompleteSample,
+        rows: &[usize],
+        penalty: RoughnessPenalty,
         workspace: &mut GamWorkspace,
     ) -> Result<Option<antecedent_stats::GamFit>, EstimationError> {
         if sample.adjustment_cols == 0 {
@@ -379,6 +418,7 @@ impl ContinuousResponseEstimator {
             &y,
             self.options.nuisance_basis,
             self.options.nuisance_lambda,
+            penalty,
             workspace,
         )
         .map(Some)

@@ -52,12 +52,12 @@ sha256 = "1f1c2c170c609d6f0bf0110a54c10a74897a115d36abd4a0c44cec8161474d09"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/response/nuisance.rs"
-sha256 = "c642ac42905f6c510772c5ae6f8e3acee479636180a35707e098506e6d2c8446"
+sha256 = "2558406d6cdc8e384d049bccff7ed08f40b4f0f742586b924b10439074c6a3fc"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/response/crossfit.rs"
-sha256 = "da2fdb943a3f263eaae29bcdd56e4875ede7e7e7510c9a7c9598cfaece0035f9"
+sha256 = "436a92f8382b9cdfb8a35ac0da1213e834c691bfff8f096685ce592699e45651"
 
 [[method_review.artifacts]]
 role = "assertion"

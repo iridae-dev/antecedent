@@ -8,7 +8,9 @@ solver).  The pipeline follows the estimator's definition:
 
 * folds: row i belongs to fold i mod K; the nuisances of a row's fold are fitted on the other rows;
 * outcome nuisance: the penalized additive cubic-spline fit of y on (a, x) (or on a alone without
-  adjusters) over the training rows at its unique exact solution; d mu / d a at a row is the
+  adjusters) over the training rows at its unique exact solution, each smooth penalised by the
+  integrated squared second derivative (zero on every straight line whatever the knots), scaled by
+  the cube of the mean interior knot spacing (right knot - left knot) / (K - 3); d mu / d a at a row is the
   derivative of the treatment smooth at the row's treatment, zero outside [knot 3, knot -4);
 * treatment nuisance: the same fit of a on x, residual scale sigma = sqrt(RSS / max(n_train - edf, 1))
   with edf the hat-matrix trace; without adjusters, the training mean and the n-1 divisor;
@@ -27,9 +29,36 @@ from fractions import Fraction as F
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from mpmath import mp, mpf, sqrt as msqrt, erfinv  # noqa: E402
 
-from estimate_response_kennedy_dr_reference import Additive, dy, make_data, mf, u01  # noqa: E402
+from estimate_response_kennedy_dr_reference import (  # noqa: E402
+    Additive, basis_row, dy, make_data, mf, solve, u01,
+)
 
 mp.dps = 50
+
+
+def integrated_penalty(knots, K):
+    """h^3 * int B_i'' B_j'' dx, exactly: each cubic piece is recovered by exact interpolation of
+    the basis at four interior points, B'' is linear on the piece, and Simpson's rule is exact for
+    the quadratic product of two linear functions."""
+    P = [[F(0)] * K for _ in range(K)]
+    for m in range(3, K):
+        lo, hi = knots[m], knots[m + 1]
+        if lo == hi:
+            continue
+        h = hi - lo
+        pts = [lo + h * F(q, 5) for q in range(1, 5)]
+        rows = [basis_row(p, knots, K) for p in pts]
+        second = {}
+        for i in range(m - 3, m + 1):
+            vander = [[(p - lo) ** e for e in range(4)] for p in pts]
+            c = solve(vander, [rows[q][i] for q in range(4)])
+            second[i] = (2 * c[2], 2 * c[2] + 6 * c[3] * h / 2, 2 * c[2] + 6 * c[3] * h)
+        for i in second:
+            for j in second:
+                u, v = second[i], second[j]
+                P[i][j] += h / 6 * (u[0] * v[0] + 4 * u[1] * v[1] + u[2] * v[2])
+    spacing = (knots[K] - knots[3]) / (K - 3)
+    return [[spacing ** 3 * v for v in row] for row in P]
 
 
 def scores(a, x, y, folds, K, lam):
@@ -40,14 +69,14 @@ def scores(a, x, y, folds, K, lam):
         valid = [i for i in range(n) if i % folds == f]
         ya = [y[i] for i in train]
         if x is None:
-            out = Additive([[a[i] for i in train]], ya, K, lam)
+            out = Additive([[a[i] for i in train]], ya, K, lam, integrated_penalty)
             mean = sum(a[i] for i in train) / len(train)
             rss = sum((a[i] - mean) ** 2 for i in train)
             df = F(max(len(train) - 1, 1))
             mt = {i: mean for i in range(n)}
         else:
-            out = Additive([[a[i] for i in train], [x[i] for i in train]], ya, K, lam)
-            tr = Additive([[x[i] for i in train]], [a[i] for i in train], K, lam)
+            out = Additive([[a[i] for i in train], [x[i] for i in train]], ya, K, lam, integrated_penalty)
+            tr = Additive([[x[i] for i in train]], [a[i] for i in train], K, lam, integrated_penalty)
             mt = {i: tr.predict([x[i]]) for i in range(n)}
             rss = sum((a[i] - mt[i]) ** 2 for i in train)
             df = max(F(len(train)) - tr.trace, F(1))

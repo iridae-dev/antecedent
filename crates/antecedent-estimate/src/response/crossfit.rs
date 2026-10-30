@@ -7,8 +7,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::{
-    AdditiveDesign, FaerBackend, GamOptions, GamWorkspace, PredictorMatrix, SmoothSpec, fit_gam,
-    fit_gam_weighted_design,
+    AdditiveDesign, FaerBackend, GamOptions, GamWorkspace, PredictorMatrix, RoughnessPenalty,
+    SmoothSpec, fit_gam, fit_gam_weighted_design,
 };
 
 use super::sample::CompleteSample;
@@ -23,6 +23,18 @@ use crate::EstimationError;
 /// order of 1e-7.
 pub(super) const NUISANCE_BACKFIT: GamOptions = GamOptions { max_iter: 2000, tol: 1e-10 };
 
+/// The roughness penalty of the average-derivative nuisances. The derivative of the outcome's
+/// treatment smooth is the estimand, and the coefficient second difference shrinks a straight
+/// line whenever the sample-quantile knots are unequally spaced (a 6.5 percent upward bias of a
+/// linear law at a skewed treatment). The integrated squared second derivative is zero on every
+/// line, so a linear outcome keeps its slope. The other cross-fitted routes keep the default.
+pub(super) const ADE_NUISANCE_PENALTY: RoughnessPenalty =
+    RoughnessPenalty::IntegratedSecondDerivative;
+
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the raw layout, response, basis, lambda and penalty of one additive fit"
+)]
 pub(super) fn fit_additive(
     x: &[f64],
     nrows: usize,
@@ -30,10 +42,12 @@ pub(super) fn fit_additive(
     y: &[f64],
     basis: usize,
     lambda: f64,
+    penalty: RoughnessPenalty,
     workspace: &mut GamWorkspace,
 ) -> Result<antecedent_stats::GamFit, EstimationError> {
-    let specs: Vec<SmoothSpec> =
-        (0..ncols).map(|col| SmoothSpec::new(col, basis, lambda)).collect();
+    let specs: Vec<SmoothSpec> = (0..ncols)
+        .map(|col| SmoothSpec::new(col, basis, lambda).with_penalty(penalty))
+        .collect();
     // Response nuisances use a longer backfitting budget than the GAM default: the default
     // 100-iteration / 1e-6 tolerance combination routinely returns converged=false on the
     // cross-fitted Kennedy fixtures while the fit itself is already stable enough to use.
