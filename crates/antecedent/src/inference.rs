@@ -70,6 +70,8 @@ pub struct ExternalComposeSpec {
     pub composed: ComposedPrior,
     /// When set, α is re-shrunk after design bind using prior-PPC / KL.
     pub conflict_policy: Option<ConflictPolicy>,
+    /// Original baseline used to compose and re-shrink this prior.
+    pub baseline: Option<PriorSet>,
 }
 
 /// Bayesian analysis configuration.
@@ -338,9 +340,28 @@ impl BayesianConfig {
         self.prior = Some(composed.prior.clone());
         self.prior_artifact = None;
         self.prior_mapping = None;
-        self.external_compose =
-            Some(Box::new(ExternalComposeSpec { sources, composed, conflict_policy: conflict }));
+        self.external_compose = Some(Box::new(ExternalComposeSpec {
+            sources,
+            composed,
+            conflict_policy: conflict,
+            baseline: None,
+        }));
         self
+    }
+    /// Use a composed prior and its original baseline for data-bound conflict re-shrink.
+    #[must_use]
+    pub fn prior_from_composed_with_baseline(
+        self,
+        sources: impl Into<Arc<[ExternalPriorSource]>>,
+        composed: ComposedPrior,
+        conflict: Option<ConflictPolicy>,
+        baseline: PriorSet,
+    ) -> Self {
+        let mut config = self.prior_from_composed(sources, composed, conflict);
+        if let Some(external) = &mut config.external_compose {
+            external.baseline = Some(baseline);
+        }
+        config
     }
 }
 
@@ -541,15 +562,22 @@ fn resolve_unscaled_prior(
     ctx: Option<&ExecutionContext>,
 ) -> Result<(Option<PriorSet>, Option<ConflictSummary>), CausalError> {
     if let Some(ext) = &cfg.external_compose {
+        if ext.conflict_policy.is_some() && ext.baseline.is_none() {
+            return Err(CausalError::Unsupported {
+                message: "conflict re-shrink requires the original composition baseline; recompose the prior",
+            });
+        }
         if let (Some(policy), Some(ctx)) = (&ext.conflict_policy, ctx) {
-            let baseline = PriorSet::weakly_informative(prep.design.ncols);
+            let baseline = ext.baseline.as_ref().ok_or(CausalError::Unsupported {
+                message: "conflict re-shrink requires the original composition baseline; recompose the prior",
+            })?;
             let ppc = PriorPredictiveCheck {
                 n_sims: 200,
                 seed: ctx.rng.master_seed(),
                 ..PriorPredictiveCheck::new()
             };
             let (composed, summary) =
-                compose_with_conflict_policy(&ext.sources, &baseline, policy, prep, ctx, &ppc)
+                compose_with_conflict_policy(&ext.sources, baseline, policy, prep, ctx, &ppc)
                     .map_err(CausalError::from)?;
             return Ok((Some(composed.prior), Some(summary)));
         }

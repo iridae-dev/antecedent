@@ -2076,10 +2076,11 @@ fn temporal_composed_prior_conflict_and_alpha_grid() {
         .graph(g)
         .temporal_query(q)
         .inference(InferenceMode::Bayesian(
-            BayesianConfig::conjugate().n_draws(n_draws).prior_from_composed(
+            BayesianConfig::conjugate().n_draws(n_draws).prior_from_composed_with_baseline(
                 Arc::clone(&sources),
                 composed.clone(),
                 Some(policy),
+                baseline.clone(),
             ),
         ))
         .refute(RefuteSuite::None)

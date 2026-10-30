@@ -242,6 +242,9 @@ class ComposedPrior:
     #: spread, so the composed prior is weaker than a precision-sum implies and
     #: summing source ESS would overstate composed strength.
     composed_ess: float | None = None
+    #: Original Gaussian coefficient baseline, retained for data-bound re-composition.
+    baseline_mean: tuple[float, ...] | None = None
+    baseline_variance: tuple[float, ...] | None = None
     #: Kish concentration-of-trust diagnostic over the weight vector actually
     #: used in composition (applied alphas on the power path, mixture weights
     #: on the mixture path; dropped sources zeroed). ``None`` only when there
@@ -261,6 +264,10 @@ class ComposedPrior:
             "composed_ess": self.composed_ess,
             "kish_ess": self.kish_ess,
         }
+        if self.baseline_mean is not None:
+            d["baseline_mean"] = list(self.baseline_mean)
+        if self.baseline_variance is not None:
+            d["baseline_variance"] = list(self.baseline_variance)
         if self.conflict is not None:
             d["conflict"] = self.conflict.to_dict()
         if self.conflict_p_values:
@@ -650,7 +657,10 @@ def compose_external_priors(
         transport_weights=transport_weights,
         coef_index=coef_index,
     )
-    return _composed_prior_from_native(raw, srcs, conflict=conflict, transport=transport)
+    return _composed_prior_from_native(
+        raw, srcs, baseline_mean=baseline_mean, baseline_variance=baseline_var,
+        conflict=conflict, transport=transport,
+    )
 
 
 def _normalize_compose_sources(
@@ -723,6 +733,8 @@ def _composed_prior_from_native(
     raw: Mapping[str, Any],
     srcs: Sequence[ExternalPriorSourceSpec],
     *,
+    baseline_mean: Sequence[float],
+    baseline_variance: Sequence[float],
     conflict: ConflictPolicy | None,
     transport: TransportPolicy | None,
 ) -> ComposedPrior:
@@ -769,6 +781,8 @@ def _composed_prior_from_native(
         ),
         assumption_ids=tuple(str(x) for x in raw.get("assumption_ids") or ()),
         transport=transport,
+        baseline_mean=tuple(float(x) for x in baseline_mean),
+        baseline_variance=tuple(float(x) for x in baseline_variance),
     )
 
 

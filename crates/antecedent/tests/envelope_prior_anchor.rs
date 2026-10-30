@@ -186,7 +186,12 @@ fn composed_cfg(data: &TabularData) -> BayesianConfig {
     // genuinely atom-specific, which is what this test needs to observe
     // order-dependent anchoring at all.
     let policy = ConflictPolicy::try_new(0.0, 1.0).unwrap();
-    BayesianConfig::conjugate().n_draws(48).prior_from_composed(sources, composed, Some(policy))
+    BayesianConfig::conjugate().n_draws(48).prior_from_composed_with_baseline(
+        sources,
+        composed,
+        Some(policy),
+        baseline,
+    )
 }
 
 fn run_envelope(

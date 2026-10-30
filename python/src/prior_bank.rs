@@ -723,6 +723,11 @@ pub(crate) struct OwnedComposedPrior {
     pub conflict: Option<ConflictPolicy>,
     /// Restriction ids to preserve (e.g. transport assumptions).
     pub assumption_ids: Vec<String>,
+    /// Original baseline and declared composed coefficient moments.
+    pub baseline_mean: Vec<f64>,
+    pub baseline_variance: Vec<f64>,
+    pub declared_mean: Vec<f64>,
+    pub declared_variance: Vec<f64>,
 }
 
 /// Parse a composed-prior dict into an owned payload.
@@ -752,7 +757,33 @@ pub(crate) fn owned_composed_prior_from_dict(
         Some(v) if v.is_none() => Vec::new(),
         Some(v) => v.extract()?,
     };
-    Ok(OwnedComposedPrior { sources, alphas_requested, alphas_applied, conflict, assumption_ids })
+    let baseline_mean: Vec<f64> = composed
+        .get_item("baseline_mean")?
+        .ok_or_else(|| crate::value_err("composed prior lacks its baseline; recompose it"))?
+        .extract()?;
+    let baseline_variance: Vec<f64> = composed
+        .get_item("baseline_variance")?
+        .ok_or_else(|| crate::value_err("composed prior lacks its baseline; recompose it"))?
+        .extract()?;
+    let declared_mean: Vec<f64> = composed
+        .get_item("mean")?
+        .ok_or_else(|| crate::value_err("composed prior mean required"))?
+        .extract()?;
+    let declared_variance: Vec<f64> = composed
+        .get_item("variance")?
+        .ok_or_else(|| crate::value_err("composed prior variance required"))?
+        .extract()?;
+    Ok(OwnedComposedPrior {
+        sources,
+        alphas_requested,
+        alphas_applied,
+        conflict,
+        assumption_ids,
+        baseline_mean,
+        baseline_variance,
+        declared_mean,
+        declared_variance,
+    })
 }
 
 /// Build [`BayesianConfig`] external compose from owned composed-prior data.
@@ -768,7 +799,14 @@ pub(crate) fn apply_owned_composed_prior(
         .first()
         .and_then(|s| s.prior.gaussian_coefficients().map(GaussianCoefficientPrior::len))
         .ok_or_else(|| crate::value_err("composed prior sources empty"))?;
-    let baseline = PriorSet::weakly_informative(baseline_n);
+    if owned.baseline_mean.len() != baseline_n || owned.baseline_variance.len() != baseline_n {
+        return Err(crate::value_err(
+            "composed prior baseline dimension differs from its sources; recompose it",
+        ));
+    }
+    let supplied = prior_set_from_moments(&owned.baseline_mean, &owned.baseline_variance)?;
+    let mut baseline = PriorSet::weakly_informative(baseline_n);
+    baseline.specs[0] = supplied.specs[0].clone();
     let mut prior_composed = compose_external_priors_with_alphas(
         &owned.sources,
         &owned.alphas_requested,
@@ -776,6 +814,17 @@ pub(crate) fn apply_owned_composed_prior(
         &baseline,
     )
     .map_err(pyvalue)?;
+    let coefficients = prior_composed
+        .prior
+        .gaussian_coefficients()
+        .ok_or_else(|| crate::value_err("composed prior has no Gaussian coefficients"))?;
+    if coefficients.mean.as_ref() != owned.declared_mean.as_slice()
+        || coefficients.variance.as_ref() != owned.declared_variance.as_slice()
+    {
+        return Err(crate::value_err(
+            "composed prior moments disagree with its baseline and sources; recompose it",
+        ));
+    }
     for id in &owned.assumption_ids {
         if prior_composed.prior.restrictions.iter().any(|r| r.id.as_ref() == id.as_str()) {
             continue;
@@ -785,7 +834,12 @@ pub(crate) fn apply_owned_composed_prior(
             description: Arc::from(format!("Preserved prior-bank assumption `{id}`")),
         });
     }
-    Ok(cfg.prior_from_composed(owned.sources, prior_composed, owned.conflict))
+    Ok(cfg.prior_from_composed_with_baseline(
+        owned.sources,
+        prior_composed,
+        owned.conflict,
+        baseline,
+    ))
 }
 
 /// Transfer an aligned parameter-posterior artifact into a known-variance Gaussian prior.

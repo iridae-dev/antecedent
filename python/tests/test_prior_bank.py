@@ -382,6 +382,8 @@ def test_compose_weight_and_conflict():
         alphas_applied=composed2.alphas_applied,
         mixture_weights=composed2.mixture_weights,
         sources=composed2.sources,
+        baseline_mean=composed2.baseline_mean,
+        baseline_variance=composed2.baseline_variance,
         conflict=None,
     )
     result = require_success(
@@ -625,6 +627,40 @@ def test_ess_accounting_no_ess_declared_reports_none_but_kish_present():
     # Precision-weighted product with baseline N(0, 4): precision 0.25 + 0.5 + 0.3 = 1.05.
     assert composed.mean == pytest.approx((1.9 / 1.05,), abs=1e-12)
     assert composed.variance == pytest.approx((1.0 / 1.05,), abs=1e-12)
+
+
+def test_composed_prior_retains_nondefault_baseline_and_rejects_legacy_missing():
+    from dataclasses import replace
+
+    source = antecedent.priors.ExternalPriorSourceSpec(
+        id="baseline-check", mean=(0.0, 0.0), variance=(1.0, 1.0),
+        weight=antecedent.priors.ExternalPriorWeight(alpha=0.0),
+    )
+    composed = antecedent.priors.compose_external_priors(
+        [source], baseline=([1.0, 2.0], [4.0, 4.0]))
+    assert composed.mean == (1.0, 2.0)
+    assert composed.variance == (4.0, 4.0)
+    assert composed.to_native_dict()["baseline_mean"] == [1.0, 2.0]
+    assert composed.to_native_dict()["baseline_variance"] == [4.0, 4.0]
+    data = {"t": np.arange(20, dtype=float), "y": np.arange(20, dtype=float)}
+    def run(prior):
+        return antecedent.analyze(data, graph=[("t", "y")],
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(n_draws=32, backend="conjugate", prior_from=prior))
+    without_conflict = require_success(run(composed))
+    with_policy = antecedent.priors.compose_external_priors(
+        [source], baseline=([1.0, 2.0], [4.0, 4.0]),
+        conflict=antecedent.priors.ConflictPolicy(p_min=0.05, kl_scale=1.0))
+    with_conflict = require_success(run(with_policy))
+    # With alpha zero, re-shrink must still use the declared baseline; it must
+    # agree with the no-conflict path rather than silently reverting to V0=100.
+    assert with_conflict.posterior.effect_mean == pytest.approx(without_conflict.posterior.effect_mean, abs=1e-12)
+    with pytest.raises(Exception, match="baseline|recompose"):
+        run(replace(composed, baseline_mean=None, baseline_variance=None))
+    with pytest.raises(Exception, match="baseline|recompose"):
+        run(replace(composed, baseline_variance=None))
+    with pytest.raises(Exception, match="moments|recompose"):
+        run(replace(composed, mean=(1.0, 3.0)))
 
 
 def test_alpha_prior_sensitivity_on_composed_prior():

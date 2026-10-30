@@ -516,10 +516,12 @@ pub(crate) fn bayesian_binding(
         }),
         prior_mapping: cfg.prior_mapping.as_ref().map(PriorMappingIdentityWire::from_mapping),
         external_compose: cfg.external_compose.as_deref().map(|compose| {
-            external_compose_identity(
+            let mut identity = external_compose_identity(
                 &compose.sources,
                 compose.conflict_policy.map(|policy| (policy.p_min, policy.kl_scale)),
-            )
+            );
+            identity.baseline = compose.baseline.as_ref().map(prior_set_identity);
+            identity
         }),
         draw_controls: draw_controls.map(|controls| controls.as_str().into()),
         design_model: cfg.design_model.as_ref().map(crate::DesignPosteriorModel::identity),
@@ -716,6 +718,56 @@ mod tests {
             .with_cluster_ids(first.to_vec())
             .with_second_cluster_ids(second.to_vec());
         estimator_spec_identity(&EstimatorSpec::Aipw(Box::new(cfg)))
+    }
+
+    #[test]
+    fn conflict_composition_identity_binds_original_baseline() {
+        use antecedent_prob::{
+            ExternalPriorSource, ExternalPriorWeight, PriorSet, PriorSpec, compose_external_priors,
+        };
+        use antecedent_validate::ConflictPolicy;
+        use std::sync::Arc;
+
+        let source_prior = PriorSet::weakly_informative(1);
+        let sources: Arc<[ExternalPriorSource]> = vec![ExternalPriorSource {
+            id: Arc::from("source"),
+            prior: source_prior,
+            weight: ExternalPriorWeight::power_mixture(1.0, 1.0).unwrap(),
+            ess: None,
+        }]
+        .into();
+        let baseline_a = PriorSet::weakly_informative(1);
+        let mut baseline_b = baseline_a.clone();
+        if let PriorSpec::GaussianCoefficients(coef) = &mut baseline_b.specs[0] {
+            coef.mean = Arc::from([3.0]);
+        } else {
+            panic!("expected Gaussian baseline");
+        }
+        let composed_a = compose_external_priors(&sources, &baseline_a).unwrap();
+        let composed_b = compose_external_priors(&sources, &baseline_b).unwrap();
+        // A full-weight mixture removes the baseline from the precomposed moments.
+        assert_eq!(composed_a.prior, composed_b.prior);
+        let policy = ConflictPolicy::try_new(0.05, 1.0).unwrap();
+        let a = BayesianConfig::conjugate().prior_from_composed_with_baseline(
+            Arc::clone(&sources),
+            composed_a,
+            Some(policy),
+            baseline_a,
+        );
+        let b = BayesianConfig::conjugate().prior_from_composed_with_baseline(
+            Arc::clone(&sources),
+            composed_b,
+            Some(policy),
+            baseline_b,
+        );
+        let binding_a = bayesian_binding(&a, None);
+        let binding_b = bayesian_binding(&b, None);
+        assert_eq!(binding_a.prior, binding_b.prior);
+        assert_ne!(binding_a.external_compose, binding_b.external_compose);
+        assert_ne!(
+            antecedent_io::to_cbor(&binding_a).unwrap(),
+            antecedent_io::to_cbor(&binding_b).unwrap()
+        );
     }
 
     #[test]

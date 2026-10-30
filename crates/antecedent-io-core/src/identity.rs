@@ -2658,6 +2658,9 @@ pub struct ExternalComposeIdentityWire {
     pub sources: Vec<ExternalPriorSourceIdentityWire>,
     /// Conflict policy `(p_min bits, kl_scale bits)`, when re-shrinking.
     pub conflict_policy: Option<(u64, u64)>,
+    /// Original composition baseline, when retained for future conflict re-shrink.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub baseline: Option<PriorSetIdentityWire>,
 }
 
 /// Bayesian configuration bound into the inference layer.
@@ -3126,6 +3129,7 @@ pub fn external_compose_identity(
             .collect(),
         conflict_policy: conflict_policy
             .map(|(p_min, kl_scale)| (p_min.to_bits(), kl_scale.to_bits())),
+        baseline: None,
     }
 }
 
