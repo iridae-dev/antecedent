@@ -275,3 +275,19 @@ both hops. A complete forwarding hop preserves the other hop's retained fields;
 a later full-envelope receipt cannot restore fields lost earlier. Claim
 equivalence also requires explicit retention of the envelope, identities,
 reasoning, and domains, rather than matching IDs with unspecified retention.
+
+## Checked arithmetic over world point claims
+
+`compose_checked_world_points` evaluates an explicitly declared linear target
+from point claims paired with their typed single-world targets. It matches the
+worlds by scientific identity, checks units, shared observation/data and assumption
+premises, and orders operands before arithmetic and proof construction. Callers
+must establish parent authenticity separately. The result is a checked point,
+with evidence and parent references; it does not grant identification,
+uncertainty, calibration, or a portable derived-claim seal.
+
+Callers supply work, payload, nesting and admission limits. Quotation precedes
+identity encoding; the retained admission lease is shared by cloned results.
+These are structural accounting bounds, not allocator-level peak-memory
+measurements. The proof binds the semantic scientific target; target annotations
+and inference selections excluded by that target identity are not certified.

@@ -791,6 +791,16 @@ impl StructuralAction {
         }
     }
 
+    /// Borrow replacement parameters for checked target quotation.
+    pub(super) fn mechanism_bits(&self) -> Option<(&str, &[u64])> {
+        match &self.kind {
+            StructuralKind::ReplaceMechanism { family, parameter_bits, .. } => {
+                Some((family, parameter_bits))
+            }
+            _ => None,
+        }
+    }
+
     /// Replacement family and parameters, when this is a mechanism replacement.
     #[must_use]
     pub fn mechanism(&self) -> Option<(&str, Vec<f64>)> {

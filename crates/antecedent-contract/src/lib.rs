@@ -63,10 +63,12 @@ pub use capability::{
     OperationReport, PremiseChange, SemanticApplicability,
 };
 pub use claim::{
-    AcceptanceReport, AttestedEvidence, CalibrationView, ClaimCompatibility, ClaimDomainAxis,
-    ClaimDomains, ClaimEnvelope, ClaimFreshness, ClaimKind, ClaimOperation, ConsumerProfile,
-    DerivedClaim, DerivedClaimOutcome, DomainStatus, EvidenceDependence, HandoffReceipt,
-    HostOperation, SharedEvidenceRef, claim_compatibility, compose_claims,
+    AcceptanceReport, AttestedEvidence, CalibrationView, CheckedWorldPoint, CheckedWorldPointError,
+    CheckedWorldPointLimits, ClaimCompatibility, ClaimDomainAxis, ClaimDomains, ClaimEnvelope,
+    ClaimFreshness, ClaimKind, ClaimOperation, ConsumerProfile, DerivedClaim, DerivedClaimOutcome,
+    DomainStatus, EvidenceDependence, HandoffReceipt, HostOperation, SharedEvidenceRef,
+    WorldPointParent, admit_composition_targets, claim_compatibility, compose_checked_world_points,
+    compose_claims,
 };
 pub use composition_provenance::{
     CompositionLink, CompositionStage, ProvenanceChain, ProvenanceChainError,

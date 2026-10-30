@@ -17,7 +17,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+mod composition_quote;
 mod contrast;
+pub use composition_quote::{
+    CompositionQuoteLimits, CompositionTargetQuote, composition_assumptions_identity,
+    quote_composition_assumptions, quote_composition_target,
+};
 mod fault;
 mod identity;
 mod mediation;

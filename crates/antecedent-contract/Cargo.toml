@@ -35,3 +35,7 @@ path = "tests/interface_cyclic_composition_reference.rs"
 [[test]]
 name = "typed_bridges_reference"
 path = "tests/typed_bridges_reference.rs"
+
+[[test]]
+name = "checked_world_composition"
+path = "tests/checked_world_composition.rs"
