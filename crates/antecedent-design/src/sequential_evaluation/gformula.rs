@@ -30,7 +30,7 @@
 
 use antecedent_core::ExecutionContext;
 
-use super::belief::{branches, evolve};
+use super::belief::{Branch, branches, evolve};
 use super::model::{ActionRole, CensoringRule, Compiled, dot};
 use super::policy::{ContingentPolicy, HistoryKey};
 use super::{
@@ -169,12 +169,40 @@ struct Pending {
     due: usize,
 }
 
-struct Node<'n> {
-    history: &'n HistoryKey,
-    belief: &'n [f64],
-    pending: &'n [Pending],
+struct Node {
+    history: HistoryKey,
+    belief: Vec<f64>,
+    pending: Vec<Pending>,
     reach: f64,
     resource: f64,
+}
+
+struct ActionFrame {
+    action: usize,
+    probability: f64,
+    q: f64,
+    branches: Vec<Branch>,
+    next_branch: usize,
+    last_branch_probability: f64,
+    pending: Vec<Pending>,
+    used: f64,
+}
+
+struct Frame {
+    node: Node,
+    remaining: Vec<Pending>,
+    slot: usize,
+    forced: Option<usize>,
+    distribution: Vec<(usize, f64)>,
+    next_action: usize,
+    active: Option<ActionFrame>,
+    realized: f64,
+    value: f64,
+}
+
+enum Entered {
+    Complete(f64),
+    Active(Frame),
 }
 
 struct Walker<'a> {
@@ -238,11 +266,8 @@ impl Walker<'_> {
         )
     }
 
-    #[allow(
-        clippy::too_many_lines,
-        reason = "one flat pass over a node: due credits, boundary, then each supported action"
-    )]
-    fn visit(&mut self, node: &Node<'_>) -> SequentialResult<f64> {
+    // Create receipts in the same pre-order as the recursive traversal.
+    fn enter(&mut self, node: Node) -> SequentialResult<Entered> {
         self.nodes += 1;
         if self.nodes > self.limits.max_nodes {
             return Err(limit_exceeded(
@@ -262,10 +287,10 @@ impl Walker<'_> {
         let compiled = self.compiled;
         let time = node.history.len();
         let mut due_now = 0.0;
-        let mut remaining: Vec<Pending> = Vec::new();
-        for pending in node.pending {
+        let mut remaining = Vec::new();
+        for pending in &node.pending {
             if pending.due == time {
-                due_now += dot(node.belief, delayed_utility(compiled, pending.action));
+                due_now += dot(&node.belief, delayed_utility(compiled, pending.action));
             } else {
                 remaining.push(*pending);
             }
@@ -284,27 +309,27 @@ impl Walker<'_> {
                     "extend the horizon, or declare the censoring rule `forfeit` to count them as zero and report them",
                 ));
             }
-            let realized = due_now + dot(node.belief, &compiled.terminal);
+            let realized = due_now + dot(&node.belief, &compiled.terminal);
             self.accounting += node.reach * realized;
             self.histories.push(HistoryReceipt {
-                history: node.history.clone(),
+                history: node.history,
                 time,
                 kind: NodeKind::Horizon,
                 reach_probability: node.reach,
-                belief: node.belief.to_vec(),
+                belief: node.belief,
                 realized_utility: realized,
                 continuation_value: realized,
                 forfeited_outcomes: remaining.len(),
             });
-            return Ok(realized);
+            return Ok(Entered::Complete(realized));
         }
-        let forced = compiled.crossed_boundary(node.belief);
+        let forced = compiled.crossed_boundary(&node.belief);
         let distribution: Vec<(usize, f64)> = match forced {
             Some(boundary) => vec![(compiled.boundaries[boundary].stop_action, 1.0)],
             None => self
                 .policy
-                .distribution(node.history)
-                .ok_or_else(|| Self::incomplete(node.history))?
+                .distribution(&node.history)
+                .ok_or_else(|| Self::incomplete(&node.history))?
                 .to_vec(),
         };
         self.histories.push(HistoryReceipt {
@@ -312,7 +337,7 @@ impl Walker<'_> {
             time,
             kind: forced.map_or(NodeKind::Decision, |boundary| NodeKind::ForcedStop { boundary }),
             reach_probability: node.reach,
-            belief: node.belief.to_vec(),
+            belief: node.belief.clone(),
             realized_utility: 0.0,
             continuation_value: 0.0,
             forfeited_outcomes: 0,
@@ -324,68 +349,130 @@ impl Walker<'_> {
             actions: distribution.clone(),
             resource_used: node.resource,
         });
-        let mut realized = due_now;
-        let mut value = due_now;
-        for &(action, probability) in &distribution {
-            let spec = compiled.actions.get(action).ok_or_else(|| {
+        Ok(Entered::Active(Frame {
+            node,
+            remaining,
+            slot,
+            forced,
+            distribution,
+            next_action: 0,
+            active: None,
+            realized: due_now,
+            value: due_now,
+        }))
+    }
+
+    // Heap-backed depth-first traversal: advance one action/branch at a time,
+    // retaining the recursive operation order and post-order accounting.
+    fn visit(&mut self, root: Node) -> SequentialResult<f64> {
+        let mut stack = Vec::new();
+        let mut returned = match self.enter(root)? {
+            Entered::Complete(value) => Some(value),
+            Entered::Active(frame) => {
+                stack.push(frame);
+                None
+            }
+        };
+        loop {
+            if let Some(value) = returned.take() {
+                let Some(parent) = stack.last_mut() else {
+                    return Ok(value);
+                };
+                let action = parent.active.as_mut().expect("a child has an active action");
+                action.q += action.last_branch_probability * value;
+            }
+            let Some(frame) = stack.last_mut() else { unreachable!("root returns a value") };
+            if let Some(action) = frame.active.as_mut() {
+                if action.next_branch < action.branches.len() {
+                    let branch = &action.branches[action.next_branch];
+                    action.next_branch += 1;
+                    action.last_branch_probability = branch.probability;
+                    let child = Node {
+                        history: frame.node.history.extended(action.action, branch.symbol),
+                        belief: branch.posterior.clone(),
+                        pending: action.pending.clone(),
+                        reach: frame.node.reach * action.probability * branch.probability,
+                        resource: action.used,
+                    };
+                    match self.enter(child)? {
+                        Entered::Complete(value) => returned = Some(value),
+                        Entered::Active(child) => stack.push(child),
+                    }
+                    continue;
+                }
+                frame.value += action.probability * action.q;
+                frame.active = None;
+                frame.next_action += 1;
+                continue;
+            }
+            if frame.next_action == frame.distribution.len() {
+                let frame = stack.pop().expect("active frame");
+                self.accounting += frame.node.reach * frame.realized;
+                let receipt = &mut self.histories[frame.slot];
+                receipt.realized_utility = frame.realized;
+                receipt.continuation_value = frame.value;
+                returned = Some(frame.value);
+                continue;
+            }
+            let (action, probability) = frame.distribution[frame.next_action];
+            let spec = self.compiled.actions.get(action).ok_or_else(|| {
                 refusal!(
                     "invalid_argument",
                     "sequential_evaluation.action_index",
-                    format!("history {} names undeclared action {action}", node.history),
+                    format!("history {} names undeclared action {action}", frame.node.history),
                     "name a declared action",
                 )
             })?;
-            if forced.is_none() {
-                self.check_support(node.history, action, &spec.label)?;
+            if frame.forced.is_none() {
+                self.check_support(&frame.node.history, action, &spec.label)?;
             }
-            let used = node.resource + spec.resource_use;
-            if compiled.budget.is_some_and(|budget| used > budget + 1e-12) {
+            let used = frame.node.resource + spec.resource_use;
+            if self.compiled.budget.is_some_and(|budget| used > budget + 1e-12) {
                 return Err(refusal!(
                     "invalid_argument",
                     "sequential_evaluation.resource_budget_exceeded",
                     format!(
                         "taking `{}` in history {} uses {used} of a budget of {:?}",
-                        spec.label, node.history, compiled.budget
+                        spec.label, frame.node.history, self.compiled.budget
                     ),
                     "restrict the policy to the declared resource budget or raise the budget",
                 ));
             }
-            let step = dot(node.belief, &spec.immediate) - spec.utility_cost;
-            realized += probability * step;
-            let mut q = step;
+            let step = dot(&frame.node.belief, &spec.immediate) - spec.utility_cost;
+            frame.realized += probability * step;
             match spec.role {
                 ActionRole::Commit => {
                     let pending: Vec<(usize, usize)> =
-                        remaining.iter().map(|p| (p.action, p.due)).collect();
-                    let tail = commit_tail(compiled, action, node.belief, time, &pending);
-                    realized += probability * tail;
-                    q += tail;
+                        frame.remaining.iter().map(|p| (p.action, p.due)).collect();
+                    let tail = commit_tail(
+                        self.compiled,
+                        action,
+                        &frame.node.belief,
+                        frame.node.history.len(),
+                        &pending,
+                    );
+                    frame.realized += probability * tail;
+                    frame.value += probability * (step + tail);
+                    frame.next_action += 1;
                 }
                 ActionRole::Continue => {
-                    let mut child_pending = remaining.clone();
+                    let mut pending = frame.remaining.clone();
                     if let Some((delay, _)) = &spec.delayed {
-                        child_pending.push(Pending { action, due: time + delay });
+                        pending.push(Pending { action, due: frame.node.history.len() + delay });
                     }
-                    for branch in branches(compiled, node.belief, action) {
-                        let child_history = node.history.extended(action, branch.symbol);
-                        let child = Node {
-                            history: &child_history,
-                            belief: &branch.posterior,
-                            pending: &child_pending,
-                            reach: node.reach * probability * branch.probability,
-                            resource: used,
-                        };
-                        q += branch.probability * self.visit(&child)?;
-                    }
+                    frame.active = Some(ActionFrame {
+                        action,
+                        probability,
+                        q: step,
+                        branches: branches(self.compiled, &frame.node.belief, action),
+                        next_branch: 0,
+                        last_branch_probability: 0.0,
+                        pending,
+                        used,
+                    });
                 }
             }
-            value += probability * q;
         }
-        self.accounting += node.reach * realized;
-        let receipt = &mut self.histories[slot];
-        receipt.realized_utility = realized;
-        receipt.continuation_value = value;
-        Ok(value)
     }
 
     fn check_support(
@@ -451,10 +538,10 @@ pub(crate) fn walk(
         accounting: 0.0,
     };
     let root = HistoryKey::root();
-    let value = walker.visit(&Node {
-        history: &root,
-        belief: &compiled.initial,
-        pending: &[],
+    let value = walker.visit(Node {
+        history: root,
+        belief: compiled.initial.clone(),
+        pending: Vec::new(),
         reach: 1.0,
         resource: 0.0,
     })?;

@@ -1702,3 +1702,36 @@ fn a_retained_identity_refuses_another_evaluation_and_corruption_is_refused() {
         "reason=route_not_supported: sequential_evaluation.identity_mismatch: body digest changed"
     );
 }
+
+#[test]
+fn deep_single_branch_horizon_uses_bounded_native_stack() {
+    let mut spec = base_spec(false);
+    spec.horizon = 1_024;
+    spec.acts[WAIT].trans = IDENTITY;
+    spec.acts[WAIT].imm = [1.0, 1.0];
+    spec.terminal = [2.0, 2.0];
+    let model = build(&spec);
+    let mut policy = ContingentPolicy::new("deep_wait");
+    let mut history = HistoryKey::root();
+    for _ in 0..spec.horizon {
+        policy = policy.decide(history.clone(), WAIT);
+        history = history.extended(WAIT, 0);
+    }
+    let evaluation = std::thread::Builder::new()
+        .stack_size(128 * 1024)
+        .spawn(move || {
+            evaluate_policy(&model, &policy, EvaluationLimits::default(), &ctx()).unwrap()
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+    assert_eq!(evaluation.value, 1_026.0);
+    assert_eq!(evaluation.nodes_visited, 1_025);
+    assert_eq!(evaluation.histories.len(), 1_025);
+    assert_eq!(evaluation.decisions.len(), 1_024);
+    assert_eq!(evaluation.accounting_residual, 0.0);
+    for (time, receipt) in evaluation.histories.iter().enumerate() {
+        assert_eq!(receipt.time, time);
+        assert_eq!(receipt.continuation_value, (1_026 - time) as f64);
+    }
+}
