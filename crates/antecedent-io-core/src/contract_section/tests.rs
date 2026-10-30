@@ -622,12 +622,15 @@ fn tampered_target_identity_is_not_promoted() {
 fn body_query_must_match_contract_target() {
     let (mut body, target, names) = fixture_body();
     let contract = contract_for(target, &body);
-    if let CausalQueryWire::AverageEffect { outcome, .. } = &mut body.query {
-        *outcome = 0;
-    }
-    if let CausalQueryWire::AverageEffect { outcome, .. } = &mut body.identification.query {
-        *outcome = 0;
-    }
+    // Keep the changed query valid so the contract-target check runs after decoding.
+    let changed = CausalQuery::AverageEffect(AverageEffectQuery::with_levels(
+        VariableId::from_raw(0),
+        VariableId::from_raw(1),
+        0.0,
+        2.0,
+    ));
+    body.query = causal_query_to_wire(&changed).unwrap();
+    body.identification.query = body.query.clone();
     let consumed =
         consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
     assert!(!consumed.acceptance.accepts_as_verified_program());
