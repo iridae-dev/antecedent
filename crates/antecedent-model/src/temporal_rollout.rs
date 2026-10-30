@@ -107,7 +107,11 @@ pub fn rollout_temporal(
         .checked_mul(n_nodes)
         .ok_or_else(|| shape_error("temporal rollout size overflows"))?;
     let width = n_nodes
-        .checked_mul(plan.window as usize + 1)
+        .checked_mul(
+            (plan.window as usize)
+                .checked_add(1)
+                .ok_or_else(|| shape_error("temporal window overflows"))?,
+        )
         .ok_or_else(|| shape_error("temporal rollout width overflows"))?;
     let cells =
         n_rows.checked_mul(width).ok_or_else(|| shape_error("temporal rollout size overflows"))?;
@@ -127,6 +131,42 @@ pub fn rollout_temporal(
         }
     }
 
+    if ctx.cancellation.is_cancelled() {
+        return Err(ModelError::Cancelled);
+    }
+    // The lease covers the history buffer, retained path, gather and workspace
+    // scratch, and output/Arc headers through this call. Returned path lifetime
+    // remains governed by the caller's retention policy.
+    let path_cells = block
+        .checked_mul(plan.n_steps)
+        .ok_or_else(|| shape_error("temporal path size overflows"))?;
+    let scratch_cells = block
+        .checked_mul(2)
+        .and_then(|v| v.checked_add(n_rows))
+        .ok_or_else(|| shape_error("temporal scratch size overflows"))?;
+    let payload = cells
+        .checked_add(path_cells)
+        .and_then(|v| v.checked_add(scratch_cells))
+        .and_then(|v| v.checked_mul(std::mem::size_of::<f64>()))
+        .ok_or_else(|| shape_error("temporal rollout byte size overflows"))?;
+    let headers = plan
+        .n_steps
+        .checked_mul(std::mem::size_of::<ValueBatch>() + 2 * std::mem::size_of::<usize>())
+        .ok_or_else(|| shape_error("temporal rollout header size overflows"))?;
+    let bytes = payload
+        .checked_add(headers)
+        .and_then(|v| v.checked_add(4096))
+        .and_then(|v| u64::try_from(v).ok())
+        .ok_or_else(|| shape_error("temporal rollout byte size overflows"))?;
+    let _lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => ModelError::Cancelled,
+        _ => ModelError::ResourceLimit {
+            message: "temporal rollout buffers",
+            required_bytes: bytes,
+            limit_bytes: ctx.admission().available().bytes(),
+        },
+    })?;
+
     let mut path: Vec<ValueBatch> = Vec::with_capacity(plan.n_steps);
     let mut buf = vec![0.0; cells];
     let mut parent_buf: Vec<f64> = Vec::new();
@@ -141,7 +181,11 @@ pub fn rollout_temporal(
             time,
             plan.window,
         )?;
-        let available = plan.initial_history.len() + t;
+        let available = plan
+            .initial_history
+            .len()
+            .checked_add(t)
+            .ok_or_else(|| shape_error("temporal history length overflows"))?;
         let needed = overlay.programs.iter().flatten().map(NodeProgram::max_lag).max();
         if let Some(needed) = needed.filter(|needed| *needed as usize > available) {
             return Err(refusal_history_not_yet_observed(format!(

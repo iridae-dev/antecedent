@@ -78,7 +78,7 @@ pub const DETAIL_SELECTION_INTO_LATENT: &str =
 pub const DETAIL_SELECTION_INTO_MECHANISM: &str =
     "mechanism_composition.population_selection_arrow_into_mechanism";
 
-const TAG_IDENTITY: &str = "antecedent.model.mechanism_transport";
+const TAG_IDENTITY: &str = "antecedent.model.mechanism_transport.complete_dependence.v2";
 
 /// Everything a transported composition is built from.
 #[derive(Clone, Debug, PartialEq)]
@@ -516,6 +516,17 @@ fn write_mechanism_body(w: &mut CanonicalWriter, m: &MechanismDescriptor) {
     }
 }
 
+fn write_parameter_term(w: &mut CanonicalWriter, term: &ParameterTerm) {
+    match term {
+        ParameterTerm::Intercept => {
+            w.word(0);
+        }
+        ParameterTerm::Coefficient(name) => {
+            w.word(1).text(name);
+        }
+    }
+}
+
 fn write_dependence(w: &mut CanonicalWriter, dependence: &PosteriorDependence) {
     match dependence {
         PosteriorDependence::Unknown => {
@@ -524,13 +535,26 @@ fn write_dependence(w: &mut CanonicalWriter, dependence: &PosteriorDependence) {
         PosteriorDependence::IndependentByDesign { justification } => {
             w.word(1).text(justification);
         }
-        PosteriorDependence::Joint { covariance, parameters, .. } => {
-            w.word(2).word(parameters.len() as u64).reals(covariance);
+        PosteriorDependence::Joint { meaning, parameters, covariance } => {
+            w.word(2).word(*meaning as u64).word(parameters.len() as u64);
+            for parameter in parameters {
+                w.text(&parameter.mechanism);
+                write_parameter_term(w, &parameter.term);
+            }
+            w.reals(covariance);
         }
         PosteriorDependence::CrossCovariance { blocks } => {
             w.word(3).word(blocks.len() as u64);
-            for b in blocks {
-                w.text(&b.first).text(&b.second).reals(&b.values);
+            for block in blocks {
+                w.text(&block.first).text(&block.second).word(block.first_parameters.len() as u64);
+                for term in &block.first_parameters {
+                    write_parameter_term(w, term);
+                }
+                w.word(block.second_parameters.len() as u64);
+                for term in &block.second_parameters {
+                    write_parameter_term(w, term);
+                }
+                w.reals(&block.values);
             }
         }
     }

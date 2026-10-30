@@ -327,6 +327,36 @@ fn a_transform_with_a_lag_read_matches_the_hand_recursion_and_the_static_route_w
 }
 
 #[test]
+fn temporal_rollout_admits_history_and_retained_path_before_allocating() {
+    let model = price_model();
+    let schedule = InterventionSequence::new(vec![]);
+    let limited = ExecutionContext::for_tests(9).with_memory_limit(Some(50_000));
+    let mut ws = MechanismWorkspace::default();
+    let mut rng = CausalRng::from_seed(1);
+    let small = TemporalPlan {
+        sequence: &schedule,
+        n_steps: 2,
+        n_rows: 32,
+        window: 0,
+        initial_history: &[],
+    };
+    let path =
+        rollout_temporal(&model, &small, TemporalNoise::Draw(&mut rng), &mut ws, &limited).unwrap();
+    assert_eq!(path.column(0, 0).unwrap().len(), 32);
+    let huge = TemporalPlan { window: 1_000_000, ..small };
+    assert!(matches!(
+        rollout_temporal(&model, &huge, TemporalNoise::Draw(&mut rng), &mut ws, &limited),
+        Err(antecedent_model::ModelError::ResourceLimit { .. })
+    ));
+    let cancelled = ExecutionContext::for_tests(9);
+    cancelled.cancellation.cancel();
+    assert!(matches!(
+        rollout_temporal(&model, &small, TemporalNoise::Draw(&mut rng), &mut ws, &cancelled),
+        Err(antecedent_model::ModelError::Cancelled)
+    ));
+}
+
+#[test]
 fn history_the_route_cannot_supply_is_refused() {
     let model = price_model();
     let ctx = ExecutionContext::for_tests(9);

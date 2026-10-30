@@ -7,7 +7,7 @@
 mod transport_fixture;
 
 use antecedent_model::compose::{
-    CompositionError, Domain, MechanismForm, MechanismUncertainty, ParameterTerm,
+    CompositionError, Domain, MechanismForm, MechanismUncertainty, ParameterId, ParameterTerm,
     PosteriorDependence, TabularRow, UncertaintyMeaning,
 };
 use antecedent_model::mechanism_transport::{
@@ -39,6 +39,34 @@ fn uncertainty(variance: f64) -> MechanismUncertainty {
         parameters: vec![ParameterTerm::Intercept, ParameterTerm::Coefficient("x".into())],
         covariance: vec![variance, 0.0, 0.0, variance],
     }
+}
+
+#[test]
+fn joint_law_meaning_moves_identity_and_parameter_order_is_canonical() {
+    let x = ParameterId { mechanism: "x".into(), term: ParameterTerm::Intercept };
+    let y = ParameterId { mechanism: "y".into(), term: ParameterTerm::Intercept };
+    let slope = ParameterId { mechanism: "y".into(), term: ParameterTerm::Coefficient("x".into()) };
+    let covariance = vec![1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+    let mut sampling = request();
+    sampling.dependence = PosteriorDependence::Joint {
+        meaning: UncertaintyMeaning::SamplingDistribution,
+        parameters: vec![x.clone(), y.clone(), slope.clone()],
+        covariance: covariance.clone(),
+    };
+    let mut posterior = sampling.clone();
+    posterior.dependence = PosteriorDependence::Joint {
+        meaning: UncertaintyMeaning::Posterior,
+        parameters: vec![x.clone(), y.clone(), slope.clone()],
+        covariance: covariance.clone(),
+    };
+    assert_ne!(identity_of(&sampling), identity_of(&posterior));
+    let mut reordered = sampling.clone();
+    reordered.dependence = PosteriorDependence::Joint {
+        meaning: UncertaintyMeaning::SamplingDistribution,
+        parameters: vec![slope, x, y],
+        covariance,
+    };
+    assert_eq!(identity_of(&sampling), identity_of(&reordered));
 }
 
 #[test]
