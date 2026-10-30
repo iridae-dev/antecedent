@@ -6,6 +6,68 @@ use crate::faer_backend::FaerBackend;
 use antecedent_kernels::norm_cdf;
 
 #[test]
+fn weighted_deviance_matches_explicit_frequency_replication_in_every_family() {
+    let treatment = [0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0];
+    let outcome = [0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0];
+    let frequencies = [1_usize, 4, 2, 3, 1, 2, 3, 4];
+    let weights: Vec<f64> = frequencies.iter().map(|&n| n as f64).collect();
+    let mut design = vec![1.0; treatment.len()];
+    design.extend_from_slice(&treatment);
+    let mut repeated_treatment = Vec::new();
+    let mut repeated_outcome = Vec::new();
+    for i in 0..treatment.len() {
+        for _ in 0..frequencies[i] {
+            repeated_treatment.push(treatment[i]);
+            repeated_outcome.push(outcome[i]);
+        }
+    }
+    let mut repeated_design = vec![1.0; repeated_treatment.len()];
+    repeated_design.extend_from_slice(&repeated_treatment);
+    let mut options = GlmOptions::new(100, 1e-10);
+    options.nb_alpha = NbAlphaPolicy::Fixed(0.4);
+    for family in [
+        GlmFamily::GaussianIdentity,
+        GlmFamily::BinomialLogit,
+        GlmFamily::BinomialProbit,
+        GlmFamily::PoissonLog,
+        GlmFamily::NegativeBinomial,
+    ] {
+        let weighted = fit_glm_weighted(
+            family,
+            GlmDesignRef { x_colmajor: &design, nrows: 8, ncols: 2, y: &outcome },
+            &weights,
+            &FaerBackend,
+            &mut LeastSquaresWorkspace::default(),
+            &options,
+        )
+        .unwrap();
+        let repeated = fit_glm(
+            family,
+            GlmDesignRef {
+                x_colmajor: &repeated_design,
+                nrows: repeated_outcome.len(),
+                ncols: 2,
+                y: &repeated_outcome,
+            },
+            &FaerBackend,
+            &mut LeastSquaresWorkspace::default(),
+            &options,
+        )
+        .unwrap();
+        assert!(weighted.converged && repeated.converged, "{family:?}");
+        for (a, b) in weighted.coefficients.iter().zip(&repeated.coefficients) {
+            assert!((a - b).abs() < 1e-8, "{family:?}: {a} vs {b}");
+        }
+        assert!(
+            (weighted.deviance - repeated.deviance).abs() < 1e-8,
+            "{family:?}: {} vs {}",
+            weighted.deviance,
+            repeated.deviance
+        );
+    }
+}
+
+#[test]
 fn poisson_fit_is_invariant_to_the_unit_of_a_predictor() {
     let n = 80usize;
     let t: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect();

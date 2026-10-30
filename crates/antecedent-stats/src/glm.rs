@@ -196,7 +196,7 @@ pub struct GlmFit {
     /// The coefficients minimise a ridge-penalized objective (the deliberate
     /// [`fit_glm_ridge`] or the separation fallback), not the unpenalized likelihood.
     pub penalized: bool,
-    /// Final deviance.
+    /// Final deviance, summed with the declared case weights for a weighted fit.
     pub deviance: f64,
     /// Estimated or fixed NB2 `α` when family is [`GlmFamily::NegativeBinomial`].
     pub nb_alpha: Option<f64>,

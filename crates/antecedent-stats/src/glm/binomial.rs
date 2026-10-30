@@ -43,6 +43,7 @@ fn binomial_diagnostics_at(
     family: GlmFamily,
     design: GlmDesignRef<'_>,
     beta: &[f64],
+    weights: Option<&[f64]>,
 ) -> BinomialDiagnostics {
     let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
     let mut deviance = 0.0;
@@ -68,10 +69,11 @@ fn binomial_diagnostics_at(
             perfectly_classified = false;
         }
         let mu_clamped = mu.clamp(PROB_CLIP, 1.0 - PROB_CLIP);
+        let weight = weights.map_or(1.0, |weights| weights[r]);
         if y[r] > 0.0 {
-            deviance += -2.0 * mu_clamped.ln();
+            deviance += weight * -2.0 * mu_clamped.ln();
         } else {
-            deviance += -2.0 * (1.0 - mu_clamped).ln();
+            deviance += weight * -2.0 * (1.0 - mu_clamped).ln();
         }
     }
     BinomialDiagnostics { deviance, saturated, min_margin, n_saturated, perfectly_classified }
@@ -118,6 +120,7 @@ pub(super) fn fit_logistic(
         beta,
         iterations,
         converged,
+        None,
     )
 }
 
@@ -174,6 +177,7 @@ pub fn fit_logistic_weighted(
         beta,
         iterations,
         converged,
+        Some(weights),
     )
 }
 
@@ -214,11 +218,13 @@ pub(super) fn fit_probit_weighted(
         beta,
         iterations,
         converged,
+        Some(weights),
     )
 }
 
 /// Deviance and separation diagnostics for an unpenalized binomial IRLS result, with the
 /// optional ridge refit when the fitted probabilities saturate.
+#[allow(clippy::too_many_arguments, reason = "the diagnostics use the fitted case weights")]
 fn finish_binomial(
     family: GlmFamily,
     design: GlmDesignRef<'_>,
@@ -227,9 +233,10 @@ fn finish_binomial(
     beta: Vec<f64>,
     iterations: u32,
     converged: bool,
+    weights: Option<&[f64]>,
 ) -> Result<GlmFit, StatsError> {
     // Diagnostics at the returned coefficients (not the pre-update IRLS iterate).
-    let diag = binomial_diagnostics_at(family, design, &beta);
+    let diag = binomial_diagnostics_at(family, design, &beta, weights);
     let separated = diag.separated(converged);
 
     if diag.saturated {
@@ -242,7 +249,7 @@ fn finish_binomial(
                     options,
                     lambda,
                     Some(separated),
-                    None,
+                    weights,
                 );
             }
         }
@@ -296,6 +303,7 @@ pub(super) fn fit_probit(
         beta,
         iterations,
         converged,
+        None,
     )
 }
 
@@ -477,7 +485,7 @@ fn fit_binomial_penalized(
     // A separation fallback keeps the unpenalized fit's verdict: penalized scores are not a
     // substitute for an unpenalized MLE, so estimation paths (`require_ok`) still refuse
     // them. A deliberate ridge fit is judged at its own solution and is `penalized`.
-    let diag = binomial_diagnostics_at(family, design, &beta);
+    let diag = binomial_diagnostics_at(family, design, &beta, prior);
     let separated = fallback_separated.unwrap_or_else(|| diag.separated(converged));
 
     let fit = GlmFit {

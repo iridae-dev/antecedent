@@ -54,20 +54,25 @@ fn weighted_deviance<'a>(
 }
 
 /// Poisson deviance at `β` (log link).
-fn poisson_deviance_at(design: GlmDesignRef<'_>, beta: &[f64]) -> f64 {
+fn poisson_deviance_at(design: GlmDesignRef<'_>, beta: &[f64], prior: Option<&[f64]>) -> f64 {
     let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
     let mut eta = vec![0.0; nrows];
     linear_predictor_into(x_colmajor, nrows, ncols, beta, &mut eta);
-    y.iter().zip(&eta).map(|(&yi, &e)| poisson_row_deviance(yi, e)).sum()
+    weighted_deviance(y, prior, poisson_row_deviance)(&eta)
 }
 
 /// NB2 deviance at `β` with fixed dispersion `α` (log link).
-fn negbin_deviance_at(design: GlmDesignRef<'_>, beta: &[f64], alpha: f64) -> f64 {
+fn negbin_deviance_at(
+    design: GlmDesignRef<'_>,
+    beta: &[f64],
+    alpha: f64,
+    prior: Option<&[f64]>,
+) -> f64 {
     let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
     let theta = 1.0 / alpha;
     let mut eta = vec![0.0; nrows];
     linear_predictor_into(x_colmajor, nrows, ncols, beta, &mut eta);
-    y.iter().zip(&eta).map(|(&yi, &e)| negbin_row_deviance(yi, e, theta)).sum()
+    weighted_deviance(y, prior, move |yi, e| negbin_row_deviance(yi, e, theta))(&eta)
 }
 
 pub(super) fn fit_poisson(
@@ -103,7 +108,7 @@ pub(super) fn fit_poisson(
     )?;
 
     // Diagnostics at the returned coefficients (not the pre-update IRLS iterate).
-    let deviance = poisson_deviance_at(design, &beta);
+    let deviance = poisson_deviance_at(design, &beta, None);
 
     Ok(GlmFit {
         coefficients: beta,
@@ -148,7 +153,7 @@ pub(super) fn fit_poisson_weighted(
             (w, (eta + (yi - mu) / mu) * w)
         },
     )?;
-    let deviance = poisson_deviance_at(design, &beta);
+    let deviance = poisson_deviance_at(design, &beta, Some(weights));
     Ok(GlmFit {
         coefficients: beta,
         iterations,
@@ -348,7 +353,7 @@ fn fit_negbin_fixed_alpha(
     )?;
 
     // Diagnostics at the returned coefficients (not the pre-update IRLS iterate).
-    let deviance = negbin_deviance_at(design, &beta, alpha);
+    let deviance = negbin_deviance_at(design, &beta, alpha, prior);
 
     Ok(GlmFit {
         coefficients: beta,
