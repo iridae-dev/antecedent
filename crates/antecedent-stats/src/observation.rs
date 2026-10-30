@@ -103,7 +103,7 @@ pub fn fit_observation_logistic_admitting(
     if n < 3 || covariates_colmajor.len() != n * ncols {
         return Err(StatsError::Shape { message: "observation logistic design shape mismatch" });
     }
-    if !probability_floor.is_finite() || !(0.0..0.5).contains(&probability_floor) {
+    if !probability_floor.is_finite() || probability_floor <= 0.0 || probability_floor >= 0.5 {
         return Err(StatsError::Unsupported {
             message: "observation probability floor must lie in (0, 0.5)",
         });
@@ -573,6 +573,20 @@ fn log_interval_mass(lower: f64, upper: f64) -> Result<f64, StatsError> {
 mod tests {
     use super::*;
     use antecedent_kernels::{norm_cdf, norm_pdf};
+
+    #[test]
+    fn observation_probability_floor_must_be_strictly_positive() {
+        let indicator = [0.0, 1.0, 0.0, 1.0];
+        for floor in [0.0, -0.0, -0.01, 0.5, f64::NAN, f64::INFINITY] {
+            for admit_saturation in [false, true] {
+                let error =
+                    fit_observation_logistic_admitting(&indicator, &[], 0, floor, admit_saturation)
+                        .unwrap_err();
+                assert!(error.to_string().contains("probability floor"), "{error}");
+            }
+        }
+        assert!(fit_observation_logistic(&indicator, &[], 0, 0.01).is_ok());
+    }
 
     /// Perfectly separated observation indicators are refused as separation.
     #[test]

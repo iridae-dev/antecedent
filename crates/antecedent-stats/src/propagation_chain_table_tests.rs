@@ -6,6 +6,37 @@ use super::*;
 
 const COVARIANCE: [f64; 9] = [0.25, 0.06, -0.03, 0.06, 0.16, 0.02, -0.03, 0.02, 0.09];
 
+#[test]
+fn joint_table_preserves_variance_across_variable_units() {
+    for small_sd in [1e-7, 1e-100] {
+        for correlation in [0.0, 0.4, 1.0] {
+            let target = [1.0, correlation * small_sd, correlation * small_sd, small_sd * small_sd];
+            let table = moment_matched_normal_table(&[0.0, 0.0], &target, 500, 11).unwrap();
+            let (_, covariance) = sample_moments(&table);
+            assert!((covariance[0] - 1.0).abs() < 1e-12);
+            assert!((covariance[3] / target[3] - 1.0).abs() < 1e-12);
+            assert!((covariance[1] / small_sd - correlation).abs() < 1e-12);
+        }
+    }
+}
+
+#[test]
+fn joint_table_rejects_impossible_small_scale_covariances() {
+    // The second variable has SD 1e-7: covariance 1e-6 implies correlation 10.
+    assert!(moment_matched_normal_table(&[0.0, 0.0], &[1.0, 1e-6, 1e-6, 1e-14], 20, 11).is_err());
+    // A unit-variance third variable must not hide asymmetry among small ones.
+    assert!(
+        moment_matched_normal_table(
+            &[0.0; 3],
+            &[1.0, 0.0, 0.0, 0.0, 1e-14, 0.0, 0.0, 1e-15, 1e-14],
+            20,
+            11,
+        )
+        .is_err()
+    );
+    assert!(moment_matched_normal_table(&[0.0, 0.0], &[1.0, 1e-20, 1e-20, 0.0], 20, 11).is_err());
+}
+
 fn sample_moments(table: &[Vec<f64>]) -> (Vec<f64>, Vec<f64>) {
     let k = table.len();
     let n = table[0].len() as f64;

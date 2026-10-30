@@ -1504,12 +1504,17 @@ impl SeedStream {
 /// Lower-triangular `L` with `L Lᵀ = covariance`, allowing zero-variance
 /// directions; `None` when the matrix is not positive semi-definite.
 fn semidefinite_factor(covariance: &[f64], n: usize) -> Option<Vec<f64>> {
-    let scale = (0..n).map(|i| covariance[i * n + i]).fold(0.0_f64, f64::max);
-    let degenerate = 1e-13 * scale;
-    let slack = 1e-9 * scale;
+    // Factor in correlation coordinates: a variable's units cannot decide
+    // whether its variance is zero or an impossible covariance is admissible.
+    let scales: Vec<f64> = (0..n).map(|i| covariance[i * n + i].sqrt()).collect();
+    if scales.iter().any(|scale| !scale.is_finite()) {
+        return None;
+    }
+    let degenerate = 1e-13;
+    let slack = 1e-9;
     let mut factor = vec![0.0; n * n];
     for column in 0..n {
-        let mut pivot = covariance[column * n + column];
+        let mut pivot: f64 = if scales[column] > 0.0 { 1.0 } else { 0.0 };
         for k in 0..column {
             pivot -= factor[column * n + k] * factor[column * n + k];
         }
@@ -1519,7 +1524,20 @@ fn semidefinite_factor(covariance: &[f64], n: usize) -> Option<Vec<f64>> {
         let diagonal = if pivot <= degenerate { 0.0 } else { pivot.sqrt() };
         factor[column * n + column] = diagonal;
         for row in column + 1..n {
-            let mut residual = covariance[row * n + column];
+            let covariance = covariance[row * n + column];
+            let mut residual = if scales[row] == 0.0 || scales[column] == 0.0 {
+                // A zero-variance variable has exactly zero covariance with
+                // every variable; no absolute tolerance can establish that.
+                if covariance != 0.0 {
+                    return None;
+                }
+                0.0
+            } else {
+                covariance / scales[row] / scales[column]
+            };
+            if !residual.is_finite() {
+                return None;
+            }
             for k in 0..column {
                 residual -= factor[row * n + k] * factor[column * n + k];
             }
@@ -1530,6 +1548,11 @@ fn semidefinite_factor(covariance: &[f64], n: usize) -> Option<Vec<f64>> {
             } else {
                 factor[row * n + column] = residual / diagonal;
             }
+        }
+    }
+    for row in 0..n {
+        for column in 0..=row {
+            factor[row * n + column] *= scales[row];
         }
     }
     Some(factor)
@@ -1589,13 +1612,21 @@ pub fn moment_matched_normal_table(
     if means.iter().chain(covariance).any(|value| !value.is_finite()) {
         return Err(ChainError::NonFinite("joint table moment"));
     }
-    let scale = (0..k).map(|i| covariance[i * k + i]).fold(0.0_f64, f64::max);
     for row in 0..k {
         if covariance[row * k + row] < 0.0 {
             return Err(ChainError::Operator("a variance is negative"));
         }
         for column in 0..row {
-            if (covariance[row * k + column] - covariance[column * k + row]).abs() > 1e-9 * scale {
+            let left = covariance[row * k + column];
+            let right = covariance[column * k + row];
+            let row_sd = covariance[row * k + row].sqrt();
+            let column_sd = covariance[column * k + column].sqrt();
+            let symmetric = if row_sd == 0.0 || column_sd == 0.0 {
+                left == 0.0 && right == 0.0
+            } else {
+                (left / row_sd / column_sd - right / row_sd / column_sd).abs() <= 1e-9
+            };
+            if !symmetric {
                 return Err(ChainError::Operator("the covariance is not symmetric"));
             }
         }
