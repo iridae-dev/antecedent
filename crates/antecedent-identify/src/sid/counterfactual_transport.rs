@@ -440,6 +440,35 @@ impl CounterfactualTransportProblem {
             .map_or_else(Vec::new, |l| l.iter().map(|b| f64::from_bits(*b)).collect())
     }
 
+    /// Number of declared levels, without copying their values.
+    #[must_use]
+    pub fn level_count(&self, index: usize) -> Option<usize> {
+        self.levels.get(index).map(Vec::len)
+    }
+
+    /// Find a level while charging each bounded scan chunk.
+    ///
+    /// # Errors
+    /// Propagates the caller's budget or cancellation error.
+    pub fn try_level_index<E>(
+        &self,
+        index: usize,
+        level: f64,
+        mut check: impl FnMut(usize) -> Result<(), E>,
+    ) -> Result<Option<usize>, E> {
+        check(0)?;
+        let Some(levels) = self.levels.get(index) else { return Ok(None); };
+        let bits = (level + 0.0).to_bits();
+        for (block, chunk) in levels.chunks(512).enumerate() {
+            check(chunk.len())?;
+            if let Some(offset) = chunk.iter().position(|value| *value == bits) {
+                return Ok(Some(block * 512 + offset));
+            }
+        }
+        check(0)?;
+        Ok(None)
+    }
+
     /// Index of `level` among the declared levels of the variable at `index`.
     #[must_use]
     pub fn level_index(&self, index: usize, level: f64) -> Option<usize> {
@@ -558,6 +587,32 @@ where
         }
         Ok(())
     }
+}
+
+// The derived Debug representation of a functional is part of the v1
+// identity. Emit it iteratively so deeply nested complements do not recurse
+// through the native formatter stack.
+fn write_functional_debug(
+    out: &mut impl std::fmt::Write,
+    root: &CounterfactualFunctional,
+) -> std::fmt::Result {
+    enum Frame<'a> { Value(&'a CounterfactualFunctional), Text(&'static str) }
+    let mut pending = vec![Frame::Value(root)];
+    while let Some(frame) = pending.pop() {
+        match frame {
+            Frame::Text(text) => out.write_str(text)?,
+            Frame::Value(CounterfactualFunctional::Zero) => out.write_str("Zero")?,
+            Frame::Value(CounterfactualFunctional::Sum(sum)) => write!(out, "Sum({sum:?})")?,
+            Frame::Value(CounterfactualFunctional::Complement { variable, whole, flipped }) => {
+                write!(out, "Complement {{ variable: {variable:?}, whole: ")?;
+                pending.push(Frame::Text(" }"));
+                pending.push(Frame::Value(flipped));
+                pending.push(Frame::Text(", flipped: "));
+                pending.push(Frame::Value(whole));
+            }
+        }
+    }
+    Ok(())
 }
 
 // Stable merge sort whose comparisons and copies are caller-metered. No standard sort
@@ -1058,8 +1113,20 @@ impl CounterfactualTransportDerivation {
                     item.population, item.variables, item.source
                 )?;
             }
-            write!(out, "];numerator={:?};denominator={:?}", self.numerator, self.denominator)?;
-            write!(out, ";guard={:?};moved={:?}", self.positivity_guard, self.moved)?;
+            out.write_str("];numerator=")?;
+            write_functional_debug(&mut out, &self.numerator)?;
+            out.write_str(";denominator=")?;
+            write_functional_debug(&mut out, &self.denominator)?;
+            out.write_str(";guard=")?;
+            match &self.positivity_guard {
+                Some(guard) => {
+                    out.write_str("Some(")?;
+                    write_functional_debug(&mut out, guard)?;
+                    out.write_char(')')?;
+                }
+                None => out.write_str("None")?,
+            }
+            write!(out, ";moved={:?}", self.moved)?;
             write!(out, ";checked={}", self.conditioning_mass_checked)?;
             for rule in &self.rules {
                 write!(out, ";rule={rule}")?;
@@ -2712,6 +2779,64 @@ mod tests {
     }
 
     #[test]
+    fn checked_functional_debug_preserves_bytes_and_handles_deep_complements() {
+        fn nested(depth: usize) -> CounterfactualFunctional {
+            let mut result = CounterfactualFunctional::Sum(CounterfactualSum {
+                symbols: Vec::new(), factors: Vec::new(),
+            });
+            for _ in 0..depth {
+                result = CounterfactualFunctional::Complement {
+                    variable: CounterfactualVariableIndex::new(0), whole: Box::new(result),
+                    flipped: Box::new(CounterfactualFunctional::Zero),
+                };
+            }
+            result
+        }
+        fn drop_iteratively(root: CounterfactualFunctional) {
+            let mut pending = vec![root];
+            while let Some(item) = pending.pop() {
+                if let CounterfactualFunctional::Complement { whole, flipped, .. } = item {
+                    pending.push(*whole);
+                    pending.push(*flipped);
+                }
+            }
+        }
+        let shallow = nested(2);
+        let mut actual = String::new();
+        write_functional_debug(&mut actual, &shallow).unwrap();
+        assert_eq!(actual, "Complement { variable: 0, whole: Complement { variable: 0, whole: Sum(CounterfactualSum { symbols: [], factors: [] }), flipped: Zero }, flipped: Zero }");
+        assert_eq!(actual, format!("{shallow:?}"));
+        let problem = CounterfactualTransportProblem::new(&binary(&[0, 1]), &[(v(0), v(1))], &[]).unwrap();
+        let query = interventional_query(0, 1.0, 1, vec![]);
+        let cat = catalog(vec![regime(0, "target", &[], &[0, 1])]);
+        let decision = decide(&problem, &query, &cat);
+        let mut derivation = decision.derivation().unwrap().clone();
+        derivation.numerator = nested(2);
+        derivation.denominator = nested(1);
+        derivation.positivity_guard = Some(nested(1));
+        assert_eq!(derivation.try_canonical_text(|_| Ok::<(), ()>(())).unwrap(), derivation.canonical_text());
+        derivation.numerator = nested(4096);
+        derivation.denominator = nested(4096);
+        derivation.positivity_guard = Some(nested(4096));
+        let text = derivation.try_canonical_text(|_| Ok::<(), ()>(())).unwrap();
+        assert!(text.contains(";denominator=Complement {"));
+        assert!(text.contains(";guard=Some(Complement {"));
+        let mut remaining = 10_000usize;
+        assert_eq!(derivation.try_canonical_text(|amount| {
+            remaining = remaining.checked_sub(amount).ok_or("budget")?;
+            Ok(())
+        }), Err("budget"));
+        let mut spent = 0usize;
+        assert_eq!(derivation.try_canonical_text(|amount| {
+            spent += amount;
+            if spent > 10_000 { Err("cancelled") } else { Ok(()) }
+        }), Err("cancelled"));
+        drop_iteratively(std::mem::replace(&mut derivation.numerator, CounterfactualFunctional::Zero));
+        drop_iteratively(std::mem::replace(&mut derivation.denominator, CounterfactualFunctional::Zero));
+        drop_iteratively(derivation.positivity_guard.take().unwrap());
+    }
+
+    #[test]
     fn confounded_effect_needs_the_declared_experiment_and_otherwise_has_a_witness() {
         // 0 -> 1 with 0 <-> 1.
         let problem =
@@ -2795,5 +2920,31 @@ mod tests {
         let decision = decide(&problem, &query, &cat);
         assert!(matches!(decision, CounterfactualTransportDecision::UnsupportedScope(_)));
         assert_eq!(decision.reason_code(), Some("route_not_supported"));
+    }
+}
+
+#[cfg(test)]
+mod checked_level_tests {
+    use super::*;
+
+    #[test]
+    fn checked_level_lookup_preserves_index_and_stops_within_scan() {
+        let levels: Vec<f64> = (0..1500).map(f64::from).collect();
+        let problem = CounterfactualTransportProblem::new(
+            &[(VariableId::from_raw(0), levels)], &[], &[],
+        ).unwrap();
+        assert_eq!(problem.level_count(0), Some(1500));
+        assert_eq!(problem.level_count(1), None);
+        let mut charged = 0;
+        let found = problem.try_level_index(0, 1025.0, |n| { charged += n; Ok::<(), ()>(()) }).unwrap();
+        assert_eq!(found, problem.level_index(0, 1025.0));
+        assert!(charged >= 1026);
+        let mut remaining = 700usize;
+        let stopped = problem.try_level_index(0, 1025.0, |n| {
+            remaining = remaining.checked_sub(n).ok_or("budget")?;
+            Ok(())
+        });
+        assert_eq!(stopped, Err("budget"));
+        assert_eq!(problem.try_level_index(0, -0.0, |_| Ok::<(), ()>(())).unwrap(), Some(0));
     }
 }

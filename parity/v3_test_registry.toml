@@ -20696,3 +20696,10 @@ crate = "antecedent"
 cargo_target = "lib"
 path = "crates/antecedent/src/analysis/data_diagnostics.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-antecedent-estimate-counterfactual_transport-unit"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/counterfactual_transport.rs"
+gates = ["inventory", "named"]

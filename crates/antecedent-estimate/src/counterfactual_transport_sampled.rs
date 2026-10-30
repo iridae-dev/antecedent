@@ -69,6 +69,7 @@ mod interval;
 mod overlap;
 
 use std::sync::Arc;
+use crate::counterfactual_transport::RetainedSlice;
 
 use antecedent_core::{CanonicalWriter, ExecutionContext, RegimeId};
 use antecedent_expr::{ExactEvaluationLimits, ExactTransportData};
@@ -302,9 +303,9 @@ pub struct SampledCounterfactualTransportEstimate {
     /// The structural envelope, for an unseen-mass request with unseen cells.
     pub envelope: Option<StructuralEnvelope>,
     /// How each table's law was produced.
-    pub tables: Vec<SampledTableReport>,
+    pub tables: RetainedSlice<SampledTableReport>,
     /// Dataset groups of the overlap resolution, as table keys.
-    pub datasets: Vec<Vec<SampledTableKey>>,
+    pub datasets: RetainedSlice<Vec<SampledTableKey>>,
     /// The declared unseen-cell rule.
     pub unseen_rule: UnseenCellRule,
     /// Tolerance repairs.
@@ -362,7 +363,7 @@ fn table_work(
         .saturating_add(table.structural_zeros().len().saturating_mul(4))
         .saturating_add(32);
     for axis in table.axes() {
-        work.charge(0)?;
+        work.charge(1)?;
         units = units.saturating_add(axis.levels.len().saturating_mul(64)).saturating_add(8);
     }
     Ok(units)
@@ -371,32 +372,39 @@ fn table_work(
 fn provider_work(
     derivation: &CounterfactualTransportDerivation,
     table: &SampledRegimeCounts,
+    table_count: usize,
     work: &mut SampledWork<'_>,
 ) -> Result<usize, EstimationError> {
     work.charge(0)?;
     let catalog = &derivation.catalog;
     let mut coordinates = 0usize;
     for e in catalog.environments.iter() {
-        work.charge(0)?;
+        work.charge(1)?;
         coordinates = coordinates.saturating_add(e.variables.len());
     }
     let mut regimes = 0usize;
     for r in catalog.regimes.iter() {
-        work.charge(0)?;
+        work.charge(1)?;
         regimes = regimes
             .saturating_add(r.measured.len())
             .saturating_add(r.interventions.len())
             .saturating_add(r.intervention_values.len())
             .saturating_add(1);
     }
+    // Catalog validation visits even environments with no coordinates once
+    // per law axis, so their count must enter the prepaid quote as well.
+    // Worst case: every provider binding shares a digest bucket. Exact
+    // comparisons must be accounted again for each provider reconstruction.
     let dimensions = regimes
+        .saturating_add(table_count)
+        .saturating_add(catalog.environments.len())
         .saturating_add(coordinates)
         .saturating_add(catalog.bindings.len())
         .saturating_add(derivation.items.len())
         .saturating_add(1);
     let mut units = table_work(table, work)?.saturating_mul(dimensions);
     for axis in table.axes() {
-        work.charge(0)?;
+        work.charge(1)?;
         let levels = axis.levels.len();
         // Domain validation may compare every declared level with every axis value.
         units = units.saturating_add(
@@ -517,7 +525,7 @@ pub(crate) fn evaluate_detailed(
     antecedent_core::numerical_admission::with_context(ctx, || {
         let mut laws = Vec::with_capacity(tables.len());
         for ((table, p), flavor) in tables.iter().zip(probabilities).zip(flavors) {
-            let units = provider_work(derivation, table, work)?;
+            let units = provider_work(derivation, table, tables.len(), work)?;
             work.charge(units)?;
             laws.push(law_of(table, p, *flavor, work)?);
         }
@@ -614,12 +622,32 @@ pub fn estimate_sampled_counterfactual_transport(
     let mut work = SampledWork { remaining: request.limits.evaluation.operations, ctx };
     // Precharge each table before cloning or hashing it; cached keys avoid
     // re-hashing all counts during comparison sort.
+    let mut scratch_bytes = request.tables.len().saturating_mul(4096).saturating_add(4096);
+    let mut retained_bytes = request.tables.len().saturating_mul(
+        std::mem::size_of::<SampledTableReport>() + std::mem::size_of::<Vec<SampledTableKey>>()
+            + std::mem::size_of::<SampledTableKey>() + 512,
+    ).saturating_add(1024);
     for table in &request.tables {
-        let units = table_work(table, &mut work)?.saturating_mul(
+        let per_table = table_work(table, &mut work)?;
+        scratch_bytes = scratch_bytes.saturating_add(per_table.saturating_mul(16));
+        retained_bytes = retained_bytes.saturating_add(table.interventions().len()
+            .saturating_mul(std::mem::size_of::<(antecedent_core::VariableId, u64)>())
+            .saturating_mul(2));
+        let units = per_table.saturating_mul(
             request.tables.len().saturating_add(derivation.cited.len()).saturating_add(2),
         );
         work.charge(units)?;
     }
+    let admit = |bytes: usize| -> Result<_, EstimationError> {
+        let bytes = u64::try_from(bytes).ok().filter(|n| *n != u64::MAX)
+            .ok_or_else(|| refused(antecedent_core::reason_code!("transport_budget_cancel"), "counterfactual_transport.budget", "the sampled memory quote overflows"))?;
+        ctx.acquire_admission(0, bytes).map_err(|_| refused(
+            antecedent_core::reason_code!("transport_budget_cancel"), "counterfactual_transport.budget",
+            "the sampled evaluation exceeds memory admission",
+        ))
+    };
+    let _scratch = admit(scratch_bytes)?;
+    let retained = Arc::new(admit(retained_bytes)?);
     // Every declared pair is scanned by overlap resolution for each table
     // pair, and is later encoded in the evidence identity.
     let table_pairs = request.tables.len().saturating_mul(request.tables.len());
@@ -877,7 +905,25 @@ pub fn estimate_sampled_counterfactual_transport(
         LABEL_PLUG_IN
     };
     work.charge(1)?;
-    let derivation_text = derivation.try_canonical_text(|amount| work.charge(amount))?;
+    let mut text_leases = Vec::new();
+    let mut text_bytes = 0usize;
+    let mut text_reserved = 0usize;
+    let derivation_text = derivation.try_canonical_text(|amount| -> Result<(), EstimationError> {
+        work.charge(amount)?;
+        text_bytes = text_bytes.checked_add(amount)
+            .ok_or_else(|| refused(antecedent_core::reason_code!("transport_budget_cancel"), "counterfactual_transport.budget", "the derivation text size overflows"))?;
+        // The callback also charges source-index sorting and deduplication, not
+        // just text bytes. Cover their word-sized buffers and String growth;
+        // aggregate fragments to avoid one lease per formatter write.
+        let needed = text_bytes.checked_mul(32)
+            .ok_or_else(|| refused(antecedent_core::reason_code!("transport_budget_cancel"), "counterfactual_transport.budget", "the derivation text size overflows"))?;
+        if needed > text_reserved {
+            let additional = needed.saturating_sub(text_reserved).max(4096);
+            text_leases.push(admit(additional)?);
+            text_reserved = text_reserved.saturating_add(additional);
+        }
+        Ok(())
+    })?;
     let mut derivation_writer = CanonicalWriter::new(SAMPLED_TRANSPORT_DERIVATION_TAG);
     derivation_writer.try_bytes(derivation_text.as_bytes(), || work.charge(0))?;
     let derivation_identity = derivation_writer.finish_hex();
@@ -894,8 +940,8 @@ pub fn estimate_sampled_counterfactual_transport(
         point,
         point_withheld_reason,
         envelope,
-        tables: table_reports,
-        datasets: dataset_keys,
+        tables: RetainedSlice::new(table_reports, vec![Arc::clone(&retained)]),
+        datasets: RetainedSlice::new(dataset_keys, vec![retained]),
         unseen_rule: request.unseen_rule,
         repairs,
         cells_read,

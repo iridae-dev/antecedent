@@ -69,3 +69,13 @@ Custom recalculation route names are now owned by their capabilities and receipt
 retained after passing it to a planner. Python custom route strings continue to
 work. Wire names, status text and canonical identity inputs are unchanged;
 consuming distinct custom receipts no longer consumes a global intern-table slot.
+
+## Sampled and exact counterfactual evidence retention
+
+`SampledCounterfactualTransportEstimate.tables` and `.datasets`, and
+`CounterfactualTransportPoint.evidence`, now use an immutable `RetainedSlice` rather than
+`Vec`. They dereference to slices and support iteration, indexing, value comparison and cheap
+cloning. A clone shares its immutable data and its admission reservation, including when a
+collection is retained separately from its parent result. Code that requires an owned `Vec`
+can explicitly copy the slice with `to_vec()`. These public field type changes are a Rust source
+compatibility break; they do not change the numerical or identity contracts.

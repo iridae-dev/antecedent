@@ -455,3 +455,136 @@ fn checked_report_key_copy_meters_and_preserves_identity() {
     assert!(super::name_preview(&name).len() <= 256);
     assert!(name.starts_with(super::name_preview(&name)));
 }
+
+#[test]
+fn provider_quote_charges_empty_catalog_environments() {
+    use super::{SampledWork, provider_work};
+    use antecedent_core::Environment;
+    let case = chain_case();
+    let data = laws_of(&case);
+    let derivation = derive(&case, &case.targets[0]);
+    let mut expanded = derivation.clone();
+    let mut environments = expanded.catalog.environments.to_vec();
+    for i in 0..64 {
+        environments.push(Environment::try_new(format!("unused-{i}"), [], []).unwrap());
+    }
+    expanded.catalog.environments = environments.into();
+    let mut rng = Rng(404);
+    let table = sample_laws(&data, 20_000, &mut rng).remove(0);
+    let ctx = ExecutionContext::for_tests(7);
+    let mut base_work = SampledWork { remaining: usize::MAX - 1, ctx: &ctx };
+    let base_quote = provider_work(&derivation, &table, 1, &mut base_work).unwrap();
+    let base_scan = usize::MAX - 1 - base_work.remaining;
+    let mut enlarged_work = SampledWork { remaining: usize::MAX - 1, ctx: &ctx };
+    let enlarged_quote = provider_work(&expanded, &table, 1, &mut enlarged_work).unwrap();
+    assert!(enlarged_quote > base_quote);
+    assert_eq!(usize::MAX - 1 - enlarged_work.remaining, base_scan + 64);
+    let mut limited = SampledWork { remaining: base_scan + base_quote, ctx: &ctx };
+    let quote = provider_work(&derivation, &table, 1, &mut limited).unwrap();
+    limited.charge(quote).unwrap();
+    let mut limited = SampledWork { remaining: base_scan + base_quote, ctx: &ctx };
+    let quote = provider_work(&expanded, &table, 1, &mut limited).unwrap();
+    assert_eq!(limited.charge(quote).unwrap_err().reason_code(), Some("transport_budget_cancel"));
+}
+
+#[test]
+fn provider_quote_charges_worst_case_collision_bucket_each_time() {
+    use super::{SampledWork, provider_work};
+    let case = chain_case();
+    let data = laws_of(&case);
+    let derivation = derive(&case, &case.targets[0]);
+    let mut rng = Rng(404);
+    let table = sample_laws(&data, 20_000, &mut rng).remove(0);
+    let ctx = ExecutionContext::for_tests(7);
+    let mut single = SampledWork { remaining: usize::MAX - 1, ctx: &ctx };
+    let quote_one = provider_work(&derivation, &table, 1, &mut single).unwrap();
+    let scan = usize::MAX - 1 - single.remaining;
+    let mut many = SampledWork { remaining: usize::MAX - 1, ctx: &ctx };
+    let quote_many = provider_work(&derivation, &table, 64, &mut many).unwrap();
+    assert!(quote_many > quote_one);
+    let mut tight = SampledWork { remaining: scan + quote_one, ctx: &ctx };
+    let quote = provider_work(&derivation, &table, 64, &mut tight).unwrap();
+    assert_eq!(tight.charge(quote).unwrap_err().reason_code(), Some("transport_budget_cancel"));
+}
+
+#[test]
+fn malformed_public_derivation_indices_and_cycles_refuse_before_execution() {
+    use super::counts::{LawFlavor, table_probabilities};
+    use super::{SampledWork, evaluate_detailed};
+    use antecedent_identify::CounterfactualItemSource;
+    let case = chain_case();
+    let data = laws_of(&case);
+    let derivation = derive(&case, &case.targets[0]);
+    assert!(!derivation.items.is_empty());
+    let mut rng = Rng(404);
+    let tables = cited_only(&derivation, &sample_laws(&data, 20_000, &mut rng));
+    let ctx = ExecutionContext::for_tests(7);
+    let limits = SampledTransportLimits::default();
+    let mut setup = SampledWork { remaining: limits.evaluation.operations, ctx: &ctx };
+    let probabilities: Vec<Vec<f64>> = tables.iter().map(|table|
+        table_probabilities(table, UnseenCellRule::Refuse, &limits, &mut setup).unwrap().0
+    ).collect();
+    let flavors = vec![LawFlavor::Empirical; tables.len()];
+    let mut malformed = derivation.clone();
+    malformed.items[0].population = usize::MAX;
+    let mut work = SampledWork { remaining: limits.evaluation.operations, ctx: &ctx };
+    let error = evaluate_detailed(&malformed, &tables, &probabilities, &flavors, &limits, &ctx, &mut work).unwrap_err();
+    assert_eq!(error.reason_code(), Some("invalid_argument"));
+    let mut cyclic = derivation.clone();
+    cyclic.items[0].source = CounterfactualItemSource::Transfer { from: 0 };
+    let mut work = SampledWork { remaining: limits.evaluation.operations, ctx: &ctx };
+    let error = evaluate_detailed(&cyclic, &tables, &probabilities, &flavors, &limits, &ctx, &mut work).unwrap_err();
+    assert_eq!(error.reason_code(), Some("invalid_argument"));
+}
+
+#[test]
+fn sampled_result_clones_and_escaped_collections_retain_admission() {
+    let case = chain_case();
+    let data = laws_of(&case);
+    let derivation = derive(&case, &case.targets[0]);
+    let mut rng = Rng(404);
+    let tables = cited_only(&derivation, &sample_laws(&data, 20_000, &mut rng));
+    let ctx = ExecutionContext::for_tests(7).with_memory_limit(Some(1 << 28));
+    let pool = ctx.admission();
+    let before = pool.available().bytes();
+    let request = SampledTransportRequest {
+        tables, overlap: OverlapDeclaration::all_independent(), unseen_rule: UnseenCellRule::Refuse,
+        limits: SampledTransportLimits::default(),
+    };
+    let result = estimate_sampled_counterfactual_transport(&derivation, &request, &ctx).unwrap();
+    let held = pool.available().bytes();
+    assert!(held < before);
+    assert!(result.tables.retained_admitted_bytes() > 0);
+    let cloned = result.clone();
+    assert_eq!(result, cloned);
+    let escaped_tables = result.tables.clone();
+    let escaped_datasets = result.datasets.clone();
+    drop(result);
+    drop(cloned);
+    assert_eq!(pool.available().bytes(), held);
+    drop(escaped_tables);
+    assert_eq!(pool.available().bytes(), held);
+    drop(escaped_datasets);
+    assert_eq!(pool.available().bytes(), before);
+    let tiny = ExecutionContext::for_tests(7).with_memory_limit(Some(64));
+    let error = estimate_sampled_counterfactual_transport(&derivation, &request, &tiny).unwrap_err();
+    assert_eq!(error.reason_code(), Some("transport_budget_cancel"));
+}
+
+#[test]
+fn direct_exact_catalog_validation_shares_the_evaluation_allowance() {
+    use crate::counterfactual_transport::evaluate_counterfactual_transport;
+    let case = chain_case();
+    let data = laws_of(&case);
+    let derivation = derive(&case, &case.targets[0]);
+    let ctx = ExecutionContext::for_tests(7);
+    let normal = antecedent_expr::ExactEvaluationLimits::default();
+    let point = evaluate_counterfactual_transport(&derivation, &data, normal, &ctx).unwrap();
+    assert!(point.probability.is_finite());
+    let tiny = antecedent_expr::ExactEvaluationLimits { operations: 1, ..normal };
+    let error = evaluate_counterfactual_transport(&derivation, &data, tiny, &ctx).unwrap_err();
+    assert_eq!(error.reason_code(), Some("transport_budget_cancel"));
+    ctx.cancellation.cancel();
+    let error = evaluate_counterfactual_transport(&derivation, &data, normal, &ctx).unwrap_err();
+    assert_eq!(error.reason_code(), Some("transport_budget_cancel"));
+}
