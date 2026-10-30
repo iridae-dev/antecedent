@@ -453,31 +453,51 @@ impl HandoffReceipt {
 
     /// Whether the output is the same claim with no required meaning omitted.
     ///
-    /// A derived claim has a new id and is never equivalent to its parent.
+    /// The envelope, identities, reasoning and domains must each be explicitly
+    /// retained. A derived claim has a new id and is never equivalent to its parent.
     #[must_use]
     pub fn equivalent_claim(&self) -> bool {
-        self.omitted.is_empty() && self.unresolved.is_empty() && self.output == Some(self.input)
+        self.omitted.is_empty()
+            && self.unresolved.is_empty()
+            && self.output == Some(self.input)
+            && ["claim.envelope", "identities", "reasoning", "domains"]
+                .iter()
+                .all(|required| self.retained.iter().any(|field| field.as_ref() == *required))
     }
 
     /// Accumulate losses from `self` then `next`.
     ///
     /// Omissions, unresolved obligations and unavailable operations only grow
     /// along a chain; a later hop cannot restore what an earlier one lost, so
-    /// retained fields exclude everything already omitted. Receipts about
+    /// complete forwarding hops preserve the other hop's retained fields. Between
+    /// other hops, only exact field names declared retained by both are established,
+    /// excluding everything omitted. Receipts about
     /// different claims (`self.output != Some(next.input)`) do not describe one
-    /// path, so the chain records `chain_discontinuity` as unresolved and is
-    /// never equivalent to the claim.
+    /// path, so the chain retains no established fields, records
+    /// `chain_discontinuity` as unresolved, and is never equivalent to the claim.
     #[must_use]
     pub fn chain(&self, next: &Self) -> Self {
         let omitted = merge_unique(&self.omitted, &next.omitted);
-        let retained: Arc<[Arc<str>]> = next
-            .retained
+        // A complete forwarding hop preserves the other hop's declared fields,
+        // including granular fields such as `value` within the full envelope.
+        // Otherwise only names explicitly retained at both hops are established.
+        let contiguous = self.output == Some(next.input);
+        let first_complete = self.equivalent_claim();
+        let next_complete = next.equivalent_claim();
+        let candidates = if next_complete { &self.retained } else { &next.retained };
+        let retained: Arc<[Arc<str>]> = candidates
             .iter()
-            .filter(|field| !omitted.iter().any(|lost| lost == *field))
+            .filter(|field| {
+                contiguous
+                    && (first_complete
+                        || next_complete
+                        || self.retained.iter().any(|first| first == *field))
+                    && !omitted.iter().any(|lost| lost == *field)
+            })
             .cloned()
             .collect();
         let mut unresolved = merge_unique(&self.unresolved, &next.unresolved);
-        if self.output != Some(next.input) {
+        if !contiguous {
             unresolved = merge_unique(&unresolved, &[Arc::from("chain_discontinuity")]);
         }
         Self {
@@ -1559,9 +1579,53 @@ mod tests {
                 "{lost} is omitted and cannot also be retained"
             );
         }
-        assert!(chained.retained.iter().any(|f| &**f == "claim.envelope"));
+        assert!(!chained.retained.iter().any(|f| &**f == "claim.envelope"));
         assert!(!chained.equivalent_claim());
         assert!(chained.unresolved.is_empty());
+    }
+
+    #[test]
+    fn incomplete_retention_cannot_be_recovered_by_a_later_hop() {
+        let id = digest(1);
+        let first =
+            HandoffReceipt::new(id, Some(id), "a", "partial", [Arc::from("value")], [], [], []);
+        assert!(!first.equivalent_claim());
+        let next = HandoffReceipt::new(
+            id,
+            Some(id),
+            "b",
+            "forward",
+            [Arc::from("value"), Arc::from("claim.envelope")],
+            [],
+            [],
+            [],
+        );
+        let chained = first.chain(&next);
+        assert_eq!(&*chained.retained, &[Arc::<str>::from("value")]);
+        assert!(!chained.equivalent_claim());
+        assert!(
+            HandoffReceipt::lossless(id, "a")
+                .chain(&HandoffReceipt::lossless(id, "b"))
+                .equivalent_claim()
+        );
+    }
+
+    #[test]
+    fn complete_forwarding_preserves_scalar_retention_in_either_order() {
+        let id = digest(1);
+        let scalar = HandoffReceipt::lossy_scalar(id, "scalar");
+        let complete = HandoffReceipt::lossless(id, "complete");
+        for chained in [complete.chain(&scalar), scalar.chain(&complete)] {
+            assert_eq!(chained.retained, scalar.retained);
+            assert_eq!(chained.omitted, scalar.omitted);
+            assert_eq!(chained.unavailable_operations, scalar.unavailable_operations);
+            assert!(!chained.equivalent_claim());
+        }
+        // Naming the same output without naming the retained semantics is not
+        // evidence that all four required sections survived.
+        let empty = HandoffReceipt::new(id, Some(id), "empty", "unspecified", [], [], [], []);
+        assert!(!empty.equivalent_claim());
+        assert!(empty.chain(&complete).retained.is_empty());
     }
 
     #[test]
@@ -1570,7 +1634,17 @@ mod tests {
         let second = HandoffReceipt::lossless(digest(2), "b");
         let chained = first.chain(&second);
         assert!(chained.unresolved.iter().any(|item| &**item == "chain_discontinuity"));
+        assert!(chained.retained.is_empty());
         assert!(!chained.equivalent_claim());
+        for (a, b) in [
+            (first.clone(), HandoffReceipt::lossy_scalar(digest(2), "b")),
+            (HandoffReceipt::lossy_scalar(digest(1), "a"), second.clone()),
+        ] {
+            let broken = a.chain(&b);
+            assert!(broken.retained.is_empty());
+            assert!(broken.unresolved.iter().any(|item| &**item == "chain_discontinuity"));
+            assert!(!broken.equivalent_claim());
+        }
         // A contiguous chain of lossless hops stays equivalent.
         assert!(first.chain(&HandoffReceipt::lossless(digest(1), "c")).equivalent_claim());
     }

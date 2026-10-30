@@ -269,3 +269,9 @@ Interventional distribution validation now checks every target in an interventio
 sequence, including nested sequences. An outcome or observational conditioning
 variable that appears anywhere among those targets is refused with the existing
 typed overlap error, just as for a single-target intervention.
+
+Handoff receipt chains now require evidence that each retained field survived
+both hops. A complete forwarding hop preserves the other hop's retained fields;
+a later full-envelope receipt cannot restore fields lost earlier. Claim
+equivalence also requires explicit retention of the envelope, identities,
+reasoning, and domains, rather than matching IDs with unspecified retention.
