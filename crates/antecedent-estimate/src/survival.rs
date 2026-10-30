@@ -42,7 +42,8 @@ pub struct SurvivalRows<'a> {
 pub struct KnownCensoring<'a> {
     /// Increasing time grid from zero through the restriction horizon.
     pub times: &'a [f64],
-    /// Row-major censoring survival, one value per subject and grid time.
+    /// Row-major left-limit censoring survival `G(t−) = P(C >= t)`, one value per
+    /// subject and grid time. Events take priority over censoring at tied times.
     pub survival: &'a [f64],
     /// Declared positivity floor the survival values must stay above.
     pub minimum_probability: f64,
@@ -426,8 +427,9 @@ pub fn randomized_survival_summary(
 
 /// Evaluate arm curves with a caller supplied, subject-specific censoring survival grid.
 ///
-/// [`KnownCensoring::survival`] is row-major with one value per subject and time. The
-/// probabilities must be known independently of the outcomes used here; this
+/// [`KnownCensoring::survival`] is row-major with one value per subject and time;
+/// each value is `P(C >= t)` so subjects censored at `t` remain in the event risk set.
+/// The probabilities must be known independently of the outcomes used here; this
 /// point kernel does not fit or verify a censoring model. No interval is
 /// constructed by this function. Optional marginally independent left entry
 /// ([`SurvivalRows::delayed_entry`]) and censoring probabilities remain attached
@@ -1771,6 +1773,31 @@ mod tests {
             covered += u32::from(interval[0] <= -0.10 && -0.10 <= interval[1]);
         }
         assert!(covered >= 216, "fixed-G competing-risk CIF coverage: {covered}/240");
+    }
+
+    #[test]
+    fn known_censoring_left_limit_handles_event_censor_ties() {
+        let g = [
+            1.0, 0.5, 0.25, 1.0, 0.5, 0.25, 1.0, 1.0, 0.5, 1.0, 1.0, 0.5, 1.0, 1.0, 0.5, 1.0, 1.0,
+            0.5,
+        ];
+        let (summary, _) = randomized_survival_ipcw_summary(
+            &SurvivalRows {
+                duration: &[1.0, 1.0, 2.0, 1.0, 1.0, 2.0],
+                event_code: &[1, 0, 0, 1, 0, 0],
+                treated: &[false, false, false, true, true, true],
+                delayed_entry: None,
+            },
+            &KnownCensoring { times: &[0.0, 1.0, 2.0], survival: &g, minimum_probability: 0.1 },
+            2.0,
+            SurvivalEndpoint::Survival,
+        )
+        .unwrap();
+        // At time 1 the tied censor remains at risk: control weighted event 2,
+        // risk 2+2+1=5; treated event 1 and risk 3.
+        assert!((summary.control[1] - 0.6).abs() < 1e-12);
+        assert!((summary.treated[1] - 2.0 / 3.0).abs() < 1e-12);
+        assert!((summary.rmst_control.unwrap() - 1.6).abs() < 1e-12);
     }
 
     #[test]

@@ -10,14 +10,15 @@ use std::sync::Arc;
 
 /// Caller-supplied censoring survival on a common time grid.
 ///
-/// Each column contains the probability of remaining uncensored through its
-/// corresponding time for every observation. The probabilities are treated as
+/// Each column contains the left-limit survival G(t-) = P(C >= t) at its
+/// corresponding time for every observation, including subjects censored exactly
+/// at t. The probabilities are treated as
 /// known; this query does not fit or validate a censoring model.
 #[derive(Clone, Debug, PartialEq)]
 pub struct KnownCensoringSurvival {
     /// Common time grid beginning at zero and ending at the query horizon.
     pub times: Arc<[f64]>,
-    /// Data columns holding each subject's censoring survival at those times.
+    /// Data columns holding each subject's left-limit G(t-) = P(C >= t).
     pub columns: Arc<[VariableId]>,
     /// Strict positivity floor applied to every supplied probability.
     pub minimum_probability: f64,
