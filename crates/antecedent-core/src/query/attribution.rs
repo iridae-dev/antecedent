@@ -573,10 +573,10 @@ pub struct MechanismChangeQuery {
 pub struct OrderedFloatBits(u64);
 
 impl OrderedFloatBits {
-    /// From f64 (NaN → 0 payload).
+    /// From f64, canonicalizing NaN payloads while retaining NaN for validation.
     #[must_use]
     pub fn from_f64(v: f64) -> Self {
-        Self(if v.is_nan() { 0 } else { v.to_bits() })
+        Self(if v.is_nan() { f64::NAN.to_bits() } else { v.to_bits() })
     }
 
     /// To f64.
@@ -735,6 +735,24 @@ impl UnitChangeQuery {
 mod tests {
     use super::*;
     use crate::ComponentId;
+
+    #[test]
+    fn nonfinite_declarations_remain_invalid_after_bit_encoding() {
+        let nan = OrderedFloatBits::from_f64(f64::NAN);
+        assert!(nan.to_f64().is_nan());
+        assert_eq!(nan, OrderedFloatBits::from_f64(f64::from_bits(0x7ff0_0000_0000_0001)));
+        assert_ne!(nan, OrderedFloatBits::from_f64(0.0));
+        assert!(crate::OutcomeFunctional::exceedance(f64::NAN).validate().is_err());
+        assert!(crate::OutcomeFunctional::exceedance_grid([f64::NAN, 1.0]).validate().is_err());
+        assert!(
+            crate::TargetPopulation::local_at_cutoff(crate::VariableId::from_raw(0), f64::NAN)
+                .validate()
+                .is_err()
+        );
+        let query = AnomalyAttributionQuery::new([crate::VariableId::from_raw(0)], 10)
+            .with_reference(AnomalyReference::fixed(f64::NAN, 1.0));
+        assert!(query.validate().is_err());
+    }
 
     #[test]
     fn sequential_allocation_rejects_duplicate_components() {

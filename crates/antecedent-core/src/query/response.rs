@@ -342,8 +342,7 @@ impl GridSpec {
                 if index >= *points || *points < 2 {
                     return None;
                 }
-                let step = (end - start) / (*points - 1) as f64;
-                Some(start + index as f64 * step)
+                Some(linspace_value(*start, *end, *points, index))
             }
         }
     }
@@ -368,8 +367,7 @@ impl GridSpec {
                 out.try_reserve_exact(*points).map_err(|_| {
                     QueryError::InvalidResponse(ResponseFault::LinspaceExceedsMemory)
                 })?;
-                let step = (end - start) / (*points - 1) as f64;
-                out.extend((0..*points).map(|i| start + i as f64 * step));
+                out.extend((0..*points).map(|i| linspace_value(*start, *end, *points, i)));
                 Ok(out)
             }
         }
@@ -398,6 +396,24 @@ impl GridSpec {
             }
         }
         Ok(())
+    }
+}
+
+/// Interpolate finite endpoints without overflowing their difference. Keep the
+/// established arithmetic for representable spans and return endpoints exactly.
+fn linspace_value(start: f64, end: f64, points: usize, index: usize) -> f64 {
+    if index == 0 {
+        return start;
+    }
+    if index == points - 1 {
+        return end;
+    }
+    let span = end - start;
+    if span.is_finite() {
+        start + index as f64 * (span / (points - 1) as f64)
+    } else {
+        let fraction = index as f64 / (points - 1) as f64;
+        (1.0 - fraction) * start + fraction * end
     }
 }
 
@@ -1123,6 +1139,21 @@ mod tests {
         assert_eq!(functional.treatment_ids(), vec![treatment]);
         assert_eq!(functional.outcome_ids(), vec![outcome]);
         assert_eq!(functional.primary_pair(), Some((treatment, outcome)));
+    }
+
+    #[test]
+    fn linspace_extreme_finite_endpoints_produce_finite_inclusive_values() {
+        for (start, end) in [(-f64::MAX, f64::MAX), (-1e308, 1e308), (1e308, f64::MAX)] {
+            let grid = GridSpec::Linspace { start, end, points: 5 };
+            let values = grid.values().unwrap();
+            assert_eq!(values[0], start);
+            assert_eq!(values[4], end);
+            assert!(values.iter().all(|value| value.is_finite()));
+            assert!(values.windows(2).all(|pair| pair[0] < pair[1]));
+            for (index, &value) in values.iter().enumerate() {
+                assert_eq!(grid.value_at(index), Some(value));
+            }
+        }
     }
 
     #[test]
