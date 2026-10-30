@@ -228,6 +228,8 @@ def problems(root: Path, head: str | None) -> list[str]:
     errors: list[str] = []
     if data.get("schema") != 1:
         errors.append("FAIL: registry schema must be 1")
+    if data.get("complete") is not True:
+        errors.append("FAIL: registry complete must be true")
     entries = data.get("test")
     if not isinstance(entries, list) or not entries:
         errors.append("FAIL: registry points at nothing")
@@ -361,10 +363,9 @@ def problems(root: Path, head: str | None) -> list[str]:
             errors.append(f"FAIL: {entry_id}: consolidated test requires suite_map_line")
         elif suite_line.strip() != line[0]:
             errors.append(f"FAIL: {entry_id}: suite_map_line does not match tests/suite_map.txt")
-    if data.get("complete") is True:
-        registered = {e.get("path") for e in entries if isinstance(e, dict)}
-        for rel in unregistered(root, registered):
-            errors.append(f"FAIL: {rel}: test file has no registry row")
+    registered = {e.get("path") for e in entries if isinstance(e, dict)}
+    for rel in unregistered(root, registered):
+        errors.append(f"FAIL: {rel}: test file has no registry row")
     if any(entry.get("calibration_acceptance_assertions") for entry in entries if isinstance(entry, dict)):
         try:
             registered_calibration_acceptance(root)
@@ -402,7 +403,7 @@ def _entry(fields: dict[str, object]) -> str:
 
 
 def _registry(root: Path, entries: list[dict[str, object]]) -> None:
-    body = "schema = 1\n\n" + "\n".join(_entry(entry) for entry in entries)
+    body = "schema = 1\ncomplete = true\n\n" + "\n".join(_entry(entry) for entry in entries)
     _write(root, REGISTRY, body)
 
 
@@ -720,6 +721,19 @@ autotests = false
             root,
             "scripts/test_orphan.py: test file has no registry row",
         )
+        original = (root / REGISTRY).read_text(encoding="utf-8")
+        for name, replacement in (
+            ("false", "complete = false\n"),
+            ("missing", ""),
+            ("string", 'complete = "true"\n'),
+        ):
+            _write(root, REGISTRY, original.replace("complete = true\n", replacement))
+            _expect_fail(f"{name} completeness flag", root, "registry complete must be true")
+            _expect_fail(
+                f"{name} flag cannot hide an unregistered test",
+                root,
+                "scripts/test_orphan.py: test file has no registry row",
+            )
 
     print("v3 test registry self-test: ok")
     return 0

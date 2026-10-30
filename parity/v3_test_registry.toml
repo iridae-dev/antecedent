@@ -2125,7 +2125,7 @@ id = "decision-reliability"
 crate = "antecedent-design"
 cargo_target = "suite_01"
 path = "crates/antecedent-design/tests/decision_reliability.rs"
-calibration_acceptance_assertions = ["every_published_route_is_licensed_inside_a_measured_coverage_record"]
+calibration_acceptance_assertions = ["measured_routes_respect_current_attestation_and_report_their_closures"]
 suite_map_line = "suite_01: artifact_compat_inherited, artifact_compat_sequential_reliability_golden, cohort_decision_input, composition_boundary, composition_bridge_nodes, composition_bundle, composition_verifiers, coordinate_parity, cross_surface_bundle, cross_surface_decision, decision_acceptance, decision_adapters, decision_artifact, decision_contract_eval, decision_mean_source, decision_reliability, decision_reliability_candidate_counts, decision_reliability_intervals, decision_reliability_producers, decision_robust_artifact, decision_robustness, decision_structural, decision_structural_artifact, decision_transported_source, design_oracle, design_ranking, design_ranking_artifact, evsi, identity_properties_decision_contract, inverse_forward_source, inverse_observational_scenarios, inverse_query"
 gates = ["inventory", "named"]
 
@@ -20197,3 +20197,446 @@ crate = "antecedent"
 cargo_target = "functional_graph_posterior_mixture_truth"
 path = "crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-python-tests-test-numpy-scalar-ingress-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_numpy_scalar_ingress.py"
+gates = ["inventory"]
+
+[[test]]
+id = "promotion-checker-trust"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_promotion_checker_trust.py"
+gates = ["inventory"]
+
+# Source inventory only; feature-gated modules require their declared features to run.
+
+[[test]]
+id = "audit-inventory-crates-antecedent-src-analysis-execute-class-counterfactual-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/class_counterfactual.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-attribution-src-intrinsic-influence-rs"
+crate = "antecedent-attribution"
+cargo_target = "lib"
+path = "crates/antecedent-attribution/src/intrinsic_influence.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-core-src-execution-cancel-rs"
+crate = "antecedent-core"
+cargo_target = "lib"
+path = "crates/antecedent-core/src/execution/cancel.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-data-src-file-source-chunks-rs"
+crate = "antecedent-data"
+cargo_target = "lib"
+path = "crates/antecedent-data/src/file_source/chunks.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-data-src-file-source-provider-rs"
+crate = "antecedent-data"
+cargo_target = "lib"
+path = "crates/antecedent-data/src/file_source/provider.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-design-src-adaptive-policy-search-rs"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/adaptive_policy_search.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-design-src-decision-reliability-report-rs"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/decision_reliability/report.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-design-src-inverse-query-rs"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/inverse_query.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-estimate-src-counterfactual-transport-sampled-budget-tests-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/counterfactual_transport_sampled/budget_tests.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-estimate-src-cyclic-dynamic-inference-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/cyclic_dynamic_inference.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-estimate-src-factorial-bernoulli-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/factorial_bernoulli.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-estimate-src-ou-trajectory-sensitivity-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/ou_trajectory/sensitivity.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-estimate-src-randomized-posterior-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/randomized_posterior.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-estimate-src-response-band-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/response/band.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-estimate-src-response-plugin-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/response/plugin.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-identify-src-identification-run-rs"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/identification_run.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-identify-src-temporal-window-rs"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/temporal_window.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-io-src-artifact-budget-rs"
+crate = "antecedent-io"
+cargo_target = "lib"
+path = "crates/antecedent-io/src/artifact_budget.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-io-src-period-refresh-artifact-rs"
+crate = "antecedent-io"
+cargo_target = "lib"
+path = "crates/antecedent-io/src/period_refresh_artifact.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-learn-src-gbt-rs"
+crate = "antecedent-learn"
+cargo_target = "lib"
+path = "crates/antecedent-learn/src/gbt.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-learn-src-linear-rs"
+crate = "antecedent-learn"
+cargo_target = "lib"
+path = "crates/antecedent-learn/src/linear.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-learn-src-neural-rs"
+crate = "antecedent-learn"
+cargo_target = "lib"
+path = "crates/antecedent-learn/src/neural.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-model-src-compose-gaussian-rs"
+crate = "antecedent-model"
+cargo_target = "lib"
+path = "crates/antecedent-model/src/compose/gaussian.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-model-src-discretized-scm-artifact-rs"
+crate = "antecedent-model"
+cargo_target = "lib"
+path = "crates/antecedent-model/src/discretized_scm_artifact.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-model-src-observation-uncertainty-rs"
+crate = "antecedent-model"
+cargo_target = "lib"
+path = "crates/antecedent-model/src/observation_uncertainty.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-model-src-registry-fit-basis-rs"
+crate = "antecedent-model"
+cargo_target = "lib"
+path = "crates/antecedent-model/src/registry/fit/basis.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-model-src-registry-fit-hierarchical-rs"
+crate = "antecedent-model"
+cargo_target = "lib"
+path = "crates/antecedent-model/src/registry/fit/hierarchical.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-model-src-registry-fit-state-space-rs"
+crate = "antecedent-model"
+cargo_target = "lib"
+path = "crates/antecedent-model/src/registry/fit/state_space.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-stats-src-adaptive-inference-participant-procedure-rs"
+crate = "antecedent-stats"
+cargo_target = "lib"
+path = "crates/antecedent-stats/src/adaptive_inference/participant_procedure.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-crates-antecedent-stats-src-ci-types-rs"
+crate = "antecedent-stats"
+cargo_target = "lib"
+path = "crates/antecedent-stats/src/ci/types.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-python-src-artifact-api-rs"
+crate = "python"
+cargo_target = "lib"
+path = "python/src/artifact_api.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-python-src-discovered-transport-api-rs"
+crate = "python"
+cargo_target = "lib"
+path = "python/src/discovered_transport_api.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-python-src-prepared-api-prepare-unlicensed-design-rs"
+crate = "python"
+cargo_target = "lib"
+path = "python/src/prepared_api/prepare_unlicensed_design.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-python-src-prepared-options-rs"
+crate = "python"
+cargo_target = "lib"
+path = "python/src/prepared_options.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-python-src-survival-api-rs"
+crate = "python"
+cargo_target = "lib"
+path = "python/src/survival_api.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-python-src-transport-common-rs"
+crate = "python"
+cargo_target = "lib"
+path = "python/src/transport_common.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-python-src-transport-revalidation-api-rs"
+crate = "python"
+cargo_target = "lib"
+path = "python/src/transport_revalidation_api.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-scripts-test-calibration-preflight-py"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_calibration_preflight.py"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-scripts-test-calibration-readiness-parsing-py"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_calibration_readiness_parsing.py"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-scripts-test-calibration-receipt-failure-py"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_calibration_receipt_failure.py"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-scripts-test-collect-decision-required-py"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_collect_decision_required.py"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-scripts-test-coverage-citation-module-resolution-py"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_coverage_citation_module_resolution.py"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-scripts-test-coverage-citations-ratchet-py"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_coverage_citations_ratchet.py"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-scripts-test-coverage-duplicate-records-py"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_coverage_duplicate_records.py"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-scripts-test-coverage-figure-checks-py"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_coverage_figure_checks.py"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-scripts-test-coverage-toml-escaping-py"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_coverage_toml_escaping.py"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-scripts-test-gate-cyclic-systems-py"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_gate_cyclic_systems.py"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-scripts-test-gate-promotion-override-guard-py"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_gate_promotion_override_guard.py"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-scripts-test-gate-provenance-nonempty-py"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_gate_provenance_nonempty.py"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-scripts-test-gate-release-candidate-2-py"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_gate_release_candidate_2.py"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-scripts-test-gate-source-scans-py"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_gate_source_scans.py"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-scripts-test-hot-path-gate-matching-py"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_hot_path_gate_matching.py"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-scripts-test-measure-calibration-all-branches-py"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_measure_calibration_all_branches.py"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-scripts-test-measure-calibration-arrays-py"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_measure_calibration_arrays.py"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-scripts-test-metadata-integrity-py"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_metadata_integrity.py"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-scripts-test-parity-rows-integrity-py"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_parity_rows_integrity.py"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-scripts-test-release-claims-calibrated-scope-py"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_release_claims_calibrated_scope.py"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-scripts-test-release-claims-required-inputs-py"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_release_claims_required_inputs.py"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-scripts-test-release-snapshot-preservation-py"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_release_snapshot_preservation.py"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-scripts-test-retained-citation-declarations-py"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_retained_citation_declarations.py"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-inventory-scripts-test-v3-evidence-revisions-py"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_v3_evidence_revisions.py"
+gates = ["inventory"]
