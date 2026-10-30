@@ -168,7 +168,7 @@ fn demean(values: &[f64]) -> Vec<f64> {
     values.iter().map(|value| value - mean).collect()
 }
 
-/// Fit donor weights by projected gradient descent on the simplex.
+/// Fit donor weights by restarted accelerated projected gradient on the simplex.
 /// The fixed iteration cap and sorted donor ordering make the result deterministic.
 fn fit_weights(target: &[f64], donors: &[Vec<f64>]) -> Result<(Vec<f64>, f64), String> {
     fit_weights_with_limit(target, donors, 10_000)
@@ -220,14 +220,12 @@ fn fit_weights_with_limit(
     if !step.is_finite() {
         return Err("synthetic control weight step is not finite".into());
     }
-    let mut weights = vec![1.0 / n_donors as f64; n_donors];
-    let mut converged = false;
-    for _ in 0..iterations {
+    let gradient = |weights: &[f64]| -> Vec<f64> {
         let mut gradient = vec![0.0; n_donors];
         for period in 0..n_pre {
-            let residual: f64 = donors
+            let residual = donors
                 .iter()
-                .zip(&weights)
+                .zip(weights)
                 .map(|(donor, weight)| value(donor[period], period) * *weight)
                 .sum::<f64>()
                 - value(target[period], period);
@@ -235,15 +233,23 @@ fn fit_weights_with_limit(
                 gradient[index] += 2.0 * value(donor[period], period) * residual / n_pre as f64;
             }
         }
-        if gradient.iter().any(|v| !v.is_finite()) {
+        gradient
+    };
+    let mut weights = vec![1.0 / n_donors as f64; n_donors];
+    let mut momentum = weights.clone();
+    let mut time = 1.0_f64;
+    let mut converged = false;
+    for _ in 0..iterations {
+        let current_gradient = gradient(&weights);
+        if current_gradient.iter().any(|v| !v.is_finite()) {
             return Err("synthetic control weight gradient is not finite".into());
         }
-        // A projected-gradient mapping is zero exactly at simplex KKT
-        // stationarity. It is independent of the optimization step size.
+        // Certify stationarity at the returned weights, independent of the
+        // optimization step or accelerated iterate movement.
         let projected = project_simplex(
             &weights
                 .iter()
-                .zip(&gradient)
+                .zip(&current_gradient)
                 .map(|(weight, gradient)| *weight - *gradient)
                 .collect::<Vec<_>>(),
         );
@@ -256,13 +262,38 @@ fn fit_weights_with_limit(
             converged = true;
             break;
         }
-        weights = project_simplex(
-            &weights
+        let grad = gradient(&momentum);
+        if grad.iter().any(|v| !v.is_finite()) {
+            return Err("synthetic control weight gradient is not finite".into());
+        }
+        let next = project_simplex(
+            &momentum
                 .iter()
-                .zip(&gradient)
+                .zip(&grad)
                 .map(|(weight, gradient)| *weight - step * *gradient)
                 .collect::<Vec<_>>(),
         );
+        // Restart if momentum points uphill at an active simplex boundary.
+        let restart: f64 = momentum
+            .iter()
+            .zip(&next)
+            .zip(&weights)
+            .map(|((m, new), old)| (m - new) * (new - old))
+            .sum();
+        let next_time = 0.5 * (1.0 + (1.0 + 4.0 * time * time).sqrt());
+        momentum = if restart > 0.0 {
+            time = 1.0;
+            next.clone()
+        } else {
+            let accelerated = next
+                .iter()
+                .zip(&weights)
+                .map(|(new, old)| new + (time - 1.0) / next_time * (new - old))
+                .collect();
+            time = next_time;
+            accelerated
+        };
+        weights = next;
     }
     if !converged {
         return Err("synthetic control weight iteration did not meet its stopping criterion".into());
@@ -762,6 +793,40 @@ mod tests {
         let tiny = f64::from_bits(1);
         let subnormal = fit_weights(&[tiny], &[vec![0.0], vec![2.0 * tiny]]).unwrap();
         assert!((subnormal.0[1] - 0.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn accelerated_simplex_resolves_assignment_panel_with_stationary_weights() {
+        // The fixed observed panel used by the sharp-null assignment test:
+        // every candidate is also a donor in other assignments.
+        let rows: Vec<Vec<f64>> = (0..8)
+            .map(|unit| {
+                (1..=4)
+                    .map(|period| {
+                        unit as f64 * 0.27
+                            + period as f64 * 0.13
+                            + ((unit * 11 + period * 7) % 13) as f64 * 0.09
+                    })
+                    .collect()
+            })
+            .collect();
+        for target in 0..rows.len() {
+            for omitted in 0..rows.len() {
+                if omitted == target {
+                    continue;
+                }
+                let donors: Vec<_> = rows
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, _)| *i != target && *i != omitted)
+                    .map(|(_, row)| row.clone())
+                    .collect();
+                let (weights, rmse) = super::fit_weights(&rows[target], &donors).unwrap();
+                assert!(rmse.is_finite());
+                assert!(weights.iter().all(|w| w.is_finite() && *w >= 0.0));
+                assert!((weights.iter().sum::<f64>() - 1.0).abs() < 1e-10);
+            }
+        }
     }
 
     #[test]
