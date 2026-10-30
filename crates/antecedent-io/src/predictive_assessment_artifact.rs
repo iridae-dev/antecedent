@@ -1,4 +1,7 @@
-//! Predictive assessment artifact (`predictive_assessment_v1`).
+//! Predictive assessment artifact (version 2; legacy version 1 is read conservatively).
+//! Version 2 stores a provenance byte after every 32-byte key digest. Legacy
+//! key provenance is unknown and is treated as caller-minted; a legacy stored
+//! held-out verification is refused rather than reconstructed as verified.
 //!
 //! A bounded, checksummed, sectioned container holding one predictive
 //! assessment: the predictive laws, the realized observations and the declared
@@ -45,12 +48,12 @@ use antecedent_validate::predictive_assessment::{
     ObservationKey, Outcome, OverlapPolicy, OverlapStatus, PredictiveAssessmentError,
     PredictiveAssessmentReport, PredictiveAssessmentSpec, PredictiveTarget, PredictorLaws,
     ProviderIdentity, ProviderTrustLabel, RealizedObservations, ScoreKind, ValidationDesign,
-    assess_predictive_laws,
+    admit_comparisons, assess_predictive_laws,
 };
 use serde::{Deserialize, Serialize};
 
-/// The artifact major version this reader writes and accepts.
-pub const PREDICTIVE_ASSESSMENT_ARTIFACT_VERSION: u16 = 1;
+/// The artifact major version this reader writes (it also reads version 1 conservatively).
+pub const PREDICTIVE_ASSESSMENT_ARTIFACT_VERSION: u16 = 2;
 /// The feature marker of the accepted format.
 pub const PREDICTIVE_ASSESSMENT_ARTIFACT_FEATURE: &str = "predictive_assessment_v1";
 /// Calibration status: diagnostics of this route have no measured calibration.
@@ -74,7 +77,8 @@ const ARTIFACT_KIND: &str = crate::artifact_kinds::PREDICTIVE_ASSESSMENT;
 const META_SECTION: &str = "predictive_assessment_meta";
 const NUMBERS_SECTION: &str = "predictive_assessment_numbers";
 const KEYS_SECTION: &str = "predictive_assessment_keys";
-const KEY_BYTES: usize = 32;
+const KEY_BYTES: usize = 33;
+const LEGACY_KEY_BYTES: usize = 32;
 
 crate::sectioned_artifact_error!(
     /// Why a predictive assessment artifact was refused or could not be produced.
@@ -756,6 +760,7 @@ fn encode_parts(
     let mut keys = Vec::with_capacity(spec.observations.ids.len() * KEY_BYTES);
     for key in &spec.observations.ids {
         keys.extend_from_slice(key.as_bytes());
+        keys.push(u8::from(key.is_caller_minted()));
     }
     let mut predictors = Vec::with_capacity(spec.predictors.len());
     for predictor in &spec.predictors {
@@ -766,11 +771,19 @@ fn encode_parts(
             FitDeclaration::FittedOn(fit_keys) => {
                 let mut sorted = fit_keys.clone();
                 sorted.sort_unstable();
-                sorted.dedup();
-                for key in &sorted {
-                    keys.extend_from_slice(key.as_bytes());
+                let mut merged: Vec<ObservationKey> = Vec::with_capacity(sorted.len());
+                for key in sorted {
+                    if let Some(last) = merged.last_mut().filter(|last| **last == key) {
+                        if key.is_caller_minted() {
+                            *last = ObservationKey::from_caller_minted_bytes(*key.as_bytes());
+                        }
+                    } else { merged.push(key); }
                 }
-                FitWire { kind: "fitted_on".into(), keys: sorted.len() as u64, reason: None }
+                for key in &merged {
+                    keys.extend_from_slice(key.as_bytes());
+                    keys.push(u8::from(key.is_caller_minted()));
+                }
+                FitWire { kind: "fitted_on".into(), keys: merged.len() as u64, reason: None }
             }
             FitDeclaration::NotFitted => {
                 FitWire { kind: "not_fitted".into(), keys: 0, reason: None }
@@ -852,13 +865,9 @@ fn encode_container(
 }
 
 fn decode_container(bytes: &[u8]) -> Result<(PredictiveAssessmentMeta, Vec<u8>, Vec<u8>), Error> {
-    let (meta, parts) = crate::artifact_codec::decode_sectioned::<Error, PredictiveAssessmentMeta>(
-        ARTIFACT_KIND,
-        MAX_PREDICTIVE_ASSESSMENT_ARTIFACT_BYTES,
-        META_SECTION,
-        &[NUMBERS_SECTION, KEYS_SECTION],
-        PREDICTIVE_ASSESSMENT_ARTIFACT_VERSION,
-        bytes,
+    let (meta, _, parts) = crate::artifact_codec::decode_sectioned_layouts::<Error, PredictiveAssessmentMeta>(
+        ARTIFACT_KIND, MAX_PREDICTIVE_ASSESSMENT_ARTIFACT_BYTES, META_SECTION,
+        &[&[NUMBERS_SECTION, KEYS_SECTION]], |version| version == 1 || version == 2, bytes,
     )?;
     let Ok([numbers, keys]) = <[Vec<u8>; 2]>::try_from(parts) else {
         return Err(malformed("unsupported container layout"));
@@ -920,47 +929,34 @@ impl Default for PredictiveAssessmentConsumeLimits {
     }
 }
 
-// Bound the serial long-run-variance inner products before reconstructing the
-// assessment. Each pair and score computes gamma at every declared lag; n * lag
-// is a conservative count of their multiply-add terms, not a time guarantee.
-fn admit_serial_comparison_work(
-    cases: usize,
-    lag: usize,
-    pairs: usize,
-    scores: usize,
-    limit: usize,
-) -> Result<(), Error> {
-    let mut work = crate::artifact_budget::ReplayWork::new();
-    work.add(&[cases, lag, pairs, scores]);
-    work.admit(limit).map_err(|_| Error::LimitsExceeded("serial comparison work"))
-}
-
-fn check_serial_comparison_work(
-    meta: &PredictiveAssessmentMeta,
-    limit: usize,
-) -> Result<(), Error> {
-    if meta.dependence.kind != "serial" {
-        return Ok(());
-    }
-    let Some(lag) = meta.dependence.truncation_lag else {
-        // The ordinary declaration validation will report the missing lag.
-        return Ok(());
-    };
+// Budget both the linear paired-difference, serial lag, and fit-overlap work under the
+// same comparison allowance, before cloning the stored comparison declarations.
+fn check_comparison_work(meta: &PredictiveAssessmentMeta, limit: usize) -> Result<(), Error> {
     let cases = usize::try_from(meta.cases).map_err(|_| Error::LimitsExceeded("cases"))?;
-    let lag = usize::try_from(lag).map_err(|_| Error::LimitsExceeded("serial comparison work"))?;
-    let pairs = if meta.comparisons.is_empty() {
-        meta.predictors.len().saturating_sub(1)
-    } else {
-        meta.comparisons.len()
-    };
-    admit_serial_comparison_work(cases, lag, pairs, meta.scores.len(), limit)
+    if meta.predictors.len() > MAX_PREDICTORS { return Err(Error::LimitsExceeded("comparison work")); }
+    let lag = (meta.dependence.kind == "serial").then_some(meta.dependence.truncation_lag).flatten();
+    admit_comparisons(cases, &meta.predictors.iter().map(|p| (p.name.as_str(), if p.fit.kind == "fitted_on" { p.fit.keys } else { 0 })).collect::<Vec<_>>(), meta.scores.len(), &meta.comparisons,
+        lag,
+        u64::try_from(limit).unwrap_or(u64::MAX)).map_err(|error| {
+            if error.detail() == antecedent_validate::predictive_assessment::detail::BOUNDS_EXCEEDED {
+                Error::LimitsExceeded("comparison work")
+            } else { refused(&error) }
+        })?;
+    Ok(())
 }
 
-fn key_at(keys: &[u8], index: usize) -> ObservationKey {
-    let mut bytes = [0_u8; KEY_BYTES];
-    bytes.copy_from_slice(&keys[index * KEY_BYTES..(index + 1) * KEY_BYTES]);
-    ObservationKey::from_bytes(bytes)
+fn key_at(keys: &[u8], index: usize, version: u16) -> Result<ObservationKey, Error> {
+    let width = if version == 1 { LEGACY_KEY_BYTES } else { KEY_BYTES };
+    let start = index * width;
+    let mut bytes = [0_u8; LEGACY_KEY_BYTES];
+    bytes.copy_from_slice(&keys[start..start + LEGACY_KEY_BYTES]);
+    match if version == 1 { 1 } else { keys[start + LEGACY_KEY_BYTES] } {
+        0 => Ok(ObservationKey::from_bytes(bytes)),
+        1 => Ok(ObservationKey::from_caller_minted_bytes(bytes)),
+        _ => Err(malformed("invalid observation key provenance flag")),
+    }
 }
+
 
 fn check_claims(meta: &PredictiveAssessmentMeta) -> Result<(), Error> {
     crate::artifact_codec::require_semantics::<Error>(
@@ -1001,7 +997,8 @@ fn spec_of(
     let fit_total: u64 =
         meta.predictors.iter().map(|p| p.fit.keys).fold(0_u64, u64::saturating_add);
     let expected_keys = u64::try_from(cases).unwrap_or(u64::MAX).saturating_add(fit_total);
-    if keys.len() as u64 != expected_keys.saturating_mul(KEY_BYTES as u64) {
+    let key_width = if meta.version == 1 { LEGACY_KEY_BYTES } else { KEY_BYTES };
+    if keys.len() as u64 != expected_keys.saturating_mul(key_width as u64) {
         return Err(malformed("keys section length"));
     }
     let result_count = meta.result_labels.len();
@@ -1009,7 +1006,7 @@ fn spec_of(
         return Err(malformed("numbers section length"));
     }
     let mut reader = Reader::new(&numbers[..numbers.len() - result_count]);
-    let ids: Vec<ObservationKey> = (0..cases).map(|i| key_at(keys, i)).collect();
+    let ids: Vec<ObservationKey> = (0..cases).map(|i| key_at(keys, i, meta.version)).collect::<Result<_, _>>()?;
     let outcomes =
         (0..cases).map(|_| reader.outcome(&meta.outcome_family)).collect::<Result<Vec<_>, _>>()?;
     let mut fit_cursor = cases;
@@ -1020,7 +1017,8 @@ fn spec_of(
             "fitted_on" => {
                 let count = usize::try_from(declared.fit.keys)
                     .map_err(|_| Error::LimitsExceeded("fit keys"))?;
-                let fitted = (fit_cursor..fit_cursor + count).map(|i| key_at(keys, i)).collect();
+                let end = fit_cursor.checked_add(count).ok_or(Error::LimitsExceeded("fit keys"))?;
+                let fitted = (fit_cursor..end).map(|i| key_at(keys, i, meta.version)).collect::<Result<_, _>>()?;
                 fit_cursor += count;
                 FitDeclaration::FittedOn(fitted)
             }
@@ -1122,7 +1120,11 @@ impl PredictiveAssessmentArtifact {
     /// # Errors
     /// An empty id, an encoding failure or an oversized payload.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, Error> {
-        let (meta, numbers, keys) = encode_parts(&self.spec, &self.report)?;
+        let (mut meta, numbers, mut keys) = encode_parts(&self.spec, &self.report)?;
+        if self.meta.version == 1 {
+            meta.version = 1;
+            keys = keys.chunks_exact(KEY_BYTES).flat_map(|key| key[..LEGACY_KEY_BYTES].iter().copied()).collect();
+        }
         encode_container(&meta, &numbers, &keys, artifact_id)
     }
 
@@ -1170,12 +1172,13 @@ impl PredictiveAssessmentArtifact {
         )
     }
 
-    /// Consume with an explicit allowance for serial comparison work. The allowance
-    /// counts conservative multiply-add planning units, not elapsed time. Unlike
+    /// Consume with an explicit allowance for linear, serial, and fit-overlap comparison work. The
+    /// allowance counts structural planning units, not elapsed time. Scoring uses its
+    /// separate assessment work limit. Unlike
     /// stored metadata, a trusted caller can deliberately raise or lower it.
     ///
     /// # Errors
-    /// As [`Self::from_bytes_with_limits`], or serial comparison work exceeds
+    /// As [`Self::from_bytes_with_limits`], or combined comparison work exceeds
     /// the allowance (including an overflowing work estimate).
     pub fn from_bytes_with_replay_operations(
         bytes: &[u8],
@@ -1186,7 +1189,10 @@ impl PredictiveAssessmentArtifact {
     ) -> Result<Self, Error> {
         let (meta, number_bytes, keys) = decode_container(bytes)?;
         check_claims(&meta)?;
-        check_serial_comparison_work(&meta, max_replay_operations)?;
+        if meta.version == 1 && meta.result_texts.iter().any(|(key, value)| key.starts_with("overlap.") && value.starts_with("held_out_verified:")) {
+            return Err(Error::UnsupportedSemantics("legacy held-out provenance"));
+        }
+        check_comparison_work(&meta, max_replay_operations)?;
         if number_bytes.len() % 8 != 0 {
             return Err(malformed("numbers section length"));
         }
@@ -1195,7 +1201,11 @@ impl PredictiveAssessmentArtifact {
         }
         let numbers = crate::width::f64s_from_le_bytes(&number_bytes);
         let spec = spec_of(&meta, &numbers, &keys, &limits)?;
-        let report = assess_predictive_laws(&spec, ctx).map_err(|error| refused(&error))?;
+        let mut report = assess_predictive_laws(&spec, ctx).map_err(|error| refused(&error))?;
+        if meta.version == 1 {
+            report.identity = antecedent_validate::predictive_assessment::legacy_assessment_identity(&spec)
+                .map_err(|error| refused(&error))?;
+        }
         if let Some(field) = meta.identity.to_identity().first_difference(&report.identity) {
             return Err(Error::IdentityMismatch { field });
         }
@@ -1226,17 +1236,5 @@ impl PredictiveAssessmentArtifact {
             }
         }
         Ok(Self { meta, spec, report })
-    }
-}
-
-#[cfg(test)]
-mod serial_replay_budget_tests {
-    use super::admit_serial_comparison_work;
-
-    #[test]
-    fn serial_work_boundary_and_overflow() {
-        assert!(admit_serial_comparison_work(18, 2, 1, 2, 72).is_ok());
-        assert!(admit_serial_comparison_work(18, 2, 1, 2, 71).is_err());
-        assert!(admit_serial_comparison_work(usize::MAX, 2, 1, 1, usize::MAX).is_err());
     }
 }

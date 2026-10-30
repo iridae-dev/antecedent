@@ -185,6 +185,14 @@ impl ObservationKey {
         Self { digest: bytes, caller_minted: false }
     }
 
+    /// Restore a digest whose origin is caller-minted or provenance-unknown.
+    ///
+    /// This is conservative: it cannot grant ledger-backed held-out status.
+    #[must_use]
+    pub const fn from_caller_minted_bytes(bytes: [u8; 32]) -> Self {
+        Self { digest: bytes, caller_minted: true }
+    }
+
     /// The digest bytes.
     #[must_use]
     pub const fn as_bytes(&self) -> &[u8; 32] {

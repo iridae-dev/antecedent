@@ -79,3 +79,16 @@ cloning. A clone shares its immutable data and its admission reservation, includ
 collection is retained separately from its parent result. Code that requires an owned `Vec`
 can explicitly copy the slice with `to_vec()`. These public field type changes are a Rust source
 compatibility break; they do not change the numerical or identity contracts.
+
+## Predictive assessment key provenance
+
+New predictive assessment artifacts use version 2, which stores each observation key's
+caller-minted provenance beside its digest. Native assessment identities also bind that
+provenance; identities for exclusively ledger-backed keys retain their previous encoding.
+Duplicate fitted keys merge provenance conservatively, so a caller-minted copy cannot be
+lost during deduplication.
+
+Version 1 artifacts remain readable when their overlap result can be checked without
+ledger provenance. A stored version 1 held-out verification is refused because its key
+section did not preserve that premise. Re-export keeps the legacy version; reseal from
+the original typed observation identities to write version 2.

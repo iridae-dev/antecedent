@@ -61,7 +61,7 @@ pub use assess::{
     ASSESSMENT_CAUSAL_VALIDITY, ASSESSMENT_FAMILY, ASSESSMENT_INFERENCE_CLAIM,
     AssessmentUncertainty, FoldScore, MAX_ASSESSMENT_WORK, PredictiveAssessmentReport,
     PredictiveAssessmentSpec, PredictorAssessment, REPLAY_TOLERANCE, ScoreIntervalRequest,
-    ScoreSummary, assess_predictive_laws,
+    ScoreSummary, admit_comparisons, assess_predictive_laws, legacy_assessment_identity,
 };
 pub use bayesian::PredictiveReplicates;
 pub use calibration::{

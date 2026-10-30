@@ -702,11 +702,12 @@ fn caller_minted_keys_are_never_verified_held_out() {
         assess_predictive_laws(&overlap_spec(fit.clone(), OverlapPolicy::LabelOnly), &ctx())
             .unwrap();
     assert_eq!(report.predictors[0].overlap.label(), "unverified");
-    let (code, slot) = refusal(assess_predictive_laws(
-        &overlap_spec(fit, OverlapPolicy::RequireHeldOut),
-        &ctx(),
-    ));
-    assert_eq!((code.as_str(), slot.as_str()), ("evidence_overlap_unknown", detail::OVERLAP_UNKNOWN));
+    let (code, slot) =
+        refusal(assess_predictive_laws(&overlap_spec(fit, OverlapPolicy::RequireHeldOut), &ctx()));
+    assert_eq!(
+        (code.as_str(), slot.as_str()),
+        ("evidence_overlap_unknown", detail::OVERLAP_UNKNOWN)
+    );
     assert!(minted_key(1).is_caller_minted());
     assert!(!key(1).is_caller_minted());
     // Digest equality is origin-independent.
@@ -1263,4 +1264,118 @@ fn a_case_count_beyond_every_measured_record_is_not_published() {
     let error = expected_score_interval(&spec, &report, &query).unwrap_err();
     assert_eq!(error.reason_code(), "cell_not_licensed");
     assert_eq!(error.detail(), detail::INTERVAL_SCOPE_OUTSIDE_MEASURED);
+}
+
+#[test]
+fn comparison_admission_aggregates_work_and_rejects_duplicates() {
+    use antecedent_validate::predictive_assessment::admit_comparisons;
+    let pairs =
+        vec![("calibrated".into(), "biased".into()), ("biased".into(), "calibrated".into())];
+    // 10 cases * 2 pairs * 2 scores * (7 linear passes + 3 lags),
+    // plus endpoint resolution and byte-based name traversal/copying.
+    assert_eq!(
+        admit_comparisons(
+            10,
+            &[("calibrated", 0), ("overconfident", 0), ("biased", 0)],
+            2,
+            &pairs,
+            Some(3),
+            5478
+        )
+        .unwrap(),
+        5478
+    );
+    assert!(
+        admit_comparisons(
+            10,
+            &[("calibrated", 0), ("overconfident", 0), ("biased", 0)],
+            2,
+            &pairs,
+            Some(3),
+            5477
+        )
+        .is_err()
+    );
+    assert!(
+        admit_comparisons(
+            usize::MAX,
+            &[("calibrated", 0), ("overconfident", 0), ("biased", 0)],
+            2,
+            &pairs,
+            Some(u32::MAX),
+            u64::MAX
+        )
+        .is_err()
+    );
+    // Fit overlap sorting is also multiplied by the number of pairs; an
+    // unselected huge fit-key list adds no fit-overlap charge.
+    assert_eq!(
+        admit_comparisons(
+            10,
+            &[("calibrated", 100), ("overconfident", u64::MAX), ("biased", 100)],
+            2,
+            &pairs,
+            None,
+            8958
+        )
+        .unwrap(),
+        8958
+    );
+    assert!(
+        admit_comparisons(
+            10,
+            &[("calibrated", 100), ("overconfident", u64::MAX), ("biased", 100)],
+            2,
+            &pairs,
+            None,
+            8957
+        )
+        .is_err()
+    );
+    // Implicit pairs select the first predictor as anchor and every other endpoint.
+    assert_eq!(
+        admit_comparisons(
+            10,
+            &[("calibrated", 100), ("overconfident", 100), ("biased", 50)],
+            2,
+            &[],
+            None,
+            5298
+        )
+        .unwrap(),
+        5298
+    );
+    let mut spec = generator_spec(10);
+    spec.comparisons = pairs;
+    let report = assess_predictive_laws(&spec, &ctx()).unwrap();
+    assert_eq!(
+        report
+            .differences
+            .iter()
+            .map(|d| (d.candidate.as_str(), d.reference.as_str()))
+            .collect::<Vec<_>>(),
+        vec![
+            ("calibrated", "biased"),
+            ("calibrated", "biased"),
+            ("biased", "calibrated"),
+            ("biased", "calibrated")
+        ]
+    );
+    spec.comparisons[1] = spec.comparisons[0].clone();
+    assert!(spec.canonicalized().is_err());
+    assert!(assess_predictive_laws(&spec, &ctx()).is_err());
+}
+
+#[test]
+fn comparison_name_bytes_are_admitted_before_common_prefix_search() {
+    use antecedent_validate::predictive_assessment::admit_comparisons;
+    let prefix = "x".repeat(32_768);
+    let a = format!("{prefix}a");
+    let b = format!("{prefix}b");
+    let pairs = vec![(a.clone(), b.clone()), (b.clone(), a.clone())];
+    let names = [(a.as_str(), 0), (b.as_str(), 0)];
+    let needed = admit_comparisons(2, &names, 1, &pairs, None, u64::MAX).unwrap();
+    assert!(needed > 1_000_000);
+    assert!(admit_comparisons(2, &names, 1, &pairs, None, needed - 1).is_err());
+    assert_eq!(admit_comparisons(2, &names, 1, &pairs, None, needed).unwrap(), needed);
 }

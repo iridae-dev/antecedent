@@ -99,11 +99,19 @@ fn shared_count(a: &[ObservationKey], b: &[ObservationKey]) -> u64 {
     shared
 }
 
-fn sorted_distinct(keys: &[ObservationKey]) -> Vec<ObservationKey> {
+pub(crate) fn sorted_distinct(keys: &[ObservationKey]) -> Vec<ObservationKey> {
     let mut out = keys.to_vec();
     out.sort_unstable();
-    out.dedup();
-    out
+    // Equal digests with conflicting provenance are conservatively caller-minted.
+    let mut merged: Vec<ObservationKey> = Vec::with_capacity(out.len());
+    for key in out {
+        if let Some(last) = merged.last_mut().filter(|last| **last == key) {
+            if key.is_caller_minted() {
+                *last = ObservationKey::from_caller_minted_bytes(*key.as_bytes());
+            }
+        } else { merged.push(key); }
+    }
+    merged
 }
 
 /// Number of observations two predictors were both fitted on, when both declare
