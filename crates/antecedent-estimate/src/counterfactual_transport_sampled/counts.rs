@@ -17,7 +17,7 @@ use antecedent_core::{CanonicalWriter, RegimeId, Value, VariableId};
 use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, InterventionAssignment, LawTolerance};
 
 use super::{
-    DETAIL_INVALID_COUNTS, DETAIL_SAMPLE_SIZE, DETAIL_SPARSE, DETAIL_UNSEEN,
+    DETAIL_CANCELLED, DETAIL_INVALID_COUNTS, DETAIL_SAMPLE_SIZE, DETAIL_SPARSE, DETAIL_UNSEEN,
     SAMPLED_TRANSPORT_MAX_TABLE_CELLS, invalid_counts, refused,
 };
 use crate::error::EstimationError;
@@ -454,7 +454,9 @@ pub struct SampledTransportLimits {
     pub max_unseen_fraction: f64,
     /// Most members of an envelope family evaluated.
     pub max_envelope_evaluations: u32,
-    /// Exact-evaluation budget of one evaluation of the stored derivation.
+    /// Shared operation allowance for point preparation and evaluation and all
+    /// gradient preparation and evaluations. Envelope members each use their
+    /// own evaluation allowance.
     pub evaluation: antecedent_expr::ExactEvaluationLimits,
 }
 
@@ -594,23 +596,27 @@ pub(crate) fn law_of(
         Arc::clone(&table.snapshot_identity),
         LawTolerance::default(),
     )
-    .map_err(|e| {
-        refused(
-            antecedent_core::reason_code!("invalid_argument"),
-            DETAIL_INVALID_COUNTS,
-            format!("the estimated table is not a finite law: {e}"),
-        )
-    })?;
+    .map_err(|e| map_law_error(e, "the estimated table is not a finite law"))?;
     let counts = table.counts.clone();
     let law = match flavor {
         LawFlavor::Empirical => law.with_empirical_counts(counts),
         LawFlavor::Model => law.with_learned_support(counts),
     };
-    law.map_err(|e| {
+    law.map_err(|e| map_law_error(e, "the estimated table does not reconcile with its counts"))
+}
+
+pub(crate) fn map_law_error(e: antecedent_expr::ExactLawError, message: &str) -> EstimationError {
+    if e.kind == "cancelled" {
+        refused(
+            antecedent_core::reason_code!("transport_budget_cancel"),
+            DETAIL_CANCELLED,
+            "the sampled evaluation was cancelled",
+        )
+    } else {
         refused(
             antecedent_core::reason_code!("invalid_argument"),
             DETAIL_INVALID_COUNTS,
-            format!("the estimated table does not reconcile with its counts: {e}"),
+            format!("{message}: {e}"),
         )
-    })
+    }
 }

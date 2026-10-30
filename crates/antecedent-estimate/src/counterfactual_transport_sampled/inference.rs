@@ -26,7 +26,8 @@ use antecedent_identify::CounterfactualTransportDerivation;
 use super::counts::{LawFlavor, SampledRegimeCounts};
 use super::overlap::DatasetGroups;
 use super::{
-    SAMPLED_TRANSPORT_GRADIENT_RELATIVE_STEP, SampledTransportLimits, evaluate_probability,
+    SAMPLED_TRANSPORT_GRADIENT_RELATIVE_STEP, SampledTransportLimits, SampledWork,
+    evaluate_detailed, table_work,
 };
 use crate::error::EstimationError;
 
@@ -56,16 +57,24 @@ pub(crate) fn delta_standard_error(
     groups: &DatasetGroups,
     limits: &SampledTransportLimits,
     ctx: &ExecutionContext,
+    work: &mut SampledWork<'_>,
 ) -> Result<DeltaOutcome, EstimationError> {
     // A perturbed table is no longer the count shares, so its law is model-based.
     let flavors = vec![LawFlavor::Model; tables.len()];
     let mut variance = 0.0;
     let mut evaluations = 0u64;
+    // Reuse the table stack across every perturbation; only the current
+    // physical dataset group needs to be changed and restored.
+    for table in tables {
+        work.charge(table_work(table))?;
+    }
+    let mut trial = probabilities.to_vec();
     for group in &groups.groups {
         let representative = group[0];
         let table = &tables[representative];
         let p = &probabilities[representative];
         let total = table.total() as f64;
+        work.charge(table_work(table).saturating_mul(table.axes().len().saturating_add(1)))?;
         let (stratum_of, strata) = table.strata();
         let mut weight = vec![0.0f64; strata];
         let mut first = vec![0.0f64; strata];
@@ -78,19 +87,19 @@ pub(crate) fn delta_standard_error(
             let h = SAMPLED_TRANSPORT_GRADIENT_RELATIVE_STEP * pc;
             let mut value = [0.0f64; 2];
             for (slot, sign) in [1.0f64, -1.0].iter().enumerate() {
+                work.charge(p.len().saturating_mul(group.len().saturating_add(4)))?;
                 let mut perturbed = p.clone();
                 perturbed[cell] += sign * h;
                 let norm: f64 = perturbed.iter().sum();
                 for q in &mut perturbed {
                     *q /= norm;
                 }
-                let mut trial: Vec<Vec<f64>> = probabilities.to_vec();
                 for &member in group {
                     trial[member].clone_from(&perturbed);
                 }
                 evaluations += 1;
-                match evaluate_probability(derivation, tables, &trial, &flavors, limits, ctx) {
-                    Ok(v) => value[slot] = v,
+                match evaluate_detailed(derivation, tables, &trial, &flavors, limits, ctx, work) {
+                    Ok((v, _)) => value[slot] = v.probability,
                     Err(EstimationError::Refused { code, .. })
                         if code != antecedent_core::reason_code!("transport_budget_cancel") =>
                     {
@@ -100,6 +109,9 @@ pub(crate) fn delta_standard_error(
                     }
                     Err(other) => return Err(other),
                 }
+            }
+            for &member in group {
+                trial[member].clone_from(&probabilities[member]);
             }
             let g = (value[0] - value[1]) / (2.0 * h);
             first[stratum_of[cell]] += pc * g;

@@ -289,13 +289,18 @@ impl ExactDiscreteLaw {
                 let mut level_index = vec![HashMap::new(); law.axes.len()];
                 for (i, axis) in law.axes.iter().enumerate().rev() {
                     let levels = &mut level_index[i];
-                    if axis.values.is_empty()
-                        || axis_index.insert(axis.variable, i).is_some()
-                        || axis.values.iter().enumerate().any(|(index, v)| {
-                            !finite(v) || levels.insert(value_key(v), index).is_some()
-                        })
-                        || intervened.contains(&axis.variable)
-                    {
+                    if axis.values.is_empty() || axis_index.insert(axis.variable, i).is_some() {
+                        return Err(law.error("invalid_law_axis"));
+                    }
+                    for (index, value) in axis.values.iter().enumerate() {
+                        if index % 1024 == 0 {
+                            law.check_cancelled()?;
+                        }
+                        if !finite(value) || levels.insert(value_key(value), index).is_some() {
+                            return Err(law.error("invalid_law_axis"));
+                        }
+                    }
+                    if intervened.contains(&axis.variable) {
                         return Err(law.error("invalid_law_axis"));
                     }
                     strides[i] = size;
@@ -306,10 +311,20 @@ impl ExactDiscreteLaw {
                 if size != law.probabilities.len() {
                     return Err(law.error("incomplete_law_domain"));
                 }
-                if law.probabilities.iter().any(|p| !p.is_finite() || *p < 0.0 || *p > 1.0) {
-                    return Err(law.error("invalid_law_probability"));
+                for chunk in law.probabilities.chunks(1024) {
+                    law.check_cancelled()?;
+                    if chunk.iter().any(|p| !p.is_finite() || *p < 0.0 || *p > 1.0) {
+                        return Err(law.error("invalid_law_probability"));
+                    }
                 }
-                if !tolerance.unit_mass(sum(law.probabilities.iter().copied())) {
+                let mut mass = CompensatedSum::default();
+                for chunk in law.probabilities.chunks(1024) {
+                    law.check_cancelled()?;
+                    for &probability in chunk {
+                        mass.add(probability);
+                    }
+                }
+                if !tolerance.unit_mass(mass.total()) {
                     return Err(law.error("unnormalized_law"));
                 }
                 law.strides = strides.into();
@@ -453,6 +468,42 @@ impl ExactDiscreteLaw {
             &[descriptor.as_bytes(), &probabilities],
         )
     }
+    /// The fallible constructor path checks cancellation while encoding the same bytes as
+    /// `content_identity`; the public infallible identity method remains unchanged.
+    fn content_identity_checked(
+        &self,
+    ) -> Result<antecedent_core::recalc::StageIdentity, ExactLawError> {
+        self.check_cancelled()?;
+        let descriptor = format!(
+            "{}:{:?}:{:?}:{:?}:{}:{:?}:{:?}:{:?}",
+            self.population,
+            self.regime,
+            self.interventions,
+            self.axes,
+            self.snapshot_identity,
+            self.tolerance,
+            self.origin,
+            self.empirical_counts
+        );
+        let mut probabilities = Vec::new();
+        for chunk in self.probabilities.chunks(1024) {
+            self.check_cancelled()?;
+            probabilities.extend(chunk.iter().flat_map(|value| value.to_bits().to_le_bytes()));
+        }
+        self.check_cancelled()?;
+        Ok(antecedent_core::recalc::StageIdentity::of(
+            "exact.law.content.v1",
+            &[descriptor.as_bytes(), &probabilities],
+        ))
+    }
+
+    fn check_cancelled(&self) -> Result<(), ExactLawError> {
+        if antecedent_core::numerical_admission::is_cancelled() {
+            return Err(self.error("cancelled"));
+        }
+        Ok(())
+    }
+
     /// Physical snapshot identity (not identification authority).
     #[must_use]
     pub fn snapshot_identity(&self) -> &str {
@@ -815,6 +866,7 @@ impl ExactTransportData {
         let mut domains = BTreeMap::<VariableId, Arc<[Value]>>::new();
         let mut domain_keys = HashMap::<VariableId, HashSet<Value>>::new();
         for (i, law) in laws.iter().enumerate() {
+            law.check_cancelled()?;
             if index
                 .insert(
                     world_binding(Arc::clone(&law.population), law.regime, &law.interventions),
@@ -825,23 +877,36 @@ impl ExactTransportData {
                 return Err(law.error("duplicate_law_binding"));
             }
             for axis in law.axes.iter() {
+                law.check_cancelled()?;
                 if let Some(other) = domains.get(&axis.variable) {
-                    if axis.values.len() != other.len()
-                        || !axis
-                            .values
-                            .iter()
-                            .all(|v| domain_keys[&axis.variable].contains(&value_key(v)))
-                    {
+                    if axis.values.len() != other.len() {
                         return Err(law.error("incompatible_law_domains"));
                     }
+                    for chunk in axis.values.chunks(1024) {
+                        law.check_cancelled()?;
+                        if !chunk
+                            .iter()
+                            .all(|v| domain_keys[&axis.variable].contains(&value_key(v)))
+                        {
+                            return Err(law.error("incompatible_law_domains"));
+                        }
+                    }
                 } else {
+                    let mut keys = HashSet::new();
+                    for chunk in axis.values.chunks(1024) {
+                        law.check_cancelled()?;
+                        keys.extend(chunk.iter().map(value_key));
+                    }
                     domains.insert(axis.variable, axis.values.clone());
-                    domain_keys.insert(axis.variable, axis.values.iter().map(value_key).collect());
+                    domain_keys.insert(axis.variable, keys);
                 }
             }
         }
-        let law_identities =
-            laws.iter().map(ExactDiscreteLaw::content_identity).collect::<Vec<_>>().into();
+        let law_identities = laws
+            .iter()
+            .map(ExactDiscreteLaw::content_identity_checked)
+            .collect::<Result<Vec<_>, _>>()?
+            .into();
         crate::execution_counts::note_static_work(
             crate::execution_counts::StaticWork::ProviderBinding,
         );
@@ -1163,6 +1228,26 @@ mod tests {
             LawTolerance::default(),
         )
     }
+    #[test]
+    fn inherited_cancellation_interrupts_law_validation_and_identity_encoding() {
+        let table = law("source", &[0.1, 0.2, 0.3, 0.4]).unwrap();
+        assert_eq!(table.content_identity_checked().unwrap(), table.content_identity());
+        let ctx = antecedent_core::ExecutionContext::for_tests(1);
+        ctx.cancellation.cancel();
+        let error = antecedent_core::numerical_admission::with_context(&ctx, || {
+            law("source", &[0.1, 0.2, 0.3, 0.4])
+        })
+        .unwrap_err();
+        assert_eq!(error.kind, "cancelled");
+        let ctx = antecedent_core::ExecutionContext::for_tests(1);
+        ctx.cancellation.cancel();
+        let error = antecedent_core::numerical_admission::with_context(&ctx, || {
+            table.content_identity_checked()
+        })
+        .unwrap_err();
+        assert_eq!(error.kind, "cancelled");
+    }
+
     #[test]
     fn validates_dense_law_without_repair() {
         for probabilities in [vec![1.0], vec![0.0; 4], vec![f64::NAN; 4], vec![-0.1, 0.3, 0.3, 0.5]]

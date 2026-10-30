@@ -62,7 +62,6 @@ pub mod cyclic_functional;
 pub mod cyclic_gaussian_functional;
 pub mod cyclic_gradient;
 pub mod cyclic_likelihood;
-pub mod external_cyclic_fit;
 mod cyclic_optim;
 mod design_compile;
 pub mod design_width;
@@ -75,6 +74,7 @@ pub(crate) mod envelope;
 pub mod error;
 pub mod estimator;
 pub mod experimental_fit;
+pub mod external_cyclic_fit;
 pub mod factorial_bernoulli;
 pub mod frontdoor;
 pub(crate) mod frontdoor_functional;
@@ -418,18 +418,18 @@ pub use response::{
 };
 pub use retarget::{
     DirectedAncestry, RetargetRefusal, RetargetResult, changes_target, check_depends_on,
-    exceedance_cdf_values, retarget, summarize_functional, summarize_functional_with, weighted_overlap_fields,
-    weighted_support_fields,
+    exceedance_cdf_values, retarget, summarize_functional, summarize_functional_with,
+    weighted_overlap_fields, weighted_support_fields,
 };
-pub use score_dependence::ScoreDependence;
 pub use sampling_weights::{RetainedSamplingWeights, SamplingWeightRecord, SamplingWeights};
+pub use score_dependence::ScoreDependence;
 pub use scores::{
     LinearContrast, ScoreColumn, ScoreInference, ScoreSummary, ScoreSupport, ScoreTable,
     ScoreTableWire, inference_from_influence_columns,
 };
 pub use se::AnalyticSeKind;
-pub use se::influence_se_under;
 pub use se::DEFAULT_RIDGE_ON_SEPARATION;
+pub use se::influence_se_under;
 pub use serial_dependence::{
     DEPENDENCE_ASSUMPTION_ID, DependenceScope, SerialDependence, tempering_capped_from_notes,
     tempering_inestimable_from_notes, tempering_kappa_from_notes, window_segments,
@@ -450,11 +450,10 @@ pub use statistical_transport::{
 };
 pub use temporal_adjustment::{
     GapSelection, NestedDirectFitMoments, TemporalConditionalFit, TemporalDependenceSe,
-    TemporalDesignInputs,
-    TemporalLinearAdjustment, TemporalSlopeSpec, is_temporal_coefficient_name,
-    nested_direct_fit_moments, temporal_coefficient_names, temporal_conditional_marginal_effect,
-    temporal_conditional_marginal_effect_with_gaps, temporal_conditional_marginal_fit,
-    temporal_linear_slopes,
+    TemporalDesignInputs, TemporalLinearAdjustment, TemporalSlopeSpec,
+    is_temporal_coefficient_name, nested_direct_fit_moments, temporal_coefficient_names,
+    temporal_conditional_marginal_effect, temporal_conditional_marginal_effect_with_gaps,
+    temporal_conditional_marginal_fit, temporal_linear_slopes,
 };
 pub use temporal_block::{
     AlignedRows, BlockBootstrap, CircularBlockFamily, GappedAlignedRows, RowBlockDraws,
@@ -518,3 +517,13 @@ pub mod rollout_resampling;
 pub mod adjustment_resume;
 pub mod measurement_transport;
 pub mod measurement_transport_pooled;
+
+#[cfg(test)]
+#[path = "../../antecedent-identify/tests/support/counterfactual_transport_adapter.rs"]
+mod counterfactual_transport_adapter;
+#[cfg(test)]
+#[path = "../../antecedent-identify/tests/support/counterfactual_transport_cases.rs"]
+mod counterfactual_transport_cases;
+#[cfg(test)]
+#[path = "../../antecedent-identify/tests/support/finite_scm_oracle.rs"]
+mod finite_scm_oracle;

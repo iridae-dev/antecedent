@@ -315,6 +315,77 @@ pub struct SampledCounterfactualTransportEstimate {
     pub inference: SampledInference,
 }
 
+// A single checked allowance for point preparation, engine work and gradients.
+pub(crate) struct SampledWork<'a> {
+    remaining: usize,
+    ctx: &'a ExecutionContext,
+}
+
+impl SampledWork<'_> {
+    fn charge(&mut self, amount: usize) -> Result<(), EstimationError> {
+        if self.ctx.cancellation.is_cancelled() || amount == usize::MAX || amount > self.remaining {
+            return Err(refused(
+                antecedent_core::reason_code!("transport_budget_cancel"),
+                "counterfactual_transport.budget",
+                "the sampled evaluation operation budget is exhausted or cancelled",
+            ));
+        }
+        self.remaining -= amount;
+        Ok(())
+    }
+}
+
+// Conservative precharge for external provider constructors and catalog/view
+// validation. Constructors do not expose per-row metering, so their scans are
+// charged before entering them. Saturation always refuses through `charge`.
+fn table_work(table: &SampledRegimeCounts) -> usize {
+    let mut units = table
+        .counts()
+        .len()
+        .saturating_mul(12)
+        .saturating_add(table.interventions().len().saturating_mul(64))
+        .saturating_add(table.population().len())
+        .saturating_add(table.snapshot_identity().len())
+        .saturating_add(table.structural_zeros().len().saturating_mul(4))
+        .saturating_add(32);
+    for axis in table.axes() {
+        units = units.saturating_add(axis.levels.len().saturating_mul(64)).saturating_add(8);
+    }
+    units
+}
+
+fn provider_work(
+    derivation: &CounterfactualTransportDerivation,
+    table: &SampledRegimeCounts,
+) -> usize {
+    let catalog = &derivation.catalog;
+    let coordinates =
+        catalog.environments.iter().fold(0usize, |n, e| n.saturating_add(e.variables.len()));
+    let regimes = catalog.regimes.iter().fold(0usize, |n, r| {
+        n.saturating_add(r.measured.len())
+            .saturating_add(r.interventions.len())
+            .saturating_add(r.intervention_values.len())
+            .saturating_add(1)
+    });
+    let dimensions = regimes
+        .saturating_add(coordinates)
+        .saturating_add(catalog.bindings.len())
+        .saturating_add(derivation.items.len())
+        .saturating_add(1);
+    let mut units = table_work(table).saturating_mul(dimensions);
+    for axis in table.axes() {
+        let levels = axis.levels.len();
+        // Domain validation may compare every declared level with every axis value.
+        units = units.saturating_add(
+            coordinates.saturating_mul(levels.saturating_mul(levels).saturating_add(1)),
+        );
+        units = units.saturating_add(
+            derivation.items.len().saturating_mul(levels.saturating_mul(levels).saturating_add(1)),
+        );
+    }
+    units
+}
+
 /// Evaluate the stored derivation on laws built from counts and return the
 /// value with the point-evaluation parts.
 pub(crate) fn evaluate_detailed(
@@ -324,14 +395,22 @@ pub(crate) fn evaluate_detailed(
     flavors: &[LawFlavor],
     limits: &SampledTransportLimits,
     ctx: &ExecutionContext,
+    work: &mut SampledWork<'_>,
 ) -> Result<(CounterfactualTransportPoint, EvaluationRepairs), EstimationError> {
-    let mut laws = Vec::with_capacity(tables.len());
-    for ((table, p), flavor) in tables.iter().zip(probabilities).zip(flavors) {
-        laws.push(law_of(table, p, *flavor)?);
-    }
-    let data = ExactTransportData::try_new(laws, SAMPLED_TRANSPORT_MAX_TABLE_CELLS)
-        .map_err(|e| invalid_counts(format!("the estimated laws are not a provider set: {e}")))?;
-    evaluate_estimated_tables(derivation, &data, limits.evaluation, ctx)
+    antecedent_core::numerical_admission::with_context(ctx, || {
+        let mut laws = Vec::with_capacity(tables.len());
+        for ((table, p), flavor) in tables.iter().zip(probabilities).zip(flavors) {
+            work.charge(provider_work(derivation, table))?;
+            laws.push(law_of(table, p, *flavor)?);
+        }
+        let data = ExactTransportData::try_new(laws, SAMPLED_TRANSPORT_MAX_TABLE_CELLS)
+            .map_err(|e| counts::map_law_error(e, "the estimated laws are not a provider set"))?;
+        let mut evaluation = limits.evaluation;
+        evaluation.operations = work.remaining;
+        let (point, repairs) = evaluate_estimated_tables(derivation, &data, evaluation, ctx)?;
+        work.charge(usize::try_from(repairs.operations).unwrap_or(usize::MAX))?;
+        Ok((point, repairs))
+    })
 }
 
 /// The probability of the stored derivation on the given estimated tables.
@@ -343,7 +422,8 @@ pub(crate) fn evaluate_probability(
     limits: &SampledTransportLimits,
     ctx: &ExecutionContext,
 ) -> Result<f64, EstimationError> {
-    evaluate_detailed(derivation, tables, probabilities, flavors, limits, ctx)
+    let mut work = SampledWork { remaining: limits.evaluation.operations, ctx };
+    evaluate_detailed(derivation, tables, probabilities, flavors, limits, ctx, &mut work)
         .map(|(point, _)| point.probability)
 }
 
@@ -422,8 +502,26 @@ pub fn estimate_sampled_counterfactual_transport(
         ));
     }
     validate_request(request)?;
+    let mut work = SampledWork { remaining: request.limits.evaluation.operations, ctx };
+    // Precharge each table before cloning or hashing it; cached keys avoid
+    // re-hashing all counts during comparison sort.
+    for table in &request.tables {
+        work.charge(table_work(table).saturating_mul(
+            request.tables.len().saturating_add(derivation.cited.len()).saturating_add(2),
+        ))?;
+    }
+    // Every declared pair is scanned by overlap resolution for each table
+    // pair, and is later encoded in the evidence identity.
+    let table_pairs = request.tables.len().saturating_mul(request.tables.len());
+    for pair in request.overlap.pairs() {
+        let key_work = [&pair.a, &pair.b].iter().fold(1usize, |n, key| {
+            n.saturating_add(key.population.len())
+                .saturating_add(key.interventions.len().saturating_mul(2))
+        });
+        work.charge(key_work.saturating_mul(table_pairs.saturating_add(2)))?;
+    }
     let mut tables: Vec<SampledRegimeCounts> = request.tables.clone();
-    tables.sort_by_key(|a| (a.key(), a.content_identity()));
+    tables.sort_by_cached_key(|a| (a.key(), a.content_identity()));
     if tables.windows(2).any(|w| w[0].key() == w[1].key()) {
         return Err(invalid_counts(
             "two count tables name one population, regime and intervention world",
@@ -485,8 +583,15 @@ pub fn estimate_sampled_counterfactual_transport(
     let mut point_withheld_reason: Option<&'static str> = None;
     let mut cells_read = 0u64;
     let mut envelope: Option<StructuralEnvelope> = None;
-    let evaluated =
-        evaluate_detailed(derivation, &tables, &probabilities, &flavors, &request.limits, ctx);
+    let evaluated = evaluate_detailed(
+        derivation,
+        &tables,
+        &probabilities,
+        &flavors,
+        &request.limits,
+        ctx,
+        &mut work,
+    );
     match (evaluated, envelope_mass) {
         (Ok((value, applied)), _) => {
             repairs = SampledRepairs {
@@ -534,6 +639,7 @@ pub fn estimate_sampled_counterfactual_transport(
             &groups,
             &request.limits,
             ctx,
+            &mut work,
         )? {
             DeltaOutcome::Computed { standard_error, evaluations } => (
                 Some(UncalibratedStandardError {
@@ -684,3 +790,7 @@ pub fn cited_identities(
 pub fn default_evaluation_limits() -> ExactEvaluationLimits {
     ExactEvaluationLimits::default()
 }
+
+#[cfg(test)]
+#[path = "counterfactual_transport_sampled/budget_tests.rs"]
+mod budget_tests;

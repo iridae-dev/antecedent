@@ -635,7 +635,14 @@ fn malformed_count_tables_are_refused_at_construction() {
         Ok(_) => panic!("a malformed table was accepted"),
     };
     let message = construction_error(parts(counts[1..].to_vec(), vec![]));
-    assert!(message.contains(&format!("the table has {} cells but {} counts", counts.len(), counts.len() - 1)), "{message}");
+    assert!(
+        message.contains(&format!(
+            "the table has {} cells but {} counts",
+            counts.len(),
+            counts.len() - 1
+        )),
+        "{message}"
+    );
     let message = construction_error(parts(vec![0; counts.len()], vec![]));
     assert!(message.contains("no observations carries no evidence"), "{message}");
     let observed = counts.iter().position(|c| *c > 0).unwrap();
@@ -654,7 +661,10 @@ fn malformed_count_tables_are_refused_at_construction() {
     bad.design =
         SamplingDesign::Stratified { variables: vec![antecedent_core::VariableId::from_raw(999)] };
     let message = construction_error(bad);
-    assert!(message.contains("stratification variables are distinct measured variables"), "{message}");
+    assert!(
+        message.contains("stratification variables are distinct measured variables"),
+        "{message}"
+    );
 }
 
 #[test]
@@ -1090,18 +1100,143 @@ fn delta_standard_error_and_clamped_wald_interval_equal_the_multiprecision_refer
         let result = estimate(&derivation, tables, UnseenCellRule::Refuse).unwrap();
         let want_point = reference["point"].as_f64().unwrap();
         let want_se = reference["se"].as_f64().unwrap();
-        assert!((point(&result) - want_point).abs() <= 1e-12, "{name} point {} vs {want_point}", point(&result));
+        assert!(
+            (point(&result) - want_point).abs() <= 1e-12,
+            "{name} point {} vs {want_point}",
+            point(&result)
+        );
         let se = result.inference.standard_error.as_ref().unwrap().value;
         assert!((se - want_se).abs() <= 1e-6 * want_se, "{name} se {se} vs {want_se}");
         let interval = sampled_transport_interval(&derivation, &result, 0.95).unwrap();
-        let (lower, upper) = (reference["lower"].as_f64().unwrap(), reference["upper"].as_f64().unwrap());
-        assert!((interval.lower - lower).abs() <= 1e-6 * want_se.max(1e-3), "{name} lower {} vs {lower}", interval.lower);
-        assert!((interval.upper - upper).abs() <= 1e-6 * want_se.max(1e-3), "{name} upper {} vs {upper}", interval.upper);
+        let (lower, upper) =
+            (reference["lower"].as_f64().unwrap(), reference["upper"].as_f64().unwrap());
+        assert!(
+            (interval.lower - lower).abs() <= 1e-6 * want_se.max(1e-3),
+            "{name} lower {} vs {lower}",
+            interval.lower
+        );
+        assert!(
+            (interval.upper - upper).abs() <= 1e-6 * want_se.max(1e-3),
+            "{name} upper {} vs {upper}",
+            interval.upper
+        );
         assert!(interval.lower >= 0.0 && interval.upper <= 1.0);
         clamped.0 |= reference["lower_clamped"].as_bool().unwrap() && interval.lower == 0.0;
         clamped.1 |= reference["upper_clamped"].as_bool().unwrap() && interval.upper == 1.0;
         // Only the measured level is reported.
-        assert_eq!(sampled_transport_interval(&derivation, &result, 0.9).unwrap_err(), "level_not_measured");
+        assert_eq!(
+            sampled_transport_interval(&derivation, &result, 0.9).unwrap_err(),
+            "level_not_measured"
+        );
     }
     assert_eq!(clamped, (true, true), "both clamps are exercised");
+}
+
+#[test]
+fn sampled_point_and_gradient_share_the_declared_operation_budget() {
+    let case = chain_case();
+    let data = laws_of(&case);
+    let derivation = derive(&case, &case.targets[0]);
+    let mut rng = Rng(404);
+    let tables = cited_only(&derivation, &sample_laws(&data, 20_000, &mut rng));
+    let ctx = ExecutionContext::for_tests(7);
+    let mut req = request(tables, UnseenCellRule::Refuse);
+    let baseline = estimate_sampled_counterfactual_transport(&derivation, &req, &ctx).unwrap();
+    assert!(baseline.inference.standard_error.is_some());
+    req.limits.evaluation.operations = 20_000;
+    let error = estimate_sampled_counterfactual_transport(&derivation, &req, &ctx).unwrap_err();
+    let (code, detail) = refusal(&error);
+    assert_eq!(code, "transport_budget_cancel");
+    assert!(detail.contains("counterfactual_transport.budget"));
+
+    // Find the exact allowance required by the complete point and gradient.
+    // The boundary must be inclusive and the fitted value invariant there.
+    let mut low = 20_000usize;
+    let mut high = SampledTransportLimits::default().evaluation.operations;
+    while low + 1 < high {
+        let middle = low + (high - low) / 2;
+        req.limits.evaluation.operations = middle;
+        if estimate_sampled_counterfactual_transport(&derivation, &req, &ctx).is_ok() {
+            high = middle;
+        } else {
+            low = middle;
+        }
+    }
+    req.limits.evaluation.operations = high - 1;
+    assert_eq!(
+        refusal(&estimate_sampled_counterfactual_transport(&derivation, &req, &ctx).unwrap_err()).0,
+        "transport_budget_cancel"
+    );
+    req.limits.evaluation.operations = high;
+    let boundary = estimate_sampled_counterfactual_transport(&derivation, &req, &ctx).unwrap();
+    assert_eq!(point(&boundary).to_bits(), point(&baseline).to_bits());
+    assert_eq!(
+        boundary.inference.standard_error.unwrap().value.to_bits(),
+        baseline.inference.standard_error.unwrap().value.to_bits()
+    );
+}
+
+#[test]
+fn sampled_multitable_gradient_matches_independent_count_perturbations() {
+    let case = case_named("joint_counterfactual_two_source_regimes");
+    let data = laws_of(&case);
+    let derivation = derive(&case, &case.targets[0]);
+    let mut rng = Rng(5);
+    let mut tables = cited_only(&derivation, &sample_laws(&data, 20_000, &mut rng));
+    assert!(tables.len() >= 3);
+    let replace_counts = |table: &SampledRegimeCounts, counts: Vec<u64>| {
+        SampledRegimeCounts::try_new(SampledRegimeCountsParts {
+            population: Arc::from(table.population()),
+            regime: table.regime(),
+            interventions: table.interventions().to_vec(),
+            axes: table.axes().to_vec(),
+            counts,
+            snapshot_identity: Arc::from(table.snapshot_identity()),
+            design: table.design().clone(),
+            structural_zeros: table.structural_zeros().to_vec(),
+        })
+        .unwrap()
+    };
+    for table in &mut tables {
+        *table = replace_counts(table, table.counts().iter().map(|c| c * 1_000).collect());
+    }
+    let result = estimate(&derivation, tables.clone(), UnseenCellRule::Refuse).unwrap();
+    let expected_se = result.inference.standard_error.unwrap().value;
+    let mut variance = 0.0;
+    const STEP: u64 = 100;
+    for (index, table) in tables.iter().enumerate() {
+        let total = table.total() as f64;
+        let mut first = 0.0;
+        let mut second = 0.0;
+        for (cell, &count) in table.counts().iter().enumerate() {
+            if count == 0 {
+                continue;
+            }
+            assert!(count > STEP);
+            let mut values = [0.0; 2];
+            for (slot, increase) in [true, false].iter().enumerate() {
+                let mut perturbed = tables.clone();
+                let mut counts = table.counts().to_vec();
+                if *increase {
+                    counts[cell] += STEP;
+                } else {
+                    counts[cell] -= STEP;
+                }
+                perturbed[index] = replace_counts(table, counts);
+                values[slot] =
+                    point(&estimate(&derivation, perturbed, UnseenCellRule::Refuse).unwrap());
+            }
+            let gradient = (values[0] - values[1]) / (2.0 * STEP as f64 / total);
+            let probability = count as f64 / total;
+            first += probability * gradient;
+            second += probability * gradient * gradient;
+        }
+        variance += (second - first * first) / total;
+    }
+    let independently_differenced = variance.max(0.0).sqrt();
+    assert!(expected_se > 0.0);
+    assert!(
+        (expected_se - independently_differenced).abs() <= 1e-3 * expected_se,
+        "{expected_se} vs {independently_differenced}"
+    );
 }

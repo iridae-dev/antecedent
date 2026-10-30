@@ -151,6 +151,8 @@ pub(crate) struct EvaluationRepairs {
     pub(crate) complements_clamped: u64,
     /// Whether the final probability left `[0, 1]` beyond tolerance and was clamped.
     pub(crate) probability_clamped: bool,
+    /// Engine operations used by this evaluation (private accounting only).
+    pub(crate) operations: u64,
 }
 
 struct LawView<'a> {
@@ -181,7 +183,10 @@ struct Engine<'a> {
 
 impl Engine<'_> {
     fn tick(&mut self) -> Result<(), Failure> {
-        self.work += 1;
+        self.work = self
+            .work
+            .checked_add(1)
+            .ok_or(Failure::Budget("the exact evaluation operation budget is exhausted"))?;
         if self.work > self.limit {
             return Err(Failure::Budget("the exact evaluation operation budget is exhausted"));
         }
@@ -787,6 +792,7 @@ fn evaluate_with_policy(
             b.content_identity.as_str(),
         ))
     });
+    engine.repairs.operations = engine.work;
     let repairs = engine.repairs;
     Ok((
         CounterfactualTransportPoint {
