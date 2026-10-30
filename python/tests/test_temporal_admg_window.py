@@ -2,9 +2,9 @@
 
 The compiler unrolls the template over the periods the policy needs, identifies the contrast on
 that window (the complete ID algorithm, IDC for a conditional contrast) and evaluates the
-identified functional on the lag-aligned window table. The cell executes unlicensed: the support
-slot reports ``refused``, the result discloses the window, and the expected values below are
-counted from the series, not taken from the engine.
+identified functional on the lag-aligned window table. The cell is licensed (the support slot
+reports ``licensed``, its known truth is the temporal window fixture), the result discloses the
+window, and the expected values below are counted from the series, not taken from the engine.
 """
 
 from __future__ import annotations
@@ -89,9 +89,9 @@ def test_a_pulse_is_the_counted_contrast_and_stays_unlicensed() -> None:
     assert abs(result.ate - _counted_conditional(series)) < 1e-12
     assert abs(result.ate - _counted_unadjusted(series)) > 1e-3
     support = result.reasoning.support.payload
-    assert support["matrix_status"] == "refused"
+    assert support["matrix_status"] == "licensed"
     assert str(support["matrix_coordinate"]).startswith("PulseEffect:TemporalAdmg")
-    assert result.evidence_status is None
+    assert result.evidence_status == "licensed"
     assert _discloses(result)
 
 

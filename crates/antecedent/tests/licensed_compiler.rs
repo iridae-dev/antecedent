@@ -1288,12 +1288,231 @@ where
     if accepted { builder.graph(graph.into()) } else { builder.graph(graph) }
 }
 
+/// Cells that read the unrolled window of a stationary template (the temporal ADMG contrasts and
+/// mediation, and the temporal PAG mediation) run on the exact-law series of the temporal window
+/// fixture: the same series, templates and atoms the known-truth tests use.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one setup builds the series, the template or the posterior of every window cell"
+)]
+fn temporal_window_setup(cell: antecedent::SupportCell) -> Option<Result<CellSetup, String>> {
+    use antecedent_discovery::{LagMask, TemporalAdmgAtom, with_lagged_edge};
+    let class = cell.graph_class.as_str();
+    let name = cell.query.as_str();
+    let contrast = class == "TemporalAdmg"
+        && matches!(
+            name,
+            "PulseEffect" | "SustainedEffect" | "TemporalConditionalPulse" | "TemporalConditionalSustained"
+        );
+    let mediation =
+        name == "TemporalMediationEffect" && matches!(class, "TemporalAdmg" | "TemporalPag");
+    if !(contrast || mediation) {
+        return None;
+    }
+    let pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/estimate/temporal_window_truth/expected.json"
+    ))
+    .expect("temporal window fixture");
+    let expected = cell_coordinate(cell);
+    let series = |section: &str, names: &[&str]| -> TimeSeriesData {
+        let states: Vec<u32> = pin[section]["series"]
+            .as_str()
+            .unwrap()
+            .chars()
+            .map(|c| "0123456789abcdefghijklmnopqrstuv".find(c).unwrap() as u32)
+            .collect();
+        let columns: Vec<Vec<f64>> = (0..names.len())
+            .map(|bit| states.iter().map(|state| f64::from((state >> bit) & 1)).collect())
+            .collect();
+        TimeSeriesData::from_f64_columns(
+            names.iter().zip(&columns).map(|(n, c)| (*n, c.as_slice())),
+            1,
+        )
+        .unwrap()
+    };
+    let lag = Lag::from_raw(1);
+    let now = Lag::CONTEMPORANEOUS;
+    let lagged = |entries: &[(usize, usize)], n: usize| {
+        entries.iter().fold(LagMask::EMPTY, |word, &(from, to)| {
+            with_lagged_edge(word, n, 1, from, to, true).unwrap()
+        })
+    };
+    let contemporaneous = |edges: &[(usize, usize)], n: usize| {
+        edges.iter().fold(AdjacencyMask::EMPTY, |mask, &(from, to)| set_edge(mask, n, from, to, true))
+    };
+    let posterior = |weights: Vec<f64>,
+                     atoms: Vec<TemporalAdmgAtom>,
+                     n: usize,
+                     kind: GraphPosteriorAtomKind| {
+        let gp = GraphPosterior::from_atoms(
+            n,
+            weights,
+            atoms.iter().map(|atom| atom.contemporaneous.clone()),
+            vec![0.0; n * n],
+            vec![0.0; n * n],
+            SamplingSummary {
+                ess: 1.0,
+                diagnostics: InferenceDiagnostics::analytic("licensed-compiler-temporal-window"),
+                rejected_invalid: 0,
+            },
+        )
+        .unwrap()
+        .with_atom_kind(kind)
+        .with_lagged_marginals(1, vec![0.0; n * n])
+        .unwrap()
+        .with_lag_masks(atoms.iter().map(|atom| atom.lagged_directed.clone()).collect::<Vec<_>>())
+        .unwrap();
+        if matches!(kind, GraphPosteriorAtomKind::TemporalAdmg) {
+            gp.with_lag_bidirected_masks(
+                atoms.iter().map(|atom| atom.lagged_bidirected.clone()).collect::<Vec<_>>(),
+            )
+            .unwrap()
+        } else {
+            gp
+        }
+    };
+    let (data, causal_query) = if contrast {
+        let base = TemporalEffectQuery::pulse(vid(0), vid(1), 1.0).with_horizon_steps(2);
+        let query = match name {
+            "PulseEffect" => base,
+            "SustainedEffect" => base.with_policy(TemporalPolicy::sustained(0, 1)),
+            "TemporalConditionalPulse" => base.with_effect_modifiers([vid(2)]),
+            _ => base.with_policy(TemporalPolicy::sustained(0, 1)).with_effect_modifiers([vid(2)]),
+        };
+        (series("contrast", &["x", "y", "w"]), CausalQuery::TemporalEffect(query))
+    } else {
+        (
+            series("mediation", &["c", "x", "w", "m", "y"]),
+            CausalQuery::Mediation(MediationQuery::binary(
+                vid(1),
+                vid(4),
+                [vid(3)],
+                MediationContrast::NaturalIndirect,
+            )),
+        )
+    };
+    let builder = Study::series(data.clone())
+        .query(causal_query)
+        .refute(refute_of(cell.validation.as_str()))
+        .inference(inference_of(cell.inference.as_str()))
+        .bootstrap_replicates(0);
+    let accepted = cell.structure.as_str() == "accepted";
+    let builder = match cell.structure.as_str() {
+        "graph_posterior" => {
+            let gp = if contrast {
+                let generating = TemporalAdmgAtom {
+                    contemporaneous: contemporaneous(&[(0, 1), (2, 1)], 3),
+                    lagged_directed: lagged(&[(1, 1)], 3),
+                    lagged_bidirected: LagMask::EMPTY,
+                };
+                let no_effect = TemporalAdmgAtom {
+                    contemporaneous: contemporaneous(&[(2, 1)], 3),
+                    lagged_directed: lagged(&[(1, 1)], 3),
+                    lagged_bidirected: LagMask::EMPTY,
+                };
+                let bow = TemporalAdmgAtom {
+                    contemporaneous: contemporaneous(&[(0, 1), (2, 1)], 3),
+                    lagged_directed: lagged(&[(1, 1), (0, 1)], 3),
+                    lagged_bidirected: lagged(&[(0, 1)], 3),
+                };
+                posterior(
+                    vec![0.5, 0.3, 0.2],
+                    vec![generating, no_effect, bow],
+                    3,
+                    GraphPosteriorAtomKind::TemporalAdmg,
+                )
+            } else if class == "TemporalPag" {
+                let edges = [(1, 3), (2, 3), (3, 4), (1, 4)];
+                let visible = TemporalAdmgAtom {
+                    contemporaneous: contemporaneous(&edges, 5),
+                    lagged_directed: lagged(&[(0, 1)], 5),
+                    lagged_bidirected: LagMask::EMPTY,
+                };
+                let invisible = TemporalAdmgAtom {
+                    contemporaneous: contemporaneous(&edges, 5),
+                    lagged_directed: LagMask::EMPTY,
+                    lagged_bidirected: LagMask::EMPTY,
+                };
+                posterior(
+                    vec![0.7, 0.3],
+                    vec![visible, invisible],
+                    5,
+                    GraphPosteriorAtomKind::Pag,
+                )
+            } else {
+                let edges = [(1, 3), (2, 3), (3, 4), (1, 4)];
+                let generating = TemporalAdmgAtom {
+                    contemporaneous: contemporaneous(&edges, 5),
+                    lagged_directed: lagged(&[(0, 1)], 5),
+                    lagged_bidirected: LagMask::EMPTY,
+                };
+                let inert = TemporalAdmgAtom {
+                    contemporaneous: contemporaneous(&[(1, 3), (2, 3), (1, 4)], 5),
+                    lagged_directed: lagged(&[(0, 1)], 5),
+                    lagged_bidirected: LagMask::EMPTY,
+                };
+                let latent = TemporalAdmgAtom {
+                    lagged_bidirected: lagged(&[(2, 3), (2, 4)], 5),
+                    ..generating.clone()
+                };
+                posterior(
+                    vec![0.5, 0.3, 0.2],
+                    vec![generating, inert, latent],
+                    5,
+                    GraphPosteriorAtomKind::TemporalAdmg,
+                )
+            };
+            builder.graph_posterior(gp)
+        }
+        "explicit" | "accepted" => {
+            if contrast {
+                let mut g = TemporalAdmg::empty();
+                let y1 = g.add_lagged(vid(1), lag).unwrap();
+                let x0 = g.add_lagged(vid(0), now).unwrap();
+                let w0 = g.add_lagged(vid(2), now).unwrap();
+                let y0 = g.add_lagged(vid(1), now).unwrap();
+                for (from, to) in [(y1, y0), (w0, y0), (x0, y0)] {
+                    g.insert_directed(from, to).unwrap();
+                }
+                bind_graph(builder, g, accepted)
+            } else if class == "TemporalAdmg" {
+                let mut g = TemporalAdmg::empty();
+                let c1 = g.add_lagged(vid(0), lag).unwrap();
+                let x0 = g.add_lagged(vid(1), now).unwrap();
+                let w0 = g.add_lagged(vid(2), now).unwrap();
+                let m0 = g.add_lagged(vid(3), now).unwrap();
+                let y0 = g.add_lagged(vid(4), now).unwrap();
+                for (from, to) in [(c1, x0), (x0, m0), (w0, m0), (m0, y0), (x0, y0)] {
+                    g.insert_directed(from, to).unwrap();
+                }
+                bind_graph(builder, g, accepted)
+            } else {
+                let mut g = TemporalPag::empty();
+                let c1 = g.add_lagged(vid(0), lag).unwrap();
+                let x0 = g.add_lagged(vid(1), now).unwrap();
+                let w0 = g.add_lagged(vid(2), now).unwrap();
+                let m0 = g.add_lagged(vid(3), now).unwrap();
+                let y0 = g.add_lagged(vid(4), now).unwrap();
+                for (from, to) in [(c1, x0), (x0, m0), (w0, m0), (m0, y0), (x0, y0)] {
+                    g.insert_directed(from, to).unwrap();
+                }
+                bind_graph(builder, g, accepted)
+            }
+        }
+        other => return Some(Err(format!("{expected}: unhandled structure {other}"))),
+    };
+    Some(Ok(CellSetup { expected, builder, data: CellData::Series(data) }))
+}
+
 #[allow(
     clippy::too_many_lines,
     reason = "one arm per support-matrix cell maps the cell to its builder setup"
 )]
 fn cell_setup(cell: antecedent::SupportCell) -> Result<CellSetup, String> {
     if let Some(setup) = cross_world_setup(cell) {
+        return setup;
+    }
+    if let Some(setup) = temporal_window_setup(cell) {
         return setup;
     }
     let expected = cell_coordinate(cell);
@@ -2013,7 +2232,7 @@ fn every_licensed_cell_inspects_as_a_first_class_contract() {
             failures.push(err);
         }
     }
-    assert_eq!(n, 2466, "licensed inventory drifted");
+    assert_eq!(n, 2696, "licensed inventory drifted");
     assert!(
         failures.is_empty(),
         "{} licensed cells are not first-class on inspect:\n{}",
@@ -2086,7 +2305,7 @@ fn every_licensed_cell_completes_the_compiler_path() {
     if let Ok(scratch) = std::env::var("SCRATCH_ROUTES") {
         std::fs::write(scratch, render_routes(&routes)).unwrap();
     }
-    assert_eq!(n, 2466, "licensed inventory drifted");
+    assert_eq!(n, 2696, "licensed inventory drifted");
     assert!(
         failures.is_empty(),
         "{} licensed cells did not finish inspect→preview→execute→claim→consume:\n{}",
@@ -2219,7 +2438,7 @@ fn diagnostic_registry_closure_after_builder_and_study_drop() {
         not_inspectable.len(),
         not_inspectable.join("\n")
     );
-    assert_eq!(count, 2466, "licensed support inventory drifted");
+    assert_eq!(count, 2696, "licensed support inventory drifted");
 }
 
 /// Probe for the separately licensed alternate estimators. It keeps

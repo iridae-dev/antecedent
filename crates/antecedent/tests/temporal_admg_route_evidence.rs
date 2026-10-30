@@ -850,8 +850,8 @@ fn repeated_variable_temporal_admg_is_refused() {
 #[test]
 fn temporal_admg_temporal_contrasts_are_typed_boundaries() {
     // A pulse, sustained or temporal conditional contrast on a TemporalAdmg executes on its
-    // unrolled window but is never licensed (the `window_contrast` tests run it), while the
-    // contemporaneous projection is licensed. Temporal mediation stays a refusal.
+    // unrolled window and is licensed with the temporal mediation on that window (known truth in
+    // `temporal_window_route_evidence`), as the contemporaneous projection is.
     let mediation = antecedent::support::classify(
         SupportCell::from_labels(
             "TemporalMediationEffect",
@@ -862,7 +862,7 @@ fn temporal_admg_temporal_contrasts_are_typed_boundaries() {
         )
         .expect("support axis"),
     );
-    assert!(matches!(mediation, CellStatus::Refused), "{mediation:?}");
+    assert!(matches!(mediation, CellStatus::Licensed), "{mediation:?}");
     for query in ["PulseEffect", "SustainedEffect", "TemporalConditionalPulse"] {
         for structure in ["explicit", "accepted"] {
             for inference in ["Frequentist", "Bayesian"] {
@@ -871,8 +871,8 @@ fn temporal_admg_temporal_contrasts_are_typed_boundaries() {
                         .expect("support axis"),
                 );
                 assert!(
-                    matches!(status, CellStatus::Refused),
-                    "{query}:{structure}:{inference} must stay a typed refusal: {status:?}"
+                    matches!(status, CellStatus::Licensed),
+                    "{query}:{structure}:{inference} is licensed on its window: {status:?}"
                 );
             }
         }
@@ -1075,8 +1075,9 @@ fn temporal_admg_projection_resamples_blocks_of_the_series() {
 
 /// Pulse, sustained and conditional contrasts on one series under a `TemporalAdmg`: the template
 /// is unrolled over the periods the policy needs, the contrast is identified on that window, and
-/// the identified functional is evaluated on the lag-aligned window table. The cell executes
-/// unlicensed; the expected values below are counted from the series, not from the engine.
+/// the identified functional is evaluated on the lag-aligned window table. The cell is licensed
+/// (its known truth is the temporal window fixture); the expected values below are counted from
+/// the series, not from the engine.
 mod window_contrast {
     use antecedent::{BayesianConfig, CellStatus, InferenceMode, RefuteSuite, Study, StudyResult};
     use antecedent_core::{
@@ -1212,13 +1213,13 @@ mod window_contrast {
         let counted = counted_contrast(&x, &y, &w);
         assert!(counted > 0.2 && counted < 0.8, "{counted}");
         let built = study(&data, template(false), next_period(), InferenceMode::Frequentist, 0);
-        assert_eq!(built.support_status(), Some(CellStatus::Refused));
+        assert_eq!(built.support_status(), Some(CellStatus::Licensed));
         let ctx = ExecutionContext::for_tests(31_001);
         let plan = built.compile(&ctx).unwrap();
         assert_eq!(plan.lowered().unwrap().route(), "TemporalEffectAdmg");
         let result = built.run(&ctx).unwrap();
         assert!((result.effect() - counted).abs() < 1e-12, "{} vs {counted}", result.effect());
-        assert_eq!(result.support_status(), Some(CellStatus::Refused));
+        assert_eq!(result.support_status(), Some(CellStatus::Licensed));
         assert!(discloses(&result));
         assert_eq!(result.lowered_program_identity(), plan.lowered_program_identity());
         // The prepared handle freezes the identification and reproduces the point; the artifact
@@ -1318,7 +1319,7 @@ mod window_contrast {
         assert!((posterior.summaries.mean[column] - counted).abs() < 0.01, "{} vs {counted}", posterior.summaries.mean[column]);
         assert!(posterior.summaries.sd[column] > 0.0);
         assert!(discloses(&result));
-        assert_eq!(result.support_status(), Some(CellStatus::Refused));
+        assert_eq!(result.support_status(), Some(CellStatus::Licensed));
     }
 
     #[test]
@@ -1330,7 +1331,7 @@ mod window_contrast {
         let query = next_period().with_effect_modifiers([v(2)]);
         let ctx = ExecutionContext::for_tests(31_004);
         let built = study(&data, template(false), query, InferenceMode::Frequentist, 0);
-        assert_eq!(built.support_status(), Some(CellStatus::Refused));
+        assert_eq!(built.support_status(), Some(CellStatus::Licensed));
         let result = built.run(&ctx).unwrap();
         assert!((result.effect() - counted).abs() < 1e-12, "{} vs {counted}", result.effect());
         assert!(discloses(&result));
@@ -1466,7 +1467,7 @@ mod window_contrast {
                     InferenceMode::Frequentist
                 };
                 let built = study_with_suite(&data, next_period(), inference, suite);
-                assert_eq!(built.support_status(), Some(CellStatus::Refused));
+                assert_eq!(built.support_status(), Some(CellStatus::Licensed));
                 let ctx = ExecutionContext::for_tests(31_010);
                 let result = built.run(&ctx).unwrap();
                 assert_eq!(refuters(&result), expected, "bayesian={bayesian} suite={suite:?}");

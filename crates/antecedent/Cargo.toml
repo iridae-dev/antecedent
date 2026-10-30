@@ -1229,3 +1229,15 @@ path = "tests/cross_world_temporal_truth.rs"
 [[test]]
 name = "bayesian_static_mediation_conjugate_truth"
 path = "tests/bayesian_static_mediation_conjugate_truth.rs"
+
+[[test]]
+name = "temporal_window_route_evidence"
+path = "tests/temporal_window_route_evidence.rs"
+
+[[test]]
+name = "distribution_validation_route_evidence"
+path = "tests/distribution_validation_route_evidence.rs"
+
+[[test]]
+name = "functional_graph_posterior_mixture_truth"
+path = "tests/functional_graph_posterior_mixture_truth.rs"

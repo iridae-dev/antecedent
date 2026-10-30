@@ -198,13 +198,35 @@ fn tolerance(fixture: &Value, bayesian: bool) -> f64 {
 }
 
 #[allow(clippy::too_many_lines, reason = "one function walks a coordinate's full lifecycle")]
-fn verify_coordinate(coordinate: &str, class: &str, accepted: bool, bayesian: bool) {
+fn verify_coordinate(
+    coordinate: &str,
+    class: &str,
+    accepted: bool,
+    bayesian: bool,
+    validation: &str,
+) {
     let fixture = pin();
-    let case = case_of(&fixture, class);
+    // The validation states resample the table, so they run on the same law at 40 times the rows.
+    let case = &if validation == "none" {
+        case_of(&fixture, class).clone()
+    } else {
+        scaled(case_of(&fixture, class), 40)
+    };
     let data = expand(case);
     let query = query(case, &fixture, MediationContrast::NaturalDirect);
     let ctx = ExecutionContext::for_tests(2_129);
-    let builder = builder_for(class, accepted, case, base_study(&data, query.clone(), bayesian, 0));
+    let suite = match validation {
+        "none" => RefuteSuite::None,
+        "cheap" => RefuteSuite::Cheap,
+        "full" => RefuteSuite::Full,
+        other => panic!("unexpected validation {other}"),
+    };
+    let builder = builder_for(
+        class,
+        accepted,
+        case,
+        base_study(&data, query.clone(), bayesian, 0).refute(suite),
+    );
     let study = builder.clone().build().unwrap_or_else(|error| panic!("{coordinate}: {error}"));
     let mut prepared = study.prepare(&ctx).unwrap_or_else(|error| panic!("{coordinate}: {error}"));
     drop(builder);
@@ -257,6 +279,7 @@ fn verify_coordinate(coordinate: &str, class: &str, accepted: bool, bayesian: bo
         truth["total_effect"].as_f64().unwrap() - truth["natural_direct_effect"].as_f64().unwrap();
     let indirect = components.mediated.unwrap();
     assert!((indirect - imputed).abs() > 0.02, "{coordinate}: indirect imputed as total - direct");
+    assert_validation_states(coordinate, &result, truth, validation);
     if bayesian && class != "Pag" {
         assert!(result.posterior.is_some(), "{coordinate} posterior missing");
     } else if !bayesian {
@@ -389,22 +412,34 @@ fn a_mediator_outcome_confounder_refuses_the_decomposition_it_breaks() {
 
 #[test]
 fn mediation_admg_explicit_frequentist_none() {
-    verify_coordinate("MediationEffect:Admg:explicit:Frequentist:none", "Admg", false, false);
+    verify_coordinate(
+        "MediationEffect:Admg:explicit:Frequentist:none",
+        "Admg",
+        false,
+        false,
+        "none",
+    );
 }
 
 #[test]
 fn mediation_admg_explicit_bayesian_none() {
-    verify_coordinate("MediationEffect:Admg:explicit:Bayesian:none", "Admg", false, true);
+    verify_coordinate("MediationEffect:Admg:explicit:Bayesian:none", "Admg", false, true, "none");
 }
 
 #[test]
 fn mediation_admg_accepted_frequentist_none() {
-    verify_coordinate("MediationEffect:Admg:accepted:Frequentist:none", "Admg", true, false);
+    verify_coordinate(
+        "MediationEffect:Admg:accepted:Frequentist:none",
+        "Admg",
+        true,
+        false,
+        "none",
+    );
 }
 
 #[test]
 fn mediation_admg_accepted_bayesian_none() {
-    verify_coordinate("MediationEffect:Admg:accepted:Bayesian:none", "Admg", true, true);
+    verify_coordinate("MediationEffect:Admg:accepted:Bayesian:none", "Admg", true, true, "none");
 }
 
 #[test]
@@ -414,6 +449,7 @@ fn mediation_temporal_admg_explicit_frequentist_none() {
         "TemporalAdmg",
         false,
         false,
+        "none",
     );
 }
 
@@ -424,6 +460,7 @@ fn mediation_temporal_admg_explicit_bayesian_none() {
         "TemporalAdmg",
         false,
         true,
+        "none",
     );
 }
 
@@ -434,6 +471,7 @@ fn mediation_temporal_admg_accepted_frequentist_none() {
         "TemporalAdmg",
         true,
         false,
+        "none",
     );
 }
 
@@ -444,47 +482,60 @@ fn mediation_temporal_admg_accepted_bayesian_none() {
         "TemporalAdmg",
         true,
         true,
+        "none",
     );
 }
 
 #[test]
 fn mediation_cpdag_explicit_frequentist_none() {
-    verify_coordinate("MediationEffect:Cpdag:explicit:Frequentist:none", "Cpdag", false, false);
+    verify_coordinate(
+        "MediationEffect:Cpdag:explicit:Frequentist:none",
+        "Cpdag",
+        false,
+        false,
+        "none",
+    );
 }
 
 #[test]
 fn mediation_cpdag_explicit_bayesian_none() {
-    verify_coordinate("MediationEffect:Cpdag:explicit:Bayesian:none", "Cpdag", false, true);
+    verify_coordinate("MediationEffect:Cpdag:explicit:Bayesian:none", "Cpdag", false, true, "none");
 }
 
 #[test]
 fn mediation_cpdag_accepted_frequentist_none() {
-    verify_coordinate("MediationEffect:Cpdag:accepted:Frequentist:none", "Cpdag", true, false);
+    verify_coordinate(
+        "MediationEffect:Cpdag:accepted:Frequentist:none",
+        "Cpdag",
+        true,
+        false,
+        "none",
+    );
 }
 
 #[test]
 fn mediation_cpdag_accepted_bayesian_none() {
-    verify_coordinate("MediationEffect:Cpdag:accepted:Bayesian:none", "Cpdag", true, true);
+    verify_coordinate("MediationEffect:Cpdag:accepted:Bayesian:none", "Cpdag", true, true, "none");
 }
 
 #[test]
 fn mediation_pag_explicit_frequentist_none() {
-    verify_coordinate("MediationEffect:Pag:explicit:Frequentist:none", "Pag", false, false);
+    verify_coordinate("MediationEffect:Pag:explicit:Frequentist:none", "Pag", false, false, "none");
 }
 
 #[test]
 fn mediation_pag_explicit_bayesian_none() {
-    verify_coordinate("MediationEffect:Pag:explicit:Bayesian:none", "Pag", false, true);
+    verify_coordinate("MediationEffect:Pag:explicit:Bayesian:none", "Pag", false, true, "none");
 }
 
 #[test]
 fn mediation_pag_accepted_frequentist_none() {
-    verify_coordinate("MediationEffect:Pag:accepted:Frequentist:none", "Pag", true, false);
+    verify_coordinate("MediationEffect:Pag:accepted:Frequentist:none", "Pag", true, false, "none");
 }
 
 #[test]
 fn mediation_pag_accepted_bayesian_none() {
-    verify_coordinate("MediationEffect:Pag:accepted:Bayesian:none", "Pag", true, true);
+    verify_coordinate("MediationEffect:Pag:accepted:Bayesian:none", "Pag", true, true, "none");
 }
 
 /// A PAG whose ADMG candidates identify different functionals of the decomposition names one
@@ -530,4 +581,345 @@ fn a_pag_mediation_with_several_identified_functionals_runs_without_a_foreign_ar
         .unwrap();
     // The cells are independent in every stratum, so the direct effect is zero.
     assert!(result.effect().abs() < 0.05, "{}", result.effect());
+}
+
+/// The case's table with every count multiplied by `scale`, the same law on more rows.
+fn scaled(case: &Value, scale: u64) -> Value {
+    let mut case = case.clone();
+    for cell in case["contingency_table"].as_array_mut().unwrap() {
+        let count = cell["count"].as_u64().unwrap();
+        cell["count"] = Value::from(count * scale);
+    }
+    case
+}
+
+/// The mediation-native refuter states against the enumerated components: the mediator placebo
+/// leaves the total effect in both the total and the direct component and removes the indirect
+/// one, and every subset or bootstrap refit of a component returns that component. The
+/// sequential-ignorability grid is a diagnostic the reference does not assert.
+fn assert_validation_states(
+    coordinate: &str,
+    result: &antecedent::StudyResult,
+    truth: &Value,
+    validation: &str,
+) {
+    if validation == "none" {
+        assert!(result.refutations.is_empty(), "{coordinate}");
+        return;
+    }
+    let total = truth["total_effect"].as_f64().unwrap();
+    let direct = truth["natural_direct_effect"].as_f64().unwrap();
+    let indirect = truth["natural_indirect_effect"].as_f64().unwrap();
+    let names: Vec<&str> = result.refutations.iter().map(|r| r.refuter.as_ref()).collect();
+    for required in [
+        "mediation.placebo_mediator_total",
+        "mediation.placebo_mediator_indirect",
+        "mediation.subset_direct",
+        "mediation.joint_stability_subset",
+    ] {
+        assert!(names.contains(&required), "{coordinate}: {required} missing from {names:?}");
+    }
+    for report in &result.refutations {
+        let name = report.refuter.as_ref();
+        if name.contains("sequential_ignorability") {
+            continue;
+        }
+        assert!(report.passed, "{coordinate}: {name} {:?}", report.failure_condition);
+        let expected = if name.contains("placebo_mediator") {
+            if name.ends_with("indirect") { 0.0 } else { total }
+        } else if name.ends_with("indirect") {
+            indirect
+        } else if name.ends_with("total") {
+            total
+        } else if name.ends_with("direct") || name.contains("joint") {
+            direct
+        } else {
+            panic!("{coordinate}: no enumerated value for refuter {name}")
+        };
+        assert!(
+            (report.refuted_ate - expected).abs() < 0.03,
+            "{coordinate}: {name} {} vs {expected}",
+            report.refuted_ate
+        );
+    }
+}
+
+#[test]
+fn mediation_admg_explicit_frequentist_cheap() {
+    verify_coordinate(
+        "MediationEffect:Admg:explicit:Frequentist:cheap",
+        "Admg",
+        false,
+        false,
+        "cheap",
+    );
+}
+
+#[test]
+fn mediation_admg_explicit_frequentist_full() {
+    verify_coordinate(
+        "MediationEffect:Admg:explicit:Frequentist:full",
+        "Admg",
+        false,
+        false,
+        "full",
+    );
+}
+
+#[test]
+fn mediation_admg_explicit_bayesian_cheap() {
+    verify_coordinate("MediationEffect:Admg:explicit:Bayesian:cheap", "Admg", false, true, "cheap");
+}
+
+#[test]
+fn mediation_admg_explicit_bayesian_full() {
+    verify_coordinate("MediationEffect:Admg:explicit:Bayesian:full", "Admg", false, true, "full");
+}
+
+#[test]
+fn mediation_admg_accepted_frequentist_cheap() {
+    verify_coordinate(
+        "MediationEffect:Admg:accepted:Frequentist:cheap",
+        "Admg",
+        true,
+        false,
+        "cheap",
+    );
+}
+
+#[test]
+fn mediation_admg_accepted_frequentist_full() {
+    verify_coordinate(
+        "MediationEffect:Admg:accepted:Frequentist:full",
+        "Admg",
+        true,
+        false,
+        "full",
+    );
+}
+
+#[test]
+fn mediation_admg_accepted_bayesian_cheap() {
+    verify_coordinate("MediationEffect:Admg:accepted:Bayesian:cheap", "Admg", true, true, "cheap");
+}
+
+#[test]
+fn mediation_admg_accepted_bayesian_full() {
+    verify_coordinate("MediationEffect:Admg:accepted:Bayesian:full", "Admg", true, true, "full");
+}
+
+#[test]
+fn mediation_temporal_admg_explicit_frequentist_cheap() {
+    verify_coordinate(
+        "MediationEffect:TemporalAdmg:explicit:Frequentist:cheap",
+        "TemporalAdmg",
+        false,
+        false,
+        "cheap",
+    );
+}
+
+#[test]
+fn mediation_temporal_admg_explicit_frequentist_full() {
+    verify_coordinate(
+        "MediationEffect:TemporalAdmg:explicit:Frequentist:full",
+        "TemporalAdmg",
+        false,
+        false,
+        "full",
+    );
+}
+
+#[test]
+fn mediation_temporal_admg_explicit_bayesian_cheap() {
+    verify_coordinate(
+        "MediationEffect:TemporalAdmg:explicit:Bayesian:cheap",
+        "TemporalAdmg",
+        false,
+        true,
+        "cheap",
+    );
+}
+
+#[test]
+fn mediation_temporal_admg_explicit_bayesian_full() {
+    verify_coordinate(
+        "MediationEffect:TemporalAdmg:explicit:Bayesian:full",
+        "TemporalAdmg",
+        false,
+        true,
+        "full",
+    );
+}
+
+#[test]
+fn mediation_temporal_admg_accepted_frequentist_cheap() {
+    verify_coordinate(
+        "MediationEffect:TemporalAdmg:accepted:Frequentist:cheap",
+        "TemporalAdmg",
+        true,
+        false,
+        "cheap",
+    );
+}
+
+#[test]
+fn mediation_temporal_admg_accepted_frequentist_full() {
+    verify_coordinate(
+        "MediationEffect:TemporalAdmg:accepted:Frequentist:full",
+        "TemporalAdmg",
+        true,
+        false,
+        "full",
+    );
+}
+
+#[test]
+fn mediation_temporal_admg_accepted_bayesian_cheap() {
+    verify_coordinate(
+        "MediationEffect:TemporalAdmg:accepted:Bayesian:cheap",
+        "TemporalAdmg",
+        true,
+        true,
+        "cheap",
+    );
+}
+
+#[test]
+fn mediation_temporal_admg_accepted_bayesian_full() {
+    verify_coordinate(
+        "MediationEffect:TemporalAdmg:accepted:Bayesian:full",
+        "TemporalAdmg",
+        true,
+        true,
+        "full",
+    );
+}
+
+#[test]
+fn mediation_cpdag_explicit_frequentist_cheap() {
+    verify_coordinate(
+        "MediationEffect:Cpdag:explicit:Frequentist:cheap",
+        "Cpdag",
+        false,
+        false,
+        "cheap",
+    );
+}
+
+#[test]
+fn mediation_cpdag_explicit_frequentist_full() {
+    verify_coordinate(
+        "MediationEffect:Cpdag:explicit:Frequentist:full",
+        "Cpdag",
+        false,
+        false,
+        "full",
+    );
+}
+
+#[test]
+fn mediation_cpdag_explicit_bayesian_cheap() {
+    verify_coordinate(
+        "MediationEffect:Cpdag:explicit:Bayesian:cheap",
+        "Cpdag",
+        false,
+        true,
+        "cheap",
+    );
+}
+
+#[test]
+fn mediation_cpdag_explicit_bayesian_full() {
+    verify_coordinate("MediationEffect:Cpdag:explicit:Bayesian:full", "Cpdag", false, true, "full");
+}
+
+#[test]
+fn mediation_cpdag_accepted_frequentist_cheap() {
+    verify_coordinate(
+        "MediationEffect:Cpdag:accepted:Frequentist:cheap",
+        "Cpdag",
+        true,
+        false,
+        "cheap",
+    );
+}
+
+#[test]
+fn mediation_cpdag_accepted_frequentist_full() {
+    verify_coordinate(
+        "MediationEffect:Cpdag:accepted:Frequentist:full",
+        "Cpdag",
+        true,
+        false,
+        "full",
+    );
+}
+
+#[test]
+fn mediation_cpdag_accepted_bayesian_cheap() {
+    verify_coordinate(
+        "MediationEffect:Cpdag:accepted:Bayesian:cheap",
+        "Cpdag",
+        true,
+        true,
+        "cheap",
+    );
+}
+
+#[test]
+fn mediation_cpdag_accepted_bayesian_full() {
+    verify_coordinate("MediationEffect:Cpdag:accepted:Bayesian:full", "Cpdag", true, true, "full");
+}
+
+#[test]
+fn mediation_pag_explicit_frequentist_cheap() {
+    verify_coordinate(
+        "MediationEffect:Pag:explicit:Frequentist:cheap",
+        "Pag",
+        false,
+        false,
+        "cheap",
+    );
+}
+
+#[test]
+fn mediation_pag_explicit_frequentist_full() {
+    verify_coordinate("MediationEffect:Pag:explicit:Frequentist:full", "Pag", false, false, "full");
+}
+
+#[test]
+fn mediation_pag_explicit_bayesian_cheap() {
+    verify_coordinate("MediationEffect:Pag:explicit:Bayesian:cheap", "Pag", false, true, "cheap");
+}
+
+#[test]
+fn mediation_pag_explicit_bayesian_full() {
+    verify_coordinate("MediationEffect:Pag:explicit:Bayesian:full", "Pag", false, true, "full");
+}
+
+#[test]
+fn mediation_pag_accepted_frequentist_cheap() {
+    verify_coordinate(
+        "MediationEffect:Pag:accepted:Frequentist:cheap",
+        "Pag",
+        true,
+        false,
+        "cheap",
+    );
+}
+
+#[test]
+fn mediation_pag_accepted_frequentist_full() {
+    verify_coordinate("MediationEffect:Pag:accepted:Frequentist:full", "Pag", true, false, "full");
+}
+
+#[test]
+fn mediation_pag_accepted_bayesian_cheap() {
+    verify_coordinate("MediationEffect:Pag:accepted:Bayesian:cheap", "Pag", true, true, "cheap");
+}
+
+#[test]
+fn mediation_pag_accepted_bayesian_full() {
+    verify_coordinate("MediationEffect:Pag:accepted:Bayesian:full", "Pag", true, true, "full");
 }

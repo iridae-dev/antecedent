@@ -412,7 +412,7 @@ fn distribution_placebo(input: &ExtraInput<'_>) -> Result<Extras, CausalError> {
             }
         }
     }
-    let atoms = &distribution.atoms;
+    let atoms = &super::target_validation::canonical_law_atoms(&distribution.atoms);
     if atoms.len() < 2 {
         return Ok((Vec::new(), notes));
     }
@@ -444,8 +444,30 @@ fn distribution_placebo(input: &ExtraInput<'_>) -> Result<Extras, CausalError> {
             }
         })?;
     let replicates = input.replicates.max(required);
-    let rows =
-        distribution_placebo_replicates(input, &treatments, &treatment_columns, kept, replicates)?;
+    let rows = match distribution_placebo_replicates(
+        input,
+        &treatments,
+        &treatment_columns,
+        kept,
+        replicates,
+    ) {
+        Ok(rows) => rows,
+        // A permuted table that leaves a cell the functional reads empty is a table the placebo
+        // cannot refit, not a failed refit: the refuter did not run.
+        Err(error)
+            if error.to_string().contains("missing probability table entry")
+                || error.to_string().contains("missing table cell") =>
+        {
+            notes.push(not_applicable(
+                NAME,
+                &format!("a permuted table leaves a required probability cell empty: {error}"),
+                "supply more rows per cell, or a table whose permutations keep every cell the \
+                 functional reads populated",
+            ));
+            return Ok((Vec::new(), notes));
+        }
+        Err(error) => return Err(error),
+    };
     let statistic = match joint_mahalanobis(&expected, &rows, kept) {
         Ok(statistic) => statistic,
         Err(error) => {

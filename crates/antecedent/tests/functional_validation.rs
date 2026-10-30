@@ -150,7 +150,7 @@ fn a_path_specific_effect_on_an_admg_is_refuted_against_the_structural_effect() 
     let ate = |r: &antecedent::StudyResult| r.estimate().as_effect().unwrap().ate;
     assert!((ate(&validated) - ate(&plain)).abs() < 1e-12);
     assert!((ate(&validated) - truth).abs() < 0.02, "{} vs {truth}", ate(&validated));
-    assert_eq!(validated.support_status(), Some(CellStatus::Refused));
+    assert_eq!(validated.support_status(), Some(CellStatus::Licensed));
     // The placebo treatment removes the effect the identified functional reads: the refitted
     // value is centred on zero, far from the structural effect.
     let placebo = report(&validated, "target.placebo_treatment");
@@ -196,7 +196,17 @@ fn an_interventional_distribution_on_an_admg_is_refuted_by_its_atom_vector() {
     // Two outcome levels: the vector is the probability of the first atom. Which level that
     // atom carries is read from the atom itself, so the expected value is `truth` for Y = 1
     // and `1 - truth` for Y = 0, never either.
-    let first_atom = &result.distribution().unwrap().atoms[0];
+    // The refuted vector lists the atoms by outcome value, so its first coordinate is the lowest
+    // level.
+    let first_atom = result
+        .distribution()
+        .unwrap()
+        .atoms
+        .iter()
+        .min_by(|a, b| {
+            a.outcomes[0].1.as_f64().unwrap().total_cmp(&b.outcomes[0].1.as_f64().unwrap())
+        })
+        .unwrap();
     let first = first_atom.probability;
     let first_is_one = first_atom.outcomes[0].1 == Value::f64(1.0);
     let expected_first = if first_is_one { truth } else { 1.0 - truth };
@@ -457,7 +467,7 @@ fn a_cpdag_path_specific_effect_is_refuted_per_completion_against_the_structural
         .unwrap()
         .run(&ExecutionContext::for_tests(26))
         .unwrap();
-    assert_eq!(result.support_status(), Some(CellStatus::Refused));
+    assert_eq!(result.support_status(), Some(CellStatus::Licensed));
     let ate = result.estimate().as_effect().unwrap().ate;
     assert!((ate - truth).abs() < 0.03, "{ate} vs {truth}");
     let placebo = report(&result, "target.placebo_treatment");

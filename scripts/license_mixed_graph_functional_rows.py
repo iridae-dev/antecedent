@@ -138,7 +138,23 @@ MED_CLASSES = {
 }
 
 
-def med_limitations(klass: str, inference: str) -> str:
+def med_validation_text(validation: str) -> str:
+    if validation == "none":
+        return "Cheap and full validation stay refused on the none cell. "
+    return (
+        f"Validation {validation} runs the mediation-native suite (sequential-ignorability "
+        "sensitivity, a mediator placebo, and subset stability of the three components "
+        + ("and, under full, further stability refits " if validation == "full" else "")
+        + "refitted together). On the exact-law table scaled to 40 times the rows the mediator "
+        "placebo leaves the total effect in the total and direct components and removes the "
+        "indirect one, and every subset refit returns its enumerated component, each within 0.03 "
+        "with every verdict passing; the sensitivity grid is a diagnostic the reference does not "
+        "assert (its statistic has no independent closed form here), and the verdicts are checks, "
+        "not a calibration claim. "
+    )
+
+
+def med_limitations(klass: str, inference: str, validation: str = "none") -> str:
     _, what, case = MED_CLASSES[klass]
     return (
         "Mediation decomposition of one treatment on one outcome through the declared mediators, "
@@ -150,13 +166,34 @@ def med_limitations(klass: str, inference: str) -> str:
         "mediation_mixed_graphs; the independent generator evaluates the outcome equation under "
         "each treatment and mediator-treatment argument, not a mediation formula); the pure "
         "indirect effect is never total minus direct, and a mediator-outcome confounder the graph "
-        "states is refused as not identified. Cheap and full validation (the mediation-native "
-        "suite), graph-posterior structures and conditional queries stay refused. No sampling "
+        "states is refused as not identified. "
+        + med_validation_text(validation)
+        + "Graph-posterior structures and conditional queries stay refused. No sampling "
         "interval is claimed to cover; no coverage record measures this construction."
     )
 
 
-def path_limitations(klass: str, inference: str) -> str:
+def validation_text(validation: str) -> str:
+    if validation == "none":
+        return "Cheap and full validation stay refused on the none cell. "
+    suite = (
+        "placebo treatment, subset stability and the sensitivity grid"
+        if validation == "cheap"
+        else "placebo treatment, placebo outcome, subset stability, bootstrap stability of the "
+        "whole procedure and the sensitivity grid"
+    )
+    return (
+        f"Validation {validation} refits the compiled program on perturbed copies of the table "
+        f"({suite}; the Bayesian cell runs the prior sensitivity in place of the stability "
+        "refuters). On the exact-law table scaled to 40 times the rows the placebos give the "
+        "null value 0 and the stability refuters give the enumerated effect, each within 0.02, "
+        "and every verdict passes; the sensitivity grid is a diagnostic the reference does not "
+        "assert, and the verdicts are checks, not a calibration claim. A resample that empties a "
+        "cell the functional reads has that refuter refused with its reason. "
+    )
+
+
+def path_limitations(klass: str, inference: str, validation: str = "none") -> str:
     _, what, case = PATH_CLASSES[klass]
     return (
         "Natural path-restricted effect of one treatment on one outcome through a selected set of "
@@ -166,13 +203,13 @@ def path_limitations(klass: str, inference: str) -> str:
         "estimate/path_specific_mixed_graphs; the independent generator evaluates the structural "
         "equations under the cross-world assignment, not an identification formula), and a latent "
         "common cause of the selected and the complementary child is refused as a recanting "
-        "district. Cheap and full validation, graph-posterior structures and conditional queries "
-        "stay refused. No sampling interval is claimed to cover; no coverage record measures this "
+        "district. " + validation_text(validation) + "Graph-posterior structures and conditional "
+        "queries stay refused. No sampling interval is claimed to cover; no coverage record measures this "
         "construction."
     )
 
 
-def dist_limitations(klass: str, inference: str) -> str:
+def dist_limitations(klass: str, inference: str, validation: str = "none") -> str:
     _, what, case = DIST_CLASSES[klass]
     return (
         f"Unconditional finite-discrete interventional distribution on {what}, validation none. "
@@ -206,20 +243,21 @@ def block_rows(
     estimator: str,
     stem: str,
     limitations,
+    validations: tuple[str, ...] = ("none",),
 ) -> str:
     out: list[str] = []
     for klass in classes:
         short = classes[klass][0]
         for structure in STRUCTURES:
-            for inference in INFERENCES:
-                test = f"{stem}_{short}_{structure}_{inference.lower()}_none"
+            for inference, validation in [(i, v) for i in INFERENCES for v in validations]:
+                test = f"{stem}_{short}_{structure}_{inference.lower()}_{validation}"
                 out.append(
                     "[[cell]]\n"
                     f'query = "{query}"\n'
                     f'graph_class = "{klass}"\n'
                     f'structure = "{structure}"\n'
                     f'inference = "{inference}"\n'
-                    'validation = "none"\n'
+                    f'validation = "{validation}"\n'
                     f'estimators = ["{estimator}"]\n'
                     "staged = true\n"
                     'evidence_kind = "internal_known_truth"\n'
@@ -229,7 +267,7 @@ def block_rows(
                     "checked_execution = [\n"
                     f'  {{ estimator = "{estimator}", test = "{test_file}", assertion = "{test}" }},\n'
                     "]\n"
-                    f'limitations = "{limitations(klass, inference)}"\n'
+                    f'limitations = "{limitations(klass, inference, validation)}"\n'
                     'calibration_reason = "estimator_grid_not_measured"\n'
                 )
     return "\n".join(out)
@@ -244,6 +282,7 @@ BLOCKS = {
         "functional.effect",
         "mediation",
         med_limitations,
+        ("none", "cheap", "full"),
     ),
     "path_specific_mixed": lambda: block_rows(
         "PathSpecificEffect",
@@ -253,6 +292,7 @@ BLOCKS = {
         "functional.effect",
         "path_specific",
         path_limitations,
+        ("none", "cheap", "full"),
     ),
     "distribution_classes": lambda: block_rows(
         "InterventionalDistribution",

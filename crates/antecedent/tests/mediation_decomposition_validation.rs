@@ -570,7 +570,7 @@ fn a_temporal_admg_window_runs_the_suite_on_contiguous_stretches_of_windows() {
                 .bootstrap_replicates(0)
                 .build()
                 .unwrap();
-            assert_eq!(built.support_status(), Some(CellStatus::Refused));
+            assert_eq!(built.support_status(), Some(CellStatus::Licensed));
             let result = built.run(&ctx).unwrap_or_else(|e| panic!("{suite:?}: {e}"));
             assert_suite(&result, suite);
             let sensitivity = report(&result, "mediation.sequential_ignorability");
@@ -824,7 +824,7 @@ fn a_mediation_posterior_refutes_each_atom_on_its_own_window_and_mixes_the_repor
             .bootstrap_replicates(0)
             .build()
             .unwrap();
-        assert_eq!(built.support_status(), Some(CellStatus::Refused));
+        assert_eq!(built.support_status(), Some(CellStatus::Licensed));
         let result = built.run(&ctx).unwrap_or_else(|e| panic!("{suite:?}: {e}"));
         let found = ids(&result);
         assert!(found.iter().any(|id| id == "mediation.sequential_ignorability"), "{found:?}");

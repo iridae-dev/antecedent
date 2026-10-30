@@ -385,7 +385,7 @@ fn frequentist_dbn_and_cpdag_mediation_suites_are_licensed() {
             "Frequentist",
             "none",
         )),
-        CellStatus::Refused
+        CellStatus::Licensed
     );
 }
 

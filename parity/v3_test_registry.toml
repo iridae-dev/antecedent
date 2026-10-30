@@ -6238,6 +6238,13 @@ path = "crates/antecedent/tests/interventional_distribution_class_route_evidence
 gates = ["inventory", "named"]
 
 [[test]]
+id = "distribution-validation-route-evidence"
+crate = "antecedent"
+cargo_target = "distribution_validation_route_evidence"
+path = "crates/antecedent/tests/distribution_validation_route_evidence.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "mediation-mixed-graph-route-evidence"
 crate = "antecedent"
 cargo_target = "mediation_mixed_graph_route_evidence"
@@ -20175,4 +20182,18 @@ id = "bayesian-static-mediation-conjugate-truth"
 crate = "antecedent"
 cargo_target = "bayesian_static_mediation_conjugate_truth"
 path = "crates/antecedent/tests/bayesian_static_mediation_conjugate_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-window-route-evidence"
+crate = "antecedent"
+cargo_target = "temporal_window_route_evidence"
+path = "crates/antecedent/tests/temporal_window_route_evidence.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-tests-functional-graph-posterior-mixture-truth-rs"
+crate = "antecedent"
+cargo_target = "functional_graph_posterior_mixture_truth"
+path = "crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs"
 gates = ["inventory", "named"]

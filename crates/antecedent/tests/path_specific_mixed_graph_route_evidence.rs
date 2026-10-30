@@ -140,16 +140,30 @@ fn rebind_estimate(
 }
 
 #[allow(clippy::too_many_lines, reason = "one function walks a coordinate's full lifecycle")]
-fn verify_coordinate(coordinate: &str, class: &str, accepted: bool, bayesian: bool) {
+fn verify_coordinate(
+    coordinate: &str,
+    class: &str,
+    accepted: bool,
+    bayesian: bool,
+    validation: &str,
+) {
     let fixture = pin();
     let case = match class {
         "Admg" | "TemporalAdmg" => &fixture["district_admg"],
         "Cpdag" | "Pag" => &fixture["routed_markov"],
         other => panic!("unexpected graph class {other}"),
     };
+    // The validation states resample the table, so they run on the same law at 40 times the rows.
+    let case = &if validation == "none" { case.clone() } else { scaled(case, 40) };
     let data = expand(case);
     let query = query(case);
     let ctx = ExecutionContext::for_tests(2_124);
+    let suite = match validation {
+        "none" => RefuteSuite::None,
+        "cheap" => RefuteSuite::Cheap,
+        "full" => RefuteSuite::Full,
+        other => panic!("unexpected validation {other}"),
+    };
     let base = Study::tabular(data.clone())
         .query(CausalQuery::PathSpecific(query.clone()))
         .inference(if bayesian {
@@ -157,7 +171,7 @@ fn verify_coordinate(coordinate: &str, class: &str, accepted: bool, bayesian: bo
         } else {
             InferenceMode::Frequentist
         })
-        .refute(RefuteSuite::None)
+        .refute(suite)
         .bootstrap_replicates(0);
     let builder = match (class, accepted) {
         ("Admg", false) => base.graph(admg(case)),
@@ -221,6 +235,7 @@ fn verify_coordinate(coordinate: &str, class: &str, accepted: bool, bayesian: bo
         "{coordinate}: {} vs {truth}",
         result.effect()
     );
+    assert_validation_states(coordinate, &result, truth, validation);
     // A discriminator: neither the total effect nor the unselected-path effect is the answer.
     let total = case["truth"]["total_effect"].as_f64().unwrap();
     assert!((result.effect() - total).abs() > 0.05, "{coordinate}: read the total effect");
@@ -240,22 +255,40 @@ fn verify_coordinate(coordinate: &str, class: &str, accepted: bool, bayesian: bo
 
 #[test]
 fn path_specific_admg_explicit_frequentist_none() {
-    verify_coordinate("PathSpecificEffect:Admg:explicit:Frequentist:none", "Admg", false, false);
+    verify_coordinate(
+        "PathSpecificEffect:Admg:explicit:Frequentist:none",
+        "Admg",
+        false,
+        false,
+        "none",
+    );
 }
 
 #[test]
 fn path_specific_admg_explicit_bayesian_none() {
-    verify_coordinate("PathSpecificEffect:Admg:explicit:Bayesian:none", "Admg", false, true);
+    verify_coordinate(
+        "PathSpecificEffect:Admg:explicit:Bayesian:none",
+        "Admg",
+        false,
+        true,
+        "none",
+    );
 }
 
 #[test]
 fn path_specific_admg_accepted_frequentist_none() {
-    verify_coordinate("PathSpecificEffect:Admg:accepted:Frequentist:none", "Admg", true, false);
+    verify_coordinate(
+        "PathSpecificEffect:Admg:accepted:Frequentist:none",
+        "Admg",
+        true,
+        false,
+        "none",
+    );
 }
 
 #[test]
 fn path_specific_admg_accepted_bayesian_none() {
-    verify_coordinate("PathSpecificEffect:Admg:accepted:Bayesian:none", "Admg", true, true);
+    verify_coordinate("PathSpecificEffect:Admg:accepted:Bayesian:none", "Admg", true, true, "none");
 }
 
 #[test]
@@ -265,6 +298,7 @@ fn path_specific_temporal_admg_explicit_frequentist_none() {
         "TemporalAdmg",
         false,
         false,
+        "none",
     );
 }
 
@@ -275,6 +309,7 @@ fn path_specific_temporal_admg_explicit_bayesian_none() {
         "TemporalAdmg",
         false,
         true,
+        "none",
     );
 }
 
@@ -285,6 +320,7 @@ fn path_specific_temporal_admg_accepted_frequentist_none() {
         "TemporalAdmg",
         true,
         false,
+        "none",
     );
 }
 
@@ -295,47 +331,84 @@ fn path_specific_temporal_admg_accepted_bayesian_none() {
         "TemporalAdmg",
         true,
         true,
+        "none",
     );
 }
 
 #[test]
 fn path_specific_cpdag_explicit_frequentist_none() {
-    verify_coordinate("PathSpecificEffect:Cpdag:explicit:Frequentist:none", "Cpdag", false, false);
+    verify_coordinate(
+        "PathSpecificEffect:Cpdag:explicit:Frequentist:none",
+        "Cpdag",
+        false,
+        false,
+        "none",
+    );
 }
 
 #[test]
 fn path_specific_cpdag_explicit_bayesian_none() {
-    verify_coordinate("PathSpecificEffect:Cpdag:explicit:Bayesian:none", "Cpdag", false, true);
+    verify_coordinate(
+        "PathSpecificEffect:Cpdag:explicit:Bayesian:none",
+        "Cpdag",
+        false,
+        true,
+        "none",
+    );
 }
 
 #[test]
 fn path_specific_cpdag_accepted_frequentist_none() {
-    verify_coordinate("PathSpecificEffect:Cpdag:accepted:Frequentist:none", "Cpdag", true, false);
+    verify_coordinate(
+        "PathSpecificEffect:Cpdag:accepted:Frequentist:none",
+        "Cpdag",
+        true,
+        false,
+        "none",
+    );
 }
 
 #[test]
 fn path_specific_cpdag_accepted_bayesian_none() {
-    verify_coordinate("PathSpecificEffect:Cpdag:accepted:Bayesian:none", "Cpdag", true, true);
+    verify_coordinate(
+        "PathSpecificEffect:Cpdag:accepted:Bayesian:none",
+        "Cpdag",
+        true,
+        true,
+        "none",
+    );
 }
 
 #[test]
 fn path_specific_pag_explicit_frequentist_none() {
-    verify_coordinate("PathSpecificEffect:Pag:explicit:Frequentist:none", "Pag", false, false);
+    verify_coordinate(
+        "PathSpecificEffect:Pag:explicit:Frequentist:none",
+        "Pag",
+        false,
+        false,
+        "none",
+    );
 }
 
 #[test]
 fn path_specific_pag_explicit_bayesian_none() {
-    verify_coordinate("PathSpecificEffect:Pag:explicit:Bayesian:none", "Pag", false, true);
+    verify_coordinate("PathSpecificEffect:Pag:explicit:Bayesian:none", "Pag", false, true, "none");
 }
 
 #[test]
 fn path_specific_pag_accepted_frequentist_none() {
-    verify_coordinate("PathSpecificEffect:Pag:accepted:Frequentist:none", "Pag", true, false);
+    verify_coordinate(
+        "PathSpecificEffect:Pag:accepted:Frequentist:none",
+        "Pag",
+        true,
+        false,
+        "none",
+    );
 }
 
 #[test]
 fn path_specific_pag_accepted_bayesian_none() {
-    verify_coordinate("PathSpecificEffect:Pag:accepted:Bayesian:none", "Pag", true, true);
+    verify_coordinate("PathSpecificEffect:Pag:accepted:Bayesian:none", "Pag", true, true, "none");
 }
 
 /// The class whose completions disagree publishes the identified set the generator derives: the
@@ -461,4 +534,369 @@ fn the_validation_states_run_on_the_exact_law_and_decline_what_they_cannot_check
             );
         }
     }
+}
+
+/// The refuter states of a validation suite against the enumerated truth: the placebos give the
+/// null value and the stability refuters give the effect (the sensitivity grid is a diagnostic
+/// the reference does not assert).
+fn assert_validation_states(
+    coordinate: &str,
+    result: &antecedent::StudyResult,
+    truth: f64,
+    validation: &str,
+) {
+    if validation == "none" {
+        assert!(result.refutations.is_empty(), "{coordinate}");
+        return;
+    }
+    let names: Vec<&str> = result.refutations.iter().map(|r| r.refuter.as_ref()).collect();
+    assert!(names.contains(&"target.placebo_treatment"), "{coordinate}: {names:?}");
+    assert!(
+        names.iter().any(|n| n.ends_with("subset_stability") || n.ends_with("prior_sensitivity")),
+        "{coordinate}: {names:?}"
+    );
+    if validation == "full" {
+        assert!(names.contains(&"target.placebo_outcome"), "{coordinate}: {names:?}");
+    }
+    for report in &result.refutations {
+        let name = report.refuter.as_ref();
+        if name.contains("cross_world_sensitivity") {
+            continue;
+        }
+        assert!(report.passed, "{coordinate}: {name} {:?}", report.failure_condition);
+        let expected = if name.contains("placebo") { 0.0 } else { truth };
+        assert!(
+            (report.refuted_ate - expected).abs() < 0.02,
+            "{coordinate}: {name} {} vs {expected}",
+            report.refuted_ate
+        );
+    }
+}
+
+#[test]
+fn path_specific_admg_explicit_frequentist_cheap() {
+    verify_coordinate(
+        "PathSpecificEffect:Admg:explicit:Frequentist:cheap",
+        "Admg",
+        false,
+        false,
+        "cheap",
+    );
+}
+
+#[test]
+fn path_specific_admg_explicit_frequentist_full() {
+    verify_coordinate(
+        "PathSpecificEffect:Admg:explicit:Frequentist:full",
+        "Admg",
+        false,
+        false,
+        "full",
+    );
+}
+
+#[test]
+fn path_specific_admg_explicit_bayesian_cheap() {
+    verify_coordinate(
+        "PathSpecificEffect:Admg:explicit:Bayesian:cheap",
+        "Admg",
+        false,
+        true,
+        "cheap",
+    );
+}
+
+#[test]
+fn path_specific_admg_explicit_bayesian_full() {
+    verify_coordinate(
+        "PathSpecificEffect:Admg:explicit:Bayesian:full",
+        "Admg",
+        false,
+        true,
+        "full",
+    );
+}
+
+#[test]
+fn path_specific_admg_accepted_frequentist_cheap() {
+    verify_coordinate(
+        "PathSpecificEffect:Admg:accepted:Frequentist:cheap",
+        "Admg",
+        true,
+        false,
+        "cheap",
+    );
+}
+
+#[test]
+fn path_specific_admg_accepted_frequentist_full() {
+    verify_coordinate(
+        "PathSpecificEffect:Admg:accepted:Frequentist:full",
+        "Admg",
+        true,
+        false,
+        "full",
+    );
+}
+
+#[test]
+fn path_specific_admg_accepted_bayesian_cheap() {
+    verify_coordinate(
+        "PathSpecificEffect:Admg:accepted:Bayesian:cheap",
+        "Admg",
+        true,
+        true,
+        "cheap",
+    );
+}
+
+#[test]
+fn path_specific_admg_accepted_bayesian_full() {
+    verify_coordinate("PathSpecificEffect:Admg:accepted:Bayesian:full", "Admg", true, true, "full");
+}
+
+#[test]
+fn path_specific_temporal_admg_explicit_frequentist_cheap() {
+    verify_coordinate(
+        "PathSpecificEffect:TemporalAdmg:explicit:Frequentist:cheap",
+        "TemporalAdmg",
+        false,
+        false,
+        "cheap",
+    );
+}
+
+#[test]
+fn path_specific_temporal_admg_explicit_frequentist_full() {
+    verify_coordinate(
+        "PathSpecificEffect:TemporalAdmg:explicit:Frequentist:full",
+        "TemporalAdmg",
+        false,
+        false,
+        "full",
+    );
+}
+
+#[test]
+fn path_specific_temporal_admg_explicit_bayesian_cheap() {
+    verify_coordinate(
+        "PathSpecificEffect:TemporalAdmg:explicit:Bayesian:cheap",
+        "TemporalAdmg",
+        false,
+        true,
+        "cheap",
+    );
+}
+
+#[test]
+fn path_specific_temporal_admg_explicit_bayesian_full() {
+    verify_coordinate(
+        "PathSpecificEffect:TemporalAdmg:explicit:Bayesian:full",
+        "TemporalAdmg",
+        false,
+        true,
+        "full",
+    );
+}
+
+#[test]
+fn path_specific_temporal_admg_accepted_frequentist_cheap() {
+    verify_coordinate(
+        "PathSpecificEffect:TemporalAdmg:accepted:Frequentist:cheap",
+        "TemporalAdmg",
+        true,
+        false,
+        "cheap",
+    );
+}
+
+#[test]
+fn path_specific_temporal_admg_accepted_frequentist_full() {
+    verify_coordinate(
+        "PathSpecificEffect:TemporalAdmg:accepted:Frequentist:full",
+        "TemporalAdmg",
+        true,
+        false,
+        "full",
+    );
+}
+
+#[test]
+fn path_specific_temporal_admg_accepted_bayesian_cheap() {
+    verify_coordinate(
+        "PathSpecificEffect:TemporalAdmg:accepted:Bayesian:cheap",
+        "TemporalAdmg",
+        true,
+        true,
+        "cheap",
+    );
+}
+
+#[test]
+fn path_specific_temporal_admg_accepted_bayesian_full() {
+    verify_coordinate(
+        "PathSpecificEffect:TemporalAdmg:accepted:Bayesian:full",
+        "TemporalAdmg",
+        true,
+        true,
+        "full",
+    );
+}
+
+#[test]
+fn path_specific_cpdag_explicit_frequentist_cheap() {
+    verify_coordinate(
+        "PathSpecificEffect:Cpdag:explicit:Frequentist:cheap",
+        "Cpdag",
+        false,
+        false,
+        "cheap",
+    );
+}
+
+#[test]
+fn path_specific_cpdag_explicit_frequentist_full() {
+    verify_coordinate(
+        "PathSpecificEffect:Cpdag:explicit:Frequentist:full",
+        "Cpdag",
+        false,
+        false,
+        "full",
+    );
+}
+
+#[test]
+fn path_specific_cpdag_explicit_bayesian_cheap() {
+    verify_coordinate(
+        "PathSpecificEffect:Cpdag:explicit:Bayesian:cheap",
+        "Cpdag",
+        false,
+        true,
+        "cheap",
+    );
+}
+
+#[test]
+fn path_specific_cpdag_explicit_bayesian_full() {
+    verify_coordinate(
+        "PathSpecificEffect:Cpdag:explicit:Bayesian:full",
+        "Cpdag",
+        false,
+        true,
+        "full",
+    );
+}
+
+#[test]
+fn path_specific_cpdag_accepted_frequentist_cheap() {
+    verify_coordinate(
+        "PathSpecificEffect:Cpdag:accepted:Frequentist:cheap",
+        "Cpdag",
+        true,
+        false,
+        "cheap",
+    );
+}
+
+#[test]
+fn path_specific_cpdag_accepted_frequentist_full() {
+    verify_coordinate(
+        "PathSpecificEffect:Cpdag:accepted:Frequentist:full",
+        "Cpdag",
+        true,
+        false,
+        "full",
+    );
+}
+
+#[test]
+fn path_specific_cpdag_accepted_bayesian_cheap() {
+    verify_coordinate(
+        "PathSpecificEffect:Cpdag:accepted:Bayesian:cheap",
+        "Cpdag",
+        true,
+        true,
+        "cheap",
+    );
+}
+
+#[test]
+fn path_specific_cpdag_accepted_bayesian_full() {
+    verify_coordinate(
+        "PathSpecificEffect:Cpdag:accepted:Bayesian:full",
+        "Cpdag",
+        true,
+        true,
+        "full",
+    );
+}
+
+#[test]
+fn path_specific_pag_explicit_frequentist_cheap() {
+    verify_coordinate(
+        "PathSpecificEffect:Pag:explicit:Frequentist:cheap",
+        "Pag",
+        false,
+        false,
+        "cheap",
+    );
+}
+
+#[test]
+fn path_specific_pag_explicit_frequentist_full() {
+    verify_coordinate(
+        "PathSpecificEffect:Pag:explicit:Frequentist:full",
+        "Pag",
+        false,
+        false,
+        "full",
+    );
+}
+
+#[test]
+fn path_specific_pag_explicit_bayesian_cheap() {
+    verify_coordinate(
+        "PathSpecificEffect:Pag:explicit:Bayesian:cheap",
+        "Pag",
+        false,
+        true,
+        "cheap",
+    );
+}
+
+#[test]
+fn path_specific_pag_explicit_bayesian_full() {
+    verify_coordinate("PathSpecificEffect:Pag:explicit:Bayesian:full", "Pag", false, true, "full");
+}
+
+#[test]
+fn path_specific_pag_accepted_frequentist_cheap() {
+    verify_coordinate(
+        "PathSpecificEffect:Pag:accepted:Frequentist:cheap",
+        "Pag",
+        true,
+        false,
+        "cheap",
+    );
+}
+
+#[test]
+fn path_specific_pag_accepted_frequentist_full() {
+    verify_coordinate(
+        "PathSpecificEffect:Pag:accepted:Frequentist:full",
+        "Pag",
+        true,
+        false,
+        "full",
+    );
+}
+
+#[test]
+fn path_specific_pag_accepted_bayesian_cheap() {
+    verify_coordinate("PathSpecificEffect:Pag:accepted:Bayesian:cheap", "Pag", true, true, "cheap");
+}
+
+#[test]
+fn path_specific_pag_accepted_bayesian_full() {
+    verify_coordinate("PathSpecificEffect:Pag:accepted:Bayesian:full", "Pag", true, true, "full");
 }

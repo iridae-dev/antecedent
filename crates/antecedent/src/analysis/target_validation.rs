@@ -215,6 +215,37 @@ fn attribution_values(result: &StudyResult) -> Result<(Vec<Arc<str>>, Vec<f64>),
     Ok((labels, values))
 }
 
+/// The atoms of an interventional distribution in a coordinate order that does not depend on
+/// the rows: an estimate lists outcome levels in order of first appearance, so a resample or a
+/// permutation that changes the first row would otherwise exchange the coordinates of the
+/// vector. Atoms are ordered by conditioning assignment, then by outcome value (numerically
+/// where the values are numbers).
+pub(crate) fn canonical_law_atoms(
+    atoms: &[antecedent_estimate::DistributionAtom],
+) -> Vec<antecedent_estimate::DistributionAtom> {
+    use std::cmp::Ordering;
+    let compare = |left: &[(VariableId, antecedent_core::Value)],
+                   right: &[(VariableId, antecedent_core::Value)]| {
+        for ((_, a), (_, b)) in left.iter().zip(right) {
+            let order = match (a.as_f64(), b.as_f64()) {
+                (Some(x), Some(y)) => x.total_cmp(&y),
+                (Some(_), None) => Ordering::Less,
+                (None, Some(_)) => Ordering::Greater,
+                (None, None) => format!("{a:?}").cmp(&format!("{b:?}")),
+            };
+            if order != Ordering::Equal {
+                return order;
+            }
+        }
+        Ordering::Equal
+    };
+    let mut sorted = atoms.to_vec();
+    sorted.sort_by(|a, b| {
+        compare(&a.conditioning, &b.conditioning).then_with(|| compare(&a.outcomes, &b.outcomes))
+    });
+    sorted
+}
+
 /// The probability atoms of an interventional distribution, all but the last (the others
 /// determine it, and a vector that sums to one has a singular replicate covariance). A
 /// distribution with a single atom, or a mean only, is read through its mean.
@@ -222,7 +253,7 @@ fn law_values(result: &StudyResult) -> Result<(Vec<Arc<str>>, Vec<f64>), CausalE
     let distribution = result.distribution().ok_or(CausalError::Unsupported {
         message: "no interventional distribution payload to refute",
     })?;
-    let atoms = &distribution.atoms;
+    let atoms = &canonical_law_atoms(&distribution.atoms);
     if atoms.len() >= 2 {
         let kept = atoms.len() - 1;
         let labels = (0..kept).map(|i| Arc::from(format!("atom[{i}]"))).collect();
@@ -1175,7 +1206,8 @@ fn failed(error: &CausalError) -> TargetRefitError {
     // A perturbed table that leaves a cell the functional reads empty is a table the
     // refuter cannot refit, not a failed refit: the refuter is refused with its reason.
     let message = error.to_string();
-    if message.contains("missing table cell") {
+    if message.contains("missing table cell") || message.contains("missing probability table entry")
+    {
         return unsupported(
             format!("a perturbed table leaves a required probability cell empty: {message}"),
             "supply more rows per cell, or a table whose resamples keep every cell the \

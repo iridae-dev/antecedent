@@ -205,7 +205,7 @@ fn the_atoms_are_identified_per_window_and_mixed_by_posterior_weight() {
             .bootstrap_replicates(0)
             .build()
             .unwrap();
-        assert_eq!(built.support_status(), Some(CellStatus::Refused));
+        assert_eq!(built.support_status(), Some(CellStatus::Licensed));
         let result = built.run(&ctx).unwrap_or_else(|error| panic!("{inference:?}: {error}"));
         assert_eq!(result.logical_plan.identifier.as_deref(), Some("general.id"));
         assert_eq!(result.logical_plan.estimator.as_deref(), Some("functional.effect"));
