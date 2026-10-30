@@ -158,6 +158,18 @@ CPU spent in the single-threaded sampler) and running the cheap and full
 validation suites of `dbn_sustained_validation` concurrently (the full suite
 holds almost all of the time).
 
+The `dbn_sustained_validation` fixture now uses seeded, balanced shuffled actions
+interleaved with zeros and seeded independent innovations. The former period-four
+treatment and sinusoidal noise made the residuals nearly periodic, including in
+the atom that omits the second treatment lag. Each Bayesian validation refit then
+spent most of its time in the REML autoregressive search. The new fixture asserts
+that both lag columns remain exactly centered and orthogonal on all 400 complete
+windows, preserving the atom effects (5 and 2) and mixture truth (4.25). All three
+tests, validation suites, posterior draws and tolerances remain in place. A local
+before/after run of `cargo test -p antecedent --test suite_04 dbn_sustained_validation`
+(excluding compilation) took 117.75 s and 1.21 s respectively. This is a fixture
+runtime improvement; the production inference implementation is unchanged.
+
 Fixed in library code, with bit-identical results. The joint-panel posterior
 sampler now runs its chains, the convergence diagnostics (per parameter) and the
 conditional group-effect draws under the context's parallelism; every chain and

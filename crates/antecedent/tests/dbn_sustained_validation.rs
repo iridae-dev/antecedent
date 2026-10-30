@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
-    CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint, SmallRoleSet,
+    CausalRng, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint, SmallRoleSet,
     TemporalEffectQuery, TemporalPolicy, ValueType, VariableId,
 };
 use antecedent_data::{
@@ -15,18 +15,30 @@ use antecedent_prob::InferenceDiagnostics;
 
 fn fixture() -> (TimeSeriesData, GraphPosterior, TemporalEffectQuery) {
     let n = 402_usize;
-    let treatment: Vec<f64> = (0..n)
-        .map(|i| match i % 4 {
-            1 => 1.0,
-            3 => -1.0,
-            _ => 0.0,
-        })
-        .collect();
+    // Shuffle balanced actions, interleaved with zero, so the two lag columns
+    // remain exactly centered and orthogonal on the 400 complete windows. A
+    // period-four treatment makes the omitted-lag atom's residual periodic too,
+    // forcing an expensive near-unit-root search in every validation refit.
+    let mut rng = CausalRng::from_seed(21);
+    let mut actions = vec![-1.0; 200];
+    actions[100..].fill(1.0);
+    for i in (1..actions.len()).rev() {
+        let j = usize::try_from(rng.next_u64() % u64::try_from(i + 1).unwrap()).unwrap();
+        actions.swap(i, j);
+    }
+    let treatment: Vec<f64> =
+        (0..n).map(|i| if i % 2 == 0 { 0.0 } else { actions[(i / 2) % actions.len()] }).collect();
+    for lag in [1, 2] {
+        assert_eq!((2..n).map(|i| treatment[i - lag]).sum::<f64>(), 0.0);
+    }
+    assert_eq!((2..n).map(|i| treatment[i - 1] * treatment[i - 2]).sum::<f64>(), 0.0);
+    // Independent innovations also keep the complete atom's residual aperiodic.
+    let mut noise = CausalRng::from_seed(73);
     let outcome: Vec<f64> = (0..n)
         .map(|i| {
             1.0 + 2.0 * i.checked_sub(1).map_or(0.0, |j| treatment[j])
                 + 3.0 * i.checked_sub(2).map_or(0.0, |j| treatment[j])
-                + 0.03 * (f64::from(u32::try_from(i).unwrap()) * 0.73).sin()
+                + 0.03 * (2.0 * noise.next_f64() - 1.0)
         })
         .collect();
     let mut builder = CausalSchemaBuilder::new();
@@ -113,7 +125,7 @@ fn assert_validation(inference: &InferenceMode, suite: RefuteSuite) {
         .unwrap();
     let result = prepared.estimate_series(&series, &ctx).unwrap();
     assert!(
-        (result.estimate().as_effect().unwrap().ate - 4.25).abs() < 0.01, // observed 0.003
+        (result.estimate().as_effect().unwrap().ate - 4.25).abs() < 0.01,
         "{inference:?}/{suite:?}: {}",
         result.estimate().as_effect().unwrap().ate
     );
@@ -189,7 +201,7 @@ fn single_graph_full_validation_retains_both_lagged_actions() {
             .run(&ExecutionContext::for_tests(21))
             .unwrap();
         assert!(
-            (result.estimate().as_effect().unwrap().ate - 5.0).abs() < 0.01, // observed 0.0005
+            (result.estimate().as_effect().unwrap().ate - 5.0).abs() < 0.01,
             "{}",
             result.estimate().as_effect().unwrap().ate
         );
