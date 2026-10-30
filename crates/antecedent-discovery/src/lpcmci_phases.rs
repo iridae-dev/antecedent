@@ -100,16 +100,10 @@ fn known_non_ancestors(pag: &TemporalPag, idx: &NodeIndex, of: VariableId) -> Ha
         return HashSet::new();
     };
     let mut out = HashSet::new();
-    for (n, at_of, at_neighbor) in pag.neighbors(node) {
-        if matches!(at_of, Endpoint::Arrow) && matches!(at_neighbor, Endpoint::Arrow) {
-            // bidirected: mutual non-ancestorship in MAG sense for both
-            if let Some((v, l)) = node_key(pag, n) {
-                out.insert((v.raw(), l.raw()));
-            }
-        } else if matches!(at_of, Endpoint::Arrow) && matches!(at_neighbor, Endpoint::Tail) {
-            // n → of: n is ancestor, not non-ancestor
-        } else if matches!(at_of, Endpoint::Tail) && matches!(at_neighbor, Endpoint::Arrow) {
-            // of → n: n is non-ancestor of of
+    for (n, _, at_neighbor) in pag.neighbors(node) {
+        // An arrowhead at the neighbor excludes that neighbor as an ancestor of `of`,
+        // regardless of whether the mark at `of` is a tail, arrowhead or circle.
+        if matches!(at_neighbor, Endpoint::Arrow) {
             if let Some((v, l)) = node_key(pag, n) {
                 out.insert((v.raw(), l.raw()));
             }
@@ -407,6 +401,11 @@ fn ancestral_removal_phase(
     let PhaseWork { pag, state, sepsets: sepsets_out, scored, workspace, ctx } = work;
     let max_lag = engine.constraints.temporal.max_lag.raw();
     let alpha = engine.constraints.alpha;
+    let mut observed_scores: HashMap<LaggedLink, (f64, f64)> = scored
+        .iter()
+        .filter(|score| score.statistic.is_finite() && score.p_value.is_finite())
+        .map(|score| (score.link, (score.statistic, score.p_value)))
+        .collect();
     let mut ci_tests = 0u64;
     let mut memo = CiMemo::default();
     let rules = prelim_lpcmci_rules();
@@ -452,7 +451,8 @@ fn ancestral_removal_phase(
                                 other: VariableId,
                                 other_lag: Lag,
                                 memo: &mut CiMemo,
-                                workspace: &mut DiscoveryWorkspace|
+                                workspace: &mut DiscoveryWorkspace,
+                                observed: &mut Option<(f64, f64)>|
                  -> Result<
                     (Option<(Vec<(VariableId, Lag)>, f64, f64)>, u64),
                     DiscoveryError,
@@ -498,6 +498,15 @@ fn ancestral_removal_phase(
                         ctx,
                         |cond, stat, p| {
                             tests += 1;
+                            match &mut *observed {
+                                Some((min_stat, max_p)) => {
+                                    if stat.abs() < min_stat.abs() {
+                                        *min_stat = stat;
+                                    }
+                                    *max_p = max_p.max(p);
+                                }
+                                slot @ None => *slot = Some((stat, p)),
+                            }
                             if p > alpha {
                                 ControlFlow::Break((cond, stat, p))
                             } else {
@@ -509,8 +518,13 @@ fn ancestral_removal_phase(
                 };
 
                 let mut sep_cond: Option<Vec<(VariableId, Lag)>> = None;
-                let mut last_stat = 0.0;
-                let mut last_p = 1.0;
+                let link = LaggedLink {
+                    source: x,
+                    source_lag: x_lag,
+                    target: y,
+                    target_lag: Lag::CONTEMPORANEOUS,
+                };
+                let mut observed = observed_scores.get(&link).copied();
                 if test_y {
                     let search = potential_parents_at(
                         pag,
@@ -536,12 +550,11 @@ fn ancestral_removal_phase(
                             x_lag,
                             &mut memo,
                             workspace,
+                            &mut observed,
                         )?;
                         ci_tests += tests;
-                        if let Some((cond, stat, p)) = separation {
+                        if let Some((cond, _, _)) = separation {
                             sep_cond = Some(cond);
-                            last_stat = stat;
-                            last_p = p;
                         }
                     }
                 }
@@ -556,6 +569,7 @@ fn ancestral_removal_phase(
                         Lag::CONTEMPORANEOUS,
                         &mut memo,
                         workspace,
+                        &mut observed,
                     )?;
                     ci_tests += tests;
                     // `try_side` returns `tests == 0` exactly when its own search pool was
@@ -567,24 +581,22 @@ fn ancestral_removal_phase(
                     if tests > 0 {
                         has_converged = false;
                     }
-                    if let Some((cond, stat, p)) = separation {
+                    if let Some((cond, _, _)) = separation {
                         sep_cond = Some(cond);
-                        last_stat = stat;
-                        last_p = p;
                     }
                 }
 
+                if let Some(score) = observed {
+                    observed_scores.insert(link, score);
+                }
                 let Some(cond) = sep_cond else {
-                    scored.push(ScoredLink {
-                        link: LaggedLink {
-                            source: x,
-                            source_lag: x_lag,
-                            target: y,
-                            target_lag: Lag::CONTEMPORANEOUS,
-                        },
-                        statistic: last_stat,
-                        p_value: last_p,
-                        adjusted_p_value: None,
+                    // Retained evidence is max p and signed minimum-|stat| over tests
+                    // actually observed across both sides and conditioning depths.
+                    scored.push(match observed {
+                        Some((statistic, p_value)) => {
+                            ScoredLink { link, statistic, p_value, adjusted_p_value: None }
+                        }
+                        None => ScoredLink::untested(link),
                     });
                     continue;
                 };
@@ -1112,6 +1124,130 @@ mod tests {
             statistic,
             p_value,
             adjusted_p_value: None,
+        }
+    }
+
+    #[test]
+    fn circle_arrow_neighbor_is_not_a_potential_parent() {
+        let vars = two_vars();
+        let (mut pag, idx) = init_complete_pag(&vars, 0).unwrap();
+        let a = idx[&(vars[0].raw(), 0)];
+        let b = idx[&(vars[1].raw(), 0)];
+        pag.set_marks(a, b, Endpoint::Circle, Endpoint::Arrow).unwrap();
+        assert!(known_non_ancestors(&pag, &idx, vars[0]).contains(&(vars[1].raw(), 0)));
+        assert!(!known_non_ancestors(&pag, &idx, vars[1]).contains(&(vars[0].raw(), 0)));
+    }
+
+    struct RetainedCi;
+
+    impl antecedent_stats::ConditionalIndependence for RetainedCi {
+        fn test_batch(
+            &self,
+            prepared: &antecedent_stats::PreparedCiTest,
+            request: &antecedent_stats::CiBatchRequest<'_>,
+            _workspace: &mut antecedent_stats::CiWorkspace,
+            _ctx: &ExecutionContext,
+        ) -> Result<antecedent_stats::CiBatchResult, antecedent_stats::StatsError> {
+            prepared.ensure_compatible(request)?;
+            let request = prepared.bind_request(request);
+            Ok(antecedent_stats::CiBatchResult {
+                results: request
+                    .queries
+                    .iter()
+                    .map(|query| {
+                        let (statistic, p_value) =
+                            if query.z_len == 0 { (5.0, 0.01) } else { (-2.0, 0.03) };
+                        antecedent_stats::CiResult { statistic, p_value, df: 10.0, ci: None }
+                    })
+                    .collect(),
+            })
+        }
+    }
+
+    #[test]
+    fn ancestral_survivors_retain_tested_max_p_and_minimum_absolute_statistic() {
+        use antecedent_core::{
+            CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
+        };
+        use antecedent_data::{
+            Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
+            ValidityBitmap,
+        };
+        let mut builder = CausalSchemaBuilder::new();
+        for name in ["a", "b", "c"] {
+            builder
+                .add_variable(
+                    name,
+                    ValueType::Continuous,
+                    SmallRoleSet::from_hint(RoleHint::Context),
+                    None,
+                    None,
+                    MeasurementSpec::default(),
+                )
+                .unwrap();
+        }
+        let variables: Vec<_> = (0..3).map(VariableId::from_raw).collect();
+        let columns = variables
+            .iter()
+            .map(|&variable| {
+                OwnedColumn::Float64(
+                    Float64Column::new(
+                        variable,
+                        Arc::from(vec![1.0; 10]),
+                        ValidityBitmap::all_valid(10),
+                    )
+                    .unwrap(),
+                )
+            })
+            .collect();
+        let storage =
+            OwnedColumnarStorage::try_new(builder.build().unwrap(), columns, None, None).unwrap();
+        let data = TimeSeriesData::try_new(
+            storage,
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: 10 },
+        )
+        .unwrap();
+        let ctx = ExecutionContext::for_tests(1);
+        let frame = LaggedFrame::from_series(&data, &variables, 0, &ctx.kernel_policy).unwrap();
+        let engine = PcmciEngine::new().with_ci(Arc::new(RetainedCi)).with_constraints(
+            crate::constraints::DiscoveryConstraints {
+                temporal: crate::constraints::TemporalConstraints {
+                    min_lag: Lag::CONTEMPORANEOUS,
+                    max_lag: Lag::CONTEMPORANEOUS,
+                },
+                max_cond_size: 1,
+                ..crate::constraints::DiscoveryConstraints::default()
+            },
+        );
+        let (mut pag, idx) = init_complete_pag(&variables, 0).unwrap();
+        let mut state = OrientationState::default();
+        let mut sepsets = PcSepsets::default();
+        let mut scored = Vec::new();
+        let mut workspace = DiscoveryWorkspace::default();
+        let tests = ancestral_removal_phase(
+            RemovalPhase {
+                engine: &engine,
+                frame: &frame,
+                idx: &idx,
+                variables: &variables,
+                max_p: 1,
+            },
+            &mut PhaseWork {
+                pag: &mut pag,
+                state: &mut state,
+                sepsets: &mut sepsets,
+                scored: &mut scored,
+                workspace: &mut workspace,
+                ctx: &ctx,
+            },
+        )
+        .unwrap();
+        reconcile_evidence_with_pag(&pag, &idx, &mut scored, &mut sepsets);
+        assert_eq!(scored.len(), 3);
+        assert!(tests > scored.len() as u64, "each survivor must have multiple observed tests");
+        for score in scored {
+            assert!((score.p_value - 0.03).abs() < 1e-12);
+            assert!((score.statistic + 2.0).abs() < 1e-12);
         }
     }
 
