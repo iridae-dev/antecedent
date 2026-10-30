@@ -130,7 +130,21 @@ impl EfficientBackdoorIdentifier {
         ate.validate().map_err(|_| IdentificationError::UnsupportedQuery {
             message: "invalid average-effect query",
         })?;
-        self.identify_ate(prepared, ate, query.clone(), workspace)
+        let mut result = self.identify_ate(prepared, ate, query.clone(), workspace)?;
+        // Conditional regressions require the chosen set together with the
+        // modifiers to satisfy the backdoor criterion, not merely the set alone.
+        crate::generalized::validate_dag_conditional_adjustment(
+            prepared.dag(),
+            ate,
+            &mut result,
+            &self.config,
+        )?;
+        // This identifier publishes at most one adjustment set.
+        if result.estimands.len() > 1 {
+            result.estimands.truncate(1);
+            result.performance.sets_returned = 1;
+        }
+        Ok(result)
     }
 
     #[allow(
@@ -445,6 +459,68 @@ mod tests {
     use super::*;
     use crate::result::IdentificationStatus;
     use antecedent_graph::Dag;
+
+    #[test]
+    fn efficient_and_auto_do_not_publish_uncertified_modifier_adjustment() {
+        use crate::{AutoIdentifier, BackdoorIdentifier};
+        use antecedent_expr::EstimandMethod;
+        let v = VariableId::from_raw;
+        // W is a post-treatment collider: conditioning on X -> W <- U -> Y
+        // opens a noncausal association, although the marginal effect is identified.
+        let mut collider = Dag::with_variables(4);
+        for (a, b) in [(0, 1), (0, 2), (3, 2), (3, 1)] {
+            collider.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let q = CausalQuery::AverageEffect(
+            AverageEffectQuery::binary_ate(v(0), v(1)).with_effect_modifiers([v(2)]),
+        );
+        let efficient = EfficientBackdoorIdentifier::new();
+        let result = efficient
+            .identify(
+                &efficient.prepare(&collider).unwrap(),
+                &q,
+                &mut IdentificationWorkspace::default(),
+            )
+            .unwrap();
+        assert!(result.estimands.is_empty());
+        let auto = AutoIdentifier::new();
+        let result = auto
+            .identify(
+                &auto.prepare(&collider).unwrap(),
+                &q,
+                &mut IdentificationWorkspace::default(),
+            )
+            .unwrap();
+        assert!(result.estimands.iter().all(|e| !matches!(
+            e.method_kind(),
+            Ok(EstimandMethod::BackdoorAdjustment | EstimandMethod::BackdoorEfficient)
+        )));
+        // A pre-treatment common cause remains a licensed conditioning variable.
+        let mut common = Dag::with_variables(3);
+        for (a, b) in [(2, 0), (2, 1), (0, 1)] {
+            common.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let result = efficient
+            .identify(
+                &efficient.prepare(&common).unwrap(),
+                &q,
+                &mut IdentificationWorkspace::default(),
+            )
+            .unwrap();
+        assert!(!result.estimands.is_empty());
+        let backdoor = BackdoorIdentifier::new();
+        assert!(
+            !backdoor
+                .identify(
+                    &backdoor.prepare(&common).unwrap(),
+                    &q,
+                    &mut IdentificationWorkspace::default()
+                )
+                .unwrap()
+                .estimands
+                .is_empty()
+        );
+    }
 
     #[test]
     fn o_set_selects_confounder() {

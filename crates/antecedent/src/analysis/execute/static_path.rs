@@ -1562,11 +1562,10 @@ impl super::Study {
         });
         let (identification, estimand, identify_cached) =
             identification_from_cache_or(ctx, reused, || {
-                let identification = crate::strategy_table::identify_static_query_in_context(
+                let identification = crate::strategy_table::identify_conditional_static_in_context(
                     identifier_id,
                     graph,
-                    &CausalQuery::AverageEffect(query.inner.clone()),
-                    None,
+                    query,
                     Some(ctx),
                 )?;
                 select_claim(identification, EstimatorId::ConditionalLinearAdjustment)

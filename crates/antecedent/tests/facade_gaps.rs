@@ -263,7 +263,11 @@ fn counterfactual_and_anomaly_via_causal_analysis() {
     let blocks = result.anomaly().expect("anomaly result");
     assert_eq!(blocks.len(), 1);
     assert_eq!(blocks[0].scores.len(), blocks[0].rows.len());
-    assert_eq!(&*blocks[0].rows, (0..60).collect::<Vec<usize>>().as_slice(), "one score per row, in order");
+    assert_eq!(
+        &*blocks[0].rows,
+        (0..60).collect::<Vec<usize>>().as_slice(),
+        "one score per row, in order"
+    );
     // Independent scores: the default reference is the target column's median with scale
     // 1.4826 MAD, and a row scores -ln P(|Z| >= |y - median| / scale) with the Gaussian tail
     // erfc(z / sqrt 2), computed here from the Maclaurin series of erf (no product code).
@@ -453,4 +457,52 @@ fn admg_conditional_distribution_runs_idc() {
     let rules: Vec<&str> = result.derivation.steps.iter().map(|s| s.rule.as_ref()).collect();
     assert!(rules.contains(&"general.idc"), "IDC must run: {rules:?}");
     assert!(rules.contains(&"general.idc.line1"), "z moves to the intervention: {rules:?}");
+}
+
+#[test]
+fn conditional_queries_do_not_use_marginal_only_identifiers_or_collider_adjustments() {
+    let v = VariableId::from_raw;
+    let mut graph = Dag::with_variables(4);
+    for (a, b) in [(0, 1), (0, 2), (3, 2), (3, 1)] {
+        graph.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+    }
+    let query = ConditionalEffectQuery::try_new(
+        AverageEffectQuery::binary_ate(v(0), v(1)).with_effect_modifiers([v(2)]),
+    )
+    .unwrap();
+    for id in [
+        IdentifierId::GeneralId,
+        IdentifierId::Frontdoor,
+        IdentifierId::Iv,
+        IdentifierId::BackdoorEfficient,
+        IdentifierId::Auto,
+    ] {
+        assert!(
+            identify_static_query(id, &graph, &CausalQuery::ConditionalEffect(query.clone()))
+                .is_err()
+        );
+    }
+    let x = [0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0];
+    let y = [0.0, 1.0, 1.0, 2.0, 0.0, 1.0, 1.0, 2.0];
+    let w = [0.0, 1.0, 1.0, 2.0, 0.0, 1.0, 1.0, 2.0];
+    let u = [0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0];
+    let data = TabularData::from_f64_columns([
+        ("x", x.as_slice()),
+        ("y", y.as_slice()),
+        ("w", w.as_slice()),
+        ("u", u.as_slice()),
+    ])
+    .unwrap();
+    for id in
+        [IdentifierId::BackdoorAdjustment, IdentifierId::BackdoorEfficient, IdentifierId::Auto]
+    {
+        let builder = Study::tabular(data.clone())
+            .graph(graph.clone())
+            .query(CausalQuery::ConditionalEffect(query.clone()))
+            .identifier(id)
+            .refute(RefuteSuite::None);
+        assert!(
+            builder.build().and_then(|study| study.run(&ExecutionContext::for_tests(1))).is_err()
+        );
+    }
 }

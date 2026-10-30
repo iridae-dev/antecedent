@@ -344,7 +344,9 @@ impl Study {
         plan: &PhysicalExecutionPlan,
         query: &antecedent_core::ConditionalEffectQuery,
     ) -> Result<Option<CachedStaticIdentification>, CausalError> {
-        use crate::strategy_table::{EstimatorId, identify_static, select_claim};
+        use crate::strategy_table::{
+            EstimatorId, identify_conditional_static_in_context, select_claim,
+        };
         // A latent-confounded ADMG identifies the contrast by IDC at the two levels;
         // `execute_admg_conditional` reads this cache. A latent-free ADMG runs the
         // Dag route, which keeps no prepare-time cache.
@@ -377,7 +379,8 @@ impl Study {
             return Ok(None);
         };
         let identifier_id = plan.binding().identifier_or(RouteDefaults::CONDITIONAL)?;
-        let identification = identify_static(identifier_id, &graph, &query.inner)?;
+        let identification =
+            identify_conditional_static_in_context(identifier_id, &graph, query, None)?;
         let estimator_id = if matches!(self.settings.inference, InferenceMode::Bayesian(_)) {
             EstimatorId::BayesianConditional
         } else {

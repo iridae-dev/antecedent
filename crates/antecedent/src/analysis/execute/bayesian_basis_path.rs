@@ -43,13 +43,23 @@ impl Study {
         });
         let (identification, estimand, identify_cached) =
             identification_from_cache_or(ctx, reused, || {
-                let identification = crate::strategy_table::identify_static_query_in_context(
-                    identifier,
-                    graph,
-                    &CausalQuery::AverageEffect(query.clone()),
-                    None,
-                    Some(ctx),
-                )?;
+                let identification = match &self.query {
+                    CausalQuery::ConditionalEffect(conditional) => {
+                        crate::strategy_table::identify_conditional_static_in_context(
+                            identifier,
+                            graph,
+                            conditional,
+                            Some(ctx),
+                        )?
+                    }
+                    _ => crate::strategy_table::identify_static_query_in_context(
+                        identifier,
+                        graph,
+                        &CausalQuery::AverageEffect(query.clone()),
+                        None,
+                        Some(ctx),
+                    )?,
+                };
                 select_claim(identification, EstimatorId::BayesianBasisGcomp)
             })?;
         let (data_est, query_est, estimand_est) = project_for_ate_estimate(data, query, &estimand)?;

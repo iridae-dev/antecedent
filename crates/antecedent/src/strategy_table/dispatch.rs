@@ -41,6 +41,34 @@ pub(crate) fn identify_static(
     identify_static_query(identifier, graph, &CausalQuery::AverageEffect(query.clone()))
 }
 
+/// Obtain a modifier-aware DAG backdoor certificate for a conditional query.
+/// Keep the query variant until this boundary so marginal-only strategies cannot
+/// be mistaken for conditional certificates. The returned AverageEffect result
+/// is the backdoor certificate used by the conditional estimator, not an IDC expression.
+pub(crate) fn identify_conditional_static_in_context(
+    identifier: IdentifierId,
+    graph: &Dag,
+    query: &antecedent_core::ConditionalEffectQuery,
+    context: Option<&ExecutionContext>,
+) -> Result<IdentificationResult, CausalError> {
+    query.validate()?;
+    if !matches!(
+        identifier,
+        IdentifierId::BackdoorAdjustment | IdentifierId::BackdoorEfficient | IdentifierId::Auto
+    ) {
+        return Err(CausalError::Unsupported {
+            message: "conditional effects require a modifier-aware backdoor identifier",
+        });
+    }
+    identify_static_query_in_context(
+        identifier,
+        graph,
+        &CausalQuery::AverageEffect(query.inner.clone()),
+        None,
+        context,
+    )
+}
+
 /// Run a static identifier against an arbitrary [`CausalQuery`].
 ///
 /// # Errors

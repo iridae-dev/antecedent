@@ -1518,13 +1518,23 @@ impl super::Study {
                 ),
             });
             identification_from_cache_or(ctx, reused, || {
-                let identification = crate::strategy_table::identify_static_query_in_context(
-                    identifier_id,
-                    graph,
-                    &CausalQuery::AverageEffect(query.clone()),
-                    None,
-                    Some(ctx),
-                )?;
+                let identification = match &self.query {
+                    CausalQuery::ConditionalEffect(conditional) => {
+                        crate::strategy_table::identify_conditional_static_in_context(
+                            identifier_id,
+                            graph,
+                            conditional,
+                            Some(ctx),
+                        )?
+                    }
+                    _ => crate::strategy_table::identify_static_query_in_context(
+                        identifier_id,
+                        graph,
+                        &CausalQuery::AverageEffect(query.clone()),
+                        None,
+                        Some(ctx),
+                    )?,
+                };
                 select_claim(identification, estimator_id)
             })?
         };
