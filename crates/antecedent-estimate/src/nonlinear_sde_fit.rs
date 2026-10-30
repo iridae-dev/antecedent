@@ -23,8 +23,8 @@ use crate::cyclic_gradient::CyclicGradientPolicy;
 use crate::cyclic_optim::InverseCurvature;
 use antecedent_core::ExecutionContext;
 use antecedent_model::nonlinear_sde::{
-    counter_normal, simulate_sde, CompiledSde, SdeContrast, SdeEnsembleReport, SdeError,
-    SdeSimulationPolicy, SdeWorld, WorldPlan,
+    CompiledSde, SdeContrast, SdeEnsembleReport, SdeError, SdeSimulationPolicy, SdeWorld,
+    WorldPlan, counter_normal, simulate_sde,
 };
 use serde::{Deserialize, Serialize};
 
@@ -38,7 +38,6 @@ const HESSIAN_STEP: f64 = 1e-3;
 const INFORMATION_FLOOR: f64 = 1e-6;
 const FLAT_DIAGONAL: f64 = 1e-9;
 const BOUNDARY_FRACTION_FLAG: f64 = 0.05;
-const PRIOR_FALLBACK_STEP: f64 = f64::INFINITY;
 
 /// Why a trajectory design cannot identify the requested parameters.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -384,10 +383,21 @@ fn prepare<'a>(
         if world.id.trim().is_empty() {
             world.id = trajectory.id.clone();
         }
-        let plan = compiled.system().plan_world(&world, first, PRIOR_FALLBACK_STEP)?;
+        let plan = compiled.system().plan_world_continuous(&world, first)?;
         prepared.push(Prepared { trajectory, plan });
     }
     Ok(prepared)
+}
+
+fn checked_filter_substeps(dt: f64, step: f64) -> Result<usize, SdeFitError> {
+    if step == 0.0 {
+        return Ok(1);
+    }
+    let count = (dt / step).ceil().max(1.0);
+    if !count.is_finite() || count >= usize::MAX as f64 {
+        return Err(bad("SDE filter substep count is not representable"));
+    }
+    Ok(count as usize)
 }
 
 const LN_2PI: f64 = 1.837_877_066_409_345_3;
@@ -414,7 +424,7 @@ impl Problem<'_> {
                 return Err(SdeFitError::Resource("cancelled".into()));
             }
             total += if let Some(observation) = self.observation {
-                self.filter_trajectory(item, observation, &theta, probe.as_deref_mut())?
+                self.filter_trajectory(item, observation, &theta, ctx, probe.as_deref_mut())?
             } else {
                 self.direct_trajectory(item, &theta, probe.as_deref_mut())?
             };
@@ -504,6 +514,7 @@ impl Problem<'_> {
         item: &Prepared<'_>,
         observation: &SdeObservationModel,
         theta: &[f64],
+        ctx: &ExecutionContext,
         mut probe: Option<&mut Probe>,
     ) -> Result<f64, SdeFitError> {
         let d = self.d;
@@ -518,14 +529,13 @@ impl Problem<'_> {
         for pair in observations.windows(2) {
             let (a, b) = (&pair[0], &pair[1]);
             let dt = b.time - a.time;
-            let substeps = if self.policy.filter_step > 0.0 {
-                (dt / self.policy.filter_step).ceil().max(1.0) as usize
-            } else {
-                1
-            };
+            let substeps = checked_filter_substeps(dt, self.policy.filter_step)?;
             let h = dt / substeps as f64;
             let mut worst_rate = 0.0f64;
             for s in 0..substeps {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(SdeFitError::Resource("cancelled".into()));
+                }
                 let t = a.time + s as f64 * h;
                 let local = self.compiled.local_coefficients(&mean, &item.plan.inputs, t, theta)?;
                 worst_rate = worst_rate.max(local.rate);
@@ -1065,7 +1075,7 @@ pub fn fit_sde_quasi_likelihood(
                             break;
                         }
                         Err(SdeFitError::Resource(reason)) => {
-                            return Err(SdeFitError::Resource(reason))
+                            return Err(SdeFitError::Resource(reason));
                         }
                         Err(_) => {}
                     }

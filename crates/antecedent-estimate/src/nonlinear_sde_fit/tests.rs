@@ -1,8 +1,8 @@
 use super::*;
 use antecedent_model::mechanism_expr::MechanismExpression as E;
 use antecedent_model::nonlinear_sde::{
-    sample_sde_paths, SdeAction, SdeBoundary, SdeBoundaryRule, SdeDiffusion, SdeInput,
-    SdeInterpolation, SdeParameter, SdeScheme, SdeSystem,
+    SdeAction, SdeBoundary, SdeBoundaryRule, SdeDiffusion, SdeInput, SdeInterpolation,
+    SdeParameter, SdeScheme, SdeSystem, sample_sde_paths,
 };
 
 fn c(value: f64) -> E {
@@ -28,6 +28,46 @@ fn sqrt_of(expression: E) -> SdeDiffusion {
 }
 fn ctx(seed: u64) -> ExecutionContext {
     ExecutionContext::for_tests(seed)
+}
+
+#[test]
+fn filter_substep_count_rejects_unrepresentable_and_accepts_regular_steps() {
+    assert_eq!(checked_filter_substeps(0.5, 0.05).unwrap(), 10);
+    assert_eq!(checked_filter_substeps(0.5, 0.0).unwrap(), 1);
+    assert!(checked_filter_substeps(1.0, f64::from_bits(1)).is_err());
+}
+
+#[test]
+fn filter_observes_inherited_cancellation_inside_transition() {
+    let compiled = epidemic([0.5, 0.2, 0.3], 0).compile().unwrap();
+    let trajectories = reference_trajectories(1);
+    let observation = SdeObservationModel {
+        matrix: vec![1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+        offset: vec![],
+        noise_standard_deviation: vec![1.0; 3],
+    };
+    let prior = SdeFilterPrior {
+        mean: vec![950.0, 50.0, 0.0],
+        covariance: vec![1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+    };
+    let policy = SdeFitPolicy { filter_step: 0.05, ..policy() };
+    let base = compiled.system().parameter_values();
+    let problem = Problem {
+        compiled: &compiled,
+        coordinates: &[0],
+        base: base.clone(),
+        observation: Some(&observation),
+        prior: Some(&prior),
+        prepared: prepare(&compiled, &trajectories).unwrap(),
+        policy: &policy,
+        d: 3,
+        m: 3,
+    };
+    let context = ctx(7);
+    context.cancellation.cancel();
+    let result =
+        problem.filter_trajectory(&problem.prepared[0], &observation, &base, &context, None);
+    assert!(matches!(result, Err(SdeFitError::Resource(reason)) if reason == "cancelled"));
 }
 
 /// The documented SIR system, started at the given parameters; `extra` appends parameters
@@ -182,10 +222,11 @@ fn dense_trajectories_recover_the_epidemic_parameters_with_separate_evidence() {
     assert_eq!(fit.discretization.likelihood, "euler_gaussian_transition");
     assert_eq!(fit.discretization.transitions, 800);
     assert!(fit.discretization.maximum_rate_interval_product < 0.1);
-    assert!(!fit
-        .identification
-        .conditions
-        .contains(&"observation_interval_coarse_for_euler".to_owned()));
+    assert!(
+        !fit.identification
+            .conditions
+            .contains(&"observation_interval_coarse_for_euler".to_owned())
+    );
 }
 
 #[test]
@@ -207,10 +248,12 @@ fn coarse_observation_is_flagged_then_refused_by_the_interval_rate_product() {
         SdeDiscretizationStatus::ModelConditionalApproximation
     );
     assert_eq!(flagged.identification.status, SdeIdentificationStatus::ModelConditional);
-    assert!(flagged
-        .identification
-        .conditions
-        .contains(&"observation_interval_coarse_for_euler".to_owned()));
+    assert!(
+        flagged
+            .identification
+            .conditions
+            .contains(&"observation_interval_coarse_for_euler".to_owned())
+    );
     assert!(flagged.discretization.transitions_above_flag > 0);
     // Every fortieth point: interval 2.0, product far above the 0.5 refusal.
     match fit_sde_quasi_likelihood(
@@ -354,6 +397,26 @@ fn simulated(world: SdeWorld, every: usize, seed: u64, paths: usize) -> Vec<SdeT
                 .collect(),
         })
         .collect()
+}
+
+#[test]
+fn production_fit_prepares_action_free_and_observation_aligned_hold_worlds() {
+    let compiled = epidemic([0.5, 0.2, 0.3], 0).compile().unwrap();
+    let baseline = reference_trajectories(1);
+    let hold = SdeWorld {
+        id: "suppress".into(),
+        actions: vec![SdeAction { variable: 1, times: vec![5.0], values: vec![20.0] }],
+        inputs: vec![],
+    };
+    let held = simulated(hold, 1, 17, 3);
+    for trajectories in [&baseline, &held] {
+        let mut short = policy();
+        short.optimizer.max_iterations = 1;
+        let fit =
+            fit_sde_quasi_likelihood(&compiled, &[0], None, None, trajectories, short, &ctx(10))
+                .unwrap();
+        assert!(fit.values.iter().all(|value| value.is_finite()));
+    }
 }
 
 #[test]

@@ -226,6 +226,25 @@ fn milstein_is_refused_when_a_diffusion_depends_on_another_state() {
 }
 
 #[test]
+fn continuous_world_planning_keeps_validation_without_a_simulation_grid() {
+    let system = epidemic();
+    let mut world = SdeWorld {
+        id: "hold".into(),
+        actions: vec![SdeAction { variable: 1, times: vec![0.07], values: vec![20.0] }],
+        inputs: vec![],
+    };
+    let plan = system.plan_world_continuous(&world, 0.0).unwrap();
+    assert_eq!(plan.held_value(1, 0.07), Some(20.0));
+    assert!(system.plan_world(&world, 0.0, 0.05).is_err());
+    assert!(system.plan_world_continuous(&world, f64::INFINITY).is_err());
+    world.actions[0].values[0] = -1.0;
+    assert!(system.plan_world_continuous(&world, 0.0).is_err());
+    world.actions[0].values[0] = 20.0;
+    world.actions.push(world.actions[0].clone());
+    assert!(system.plan_world_continuous(&world, 0.0).is_err());
+}
+
+#[test]
 fn forged_input_envelopes_refuse_outside_values_in_base_and_world() {
     let mut base = epidemic();
     base.inputs[0].values[0] = 5.0;
@@ -523,6 +542,65 @@ fn square_root_diffusion_matches_the_exact_moment_odes_with_monte_carlo_toleranc
     let plain = simulate_sde(&compiled, None, &[10.0], &disabled, &[], &[], &ctx()).unwrap();
     assert!(plain.worlds[0].numerical.is_none());
     assert_eq!(plain.worlds[0].mean, world.mean);
+}
+
+#[test]
+fn report_admission_includes_reports_and_keeps_path_only_route() {
+    let compiled = cir_system().compile().unwrap();
+    let policy = SdeSimulationPolicy {
+        start: 0.0,
+        step: 0.1,
+        steps: 2,
+        output_every: 1,
+        scheme: SdeScheme::EulerMaruyama,
+        paths: 2,
+        seed: 0,
+        weak_tolerance: 0.05,
+        check_step: false,
+        retain_final_samples: false,
+    };
+    let limited = ctx().with_memory_limit(Some(4300));
+    let path_lease = admit(&compiled, &policy, 1, 0, false, 0, &limited).unwrap();
+    drop(path_lease);
+    assert!(admit(&compiled, &policy, 1, 1, true, 0, &limited).is_err());
+    let unlimited = ctx();
+    assert!(admit(&compiled, &policy, 64, 4096, true, 0, &unlimited).is_ok());
+    let huge = SdeSimulationPolicy { steps: 65_536, output_every: 1, ..policy.clone() };
+    assert!(admit(&compiled, &huge, 64, 4096, true, 0, &unlimited).is_err());
+    let cancelled = ctx();
+    cancelled.cancellation.cancel();
+    assert!(numerical_error(|_, _, _| 0.0, |_, _, _| 0.0, 2, 1, 1, 0.1, 0.05, &cancelled).is_err());
+}
+
+#[test]
+fn parameter_overrides_recertify_both_sde_execution_routes() {
+    let compiled = cir_system().compile().unwrap();
+    let policy = SdeSimulationPolicy {
+        start: 0.0,
+        step: 0.01,
+        steps: 2,
+        output_every: 1,
+        scheme: SdeScheme::EulerMaruyama,
+        paths: 2,
+        seed: 9,
+        weak_tolerance: 0.05,
+        check_step: false,
+        retain_final_samples: false,
+    };
+    let theta = [1.5, 5.0, 0.5];
+    let report = simulate_sde(&compiled, Some(&theta), &[10.0], &policy, &[], &[], &ctx()).unwrap();
+    assert_eq!(report.parameters, theta);
+    assert!(report.certificate.drift_lipschitz > 9.0 * compiled.certificate().drift_lipschitz);
+    let mut unbounded = cir_system();
+    unbounded.parameters[0].value = 0.0;
+    unbounded.drift[0] = mul(vec![par(0), var(0), var(0)]);
+    let compiled = unbounded.compile().unwrap();
+    let bad_theta = [1.0, 0.5, 0.5];
+    assert!(simulate_sde(&compiled, Some(&bad_theta), &[10.0], &policy, &[], &[], &ctx()).is_err());
+    let world = SdeWorld { id: "observational".into(), actions: vec![], inputs: vec![] };
+    assert!(
+        sample_sde_paths(&compiled, Some(&bad_theta), &[10.0], &policy, &world, &ctx()).is_err()
+    );
 }
 
 #[test]

@@ -794,10 +794,34 @@ impl SdeSystem {
         start: f64,
         step: f64,
     ) -> Result<WorldPlan, SdeError> {
-        let d = self.variables.len();
         if !start.is_finite() || !step.is_finite() || step <= 0.0 || start + step == start {
             return Err(bad("SDE action grid is not representable"));
         }
+        self.plan_world_checked(world, Some((start, step)))
+    }
+
+    /// Resolve a world for a continuous-time observation schedule. Action times
+    /// remain as declared; this does not promise event-exact numerical propagation.
+    ///
+    /// # Errors
+    /// A non-finite start, invalid action, or replacement input outside its envelope.
+    pub fn plan_world_continuous(
+        &self,
+        world: &SdeWorld,
+        start: f64,
+    ) -> Result<WorldPlan, SdeError> {
+        if !start.is_finite() {
+            return Err(bad("SDE observation start is not finite"));
+        }
+        self.plan_world_checked(world, None)
+    }
+
+    fn plan_world_checked(
+        &self,
+        world: &SdeWorld,
+        grid: Option<(f64, f64)>,
+    ) -> Result<WorldPlan, SdeError> {
+        let d = self.variables.len();
         if world.id.trim().is_empty() {
             return Err(bad("SDE world identity"));
         }
@@ -817,8 +841,10 @@ impl SdeSystem {
             if !self.boundary(action.variable).contains_all(&action.values) {
                 return Err(bad("SDE action value outside the declared state interval"));
             }
-            for &time in &action.times {
-                action_cell(time, start, step)?;
+            if let Some((start, step)) = grid {
+                for &time in &action.times {
+                    action_cell(time, start, step)?;
+                }
             }
         }
         let mut inputs = self.inputs.clone();
@@ -1239,36 +1265,85 @@ fn resolve_theta(compiled: &CompiledSde, theta: Option<&[f64]>) -> Result<Vec<f6
     Ok(theta)
 }
 
+// The regularity certificate is parameter-specific. Recompile only when an
+// override differs from the certified defaults, before running either route.
+fn effective_compiled<'a>(
+    compiled: &'a CompiledSde,
+    theta: &[f64],
+) -> Result<std::borrow::Cow<'a, CompiledSde>, SdeError> {
+    if compiled.system.parameters.iter().zip(theta).all(|(p, value)| p.value == *value) {
+        return Ok(std::borrow::Cow::Borrowed(compiled));
+    }
+    let mut system = compiled.system.clone();
+    for (parameter, value) in system.parameters.iter_mut().zip(theta) {
+        parameter.value = *value;
+    }
+    Ok(std::borrow::Cow::Owned(system.compile()?))
+}
+
+// Admission covers retained path arrays and, when requested, the simultaneous
+// report arrays, their row headers, final samples, and report metadata. The
+// existing cell and work limits apply to the combined execution and reporting.
+#[allow(clippy::too_many_arguments, reason = "one checked admission for both output routes")]
 fn admit(
     compiled: &CompiledSde,
     policy: &SdeSimulationPolicy,
     worlds: usize,
+    contrasts: usize,
+    reports: bool,
+    name_bytes: usize,
     ctx: &ExecutionContext,
 ) -> Result<antecedent_core::execution::AdmissionLease, SdeError> {
     let d = compiled.dimension();
     let n_out = policy.steps / policy.output_every + 1;
-    let levels = if policy.check_step { 2 } else { 1 };
-    let cells = worlds
-        .checked_mul(policy.paths)
-        .and_then(|c| c.checked_mul(n_out))
-        .and_then(|c| c.checked_mul(d))
-        .and_then(|c| c.checked_mul(levels))
-        .ok_or_else(|| bad("SDE retained size overflow"))?;
-    if cells > MAX_SDE_RETAINED_CELLS {
+    let levels = if policy.check_step { 2usize } else { 1usize };
+    let overflow = || bad("SDE admitted size overflow");
+    let mul = |a: usize, b: usize| a.checked_mul(b).ok_or_else(overflow);
+    let add = |a: usize, b: usize| a.checked_add(b).ok_or_else(overflow);
+    let path_cells = mul(mul(mul(mul(worlds, policy.paths)?, n_out)?, d)?, levels)?;
+    let mut bytes = add(add(mul(path_cells, 8)?, mul(n_out, 8)?)?, 4096)?;
+    let mut report_work = 0usize;
+    if reports {
+        let world_rows = 4 + if policy.check_step { 4 } else { 0 };
+        let contrast_rows = 2 + if policy.check_step { 4 } else { 0 };
+        let world_cells = mul(mul(worlds, n_out)?, add(mul(d, d)?, mul(world_rows - 1, d)?)?)?;
+        let contrast_cells = mul(mul(mul(contrasts, n_out)?, contrast_rows)?, d)?;
+        let final_cells =
+            if policy.retain_final_samples { mul(mul(worlds, policy.paths)?, d)? } else { 0 };
+        let headers = add(
+            mul(mul(worlds, n_out)?, world_rows)?,
+            mul(mul(contrasts, n_out)?, contrast_rows)?,
+        )?;
+        let final_headers =
+            if policy.retain_final_samples { mul(worlds, policy.paths)? } else { 0 };
+        bytes = add(bytes, mul(add(add(world_cells, contrast_cells)?, final_cells)?, 8)?)?;
+        bytes = add(bytes, mul(add(headers, final_headers)?, std::mem::size_of::<Vec<f64>>())?)?;
+        bytes = add(bytes, mul(worlds, std::mem::size_of::<SdeWorldEnsemble>())?)?;
+        bytes = add(bytes, mul(contrasts, std::mem::size_of::<SdeContrastEnsemble>())?)?;
+        bytes = add(bytes, name_bytes)?;
+        // Conservatively bound reductions over paths for covariance and each
+        // of the ordinary and step-halving report coordinates.
+        let world_ops = add(mul(d, d)?, mul(if policy.check_step { 16 } else { 3 }, d)?)?;
+        let contrast_ops = mul(if policy.check_step { 16 } else { 2 }, d)?;
+        report_work = mul(
+            mul(n_out, policy.paths)?,
+            add(mul(worlds, world_ops)?, mul(contrasts, contrast_ops)?)?,
+        )?;
+    }
+    if bytes > MAX_SDE_RETAINED_CELLS.saturating_mul(8) {
         return Err(SdeError::Resource(format!(
-            "SDE ensemble retains {cells} state cells, above the limit {MAX_SDE_RETAINED_CELLS}"
+            "SDE paths and reports need {bytes} bytes, above the retained-cell limit"
         )));
     }
-    let work = (worlds as u64)
-        .saturating_mul(policy.paths as u64)
-        .saturating_mul(policy.steps as u64)
-        .saturating_mul(if policy.check_step { 3 } else { 1 });
-    if work > MAX_SDE_STEP_EVALUATIONS {
+    let path_work =
+        mul(mul(mul(worlds, policy.paths)?, policy.steps)?, if policy.check_step { 3 } else { 1 })?;
+    let work = add(path_work, report_work)?;
+    if work as u128 > u128::from(MAX_SDE_STEP_EVALUATIONS) {
         return Err(SdeError::Resource(format!(
-            "SDE ensemble needs {work} scheme steps, above the limit {MAX_SDE_STEP_EVALUATIONS}"
+            "SDE simulation and report need {work} work units, above the limit {MAX_SDE_STEP_EVALUATIONS}"
         )));
     }
-    ctx.acquire_admission(0, (cells as u64).saturating_mul(8).saturating_add(4096))
+    ctx.acquire_admission(0, u64::try_from(bytes).map_err(|_| overflow())?)
         .map_err(|e| SdeError::Resource(e.to_string()))
 }
 
@@ -1293,14 +1368,17 @@ fn numerical_error(
     d: usize,
     step: f64,
     tolerance: f64,
-) -> SdeNumericalError {
+    ctx: &ExecutionContext,
+) -> Result<SdeNumericalError, SdeError> {
     let mut weak = vec![vec![0.0; d]; n_out];
     let mut weak_se = vec![vec![0.0; d]; n_out];
     let mut strong = vec![vec![0.0; d]; n_out];
     let mut richardson = vec![vec![0.0; d]; n_out];
     let mut converged = true;
     for t in 0..n_out {
+        check_cancel(ctx)?;
         for i in 0..d {
+            check_cancel(ctx)?;
             let (mean_diff, var_diff, se) =
                 mean_and_se((0..paths).map(|p| coarse(p, t, i) - fine(p, t, i)), paths);
             let _ = var_diff;
@@ -1323,14 +1401,14 @@ fn numerical_error(
             richardson[t][i] = 2.0 * mean_fine - (mean_fine + mean_diff);
         }
     }
-    SdeNumericalError {
+    Ok(SdeNumericalError {
         refined_step: step / 2.0,
         weak_difference: weak,
         weak_difference_standard_error: weak_se,
         strong_rms_difference: strong,
         richardson_mean: richardson,
         step_converged: converged,
-    }
+    })
 }
 
 /// Simulate every world at the declared step, with paired contrasts and step halving.
@@ -1355,6 +1433,8 @@ pub fn simulate_sde(
     policy.validate()?;
     validate_initial(compiled, initial)?;
     let theta = resolve_theta(compiled, theta)?;
+    let effective = effective_compiled(compiled, &theta)?;
+    let compiled = effective.as_ref();
     if matches!(policy.scheme, SdeScheme::Milstein)
         && !compiled.certificate.diagonal_milstein_admissible
     {
@@ -1392,7 +1472,19 @@ pub fn simulate_sde(
         }
         contrast_slots.push((t, r));
     }
-    let _lease = admit(compiled, policy, plans.len(), ctx)?;
+    let name_bytes = plans
+        .iter()
+        .try_fold(0usize, |total, p| total.checked_add(p.id.len()))
+        .and_then(|n| {
+            contrasts.iter().try_fold(n, |total, c| {
+                total
+                    .checked_add(c.id.len())?
+                    .checked_add(c.treated.len())?
+                    .checked_add(c.control.len())
+            })
+        })
+        .ok_or_else(|| bad("SDE report name size overflow"))?;
+    let _lease = admit(compiled, policy, plans.len(), contrasts.len(), true, name_bytes, ctx)?;
     let d = compiled.dimension();
     let n_out = policy.steps / policy.output_every + 1;
     let paths = policy.paths;
@@ -1409,7 +1501,9 @@ pub fn simulate_sde(
         let mut mc = vec![vec![0.0; d]; n_out];
         let mut covariance = vec![vec![0.0; d * d]; n_out];
         for t in 0..n_out {
+            check_cancel(ctx)?;
             for i in 0..d {
+                check_cancel(ctx)?;
                 let (m, v, se) = mean_and_se((0..paths).map(|p| at(&run.coarse, p, t, i)), paths);
                 mean[t][i] = m;
                 variance[t][i] = v;
@@ -1417,6 +1511,7 @@ pub fn simulate_sde(
             }
             for i in 0..d {
                 for j in 0..=i {
+                    check_cancel(ctx)?;
                     let c = (0..paths)
                         .map(|p| {
                             (at(&run.coarse, p, t, i) - mean[t][i])
@@ -1429,20 +1524,34 @@ pub fn simulate_sde(
                 }
             }
         }
-        let numerical = run.fine.as_ref().map(|fine| {
-            numerical_error(
-                |p, t, i| at(&run.coarse, p, t, i),
-                |p, t, i| at(fine, p, t, i),
-                paths,
-                n_out,
-                d,
-                policy.step,
-                policy.weak_tolerance,
-            )
-        });
-        let final_samples = policy.retain_final_samples.then(|| {
-            (0..paths).map(|p| (0..d).map(|i| at(&run.coarse, p, n_out - 1, i)).collect()).collect()
-        });
+        let numerical = run
+            .fine
+            .as_ref()
+            .map(|fine| {
+                numerical_error(
+                    |p, t, i| at(&run.coarse, p, t, i),
+                    |p, t, i| at(fine, p, t, i),
+                    paths,
+                    n_out,
+                    d,
+                    policy.step,
+                    policy.weak_tolerance,
+                    ctx,
+                )
+            })
+            .transpose()?;
+        let final_samples = if policy.retain_final_samples {
+            let mut samples = Vec::with_capacity(paths);
+            for p in 0..paths {
+                if p % 1024 == 0 {
+                    check_cancel(ctx)?;
+                }
+                samples.push((0..d).map(|i| at(&run.coarse, p, n_out - 1, i)).collect());
+            }
+            Some(samples)
+        } else {
+            None
+        };
         world_reports.push(SdeWorldEnsemble {
             id: plan.id.clone(),
             mean,
@@ -1459,7 +1568,9 @@ pub fn simulate_sde(
         let mut mean_difference = vec![vec![0.0; d]; n_out];
         let mut se = vec![vec![0.0; d]; n_out];
         for t in 0..n_out {
+            check_cancel(ctx)?;
             for i in 0..d {
+                check_cancel(ctx)?;
                 let (m, _, s) = mean_and_se(
                     (0..paths).map(|p| at(&treated.coarse, p, t, i) - at(&control.coarse, p, t, i)),
                     paths,
@@ -1477,7 +1588,8 @@ pub fn simulate_sde(
                 d,
                 policy.step,
                 policy.weak_tolerance,
-            )),
+                ctx,
+            )?),
             _ => None,
         };
         contrast_reports.push(SdeContrastEnsemble {
@@ -1523,6 +1635,8 @@ pub fn sample_sde_paths(
     policy.validate()?;
     validate_initial(compiled, initial)?;
     let theta = resolve_theta(compiled, theta)?;
+    let effective = effective_compiled(compiled, &theta)?;
+    let compiled = effective.as_ref();
     if matches!(policy.scheme, SdeScheme::Milstein)
         && !compiled.certificate.diagonal_milstein_admissible
     {
@@ -1534,7 +1648,7 @@ pub fn sample_sde_paths(
     let plan = compiled.system.plan_world(world, policy.start, policy.step)?;
     let mut single = policy.clone();
     single.check_step = false;
-    let _lease = admit(compiled, &single, 1, ctx)?;
+    let _lease = admit(compiled, &single, 1, 0, false, 0, ctx)?;
     let run = run_world(compiled, &theta, &plan, &single, initial, ctx)?;
     Ok(SdePaths {
         times: policy.output_times(),
