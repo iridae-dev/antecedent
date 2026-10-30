@@ -419,8 +419,24 @@ pub fn density_test(running: &[f64], cutoff: f64, bandwidth: f64) -> Option<Dens
     })
 }
 
-/// Moving-block bootstrap of the local ratio within each side of the cutoff, rows in time
-/// order.
+// Retain time order within each side after filtering to the bandwidth. A block
+// is consecutive in this retained side sequence, not necessarily in all source rows.
+fn temporal_side_rows(running: &[f64], cutoff: f64, bandwidth: f64) -> (Vec<usize>, Vec<usize>) {
+    let mut left = Vec::new();
+    let mut right = Vec::new();
+    for (i, &r) in running.iter().enumerate() {
+        if (r - cutoff).abs() < bandwidth {
+            if r < cutoff {
+                left.push(i);
+            } else {
+                right.push(i);
+            }
+        }
+    }
+    (left, right)
+}
+
+/// Moving-block bootstrap over the retained temporal sequence on each side of the cutoff.
 #[allow(
     clippy::too_many_arguments,
     reason = "the fit's columns, design and resample size are distinct inputs"
@@ -434,22 +450,13 @@ fn temporal_block_bootstrap(
     replicates: u32,
     ctx: &ExecutionContext,
 ) -> Result<TemporalBlockRecord, EstimationError> {
-    let window: Vec<usize> = {
-        let mut rows: Vec<usize> = (0..columns.running.len())
-            .filter(|i| (columns.running[*i] - cutoff).abs() < bandwidth)
-            .collect();
-        rows.sort_by(|a, b| columns.running[*a].total_cmp(&columns.running[*b]).then(a.cmp(b)));
-        rows
-    };
-    let left: Vec<usize> =
-        window.iter().copied().filter(|i| columns.running[*i] < cutoff).collect();
-    let right: Vec<usize> =
-        window.iter().copied().filter(|i| columns.running[*i] >= cutoff).collect();
+    let (left, right) = temporal_side_rows(columns.running, cutoff, bandwidth);
+    let window_len = left.len() + right.len();
     let block_length = cube_root_block_length(left.len().min(right.len()));
     let draws = resample_draws(ctx, BLOCK_OPERATION, replicates, 1, |rng| {
-        let mut running = Vec::with_capacity(window.len());
-        let mut outcome = Vec::with_capacity(window.len());
-        let mut treatment = Vec::with_capacity(window.len());
+        let mut running = Vec::with_capacity(window_len);
+        let mut outcome = Vec::with_capacity(window_len);
+        let mut treatment = Vec::with_capacity(window_len);
         for side in [&left, &right] {
             let mut taken = 0usize;
             for start in moving_block_starts(side.len(), block_length, rng) {
@@ -534,17 +541,7 @@ pub fn posterior_temporal_local_ratio(
     )
     .map_err(|message| refused(format!("{message}; next attempt: a wider bandwidth")))?;
     let n = columns.running.len();
-    let side_rows = |right: bool| -> Vec<usize> {
-        let mut rows: Vec<usize> = (0..n)
-            .filter(|i| {
-                let r = columns.running[*i];
-                (r - cutoff).abs() < bandwidth && (r >= cutoff) == right
-            })
-            .collect();
-        rows.sort_by(|a, b| columns.running[*a].total_cmp(&columns.running[*b]).then(a.cmp(b)));
-        rows
-    };
-    let (left, right) = (side_rows(false), side_rows(true));
+    let (left, right) = temporal_side_rows(columns.running, cutoff, bandwidth);
     let block_length = cube_root_block_length(left.len().min(right.len()));
     let mut block_of = vec![usize::MAX; n];
     let mut blocks = 0usize;

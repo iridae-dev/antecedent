@@ -840,6 +840,39 @@ fn penalized_bootstrap_indexes_match_the_batch_stream() {
     }
 }
 
+#[test]
+fn penalized_series_bootstrap_requires_nondeterministic_contiguous_blocks() {
+    let ctx = ExecutionContext::for_tests(23);
+    let mut ids = Vec::new();
+    let mut idx = Vec::new();
+    for length in [0, 9, 10] {
+        let error = super::fill_penalized_bootstrap_indexes(
+            9,
+            0,
+            &ctx,
+            &mut ids,
+            &mut idx,
+            None,
+            Some(length),
+            crate::util::SamplingDeclaration::Undeclared,
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("shorter than the series"));
+    }
+    super::fill_penalized_bootstrap_indexes(
+        9,
+        0,
+        &ctx,
+        &mut ids,
+        &mut idx,
+        None,
+        Some(8),
+        crate::util::SamplingDeclaration::Undeclared,
+    )
+    .unwrap();
+    assert_eq!(idx.len(), 9);
+}
+
 /// The refit bootstrap clones only to install a different fold seed or propensity.
 #[test]
 fn penalized_bootstrap_base_clones_only_when_the_seed_or_propensity_differs() {

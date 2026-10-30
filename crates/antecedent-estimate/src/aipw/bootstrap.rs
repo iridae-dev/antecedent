@@ -51,6 +51,11 @@ pub(super) fn fill_penalized_bootstrap_indexes(
         design.apply_resampling(rule).map_err(design_err)?;
         ResamplingPlan::ClusterBootstrap { cluster: antecedent_core::VariableId::from_raw(0) }
     } else if let Some(length) = series_block {
+        if length == 0 || length >= n {
+            return Err(EstimationError::data_msg(
+                "contiguous block length must be positive and shorter than the series",
+            ));
+        }
         declared
             .resolve(DeclaredSamplingDesign::DependentTimeSeries)
             .apply_resampling(ResamplingRule::ContiguousBlock)

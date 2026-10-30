@@ -252,3 +252,15 @@ fn unit_row_weights_reproduce_the_unweighted_fit_exactly() {
     .unwrap();
     assert_eq!(weighted, plain);
 }
+
+#[test]
+fn temporal_blocks_keep_order_of_retained_rows_on_each_side() {
+    // Running values are deliberately out of order in time and the sides interleave.
+    let running = [-0.1, 0.8, -0.9, 0.1, -0.5, 2.0, 0.6, -0.3];
+    let (left, right) = super::temporal_side_rows(&running, 0.0, 1.0);
+    assert_eq!(left, [0, 2, 4, 7]);
+    assert_eq!(right, [1, 3, 6]);
+    // Both the moving-block sampler and posterior chunking use these sequences.
+    assert_eq!(&left[1..3], &[2, 4]);
+    assert_eq!(right.chunks(2).next().unwrap(), &[1, 3]);
+}
