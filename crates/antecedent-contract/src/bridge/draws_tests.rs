@@ -249,6 +249,58 @@ fn a_covariance_no_joint_law_has_is_refused() {
 }
 
 #[test]
+fn public_affine_law_invalid_variances_and_covariances_refuse() {
+    let law = super::AffineDrawLaw {
+        intercept_mean: 0.0,
+        slope_mean: 1.0,
+        intercept_variance: 1.0,
+        slope_variance: 1.0,
+        intercept_slope_covariance: 0.0,
+        source_slope_covariance: 0.0,
+        degrees_of_freedom: None,
+        residual_variance: 0.0,
+        domain: None,
+    };
+    for bad in [f64::NAN, f64::INFINITY, -1.0] {
+        let mut x = law.clone();
+        x.intercept_variance = bad;
+        assert_eq!(
+            code(&x.innovation(1.0).unwrap_err()).1,
+            "scientific_bridge.mapping_uncertainty_invalid"
+        );
+        let mut x = law.clone();
+        x.slope_variance = bad;
+        assert_eq!(
+            code(&x.innovation(1.0).unwrap_err()).1,
+            "scientific_bridge.mapping_uncertainty_invalid"
+        );
+    }
+    for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        let mut x = law.clone();
+        x.intercept_slope_covariance = bad;
+        assert_eq!(
+            code(&x.innovation(1.0).unwrap_err()).1,
+            "scientific_bridge.mapping_uncertainty_invalid"
+        );
+        let mut x = law.clone();
+        x.source_slope_covariance = bad;
+        assert_eq!(
+            code(&x.innovation(1.0).unwrap_err()).1,
+            "scientific_bridge.source_dependence_invalid"
+        );
+    }
+    let mut zero = law.clone();
+    zero.intercept_variance = 0.0;
+    zero.slope_variance = 0.0;
+    let innovation = zero.innovation(0.0).unwrap();
+    assert_eq!((innovation.intercept_sd, innovation.slope_sd), (0.0, 0.0));
+    let mut large = law;
+    large.slope_variance = 1e300;
+    large.source_slope_covariance = 1e300;
+    assert!(large.innovation(1e300).is_ok());
+}
+
+#[test]
 fn a_trial_line_draws_its_coefficients_from_the_least_squares_covariance() {
     let bridge = contract(trial_line(), ValueKind::Posterior, None, Some(independent()));
     let plan = bridge

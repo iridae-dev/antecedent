@@ -83,12 +83,16 @@ impl MappingUncertainty {
             mapping_uncertainty_invalid,
             "state a finite non-negative slope variance",
         )?;
-        let product = self.intercept_variance * self.slope_variance;
-        let square = self.intercept_slope_covariance * self.intercept_slope_covariance;
-        if !self.intercept_slope_covariance.is_finite()
-            || !product.is_finite()
-            || !square.is_finite()
-            || square > product
+        if crate::summary_observation::SummaryCovariance::matrix(
+            2,
+            vec![
+                self.intercept_variance,
+                self.intercept_slope_covariance,
+                self.intercept_slope_covariance,
+                self.slope_variance,
+            ],
+        )
+        .is_err()
         {
             return Err(mapping_uncertainty_invalid(
                 "intercept_slope_covariance",
@@ -651,6 +655,33 @@ fn affine_coefficients(mapping: &BridgeMapping) -> Result<(f64, f64), BridgeRefu
     }
 }
 
+/// Validate the joint (intercept, slope, source) covariance. The model
+/// declares source and intercept independent, so their covariance is zero.
+pub(super) fn validate_affine_joint_covariance(
+    intercept_variance: f64,
+    slope_variance: f64,
+    source_variance: f64,
+    intercept_slope: f64,
+    source_slope: f64,
+) -> Result<(), BridgeRefusal> {
+    crate::summary_observation::SummaryCovariance::matrix(
+        3,
+        vec![
+            intercept_variance,
+            intercept_slope,
+            0.0,
+            intercept_slope,
+            slope_variance,
+            source_slope,
+            0.0,
+            source_slope,
+            source_variance,
+        ],
+    )
+    .map_err(|_| dependence_not_a_covariance(source_slope.to_string()))?;
+    Ok(())
+}
+
 /// Delta-method mean and variance of the contract's affine map.
 ///
 /// The result keeps the declared mapping uncertainty, the declared dependence
@@ -684,11 +715,13 @@ pub(super) fn propagate_affine(
         return Err(source_variance_invalid(source_variance.to_string()));
     }
     let covariance = dependence.covariance();
-    let product = uncertainty.slope_variance * source_variance;
-    let square = covariance * covariance;
-    if !product.is_finite() || !square.is_finite() || square > product {
-        return Err(dependence_not_a_covariance(covariance.to_string()));
-    }
+    validate_affine_joint_covariance(
+        uncertainty.intercept_variance,
+        uncertainty.slope_variance,
+        source_variance,
+        uncertainty.intercept_slope_covariance,
+        covariance,
+    )?;
     let plug_in_mean = intercept + slope * source_mean;
     let mean = plug_in_mean + covariance;
     let variance = uncertainty.intercept_variance
@@ -1808,6 +1841,33 @@ mod tests {
                 .unwrap_err(),
             expected
         );
+    }
+
+    #[test]
+    fn affine_joint_covariance_must_be_positive_semidefinite() {
+        let mut contract = preference(
+            BridgeMapping::Affine { intercept: 0.0, slope: 0.0 },
+            vec![linkage("hypothetical-bias", "stated scales realized")],
+        );
+        contract.mapping_uncertainty = Some(MappingUncertainty {
+            id: "joint".into(),
+            intercept_variance: 1.0,
+            slope_variance: 1.0,
+            intercept_slope_covariance: 0.9,
+        });
+        contract.source_dependence = Some(SourceMappingDependence::SlopeCovariance {
+            covariance: 0.9,
+            evidence: "same-panel".into(),
+        });
+        let error = contract.propagate_affine_uncertainty(0.0, 1.0).unwrap_err();
+        assert_eq!(error.detail, "scientific_bridge.dependence_not_a_covariance");
+        // Pairwise-valid and singular 3x3: 0.6² + 0.8² = 1.
+        contract.mapping_uncertainty.as_mut().unwrap().intercept_slope_covariance = 0.6;
+        contract.source_dependence = Some(SourceMappingDependence::SlopeCovariance {
+            covariance: 0.8,
+            evidence: "same-panel".into(),
+        });
+        assert!(contract.propagate_affine_uncertainty(0.0, 1.0).is_ok());
     }
 
     #[test]

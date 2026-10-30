@@ -151,17 +151,44 @@ impl AffineDrawLaw {
         if !(source_variance.is_finite() && source_variance >= 0.0) {
             return Err(source_variance_invalid(source_variance.to_string()));
         }
+        for (name, value) in [
+            ("intercept_variance", self.intercept_variance),
+            ("slope_variance", self.slope_variance),
+        ] {
+            if !value.is_finite() || value < 0.0 {
+                return Err(mapping_uncertainty_invalid(
+                    name,
+                    "state a finite nonnegative variance",
+                ));
+            }
+        }
+        if !self.intercept_slope_covariance.is_finite() {
+            return Err(mapping_uncertainty_invalid(
+                "intercept_slope_covariance",
+                "state a finite covariance",
+            ));
+        }
+        if !self.source_slope_covariance.is_finite() {
+            return Err(source_dependence_invalid(
+                "source_slope_covariance",
+                "state a finite covariance",
+            ));
+        }
         let covariance = self.source_slope_covariance;
         let (explained, slope_loading) = if covariance == 0.0 {
             (0.0, 0.0)
         } else if source_variance > 0.0 {
-            (covariance * covariance / source_variance, covariance / source_variance)
+            let scaled = covariance / source_variance.sqrt();
+            (scaled * scaled, covariance / source_variance)
         } else {
             return Err(draws_unusable(
                 "source_variance",
                 "a covariance with the source can be declared only for draws that vary",
             ));
         };
+        if !explained.is_finite() || !slope_loading.is_finite() {
+            return Err(dependence_not_a_covariance(covariance.to_string()));
+        }
         let slack = FEASIBILITY_TOLERANCE * self.slope_variance.max(explained);
         let remaining = self.slope_variance - explained;
         if remaining < -slack {
@@ -172,13 +199,16 @@ impl AffineDrawLaw {
         let intercept_on_slope = if slope_sd > 0.0 {
             covariance_ab / slope_sd
         } else if covariance_ab.abs()
-            <= FEASIBILITY_TOLERANCE * (self.intercept_variance * self.slope_variance).sqrt()
+            <= FEASIBILITY_TOLERANCE * self.intercept_variance.sqrt() * self.slope_variance.sqrt()
         {
             0.0
         } else {
             return Err(dependence_not_a_covariance(covariance_ab.to_string()));
         };
         let residual = self.intercept_variance - intercept_on_slope * intercept_on_slope;
+        if !intercept_on_slope.is_finite() || !residual.is_finite() {
+            return Err(dependence_not_a_covariance(covariance_ab.to_string()));
+        }
         if residual < -FEASIBILITY_TOLERANCE * self.intercept_variance {
             return Err(dependence_not_a_covariance(covariance_ab.to_string()));
         }

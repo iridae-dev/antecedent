@@ -45,14 +45,14 @@ use super::super::mapping::{
     fit_with_statistics,
 };
 use super::super::refusal::{
-    BridgeRefusal, dependence_not_a_covariance, malformed_mapping, mapping_uncertainty_invalid,
-    mapping_uncertainty_missing, nonlinear_mean_not_expectation, propagation_overflow,
-    source_dependence_invalid, source_dependence_missing, source_variance_invalid,
+    BridgeRefusal, malformed_mapping, mapping_uncertainty_invalid, mapping_uncertainty_missing,
+    nonlinear_mean_not_expectation, propagation_overflow, source_dependence_invalid,
+    source_dependence_missing, source_variance_invalid,
 };
 use super::BridgeContract;
 use super::propagation::{
     AnalyticLaw, MappingUncertainty, NonlinearMap, SourceMappingDependence, nonlinear_expectation,
-    propagate_affine,
+    propagate_affine, validate_affine_joint_covariance,
 };
 
 /// How the propagated variance is read: an uncalibrated spread, never an interval.
@@ -163,11 +163,13 @@ impl AffineMoments {
         source_variance: f64,
         covariance: f64,
     ) -> Result<(f64, f64), BridgeRefusal> {
-        let product = self.slope_variance * source_variance;
-        let square = covariance * covariance;
-        if !product.is_finite() || !square.is_finite() || square > product {
-            return Err(dependence_not_a_covariance(covariance.to_string()));
-        }
+        validate_affine_joint_covariance(
+            self.intercept_variance,
+            self.slope_variance,
+            source_variance,
+            self.intercept_slope_covariance,
+            covariance,
+        )?;
         let offset = source_value - self.center;
         let variance = self.intercept_variance
             + offset * offset * self.slope_variance
@@ -571,6 +573,28 @@ mod tests {
 
     fn close(left: f64, right: f64) -> bool {
         (left - right).abs() <= 1e-12 * (1.0 + left.abs().max(right.abs()))
+    }
+
+    #[test]
+    fn point_affine_rejects_jointly_indefinite_covariance_and_accepts_mixed_scales() {
+        let moments = super::AffineMoments {
+            slope: 0.0,
+            intercept_variance: 1.0,
+            slope_variance: 1.0,
+            intercept_slope_covariance: 0.9,
+            center: 0.0,
+        };
+        let error = moments.propagate(0.0, 1.0, 0.9).unwrap_err();
+        assert_eq!(error.detail, "scientific_bridge.dependence_not_a_covariance");
+        let mixed = super::AffineMoments {
+            slope: 0.0,
+            intercept_variance: 1e-300,
+            slope_variance: 1e300,
+            intercept_slope_covariance: 0.5,
+            center: 0.0,
+        };
+        let (_, variance) = mixed.propagate(0.0, 1e-300, 0.5).unwrap();
+        assert!((variance - 1.25).abs() < 1e-12);
     }
 
     #[test]
