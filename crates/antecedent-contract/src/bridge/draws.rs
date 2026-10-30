@@ -586,11 +586,24 @@ impl DrawsPlan {
     /// Build the derived claim from the mapped draws' summary.
     ///
     /// # Errors
-    /// A derived claim that would carry the identity of its own source.
+    /// An empty or non-finite mapped-draw summary, a negative variance, or a
+    /// derived claim that would carry the identity of its own source.
     pub fn finish(
         self,
         summary: &MappedDrawsSummary,
     ) -> Result<BridgedDistributionClaim, BridgeRefusal> {
+        if summary.n_draws == 0 {
+            return Err(draws_unusable("n_draws", "supply at least one mapped draw"));
+        }
+        if !summary.mean.is_finite() {
+            return Err(draws_unusable("mean", "supply a finite mapped-draw mean"));
+        }
+        if !summary.variance.is_finite() || summary.variance < 0.0 {
+            return Err(draws_unusable(
+                "variance",
+                "supply a finite nonnegative mapped-draw variance",
+            ));
+        }
         let claim_id = bridged_distribution_claim_id(
             self.contract_identity,
             self.source_claim_id,

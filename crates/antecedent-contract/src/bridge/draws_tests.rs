@@ -411,6 +411,35 @@ fn only_aligned_draws_of_the_declared_kind_and_quantity_are_bridged() {
 }
 
 #[test]
+fn mapped_draw_summary_must_describe_a_finite_nonempty_law() {
+    let bridge =
+        affine(ValueKind::PredictiveLaw, Some(uncertainty(0.01, 0.04, 0.0)), Some(independent()));
+    let ids = identities();
+    let source = draws_source(
+        &bridge.source.quantity,
+        &ids,
+        Some(ValueKind::PredictiveLaw),
+        ClaimKind::Mixture,
+        true,
+    );
+    let valid =
+        MappedDrawsSummary { n_draws: 1, mean: 3.0, variance: 0.0, draws_digest: digest(1) };
+    assert!(bridge.plan_distribution(&source, 11).unwrap().finish(&valid).is_ok());
+    let invalid = [
+        MappedDrawsSummary { n_draws: 0, ..valid },
+        MappedDrawsSummary { mean: f64::NAN, ..valid },
+        MappedDrawsSummary { mean: f64::INFINITY, ..valid },
+        MappedDrawsSummary { variance: f64::NAN, ..valid },
+        MappedDrawsSummary { variance: f64::INFINITY, ..valid },
+        MappedDrawsSummary { variance: -1.0, ..valid },
+    ];
+    for summary in invalid {
+        let error = bridge.plan_distribution(&source, 11).unwrap().finish(&summary).unwrap_err();
+        assert_eq!(code(&error).1, "scientific_bridge.draws_unusable");
+    }
+}
+
+#[test]
 fn the_derived_claim_is_one_realization_of_the_bridge() {
     let bridge =
         affine(ValueKind::PredictiveLaw, Some(uncertainty(0.01, 0.04, 0.0)), Some(independent()));

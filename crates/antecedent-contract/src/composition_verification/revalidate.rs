@@ -679,6 +679,7 @@ fn propagate_cause(kind: DependencyKind, cause: NumericalCause) -> NumericalCaus
 }
 
 fn own_withdrawals(
+    previous: &CompositionGraph,
     current: &CompositionGraph,
     key: &str,
     effect: Option<&ObservedEffect>,
@@ -686,6 +687,20 @@ fn own_withdrawals(
     let node = current.node(key).expect("key from the current graph");
     let own = |kind, detail: String| Withdrawal { kind, origin: key.to_owned(), via: None, detail };
     let mut out = Vec::new();
+    if let Some(before) = previous.node(key) {
+        // A replaced scientific premise removes authority for the old claim.
+        // Recomputed numbers do not attest the changed declarations.
+        for (changed, detail) in [
+            (before.kind != node.kind, "node_kind_changed"),
+            (before.assumptions != node.assumptions, "assumptions_changed"),
+            (before.transformation != node.transformation, "transformation_changed"),
+            (before.evidence != node.evidence, "evidence_changed"),
+        ] {
+            if changed {
+                out.push(own(WithdrawalKind::Retired, detail.to_owned()));
+            }
+        }
+    }
     if let SupportStanding::Unsupported { coordinates } = &node.support {
         out.push(own(WithdrawalKind::Support, coordinates.join(",")));
     }
@@ -802,7 +817,7 @@ pub fn revalidate(
                 .into_iter()
                 .map(|cause| NumericalReason { origin: key.to_owned(), via: None, cause })
                 .collect(),
-            withdrawals: own_withdrawals(current, key, effect).into_iter().collect(),
+            withdrawals: own_withdrawals(previous, current, key, effect).into_iter().collect(),
             holding: None,
         };
         // Dependencies that vanished from the graph cannot be done without.

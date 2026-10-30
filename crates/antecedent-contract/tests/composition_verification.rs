@@ -809,3 +809,63 @@ fn another_vocabulary_adapts_onto_the_one_class() {
         Some(ObservedEffect::Withdrawn { cause: "stage".to_owned() })
     );
 }
+
+#[test]
+fn replaced_scientific_premises_withdraw_old_authority_and_descendants() {
+    let mut ledger = EvidenceLedger::new();
+    let a =
+        ledger.add_source(SourceDeclaration::new("premise-a", SourceKind::ExternalClaim)).unwrap();
+    let b =
+        ledger.add_source(SourceDeclaration::new("premise-b", SourceKind::ExternalClaim)).unwrap();
+    let base = node("premise", NodeKind::Data, 7)
+        .with_assumptions(vec!["one".into(), "two".into()])
+        .with_transformation("map-a")
+        .with_evidence(vec![a, b]);
+    let graph = |premise: CompositionNode| {
+        let mut graph = CompositionGraph::new();
+        graph.add_node(premise).unwrap();
+        graph.add_node(node("derived", NodeKind::Claim, 8)).unwrap();
+        graph.add_node(node("sibling", NodeKind::Claim, 9)).unwrap();
+        graph.add_edge("derived", "premise", DependencyKind::Data).unwrap();
+        graph
+    };
+    let before = graph(base.clone());
+    let mut variants = Vec::new();
+    let mut kind = base.clone();
+    kind.kind = NodeKind::CohortSource;
+    variants.push((kind, "node_kind_changed"));
+    let mut assumptions = base.clone();
+    assumptions.assumptions.push("three".into());
+    variants.push((assumptions, "assumptions_changed"));
+    let mut transformation = base.clone();
+    transformation.transformation = Some("map-b".into());
+    variants.push((transformation, "transformation_changed"));
+    let mut evidence = base.clone();
+    evidence.evidence.pop();
+    variants.push((evidence, "evidence_changed"));
+    for (variant, detail) in variants {
+        let mut effects = no_effects();
+        effects
+            .insert("premise".into(), ObservedEffect::Recomputed { cause: "fresh-numbers".into() });
+        let result = revalidate(&before, &graph(variant), &effects).unwrap();
+        let premise = result.claim("premise").unwrap();
+        assert_eq!(premise.class, Revalidation::Withdrawn);
+        assert_eq!(premise.authority, PriorAuthority::NotRetained);
+        assert!(
+            premise
+                .withdrawals
+                .iter()
+                .any(|w| w.kind == WithdrawalKind::Retired && w.detail == detail)
+        );
+        let downstream = result.claim("derived").unwrap();
+        assert_eq!(downstream.class, Revalidation::Withdrawn);
+        assert!(downstream.withdrawals.iter().any(|w| w.origin == "premise" && w.detail == detail));
+        assert_eq!(result.claim("sibling").unwrap().class, Revalidation::StillValid);
+    }
+    let mut equivalent = base;
+    equivalent.assumptions = vec!["two".into(), "one".into(), "one".into()];
+    equivalent.evidence = vec![b, a, a];
+    let result = revalidate(&before, &graph(equivalent), &no_effects()).unwrap();
+    assert_eq!(result.claim("premise").unwrap().class, Revalidation::StillValid);
+    assert_eq!(result.claim("derived").unwrap().class, Revalidation::StillValid);
+}
