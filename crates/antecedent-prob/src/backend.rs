@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{ExecutionContext, Fnv1a64};
+use antecedent_core::{CanonicalWriter, ExecutionContext};
 use std::sync::Arc;
 
 use crate::diagnostics::InferenceDiagnostics;
@@ -200,37 +200,26 @@ struct GaussianMoments {
 /// of the key so equal-length outcome reallocations still recompute `Xᵀy`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct ConjugateGramKey {
-    content: u64,
+    content: [u8; 32],
     nrows: usize,
     ncols: usize,
 }
 
 impl ConjugateGramKey {
     pub(crate) fn from_design(design: &BayesDesignRef<'_>) -> Self {
-        Self {
-            content: hash_design_contents(design.x_colmajor, design.weights),
-            nrows: design.nrows,
-            ncols: design.ncols,
-        }
+        Self { content: hash_design_contents(design), nrows: design.nrows, ncols: design.ncols }
     }
 }
 
-fn hash_design_contents(x: &[f64], weights: Option<&[f64]>) -> u64 {
-    let mut h = Fnv1a64::new();
-    h.fold(x.len() as u64);
-    for &v in x {
-        h.fold(v.to_bits());
-    }
-    match weights {
+fn hash_design_contents(design: &BayesDesignRef<'_>) -> [u8; 32] {
+    let mut h = CanonicalWriter::new("antecedent.prob.conjugate_gram.v1");
+    h.word(design.nrows as u64).word(design.ncols as u64).reals(design.x_colmajor);
+    match design.weights {
         None => {
-            h.fold(0);
+            h.word(0);
         }
         Some(w) => {
-            h.fold(1);
-            h.fold(w.len() as u64);
-            for &v in w {
-                h.fold(v.to_bits());
-            }
+            h.word(1).reals(w);
         }
     }
     h.finish()
@@ -374,6 +363,44 @@ fn resize_min(buf: &mut Vec<f64>, need: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn gram_cache_digest_tracks_contents_shape_and_weights_not_allocation() {
+        let x = [1.0, 1.0, 1.0, 0.0, 1.0, 2.0];
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 3,
+            ncols: 2,
+            y: &[1.0, 2.0, 3.0],
+            weights: None,
+            offsets: None,
+        };
+        let key = ConjugateGramKey::from_design(&design);
+        let copy = x.to_vec();
+        assert_eq!(
+            key,
+            ConjugateGramKey::from_design(&BayesDesignRef { x_colmajor: &copy, ..design })
+        );
+        let mut changed = x;
+        changed[4] = -changed[4]; // Same column sums of squares, different cross-product.
+        assert_ne!(
+            key,
+            ConjugateGramKey::from_design(&BayesDesignRef { x_colmajor: &changed, ..design })
+        );
+        assert_ne!(
+            key,
+            ConjugateGramKey::from_design(&BayesDesignRef { nrows: 2, ncols: 3, ..design })
+        );
+        let weighted = BayesDesignRef { weights: Some(&[1.0, 2.0, 1.0]), ..design };
+        assert_ne!(key, ConjugateGramKey::from_design(&weighted));
+        assert_ne!(
+            ConjugateGramKey::from_design(&weighted),
+            ConjugateGramKey::from_design(&BayesDesignRef {
+                weights: Some(&[2.0, 1.0, 1.0]),
+                ..design
+            })
+        );
+    }
 
     #[test]
     fn nuisance_workspace_owner_charges_exact_capacities_until_buffers_drop() {
