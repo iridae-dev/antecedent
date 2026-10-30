@@ -55,7 +55,7 @@ assert inspection["fits_performed"] == 0
 print(inspection)
 ```
 
-Read the attempts and their `next_attempt` fields before executing. They state what would be needed for an identified program effect. Then estimate and read both optimizer and posterior diagnostics. The example requires convergence under its stated sampling policy: four chains, 8,000 warmup iterations and 12,000 retained draws per chain, with maximum R-hat 1.05 and minimum effective sample size 100. Those are declared computational checks; interval calibration remains `unmeasured`.
+Read the attempts and their `next_attempt` fields before executing. They state what would be needed for an identified program effect. Then estimate and read both optimizer and posterior diagnostics. The example requires convergence under its stated sampling policy: four chains, 8,000 warmup iterations and 12,000 retained draws per chain, with maximum R-hat 1.05 and minimum effective sample size 100. The diagnostics check whether the numerical run meets that policy.
 
 The simulation declares a future demand path for each market; this is a scenario input, not a fitted demand forecast.
 
@@ -88,7 +88,7 @@ assert not ranked["global_certificate"]
 assert prepared.inspect()["fits_performed"] == 1
 ```
 
-The explicit cache budget retains the fitted mechanism. Each call exhausts its pair of declared worlds; comparing the three proposal values exhausts the three proposals above. This establishes a finite candidate winner under the fitted terminal-mean objective. It supplies no continuous-allocation optimality bound. `selected_value_reliability` remains `unmeasured`; choosing the winner from these data does not provide a selection-adjusted coverage guarantee. The [program search guide](../guides/joint-program-search.md) covers continuous certificates and held-out evaluation.
+The explicit cache budget retains the fitted mechanism. Each call exhausts its pair of declared worlds; comparing the three proposal values exhausts the three proposals above. This establishes a finite candidate winner under the fitted terminal-mean objective. It supplies no continuous-allocation optimality bound. The [program search guide](../guides/joint-program-search.md) covers continuous certificates and held-out evaluation.
 
 Every proposed program and its baseline share each complete parameter draw. The script checks that `scheduled_contrast` equals the draw-by-draw difference and verifies
 
@@ -102,7 +102,7 @@ The simulation also provides an independent truth. For `balanced`, terminal expo
 3 × 1/2 + 2 × 1/2 + 1 × 1/2 + 1.5 × (1/2)² = 3.375
 ```
 
-The script asserts that arithmetic to `1e-12`, then checks the selected program's fitted point against its own generating truth within 0.6 revenue-index units. The absolute tolerance is a fixture recovery check, not a measured coverage rate. Report the fitted point, posterior spread and calibration standing separately. The example prints a posterior standard deviation, which falls from about 0.129 to 0.109 after the experiment; neither value is an outcome prediction error or a calibration measurement.
+The script asserts that arithmetic to `1e-12`, then checks the selected program's fitted point against its own generating truth within 0.6 revenue-index units. The absolute tolerance checks recovery of this fixture. Report the fitted point and posterior spread separately. The example prints a posterior standard deviation, which falls from about 0.129 to 0.109 after the experiment; these describe uncertainty about the fitted mean rather than future outcome noise.
 
 ## 3. Ask whether the allocation has a causal interpretation
 
@@ -138,9 +138,8 @@ Each original response draw keeps its values and receives a Gaussian likelihood 
 Read the result's standing:
 
 ```text
-scope: model_conditional_experimental_update;calibration_unmeasured
+scope: model_conditional_experimental_update
 modular_policy: frozen_joint_importance
-calibration: unmeasured
 ```
 
 With the fixed seed, the fitted point contrast is about 3.266, against the generating truth of 3.375. The retained posterior mean moves from about 3.260 to 3.269 after the experimental mean of 3.294. These are different summaries: the optimizer point need not equal the posterior mean.

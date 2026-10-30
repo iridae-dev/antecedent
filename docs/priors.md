@@ -344,3 +344,5 @@ See [design ranking](design-ranking.md) for the complete source-to-study example
 - [Uncertainty](concepts/uncertainty.md)
 - [Design ranking](design-ranking.md)
 - [Scientific bridges](scientific-bridges.md)
+
+For a connected example combining historical human behavior, agent sessions and a small human pilot, see [the smallest defensible test](tutorials/synthetic-users-launch.md).

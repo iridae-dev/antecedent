@@ -37,7 +37,19 @@ topic = "Tutorials"
 level = "advanced"
 dependencies = []
 runtime = "about 20 seconds locally; allow up to 1 min"
-claim = "Synthetic terminal-week revenue contrast over a 24-week program; one Bayesian fit with shared draws, finite candidate comparison, mapped Gaussian experimental summaries, expected contribution utility and information value. Geographic variation is in intercepts. Identification is unsupported and calibration unmeasured; current decision use refuses withdrawn experiment evidence while the original panel fit replays historically."
+claim = "Synthetic terminal-week revenue contrast over a 24-week program; one Bayesian fit with shared draws, finite candidate comparison, mapped Gaussian experimental summaries, expected contribution utility and information value. Geographic variation is in intercepts. The observational fit supplies no whole-program identification proof; current decision use refuses withdrawn experiment evidence while the original panel fit replays historically."
+
+[[example]]
+id = "synthetic_users_launch"
+title = "Use synthetic users to design a small human launch test"
+summary = "Combine historical humans, agent sessions and a sequential human pilot; compare the launch choice with a larger human-only study, and select a targeted experiment when transfer fails."
+python = "examples/python/synthetic_users_launch.py"
+unreleased = true
+topic = "Tutorials"
+level = "advanced"
+dependencies = []
+runtime = "about 2 seconds locally; allow up to 1 min"
+claim = "Synthetic checkout microtasks: 32 new humans plus a declared transferred prior support the same launch action as a 128-person human-only comparator; conflicting evidence instead selects an eight-person randomized authentication study. Application code supplies the finite probability model, Bayesian checkpoint updates and stopping policy. Antecedent composes priors, checks mechanism transport and identification repair, evaluates contracts and ranks externally attested study signals. Decision agreement does not imply equal precision or agent-human equivalence."
 
 [[example]]
 id = "experiment_to_next_study"

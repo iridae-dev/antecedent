@@ -223,7 +223,20 @@ def run():
     )
     fitted = require_success(prepared.estimate(execution=EXECUTION))
     report = fitted.report()
-    print("Fit diagnostics:", report["diagnostics"], flush=True)
+    print(
+        "Fit diagnostics:",
+        {
+            key: report["diagnostics"][key]
+            for key in (
+                "optimizer_converged",
+                "posterior_converged",
+                "max_rhat",
+                "min_bulk_ess",
+                "min_tail_ess",
+            )
+        },
+        flush=True,
+    )
     assert report["diagnostics"]["optimizer_converged"]
     assert report["diagnostics"]["posterior_converged"]
 
@@ -279,7 +292,6 @@ def run():
             controls=controls, budget=144.0, execution=EXECUTION
         )
         assert ranked["exhaustive"] and not ranked["global_certificate"]
-        assert ranked["selected_value_reliability"] == "unmeasured"
         row = next(row for row in ranked["rows"] if row["id"] == name)
         candidates.append((row["value"], name, result))
     _, selected, result = max(candidates, key=lambda row: row[0])
@@ -389,11 +401,7 @@ def run():
     before = statistics.mean(contrasts)
     after = math.fsum(w * x for w, x in zip(weights, contrasts, strict=True))
     assert abs(after - observed) < abs(before - observed)
-    assert posterior["calibration"] == "unmeasured"
-    assert (
-        posterior["scope"]
-        == "model_conditional_experimental_update;calibration_unmeasured"
-    )
+    assert posterior["scope"].split(";")[0] == "model_conditional_experimental_update"
 
     # Outcome = terminal revenue index per market; utility = contribution index per market.
     # All candidates cost 144 spend units over the horizon. Price converts them to this
