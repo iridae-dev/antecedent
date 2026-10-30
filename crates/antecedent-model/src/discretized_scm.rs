@@ -323,6 +323,14 @@ fn level_name(index: usize) -> String {
     format!("{index:02}")
 }
 
+// The finite composition orders labels lexicographically, whereas the grid is
+// retained in numeric level order. The two differ once an index has >2 digits.
+fn finite_order_indices(node: &BridgeNode) -> Vec<usize> {
+    let mut order: Vec<usize> = (0..node.level_names.len()).collect();
+    order.sort_by(|&a, &b| node.level_names[a].cmp(&node.level_names[b]));
+    order
+}
+
 fn unbounded_real(domain: &Domain) -> bool {
     match domain {
         Domain::Real => true,
@@ -838,8 +846,12 @@ impl DiscretizedLinearGaussian {
                 .collect();
             let law = self.finite.law(&names, ctx).map_err(from_composition)?;
             let marginal = law.marginal(&contrast.outcome).map_err(from_composition)?;
-            let discretized: f64 =
-                marginal.iter().zip(&self.nodes[outcome].values).map(|((_, p), x)| p * x).sum();
+            let order = finite_order_indices(&self.nodes[outcome]);
+            let discretized: f64 = marginal
+                .iter()
+                .zip(order)
+                .map(|((_, p), index)| p * self.nodes[outcome].values[index])
+                .sum();
             let pairs: Vec<(&str, f64)> = arm
                 .interventions
                 .iter()
@@ -891,6 +903,7 @@ impl DiscretizedLinearGaussian {
     fn mean_error_bound(&self, fixed: &[Option<usize>], probabilities: &[f64]) -> Vec<f64> {
         let n = self.nodes.len();
         let widths: Vec<usize> = self.nodes.iter().map(|x| x.values.len()).collect();
+        let orders: Vec<Vec<usize>> = self.nodes.iter().map(finite_order_indices).collect();
         let mut expected = vec![0.0_f64; n];
         let mut digits = vec![0_usize; n];
         for (state, p) in probabilities.iter().enumerate() {
@@ -899,7 +912,7 @@ impl DiscretizedLinearGaussian {
             }
             let mut rest = state;
             for k in (0..n).rev() {
-                digits[k] = rest % widths[k];
+                digits[k] = orders[k][rest % widths[k]];
                 rest /= widths[k];
             }
             for (v, node) in self.nodes.iter().enumerate() {
