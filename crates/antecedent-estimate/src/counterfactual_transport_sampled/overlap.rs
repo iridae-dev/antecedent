@@ -16,7 +16,7 @@ use antecedent_core::CanonicalWriter;
 use super::counts::{SampledRegimeCounts, SampledTableKey};
 use super::{
     DETAIL_OVERLAP_DOUBLE, DETAIL_OVERLAP_INVALID, DETAIL_OVERLAP_UNKNOWN, DETAIL_OVERLAP_UNLINKED,
-    refused,
+    SampledWork, refused,
 };
 use crate::error::EstimationError;
 
@@ -154,6 +154,7 @@ impl OverlapDeclaration {
         self.pairs.iter().find(|p| &p.a == a && &p.b == b).map_or(self.default, |p| p.relation)
     }
 
+    #[cfg(test)]
     pub(crate) fn write_identity(&self, w: &mut CanonicalWriter) {
         w.word(self.default.word()).word(self.pairs.len() as u64);
         for pair in &self.pairs {
@@ -166,6 +167,32 @@ impl OverlapDeclaration {
             }
             w.word(pair.relation.word());
         }
+    }
+
+    pub(crate) fn write_identity_checked(
+        &self,
+        w: &mut CanonicalWriter,
+        work: &mut SampledWork<'_>,
+    ) -> Result<(), EstimationError> {
+        work.charge(1)?;
+        w.word(self.default.word()).word(self.pairs.len() as u64);
+        for pair in &self.pairs {
+            for key in [&pair.a, &pair.b] {
+                work.charge(key.population.len())?;
+                w.try_bytes(key.population.as_bytes(), || work.charge(0))?
+                    .word(u64::from(key.regime.raw()));
+                w.word(key.interventions.len() as u64);
+                for chunk in key.interventions.chunks(512) {
+                    work.charge(chunk.len().saturating_mul(2))?;
+                    for (v, bits) in chunk {
+                        w.word(u64::from(v.raw())).word(*bits);
+                    }
+                }
+            }
+            work.charge(1)?;
+            w.word(pair.relation.word());
+        }
+        work.charge(1)
     }
 }
 

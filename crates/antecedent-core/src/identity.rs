@@ -137,6 +137,26 @@ impl CanonicalWriter {
         self
     }
 
+    /// Write the same length-prefixed bytes while checking the caller's budget
+    /// or cancellation before each bounded hash update, including empty input.
+    ///
+    /// # Errors
+    /// Propagates the check's error. Discard this writer after an error because
+    /// the field may have been partially written.
+    pub fn try_bytes<E>(
+        &mut self,
+        bytes: &[u8],
+        mut check: impl FnMut() -> Result<(), E>,
+    ) -> Result<&mut Self, E> {
+        check()?;
+        self.word(bytes.len() as u64);
+        for chunk in bytes.chunks(4096) {
+            check()?;
+            self.hasher.update(chunk);
+        }
+        Ok(self)
+    }
+
     /// A count-prefixed sequence of reals: the length as a word, then each `to_bits` word.
     pub fn reals(&mut self, values: &[f64]) -> &mut Self {
         self.word(values.len() as u64);
@@ -700,6 +720,36 @@ impl ReusableProduct {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn checked_hashing_preserves_framing_and_stops_between_chunks() {
+        use crate::recalc::StageIdentity;
+        for size in [0, 1, 4096, 4097, 20_000] {
+            let bytes = vec![0xab; size];
+            let mut expected = CanonicalWriter::new("checked");
+            expected.bytes(&bytes);
+            let mut actual = CanonicalWriter::new("checked");
+            actual.try_bytes(&bytes, || Ok::<_, ()>(())).unwrap();
+            assert_eq!(actual.finish(), expected.finish());
+            let parts: &[&[u8]] = &[&[], &bytes, b"tail"];
+            assert_eq!(
+                StageIdentity::try_of("label", parts, || Ok::<_, ()>(())).unwrap(),
+                StageIdentity::of("label", parts)
+            );
+        }
+        let mut checks = 0;
+        let mut writer = CanonicalWriter::new("checked");
+        let result = writer.try_bytes(&[0; 20_000], || {
+            checks += 1;
+            if checks == 3 { Err("cancelled") } else { Ok(()) }
+        });
+        assert_eq!(result.err(), Some("cancelled"));
+        assert_eq!(checks, 3);
+        let mut partial = CanonicalWriter::new("checked");
+        partial.word(20_000);
+        partial.hasher.update(&[0; 4096]);
+        assert_eq!(writer.finish(), partial.finish());
+    }
 
     #[test]
     fn domains_are_distinct_and_named() {

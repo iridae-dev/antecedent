@@ -74,6 +74,25 @@ impl StageIdentity {
         Self(hasher.finish())
     }
 
+    /// Digest the same framed inputs as [`Self::of`], checking the caller's
+    /// budget or cancellation between bounded hash updates.
+    ///
+    /// # Errors
+    /// Propagates the caller's check error without publishing a partial identity.
+    pub fn try_of<E>(
+        label: &str,
+        parts: &[&[u8]],
+        mut check: impl FnMut() -> Result<(), E>,
+    ) -> Result<Self, E> {
+        let mut hasher = CanonicalWriter::new(STAGE_IDENTITY_KEY);
+        hasher.try_bytes(label.as_bytes(), &mut check)?.word(parts.len() as u64);
+        for part in parts {
+            hasher.try_bytes(part, &mut check)?;
+        }
+        check()?;
+        Ok(Self(hasher.finish()))
+    }
+
     /// Raw digest bytes.
     #[must_use]
     pub const fn as_bytes(&self) -> &[u8; 32] {

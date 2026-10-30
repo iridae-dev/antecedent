@@ -18,7 +18,7 @@ use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, InterventionAssignment, La
 
 use super::{
     DETAIL_CANCELLED, DETAIL_INVALID_COUNTS, DETAIL_SAMPLE_SIZE, DETAIL_SPARSE, DETAIL_UNSEEN,
-    SAMPLED_TRANSPORT_MAX_TABLE_CELLS, invalid_counts, refused,
+    SAMPLED_TRANSPORT_MAX_TABLE_CELLS, SampledWork, invalid_counts, refused,
 };
 use crate::error::EstimationError;
 
@@ -279,6 +279,29 @@ impl SampledRegimeCounts {
         self.counts.iter().filter(|c| **c > 0).count()
     }
 
+    pub(crate) fn checked_report_counts(
+        &self,
+        work: &mut SampledWork<'_>,
+    ) -> Result<(u64, usize, usize), EstimationError> {
+        let mut total = 0u64;
+        let mut observed = 0usize;
+        let mut unseen = 0usize;
+        let per_cell = 3usize
+            .saturating_add((usize::BITS - self.structural_zeros.len().leading_zeros()) as usize);
+        for (block, counts) in self.counts.chunks(512).enumerate() {
+            work.charge(counts.len().saturating_mul(per_cell))?;
+            for (offset, &count) in counts.iter().enumerate() {
+                total += count;
+                observed += usize::from(count > 0);
+                let cell = block * 512 + offset;
+                unseen +=
+                    usize::from(count == 0 && self.structural_zeros.binary_search(&cell).is_err());
+            }
+        }
+        work.charge(1)?;
+        Ok((total, observed, unseen))
+    }
+
     /// The table's identity within a request.
     #[must_use]
     pub fn key(&self) -> SampledTableKey {
@@ -287,6 +310,23 @@ impl SampledRegimeCounts {
             regime: self.regime,
             interventions: self.interventions.iter().map(|(v, l)| (*v, level_bits(*l))).collect(),
         }
+    }
+
+    pub(crate) fn checked_key(
+        &self,
+        work: &mut SampledWork<'_>,
+    ) -> Result<SampledTableKey, EstimationError> {
+        let mut interventions = Vec::with_capacity(self.interventions.len());
+        for chunk in self.interventions.chunks(512) {
+            work.charge(chunk.len())?;
+            interventions.extend(chunk.iter().map(|(v, l)| (*v, level_bits(*l))));
+        }
+        work.charge(1)?;
+        Ok(SampledTableKey {
+            population: Arc::clone(&self.population),
+            regime: self.regime,
+            interventions,
+        })
     }
 
     /// Whether two tables have identical summaries: equal axes, counts, design
@@ -308,6 +348,75 @@ impl SampledRegimeCounts {
         let mut w = CanonicalWriter::new(SAMPLED_COUNT_IDENTITY_TAG);
         self.write_identity(&mut w);
         w.finish_hex()
+    }
+
+    pub(crate) fn checked_content_identity(
+        &self,
+        work: &mut SampledWork<'_>,
+    ) -> Result<String, EstimationError> {
+        let mut w = CanonicalWriter::new(SAMPLED_COUNT_IDENTITY_TAG);
+        self.write_identity_checked(&mut w, work)?;
+        work.charge(1)?;
+        Ok(w.finish_hex())
+    }
+
+    pub(crate) fn write_identity_checked(
+        &self,
+        w: &mut CanonicalWriter,
+        work: &mut SampledWork<'_>,
+    ) -> Result<(), EstimationError> {
+        work.charge(self.population.len())?;
+        w.try_bytes(self.population.as_bytes(), || work.charge(0))?
+            .word(u64::from(self.regime.raw()));
+        w.word(self.interventions.len() as u64);
+        for chunk in self.interventions.chunks(512) {
+            work.charge(chunk.len().saturating_mul(2))?;
+            for (v, l) in chunk {
+                w.word(u64::from(v.raw())).word(level_bits(*l));
+            }
+        }
+        w.word(self.axes.len() as u64);
+        for axis in &self.axes {
+            work.charge(2)?;
+            w.word(u64::from(axis.variable.raw())).word(axis.levels.len() as u64);
+            for chunk in axis.levels.chunks(512) {
+                work.charge(chunk.len())?;
+                for level in chunk {
+                    w.word(level_bits(*level));
+                }
+            }
+        }
+        w.word(self.counts.len() as u64);
+        for chunk in self.counts.chunks(512) {
+            work.charge(chunk.len())?;
+            for count in chunk {
+                w.word(*count);
+            }
+        }
+        work.charge(self.snapshot_identity.len())?;
+        w.try_bytes(self.snapshot_identity.as_bytes(), || work.charge(0))?;
+        match &self.design {
+            SamplingDesign::IndependentUnits => {
+                w.word(0);
+            }
+            SamplingDesign::Stratified { variables } => {
+                w.word(1).word(variables.len() as u64);
+                for chunk in variables.chunks(512) {
+                    work.charge(chunk.len())?;
+                    for v in chunk {
+                        w.word(u64::from(v.raw()));
+                    }
+                }
+            }
+        }
+        w.word(self.structural_zeros.len() as u64);
+        for chunk in self.structural_zeros.chunks(512) {
+            work.charge(chunk.len())?;
+            for cell in chunk {
+                w.word(*cell as u64);
+            }
+        }
+        work.charge(1)
     }
 
     pub(crate) fn write_identity(&self, w: &mut CanonicalWriter) {

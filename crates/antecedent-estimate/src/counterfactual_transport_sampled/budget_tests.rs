@@ -241,6 +241,97 @@ fn point_fits_but_gradient_exhausts_shared_budget() {
 }
 
 #[test]
+fn final_evidence_identity_uses_the_shared_budget_and_checks_cancellation() {
+    use super::{SampledWork, evidence_identity};
+    use antecedent_core::identity::CanonicalWriter;
+
+    let case = chain_case();
+    let derivation = derive(&case, &case.targets[0]);
+    let mut rng = Rng(404);
+    let tables = cited_only(&derivation, &sample_laws(&laws_of(&case), 20_000, &mut rng));
+    let request = SampledTransportRequest {
+        tables: tables.clone(),
+        overlap: OverlapDeclaration::all_independent(),
+        unseen_rule: UnseenCellRule::Refuse,
+        limits: SampledTransportLimits::default(),
+    };
+    let ctx = ExecutionContext::for_tests(7);
+    let mut insufficient = SampledWork { remaining: 0, ctx: &ctx };
+    let error = evidence_identity(&request, &tables, &mut insufficient).unwrap_err();
+    assert_eq!(error.reason_code(), Some("transport_budget_cancel"));
+
+    let mut expected = CanonicalWriter::new(super::SAMPLED_TRANSPORT_IDENTITY_TAG);
+    expected.word(tables.len() as u64);
+    for table in &tables {
+        table.write_identity(&mut expected);
+    }
+    request.overlap.write_identity(&mut expected);
+    expected.text(request.unseen_rule.name()).opt_real(request.unseen_rule.parameter());
+    expected.word(request.limits.min_table_total).real(request.limits.max_unseen_fraction);
+    expected.word(u64::from(request.limits.max_envelope_evaluations));
+    expected
+        .word(request.limits.evaluation.operations as u64)
+        .word(request.limits.evaluation.depth as u64);
+    let mut sufficient = SampledWork { remaining: usize::MAX, ctx: &ctx };
+    assert_eq!(
+        evidence_identity(&request, &tables, &mut sufficient).unwrap(),
+        expected.finish_hex()
+    );
+
+    ctx.cancellation.cancel();
+    let mut cancelled = SampledWork { remaining: usize::MAX, ctx: &ctx };
+    let error = evidence_identity(&request, &tables, &mut cancelled).unwrap_err();
+    assert_eq!(error.reason_code(), Some("transport_budget_cancel"));
+}
+
+#[test]
+fn checked_table_and_overlap_identities_preserve_framing_and_meter_large_scans() {
+    use super::SampledWork;
+    use antecedent_core::{CanonicalWriter, RegimeId, VariableId};
+    let table = SampledRegimeCounts::try_new(SampledRegimeCountsParts {
+        population: Arc::from("population"),
+        regime: RegimeId::from_raw(1),
+        interventions: Vec::new(),
+        axes: vec![SampledAxis {
+            variable: VariableId::from_raw(0),
+            levels: (0..2048).map(f64::from).collect(),
+        }],
+        counts: vec![1; 2048],
+        snapshot_identity: Arc::from("snapshot"),
+        design: SamplingDesign::Stratified { variables: vec![VariableId::from_raw(0)] },
+        structural_zeros: Vec::new(),
+    })
+    .unwrap();
+    let ctx = ExecutionContext::for_tests(7);
+    let mut budget = SampledWork { remaining: 2500, ctx: &ctx };
+    assert_eq!(
+        table.checked_content_identity(&mut budget).unwrap_err().reason_code(),
+        Some("transport_budget_cancel")
+    );
+    let mut budget = SampledWork { remaining: 20_000, ctx: &ctx };
+    assert_eq!(table.checked_key(&mut budget).unwrap(), table.key());
+    assert_eq!(table.checked_content_identity(&mut budget).unwrap(), table.content_identity());
+
+    let first = table.key();
+    let mut second = first.clone();
+    second.regime = RegimeId::from_raw(2);
+    let overlap = OverlapDeclaration::all_independent()
+        .with_pair(first, second, DatasetOverlap::SharedUnits)
+        .unwrap();
+    let mut old = CanonicalWriter::new("overlap-test");
+    overlap.write_identity(&mut old);
+    let mut checked = CanonicalWriter::new("overlap-test");
+    overlap.write_identity_checked(&mut checked, &mut budget).unwrap();
+    assert_eq!(checked.finish_hex(), old.finish_hex());
+    ctx.cancellation.cancel();
+    let mut cancelled = SampledWork { remaining: 20_000, ctx: &ctx };
+    assert_eq!(
+        overlap.write_identity_checked(&mut checked, &mut cancelled).unwrap_err().reason_code(),
+        Some("transport_budget_cancel")
+    );
+}
+
+#[test]
 fn cancelled_exact_law_is_mapped_to_transport_cancellation() {
     use super::counts::{LawFlavor, law_of, table_probabilities};
     let case = chain_case();

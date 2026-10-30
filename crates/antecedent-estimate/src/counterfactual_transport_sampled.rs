@@ -448,19 +448,24 @@ fn validate_request(request: &SampledTransportRequest) -> Result<(), EstimationE
 }
 
 /// Digest of everything a plug-in estimate depends on besides the derivation.
-fn evidence_identity(request: &SampledTransportRequest, sorted: &[SampledRegimeCounts]) -> String {
+fn evidence_identity(
+    request: &SampledTransportRequest,
+    sorted: &[SampledRegimeCounts],
+    work: &mut SampledWork<'_>,
+) -> Result<String, EstimationError> {
     let mut w = CanonicalWriter::new(SAMPLED_TRANSPORT_IDENTITY_TAG);
     w.word(sorted.len() as u64);
     for table in sorted {
-        table.write_identity(&mut w);
+        table.write_identity_checked(&mut w, work)?;
     }
-    request.overlap.write_identity(&mut w);
+    request.overlap.write_identity_checked(&mut w, work)?;
     w.text(request.unseen_rule.name()).opt_real(request.unseen_rule.parameter());
     let limits = &request.limits;
     w.word(limits.min_table_total).real(limits.max_unseen_fraction);
     w.word(u64::from(limits.max_envelope_evaluations));
     w.word(limits.evaluation.operations as u64).word(limits.evaluation.depth as u64);
-    w.finish_hex()
+    work.charge(1)?;
+    Ok(w.finish_hex())
 }
 
 /// Estimate a stored counterfactual transport derivation from sampled counts.
@@ -520,12 +525,27 @@ pub fn estimate_sampled_counterfactual_transport(
         });
         work.charge(key_work.saturating_mul(table_pairs.saturating_add(2)))?;
     }
-    let mut tables: Vec<SampledRegimeCounts> = request.tables.clone();
-    tables.sort_by_cached_key(|a| (a.key(), a.content_identity()));
-    if tables.windows(2).any(|w| w[0].key() == w[1].key()) {
+    let mut keyed = Vec::with_capacity(request.tables.len());
+    for table in &request.tables {
+        let key = table.checked_key(&mut work)?;
+        let identity = table.checked_content_identity(&mut work)?;
+        work.charge(table_work(table))?;
+        keyed.push((key, identity, table.clone()));
+    }
+    keyed.sort_by(|a, b| (&a.0, &a.1).cmp(&(&b.0, &b.1)));
+    work.charge(1)?;
+    if keyed.windows(2).any(|w| w[0].0 == w[1].0) {
         return Err(invalid_counts(
             "two count tables name one population, regime and intervention world",
         ));
+    }
+    let mut keys = Vec::with_capacity(keyed.len());
+    let mut identities = Vec::with_capacity(keyed.len());
+    let mut tables = Vec::with_capacity(keyed.len());
+    for (key, identity, table) in keyed {
+        keys.push(key);
+        identities.push(identity);
+        tables.push(table);
     }
     for table in &tables {
         let cited = derivation
@@ -662,26 +682,26 @@ pub fn estimate_sampled_counterfactual_transport(
             dataset_of[m] = g;
         }
     }
-    let table_reports: Vec<SampledTableReport> = tables
-        .iter()
-        .enumerate()
-        .map(|(i, t)| SampledTableReport {
-            key: t.key(),
-            content_identity: t.content_identity(),
-            total: t.total(),
+    let mut table_reports = Vec::with_capacity(tables.len());
+    for (i, t) in tables.iter().enumerate() {
+        let (total, observed_cells, unseen_cells) = t.checked_report_counts(&mut work)?;
+        table_reports.push(SampledTableReport {
+            key: keys[i].clone(),
+            content_identity: identities[i].clone(),
+            total,
             cells: t.cell_count(),
-            observed_cells: t.observed_cells(),
-            unseen_cells: t.unseen_cells().len(),
+            observed_cells,
+            unseen_cells,
             structural_zeros: t.structural_zeros().len(),
             smoothed: smoothed[i],
             pseudo_count: if smoothed[i] { request.unseen_rule.parameter() } else { None },
             dataset: dataset_of[i],
-        })
-        .collect();
+        });
+    }
     let dataset_keys: Vec<Vec<SampledTableKey>> = groups
         .groups
         .iter()
-        .map(|members| members.iter().map(|m| tables[*m].key()).collect())
+        .map(|members| members.iter().map(|m| keys[*m].clone()).collect())
         .collect();
     let point_label = if envelope.is_some() && point.is_none() {
         LABEL_ENVELOPE_ONLY
@@ -690,6 +710,13 @@ pub fn estimate_sampled_counterfactual_transport(
     } else {
         LABEL_PLUG_IN
     };
+    work.charge(1)?;
+    let derivation_text = derivation.canonical_text();
+    work.charge(derivation_text.len())?;
+    let mut derivation_writer = CanonicalWriter::new(SAMPLED_TRANSPORT_DERIVATION_TAG);
+    derivation_writer.try_bytes(derivation_text.as_bytes(), || work.charge(0))?;
+    let derivation_identity = derivation_writer.finish_hex();
+    let evidence_identity = evidence_identity(request, &tables, &mut work)?;
     Ok(SampledCounterfactualTransportEstimate {
         labels: SampledClaimLabels {
             structural_identification: LABEL_IDENTIFIED,
@@ -697,11 +724,8 @@ pub fn estimate_sampled_counterfactual_transport(
             point_estimate: point_label,
             statistical_inference: LABEL_INFERENCE_WITHHELD,
         },
-        derivation_identity: CanonicalWriter::digest_bytes_hex(
-            SAMPLED_TRANSPORT_DERIVATION_TAG,
-            derivation.canonical_text().as_bytes(),
-        ),
-        evidence_identity: evidence_identity(request, &tables),
+        derivation_identity,
+        evidence_identity,
         point,
         point_withheld_reason,
         envelope,

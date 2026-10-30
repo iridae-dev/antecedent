@@ -3,11 +3,36 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::fmt::Write as _;
 use std::sync::{Arc, Mutex};
 
 use antecedent_core::{RegimeId, Value, VariableId};
 
 pub(crate) use antecedent_kernels::numeric::CompensatedSum;
+
+/// Preserve `Debug`'s bytes while polling even when a formatter writes a long string at once.
+struct CheckedDescriptor<F> {
+    text: String,
+    check: F,
+}
+
+impl<F: FnMut() -> bool> std::fmt::Write for CheckedDescriptor<F> {
+    fn write_str(&mut self, text: &str) -> std::fmt::Result {
+        let mut start = 0;
+        while start < text.len() {
+            if !(self.check)() {
+                return Err(std::fmt::Error);
+            }
+            let mut end = start.saturating_add(4096).min(text.len());
+            while !text.is_char_boundary(end) {
+                end -= 1;
+            }
+            self.text.push_str(&text[start..end]);
+            start = end;
+        }
+        Ok(())
+    }
+}
 
 use crate::{
     Assignment, DistributionProvider, DomainRef, EvalContext, EvalError, FactorSpec,
@@ -395,13 +420,16 @@ impl ExactDiscreteLaw {
     pub fn with_empirical_counts(self, counts: Vec<u64>) -> Result<Self, ExactLawError> {
         let total = self.checked_count_total(&counts)?;
         let tolerance = self.tolerance;
-        let reconciled = self.probabilities.iter().zip(&counts).all(|(p, count)| {
-            let share = *count as f64 / total;
-            (p - share).abs() <= tolerance.absolute + tolerance.relative * p.max(share)
-        });
-        if !reconciled {
-            return Err(self.error("unreconciled_empirical_counts"));
+        for (probabilities, counts) in self.probabilities.chunks(1024).zip(counts.chunks(1024)) {
+            self.check_cancelled()?;
+            if !probabilities.iter().zip(counts).all(|(p, count)| {
+                let share = *count as f64 / total;
+                (p - share).abs() <= tolerance.absolute + tolerance.relative * p.max(share)
+            }) {
+                return Err(self.error("unreconciled_empirical_counts"));
+            }
         }
+        self.check_cancelled()?;
         let origin = match self.origin {
             LawOrigin::SuppliedExact => LawOrigin::EmpiricalPlugin,
             other => other,
@@ -418,7 +446,12 @@ impl ExactDiscreteLaw {
         Ok(self.with_counts(counts, LawOrigin::LearnedPlugin))
     }
     fn checked_count_total(&self, counts: &[u64]) -> Result<f64, ExactLawError> {
-        let total = counts.iter().try_fold(0u64, |n, k| n.checked_add(*k));
+        let mut total = Some(0u64);
+        for chunk in counts.chunks(1024) {
+            self.check_cancelled()?;
+            total = total.and_then(|n| chunk.iter().try_fold(n, |n, k| n.checked_add(*k)));
+        }
+        self.check_cancelled()?;
         match total {
             Some(total) if counts.len() == self.probabilities.len() && total > 0 => {
                 Ok(total as f64)
@@ -474,7 +507,12 @@ impl ExactDiscreteLaw {
         &self,
     ) -> Result<antecedent_core::recalc::StageIdentity, ExactLawError> {
         self.check_cancelled()?;
-        let descriptor = format!(
+        let mut descriptor = CheckedDescriptor {
+            text: String::new(),
+            check: || !antecedent_core::numerical_admission::is_cancelled(),
+        };
+        write!(
+            descriptor,
             "{}:{:?}:{:?}:{:?}:{}:{:?}:{:?}:{:?}",
             self.population,
             self.regime,
@@ -484,17 +522,19 @@ impl ExactDiscreteLaw {
             self.tolerance,
             self.origin,
             self.empirical_counts
-        );
+        )
+        .map_err(|_| self.error("cancelled"))?;
         let mut probabilities = Vec::new();
         for chunk in self.probabilities.chunks(1024) {
             self.check_cancelled()?;
             probabilities.extend(chunk.iter().flat_map(|value| value.to_bits().to_le_bytes()));
         }
         self.check_cancelled()?;
-        Ok(antecedent_core::recalc::StageIdentity::of(
+        antecedent_core::recalc::StageIdentity::try_of(
             "exact.law.content.v1",
-            &[descriptor.as_bytes(), &probabilities],
-        ))
+            &[descriptor.text.as_bytes(), &probabilities],
+            || self.check_cancelled(),
+        )
     }
 
     fn check_cancelled(&self) -> Result<(), ExactLawError> {
@@ -1232,8 +1272,25 @@ mod tests {
     fn inherited_cancellation_interrupts_law_validation_and_identity_encoding() {
         let table = law("source", &[0.1, 0.2, 0.3, 0.4]).unwrap();
         assert_eq!(table.content_identity_checked().unwrap(), table.content_identity());
+        for counted in [
+            table.clone().with_empirical_counts(vec![1, 2, 3, 4]).unwrap(),
+            table.clone().with_learned_support(vec![4, 3, 2, 1]).unwrap(),
+        ] {
+            assert_eq!(counted.content_identity_checked().unwrap(), counted.content_identity());
+        }
         let ctx = antecedent_core::ExecutionContext::for_tests(1);
         ctx.cancellation.cancel();
+        for model in [false, true] {
+            let error = antecedent_core::numerical_admission::with_context(&ctx, || {
+                if model {
+                    table.clone().with_learned_support(vec![1, 2, 3, 4])
+                } else {
+                    table.clone().with_empirical_counts(vec![1, 2, 3, 4])
+                }
+                .unwrap_err()
+            });
+            assert_eq!(error.kind, "cancelled");
+        }
         let error = antecedent_core::numerical_admission::with_context(&ctx, || {
             law("source", &[0.1, 0.2, 0.3, 0.4])
         })
@@ -1246,6 +1303,35 @@ mod tests {
         })
         .unwrap_err();
         assert_eq!(error.kind, "cancelled");
+    }
+
+    #[test]
+    fn descriptor_formatting_polls_long_utf8_writes_and_preserves_bytes() {
+        use std::fmt::Write as _;
+        let text = format!("{}é{}", "a".repeat(4095), "z".repeat(5000));
+        let mut calls = 0;
+        let mut writer = CheckedDescriptor {
+            text: String::new(),
+            check: || {
+                calls += 1;
+                true
+            },
+        };
+        write!(writer, "{text:?}").unwrap();
+        assert_eq!(writer.text, format!("{text:?}"));
+        drop(writer);
+        assert!(calls >= 3);
+
+        let mut calls = 0;
+        let mut writer = CheckedDescriptor {
+            text: String::new(),
+            check: || {
+                calls += 1;
+                calls < 2
+            },
+        };
+        assert!(std::fmt::Write::write_str(&mut writer, &text).is_err());
+        assert!(!writer.text.is_empty() && writer.text.len() < text.len());
     }
 
     #[test]
