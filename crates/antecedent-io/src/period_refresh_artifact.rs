@@ -289,6 +289,46 @@ fn dot(a: &[f64], b: &[f64]) -> f64 {
     a.iter().zip(b).map(|(x, y)| x * y).sum()
 }
 
+// Check symmetry and positive definiteness after diagonal equilibration. Dividing
+// by the larger square-root scale first avoids an overflowing scale product.
+fn prior_precision_is_spd(precision: &[f64], p: usize) -> bool {
+    let Some(cells) = p.checked_mul(p) else { return false };
+    if p == 0 || precision.len() != cells || precision.iter().any(|v| !v.is_finite()) {
+        return false;
+    }
+    let scales: Vec<f64> = (0..p).map(|i| precision[i * p + i].sqrt()).collect();
+    if scales.iter().any(|v| !v.is_finite() || *v <= 0.0) {
+        return false;
+    }
+    let mut normalized = Vec::new();
+    let mut factor = Vec::new();
+    if normalized.try_reserve_exact(cells).is_err() || factor.try_reserve_exact(cells).is_err() {
+        return false;
+    }
+    normalized.resize(cells, 0.0);
+    factor.resize(cells, 0.0);
+    for i in 0..p {
+        for j in 0..p {
+            let large = scales[i].max(scales[j]);
+            let small = scales[i].min(scales[j]);
+            normalized[i * p + j] = (precision[i * p + j] / large) / small;
+            if !normalized[i * p + j].is_finite() {
+                return false;
+            }
+        }
+    }
+    for i in 0..p {
+        for j in 0..i {
+            let a = normalized[i * p + j];
+            let b = normalized[j * p + i];
+            if (a - b).abs() > 64.0 * f64::EPSILON * a.abs().max(b.abs()).max(1.0) {
+                return false;
+            }
+        }
+    }
+    antecedent_kernels::cholesky_spd_into(&normalized, p, &mut factor).is_ok()
+}
+
 /// Closed-form normal-inverse-gamma posterior of the pooled rows.
 fn posterior_of(prior: &PriorWire, total: &Accumulated) -> Result<PosteriorWire, IoError> {
     let p = prior.mean.len();
@@ -480,8 +520,8 @@ impl PeriodRefreshArtifactWire {
         let lags = usize::try_from(self.lags).map_err(|_| mismatch(PREFIX, "lags"))?;
         let finite = self.prior.mean.iter().chain(&self.prior.precision).all(|v| v.is_finite());
         if lags == 0
-            || p != lags + 1
-            || self.prior.precision.len() != p * p
+            || lags.checked_add(1) != Some(p)
+            || !prior_precision_is_spd(&self.prior.precision, p)
             || !finite
             || !(self.prior.shape.is_finite() && self.prior.shape > 0.0)
             || !(self.prior.rate.is_finite() && self.prior.rate > 0.0)
@@ -814,5 +854,58 @@ impl PeriodRefreshSummaryWire {
             _ => return Err(mismatch(PREFIX, "residual_variance")),
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod prior_precision_tests {
+    use super::{
+        Accumulated, LeastSquaresWire, PeriodRefreshArtifactWire, PriorWire, posterior_of,
+        prior_precision_is_spd,
+    };
+
+    #[test]
+    fn prior_precision_requires_symmetric_positive_definite_matrix() {
+        assert!(!prior_precision_is_spd(&[1.0, 0.5, 0.0, 1.0], 2));
+        assert!(!prior_precision_is_spd(&[1.0, 2.0, 2.0, 1.0], 2));
+        assert!(!prior_precision_is_spd(&[1.0, 1.0, 1.0, 1.0], 2));
+        assert!(!prior_precision_is_spd(&[1.0], usize::MAX));
+        let prior = PriorWire {
+            mean: vec![0.0, 0.0],
+            precision: vec![1e-4, 0.0, 0.0, 1e4],
+            shape: 2.0,
+            rate: 3.0,
+        };
+        assert!(prior_precision_is_spd(&prior.precision, 2));
+        let data = Accumulated { n: 0, xtx: vec![0.0; 4], xty: vec![0.0; 2], yty: 0.0 };
+        let posterior = posterior_of(&prior, &data).unwrap();
+        assert_eq!(posterior.mean, vec![0.0, 0.0]);
+        assert_eq!(posterior.precision, prior.precision);
+        assert_eq!(posterior.shape, 2.0);
+        assert_eq!(posterior.rate, 3.0);
+        let mut artifact = PeriodRefreshArtifactWire {
+            version: 1,
+            required_features: vec![],
+            kind: String::new(),
+            series_id: String::new(),
+            lags: 1,
+            standing: "undeclared".into(),
+            prior_digest: prior.digest(),
+            prior,
+            events: vec![],
+            blocks: vec![],
+            rows_used: 0,
+            posterior,
+            least_squares: LeastSquaresWire { n: 0, beta: vec![], residual_variance: None },
+            seal: String::new(),
+        };
+        assert!(artifact.check_prior().is_ok());
+        for precision in
+            [vec![1.0, 0.5, 0.0, 1.0], vec![1.0, 2.0, 2.0, 1.0], vec![1.0, 1.0, 1.0, 1.0]]
+        {
+            artifact.prior.precision = precision;
+            artifact.prior_digest = artifact.prior.digest();
+            assert!(artifact.check_prior().is_err());
+        }
     }
 }
