@@ -36,6 +36,12 @@ use antecedent_core::measurement_model::{
 };
 use antecedent_core::{ContractIdentities, SemanticDigest};
 use antecedent_io::bridge_interval::construct_bridged_claim_interval;
+use antecedent_io_core::calibration::{
+    CalibrationBasisWire, RECORD_NOT_ATTESTING, calibration_slot, calibration_slot_in,
+    record_attests_current_code,
+};
+use antecedent_io_core::contract_section::{CalibrationSlotWire, CalibrationStatus};
+use antecedent_io_core::coverage_records_data::RECORDS;
 
 fn digest(byte: u8) -> SemanticDigest {
     SemanticDigest::from_bytes([byte; 32])
@@ -281,6 +287,34 @@ fn refusal(
     result.expect_err("the request must be refused")
 }
 
+// Exercise matching independently of the shipped attestation list. The explicit-table
+// resolver assumes attestation for test purposes only; it cannot publish an interval.
+// The production resolver and facade must then agree with the actual governing record.
+fn checked_bridge_slot(basis: &CalibrationBasisWire, expected_method: &str) -> CalibrationSlotWire {
+    let fixture_slot = calibration_slot_in(basis, &RECORDS);
+    assert_eq!(fixture_slot.status, CalibrationStatus::Calibrated);
+    let id = fixture_slot.record_id.as_deref().expect("fixture resolves a record");
+    assert!(id.contains(expected_method), "{id}");
+    assert!(fixture_slot.calibration_sha.as_deref().is_some_and(|sha| !sha.is_empty()));
+    let record = RECORDS.iter().find(|record| record.id == id).expect("record in snapshot");
+    let live = calibration_slot(basis);
+    assert_eq!(live.record_id.as_deref(), Some(id));
+    if record_attests_current_code(record) {
+        assert_eq!(live.status, CalibrationStatus::Calibrated);
+        assert_eq!(live.calibration_sha, fixture_slot.calibration_sha);
+    } else {
+        assert_eq!(live.status, CalibrationStatus::ScopeNotAssessed);
+        assert_eq!(live.reason.as_deref(), Some(RECORD_NOT_ATTESTING));
+    }
+    live
+}
+
+fn assert_not_attesting(refused: ScientificBridgeRefusal) {
+    assert_eq!(refused.code, antecedent_core::reason_code!("cell_not_licensed"));
+    assert_eq!(refused.detail, "scientific_bridge.interval_scope_outside_measured");
+    assert!(refused.message.contains("(coverage_record_not_attesting)"), "{}", refused.message);
+}
+
 #[test]
 fn a_trial_level_prediction_interval_matches_the_hand_computed_variance_and_t_quantile() {
     let contract = surrogate_contract();
@@ -337,7 +371,17 @@ fn a_correction_inside_a_measured_record_is_published_bound_to_it() {
     // Youden 0.7, rate standard errors 0.02, level 0.95.
     let contract = correction_contract();
     let result = derive(&contract, 0.31, "probability", Some(0.02));
-    let interval = result.bridged_interval(0.95).expect("measured");
+    let built =
+        construct_bridged_claim_interval(result.bridged(), Some(0.02), 0.95).expect("built");
+    let slot = checked_bridge_slot(&built.basis, "normal_delta_method_clipped");
+    let publication = result.bridged_interval(0.95);
+    if slot.status != CalibrationStatus::Calibrated {
+        assert_not_attesting(refusal(publication));
+        return;
+    }
+    let interval = publication.expect("attesting record publishes");
+    assert_eq!(Some(interval.coverage_record.as_str()), slot.record_id.as_deref());
+    assert_eq!(Some(interval.calibration_sha.as_str()), slot.calibration_sha.as_deref());
     let p = 11.0_f64 / 70.0;
     assert!(close(interval.value, p, 1e-12));
     assert!(interval.lower < p && p < interval.upper);
@@ -370,7 +414,16 @@ fn a_trial_level_prediction_interval_inside_a_measured_record_is_published_bound
         validation.min_r_squared = 0.5;
     }
     let result = derive(&contract, 1.2, "mmol_per_l", Some(0.1));
-    let interval = result.bridged_interval(0.95).expect("measured");
+    let built = construct_bridged_claim_interval(result.bridged(), Some(0.1), 0.95).expect("built");
+    let slot = checked_bridge_slot(&built.basis, "student_t_prediction_interval");
+    let publication = result.bridged_interval(0.95);
+    if slot.status != CalibrationStatus::Calibrated {
+        assert_not_attesting(refusal(publication));
+        return;
+    }
+    let interval = publication.expect("attesting record publishes");
+    assert_eq!(Some(interval.coverage_record.as_str()), slot.record_id.as_deref());
+    assert_eq!(Some(interval.calibration_sha.as_str()), slot.calibration_sha.as_deref());
     assert!(interval.lower < interval.value && interval.value < interval.upper);
     assert_eq!(interval.mapping.as_str(), "trial_level_linear");
     assert_eq!(interval.licensed_by, "coverage_record");
